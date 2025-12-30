@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import type { ThemeName } from '../utils/theme'
-import { getTheme } from '../utils/theme'
+import type { ThemeName } from '../../utils/theme'
+import { getTheme } from '../../utils/theme'
 
 type CodePreviewProps = {
   theme?: ThemeName

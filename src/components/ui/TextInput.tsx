@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Text, useInput } from 'ink'
-import { getTheme } from '../utils/theme'
+import { getTheme } from '../../utils/theme'
 
 type TextInputProps = {
   value: string

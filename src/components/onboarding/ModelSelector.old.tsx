@@ -1,20 +1,20 @@
 import React, { useState, useCallback } from 'react'
 import { Box, Text, useInput, Newline } from 'ink'
-import { getTheme } from '../utils/theme'
-import { saveGlobalConfig, getGlobalConfig } from '../utils/config'
-import { Select } from './Select'
-import TextInput from './TextInput'
+import { getTheme } from '../../utils/theme'
+import { saveGlobalConfig, getGlobalConfig } from '../../utils/config'
+import { Select } from '../ui/Select'
+import TextInput from '../ui/TextInput'
 import {
   fetchAnthropicModels,
   fetchOpenAIModels,
   fetchCustomModels,
   type ModelInfo,
-} from '../services/models'
+} from '../../services/models'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
-import { providers, type ProviderKey } from '../constants/providers'
-import models from '../constants/models'
-import { verifyApiKey } from '../services/apiVerification'
+import { providers, type ProviderKey } from '../../constants/providers'
+import models from '../../constants/models'
+import { verifyApiKey } from '../../services/apiVerification'
 
 type ModelSelectorProps = {
   onDone: () => void
@@ -173,14 +173,10 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
   )
   // Separate state for custom-openai base URL
   const [customBaseUrl, setCustomBaseUrl] = useState<string>('')
-  const [customBaseUrlCursorOffset, setCustomBaseUrlCursorOffset] = useState<number>(0)
-  const [providerBaseUrlCursorOffset, setProviderBaseUrlCursorOffset] = useState<number>(0)
   const [apiKey, setApiKey] = useState<string>(config.model?.apiKey || '')
-  const [apiKeyCursorOffset, setApiKeyCursorOffset] = useState<number>(0)
   const [selectedModel, setSelectedModel] = useState<string>(config.model?.name || '')
   // Azure resource name state
   const [resourceName, setResourceName] = useState<string>('')
-  const [resourceNameCursorOffset, setResourceNameCursorOffset] = useState<number>(0)
   // Ollama base URL state
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState<string>('http://localhost:11434/v1')
   
@@ -689,6 +685,15 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
     setActiveFieldIndex(0)
   }
 
+  const handleResourceNameSubmit = (name: string) => {
+    if (!name.trim()) {
+      return // Don't submit empty resource name
+    }
+    setResourceName(name)
+    // After setting resource name, go to model input
+    setScreen('modelInput')
+  }
+
   const handleModelParamsSubmit = () => {
     // Ensure contextLength is set to a valid option before navigating
     if (!CONTEXT_LENGTH_OPTIONS.find((opt) => opt.value === contextLength)) {
@@ -1028,10 +1033,6 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                   value={customBaseUrl}
                   onChange={setCustomBaseUrl}
                   onSubmit={handleCustomBaseUrlSubmit}
-                  columns={100}
-                  cursorOffset={customBaseUrlCursorOffset}
-                  onChangeCursorOffset={setCustomBaseUrlCursorOffset}
-                  showCursor={!isLoadingModels}
                   focus={!isLoadingModels}
                 />
               </Box>
@@ -1105,10 +1106,6 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                 value={providerBaseUrl}
                 onChange={setProviderBaseUrl}
                 onSubmit={handleBaseUrlSubmit}
-                columns={100}
-                cursorOffset={providerBaseUrlCursorOffset}
-                onChangeCursorOffset={setProviderBaseUrlCursorOffset}
-                showCursor={!isLoadingModels}
                 focus={!isLoadingModels}
               />
             </Box>
@@ -1288,10 +1285,7 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                   onChange={handleApiKeyChange}
                   onSubmit={handleApiKeySubmit}
                   mask="*"
-                  columns={80}
-                  cursorOffset={apiKeyCursorOffset}
-                  onChangeCursorOffset={setApiKeyCursorOffset}
-                  showCursor={true}
+                  focus={true}
                 />
               </Box>
 
@@ -1342,13 +1336,17 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                 <Text color="red">❌ API Key Validation Failed</Text>
                 <Text color="red">{modelLoadError}</Text>
                 {(providerBaseUrl || customBaseUrl) && (
-                  <Text dimColor marginTop={1}>
-                    Attempted endpoint: {(customBaseUrl || providerBaseUrl)}/v1/models
-                  </Text>
+                  <Box marginTop={1}>
+                    <Text dimColor>
+                      Attempted endpoint: {(customBaseUrl || providerBaseUrl)}/v1/models
+                    </Text>
+                  </Box>
                 )}
-                <Text color={theme.warning} marginTop={1}>
-                  Please check your API key and try again.
-                </Text>
+                <Box marginTop={1}>
+                  <Text color={theme.warning}>
+                    Please check your API key and try again.
+                  </Text>
+                </Box>
                 {(selectedProvider === 'anthropic' ||
                   selectedProvider === 'kimi' ||
                   selectedProvider === 'deepseek' ||
@@ -1360,9 +1358,11 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                   selectedProvider === 'baidu-qianfan' ||
                   selectedProvider === 'siliconflow' ||
                   selectedProvider === 'custom-openai') && (
-                  <Text color={theme.suggestion} marginTop={1}>
-                    Press <Text bold>Tab</Text> to skip to manual model input
-                  </Text>
+                  <Box marginTop={1}>
+                    <Text color={theme.suggestion}>
+                      Press <Text bold>Tab</Text> to skip to manual model input
+                    </Text>
+                  </Box>
                 )}
               </Box>
             )}
@@ -1429,10 +1429,7 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
                 value={resourceName}
                 onChange={setResourceName}
                 onSubmit={handleResourceNameSubmit}
-                columns={80}
-                cursorOffset={resourceNameCursorOffset}
-                onChangeCursorOffset={setResourceNameCursorOffset}
-                showCursor={true}
+                focus={true}
               />
             </Box>
 

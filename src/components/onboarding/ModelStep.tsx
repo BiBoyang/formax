@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { Box, Text, Newline, useInput } from 'ink'
 import { ModelSelector } from './ModelSelector'
-import { PressEnterToContinue } from './PressEnterToContinue'
-import { getTheme } from '../utils/theme'
+import { PressEnterToContinue } from '../ui/PressEnterToContinue'
+import { getTheme } from '../../utils/theme'
 
 type ModelStepProps = {
   onNext: () => void

@@ -1,20 +1,13 @@
 import { atom } from 'jotai'
 import { atomWithImmer } from 'jotai-immer'
-import { getGlobalConfig } from '../utils/config'
+import { getGlobalConfig, type AppConfig } from '../utils/config'
 import type { ThemeName } from '../utils/theme'
 
 // Re-export ThemeName for backward compatibility
 export type { ThemeName }
 
-export type AppConfig = {
-  theme: ThemeName
-  model?: {
-    provider?: string
-    apiKey?: string
-    name?: string
-  }
-  hasCompletedOnboarding?: boolean
-}
+// Re-export AppConfig (which is now an alias for GlobalConfig)
+export type { AppConfig }
 
 // Initialize config atom from file
 const initialConfig = getGlobalConfig()

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { Box, Text } from 'ink'
 import { useAtom, useAtomValue } from 'jotai'
-import { configAtom, themeAtom, type ThemeName } from '../atoms/configAtoms'
-import { saveGlobalConfig, getGlobalConfig } from '../utils/config'
-import { Select } from './Select'
-import { CodePreview } from './CodePreview'
+import { configAtom, themeAtom, type ThemeName } from '../../store/configAtoms'
+import { saveGlobalConfig, getGlobalConfig } from '../../utils/config'
+import { Select } from '../ui/Select'
+import { CodePreview } from '../ui/CodePreview'
 
 type ThemeStepProps = {
   onNext: () => void

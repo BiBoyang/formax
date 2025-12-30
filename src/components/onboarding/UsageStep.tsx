@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text, Newline } from 'ink'
-import { getTheme } from '../utils/theme'
-import { PressEnterToContinue } from './PressEnterToContinue'
+import { getTheme } from '../../utils/theme'
+import { PressEnterToContinue } from '../ui/PressEnterToContinue'
 
 type UsageStepProps = {
   onNext: () => void

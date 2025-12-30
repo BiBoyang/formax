@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text, Newline } from 'ink'
-import { getTheme } from '../utils/theme'
+import { getTheme } from '../../utils/theme'
 
 export type ChatMessageProps = {
   role: 'user' | 'assistant'

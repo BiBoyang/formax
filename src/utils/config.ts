@@ -8,6 +8,7 @@ function cloneDeep<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj))
 }
 
+// Unified configuration type - single source of truth
 export type GlobalConfig = {
   theme: ThemeName
   hasCompletedOnboarding?: boolean
@@ -21,6 +22,9 @@ export type GlobalConfig = {
     reasoningEffort?: 'low' | 'medium' | 'high'
   }
 }
+
+// Re-export as AppConfig for backward compatibility with Jotai atoms
+export type AppConfig = GlobalConfig
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   theme: 'dark',

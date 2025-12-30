@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { useSetAtom } from 'jotai'
-import { hasCompletedOnboardingAtom } from '../atoms/configAtoms'
-import { saveGlobalConfig, getGlobalConfig } from '../utils/config'
+import { hasCompletedOnboardingAtom } from '../../store/configAtoms'
+import { saveGlobalConfig, getGlobalConfig } from '../../utils/config'
 import { ThemeStep } from './ThemeStep'
 import { UsageStep } from './UsageStep'
 import { ModelStep } from './ModelStep'
-import { clearTerminal } from '../utils/terminal'
+import { clearTerminal } from '../../utils/terminal'
 
 type StepId = 'theme' | 'usage' | 'model'
 

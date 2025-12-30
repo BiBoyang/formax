@@ -8,6 +8,7 @@ export interface Theme {
   text: string
   secondaryText: string
   suggestion: string
+  claude: string  // AI assistant color
   // Semantic colors
   success: string
   error: string
@@ -28,6 +29,7 @@ const lightTheme: Theme = {
   text: '#000',
   secondaryText: '#666',
   suggestion: '#32e98aff',
+  claude: '#7c3aed',
   success: '#2c7a39',
   error: '#ab2b3f',
   warning: '#966c1e',
@@ -47,6 +49,7 @@ const lightDaltonizedTheme: Theme = {
   text: '#000',
   secondaryText: '#666',
   suggestion: '#3366ff',
+  claude: '#0066cc',
   success: '#006699',
   error: '#cc0000',
   warning: '#ff9900',
@@ -66,6 +69,7 @@ const darkTheme: Theme = {
   text: '#fff',
   secondaryText: '#999',
   suggestion: '#b1b9f9',
+  claude: '#a78bfa',
   success: '#4eba65',
   error: '#ff6b80',
   warning: '#ffc107',
@@ -85,6 +89,7 @@ const darkDaltonizedTheme: Theme = {
   text: '#fff',
   secondaryText: '#999',
   suggestion: '#99ccff',
+  claude: '#66b3ff',
   success: '#3399ff',
   error: '#ff6666',
   warning: '#ffcc00',

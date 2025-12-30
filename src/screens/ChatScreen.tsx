@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import { Box, Text, useInput, Static } from 'ink'
 import { getTheme } from '../utils/theme'
-import { ChatMessage } from '../components/ChatMessage'
-import TextInput from '../components/TextInput'
+import { ChatMessage } from '../components/chat/ChatMessage'
+import TextInput from '../components/ui/TextInput'
 import { sendMessage, type ChatMessage as ChatMessageType } from '../services/chat'
 
 type ChatScreenProps = {

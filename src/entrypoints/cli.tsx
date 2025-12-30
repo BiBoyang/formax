@@ -4,7 +4,7 @@ import React from 'react'
 import { render, RenderOptions, Text, Box } from 'ink'
 import { ReadStream } from 'tty'
 import { openSync } from 'fs'
-import { Onboarding } from '../components/Onboarding.js'
+import { Onboarding } from '../components/onboarding/Onboarding.js'
 import { clearTerminal } from '../utils/terminal.js'
 
 // 读取标准输入（stdin）
