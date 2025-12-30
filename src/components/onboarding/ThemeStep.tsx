@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Box, Text } from 'ink'
 import { useAtom, useAtomValue } from 'jotai'
 import { configAtom, themeAtom, type ThemeName } from '../../store/configAtoms'
@@ -11,7 +11,7 @@ type ThemeStepProps = {
 }
 
 export function ThemeStep({ onNext }: ThemeStepProps) {
-  const [config, setConfig] = useAtom(configAtom)
+  const [, setConfig] = useAtom(configAtom)
   const currentTheme = useAtomValue(themeAtom)
   const [previewTheme, setPreviewTheme] = useState<ThemeName>(currentTheme)
 
@@ -40,9 +40,9 @@ export function ThemeStep({ onNext }: ThemeStepProps) {
       draft.theme = theme
     })
     // Save to file
-    const config = getGlobalConfig()
+    const globalConfig = getGlobalConfig()
     saveGlobalConfig({
-      ...config,
+      ...globalConfig,
       theme,
     })
     onNext()
