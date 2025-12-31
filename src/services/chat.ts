@@ -45,6 +45,12 @@ export async function sendMessage(
     .replace(/\/+$/, '')
     .replace(/\/v1$/, '')
 
+  const buildOpenAIBase = (base?: string) => {
+    const clean = (base || 'https://api.openai.com').replace(/\/+$/, '')
+    if (/\/v\d+$/.test(clean)) return clean
+    return `${clean}/v1`
+  }
+
   try {
     if (provider === 'anthropic' || provider === 'custom-anthropic') {
       // Convert messages to Anthropic format
@@ -123,7 +129,7 @@ export async function sendMessage(
       // OpenAI-compatible API (including custom-openai, openai, etc.)
       const openai = new OpenAI({
         apiKey: apiKey,
-        baseURL: normalizedBase || 'https://api.openai.com/v1',
+        baseURL: buildOpenAIBase(normalizedBase),
         dangerouslyAllowBrowser: true,
       })
 

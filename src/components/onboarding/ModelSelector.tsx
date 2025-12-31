@@ -52,6 +52,12 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
     return state.providerBaseUrl || providerDefault
   }, [state.customBaseUrl, state.providerBaseUrl, state.selectedProvider])
 
+  const ensureOpenAIBaseUrl = useCallback((url: string) => {
+    const clean = (url || '').replace(/\/+$/, '')
+    if (/\/v\d+$/.test(clean)) return clean
+    return `${clean}/v1`
+  }, [])
+
   // Handle Escape key to go back
   useInput(
     (input, key) => {
@@ -458,9 +464,10 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
         }, 2000)
       } else {
         try {
+          const openaiBase = ensureOpenAIBaseUrl(testBaseURL)
           const openai = new OpenAI({
             apiKey: state.apiKey,
-            baseURL: testBaseURL,
+            baseURL: openaiBase,
           })
 
           await openai.chat.completions.create({
@@ -472,7 +479,7 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
           actions.setConnectionTestResult({
             success: true,
             message: '✅ Connection test successful',
-            endpoint: `${testBaseURL}/chat/completions`,
+            endpoint: `${openaiBase}/chat/completions`,
           })
 
           setTimeout(() => {
