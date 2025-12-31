@@ -1,20 +1,41 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { Box, Text, useInput, Static } from 'ink'
 import { getTheme } from '../utils/theme'
 import { ChatMessage } from '../components/chat/ChatMessage'
 import TextInput from '../components/ui/TextInput'
 import { sendMessage, type ChatMessage as ChatMessageType } from '../services/chat'
+import { getGlobalConfig } from '../utils/config'
 
 type ChatScreenProps = {
   onExit?: () => void
 }
 
+// ASCII Logo
+const LOGO = `
+  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
+  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝
+  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗
+  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
+  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
+  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+`
+
 export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
   const theme = getTheme()
+  const config = getGlobalConfig()
   const [messages, setMessages] = useState<ChatMessageType[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Format model name for display
+  const modelDisplayName = useMemo(() => {
+    if (!config.model?.name) return 'Unknown Model'
+    return config.model.name
+  }, [])
+
+  // Message count
+  const messageCount = messages.length
 
   // Handle Ctrl+C to exit
   useInput(
@@ -102,17 +123,38 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
       {/* Header */}
       <Box
         flexDirection="column"
-        borderStyle="round"
-        borderColor={theme.secondaryBorder}
+        borderStyle="double"
+        borderColor={theme.claude}
         paddingX={1}
-        paddingY={1}
         marginBottom={1}
       >
-        <Text bold color={theme.claude}>
-          Formax Chat
-        </Text>
+        {/* Logo + Title Row */}
+        <Box flexDirection="row" justifyContent="space-between" marginBottom={1}>
+          <Box flexDirection="column">
+            <Text bold color={theme.claude}>
+              {LOGO}
+            </Text>
+          </Box>
+          <Box flexDirection="column" alignItems="flex-end">
+            <Text bold color={theme.text}>
+              Model: {modelDisplayName}
+            </Text>
+            <Text dimColor color={theme.secondaryText}>
+              Messages: {messageCount}
+            </Text>
+          </Box>
+        </Box>
+
+        {/* Separator */}
+        <Box marginBottom={1}>
+          <Text color={theme.secondaryBorder}>
+            {'─'.repeat(60)}
+          </Text>
+        </Box>
+
+        {/* Instructions */}
         <Text dimColor color={theme.secondaryText}>
-          Type your message and press Enter to send. Press Ctrl+C to exit.
+          Type a message and press <Text bold>Enter</Text> to send · Press <Text bold>Ctrl+C</Text> to exit
         </Text>
       </Box>
 
@@ -125,6 +167,7 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
                 key={message.id}
                 role={message.role}
                 content={message.content}
+                timestamp={message.timestamp}
               />
             )}
           </Static>
@@ -137,8 +180,13 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
 
         {/* Error display */}
         {error && !isLoading && (
-          <Box marginTop={1}>
-            <Text color="red">{error}</Text>
+          <Box marginTop={1} borderStyle="round" borderColor={theme.error} paddingX={1}>
+            <Box flexDirection="row" alignItems="center">
+              <Text color={theme.error}>✗</Text>
+              <Box marginLeft={1}>
+                <Text color={theme.error}>{error}</Text>
+              </Box>
+            </Box>
           </Box>
         )}
 
@@ -156,30 +204,29 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
       <Box
         flexDirection="column"
         borderStyle="round"
-        borderColor={theme.secondaryBorder}
+        borderColor={theme.claude}
         paddingX={1}
         paddingY={1}
         marginTop={1}
       >
         <Box flexDirection="row" alignItems="center">
-          <Text color={theme.suggestion} dimColor={!inputValue.trim()}>
-            {'> '}
+          <Text color={theme.claude} bold>
+            ┃{' '}
           </Text>
           <Box flexGrow={1}>
             <TextInput
               value={inputValue}
               onChange={setInputValue}
               onSubmit={handleSubmit}
-              placeholder="Type your message here..."
+              placeholder="Type your message..."
               focus={!isLoading}
             />
           </Box>
-        </Box>
-        <Box marginTop={1}>
-          <Text dimColor color={theme.secondaryText}>
-            Press <Text bold>Enter</Text> to send, <Text bold>Ctrl+C</Text> to
-            exit
-          </Text>
+          {inputValue.trim() && (
+            <Text dimColor color={theme.secondaryText}>
+              {inputValue.length} chars
+            </Text>
+          )}
         </Box>
       </Box>
     </Box>

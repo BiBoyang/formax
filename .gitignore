@@ -7,3 +7,5 @@ dist/
 .cursor
 dist/
 docs
+.claude
+proxy
