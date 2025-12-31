@@ -15,10 +15,55 @@ export type ModelInfo = {
  */
 export async function fetchAnthropicModels(
   apiKey: string,
+  baseURL?: string,
 ): Promise<ModelInfo[]> {
+  const normalizedBase = (baseURL || 'https://api.anthropic.com').replace(/\/+$/, '')
+  // Avoid double-appending /v1 when we probe endpoints
+  const apiBase = normalizedBase.replace(/\/v1$/, '')
+  const headers = {
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  }
+
+  // Try to fetch models from Anthropic-compatible /v1/models if available
+  try {
+    const response = await fetch(`${apiBase}/v1/models`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      const modelsData = Array.isArray((data as any)?.data)
+        ? (data as any).data
+        : Array.isArray(data)
+          ? data
+          : Array.isArray((data as any)?.models)
+            ? (data as any).models
+            : []
+
+      if (Array.isArray(modelsData) && modelsData.length > 0) {
+        return modelsData.map((model: any) => ({
+          model: model.modelName || model.id || model.name || model.model || 'unknown',
+          provider: 'anthropic',
+          max_tokens: model.max_tokens || model.context_length || 8192,
+          supports_reasoning_effort: false,
+          supports_vision: Boolean(model.supports_vision ?? true),
+          supports_function_calling: model.supports_function_calling ?? true,
+        }))
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch Anthropic-compatible models:', error)
+    // Fall back to default list below
+  }
+
   try {
     const anthropic = new Anthropic({
       apiKey: apiKey,
+      baseURL: apiBase || 'https://api.anthropic.com',
     })
 
     // Anthropic doesn't have a models.list() endpoint, so we return common models
@@ -66,11 +111,10 @@ export async function fetchAnthropicModels(
       },
     ]
 
-    // Test the API key by making a simple request
-    // We'll use a minimal message to verify the key works
+    // Test the API key by making a simple request using the provided base URL
     try {
       await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
+        model: commonModels[0].model,
         max_tokens: 1,
         messages: [{ role: 'user', content: 'test' }],
       })
@@ -398,4 +442,3 @@ export function getDefaultModels(provider: string): ModelInfo[] {
       return []
   }
 }
-

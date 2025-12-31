@@ -14,9 +14,9 @@ const initialConfig = getGlobalConfig()
 
 // 使用 atomWithImmer 创建配置 atom，从文件加载初始值
 export const configAtom = atomWithImmer<AppConfig>({
+  ...initialConfig,
   theme: initialConfig.theme,
   hasCompletedOnboarding: initialConfig.hasCompletedOnboarding ?? false,
-  model: initialConfig.model,
 })
 
 // 辅助 atoms（用于派生状态）
@@ -37,4 +37,3 @@ export const hasCompletedOnboardingAtom = atom(
     })
   }
 )
-

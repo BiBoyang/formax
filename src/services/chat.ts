@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
-import { getGlobalConfig, type GlobalConfig } from '../utils/config'
+import { getGlobalConfig, getActiveModelProfile } from '../utils/config'
 
 export type ChatMessage = {
   id: string
@@ -18,26 +18,36 @@ export async function sendMessage(
   options: SendMessageOptions,
 ): Promise<string> {
   const config = getGlobalConfig()
-  const modelConfig = config.model
+  const profile = getActiveModelProfile(config)
 
-  if (!modelConfig?.provider || !modelConfig?.apiKey || !modelConfig?.name) {
+  if (!profile?.provider || !profile?.apiKey || !profile?.modelName) {
     throw new Error(
       'Model configuration is incomplete. Please complete the onboarding process.',
     )
   }
 
   const { messages, onProgress } = options
-  const { provider, apiKey, baseURL, name, maxTokens } = modelConfig
+  const {
+    provider,
+    apiKey,
+    baseURL,
+    modelName,
+    maxTokens,
+  } = {
+    provider: profile.provider,
+    apiKey: profile.apiKey,
+    baseURL: profile.baseURL,
+    modelName: profile.modelName,
+    maxTokens: profile.maxTokens,
+  }
+
+  const normalizedBase = (baseURL || (provider === 'anthropic' ? 'https://api.anthropic.com' : ''))
+    .replace(/\/+$/, '')
+    .replace(/\/v1$/, '')
 
   try {
     if (provider === 'anthropic' || provider === 'custom-anthropic') {
-      const anthropic = new Anthropic({
-        apiKey: apiKey,
-        baseURL: baseURL || 'https://api.anthropic.com',
-      })
-
       // Convert messages to Anthropic format
-      // Anthropic API expects messages in a specific format
       const anthropicMessages = messages.map((msg) => {
         if (msg.role === 'user') {
           return { role: 'user' as const, content: msg.content }
@@ -46,25 +56,74 @@ export async function sendMessage(
         }
       })
 
-      const response = await anthropic.messages.create({
-        model: name,
-        max_tokens: maxTokens || 8192,
-        messages: anthropicMessages,
+      const anthropic = new Anthropic({
+        apiKey: apiKey,
+        baseURL: normalizedBase || 'https://api.anthropic.com',
+        defaultHeaders: {
+          // 某些 Anthropic 兼容服务需要 Authorization 头
+          Authorization: `Bearer ${apiKey}`,
+        },
       })
 
-      // Extract text content from response
-      const content =
-        typeof response.content[0] === 'object' &&
-        'text' in response.content[0]
-          ? response.content[0].text
-          : String(response.content[0])
+      const body = {
+        model: modelName,
+        max_tokens: maxTokens || 8192,
+        messages: anthropicMessages,
+      }
 
-      return content
+      try {
+        const response = await anthropic.messages.create(body)
+
+        const content =
+          typeof response.content[0] === 'object' &&
+          'text' in response.content[0]
+            ? response.content[0].text
+            : String(response.content[0])
+
+        return content
+      } catch (sdkError) {
+        // 如果 SDK 401，尝试使用 fetch 兼容更多网关
+        if (sdkError instanceof Error && sdkError.message.includes('401')) {
+          const endpoint = `${normalizedBase || 'https://api.anthropic.com'}/v1/messages`
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              Authorization: `Bearer ${apiKey}`,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify(body),
+          })
+
+          if (!resp.ok) {
+            const text = await resp.text()
+            throw new Error(text || `Anthropic-compatible request failed: ${resp.status} ${resp.statusText}`)
+          }
+
+          const data = (await resp.json()) as any
+          const firstContent = data?.content?.[0]
+          const contentText =
+            typeof firstContent === 'object' && firstContent?.text
+              ? firstContent.text
+              : typeof firstContent === 'string'
+                ? firstContent
+                : ''
+
+          if (!contentText) {
+            throw new Error('Empty response from Anthropic-compatible API')
+          }
+
+          return contentText
+        }
+
+        throw sdkError
+      }
     } else {
       // OpenAI-compatible API (including custom-openai, openai, etc.)
       const openai = new OpenAI({
         apiKey: apiKey,
-        baseURL: baseURL || 'https://api.openai.com/v1',
+        baseURL: normalizedBase || 'https://api.openai.com/v1',
         dangerouslyAllowBrowser: true,
       })
 
@@ -75,7 +134,7 @@ export async function sendMessage(
       })) as Array<{ role: 'user' | 'assistant'; content: string }>
 
       const response = await openai.chat.completions.create({
-        model: name,
+        model: modelName,
         max_tokens: maxTokens || 8192,
         messages: openaiMessages,
       })
@@ -108,4 +167,3 @@ export async function sendMessage(
     throw new Error('Failed to send message to AI')
   }
 }
-

@@ -1,4 +1,5 @@
 import { useReducer, useCallback } from 'react'
+import { getActiveModelProfile, type GlobalConfig, type ModelConfig } from '../../utils/config'
 import type { ProviderKey } from '../../constants/providers'
 
 // Wizard screens
@@ -77,20 +78,42 @@ export type WizardAction =
 const DEFAULT_CONTEXT_LENGTH = 128000
 const DEFAULT_MAX_TOKENS = 8192
 
-export function getInitialState(config: any): WizardState {
+export function getInitialState(config: GlobalConfig): WizardState {
+  const activeProfile = getActiveModelProfile(config)
+  const legacyModel: ModelConfig | undefined = config.model
+  const initialProvider = (activeProfile?.provider as ProviderKey) || (legacyModel?.provider as ProviderKey) || 'anthropic'
+  const initialBaseUrl =
+    activeProfile?.baseURL ||
+    legacyModel?.baseURL ||
+    ''
+  const initialApiKey = activeProfile?.apiKey || legacyModel?.apiKey || ''
+  const initialModelName = activeProfile?.modelName || legacyModel?.name || ''
+  const initialMaxTokens =
+    activeProfile?.maxTokens ??
+    legacyModel?.maxTokens ??
+    DEFAULT_MAX_TOKENS
+  const initialContextLength =
+    activeProfile?.contextLength ??
+    legacyModel?.contextLength ??
+    DEFAULT_CONTEXT_LENGTH
+  const initialReasoningEffort =
+    (activeProfile?.reasoningEffort as 'low' | 'medium' | 'high' | null | undefined) ??
+    (legacyModel?.reasoningEffort as 'low' | 'medium' | 'high' | null | undefined) ??
+    null
+
   return {
     screen: 'provider',
-    selectedProvider: (config.model?.provider as ProviderKey) || 'anthropic',
+    selectedProvider: initialProvider,
     customBaseUrl: '',
-    providerBaseUrl: config.model?.baseURL || '',
-    apiKey: config.model?.apiKey || '',
+    providerBaseUrl: initialBaseUrl,
+    apiKey: initialApiKey,
     resourceName: '',
-    selectedModel: config.model?.name || '',
+    selectedModel: initialModelName,
     customModelName: '',
-    maxTokens: config.model?.maxTokens?.toString() || DEFAULT_MAX_TOKENS.toString(),
-    selectedMaxTokensPreset: config.model?.maxTokens || DEFAULT_MAX_TOKENS,
-    contextLength: config.model?.contextLength || DEFAULT_CONTEXT_LENGTH,
-    reasoningEffort: (config.model?.reasoningEffort as 'low' | 'medium' | 'high') || null,
+    maxTokens: initialMaxTokens.toString(),
+    selectedMaxTokensPreset: initialMaxTokens,
+    contextLength: initialContextLength,
+    reasoningEffort: initialReasoningEffort,
     supportsReasoningEffort: false,
     partnerProviderFocusIndex: 0,
     codingPlanFocusIndex: 0,

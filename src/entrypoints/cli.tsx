@@ -59,12 +59,13 @@ async function main() {
   await showSetupScreens()
 
   // Onboarding 完成后，检查配置并决定下一步
-  const { getGlobalConfig } = await import('../utils/config.js')
+  const { getGlobalConfig, getActiveModelProfile } = await import('../utils/config.js')
   const config = getGlobalConfig()
+  const activeProfile = getActiveModelProfile(config)
   
   if (config.hasCompletedOnboarding) {
     // 检查是否配置了模型
-    if (config.model?.provider && config.model?.apiKey && config.model?.name) {
+    if (activeProfile?.provider && activeProfile?.apiKey && activeProfile?.modelName) {
       // 配置了模型，直接进入聊天界面
       await clearTerminal()
       const { ChatScreen } = await import('../screens/ChatScreen.js')
@@ -121,4 +122,3 @@ async function main() {
 }
 
 main()
-

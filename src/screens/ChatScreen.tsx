@@ -4,7 +4,7 @@ import { getTheme } from '../utils/theme'
 import { ChatMessage } from '../components/chat/ChatMessage'
 import TextInput from '../components/ui/TextInput'
 import { sendMessage, type ChatMessage as ChatMessageType } from '../services/chat'
-import { getGlobalConfig } from '../utils/config'
+import { getActiveModelProfile, getGlobalConfig } from '../utils/config'
 
 type ChatScreenProps = {
   onExit?: () => void
@@ -23,6 +23,7 @@ const LOGO = `
 export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
   const theme = getTheme()
   const config = getGlobalConfig()
+  const activeProfile = getActiveModelProfile(config)
   const [messages, setMessages] = useState<ChatMessageType[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -30,9 +31,9 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
 
   // Format model name for display
   const modelDisplayName = useMemo(() => {
-    if (!config.model?.name) return 'Unknown Model'
-    return config.model.name
-  }, [])
+    if (!activeProfile) return 'Unknown Model'
+    return activeProfile.name || activeProfile.modelName
+  }, [activeProfile])
 
   // Message count
   const messageCount = messages.length
@@ -232,4 +233,3 @@ export function ChatScreen({ onExit }: ChatScreenProps): React.ReactNode {
     </Box>
   )
 }
-

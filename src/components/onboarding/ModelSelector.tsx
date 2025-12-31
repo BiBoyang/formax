@@ -36,6 +36,22 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState<string>('http://localhost:11434/v1')
 
+  // Resolve the active base URL for the selected provider
+  const resolveBaseUrl = useCallback(() => {
+    if (state.selectedProvider === 'custom-openai') {
+      return state.customBaseUrl
+    }
+    if (state.selectedProvider === 'ollama') {
+      return (
+        state.providerBaseUrl ||
+        providers[state.selectedProvider]?.baseURL ||
+        'http://localhost:11434/v1'
+      )
+    }
+    const providerDefault = providers[state.selectedProvider]?.baseURL || ''
+    return state.providerBaseUrl || providerDefault
+  }, [state.customBaseUrl, state.providerBaseUrl, state.selectedProvider])
+
   // Handle Escape key to go back
   useInput(
     (input, key) => {
@@ -238,9 +254,13 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
       try {
         actions.setLoadingModels(true)
         let models: ModelInfo[] = []
+        const activeBaseUrl =
+          resolveBaseUrl() ||
+          providers[state.selectedProvider]?.baseURL ||
+          ''
 
         if (state.selectedProvider === 'custom-openai') {
-          const customModels = await fetchCustomModels(state.customBaseUrl, cleanedKey)
+          const customModels = await fetchCustomModels(activeBaseUrl, cleanedKey)
           models = customModels.map((model: any) => ({
             model: model.modelName || model.id || model.name || model.model || 'unknown',
             provider: 'custom-openai',
@@ -250,12 +270,14 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
             supports_reasoning_effort: false,
           }))
         } else if (state.selectedProvider === 'anthropic') {
-          models = await fetchAnthropicModels(cleanedKey)
+          models = await fetchAnthropicModels(
+            cleanedKey,
+            activeBaseUrl || 'https://api.anthropic.com',
+          )
         } else if (state.selectedProvider === 'openai') {
           models = await fetchOpenAIModels(cleanedKey)
         } else {
-          const baseURL = state.providerBaseUrl || providers[state.selectedProvider]?.baseURL || ''
-          const customModels = await fetchCustomModels(baseURL, cleanedKey)
+          const customModels = await fetchCustomModels(activeBaseUrl, cleanedKey)
           models = customModels.map((model: any) => ({
             model: model.modelName || model.id || model.name || model.model || 'unknown',
             provider: state.selectedProvider,
@@ -280,7 +302,7 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
         actions.setLoadingModels(false)
       }
     },
-    [actions, state.selectedProvider, state.customBaseUrl, state.providerBaseUrl],
+    [actions, resolveBaseUrl, state.selectedProvider],
   )
 
   const handleResourceNameSubmit = useCallback(
@@ -341,22 +363,27 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
     actions.setConnectionTestResult(null)
 
     try {
-      let testBaseURL = ''
-      if (state.selectedProvider === 'custom-openai') {
-        testBaseURL = state.customBaseUrl
-      } else {
-        testBaseURL = state.providerBaseUrl || providers[state.selectedProvider]?.baseURL || ''
-      }
+      const testBaseURL =
+        resolveBaseUrl() ||
+        providers[state.selectedProvider]?.baseURL ||
+        ''
 
       if (state.selectedProvider === 'anthropic') {
+        const normalizedBase = (testBaseURL || 'https://api.anthropic.com')
+          .replace(/\/+$/, '')
+          .replace(/\/v1$/, '')
+        const endpoint = `${normalizedBase}/v1/messages`
+        const testModel =
+          state.selectedModel || state.customModelName || 'claude-3-5-haiku-latest'
+
         try {
           const anthropic = new Anthropic({
             apiKey: state.apiKey,
-            baseURL: testBaseURL,
+            baseURL: normalizedBase || 'https://api.anthropic.com',
           })
 
           await anthropic.messages.create({
-            model: state.selectedModel,
+            model: testModel,
             max_tokens: 1,
             messages: [{ role: 'user', content: 'test' }],
           })
@@ -364,19 +391,62 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
           actions.setConnectionTestResult({
             success: true,
             message: '✅ Connection test successful',
-            endpoint: `${testBaseURL}/v1/messages`,
+            endpoint,
           })
 
           setTimeout(() => {
             actions.setScreen('confirmation')
           }, 2000)
         } catch (error) {
-          actions.setConnectionTestResult({
-            success: false,
-            message: '❌ Connection test failed',
-            endpoint: `${testBaseURL}/v1/messages`,
-            details: error instanceof Error ? error.message : 'Unknown error',
-          })
+          // 尝试使用手动 fetch（同时带 x-api-key 与 Authorization）兼容更多 Anthropic-Compatible 服务
+          try {
+            const resp = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': state.apiKey,
+                Authorization: `Bearer ${state.apiKey}`,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify({
+                model: testModel,
+                max_tokens: 1,
+                messages: [{ role: 'user', content: 'test' }],
+              }),
+            })
+
+            if (resp.ok) {
+              actions.setConnectionTestResult({
+                success: true,
+                message: '✅ Connection test successful',
+                endpoint,
+              })
+              setTimeout(() => {
+                actions.setScreen('confirmation')
+              }, 2000)
+              return
+            }
+
+            const text = await resp.text()
+            actions.setConnectionTestResult({
+              success: false,
+              message: '❌ Connection test failed',
+              endpoint,
+              details: text || (resp.statusText ? `${resp.status} ${resp.statusText}` : 'Unknown error'),
+            })
+          } catch (fallbackError) {
+            actions.setConnectionTestResult({
+              success: false,
+              message: '❌ Connection test failed',
+              endpoint,
+              details:
+                fallbackError instanceof Error
+                  ? fallbackError.message
+                  : error instanceof Error
+                    ? error.message
+                    : 'Unknown error',
+            })
+          }
         }
       } else if (state.selectedProvider === 'ollama') {
         actions.setConnectionTestResult({
@@ -426,19 +496,57 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
     } finally {
       actions.setTestingConnection(false)
     }
-  }, [actions, state])
+  }, [actions, resolveBaseUrl, state])
 
   const handleConfirmation = useCallback(() => {
-    const baseURL =
-      state.selectedProvider === 'custom-openai' ? state.customBaseUrl : state.providerBaseUrl
+    const baseURL = resolveBaseUrl()
+    const existingConfig = getGlobalConfig()
+    const modelName =
+      state.selectedModel || state.customModelName || state.selectedProvider
+
+    const modelProfile = {
+      name: `${providers[state.selectedProvider]?.name || state.selectedProvider} ${modelName}`.trim(),
+      provider: state.selectedProvider,
+      modelName,
+      baseURL: baseURL || undefined,
+      apiKey: state.apiKey,
+      maxTokens: parseInt(state.maxTokens) || DEFAULT_MAX_TOKENS,
+      contextLength: state.contextLength,
+      reasoningEffort: state.reasoningEffort || undefined,
+      isActive: true,
+      createdAt: Date.now(),
+    }
+
+    // Replace any existing profile with the same modelName or name
+    const existingProfiles = existingConfig.modelProfiles ?? []
+    const filteredProfiles = existingProfiles.filter(
+      (profile) =>
+        profile.modelName !== modelProfile.modelName && profile.name !== modelProfile.name,
+    )
 
     const updatedConfig = {
-      ...getGlobalConfig(),
+      ...existingConfig,
+      modelProfiles: [...filteredProfiles, modelProfile],
+      modelPointers: {
+        ...(existingConfig.modelPointers ?? {
+          main: '',
+          task: '',
+          reasoning: '',
+          quick: '',
+        }),
+        main: modelProfile.modelName,
+        task: modelProfile.modelName,
+        reasoning: modelProfile.modelName,
+        quick: modelProfile.modelName,
+      },
+      defaultModelName: modelProfile.modelName,
+      primaryProvider: state.selectedProvider,
+      // Keep legacy model field for backward compatibility
       model: {
         provider: state.selectedProvider,
-        baseURL: baseURL,
+        baseURL: baseURL || undefined,
         apiKey: state.apiKey,
-        name: state.selectedModel,
+        name: modelName,
         maxTokens: parseInt(state.maxTokens) || DEFAULT_MAX_TOKENS,
         contextLength: state.contextLength,
         reasoningEffort: state.reasoningEffort || undefined,
@@ -446,7 +554,7 @@ export function ModelSelector({ onDone, isOnboarding = false }: ModelSelectorPro
     }
     saveGlobalConfig(updatedConfig)
     onDone()
-  }, [state, onDone])
+  }, [onDone, resolveBaseUrl, state])
 
   // Render current screen
   switch (state.screen) {
