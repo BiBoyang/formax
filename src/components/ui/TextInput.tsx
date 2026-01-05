@@ -73,18 +73,21 @@ export default function TextInput({
   // Ensure cursor offset is within bounds
   const safeCursorOffset = Math.max(0, Math.min(cursorOffset, displayValue.length))
 
+  // 计算光标前后的文本
+  const beforeCursor = displayValue.slice(0, safeCursorOffset)
+  const afterCursor = displayValue.slice(safeCursorOffset)
+
   return (
     <Text>
       {showPlaceholder ? (
         <Text color={theme.secondaryText}>{placeholder}</Text>
       ) : (
         <>
-          {displayValue.slice(0, safeCursorOffset)}
-          {focus && <Text backgroundColor={theme.text} color={theme.text}> </Text>}
-          {displayValue.slice(safeCursorOffset)}
+          {beforeCursor}
+          {focus && <Text inverse> </Text>}
+          {afterCursor}
         </>
       )}
     </Text>
   )
 }
-

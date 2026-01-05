@@ -113,7 +113,6 @@ class ConsoleLoggerServer {
 
     this.httpServer.listen(this.port, () => {
       // 只输出启动地址到终端，其他信息只发送到浏览器
-      this.originalConsole.log(`[Console Logger] 浏览器访问: http://localhost:${this.port}`)
       
       // 启动信息和测试日志只发送到浏览器，不输出到终端
       setTimeout(() => {
@@ -513,7 +512,6 @@ class ConsoleLoggerServer {
 
 export function startConsoleLogger(port: number = 3001): void {
   if (loggerInstance) {
-    console.log('[Console Logger] 日志服务器已在运行')
     return
   }
   

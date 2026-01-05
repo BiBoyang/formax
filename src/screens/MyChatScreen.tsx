@@ -2,12 +2,13 @@ import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { Box, Text, useInput, Static } from 'ink'
 import fs from 'node:fs'
 import path from 'node:path'
-import TextInput from '../components/ui/TextInput'
 import { createStreamClientFromEnv, StreamCallbacks, ToolCall } from '../agent2/streaming/StreamClient'
 import { runLocalTool } from '../agent2/tools/ToolExecutor'
 import { ToolMessage, Msg } from '../components/tool/ToolMessage'
 import { formatToolResult } from '../utils/toolFormatting'
-import { wsLog } from '../utils/consoleLogger'
+import { HeaderBanner } from '../components/chat/HeaderBanner'
+import pkg from '../../package.json'
+import { InputBar } from '../components/chat/InputBar'
 
 type Props = {
   onExit?: () => void
@@ -339,22 +340,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
       const isRunningTool = m.role === 'tool' && m.toolInfo?.status === 'running'
       const isStreaming = (m as any).isStreaming
       const type = !isRunningTool && !isStreaming ? 'static' : 'transient'
-      return { type, jsx: <MemoMessage key={m.id} msg={m} /> }
+      return { type, key: m.id, jsx: <MemoMessage key={m.id} msg={m} /> }
     })
     const staticItems = items.filter((i) => i.type === 'static')
     const transientItems = items.filter((i) => i.type === 'transient')
     return { staticItems, transientItems }
   }, [messages, MemoMessage])
 
+  const modelLabel = useMemo(() => {
+    const model = process.env.ANTHROPIC_MODEL || 'Model not set'
+    return `Model: ${model}`
+  }, [])
+
+  // Header 作为 Static 列表的第一项
+  const staticItems = useMemo(() => {
+    const header = {
+      key: 'header',
+      jsx: (
+        <HeaderBanner
+          version={(pkg as any).version || '0.0.0'}
+          modelLabel={modelLabel}
+          cwd={process.cwd()}
+        />
+      ),
+    }
+    return [header, ...renderedMessages.staticItems]
+  }, [modelLabel, renderedMessages.staticItems])
+
   return (
     <Box flexDirection="column" height="100%">
-      <Box flexDirection="column" flexGrow={1}>
-        <Static
-          items={renderedMessages.staticItems}
-          children={(item: any) => item.jsx}
-        />
-        {renderedMessages.transientItems.map((i) => i.jsx)}
-        
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        {/* Header + 消息 Static */}
+        <Static items={staticItems}>
+          {(item) => <Box key={item.key}>{item.jsx}</Box>}
+        </Static>
+
+        {renderedMessages.transientItems.map((item) => (
+          <Box key={item.key}>{item.jsx}</Box>
+        ))}
+
         {isLoading && (
           <Box marginTop={1}>
             <Text color="yellow">⏺</Text>
@@ -362,28 +386,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
             <Text dimColor> (esc to interrupt)</Text>
           </Box>
         )}
-        
+
         {error && !isLoading && (
           <Box marginTop={1}>
             <Text color="red">⏺</Text>
             <Text color="red"> Error: {error}</Text>
           </Box>
         )}
-        
-        {messages.length === 0 && !isLoading && (
-          <Text dimColor>Type a message to start chatting. Try /init to analyze the codebase.</Text>
-        )}
       </Box>
 
-      <Box marginTop={1}>
-        <Text color="cyan">&gt; </Text>
-        <TextInput
+      <Box flexDirection="column" flexShrink={0} marginTop={1}>
+        <InputBar
           value={input}
           onChange={setInput}
           onSubmit={handleSend}
-          placeholder="Your message..."
-          focus={!isLoading}
+          placeholder={`Try \"fix typecheck errors\"`}
+          disabled={isLoading}
         />
+        <Box marginTop={1}>
+          <Text dimColor>? for shortcuts</Text>
+        </Box>
       </Box>
     </Box>
   )
