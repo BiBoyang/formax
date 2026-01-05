@@ -35,6 +35,8 @@ export class LLMClient {
       headers: {
         'content-type': 'application/json',
         'x-api-key': this.apiKey,
+        // 某些 Anthropic 兼容网关要求 Authorization 头
+        Authorization: `Bearer ${this.apiKey}`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
