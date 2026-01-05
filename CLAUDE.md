@@ -1,220 +1,124 @@
 # CLAUDE.md
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Development Commands
+## Project Overview
 
-### Essential Commands
+Formax is a terminal-based CLI chat application built with React + Ink that provides an interface for interacting with AI models (Anthropic, OpenAI, and compatible APIs). The app features a multi-step onboarding wizard for model configuration and a chat interface for conversations.
 
+## Key Commands
+
+### Development
 ```bash
-# Install dependencies
-bun install
-
-# Run in development mode
-bun run dev
-
-# Build for production
-bun run build
-
-# Run tests
-bun test
-# Run tests in watch mode
-bun run test:watch
-
-# Type checking
-bun run type-check
+bun run dev          # Run the main CLI application
+bun run type-check   # TypeScript type checking
 ```
 
-### Running Single Tests
-
+### Testing
 ```bash
-# Run all tests
-bun test
+bun run test         # Run all tests once
+bun run test:watch   # Run tests in watch mode
+```
 
+**Run a single test:**
+```bash
 # Run a specific test file
-bun test src/utils/toolFormatting.test.ts
+bunx vitest run src/utils/toolFormatting.test.ts
 
-# Run tests matching a pattern
-bun test --grep "formatToolCallParts"
+# Run with filter pattern
+bunx vitest run -t "test name pattern"
 
-# Run tests with coverage
-bun test --coverage
+# Run tests in watch mode with filter
+bunx vitest -t "test name pattern"
 ```
 
-## High-Level Architecture
+## Architecture
 
-Formax is a terminal-based AI chat assistant built with React and Ink (React for CLI). The project implements a streaming chat interface with multi-provider support (Anthropic, OpenAI, and compatible services).
+### Entry Points
+- `src/entrypoints/cli.tsx` - Main entry point, renders MyChatScreen
+- `src/entrypoints/tool-examples.tsx` - Alternative entry for tool examples
 
-### Core System Architecture
+### Core Components
 
-```
-┌─────────────────────────────────────────────────────┐
-│              Presentation Layer                      │
-│  ┌────────────────┐      ┌──────────────────────┐  │
-│  │  Onboarding    │      │   ChatScreen         │  │
-│  │  Components    │      │   (REPL Interface)   │  │
-│  └────────────────┘      └──────────────────────┘  │
-└─────────────────────────────────────────────────────┘
-           │                           │
-           ▼                           ▼
-┌─────────────────────┐    ┌──────────────────────────┐
-│  Config Manager     │    │   Chat Service           │
-│  (Model Profiles)   │    │   (Provider Abstraction) │
-└─────────────────────┘    └──────────────────────────┘
-           │                           │
-           └───────────┬───────────────┘
-                       ▼
-          ┌──────────────────────────────┐
-          │    Agent2 System             │
-          │  ┌────────┐    ┌───────────┐ │
-          │  │  SSE   │    │  Stream   │ │
-          │  │ Parser │    │  Client   │ │
-          │  └────────┘    └───────────┘ │
-          │  ┌────────────────────────┐ │
-          │  │   Tool Executor        │ │
-          │  └────────────────────────┘ │
-          └──────────────────────────────┘
-                       │
-                       ▼
-          ┌──────────────────────────────┐
-          │   External APIs              │
-          │  (Anthropic, OpenAI, etc.)   │
-          └──────────────────────────────┘
-```
+**Screens:**
+- `src/screens/MyChatScreen.tsx` - Main chat interface
+- `src/screens/ToolExamplesScreen.tsx` - Tool usage examples
 
-### Key Components
+**Components:**
+- `src/components/ui/` - UI primitives (TextInput, Select)
+- `src/components/tool/` - Tool-related components
+- `src/components/display/` - Display/demonstration components
 
-#### 1. Entry Point (`src/entrypoints/cli.tsx`)
-- Main CLI application entry
-- Handles onboarding flow if configuration is incomplete
-- Delegates to ChatScreen for main chat interface
+**Agent/Streaming:**
+- `src/agent2/sse/` - Server-Sent Events parsing
+- `src/agent2/streaming/` - Streaming response handling
+- `src/agent2/tools/` - Tool execution logic
 
-#### 2. Presentation Layer (`src/screens/`, `src/components/`)
-- **ChatScreen**: Main interactive chat interface using Ink
-- **Onboarding**: First-time setup wizard for model configuration
-- **UI Components**: Reusable terminal UI components (TextInput, Select, etc.)
-- **Chat Components**: Message display, formatting, and interaction
+### State Management
 
-#### 3. Service Layer (`src/services/`)
-- **chat.ts**: Unified chat service supporting multiple providers
-  - Anthropic API integration with fallback compatibility
-  - OpenAI-compatible API support
-  - Error handling and normalization
-- **models.ts**: Model management and capabilities
-- **apiVerification.ts**: API connection testing
+- **Jotai** - Primary state management (atomic state)
+- `src/store/configAtoms.ts` - Configuration-related atoms
 
-#### 4. Agent2 System (`src/agent2/`)
-**Modular streaming agent architecture** with extensive property-based testing:
+### Utilities
 
-- **SSE Parser** (`agent2/sse/streamingParser.ts`):
-  - Parses Anthropic-compatible Server-Sent Events
-  - Handles text deltas, tool use blocks, and JSON input fragments
-  - Error resilient - continues processing after malformed events
+- `src/utils/config.ts` - Global config file management (~/.formax/config.json)
+- `src/utils/toolFormatting.ts` - Tool response formatting
+- `src/utils/theme.ts` - Terminal theme definitions (dark/light/daltonized)
+- `src/utils/terminal.ts` - Terminal utilities (clear screen)
 
-- **Stream Client** (`agent2/streaming/StreamClient.ts`):
-  - Manages streaming chat loops
-  - Handles tool execution and result aggregation
-  - Controls multi-turn conversations
+### Configuration File
 
-- **Tool Executor** (`agent2/tools/ToolExecutor.ts`):
-  - Executes local tools (Read, Write, Bash, Glob, Grep, etc.)
-  - Sequential execution with order preservation
-  - Error handling per tool
-
-#### 5. Configuration System (`src/utils/config.ts`)
-- Hierarchical configuration: global (`~/.kode.json`) and project (`./.kode.json`)
-- Model profiles with provider, API key, base URL, and model name
-- Multi-model support with active profile selection
-
-#### 6. Utilities (`src/utils/`)
-- **toolFormatting.ts**: Tool call and result formatting for display
-- **model.ts**: Model manager and profile handling
-- **theme.ts**: Terminal theme configuration
-- **terminal.ts**: Terminal utilities (clear screen, etc.)
-- **config.ts**: Configuration management
-
-## Testing Strategy
-
-### Property-Based Testing with Fast-Check
-The codebase heavily uses property-based testing (via `fast-check`) to validate system behavior:
-
-- **toolFormatting.test.ts**: Ensures consistent formatting for all tool types
-- **streamingParser.test.ts**: Validates SSE parsing, text accumulation, and JSON round-trips
-- **StreamClient.test.ts**: Tests streaming loop behavior
-- **ToolExecutor.test.ts**: Validates tool execution and order preservation
-- **loopControl.test.ts**: Tests loop termination correctness
-
-### Test Organization
-- Unit tests: Co-located with source files as `*.test.ts` or `*.test.tsx`
-- Test utilities: Mock factories and helpers in test files
-- Property tests cover edge cases and random inputs (typically 50-100 runs per property)
-
-## Important Implementation Details
-
-### Multi-Provider Support
-- **Anthropic**: Native SDK with fetch fallback for 401 errors (improves gateway compatibility)
-- **OpenAI-compatible**: Standard OpenAI SDK for providers like OpenAI, DeepSeek, etc.
-- **Base URL normalization**: Removes duplicate `/v1` paths and trailing slashes
-
-### Streaming vs Non-Streaming
-- **Anthropic/Custom-Anthropic**: Uses Agent2 system for tool-enabled streaming
-- **Other providers**: Falls back to non-streaming `sendMessage` in `chat.ts`
-
-### Tool System
-Tools are executed locally with the following capabilities:
-- **File Operations**: Read, Write, Edit (via ToolExecutor)
-- **Search**: Glob (pattern matching), Grep (content search)
-- **Execution**: Bash (command execution with timeout)
-- **Result formatting**: Truncation, line counting, and display optimization
-
-### Configuration Architecture
-```
-Global Config (~/.kode.json)
-├── hasCompletedOnboarding: boolean
-├── models: ModelProfile[]
-└── activeModelId: string
-
-ModelProfile
-├── id: string
-├── provider: 'anthropic' | 'custom-anthropic' | 'openai' | 'custom-openai'
-├── apiKey: string
-├── baseURL?: string
-├── modelName: string
-└── maxTokens?: number
+Located at `~/.formax/config.json`:
+```json
+{
+  "theme": "dark",
+  "hasCompletedOnboarding": false,
+  "model": {
+    "provider": "anthropic",
+    "baseURL": "https://...",
+    "apiKey": "sk-...",
+    "name": "claude-3-5-sonnet",
+    "maxTokens": 8192,
+    "contextLength": 128000
+  }
+}
 ```
 
-### Error Handling
-- API errors are caught and converted to user-friendly messages
-- Network errors provide actionable guidance
-- Tool errors don't stop execution of subsequent tools
-- SSE parser continues after malformed events
+## Technology Stack
 
-## Development Patterns
+- **TypeScript** - Type safety (strict mode disabled)
+- **React 18** - UI framework
+- **Ink 5** - Terminal UI rendering (React for CLI)
+- **Jotai** - State management
+- **Vitest** - Testing framework
+- **tsx** - TypeScript execution (no build step for dev)
+- **Bun** - Package manager/runtime (npm compatible)
 
-### Adding a New Tool
-1. Implement tool logic in `agent2/tools/ToolExecutor.ts` (runLocalTool function)
-2. Add formatting logic in `utils/toolFormatting.ts` (formatToolCallParts, formatToolResult)
-3. Add property tests in `agent2/tools/ToolExecutor.test.ts`
-4. Register tool in the agent system (when tool registration is implemented)
+## Key Patterns
 
-### Adding a New Model Provider
-1. Add provider type to constants
-2. Implement API client in `services/chat.ts` or create new adapter
-3. Add provider option to onboarding components
-4. Update configuration schema
+### Ink Component Structure
+```tsx
+import { render } from 'ink'
 
-### Adding New UI Components
-- Follow existing Ink component patterns
-- Use theme from `utils/theme.ts` for consistent styling
-- Test with `ink-testing-library` if complex
+render(<Component />, { exitOnCtrlC: false })
+```
 
-### Debugging Tips
-- Use `NODE_ENV=test` to skip onboarding during testing
-- ChatScreen displays current config in header for debugging
-- Vitest watch mode: `bun run test:watch`
-- Individual test files can be run directly: `bun test path/to/test.test.ts`
+### Testing Ink Components
+Uses `ink-testing-library` for rendering components in tests:
+```tsx
+import { render } from 'ink-testing-library'
+const { lastFrame } = render(<Component />)
+```
 
-## File Type Conventions
-- `.tsx`: React/Ink UI components
-- `.ts`: Business logic, services, utilities
-- `.test.ts`: Unit tests for non-UI code
-- `.test.tsx`: Tests for React components using ink-testing-library
+### State with Jotai
+```tsx
+import { atom, useAtom } from 'jotai'
+const myAtom = atom(initialValue)
+const [value, setValue] = useAtom(myAtom)
+```
+
+## Documentation
+
+Detailed architecture documentation is available in `docs/`:
+- `ARCHITECTURE.md` - Startup flow and onboarding
+- `ARCHITECTURE-PART2.md` through `ARCHITECTURE-PART5.md` - Detailed component architecture
+- `QUICK-START-GUIDE.md` - 5-minute quick start guide
