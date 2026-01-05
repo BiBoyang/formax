@@ -7,6 +7,7 @@ import { createStreamClientFromEnv, StreamCallbacks, ToolCall } from '../agent2/
 import { runLocalTool } from '../agent2/tools/ToolExecutor'
 import { ToolMessage, Msg } from '../components/tool/ToolMessage'
 import { formatToolResult } from '../utils/toolFormatting'
+import { wsLog } from '../utils/consoleLogger'
 
 type Props = {
   onExit?: () => void
@@ -73,6 +74,7 @@ export function MyChatScreen({ onExit }: Props): React.ReactNode {
         onToolStart: (toolName, toolId) => {
           // Flush accumulated text before tool
           if (accumulatedText) {
+            wsLog('accumulatedText=> ', accumulatedText)
             if (!currentAssistantIdRef.current) {
               const assistantId = `assistant-${Date.now()}`
               currentAssistantIdRef.current = assistantId
@@ -306,7 +308,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
       </Box>
     )
   }
-
+  wsLog('messages=> ', messages)
   return (
     <Box flexDirection="column" height="100%">
       <Box flexDirection="column" flexGrow={1}>
