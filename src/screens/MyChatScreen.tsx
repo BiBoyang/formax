@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text, useInput, Static } from 'ink'
 import fs from 'node:fs'
 import path from 'node:path'
 import TextInput from '../components/ui/TextInput'
@@ -74,7 +74,6 @@ export function MyChatScreen({ onExit }: Props): React.ReactNode {
         onToolStart: (toolName, toolId) => {
           // Flush accumulated text before tool
           if (accumulatedText) {
-            wsLog('accumulatedText=> ', accumulatedText)
             if (!currentAssistantIdRef.current) {
               const assistantId = `assistant-${Date.now()}`
               currentAssistantIdRef.current = assistantId
@@ -141,7 +140,7 @@ export function MyChatScreen({ onExit }: Props): React.ReactNode {
                     },
                   }
                 : m
-            )
+              )
           })
           
           // 重置 currentAssistantIdRef，这样下一段文本会创建新的 assistant 消息
@@ -335,20 +334,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     [renderAssistantMessage, renderUserMessage],
   )
 
-  wsLog('messages=> ', messages)
-
-  const renderedMessages = useMemo(
-    () =>
-      messages.map((m) => (
-        <MemoMessage key={m.id} msg={m} />
-      )),
-    [messages, MemoMessage],
-  )
+  const renderedMessages = useMemo(() => {
+    const items = messages.map((m) => {
+      const isRunningTool = m.role === 'tool' && m.toolInfo?.status === 'running'
+      const isStreaming = (m as any).isStreaming
+      const type = !isRunningTool && !isStreaming ? 'static' : 'transient'
+      return { type, jsx: <MemoMessage key={m.id} msg={m} /> }
+    })
+    const staticItems = items.filter((i) => i.type === 'static')
+    const transientItems = items.filter((i) => i.type === 'transient')
+    return { staticItems, transientItems }
+  }, [messages, MemoMessage])
 
   return (
     <Box flexDirection="column" height="100%">
       <Box flexDirection="column" flexGrow={1}>
-        {renderedMessages}
+        <Static
+          items={renderedMessages.staticItems}
+          children={(item: any) => item.jsx}
+        />
+        {renderedMessages.transientItems.map((i) => i.jsx)}
         
         {isLoading && (
           <Box marginTop={1}>
