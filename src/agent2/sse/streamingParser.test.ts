@@ -4,7 +4,7 @@
  * Feature: streaming-chat-refactor
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check'
 import {
   parseAnthropicSSEStream,

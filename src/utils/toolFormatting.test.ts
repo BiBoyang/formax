@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { formatToolCallParts, formatToolResult, ToolCallParts, ToolResultFormat } from './toolFormatting'
+import { formatToolCallParts, formatToolResult } from './toolFormatting';
 
 /**
  * Feature: tool-ui-refactor

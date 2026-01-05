@@ -4,8 +4,7 @@
   "type": "module",
   "description": "A minimal CLI demo using Ink and React",
   "scripts": {
-    "dev": "tsx ./src/entrypoints/cli.tsx",
-    "dev2": "tsx ./src/entrypoints/my-cli.tsx",
+    "dev": "tsx ./src/entrypoints/my-cli.tsx",
     "tool-examples": "tsx ./src/entrypoints/tool-examples.tsx",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
     "type-check": "tsc --noEmit",

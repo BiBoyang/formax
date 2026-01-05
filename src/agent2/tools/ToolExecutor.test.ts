@@ -9,13 +9,7 @@ import * as fc from 'fast-check'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import {
-  runLocalTool,
-  executeToolsSequentially,
-  truncateResult,
-  ToolCall,
-  ToolResult
-} from './ToolExecutor'
+import { runLocalTool, executeToolsSequentially, truncateResult, ToolCall } from './ToolExecutor';
 
 describe('ToolExecutor', () => {
   let testDir: string
