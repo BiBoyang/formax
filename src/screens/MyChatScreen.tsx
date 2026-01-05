@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { Box, Text, useInput } from 'ink'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -284,7 +284,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   )
 
   // Render assistant text message
-  const renderAssistantMessage = (m: Msg) => {
+  const renderAssistantMessage = useCallback((m: Msg) => {
     if (!m.content) return null
     
     return (
@@ -295,10 +295,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
         </Box>
       </Box>
     )
-  }
+  }, [])
 
   // Render user message
-  const renderUserMessage = (m: Msg) => {
+  const renderUserMessage = useCallback((m: Msg) => {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={1}>
         <Box>
@@ -307,20 +307,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
         </Box>
       </Box>
     )
-  }
+  }, [])
+
+  const MemoMessage = useMemo(
+    () =>
+      React.memo(function MessageItem({ msg }: { msg: Msg }) {
+        if (msg.role === 'tool' && msg.toolInfo) {
+          return (
+            <Box key={msg.id} flexDirection="column">
+              <ToolMessage message={msg} />
+            </Box>
+          )
+        }
+        if (msg.role === 'assistant') {
+          return (
+            <Box key={msg.id} flexDirection="column">
+              {renderAssistantMessage(msg)}
+            </Box>
+          )
+        }
+        return (
+          <Box key={msg.id} flexDirection="column">
+            {renderUserMessage(msg)}
+          </Box>
+        )
+      }),
+    [renderAssistantMessage, renderUserMessage],
+  )
+
   wsLog('messages=> ', messages)
+
+  const renderedMessages = useMemo(
+    () =>
+      messages.map((m) => (
+        <MemoMessage key={m.id} msg={m} />
+      )),
+    [messages, MemoMessage],
+  )
+
   return (
     <Box flexDirection="column" height="100%">
       <Box flexDirection="column" flexGrow={1}>
-        {messages.map((m) => (
-          <Box key={m.id} flexDirection="column">
-            {m.role === 'tool' && m.toolInfo
-              ? <ToolMessage message={m} />
-              : m.role === 'assistant'
-              ? renderAssistantMessage(m)
-              : renderUserMessage(m)}
-          </Box>
-        ))}
+        {renderedMessages}
         
         {isLoading && (
           <Box marginTop={1}>

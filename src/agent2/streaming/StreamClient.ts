@@ -143,12 +143,13 @@ export class StreamClient {
         throw new Error('Request aborted')
       }
 
-      // Make streaming request
-      const { contentBlocks, stopReason } = await this.streamRequest(
+      // Make streaming request - tools are executed during streaming
+      const { contentBlocks, stopReason, toolResults } = await this.streamRequest(
         loopMessages,
         systemPrompt,
         tools,
         callbacks,
+        executeToolFn,
         signal
       )
 
@@ -167,36 +168,6 @@ export class StreamClient {
       if (toolCalls.length === 0 || stopReason !== 'tool_use') {
         await appendLog('loop_exit', { iteration, stopReason, reason: 'no_tool_use' })
         break
-      }
-
-      // Execute tools sequentially
-      const toolResults: ToolResult[] = []
-      for (const call of toolCalls) {
-        await appendLog('tool_start', { iteration, toolId: call.id, toolName: call.name })
-        callbacks.onToolStart(call.name, call.id)
-
-        try {
-          const result = await executeToolFn(call)
-          toolResults.push({
-            tool_use_id: call.id,
-            content: result
-          })
-          callbacks.onToolEnd(call.id, result.slice(0, 500), false)
-          await appendLog('tool_done', {
-            iteration,
-            toolId: call.id,
-            resultPreview: result.slice(0, 200)
-          })
-        } catch (e) {
-          const errorMsg = e instanceof Error ? e.message : String(e)
-          toolResults.push({
-            tool_use_id: call.id,
-            content: `Error: ${errorMsg}`,
-            is_error: true
-          })
-          callbacks.onToolEnd(call.id, errorMsg, true)
-          await appendLog('tool_error', { iteration, toolId: call.id, error: errorMsg })
-        }
       }
 
       // Build assistant content from blocks
@@ -240,8 +211,9 @@ export class StreamClient {
     systemPrompt: any[],
     tools: ToolDefinition[],
     callbacks: StreamCallbacks,
+    executeToolFn: ToolExecutor,
     signal?: AbortSignal
-  ): Promise<{ contentBlocks: ContentBlock[]; stopReason: string | null }> {
+  ): Promise<{ contentBlocks: ContentBlock[]; stopReason: string | null; toolResults: ToolResult[] }> {
     const payload = {
       stream: true,
       model: this.config.model,
@@ -259,6 +231,11 @@ export class StreamClient {
     const combinedSignal = signal
       ? this.combineSignals(signal, controller.signal)
       : controller.signal
+
+    // Collect tool results as they are executed
+    const toolResults: ToolResult[] = []
+    const pendingToolExecutions = new Map<string, Promise<void>>()
+    const isAborted = () => combinedSignal.aborted
 
     try {
       const response = await fetch(`${this.config.baseURL}/messages`, {
@@ -281,10 +258,61 @@ export class StreamClient {
       const sseCallbacks: SSECallbacks = {
         onTextDelta: (text) => callbacks.onTextDelta(text),
         onToolUseStart: (id, name) => {
-          // Tool start is handled in the loop after we have complete tool_use
+          callbacks.onToolStart(name, id)
         },
-        onToolUseComplete: () => {
-          // Tool complete is handled in the loop
+        onToolUseComplete: async (blockIndex, toolUse) => {
+          if (isAborted()) return
+          const call: ToolCall = {
+            id: toolUse.id,
+            name: toolUse.name,
+            input: toolUse.input
+          }
+
+          await appendLog('tool_start_immediate', {
+            toolId: call.id,
+            toolName: call.name,
+            blockIndex
+          })
+
+          const executionPromise = (async () => {
+            if (isAborted()) {
+              toolResults.push({
+                tool_use_id: call.id,
+                content: 'Error: Request aborted',
+                is_error: true
+              })
+              callbacks.onToolEnd(call.id, 'Request aborted', true)
+              return
+            }
+            try {
+              const result = await executeToolFn(call)
+              toolResults.push({
+                tool_use_id: call.id,
+                content: result
+              })
+              callbacks.onToolEnd(call.id, result.slice(0, 500), false)
+              await appendLog('tool_done_immediate', {
+                toolId: call.id,
+                resultPreview: result.slice(0, 200)
+              })
+            } catch (e) {
+              const errorMsg = e instanceof Error ? e.message : String(e)
+              toolResults.push({
+                tool_use_id: call.id,
+                content: `Error: ${errorMsg}`,
+                is_error: true
+              })
+              callbacks.onToolEnd(call.id, errorMsg, true)
+              await appendLog('tool_error_immediate', {
+                toolId: call.id,
+                error: errorMsg
+              })
+            } finally {
+              pendingToolExecutions.delete(call.id)
+            }
+          })()
+
+          pendingToolExecutions.set(call.id, executionPromise)
         },
         onMessageComplete: () => {
           // Handled by return value
@@ -298,10 +326,28 @@ export class StreamClient {
         combinedSignal
       )
 
+      // Wait for all pending tool executions to complete
+      await Promise.all(Array.from(pendingToolExecutions.values()))
+
+      // Sort tool results to match the order of tool_use blocks in contentBlocks
+      const toolCallOrder = result.contentBlocks
+        .filter((b): b is ContentBlock & { type: 'tool_use' } => b.type === 'tool_use')
+        .map(b => b.id!)
+      
+      const sortedToolResults = toolCallOrder
+        .map(id => toolResults.find(r => r.tool_use_id === id))
+        .filter((r): r is ToolResult => r !== undefined)
+
       return {
         contentBlocks: result.contentBlocks,
-        stopReason: result.stopReason
+        stopReason: result.stopReason,
+        toolResults: sortedToolResults
       }
+    } catch (e) {
+      await appendLog('request_error', {
+        message: e instanceof Error ? e.message : String(e)
+      })
+      throw e
     } finally {
       clearTimeout(timeoutId)
     }
