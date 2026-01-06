@@ -11,6 +11,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
+import { getTheme } from '../../utils/theme'
 
 /**
  * Tool information attached to a message
@@ -86,14 +87,15 @@ export interface ToolMessageProps {
  * ```
  */
 export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
+  const theme = getTheme()
+
   // Handle missing toolInfo gracefully
   if (!message.toolInfo) {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <Text dimColor>⏺</Text>
-          <Text></Text>
-          <Text dimColor>Unknown tool</Text>
+          <Text color={theme.secondaryText}>⏺</Text>
+          <Text color={theme.secondaryText}>Unknown tool</Text>
         </Box>
       </Box>
     )
@@ -104,19 +106,18 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   
   // Determine dot color based on status
   // Only the dot changes color, tool name is always white
-  const dotColor = status === 'error' ? 'red' : status === 'completed' ? 'green' : undefined
-  const isDotDim = status === 'running'
+  const dotColor =
+    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
   
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       {/* Tool call header: ⏺ ToolName(params) */}
       <Box>
-        <Text color={dotColor} dimColor={isDotDim}>⏺</Text>
-        <Text></Text>
+        <Text color={dotColor}>⏺</Text>
         <Text bold>{toolName}</Text>
-        <Text>(</Text>
-        <Text>{params}</Text>
-        <Text>)</Text>
+        <Text color={theme.secondaryText}>(</Text>
+        <Text color={theme.secondaryText}>{params}</Text>
+        <Text color={theme.secondaryText}>)</Text>
       </Box>
       
       {/* Tool result (only shown when not running) */}
@@ -124,8 +125,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
         <Box flexDirection="column">
           {/* First line with ⎿ prefix */}
           <Box>
-            <Text dimColor>⎿  </Text>
-            <Text>{message.content}</Text>
+            <Text color={theme.secondaryText}>⎿  </Text>
+            {renderToolSummary({ theme, toolName, summary: message.content, status })}
           </Box>
           
           {/* Middle lines with 3-space indent (for Bash output) */}
@@ -138,7 +139,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
           {/* Expand info (3-space indent to align with middle lines, gray color) */}
           {expandInfo && (
             <Box>
-              <Text dimColor>   {expandInfo}</Text>
+              <Text color={theme.secondaryText}>   {expandInfo}</Text>
             </Box>
           )}
         </Box>
@@ -148,3 +149,48 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
 }
 
 export default ToolMessage
+
+function renderToolSummary(args: {
+  theme: ReturnType<typeof getTheme>
+  toolName: string
+  summary: string
+  status: ToolInfo['status']
+}): React.ReactNode {
+  const summary = args.summary || ''
+
+  if (args.status === 'error') {
+    return <Text color={args.theme.error}>{summary}</Text>
+  }
+
+  if (args.toolName === 'Glob' || args.toolName === 'Search') {
+    const m = /^Found\s+(\d+)\s+files$/.exec(summary.trim())
+    if (m) {
+      return (
+        <>
+          <Text color={args.theme.secondaryText}>Found </Text>
+          <Text color={args.theme.text} bold>
+            {m[1]}
+          </Text>
+          <Text color={args.theme.secondaryText}> files</Text>
+        </>
+      )
+    }
+  }
+
+  if (args.toolName === 'Read') {
+    const m = /^Read\s+(\d+)\s+lines$/.exec(summary.trim())
+    if (m) {
+      return (
+        <>
+          <Text color={args.theme.secondaryText}>Read </Text>
+          <Text color={args.theme.text} bold>
+            {m[1]}
+          </Text>
+          <Text color={args.theme.secondaryText}> lines</Text>
+        </>
+      )
+    }
+  }
+
+  return <Text>{summary}</Text>
+}

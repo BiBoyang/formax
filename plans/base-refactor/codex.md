@@ -12,6 +12,9 @@
 
 ```text
 formax/
+├─ .agent/
+│  └─ subagents/                   # (新增) Claude Code 风格 sub-agent 定义
+│     └─ *.md
 ├─ src/
 │  ├─ entrypoints/
 │  │  └─ cli.tsx
@@ -27,11 +30,17 @@ formax/
 │  │  ├─ system.ts
 │  │  ├─ init.ts
 │  │  └─ user.ts
+│  ├─ subagents/                   # (新增) sub-agent registry/runner
+│  │  ├─ types.ts
+│  │  ├─ registry.ts
+│  │  └─ runner.ts
 │  ├─ tools/
 │  │  ├─ types.ts
 │  │  ├─ loader.ts
 │  │  └─ executor/
-│  │     └─ index.ts
+│  │     ├─ index.ts
+│  │     └─ handlers/
+│  │        └─ taskSubAgent.ts     # (新增) Task/sub-agent ToolHandler
 │  ├─ streaming/
 │  │  ├─ types.ts
 │  │  └─ anthropic/
@@ -44,7 +53,7 @@ formax/
 └─ package.json
 ```
 
-> 说明：`src/agent2/*` 可作为迁移来源（例如把 `src/agent2/streaming/StreamClient.ts` 迁移/薄封装到 `src/streaming/anthropic/StreamClient.ts`），但最终 UI 不应直接依赖 `agent2/*` 的底层细节。
+> 说明：旧实现目录已完成迁移并删除；底层实现位于 `src/streaming/anthropic/*` 与 `src/tools/executor/*`，但最终 UI 不应直接依赖这些底层细节。
 
 ## 分层与模块边界（职责 + 导出接口）
 
@@ -69,6 +78,7 @@ export type RuntimeConfig = {
   paths: {
     toolsJsonPath: string
     logsDir: string
+    subagentsDir: string
   }
 }
 
@@ -103,7 +113,7 @@ export function buildUserContent(input: string, ctx: { cwd: string }): PromptBlo
 目录：`src/tools/*`
 
 职责拆分：
-- `types.ts`：全局唯一的 tool 类型源（避免 `src/agent2/*` 与 UI 重复定义）。
+- `types.ts`：全局唯一的 tool 类型源（避免在 UI/streaming/executor 等多处重复定义）。
 - `loader.ts`：从 `proxy/tools.json`（后续可扩展为多来源）加载 + schema/字段校验 + 默认值归一化。
 - `executor/*`：执行策略组合（本地工具、未来 sub_agent 工具、远程工具等），以 `ToolHandler` 插件式扩展。
 
@@ -125,13 +135,31 @@ export type ToolExecutor = (
 
 export interface ToolHandler {
   canHandle(name: string): boolean
-  execute(call: ToolCall, ctx: { cwd: string; signal?: AbortSignal }): Promise<ToolResult>
+  execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult>
 }
 
 export function createToolExecutor(handlers: ToolHandler[]): ToolExecutor
 ```
 
-> sub_agent 扩展点：新增一个 `ToolHandler`（例如处理 `Task/Agent`），无需改 REPL；只在 wiring 处把 handler 注入 executor。
+建议补一个统一的执行上下文（用于白名单、禁止嵌套等策略下沉到 executor 层集中控制）：
+
+```ts
+export type ExecutionContext = {
+  cwd: string
+  signal?: AbortSignal
+
+  // 0 = main agent, 1 = sub-agent, ...
+  agentDepth: number
+
+  // 允许/禁止工具名（executor 层二次校验）
+  allowTools?: string[]
+  denyTools?: string[]
+}
+```
+
+实现上可以把 `createToolExecutor()` 做成“策略 + handlers”的组合：先做 `allow/deny/agentDepth` 校验，再 dispatch 到具体 `ToolHandler`，避免每个 handler 自己重复写安全逻辑。
+
+> sub_agent 扩展点：实现 `Task` 的 `ToolHandler`（对接 `.agent/subagents/*.md`），无需改 REPL；只在 wiring 处把 handler 注入 executor。
 
 ### 4) streaming/types：流式 loop 的“事件协议”（UI 只消费事件）
 
@@ -163,7 +191,7 @@ export type StreamSink = (ev: StreamEvent) => void
 职责：
 - 负责与 Anthropic API 通信、解析 SSE、驱动 tool-loop。
 - 通过 `StreamSink` 向上层发事件，不关心 UI。
-- 建议把现有 `src/agent2/streaming/StreamClient.ts` 的 env/log 硬编码拆出去：配置由 `RuntimeConfig` 注入，日志由上层注入 logger（可选）。
+- 避免在 `StreamClient` 内读 env 或硬编码路径：配置由 `RuntimeConfig` 注入，日志由上层注入 logger（可选）。
 
 导出接口（示例）：
 ```ts
@@ -241,8 +269,12 @@ export function useReplController(deps: {
 1) `src/entrypoints/cli.tsx`（或 `src/app/replWiring.ts`）负责“组装依赖”：
 - `cfg = loadRuntimeConfig(process.env, process.cwd())`
 - `tools = await loadToolDefinitions({ filePath: cfg.paths.toolsJsonPath })`
-- `executor = createToolExecutor([localToolsHandler, /* futureSubAgentHandler */])`
+- `subAgentRegistry = createSubAgentRegistry(); await subAgentRegistry.loadFromDirectory(cfg.paths.subagentsDir)`
 - `client = new AnthropicStreamClient(cfg.llm, { logsDir: cfg.paths.logsDir })`
+- `localExecutor = createToolExecutor([localToolsHandler])`
+- `subAgentRunner = createSubAgentRunner({ client, executor: localExecutor, allTools: tools /* isolated history + tool whitelist */ })`
+- `taskSubAgentHandler = createTaskSubAgentHandler({ registry: subAgentRegistry, runner: subAgentRunner })`
+- `executor = createToolExecutor([taskSubAgentHandler, localToolsHandler])`
 - `engine = createChatEngine({ client, executeTool: executor })`
 
 2) `src/screens/REPL.tsx` 只负责 UI：
@@ -250,3 +282,100 @@ export function useReplController(deps: {
 - `InputBar.onSubmit -> actions.send(input)`
 - `Ctrl+C -> actions.abort(); onExit?.()`
 - 渲染 `state.messages`（assistant/user/tool），tool 消息继续用现有 `ToolMessage` 组件显示即可。
+
+## 基于 claude-code-research 的补强点（Sub-Agent）
+
+对齐 `plans/sub-agent/claude-code-research.md` 的 4 个强约束：**隔离上下文 / 工具白名单 / 禁止嵌套 / 仅返回摘要**。因此在本方案上补充如下改动点：
+
+### A) sub-agent 定义：Markdown + YAML frontmatter
+
+新增目录：`.agent/subagents/*.md`
+
+- `name`: sub-agent 唯一 id（用于 `Task.subagent_type`）
+- `description`: 用于主 agent 选择/展示
+- `tools`: 白名单（工具名数组，如 `["Read","Grep","Glob"]`）
+- body：sub-agent 的 system prompt（要求输出摘要，限制字数）
+
+### B) SubAgentRegistry：加载与查询
+
+新增：`src/subagents/registry.ts`
+
+```ts
+export type SubAgentConfig = {
+  name: string
+  description: string
+  tools: string[]
+  systemPrompt: string
+}
+
+export interface SubAgentRegistry {
+  loadFromDirectory(dir: string): Promise<void>
+  get(name: string): SubAgentConfig | undefined
+  list(): Array<{ name: string; description: string }>
+}
+```
+
+### C) SubAgentRunner：隔离执行 + 生成摘要
+
+新增：`src/subagents/runner.ts`
+
+关键策略：
+- 每次运行都从空白 history 开始（不接收 parentSession/history）
+- `tools` 只传白名单且强制剔除 `Task/Agent/Dispatch`（禁止嵌套）
+- tool executor 二次校验：即使模型“幻觉调用”非白名单工具也直接拒绝
+- 产出只回 `summary`（可选携带 `artifacts`），避免把完整上下文注回主会话
+
+```ts
+export type SubAgentResult = {
+  summary: string
+  success: boolean
+  artifacts?: string[]
+  error?: string
+}
+
+export interface SubAgentRunner {
+  run(args: { agent: SubAgentConfig; task: string; signal?: AbortSignal }): Promise<SubAgentResult>
+}
+```
+
+### D) Task ToolHandler：把 sub-agent 作为工具实现（补齐现状缺口）
+
+背景：当前 `proxy/tools.json` 已包含 `Task`（描述会引导模型使用 `subagent_type`），但其 `input_schema` 可能与本实现不一致（例如仍是 Claude Code 的 `command/timeout` schema）。因此 `Task` handler 以 `call.input.subagent_type` + `call.input.prompt` 为准并做严格校验；后续可在 `loadToolDefinitions()` 后对 `Task` 的 `description/input_schema` 做运行时 patch，进一步降低模型生成错字段的概率。
+
+新增：`src/tools/executor/handlers/taskSubAgent.ts`
+
+- `canHandle(name) => name === "Task"`
+- 从 `call.input.subagent_type` 找 sub-agent（优先 `.agent/subagents`，可选再支持内置类型映射）
+- 调用 `SubAgentRunner.run({ task: call.input.prompt })`
+- 返回 `ToolResult.content = result.summary`（必要时 JSON stringify），`is_error = !success`
+
+这样主会话收到的只是一个工具结果摘要，天然符合“结果汇总、避免 context 膨胀”的原则。
+
+### E) 避免循环依赖（runner 不依赖主 ChatEngine）
+
+在 wiring 时容易出现循环：`main ChatEngine -> executor -> TaskHandler -> SubAgentRunner -> (再依赖 main ChatEngine)`。
+
+推荐做法：
+- `SubAgentRunner` **不要**复用主 `ChatEngine` 实例；而是用同一个底层 `StreamClient`（HTTP/SSE）+ 一个“受限 executor”（仅本地工具、强制白名单、强制禁用 `Task/Agent/Dispatch`）在 runner 内部跑隔离回合。
+- 主会话的 `TaskSubAgentToolHandler` 只是桥接：取配置、调用 runner、把摘要塞回 `ToolResult`。
+
+### F) Task tool 定义对齐（防止模型用错 subagent_type）
+
+现状：`proxy/tools.json` 里的 `Task` 描述会引导模型使用内置 `subagent_type`（例如 `Plan/Explore/...`），但你的实现将以 `.agent/subagents/*.md` 为准。
+
+建议两条防线（至少做一条）：
+- **提示词防线**：在主 system prompt 中动态插入“可用 sub-agents 列表”（来自 `subAgentRegistry.list()`），并明确要求 `Task.subagent_type` 只能取这些值。
+- **工具描述防线**：在 `loadToolDefinitions()` 后对 `Task` 的 `description` 做一次运行时覆盖/追加，把“可用 sub-agents 列表”写进去（比只写在 system prompt 更稳）。
+
+如果你希望完全兼容 `Task` 描述中提到的那些类型，也可以在 `.agent/subagents/` 提供同名的内置 sub-agent（例如 `Plan`/`Explore`），并把它们映射到不同的白名单与 system prompt 模板。
+
+### G) 测试覆盖（建议作为“第一道防线”）
+
+已补齐的单测（无网络、可本地跑）：
+- `src/subagents/registry.test.ts`：frontmatter 解析 + 忽略无效文件
+- `src/subagents/runner.test.ts`：工具白名单/禁止嵌套 + 摘要截断（≤500 chars）
+- `src/tools/executor/handlers/taskSubAgent.test.ts`：参数校验、not found、artifacts、失败路径
+
+验证命令：
+- `npm test`
+- `npm run type-check`

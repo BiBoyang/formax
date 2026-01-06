@@ -11,7 +11,7 @@ import {
   createMockSSEStream,
   SSECallbacks,
   ContentBlock
-} from './streamingParser'
+} from './sseParser'
 
 // Helper to create default callbacks with spies
 function createMockCallbacks(): SSECallbacks & {
@@ -173,12 +173,13 @@ describe('SSE Streaming Parser', () => {
             const stream = createMockSSEStream(events)
             const result = await parseAnthropicSSEStream(stream, callbacks)
 
-            // Verify round-trip: parsed input equals original value
-            expect(result.contentBlocks[0]?.input).toEqual(jsonValue)
+            // Verify round-trip in JSON terms (e.g. JSON has no -0, so -0 becomes 0)
+            const expectedValue = JSON.parse(jsonStr)
+            expect(result.contentBlocks[0]?.input).toEqual(expectedValue)
             
             // Verify tool complete callback was called with correct input
             expect(callbacks.toolCompletes.length).toBe(1)
-            expect(callbacks.toolCompletes[0].toolUse.input).toEqual(jsonValue)
+            expect(callbacks.toolCompletes[0].toolUse.input).toEqual(expectedValue)
           }
         ),
         { numRuns: 100 }

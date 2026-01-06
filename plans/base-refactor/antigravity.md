@@ -247,32 +247,129 @@ export function REPL({ onExit }: Props): React.ReactNode {
 
 ---
 
-## 4. 扩展 SubAgent 的预留设计
+## 4. SubAgent 设计（参考 Claude Code 官方实现）
+
+> [!IMPORTANT]
+> 以下设计基于 Claude Code 官方 Sub-Agent 架构，详见 [plans/sub-agent/claude-code-research.md](../sub-agent/claude-code-research.md)
+
+### 4.1 核心原则
+
+| 原则           | 说明                                                |
+| -------------- | --------------------------------------------------- |
+| **隔离上下文** | 每个 SubAgent 有独立的 context window，不共享主对话 |
+| **工具白名单** | 显式指定可用工具，而非继承主 Agent 全部工具         |
+| **禁止嵌套**   | SubAgent 不能生成其他 SubAgent，防止递归失控        |
+| **返回摘要**   | 只返回结果摘要给主 Agent，节省 token                |
+
+### 4.2 定义方式（Markdown + YAML frontmatter）
+
+```markdown
+## <!-- .agent/subagents/code-reviewer.md -->
+
+name: code_reviewer
+description: Reviews code for bugs and best practices
+tools:
+
+- Read
+- Grep
+- Glob
+
+---
+
+You are a code reviewer. Analyze code for:
+
+1. Bugs and logic errors
+2. Security vulnerabilities
+3. Performance issues
+
+Return a concise summary (max 500 chars).
+```
+
+### 4.3 SubAgent 接口
 
 ```typescript
 // core/agent/SubAgent.ts
 export interface SubAgentConfig {
   name: string;
-  tools: ToolDefinition[];
-  systemPrompt: SystemPromptBlock[];
-  parentSession?: AgentSession;
+  description: string;
+  systemPrompt: string;
+  tools: string[]; // 白名单工具名
 }
 
-export class SubAgent extends AgentSession {
+export interface SubAgentResult {
+  summary: string; // 返回给主 Agent 的摘要
+  artifacts?: string[]; // 生成的文件路径
+  success: boolean;
+  error?: string;
+}
+
+export class SubAgent {
+  private config: SubAgentConfig;
+  private context: Msg[] = []; // 隔离的上下文
+
   constructor(config: SubAgentConfig);
 
-  // 子代理可共享父会话上下文
-  async runWithContext(task: string): Promise<Msg[]>;
+  // 执行任务（隔离上下文，不访问主 Agent 历史）
+  async run(task: string, signal?: AbortSignal): Promise<SubAgentResult>;
+
+  // 获取允许的工具（白名单过滤）
+  getAllowedTools(): ToolDefinition[];
+}
+```
+
+### 4.4 SubAgent 注册与调用
+
+```typescript
+// core/agent/SubAgentRegistry.ts
+export class SubAgentRegistry {
+  private agents: Map<string, SubAgentConfig> = new Map();
+
+  // 从 .agent/subagents/*.md 加载
+  loadFromDirectory(dir: string): void;
+
+  // 根据名称获取
+  get(name: string): SubAgentConfig | undefined;
+
+  // 列出所有可用 SubAgent
+  list(): SubAgentConfig[];
 }
 
-// 使用示例
-const browserAgent = new SubAgent({
-  name: "browser_agent",
-  tools: loadTools({ category: "browser" }),
-  systemPrompt: getBrowserAgentPrompt(),
-  parentSession: mainSession,
-});
+// 使用示例（在 ToolHandler 中）
+export class SubAgentToolHandler implements ToolHandler {
+  canHandle(name: string): boolean {
+    return name === "Task" || name === "Agent";
+  }
+
+  async execute(call: ToolCall): Promise<ToolResult> {
+    const agentName = call.input.agent;
+    const task = call.input.task;
+
+    const config = this.registry.get(agentName);
+    if (!config) {
+      return {
+        tool_use_id: call.id,
+        content: `Unknown agent: ${agentName}`,
+        is_error: true,
+      };
+    }
+
+    const subAgent = new SubAgent(config);
+    const result = await subAgent.run(task);
+
+    // 只返回摘要，不返回完整历史
+    return { tool_use_id: call.id, content: result.summary };
+  }
+}
 ```
+
+### 4.5 内置 SubAgent 类型
+
+| 名称            | 用途                               | 工具                   |
+| --------------- | ---------------------------------- | ---------------------- |
+| `browser_agent` | 浏览器操作（点击、截图、读取 DOM） | Browser, Screenshot    |
+| `code_reviewer` | 代码审查                           | Read, Grep, Glob       |
+| `test_runner`   | 运行测试                           | Bash, Read             |
+| `plan_agent`    | 研究和规划复杂任务                 | Read, Grep, Glob, Bash |
 
 ---
 
@@ -286,7 +383,8 @@ const browserAgent = new SubAgent({
 | 4    | 创建 `AgentSession` 类         | 中   |
 | 5    | 创建 `useAgent` Hook           | 中   |
 | 6    | 重构 `REPL.tsx`                | 中   |
-| 7    | 添加 `SubAgent` 支持           | 高   |
+| 7    | 实现 `SubAgent` + Registry     | 高   |
+| 8    | 添加 `SubAgentToolHandler`     | 高   |
 
 > [!TIP]
 > 建议每个阶段完成后运行测试确保功能不变，特别是阶段 4-6。

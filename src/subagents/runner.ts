@@ -1,0 +1,75 @@
+import type { ChatEngine } from '../chat/engine'
+import { createChatEngine } from '../chat/engine'
+import type { PromptBlock } from '../prompts'
+import type { ToolDefinition } from '../tools/types'
+import type { ToolExecutor } from '../tools/executor'
+import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
+import type { SubAgentConfig, SubAgentResult } from './types'
+
+export interface SubAgentRunner {
+  run(args: { agent: SubAgentConfig; task: string; signal?: AbortSignal }): Promise<SubAgentResult>
+}
+
+const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
+
+export function createSubAgentRunner(deps: {
+  client: AnthropicStreamClient
+  executor: ToolExecutor
+  allTools: ToolDefinition[]
+}): SubAgentRunner {
+  const engine: ChatEngine = createChatEngine({ client: deps.client, executor: deps.executor })
+
+  return {
+    async run({ agent, task, signal }): Promise<SubAgentResult> {
+      const allowed = new Set(agent.tools || [])
+      const allowedTools = deps.allTools
+        .filter((t) => allowed.has(t.name))
+        .filter((t) => !NESTED_DENY_TOOLS.has(t.name))
+
+      const system: PromptBlock[] = [
+        {
+          type: 'text',
+          text: agent.systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ]
+
+      let summary = ''
+      const onEvent = (ev: any) => {
+        if (ev?.type === 'assistant_delta' && typeof ev.text === 'string') {
+          summary += ev.text
+        }
+      }
+
+      try {
+        await engine.runTurn({
+          history: [],
+          user: { role: 'user', content: [{ type: 'text', text: task }] },
+          system,
+          tools: allowedTools,
+          onEvent,
+          cwd: process.cwd(),
+          signal,
+          exec: {
+            agentDepth: 1,
+            allowTools: Array.from(allowed),
+            denyTools: Array.from(NESTED_DENY_TOOLS),
+          },
+        })
+
+        const trimmed = summary.trim()
+        const limited = trimmed.length > 500 ? trimmed.slice(0, 500) + '…' : trimmed
+
+        return { summary: limited, success: true }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return {
+          summary: '',
+          success: false,
+          error: msg,
+        }
+      }
+    },
+  }
+}
+
