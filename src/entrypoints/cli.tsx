@@ -4,7 +4,7 @@ import 'dotenv/config'
 import React from 'react'
 import { render } from 'ink'
 import { clearTerminal } from '../utils/terminal.js'
-import { MyChatScreen } from '../screens/MyChatScreen.js'
+import { REPL } from '../screens/REPL.js'
 import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js'
 
 async function main() {
@@ -19,7 +19,7 @@ async function main() {
   await clearTerminal()
 
   render(
-    <MyChatScreen
+    <REPL
       onExit={() => {
         stopConsoleLogger()
         process.exit(0)

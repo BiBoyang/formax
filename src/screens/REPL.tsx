@@ -35,7 +35,7 @@ const SYSTEM_PROMPT = [
   },
 ]
 
-export function MyChatScreen({ onExit }: Props): React.ReactNode {
+export function REPL({ onExit }: Props): React.ReactNode {
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -300,9 +300,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   // Render user message
   const renderUserMessage = useCallback((m: Msg) => {
     return (
-      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <Text color="cyan" bold>&gt; </Text>
+          <Text bold>&gt; </Text>
           <Text>{m.content}</Text>
         </Box>
       </Box>
