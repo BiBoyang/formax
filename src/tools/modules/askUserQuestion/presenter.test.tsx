@@ -38,7 +38,7 @@ function createRunningAskMessage(): Msg {
 }
 
 describe('AskUserQuestionToolPresenter', () => {
-  it('commits typing value when switching tabs', async () => {
+  it('submits a custom typed answer for single-select', async () => {
     const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
 
     const userInput: UserInputManager = {
@@ -63,16 +63,16 @@ describe('AskUserQuestionToolPresenter', () => {
     stdin.write('1')
     await tick()
 
-    // Go back to the question tab, enter typing mode, type custom value
+    // Go back to the question tab, enter typing mode, type custom value, then confirm.
     stdin.write('\u001B[D')
     await tick()
-    stdin.write('t')
+    stdin.write('0')
     await tick()
     stdin.write('Custom')
     await tick()
 
-    // Switch tabs while typing — should auto-commit typingValue -> other
-    stdin.write('\t')
+    // Commit typing and advance
+    stdin.write('\r')
     await tick()
 
     // Submit answers

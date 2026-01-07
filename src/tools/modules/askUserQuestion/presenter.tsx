@@ -130,15 +130,16 @@ function InteractiveAsk({
   const answeredStrings = useMemo(() => questions.map((q, i) => formatAnswerForDisplay(q, state[i])), [questions, state])
   const answeredForSubmit = useMemo(() => questions.map((q, i) => formatAnswerForSubmit(q, state[i])), [questions, state])
   const answeredFlags = useMemo(() => answeredForSubmit.map((s) => Boolean(s.trim())), [answeredForSubmit])
+  const allAnswered = useMemo(() => answeredFlags.every(Boolean), [answeredFlags])
 
   const goPrevTab = useCallback(() => {
     setReviewCursor(0)
-    setActiveTab((t) => (t <= 0 ? submitTab : t - 1))
-  }, [submitTab])
+    setActiveTab((t) => Math.max(0, t - 1))
+  }, [])
 
   const goNextTab = useCallback(() => {
     setReviewCursor(0)
-    setActiveTab((t) => (t >= submitTab ? 0 : t + 1))
+    setActiveTab((t) => Math.min(submitTab, t + 1))
   }, [submitTab])
 
   const submitAll = useCallback(() => {
@@ -165,34 +166,21 @@ function InteractiveAsk({
 
       if (isSubmitting) return
 
-      if (!isSubmitTab && currentQ && currentS && !currentQ.multiSelect && currentS.typing) {
-        if (key.tab || key.leftArrow || key.rightArrow) {
-          commitTyping(activeTab, setState)
-        }
-      }
-
-      // Tab / left-right navigation
-      if (key.tab || key.leftArrow || key.rightArrow) {
-        if (key.leftArrow) goPrevTab()
-        else goNextTab()
-        return
-      }
-
-      // Submit tab
-      if (isSubmitTab) {
-        if (key.upArrow) setReviewCursor((c) => clamp(c - 1, 0, 1))
-        if (key.downArrow) setReviewCursor((c) => clamp(c + 1, 0, 1))
-        if (key.return) {
-          if (reviewCursor === 0) submitAll()
-          else onAbort()
-        }
-        return
-      }
-
-      if (!currentQ || !currentS) return
-
       // Typing mode (single-select only)
-      if (!currentQ.multiSelect && currentS.typing) {
+      if (!isSubmitTab && currentQ && currentS && !currentQ.multiSelect && currentS.typing) {
+        if (key.upArrow || key.downArrow) {
+          const delta = key.upArrow ? -1 : 1
+          setState((prev) =>
+            prev.map((s, i) => {
+              if (i !== activeTab) return s
+              const nextCursor = clamp(s.cursor + delta, 0, maxCursorForQuestion(currentQ))
+              const leavingOtherRow = nextCursor !== currentQ.options.length
+              return { ...s, cursor: nextCursor, typing: leavingOtherRow ? false : s.typing }
+            }),
+          )
+          return
+        }
+
         if (key.return) {
           commitTyping(activeTab, setState)
           setActiveTab((t) => Math.min(submitTab, t + 1))
@@ -220,6 +208,26 @@ function InteractiveAsk({
         return
       }
 
+      // Tab / left-right navigation
+      if (key.tab || key.leftArrow || key.rightArrow) {
+        if (key.leftArrow) goPrevTab()
+        else goNextTab()
+        return
+      }
+
+      // Submit tab
+      if (isSubmitTab) {
+        if (key.upArrow) setReviewCursor((c) => clamp(c - 1, 0, 1))
+        if (key.downArrow) setReviewCursor((c) => clamp(c + 1, 0, 1))
+        if (key.return) {
+          if (reviewCursor === 0) submitAll()
+          else onAbort()
+        }
+        return
+      }
+
+      if (!currentQ || !currentS) return
+
       // Up/down move cursor within question
       if (key.upArrow) {
         setState((prev) =>
@@ -240,16 +248,25 @@ function InteractiveAsk({
         return
       }
 
-      // Single-select: quick jump to custom text
-      if (!currentQ.multiSelect && (input === '0' || input === 't' || input === 'T')) {
-        enterTyping(activeTab, currentQ.options.length, setState)
+      // Single-select: start editing when cursor is on "Type something." (including digits)
+      if (
+        !currentQ.multiSelect &&
+        currentS.cursor >= currentQ.options.length &&
+        input &&
+        input !== '0' &&
+        !key.ctrl &&
+        !key.meta
+      ) {
+        enterTypingWithText(activeTab, currentQ.options.length, input, setState)
         return
       }
 
       // Numeric selection shortcut
       if (/^[0-9]$/.test(input)) {
         const n = Number.parseInt(input, 10)
-        if (Number.isFinite(n) && n >= 1) {
+        if (!Number.isFinite(n) || n < 1) {
+          // Allow other handlers (e.g. 0 shortcut) to run.
+        } else {
           const idx = n - 1
           if (currentQ.multiSelect) {
             if (idx >= 0 && idx < currentQ.options.length) {
@@ -265,8 +282,18 @@ function InteractiveAsk({
           }
           if (idx >= 0 && idx < currentQ.options.length) {
             selectSingleAndAdvance(activeTab, idx, submitTab, setState, setActiveTab)
+            return
           }
         }
+      }
+
+      // Single-select: quick jump to custom text (0 / t)
+      if (!currentQ.multiSelect && (input === '0' || input === 't' || input === 'T')) {
+        if (input === '0') {
+          enterTyping(activeTab, currentQ.options.length, setState)
+          return
+        }
+        enterTypingWithText(activeTab, currentQ.options.length, input, setState)
         return
       }
 
@@ -330,7 +357,12 @@ function InteractiveAsk({
 
       <Box marginTop={1} flexDirection="column">
         {isSubmitTab ? (
-          <ReviewPage questions={questions} answeredStrings={answeredStrings} cursor={reviewCursor} />
+          <ReviewPage
+            questions={questions}
+            answeredStrings={answeredStrings}
+            cursor={reviewCursor}
+            showUnansweredWarning={!allAnswered}
+          />
         ) : currentQ ? (
           <QuestionPage q={currentQ} s={currentS} />
         ) : null}
@@ -348,6 +380,8 @@ function InteractiveAsk({
 function QuestionPage({ q, s }: { q: AskQuestion; s: QuestionState | undefined }): React.ReactNode {
   const theme = getTheme()
   const state = s ?? { cursor: 0, selected: [], other: '', typing: false, typingValue: '' }
+  const selectedSingle = !q.multiSelect && state.selected.length === 1 ? state.selected[0] : null
+  const otherIsAnswer = !q.multiSelect && state.selected.length === 0 && Boolean(state.other.trim())
 
   return (
     <Box flexDirection="column">
@@ -358,9 +392,7 @@ function QuestionPage({ q, s }: { q: AskQuestion; s: QuestionState | undefined }
       <Box flexDirection="column">
         {q.options.map((o, i) => {
           const isCursor = state.cursor === i
-          const isSelected = q.multiSelect
-            ? state.selected.includes(i)
-            : state.selected.length === 1 && state.selected[0] === i && !state.other
+          const isSelected = q.multiSelect ? state.selected.includes(i) : selectedSingle === i
 
           return (
             <OptionRow
@@ -384,10 +416,10 @@ function QuestionPage({ q, s }: { q: AskQuestion; s: QuestionState | undefined }
           <OtherRow
             index={q.options.length + 1}
             isCursor={state.cursor === q.options.length}
-            selected={Boolean(state.other.trim())}
+            isAnswer={otherIsAnswer}
             typing={state.typing}
-            typingValue={state.typingValue}
-            typed={state.other}
+            draft={state.typingValue}
+            value={state.other}
           />
         )}
       </Box>
@@ -399,10 +431,12 @@ function ReviewPage({
   questions,
   answeredStrings,
   cursor,
+  showUnansweredWarning,
 }: {
   questions: AskQuestion[]
   answeredStrings: string[]
   cursor: number
+  showUnansweredWarning: boolean
 }): React.ReactNode {
   const theme = getTheme()
 
@@ -411,6 +445,12 @@ function ReviewPage({
       <Box marginBottom={1}>
         <Text bold>Review your answers</Text>
       </Box>
+
+      {showUnansweredWarning ? (
+        <Box marginBottom={1}>
+          <Text color={theme.warning}>⚠ You have not answered all questions</Text>
+        </Box>
+      ) : null}
 
       <Box flexDirection="column" marginBottom={1}>
         {questions.map((q, i) => (
@@ -492,29 +532,43 @@ function OptionRow({
 function OtherRow({
   index,
   isCursor,
-  selected,
-  typed,
+  isAnswer,
+  value,
+  draft,
   typing,
-  typingValue,
 }: {
   index: number
   isCursor: boolean
-  selected: boolean
-  typed: string
+  isAnswer: boolean
+  value: string
+  draft: string
   typing: boolean
-  typingValue: string
 }): React.ReactNode {
   const theme = getTheme()
   const prefix = isCursor ? '❯' : ' '
-  const hasText = Boolean((typed || '').trim())
+  const committed = value || ''
+  const hasCommitted = Boolean(committed.trim())
+  const hasDraft = Boolean((draft || '').length > 0)
+  const tail = !typing && isAnswer ? ' ✓' : ''
+
+  const displayText = typing
+    ? `${draft}▏`
+    : hasCommitted
+      ? committed
+      : hasDraft
+        ? draft + (isCursor ? '▏' : '')
+        : `Type something.${isCursor ? '▏' : ''}`
+
+  const color = typing ? theme.text : isAnswer ? theme.success : theme.secondaryText
 
   return (
     <Box flexDirection="column">
       <Box>
         <Text color={theme.secondaryText}>{prefix} </Text>
         <Text color={theme.secondaryText}>{index}. </Text>
-        <Text color={hasText || selected ? theme.success : theme.secondaryText} bold={hasText || selected}>
-          {typing ? `${typingValue}▏` : hasText ? typed : 'Type something.'}
+        <Text color={color} bold={typing || isAnswer}>
+          {displayText}
+          {tail}
         </Text>
       </Box>
     </Box>
@@ -547,7 +601,7 @@ function selectSingleAndAdvance(
   setState((prev) =>
     prev.map((s, i) => {
       if (i !== qi) return s
-      return { ...s, selected: [optIndex], other: '', typing: false, typingValue: '' }
+      return { ...s, selected: [optIndex], typing: false }
     }),
   )
   setActiveTab((t) => Math.min(submitTab, t + 1))
@@ -561,7 +615,22 @@ function enterTyping(
   setState((prev) =>
     prev.map((s, i) => {
       if (i !== qi) return s
-      return { ...s, cursor, typing: true, typingValue: s.other || '', selected: [] }
+      return { ...s, cursor, typing: true, typingValue: s.typingValue || s.other || '', selected: [] }
+    }),
+  )
+}
+
+function enterTypingWithText(
+  qi: number,
+  cursor: number,
+  text: string,
+  setState: React.Dispatch<React.SetStateAction<QuestionState[]>>,
+): void {
+  setState((prev) =>
+    prev.map((s, i) => {
+      if (i !== qi) return s
+      const base = s.typing ? s.typingValue : s.typingValue || s.other || ''
+      return { ...s, cursor, typing: true, typingValue: base + text, selected: [] }
     }),
   )
 }
@@ -606,8 +675,8 @@ function formatAnswerForSubmit(q: AskQuestion, s: QuestionState | undefined): st
   if (q.multiSelect) {
     return s.selected.map((i) => q.options[i]?.label).filter(Boolean).join(', ')
   }
-  if (s.other.trim()) return s.other.trim()
   if (s.selected.length === 1) return q.options[s.selected[0]]?.label || ''
+  if (s.other.trim()) return s.other.trim()
   return ''
 }
 
