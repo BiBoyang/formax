@@ -70,6 +70,9 @@ export function formatToolCallParts(
     case 'Edit':
       params = input.file_path || input.path || ''
       break
+    case 'NotebookEdit':
+      params = input.notebook_path || ''
+      break
     case 'Bash': {
       const cmd = input.command || ''
       params = cmd.length > 50 ? cmd.slice(0, 50) + '...' : cmd
@@ -84,6 +87,21 @@ export function formatToolCallParts(
     case 'Search':
       params = `pattern: "${input.pattern || ''}"`
       break
+    case 'WebSearch': {
+      const q = String(input.query || '')
+      params = q.length > 50 ? `query: "${q.slice(0, 50)}..."` : `query: "${q}"`
+      break
+    }
+    case 'WebFetch': {
+      const url = String(input.url || '')
+      params = url.length > 60 ? url.slice(0, 60) + '...' : url
+      break
+    }
+    case 'TodoWrite': {
+      const count = Array.isArray(input.todos) ? input.todos.length : 0
+      params = `${count} items`
+      break
+    }
     default:
       // For unknown tools, show truncated JSON of input
       params = JSON.stringify(input).slice(0, 40)
@@ -150,6 +168,31 @@ export function formatToolResult(
     case 'Search': {
       const files = allLines.filter(l => l.trim()).length
       return { summary: `Found ${files} files`, lines: files }
+    }
+
+    case 'Grep': {
+      const matches = result.trim() === 'No matches found'
+        ? 0
+        : allLines.filter(l => l.trim()).length
+      return { summary: `Found ${matches} matches`, lines: matches }
+    }
+
+    case 'WebSearch': {
+      const firstLine = allLines[0] || ''
+      const remaining = lineCount - 3
+
+      if (lineCount <= 1) {
+        return { summary: firstLine, lines: lineCount }
+      } else if (lineCount <= 3) {
+        return { summary: firstLine, middleLines: allLines.slice(1, 3), lines: lineCount }
+      } else {
+        return {
+          summary: firstLine,
+          middleLines: allLines.slice(1, 3),
+          expandInfo: `… +${remaining} lines (ctrl+o to expand)`,
+          lines: lineCount,
+        }
+      }
     }
     
     case 'Bash': {

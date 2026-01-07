@@ -10,10 +10,13 @@
 
 import React from 'react'
 import { Box, Text, useInput } from 'ink'
-import { ToolMessage, Msg } from '../components/tool/ToolMessage'
+import { ToolRouter } from '../components/tool/ToolRouter'
+import type { Msg } from '../components/tool/ToolMessage'
+import type { ToolRegistry } from '../tools/registry'
 
 type Props = {
   onExit?: () => void
+  toolRegistry?: ToolRegistry
 }
 
 /**
@@ -256,7 +259,7 @@ const exampleMessages: Msg[] = [
  * Displays a scrollable list of tool UI examples for debugging and development.
  * Press 'q' or Ctrl+C to exit.
  */
-export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
+export function ToolExamplesScreen({ onExit, toolRegistry }: Props): React.ReactNode {
   useInput((key, meta) => {
     if (key === 'q' || (meta.ctrl && key === 'c')) {
       onExit ? onExit() : process.exit(0)
@@ -281,7 +284,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Read Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Read').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Write Tool */}
@@ -289,7 +292,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Write Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Write').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Edit Tool */}
@@ -297,7 +300,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Edit Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Edit').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Bash Tool */}
@@ -305,7 +308,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Bash Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Bash').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Glob Tool */}
@@ -313,7 +316,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Glob Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Glob').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Grep Tool */}
@@ -321,7 +324,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Grep Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Grep').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Search Tool */}
@@ -329,7 +332,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Search Tool</Text>
       </Box>
       {exampleMessages.filter(m => m.toolInfo?.name === 'Search').map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Section: Edge Cases */}
@@ -337,7 +340,7 @@ export function ToolExamplesScreen({ onExit }: Props): React.ReactNode {
         <Text bold underline>Edge Cases</Text>
       </Box>
       {exampleMessages.filter(m => m.id.startsWith('edge-')).map(msg => (
-        <ToolMessage key={msg.id} message={msg} />
+        <ToolRouter key={msg.id} message={msg} registry={toolRegistry} />
       ))}
 
       {/* Footer */}

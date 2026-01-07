@@ -162,35 +162,5 @@ function renderToolSummary(args: {
     return <Text color={args.theme.error}>{summary}</Text>
   }
 
-  if (args.toolName === 'Glob' || args.toolName === 'Search') {
-    const m = /^Found\s+(\d+)\s+files$/.exec(summary.trim())
-    if (m) {
-      return (
-        <>
-          <Text color={args.theme.secondaryText}>Found </Text>
-          <Text color={args.theme.text} bold>
-            {m[1]}
-          </Text>
-          <Text color={args.theme.secondaryText}> files</Text>
-        </>
-      )
-    }
-  }
-
-  if (args.toolName === 'Read') {
-    const m = /^Read\s+(\d+)\s+lines$/.exec(summary.trim())
-    if (m) {
-      return (
-        <>
-          <Text color={args.theme.secondaryText}>Read </Text>
-          <Text color={args.theme.text} bold>
-            {m[1]}
-          </Text>
-          <Text color={args.theme.secondaryText}> lines</Text>
-        </>
-      )
-    }
-  }
-
   return <Text>{summary}</Text>
 }

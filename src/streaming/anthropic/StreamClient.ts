@@ -21,6 +21,7 @@ export interface StreamOnceArgs {
   onEvent: StreamSink
   executeTool: (call: ToolCall) => Promise<ToolResult>
   signal?: AbortSignal
+  maxTokens?: number
 }
 
 function getDefaultHeaders(apiKey: string): Record<string, string> {
@@ -75,7 +76,7 @@ export class AnthropicStreamClient {
     const payload = {
       stream: true,
       model: this.config.model,
-      max_tokens: 16000,
+      max_tokens: args.maxTokens ?? 16000,
       messages: args.messages,
       system: args.system,
       tools: args.tools,

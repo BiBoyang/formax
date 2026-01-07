@@ -3,11 +3,15 @@ import { Box, Text, useInput, Static } from 'ink'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
+import type { ToolRegistry } from '../tools/registry'
 import { useReplController } from '../features/repl/useReplController'
-import { ToolMessage, Msg } from '../components/tool/ToolMessage'
+import { ToolRouter } from '../components/tool/ToolRouter'
+import type { Msg } from '../components/tool/ToolMessage'
 import { HeaderBanner } from '../components/chat/HeaderBanner'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
+import type { UserInputManager } from '../tools/runtime/userInputManager'
+import type { TaskManager } from '../tools/runtime/taskManager'
 
 type Props = {
   onExit?: () => void
@@ -15,15 +19,29 @@ type Props = {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
+  toolRegistry?: ToolRegistry
+  userInputManager?: UserInputManager
+  taskManager?: TaskManager
 }
 
-export function REPL({ onExit, engine, tools, cfg, allowedSubagents }: Props): React.ReactNode {
+export function REPL({
+  onExit,
+  engine,
+  tools,
+  cfg,
+  allowedSubagents,
+  toolRegistry,
+  userInputManager,
+  taskManager,
+}: Props): React.ReactNode {
   const [input, setInput] = useState('')
   const { state, actions } = useReplController({
     engine,
     tools,
     cfg,
     allowedSubagents,
+    userInputManager,
+    taskManager,
   })
 
   useInput((key, meta) => {
@@ -39,43 +57,51 @@ export function REPL({ onExit, engine, tools, cfg, allowedSubagents }: Props): R
   const handleSend = useCallback(
     async (value: string) => {
       const text = value.trim()
-      if (!text || state.isLoading) return
+      if (!text) return
       setInput('')
+      if (state.pendingAsk) {
+        actions.answerAskUserQuestion(text)
+        return
+      }
+      if (state.isLoading) return
       await actions.send(text)
     },
-    [actions, state.isLoading],
+    [actions, state.isLoading, state.pendingAsk],
   )
 
-  const renderMessage = useCallback((msg: Msg) => {
-    if (msg.role === 'tool') {
-      return (
-        <Box flexDirection="column">
-          <ToolMessage message={msg} />
-        </Box>
-      )
-    }
+  const renderMessage = useCallback(
+    (msg: Msg) => {
+      if (msg.role === 'tool') {
+        return (
+          <Box flexDirection="column">
+            <ToolRouter message={msg} registry={toolRegistry} />
+          </Box>
+        )
+      }
 
-    if (msg.role === 'assistant') {
-      if (!msg.content) return null
+      if (msg.role === 'assistant') {
+        if (!msg.content) return null
+        return (
+          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+            <Box>
+              <Text>⏺</Text>
+              <Text>{msg.content}</Text>
+            </Box>
+          </Box>
+        )
+      }
+
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
           <Box>
-            <Text>⏺</Text>
+            <Text bold>&gt; </Text>
             <Text>{msg.content}</Text>
           </Box>
         </Box>
       )
-    }
-
-    return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text bold>&gt; </Text>
-          <Text>{msg.content}</Text>
-        </Box>
-      </Box>
-    )
-  }, [])
+    },
+    [toolRegistry],
+  )
 
   const modelLabel = useMemo(() => {
     const model = cfg.llm.model || process.env.ANTHROPIC_MODEL || 'Model not set'
@@ -110,7 +136,7 @@ export function REPL({ onExit, engine, tools, cfg, allowedSubagents }: Props): R
           <Box key={msg.id}>{renderMessage(msg)}</Box>
         ))}
 
-        {state.isLoading && (
+        {state.isLoading && !state.pendingAsk && (
           <Box marginTop={1}>
             <Text color="yellow">⏺</Text>
             <Text color="yellow">{state.loadingText}.</Text>
@@ -131,8 +157,8 @@ export function REPL({ onExit, engine, tools, cfg, allowedSubagents }: Props): R
           value={input}
           onChange={setInput}
           onSubmit={handleSend}
-          placeholder={`Try \"fix typecheck errors\"`}
-          disabled={state.isLoading}
+          placeholder={buildPlaceholder(state.pendingAsk)}
+          disabled={state.isLoading && !state.pendingAsk}
         />
         <Box marginTop={1}>
           <Text dimColor>? for shortcuts</Text>
@@ -140,4 +166,14 @@ export function REPL({ onExit, engine, tools, cfg, allowedSubagents }: Props): R
       </Box>
     </Box>
   )
+}
+
+function buildPlaceholder(pendingAsk: any): string {
+  if (!pendingAsk) return `Try \"fix typecheck errors\"`
+  const q = pendingAsk.questions?.[pendingAsk.questionIndex]
+  const header = typeof q?.header === 'string' && q.header.trim() ? q.header.trim() : 'Answer'
+  const optionCount = Array.isArray(q?.options) ? q.options.length : 0
+  const range = optionCount > 0 ? `1-${optionCount}` : 'text'
+  const multi = q?.multiSelect ? ' (multi)' : ''
+  return `${header}${multi}: choose ${range} or 0=Other`
 }

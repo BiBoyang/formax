@@ -3,6 +3,7 @@ import { createTaskSubAgentToolHandler } from './taskSubAgent'
 import type { SubAgentRegistry } from '../../../subagents/registry'
 import type { SubAgentRunner } from '../../../subagents/runner'
 import type { ToolCall } from '../../types'
+import { TaskManager } from '../../runtime/taskManager'
 
 describe('TaskSubAgentToolHandler', () => {
   const registry: SubAgentRegistry = {
@@ -22,7 +23,7 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry, runner })
+    const handler = createTaskSubAgentToolHandler({ registry, runner, taskManager: new TaskManager() })
     const call: ToolCall = { id: '1', name: 'Task', input: {} }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
@@ -36,7 +37,7 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry, runner })
+    const handler = createTaskSubAgentToolHandler({ registry, runner, taskManager: new TaskManager() })
     const call: ToolCall = {
       id: '1',
       name: 'Task',
@@ -71,7 +72,11 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner })
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
     const call: ToolCall = {
       id: '1',
       name: 'Task',
@@ -106,7 +111,11 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner })
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
     const call: ToolCall = {
       id: '1',
       name: 'Task',
@@ -142,7 +151,11 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner })
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
     const call: ToolCall = {
       id: '1',
       name: 'Task',
@@ -178,7 +191,11 @@ describe('TaskSubAgentToolHandler', () => {
       },
     }
 
-    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner })
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
     const call: ToolCall = {
       id: '1',
       name: 'Task',
@@ -188,5 +205,47 @@ describe('TaskSubAgentToolHandler', () => {
     expect(result.is_error).toBe(true)
     expect(result.content).toBe('Error: boom')
   })
-})
 
+  it('supports run_in_background and stores result', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+
+    const runner: SubAgentRunner = {
+      async run() {
+        await new Promise((r) => setTimeout(r, 10))
+        return { summary: 'background', success: true }
+      },
+    }
+
+    const taskManager = new TaskManager()
+    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner, taskManager })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
+    }
+
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    const parsed = JSON.parse(result.content)
+    expect(parsed.status).toBe('running')
+    expect(typeof parsed.task_id).toBe('string')
+
+    const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
+    expect(waited.snapshot.status).toBe('completed')
+    expect(waited.snapshot.result?.content).toBe('background')
+  })
+})

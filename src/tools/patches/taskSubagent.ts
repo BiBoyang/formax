@@ -20,7 +20,7 @@ export function patchTaskToolForSubagents(
 
 function buildTaskToolDescription(allowedSubagents: SubagentInfo[]): string {
   const header =
-    'Run a local sub-agent (defined in .agent/subagents/*.md) with isolated context and a strict tool allowlist. Returns a short summary only.'
+    'Run a local sub-agent (defined in .agent/subagents/*.md) with isolated context and a strict tool allowlist. Returns a short summary only. Set run_in_background=true to run asynchronously and use TaskOutput to retrieve results.'
 
   const list = allowedSubagents
     .filter((a) => a?.name)
@@ -49,9 +49,9 @@ function buildTaskToolInputSchema(allowedSubagents: SubagentInfo[]): unknown {
         type: 'string',
         description: 'The task for the sub-agent. Provide all necessary context here.',
       },
-      description: {
-        type: 'string',
-        description: 'Optional short description of the task.',
+      run_in_background: {
+        type: 'boolean',
+        description: 'Run the sub-agent in the background. Use TaskOutput to retrieve results.',
       },
     },
     required: ['subagent_type', 'prompt'],
@@ -59,4 +59,3 @@ function buildTaskToolInputSchema(allowedSubagents: SubagentInfo[]): unknown {
     $schema: 'http://json-schema.org/draft-07/schema#',
   }
 }
-

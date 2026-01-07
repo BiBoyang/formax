@@ -30,6 +30,8 @@ describe('patchTaskToolForSubagents', () => {
     expect(schema.required).toEqual(['subagent_type', 'prompt'])
     expect(schema.properties?.subagent_type?.enum).toEqual(['code-reviewer'])
     expect(schema.properties?.prompt).toBeDefined()
+    expect(schema.properties?.run_in_background).toBeDefined()
+    expect(schema.properties?.description).toBeUndefined()
   })
 
   it('adds Task tool when missing', () => {
@@ -45,4 +47,3 @@ describe('patchTaskToolForSubagents', () => {
     expect(patched.find((t) => t.name === 'Read')).toEqual(read)
   })
 })
-

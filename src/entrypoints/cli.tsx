@@ -7,14 +7,23 @@ import { clearTerminal } from '../utils/terminal.js'
 import { REPL } from '../screens/REPL.js'
 import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js'
 import { loadRuntimeConfig } from '../env/config.js'
-import { loadToolDefinitions } from '../tools/loader.js'
 import { createToolExecutor } from '../tools/executor/index.js'
-import { LocalToolHandler } from '../tools/executor/handlers/local.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
 import { AnthropicStreamClient } from '../streaming/anthropic/StreamClient.js'
 import { createChatEngine } from '../chat/engine.js'
+import { createProxyJsonSpecSource } from '../tools/catalog/proxyJson.js'
+import { ToolRegistry } from '../tools/registry.js'
+import { patchTaskToolForSubagents } from '../tools/patches/taskSubagent.js'
+import { registerBuiltinToolModules } from '../tools/modules/index.js'
+import { createTaskToolModule } from '../tools/modules/task/index.js'
+import { createWebFetchToolModule } from '../tools/modules/webFetch/index.js'
+import { TaskManager } from '../tools/runtime/taskManager.js'
+import { createTaskOutputToolModule } from '../tools/modules/taskOutput/index.js'
+import { createUserInputManager } from '../tools/runtime/userInputManager.js'
+import { createAskUserQuestionToolModule } from '../tools/modules/askUserQuestion/index.js'
+import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
 
 async function main() {
   // 启动控制台日志服务器（可选，通过环境变量控制）
@@ -28,21 +37,51 @@ async function main() {
   await clearTerminal()
 
   const cfg = loadRuntimeConfig(process.env, process.cwd())
-  const tools = await loadToolDefinitions({ filePath: cfg.paths.toolsJsonPath })
+  const model = cfg.llm.model || 'claude-sonnet-4-5-20250929'
+
+  const client = new AnthropicStreamClient({
+    apiKey: cfg.llm.apiKey,
+    baseUrl: cfg.llm.baseUrl,
+    model,
+    timeoutMs: cfg.llm.timeoutMs,
+  })
+
+  const webFetchClient = new AnthropicStreamClient({
+    apiKey: cfg.llm.apiKey,
+    baseUrl: cfg.llm.baseUrl,
+    model: process.env.FORMAX_WEBFETCH_MODEL || model,
+    timeoutMs: cfg.llm.timeoutMs,
+  })
+
+  const specSource = createProxyJsonSpecSource({ filePath: cfg.paths.toolsJsonPath })
+  const toolRegistry = new ToolRegistry(specSource)
+  const taskManager = new TaskManager()
+  registerBuiltinToolModules(toolRegistry, { taskManager })
+  toolRegistry.register(
+    createWebFetchToolModule({
+      client: webFetchClient,
+      maxTokens: Number(process.env.FORMAX_WEBFETCH_MAX_TOKENS || 1024),
+      maxInputChars: Number(process.env.FORMAX_WEBFETCH_MAX_INPUT_CHARS || 120000),
+    }),
+  )
+
+  toolRegistry.register(createTaskOutputToolModule(taskManager))
+  toolRegistry.register(createKillShellToolModule(taskManager))
+
+  const userInputManager = createUserInputManager()
+  toolRegistry.register(createAskUserQuestionToolModule(userInputManager))
 
   const subAgentRegistry = createSubAgentRegistry()
   await subAgentRegistry.loadFromDirectory(cfg.paths.subagentsDir)
   const allowedSubagents = subAgentRegistry.list()
 
-  const client = new AnthropicStreamClient({
-    apiKey: cfg.llm.apiKey,
-    baseUrl: cfg.llm.baseUrl,
-    model: cfg.llm.model || 'claude-sonnet-4-5-20250929',
-    timeoutMs: cfg.llm.timeoutMs,
-  })
+  if (process.env.FORMAX_PATCH_TASK_TOOL !== 'false') {
+    toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
+  }
 
-  const localHandler = new LocalToolHandler()
-  const localExecutor = createToolExecutor([localHandler])
+  const tools = await toolRegistry.listSpecs()
+
+  const localExecutor = createToolExecutor(toolRegistry.getHandlers())
   const subAgentRunner = createSubAgentRunner({
     client,
     executor: localExecutor,
@@ -52,9 +91,11 @@ async function main() {
   const taskHandler = createTaskSubAgentToolHandler({
     registry: subAgentRegistry,
     runner: subAgentRunner,
+    taskManager,
   })
 
-  const executor = createToolExecutor([taskHandler, localHandler])
+  toolRegistry.register(createTaskToolModule(taskHandler))
+  const executor = createToolExecutor(toolRegistry.getHandlers())
   const engine = createChatEngine({ client, executor })
 
   render(
@@ -63,6 +104,9 @@ async function main() {
       tools={tools}
       cfg={cfg}
       allowedSubagents={allowedSubagents}
+      toolRegistry={toolRegistry}
+      userInputManager={userInputManager}
+      taskManager={taskManager}
       onExit={() => {
         stopConsoleLogger()
         process.exit(0)
