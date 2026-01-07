@@ -179,6 +179,10 @@ export class AnthropicStreamClient {
         combinedSignal,
       )
 
+      if (result.usage && Object.keys(result.usage).length > 0) {
+        args.onEvent({ type: 'usage', usage: result.usage, model: this.config.model })
+      }
+
       await Promise.all(Array.from(pendingToolExecutions.values()))
 
       const toolCallOrder = result.contentBlocks

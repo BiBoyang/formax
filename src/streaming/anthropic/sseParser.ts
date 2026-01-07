@@ -10,6 +10,8 @@
  * - message_stop: Signal end of response
  */
 
+import type { TokenUsage } from '../types'
+
 export interface ContentBlock {
   index: number
   type: 'text' | 'tool_use' | 'thinking'
@@ -32,6 +34,7 @@ export interface ParseResult {
   contentBlocks: ContentBlock[]
   stopReason: string | null
   stopSequence: string | null
+  usage?: TokenUsage
 }
 
 /**
@@ -51,6 +54,7 @@ export async function parseAnthropicSSEStream(
   const inputJSONBuffers = new Map<number, string>()
   let stopReason: string | null = null
   let stopSequence: string | null = null
+  const usage: TokenUsage = {}
 
   try {
     while (true) {
@@ -77,10 +81,17 @@ export async function parseAnthropicSSEStream(
 
         try {
           const event = JSON.parse(payload)
-          handleSSEEvent(event, contentBlocks, inputJSONBuffers, callbacks, (reason, seq) => {
+          handleSSEEvent(
+            event,
+            contentBlocks,
+            inputJSONBuffers,
+            callbacks,
+            (reason, seq) => {
             stopReason = reason
             stopSequence = seq
-          })
+            },
+            (u) => mergeUsageMax(usage, u),
+          )
         } catch (e) {
           // Log parse error but continue processing
           callbacks.onError(new Error(`SSE parse error: ${e}`))
@@ -92,22 +103,34 @@ export async function parseAnthropicSSEStream(
     if (buffer.trim().startsWith('data:')) {
       try {
         const payload = buffer.trim().slice('data:'.length).trim()
-        if (payload && payload !== '[DONE]') {
-          const event = JSON.parse(payload)
-          handleSSEEvent(event, contentBlocks, inputJSONBuffers, callbacks, (reason, seq) => {
-            stopReason = reason
-            stopSequence = seq
-          })
+          if (payload && payload !== '[DONE]') {
+            const event = JSON.parse(payload)
+            handleSSEEvent(
+              event,
+              contentBlocks,
+              inputJSONBuffers,
+              callbacks,
+              (reason, seq) => {
+              stopReason = reason
+              stopSequence = seq
+              },
+              (u) => mergeUsageMax(usage, u),
+            )
+          }
+        } catch {
+          // Ignore trailing parse errors
         }
-      } catch {
-        // Ignore trailing parse errors
       }
-    }
 
     // Signal completion
     callbacks.onMessageComplete(stopReason, contentBlocks)
 
-    return { contentBlocks, stopReason, stopSequence }
+    return {
+      contentBlocks,
+      stopReason,
+      stopSequence,
+      usage: Object.keys(usage).length > 0 ? usage : undefined,
+    }
   } finally {
     reader.releaseLock()
   }
@@ -118,7 +141,8 @@ function handleSSEEvent(
   contentBlocks: ContentBlock[],
   inputJSONBuffers: Map<number, string>,
   callbacks: SSECallbacks,
-  setStopInfo: (reason: string | null, sequence: string | null) => void
+  setStopInfo: (reason: string | null, sequence: string | null) => void,
+  onUsage: (usage: TokenUsage) => void,
 ): void {
   if (!event || typeof event !== 'object') return
 
@@ -127,6 +151,10 @@ function handleSSEEvent(
   switch (type) {
     case 'message_start':
       // Initialize - nothing special needed, blocks will be created on content_block_start
+      if (event.message?.usage) {
+        const u = extractTokenUsage(event.message.usage)
+        if (u) onUsage(u)
+      }
       break
 
     case 'content_block_start': {
@@ -229,6 +257,10 @@ function handleSSEEvent(
       if (event.delta?.stop_reason) {
         setStopInfo(event.delta.stop_reason, event.delta.stop_sequence ?? null)
       }
+      if (event.usage) {
+        const u = extractTokenUsage(event.usage)
+        if (u) onUsage(u)
+      }
       break
     }
 
@@ -240,6 +272,43 @@ function handleSSEEvent(
     default:
       // Unknown event type - ignore silently
       break
+  }
+}
+
+function extractTokenUsage(raw: unknown): TokenUsage | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as any
+  const out: TokenUsage = {}
+
+  const input = r.input_tokens
+  const output = r.output_tokens
+  const cacheRead = r.cache_read_input_tokens
+  const cacheCreate = r.cache_creation_input_tokens
+
+  if (typeof input === 'number' && Number.isFinite(input)) out.input_tokens = input
+  if (typeof output === 'number' && Number.isFinite(output)) out.output_tokens = output
+  if (typeof cacheRead === 'number' && Number.isFinite(cacheRead)) out.cache_read_input_tokens = cacheRead
+  if (typeof cacheCreate === 'number' && Number.isFinite(cacheCreate))
+    out.cache_creation_input_tokens = cacheCreate
+
+  return Object.keys(out).length > 0 ? out : null
+}
+
+function mergeUsageMax(target: TokenUsage, next: TokenUsage): void {
+  if (typeof next.input_tokens === 'number') {
+    target.input_tokens = Math.max(target.input_tokens ?? 0, next.input_tokens)
+  }
+  if (typeof next.output_tokens === 'number') {
+    target.output_tokens = Math.max(target.output_tokens ?? 0, next.output_tokens)
+  }
+  if (typeof next.cache_read_input_tokens === 'number') {
+    target.cache_read_input_tokens = Math.max(target.cache_read_input_tokens ?? 0, next.cache_read_input_tokens)
+  }
+  if (typeof next.cache_creation_input_tokens === 'number') {
+    target.cache_creation_input_tokens = Math.max(
+      target.cache_creation_input_tokens ?? 0,
+      next.cache_creation_input_tokens,
+    )
   }
 }
 

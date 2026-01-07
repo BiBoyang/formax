@@ -40,6 +40,7 @@ export function createChatEngine(deps: {
       const executorCtxBase: ExecutionContext = {
         cwd,
         signal,
+        onEvent,
         agentDepth: exec?.agentDepth ?? 0,
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,

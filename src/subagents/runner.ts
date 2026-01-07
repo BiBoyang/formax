@@ -4,10 +4,16 @@ import type { PromptBlock } from '../prompts'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolExecutor } from '../tools/executor'
 import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
+import type { StreamSink } from '../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
 
 export interface SubAgentRunner {
-  run(args: { agent: SubAgentConfig; task: string; signal?: AbortSignal }): Promise<SubAgentResult>
+  run(args: {
+    agent: SubAgentConfig
+    task: string
+    signal?: AbortSignal
+    onEvent?: StreamSink
+  }): Promise<SubAgentResult>
 }
 
 const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
@@ -20,7 +26,7 @@ export function createSubAgentRunner(deps: {
   const engine: ChatEngine = createChatEngine({ client: deps.client, executor: deps.executor })
 
   return {
-    async run({ agent, task, signal }): Promise<SubAgentResult> {
+    async run({ agent, task, signal, onEvent }): Promise<SubAgentResult> {
       const allowed = new Set(agent.tools || [])
       const allowedTools = deps.allTools
         .filter((t) => allowed.has(t.name))
@@ -35,7 +41,8 @@ export function createSubAgentRunner(deps: {
       ]
 
       let summary = ''
-      const onEvent = (ev: any) => {
+      const handleEvent: StreamSink = (ev: any) => {
+        onEvent?.(ev)
         if (ev?.type === 'assistant_delta' && typeof ev.text === 'string') {
           summary += ev.text
         }
@@ -47,7 +54,7 @@ export function createSubAgentRunner(deps: {
           user: { role: 'user', content: [{ type: 'text', text: task }] },
           system,
           tools: allowedTools,
-          onEvent,
+          onEvent: handleEvent,
           cwd: process.cwd(),
           signal,
           exec: {
@@ -72,4 +79,3 @@ export function createSubAgentRunner(deps: {
     },
   }
 }
-

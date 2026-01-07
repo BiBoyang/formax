@@ -3,7 +3,7 @@ import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import { buildInitCommandContent, buildSystemPrompt, buildUserContent } from '../../prompts'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../env/config'
-import type { StreamEvent } from '../../streaming/types'
+import type { StreamEvent, TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import { formatToolResult } from '../../utils/toolFormatting'
 import type { TaskManager } from '../../tools/runtime/taskManager'
@@ -41,6 +41,9 @@ export function useReplController(deps: {
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentAssistantIdRef = useRef<string | null>(null)
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
+  const taskStatsByToolUseIdRef = useRef<
+    Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
+  >(new Map())
 
   const { staticMessages, transientMessages } = useMemo(() => {
     const isTransient = (m: Msg) =>
@@ -93,6 +96,9 @@ export function useReplController(deps: {
         }
 
         toolNameByIdRef.current.set(ev.id, ev.name)
+        if (ev.name === 'Task') {
+          taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: {} })
+        }
         setLoadingText(ev.name === 'AskUserQuestion' ? 'Waiting' : 'Working')
 
         const toolMsgId = `tool-${ev.id}`
@@ -125,6 +131,40 @@ export function useReplController(deps: {
         return
       }
 
+      case 'tool_update': {
+        const toolMsgId = `tool-${ev.id}`
+
+        if (typeof ev.toolUses === 'number') {
+          const existing = taskStatsByToolUseIdRef.current.get(ev.id)
+          if (existing) {
+            existing.toolUses = ev.toolUses
+          } else {
+            taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: ev.toolUses, usage: {} })
+          }
+        }
+
+        if (ev.usage) {
+          const existing = taskStatsByToolUseIdRef.current.get(ev.id)
+          if (existing) {
+            existing.usage = ev.usage
+          } else {
+            taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: ev.usage })
+          }
+        }
+
+        if (ev.middleLines) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === toolMsgId
+                ? { ...m, toolInfo: { ...m.toolInfo!, middleLines: ev.middleLines } }
+                : m,
+            ),
+          )
+        }
+
+        return
+      }
+
       case 'tool_end': {
         const toolMsgId = `tool-${ev.id}`
         toolNameByIdRef.current.delete(ev.id)
@@ -138,6 +178,32 @@ export function useReplController(deps: {
             ev.result.is_error && rawResult.startsWith('Error: ')
               ? rawResult.slice('Error: '.length)
               : rawResult
+
+          if (toolName === 'Task') {
+            const stats = taskStatsByToolUseIdRef.current.get(ev.id)
+            taskStatsByToolUseIdRef.current.delete(ev.id)
+
+            const tokens = formatTokenTotal(stats?.usage)
+            const doneText = ev.result.is_error
+              ? displayResult || 'Error'
+              : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                  Date.now() - (stats?.startedAt ?? Date.now()),
+                )})`
+
+            return prev.map((m) =>
+              m.id === toolMsgId
+                ? {
+                    ...m,
+                    content: doneText,
+                    toolInfo: {
+                      ...m.toolInfo!,
+                      status: ev.result.is_error ? 'error' : 'completed',
+                      result: rawResult,
+                    },
+                  }
+                : m,
+            )
+          }
 
           const { summary, middleLines, expandInfo, lines } = formatToolResult(
             toolName,
@@ -338,6 +404,47 @@ function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: str
   lines.push('Tip: ask me to run TaskOutput with a task_id to fetch output.')
   lines.push('Tip: ask me to run KillShell with a shell_id to stop a running shell task.')
   return lines.join('\n')
+}
+
+function formatToolUses(count: number): string {
+  const n = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0
+  return `${n} tool use${n === 1 ? '' : 's'}`
+}
+
+function formatTokenTotal(usage: TokenUsage | undefined): string | null {
+  const total = sumTokens(usage)
+  if (total <= 0) return null
+  return formatTokens(total)
+}
+
+function sumTokens(usage: TokenUsage | undefined): number {
+  const u = usage || {}
+  return (
+    (u.input_tokens ?? 0) +
+    (u.output_tokens ?? 0) +
+    (u.cache_read_input_tokens ?? 0) +
+    (u.cache_creation_input_tokens ?? 0)
+  )
+}
+
+function formatTokens(n: number): string {
+  const v = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
+  if (v < 1000) return String(v)
+  if (v < 100000) return `${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`
+  if (v < 1000000) return `${Math.round(v / 1000)}k`
+  return `${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}m`
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0
+  const seconds = totalSeconds % 60
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const minutes = totalMinutes % 60
+  const hours = Math.floor(totalMinutes / 60)
+
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+  if (minutes > 0) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
 }
 
  

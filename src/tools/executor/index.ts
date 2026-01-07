@@ -1,8 +1,10 @@
 import type { ToolCall, ToolResult } from '../types'
+import type { StreamSink } from '../../streaming/types'
 
 export type ExecutionContext = {
   cwd: string
   signal?: AbortSignal
+  onEvent?: StreamSink
 
   // 0 = main agent, 1 = sub-agent, ...
   agentDepth: number
@@ -25,6 +27,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   return {
     cwd: ctx.cwd ?? process.cwd(),
     signal: ctx.signal,
+    onEvent: ctx.onEvent,
     agentDepth: ctx.agentDepth ?? 0,
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
@@ -84,4 +87,3 @@ export function createToolExecutor(handlers: ToolHandler[]): ToolExecutor {
     }
   }
 }
-

@@ -17,70 +17,51 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   const subagentType = (input as any)?.subagent_type
   const description = (input as any)?.description
+  const prompt = (input as any)?.prompt
+  const toolLabel =
+    typeof subagentType === 'string' && subagentType.trim() ? subagentType.trim() : 'Task'
   const params =
     typeof description === 'string' && description.trim()
-      ? `${String(subagentType || 'unknown')}: ${description.trim()}`
-      : String(subagentType || 'unknown')
-
-  const resultText = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
-  const parsed = parseTaskResult(resultText)
+      ? description.trim()
+      : typeof prompt === 'string' && prompt.trim()
+        ? truncate(prompt.trim(), 80)
+        : ''
 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text color={dotColor}>⏺</Text>
-        <Text bold>Task</Text>
+        <Text bold>{toolLabel}</Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{params}</Text>
         <Text color={theme.secondaryText}>)</Text>
       </Box>
 
-      {status !== 'running' && (
+      {message.toolInfo.middleLines && message.toolInfo.middleLines.length > 0 ? (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
-            {status === 'error' ? (
-              <Text color={theme.error}>{parsed.summary}</Text>
-            ) : (
-              <Text>{parsed.summary}</Text>
-            )}
-          </Box>
-
-          {parsed.artifacts && parsed.artifacts.length > 0 ? (
-            <Box flexDirection="column" marginTop={1}>
-              <Box>
-                <Text color={theme.secondaryText}>   Artifacts:</Text>
-              </Box>
-              {parsed.artifacts.map((a, i) => (
-                <Box key={i}>
-                  <Text color={theme.secondaryText}>   - </Text>
-                  <Text>{a}</Text>
-                </Box>
-              ))}
+          {message.toolInfo.middleLines.map((line, i) => (
+            <Box key={i}>
+              <Text>   {line}</Text>
             </Box>
-          ) : null}
+          ))}
         </Box>
-      )}
+      ) : null}
+
+      {status !== 'running' ? (
+        <Box>
+          <Text color={theme.secondaryText}>⎿  </Text>
+          {status === 'error' ? (
+            <Text color={theme.error}>{message.content}</Text>
+          ) : (
+            <Text>{message.content}</Text>
+          )}
+        </Box>
+      ) : null}
     </Box>
   )
 }
 
-function parseTaskResult(result: string): { summary: string; artifacts?: string[] } {
-  const trimmed = (result || '').trim()
-  if (!trimmed) return { summary: '(no output)' }
-
-  if (trimmed.startsWith('Error: ')) return { summary: trimmed.slice('Error: '.length) }
-  if (trimmed.startsWith('Error:')) return { summary: trimmed.slice('Error:'.length).trim() }
-
-  try {
-    const parsed = JSON.parse(trimmed)
-    const summary = typeof parsed?.summary === 'string' ? parsed.summary : trimmed
-    const artifacts = Array.isArray(parsed?.artifacts)
-      ? parsed.artifacts.map((a: unknown) => String(a))
-      : undefined
-    return { summary, artifacts }
-  } catch {
-    return { summary: trimmed }
-  }
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s
+  return s.slice(0, max - 1) + '…'
 }
-
