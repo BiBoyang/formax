@@ -56,6 +56,15 @@
 仅实现 presenter（用于更接近 Claude Code 输出风格）：
 - `Search`（目前仅渲染层；执行仍以 Grep/Search 等为准）
 
+### 3) Slash 命令下拉提示（Claude Code 风格）
+
+- 输入框以 `/` 开头时显示命令列表（支持上下键选择、Tab 补全、Enter 先补全后发送）
+- 未实现的命令会在列表中置灰（目前本地仅实现 `/init`、`/tasks`）
+- 位置：
+  - 命令表：`src/features/commands/registry.ts`
+  - 渲染：`src/components/chat/InputBar.tsx`
+  - 交互：`src/screens/REPL.tsx`
+
 ## tools-copy.json 还缺什么（未实现）
 
 来自 `proxy/tools-copy.json`（对齐目标）但目前仍缺：
@@ -67,8 +76,8 @@
 
 1. **命令系统统一（SlashCommand + 本地命令）**
    - 把 `/init`、`/tasks` 收敛到“命令注册表”
-   - 实现输入框里输入 `/` 时的提示列表（类似截图）
-   - `SlashCommand` tool 先做最小闭环：列出可用命令/执行命令/返回说明
+   - 本地实现 `/status`、`/doctor` 等（先做 stub 输出也行），避免落到模型乱跑
+   - `SlashCommand` tool 先做最小闭环：列出可用命令/执行命令/返回说明（与 UI 下拉提示共用同一份命令源）
 
 2. **Plan Mode（Enter/ExitPlanMode）**
    - 增加 “planMode state” + UI 标识
@@ -86,4 +95,3 @@
 5. **工具规范生成（长期）**
    - 逐步摆脱手写 `proxy/tools.json`：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
    - `tools-copy.json` 继续作为“对齐参考全集”，但最终运行时应以模块为准
-

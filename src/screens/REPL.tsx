@@ -12,6 +12,7 @@ import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
 import type { UserInputManager } from '../tools/runtime/userInputManager'
 import type { TaskManager } from '../tools/runtime/taskManager'
+import { getSlashCommandSuggestions } from '../features/commands/registry'
 
 type Props = {
   onExit?: () => void
@@ -35,6 +36,7 @@ export function REPL({
   taskManager,
 }: Props): React.ReactNode {
   const [input, setInput] = useState('')
+  const [slashIndex, setSlashIndex] = useState(0)
   const { state, actions } = useReplController({
     engine,
     tools,
@@ -44,6 +46,18 @@ export function REPL({
     taskManager,
   })
 
+  const slashSuggestions = useMemo(() => {
+    if (state.pendingAsk) return []
+    return getSlashCommandSuggestions(input).slice(0, 10)
+  }, [input, state.pendingAsk])
+
+  const selectedSlash = slashSuggestions[slashIndex]?.command
+
+  const handleInputChange = useCallback((v: string) => {
+    setInput(v)
+    setSlashIndex(0)
+  }, [])
+
   useInput((key, meta) => {
     if (meta.ctrl && key === 'c') {
       actions.abort()
@@ -52,21 +66,43 @@ export function REPL({
     if (meta.escape) {
       actions.abort()
     }
+
+    if (slashSuggestions.length > 0 && !state.pendingAsk) {
+      if (meta.downArrow) {
+        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
+      } else if (meta.upArrow) {
+        setSlashIndex((i) => Math.max(i - 1, 0))
+      } else if (meta.tab && selectedSlash) {
+        setInput(selectedSlash)
+        setSlashIndex(0)
+      }
+    }
   })
 
   const handleSend = useCallback(
     async (value: string) => {
       const text = value.trim()
       if (!text) return
-      setInput('')
+
       if (state.pendingAsk) {
+        setInput('')
         actions.answerAskUserQuestion(text)
         return
       }
+      if (slashSuggestions.length > 0 && selectedSlash) {
+        const normalized = text.replace(/\s+$/, '')
+        if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
+          setInput(selectedSlash)
+          setSlashIndex(0)
+          return
+        }
+      }
+
+      setInput('')
       if (state.isLoading) return
       await actions.send(text)
     },
-    [actions, state.isLoading, state.pendingAsk],
+    [actions, selectedSlash, slashSuggestions.length, state.isLoading, state.pendingAsk],
   )
 
   const renderMessage = useCallback(
@@ -155,10 +191,16 @@ export function REPL({
       <Box flexDirection="column" flexShrink={0} marginTop={1}>
         <InputBar
           value={input}
-          onChange={setInput}
+          onChange={handleInputChange}
           onSubmit={handleSend}
           placeholder={buildPlaceholder(state.pendingAsk)}
           disabled={state.isLoading && !state.pendingAsk}
+          suggestions={slashSuggestions.map((s, i) => ({
+            command: s.command,
+            description: s.description,
+            selected: i === slashIndex,
+            dim: s.implemented === false,
+          }))}
         />
         <Box marginTop={1}>
           <Text dimColor>? for shortcuts</Text>
