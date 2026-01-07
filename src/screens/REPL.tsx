@@ -66,11 +66,14 @@ export function REPL({
       actions.abort()
       onExit ? onExit() : process.exit(0)
     }
+
+    if (isAskMode) return
+
     if (meta.escape) {
       actions.abort()
     }
 
-    if (slashSuggestions.length > 0 && !isAskMode) {
+    if (slashSuggestions.length > 0) {
       if (meta.downArrow) {
         setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
       } else if (meta.upArrow) {

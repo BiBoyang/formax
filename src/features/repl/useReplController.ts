@@ -105,6 +105,7 @@ export function useReplController(deps: {
             timestamp: new Date(),
             toolInfo: {
               name: ev.name,
+              toolUseId: ev.id,
               input: {},
               status: 'running',
             },

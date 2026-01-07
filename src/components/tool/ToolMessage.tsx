@@ -19,6 +19,8 @@ import { getTheme } from '../../utils/theme'
 export interface ToolInfo {
   /** Tool name (e.g., 'Read', 'Write', 'Bash') */
   name: string
+  /** Tool use id (matches tool call id / tool_use_id) */
+  toolUseId?: string
   /** Tool input parameters */
   input: Record<string, any>
   /** Current execution status */

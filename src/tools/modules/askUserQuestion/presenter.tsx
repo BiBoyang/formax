@@ -18,7 +18,9 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
-  const toolUseId = message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id
+  const toolUseId =
+    message.toolInfo.toolUseId ??
+    (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const questions = parseQuestions(input)
   const answers = parseAnswers(typeof message.toolInfo.result === 'string' ? message.toolInfo.result : '')
 
@@ -160,6 +162,7 @@ function InteractiveAsk({
 
       // Global cancel
       if (key.escape) {
+        if (isSubmitting) return
         onAbort()
         return
       }
