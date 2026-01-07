@@ -10,9 +10,9 @@ import type { Msg } from '../components/tool/ToolMessage'
 import { HeaderBanner } from '../components/chat/HeaderBanner'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
-import type { UserInputManager } from '../tools/runtime/userInputManager'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { getSlashCommandSuggestions } from '../features/commands/registry'
+import { ReplUiProvider } from '../features/repl/replUiContext'
 
 type Props = {
   onExit?: () => void
@@ -21,7 +21,6 @@ type Props = {
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
   toolRegistry?: ToolRegistry
-  userInputManager?: UserInputManager
   taskManager?: TaskManager
 }
 
@@ -32,7 +31,6 @@ export function REPL({
   cfg,
   allowedSubagents,
   toolRegistry,
-  userInputManager,
   taskManager,
 }: Props): React.ReactNode {
   const [input, setInput] = useState('')
@@ -42,14 +40,19 @@ export function REPL({
     tools,
     cfg,
     allowedSubagents,
-    userInputManager,
     taskManager,
   })
 
+  const isAskMode = useMemo(() => {
+    return state.transientMessages.some(
+      (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
+    )
+  }, [state.transientMessages])
+
   const slashSuggestions = useMemo(() => {
-    if (state.pendingAsk) return []
+    if (isAskMode) return []
     return getSlashCommandSuggestions(input).slice(0, 10)
-  }, [input, state.pendingAsk])
+  }, [input, isAskMode])
 
   const selectedSlash = slashSuggestions[slashIndex]?.command
 
@@ -67,7 +70,7 @@ export function REPL({
       actions.abort()
     }
 
-    if (slashSuggestions.length > 0 && !state.pendingAsk) {
+    if (slashSuggestions.length > 0 && !isAskMode) {
       if (meta.downArrow) {
         setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
       } else if (meta.upArrow) {
@@ -84,11 +87,6 @@ export function REPL({
       const text = value.trim()
       if (!text) return
 
-      if (state.pendingAsk) {
-        setInput('')
-        actions.answerAskUserQuestion(text)
-        return
-      }
       if (slashSuggestions.length > 0 && selectedSlash) {
         const normalized = text.replace(/\s+$/, '')
         if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
@@ -102,7 +100,7 @@ export function REPL({
       if (state.isLoading) return
       await actions.send(text)
     },
-    [actions, selectedSlash, slashSuggestions.length, state.isLoading, state.pendingAsk],
+    [actions, selectedSlash, slashSuggestions.length, state.isLoading],
   )
 
   const renderMessage = useCallback(
@@ -161,61 +159,55 @@ export function REPL({
   }, [modelLabel, renderMessage, state.staticMessages])
 
   return (
-    <Box flexDirection="column" height="100%">
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {/* Header + 消息 Static */}
-        <Static items={staticItems}>
-          {(item) => <Box key={item.key}>{item.jsx}</Box>}
-        </Static>
+    <ReplUiProvider abort={actions.abort}>
+      <Box flexDirection="column" height="100%">
+        <Box flexDirection="column" flexGrow={1} overflow="hidden">
+          {/* Header + 消息 Static */}
+          <Static items={staticItems}>
+            {(item) => <Box key={item.key}>{item.jsx}</Box>}
+          </Static>
 
-        {state.transientMessages.map((msg) => (
-          <Box key={msg.id}>{renderMessage(msg)}</Box>
-        ))}
+          {state.transientMessages.map((msg) => (
+            <Box key={msg.id}>{renderMessage(msg)}</Box>
+          ))}
 
-        {state.isLoading && !state.pendingAsk && (
-          <Box marginTop={1}>
-            <Text color="yellow">⏺</Text>
-            <Text color="yellow">{state.loadingText}.</Text>
-            <Text dimColor> (esc to interrupt)</Text>
-          </Box>
-        )}
+          {state.isLoading && !isAskMode && (
+            <Box marginTop={1}>
+              <Text color="yellow">⏺</Text>
+              <Text color="yellow">{state.loadingText}.</Text>
+              <Text dimColor> (esc to interrupt)</Text>
+            </Box>
+          )}
 
-        {state.error && !state.isLoading && (
-          <Box marginTop={1}>
-            <Text color="red">⏺</Text>
-            <Text color="red">Error: {state.error}</Text>
-          </Box>
-        )}
-      </Box>
-
-      <Box flexDirection="column" flexShrink={0} marginTop={1}>
-        <InputBar
-          value={input}
-          onChange={handleInputChange}
-          onSubmit={handleSend}
-          placeholder={buildPlaceholder(state.pendingAsk)}
-          disabled={state.isLoading && !state.pendingAsk}
-          suggestions={slashSuggestions.map((s, i) => ({
-            command: s.command,
-            description: s.description,
-            selected: i === slashIndex,
-            dim: s.implemented === false,
-          }))}
-        />
-        <Box marginTop={1}>
-          <Text dimColor>? for shortcuts</Text>
+          {state.error && !state.isLoading && (
+            <Box marginTop={1}>
+              <Text color="red">⏺</Text>
+              <Text color="red">Error: {state.error}</Text>
+            </Box>
+          )}
         </Box>
-      </Box>
-    </Box>
-  )
-}
 
-function buildPlaceholder(pendingAsk: any): string {
-  if (!pendingAsk) return `Try \"fix typecheck errors\"`
-  const q = pendingAsk.questions?.[pendingAsk.questionIndex]
-  const header = typeof q?.header === 'string' && q.header.trim() ? q.header.trim() : 'Answer'
-  const optionCount = Array.isArray(q?.options) ? q.options.length : 0
-  const range = optionCount > 0 ? `1-${optionCount}` : 'text'
-  const multi = q?.multiSelect ? ' (multi)' : ''
-  return `${header}${multi}: choose ${range} or 0=Other`
+        {!isAskMode && (
+          <Box flexDirection="column" flexShrink={0} marginTop={1}>
+            <InputBar
+              value={input}
+              onChange={handleInputChange}
+              onSubmit={handleSend}
+              placeholder={`Try \"fix typecheck errors\"`}
+              disabled={state.isLoading}
+              suggestions={slashSuggestions.map((s, i) => ({
+                command: s.command,
+                description: s.description,
+                selected: i === slashIndex,
+                dim: s.implemented === false,
+              }))}
+            />
+            <Box marginTop={1}>
+              <Text dimColor>? for shortcuts</Text>
+            </Box>
+          </Box>
+        )}
+      </Box>
+    </ReplUiProvider>
+  )
 }

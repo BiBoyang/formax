@@ -37,8 +37,10 @@
 - 内置命令 `/tasks`（不走模型）→ 列出所有后台任务（id/kind/status/label）
 
 入口注册与依赖注入：
-- `src/entrypoints/cli.tsx`：创建 `TaskManager/UserInputManager`，注册相关工具，并把 `taskManager` 注入 REPL
-- `src/features/repl/useReplController.ts`：实现 `/tasks` 命令与 `AskUserQuestion` 的暂停/回答逻辑
+- `src/entrypoints/cli.tsx`：创建 `TaskManager/UserInputManager`，注册相关工具；用 `UserInputProvider` 注入 `userInputManager`；并把 `taskManager` 注入 REPL
+- `src/features/repl/useReplController.ts`：实现 `/tasks` 命令（不走模型）
+- `src/tools/modules/askUserQuestion/presenter.tsx`：交互式问答 UI（选择/多选/Review），提交时调用 `userInputManager.submitAnswers`
+- `src/screens/REPL.tsx`：当 `AskUserQuestion` 运行中时隐藏输入框，避免抢键盘；取消时 `abort()` 并显示 “User declined …”
 
 ### 2) 已实现的工具（handler + presenter 视情况）
 

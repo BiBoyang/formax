@@ -24,6 +24,7 @@ import { createTaskOutputToolModule } from '../tools/modules/taskOutput/index.js
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
+import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 
 async function main() {
   // 启动控制台日志服务器（可选，通过环境变量控制）
@@ -99,19 +100,20 @@ async function main() {
   const engine = createChatEngine({ client, executor })
 
   render(
-    <REPL
-      engine={engine}
-      tools={tools}
-      cfg={cfg}
-      allowedSubagents={allowedSubagents}
-      toolRegistry={toolRegistry}
-      userInputManager={userInputManager}
-      taskManager={taskManager}
-      onExit={() => {
-        stopConsoleLogger()
-        process.exit(0)
-      }}
-    />,
+    <UserInputProvider userInput={userInputManager}>
+      <REPL
+        engine={engine}
+        tools={tools}
+        cfg={cfg}
+        allowedSubagents={allowedSubagents}
+        toolRegistry={toolRegistry}
+        taskManager={taskManager}
+        onExit={() => {
+          stopConsoleLogger()
+          process.exit(0)
+        }}
+      />
+    </UserInputProvider>,
     {
       exitOnCtrlC: false,
     },
