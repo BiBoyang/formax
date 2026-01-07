@@ -15,7 +15,8 @@ type NestedToolEntry = {
   summary?: string
 }
 
-const MAX_PROGRESS_LINES = 12
+const MAX_VISIBLE_TOOL_USES = 2
+const MAX_LINE_CHARS = 80
 
 export function createTaskSubAgentToolHandler(deps: {
   registry: SubAgentRegistry
@@ -64,7 +65,7 @@ export function createTaskSubAgentToolHandler(deps: {
           ctx.onEvent({
             type: 'tool_update',
             id: call.id,
-            middleLines: renderNestedLines(entries),
+            middleLines: renderNestedLines(entries, toolUses),
             toolUses,
             usage: usageTotal,
           })
@@ -175,21 +176,32 @@ export function createTaskSubAgentToolHandler(deps: {
 }
 
 function formatNestedHeader(name: string, input: Record<string, any>): string {
-  const { toolName, params } = formatToolCallParts(name, input)
-  return `${toolName}(${params})`
+  const compactInput = compactInputForHeader(name, input)
+  const { toolName, params } = formatToolCallParts(name, compactInput)
+  const normalized = toSingleLine(`${toolName}(${params})`).trim()
+  return truncateLine(normalized, MAX_LINE_CHARS)
 }
 
-function renderNestedLines(entries: NestedToolEntry[]): string[] {
+function renderNestedLines(entries: NestedToolEntry[], toolUses: number): string[] {
+  const visibleEntries = entries.slice(-MAX_VISIBLE_TOOL_USES)
+  const hiddenToolUses = Math.max(0, toolUses - visibleEntries.length)
+
   const lines: string[] = []
-  for (const e of entries) {
-    lines.push(e.header)
-    if (e.status !== 'running' && e.summary) {
-      lines.push(`└ ${e.summary}`)
-    }
+  for (let i = 0; i < visibleEntries.length; i++) {
+    const e = visibleEntries[i]!
+    const branch = i === visibleEntries.length - 1 ? '└' : '├'
+    const text =
+      e.status !== 'running' && e.summary
+        ? truncateLine(toSingleLine(e.summary).trim(), MAX_LINE_CHARS)
+        : truncateLine(toSingleLine(e.header).trim(), MAX_LINE_CHARS)
+    lines.push(`${branch} ${text}`)
   }
 
-  if (lines.length <= MAX_PROGRESS_LINES) return lines
-  return ['…', ...lines.slice(-MAX_PROGRESS_LINES)]
+  if (hiddenToolUses > 0) {
+    lines.push(`+${hiddenToolUses} more tool uses (ctrl+o to expand)`)
+  }
+
+  return lines
 }
 
 function trimEntries(entries: NestedToolEntry[]): void {
@@ -207,4 +219,34 @@ function addUsage(total: TokenUsage, snapshot: TokenUsage): void {
     total.cache_creation_input_tokens =
       (total.cache_creation_input_tokens ?? 0) + snapshot.cache_creation_input_tokens
   }
+}
+
+function compactInputForHeader(name: string, input: Record<string, any>): Record<string, any> {
+  const n = String(name || '')
+  if (n === 'Read' || n === 'Write' || n === 'Edit' || n === 'NotebookEdit') {
+    const raw = (input.file_path ?? input.path ?? input.notebook_path) as unknown
+    if (typeof raw === 'string' && raw.trim()) {
+      const base = basename(raw.trim())
+      const next: Record<string, any> = { ...input }
+      if (typeof input.file_path === 'string') next.file_path = base
+      if (typeof input.path === 'string') next.path = base
+      if (typeof input.notebook_path === 'string') next.notebook_path = base
+      return next
+    }
+  }
+  return input
+}
+
+function basename(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1]! : p
+}
+
+function toSingleLine(s: string): string {
+  return (s || '').replace(/\s+/g, ' ')
+}
+
+function truncateLine(s: string, maxChars: number): string {
+  if (s.length <= maxChars) return s
+  return s.slice(0, Math.max(0, maxChars - 1)) + '…'
 }

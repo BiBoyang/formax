@@ -13,6 +13,7 @@ import { InputBar } from '../components/chat/InputBar'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { getSlashCommandSuggestions } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
+import { PulsingDot } from '../components/ui/PulsingDot'
 
 type Props = {
   onExit?: () => void
@@ -121,7 +122,7 @@ export function REPL({
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
             <Box>
-              <Text>⏺</Text>
+              <Text>⏺ </Text>
               <Text>{msg.content}</Text>
             </Box>
           </Box>
@@ -176,7 +177,8 @@ export function REPL({
 
           {state.isLoading && !isAskMode && (
             <Box marginTop={1}>
-              <Text color="yellow">⏺</Text>
+              <PulsingDot color="yellow" pulse />
+              <Text> </Text>
               <Text color="yellow">{state.loadingText}.</Text>
               <Text dimColor> (esc to interrupt)</Text>
             </Box>
@@ -184,7 +186,8 @@ export function REPL({
 
           {state.error && !state.isLoading && (
             <Box marginTop={1}>
-              <Text color="red">⏺</Text>
+              <PulsingDot color="red" />
+              <Text> </Text>
               <Text color="red">Error: {state.error}</Text>
             </Box>
           )}

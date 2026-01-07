@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -18,14 +19,15 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text color={dotColor}>⏺</Text>
-        <Text bold>TodoWrite</Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{todos.length} items</Text>
-        <Text color={theme.secondaryText}>)</Text>
-      </Box>
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text> </Text>
+          <Text bold>TodoWrite</Text>
+          <Text color={theme.secondaryText}>(</Text>
+          <Text color={theme.secondaryText}>{todos.length} items</Text>
+          <Text color={theme.secondaryText}>)</Text>
+        </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
@@ -65,4 +67,3 @@ function statusBadge(status: string): string {
       return '[ ]'
   }
 }
-

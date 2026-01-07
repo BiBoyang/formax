@@ -12,6 +12,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
+import { PulsingDot } from '../ui/PulsingDot'
 
 /**
  * Tool information attached to a message
@@ -96,7 +97,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <Text color={theme.secondaryText}>⏺</Text>
+          <PulsingDot color={theme.secondaryText} />
+          <Text> </Text>
           <Text color={theme.secondaryText}>Unknown tool</Text>
         </Box>
       </Box>
@@ -115,7 +117,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       {/* Tool call header: ⏺ ToolName(params) */}
       <Box>
-        <Text color={dotColor}>⏺</Text>
+        <PulsingDot color={dotColor} pulse={status === 'running'} />
+        <Text> </Text>
         <Text bold>{toolName}</Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{params}</Text>

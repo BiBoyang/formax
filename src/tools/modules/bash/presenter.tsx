@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -21,14 +22,15 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const bg = parseBackgroundBashResult(rawResult)
 
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text color={dotColor}>⏺</Text>
-        <Text bold>{toolName}</Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{params}</Text>
-        <Text color={theme.secondaryText}>)</Text>
-      </Box>
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text> </Text>
+          <Text bold>{toolName}</Text>
+          <Text color={theme.secondaryText}>(</Text>
+          <Text color={theme.secondaryText}>{params}</Text>
+          <Text color={theme.secondaryText}>)</Text>
+        </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
@@ -76,4 +78,3 @@ function parseBackgroundBashResult(raw: string): { task_id: string } | null {
     return null
   }
 }
-

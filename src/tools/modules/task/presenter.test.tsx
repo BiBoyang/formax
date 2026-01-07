@@ -21,7 +21,7 @@ describe('TaskToolPresenter', () => {
 
     const { lastFrame } = render(<TaskToolPresenter message={message} />)
     const frame = lastFrame()
-    expect(frame).toContain('code-reviewer')
+    expect(frame).toContain('Reviewer')
     expect(frame).toContain('Review REPL.tsx')
     expect(frame).toContain('Read(src/screens/REPL.tsx)')
     expect(frame).toContain('Done (2 tool uses')

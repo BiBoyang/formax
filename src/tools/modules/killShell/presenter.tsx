@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -21,7 +22,8 @@ export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Ms
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <Text color={dotColor}>⏺</Text>
+        <PulsingDot color={dotColor} pulse={status === 'running'} />
+        <Text> </Text>
         <Text bold>KillShell</Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{shellId || 'unknown'}</Text>
@@ -56,4 +58,3 @@ function parseKillShellResult(raw: string): { ok: boolean; message?: string } {
     return { ok: false }
   }
 }
-

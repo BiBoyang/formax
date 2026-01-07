@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../../utils/theme'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -51,7 +52,8 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <Text color={dotColor}>⏺</Text>
+        <PulsingDot color={dotColor} />
+        <Text> </Text>
         <Text bold>AskUserQuestion</Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{String(questions.length || 1)} questions</Text>
