@@ -22,7 +22,6 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text> </Text>
           <Text bold>TodoWrite</Text>
           <Text color={theme.secondaryText}>(</Text>
           <Text color={theme.secondaryText}>{todos.length} items</Text>

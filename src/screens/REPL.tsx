@@ -117,17 +117,17 @@ export function REPL({
         )
       }
 
-      if (msg.role === 'assistant') {
-        if (!msg.content) return null
-        return (
-          <Box flexDirection="column" marginTop={1} marginBottom={0}>
-            <Box>
-              <Text>⏺ </Text>
-              <Text>{msg.content}</Text>
-            </Box>
-          </Box>
-        )
-      }
+	      if (msg.role === 'assistant') {
+	        if (!msg.content) return null
+	        return (
+	          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+	            <Box>
+	              <Text>⏺</Text>
+	              <Text>{msg.content}</Text>
+	            </Box>
+	          </Box>
+	        )
+	      }
 
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -178,7 +178,6 @@ export function REPL({
           {state.isLoading && !isAskMode && (
             <Box marginTop={1}>
               <PulsingDot color="yellow" pulse />
-              <Text> </Text>
               <Text color="yellow">{state.loadingText}.</Text>
               <Text dimColor> (esc to interrupt)</Text>
             </Box>
@@ -187,7 +186,6 @@ export function REPL({
           {state.error && !state.isLoading && (
             <Box marginTop={1}>
               <PulsingDot color="red" />
-              <Text> </Text>
               <Text color="red">Error: {state.error}</Text>
             </Box>
           )}

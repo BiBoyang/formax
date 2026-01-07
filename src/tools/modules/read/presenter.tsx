@@ -22,7 +22,6 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text> </Text>
           <Text bold>{toolName}</Text>
           <Text color={theme.secondaryText}>(</Text>
           <Text color={theme.secondaryText}>{params}</Text>
