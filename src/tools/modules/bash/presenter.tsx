@@ -6,6 +6,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { extractFilepathsFromCommandOutput } from './filepaths'
 
 export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -20,6 +21,11 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
   const bg = parseBackgroundBashResult(rawResult)
+  const fileExtract =
+    status !== 'running' && !bg
+      ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
+      : null
+  const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -45,6 +51,12 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
               <Text>{message.content}</Text>
             )}
           </Box>
+
+          {!bg && fileSummary ? (
+            <Box>
+              <Text color={theme.secondaryText}>   {fileSummary}</Text>
+            </Box>
+          ) : null}
 
           {!bg && middleLines && middleLines.map((line, i) => (
             <Box key={i}>
@@ -76,4 +88,14 @@ function parseBackgroundBashResult(raw: string): { task_id: string } | null {
   } catch {
     return null
   }
+}
+
+function formatFileSummary(filepaths: string[]): string {
+  const unique = Array.from(new Set(filepaths.filter(Boolean)))
+  if (unique.length === 0) return ''
+
+  const shown = unique.slice(0, 3)
+  const rest = unique.length - shown.length
+  const suffix = rest > 0 ? ` (+${rest} more)` : ''
+  return `Files: ${shown.join(', ')}${suffix}`
 }

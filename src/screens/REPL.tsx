@@ -45,6 +45,7 @@ export function REPL({
     allowedSubagents,
     taskManager,
     mode,
+    onModeChange: (nextMode) => setMode(nextMode),
   })
 
   const isAskMode = useMemo(() => {

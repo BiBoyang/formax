@@ -34,6 +34,7 @@ export function useReplController(deps: {
   allowedSubagents?: Array<{ name: string; description: string }>
   taskManager?: TaskManager
   mode: ReplMode
+  onModeChange?: (mode: ReplMode) => void
 }): ReplController {
   const [messages, setMessages] = useState<Msg[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -52,6 +53,7 @@ export function useReplController(deps: {
   const localCommandRef = useRef<LocalCommandRecord | null>(null)
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
+  const lastNonPlanModeRef = useRef<ReplMode>(deps.mode === 'plan' ? 'normal' : deps.mode)
 
   useEffect(() => {
     const prev = prevModeRef.current
@@ -59,6 +61,12 @@ export function useReplController(deps: {
       pendingExitPlanReminderRef.current = true
     }
     prevModeRef.current = deps.mode
+  }, [deps.mode])
+
+  useEffect(() => {
+    if (deps.mode !== 'plan') {
+      lastNonPlanModeRef.current = deps.mode
+    }
   }, [deps.mode])
 
   const { staticMessages, transientMessages } = useMemo(() => {
@@ -207,11 +215,12 @@ export function useReplController(deps: {
 
       case 'tool_end': {
         const toolMsgId = `tool-${ev.id}`
+        const toolNameFromStart = toolNameByIdRef.current.get(ev.id)
         toolNameByIdRef.current.delete(ev.id)
 
         setMessages((prev) => {
           const toolMsg = prev.find((m) => m.id === toolMsgId)
-          const toolName = toolMsg?.toolInfo?.name || 'Tool'
+          const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
 
           const rawResult = ev.result.content
           const displayResult =
@@ -271,6 +280,13 @@ export function useReplController(deps: {
 
         // After tool, start a new assistant message for subsequent text
         currentAssistantIdRef.current = null
+
+        if (toolNameFromStart === 'EnterPlanMode') {
+          deps.onModeChange?.('plan')
+        }
+        if (toolNameFromStart === 'ExitPlanMode') {
+          deps.onModeChange?.(lastNonPlanModeRef.current || 'normal')
+        }
         return
       }
 

@@ -10,6 +10,8 @@ import { searchToolModule } from './search'
 import { todoWriteToolModule } from './todoWrite'
 import { webSearchToolModule } from './webSearch'
 import { writeToolModule } from './write'
+import { enterPlanModeToolModule } from './enterPlanMode'
+import { exitPlanModeToolModule } from './exitPlanMode'
 
 export function registerBuiltinToolModules(
   registry: ToolRegistry,
@@ -17,6 +19,8 @@ export function registerBuiltinToolModules(
 ): void {
   registry.register(createBashToolModule(deps.taskManager))
   registry.register(editToolModule)
+  registry.register(enterPlanModeToolModule)
+  registry.register(exitPlanModeToolModule)
   registry.register(globToolModule)
   registry.register(grepToolModule)
   registry.register(notebookEditToolModule)

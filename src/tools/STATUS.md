@@ -68,10 +68,16 @@
   - 渲染：`src/components/chat/InputBar.tsx`
   - 交互：`src/screens/REPL.tsx`
 
+### 4) Plan Mode（Enter/ExitPlanMode + Shift+Tab）
+
+- REPL 支持 `shift+tab` 循环切换 `normal → acceptEdits → plan`
+- plan mode 下会在每个 turn 注入 `<system-reminder>`（偏规划、少执行），并在退出 plan mode 时注入一次“Exited Plan Mode”提醒
+- plan mode 会限制执行策略（例如 deny `Write/Edit/NotebookEdit`；`Bash` 更严格）
+- `EnterPlanMode` / `ExitPlanMode` tool 已实现：LLM 可以通过调用工具切换模式，UI 会同步更新
+
 ## tools-copy.json 还缺什么（未实现）
 
 来自 `proxy/tools-copy.json`（对齐目标）但目前仍缺：
-- `EnterPlanMode` / `ExitPlanMode`（计划模式：状态机 + UI + prompt 策略）
 - `SlashCommand`（`/` 命令面板/补全/解释；目前只有 `/init`、`/tasks` 是本地命令）
 - `Skill`（技能执行：需要定义“skill 是什么/从哪里来/是否允许访问哪些能力”）
 
@@ -83,8 +89,7 @@
    - `SlashCommand` tool 先做最小闭环：列出可用命令/执行命令/返回说明（与 UI 下拉提示共用同一份命令源）
 
 2. **Plan Mode（Enter/ExitPlanMode）**
-   - 增加 “planMode state” + UI 标识
-   - planMode 下修改 system prompt（偏规划、少执行），并可一键退出
+   - 已实现基础闭环；后续可细化：Exit 是否强制 plan 输出、plan 模板/持久化、UI 展示更贴近 Claude Code
 
 3. **Skill 工具定义**
    - 明确 skill 的来源（本地文件？内置模板？远端？）
