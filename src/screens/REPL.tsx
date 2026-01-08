@@ -11,7 +11,7 @@ import { HeaderBanner } from '../components/chat/HeaderBanner'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
 import type { TaskManager } from '../tools/runtime/taskManager'
-import { getSlashCommandSuggestions } from '../features/commands/registry'
+import { createSlashCommandRegistry } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { PulsingDot } from '../components/ui/PulsingDot'
 import { nextReplMode, type ReplMode } from '../features/repl/mode'
@@ -40,14 +40,18 @@ export function REPL({
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
   const userInput = useUserInputManager()
+  const commandRegistry = useMemo(
+    () => createSlashCommandRegistry({ cwd: process.cwd(), taskManager }),
+    [taskManager],
+  )
   const { state, actions } = useReplController({
     engine,
     tools,
     cfg,
     allowedSubagents,
-    taskManager,
     mode,
     onModeChange: (nextMode) => setMode(nextMode),
+    commandRegistry,
   })
 
   const isPromptMode = useMemo(() => {
@@ -62,8 +66,8 @@ export function REPL({
 
   const slashSuggestions = useMemo(() => {
     if (isPromptMode) return []
-    return getSlashCommandSuggestions(input).slice(0, 10)
-  }, [input, isPromptMode])
+    return commandRegistry.suggest(input).slice(0, 10)
+  }, [commandRegistry, input, isPromptMode])
 
   const selectedSlash = slashSuggestions[slashIndex]?.command
 

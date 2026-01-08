@@ -1,10 +1,50 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import type { PromptBlock } from '../../prompts'
+import { buildInitCommandContent } from '../../prompts'
+import type { TaskManager } from '../../tools/runtime/taskManager'
+
 export type SlashCommandSpec = {
   command: string
   description: string
   implemented?: boolean
 }
 
-export const SLASH_COMMANDS: SlashCommandSpec[] = [
+export type LocalCommandRecord = {
+  commandName: string
+  commandMessage: string
+  commandArgs: string
+  stdout: string
+}
+
+export type SlashCommandEffect =
+  | {
+      kind: 'local'
+      stdout: string
+      recordForNextTurn?: LocalCommandRecord
+    }
+  | {
+      kind: 'llm'
+      blocks: PromptBlock[]
+      loadingText?: string
+    }
+  | {
+      kind: 'unimplemented'
+      message: string
+    }
+
+export type SlashCommandRegistry = {
+  list: () => SlashCommandSpec[]
+  suggest: (input: string) => SlashCommandSpec[]
+  dispatch: (input: string) => SlashCommandEffect | null
+}
+
+type CommandEntry = {
+  spec: SlashCommandSpec
+  dispatch?: (args: { command: string; args: string }) => SlashCommandEffect
+}
+
+const BUILTIN_SPECS: SlashCommandSpec[] = [
   { command: '/tasks', description: 'List and manage background tasks', implemented: true },
   { command: '/plan', description: 'Show current plan', implemented: true },
   {
@@ -22,12 +62,205 @@ export const SLASH_COMMANDS: SlashCommandSpec[] = [
   { command: '/init', description: 'Initialize a CLAUDE.md file with repo documentation', implemented: true },
 ]
 
-export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {
-  const raw = (input || '').trimStart()
-  if (!raw.startsWith('/')) return []
+export function createSlashCommandRegistry(deps: {
+  cwd: string
+  taskManager?: TaskManager
+}): SlashCommandRegistry {
+  const pluginEntries = loadClaudeCommandEntries(deps.cwd)
 
-  const query = raw.slice(1).toLowerCase()
-  if (!query) return SLASH_COMMANDS
+  const byCommand = new Map<string, CommandEntry>()
+  for (const spec of BUILTIN_SPECS) byCommand.set(spec.command, { spec })
+  for (const entry of pluginEntries) {
+    if (!byCommand.has(entry.spec.command)) byCommand.set(entry.spec.command, entry)
+  }
 
-  return SLASH_COMMANDS.filter((c) => c.command.slice(1).toLowerCase().startsWith(query))
+  // Built-in dispatchers
+  byCommand.set('/tasks', {
+    spec: byCommand.get('/tasks')!.spec,
+    dispatch: () => ({
+      kind: 'local',
+      stdout: formatTasksOutput(deps.taskManager?.list() ?? []),
+    }),
+  })
+
+  byCommand.set('/plan', {
+    spec: byCommand.get('/plan')!.spec,
+    dispatch: (parsed) => {
+      const stdout = 'No plan found for current session'
+      return {
+        kind: 'local',
+        stdout,
+        recordForNextTurn: {
+          commandName: parsed.command,
+          commandMessage: 'plan',
+          commandArgs: parsed.args,
+          stdout,
+        },
+      }
+    },
+  })
+
+  byCommand.set('/init', {
+    spec: byCommand.get('/init')!.spec,
+    dispatch: () => ({
+      kind: 'llm',
+      blocks: buildInitCommandContent(),
+      loadingText: 'Spelunking',
+    }),
+  })
+
+  const list = (): SlashCommandSpec[] => {
+    const merged = Array.from(byCommand.values()).map((e) => e.spec)
+    merged.sort((a, b) => a.command.localeCompare(b.command))
+    return merged
+  }
+
+  const suggest = (input: string): SlashCommandSpec[] => {
+    const raw = (input || '').trimStart()
+    if (!raw.startsWith('/')) return []
+
+    const query = raw.slice(1).toLowerCase()
+    if (!query) return list()
+
+    return list().filter((c) => c.command.slice(1).toLowerCase().startsWith(query))
+  }
+
+  const dispatch = (input: string): SlashCommandEffect | null => {
+    const parsed = parseSlashCommand(input)
+    if (!parsed) return null
+
+    const entry = byCommand.get(parsed.command)
+    if (!entry) return null
+
+    if (entry.dispatch) {
+      return entry.dispatch(parsed)
+    }
+
+    if (entry.spec.implemented === false) {
+      return { kind: 'unimplemented', message: `Command ${entry.spec.command} is not implemented yet.` }
+    }
+
+    return null
+  }
+
+  return { list, suggest, dispatch }
 }
+
+export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {
+  // Backwards-compatible helper for legacy call sites (no plugins, no dispatch).
+  return createSlashCommandRegistry({ cwd: process.cwd() }).suggest(input)
+}
+
+export function parseSlashCommand(input: string): { command: string; args: string } | null {
+  const raw = (input || '').trim()
+  if (!raw.startsWith('/')) return null
+
+  const firstSpace = raw.indexOf(' ')
+  if (firstSpace === -1) return { command: raw, args: '' }
+
+  const cmd = raw.slice(0, firstSpace)
+  const args = raw.slice(firstSpace + 1).trim()
+  return { command: cmd, args }
+}
+
+function loadClaudeCommandEntries(cwd: string): CommandEntry[] {
+  const dir = path.join(cwd, '.claude', 'commands')
+  try {
+    if (!fs.existsSync(dir)) return []
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith('.md'))
+      .map((e) => {
+        const filePath = path.join(dir, e.name)
+        const raw = fs.readFileSync(filePath, 'utf8')
+        const parsed = parseFrontmatter(raw)
+        const body = (parsed?.body ?? raw).trim()
+
+        const baseName = path.basename(e.name, path.extname(e.name))
+        const cmd = `/${baseName}`
+        const description = (parsed?.attributes.description || extractFirstLine(body) || 'Custom command').trim()
+
+        const spec: SlashCommandSpec = {
+          command: cmd,
+          description,
+          implemented: true,
+        }
+
+        return {
+          spec,
+          dispatch: (invocation) => ({
+            kind: 'llm',
+            blocks: buildFileCommandContent({ command: cmd, args: invocation.args, body }),
+            loadingText: 'Thinking',
+          }),
+        }
+      })
+  } catch {
+    return []
+  }
+}
+
+function buildFileCommandContent(args: { command: string; args: string; body: string }): PromptBlock[] {
+  const cmdName = args.command.startsWith('/') ? args.command.slice(1) : args.command
+  const cmdArgs = args.args || ''
+  return [
+    {
+      type: 'text',
+      text:
+        `<command-message>${cmdName} is running…</command-message>\n` +
+        `<command-name>${args.command}</command-name>` +
+        (cmdArgs ? `\n<command-args>${cmdArgs}</command-args>` : ''),
+    },
+    {
+      type: 'text',
+      text: args.body,
+    },
+  ]
+}
+
+function extractFirstLine(body: string): string {
+  const lines = (body || '').split(/\r?\n/g)
+  const first = lines.find((l) => l.trim().length > 0)
+  if (!first) return ''
+  return first.replace(/^#+\s*/, '').trim().slice(0, 80)
+}
+
+function parseFrontmatter(text: string): { attributes: Record<string, string>; body: string } | null {
+  const raw = text || ''
+  if (!raw.startsWith('---')) return null
+
+  const end = raw.indexOf('\n---', 3)
+  if (end === -1) return null
+
+  const header = raw.slice(3, end).trim()
+  const body = raw.slice(end + '\n---'.length).replace(/^\s+/, '')
+  const attributes: Record<string, string> = {}
+
+  for (const line of header.split(/\r?\n/g)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const idx = trimmed.indexOf(':')
+    if (idx === -1) continue
+    const key = trimmed.slice(0, idx).trim()
+    const value = trimmed.slice(idx + 1).trim().replace(/^"|"$/g, '')
+    if (key) attributes[key] = value
+  }
+
+  return { attributes, body }
+}
+
+function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: string; status: string }>): string {
+  if (!tasks || tasks.length === 0) return 'No background tasks.'
+
+  const lines = ['Background tasks:']
+  for (const t of tasks) {
+    const kind = t.kind ? ` ${t.kind}` : ''
+    const label = t.label ? ` — ${t.label}` : ''
+    lines.push(`- ${t.status}${kind} ${t.id}${label}`)
+  }
+  lines.push('')
+  lines.push('Tip: ask me to run TaskOutput with a task_id to fetch output.')
+  lines.push('Tip: ask me to run KillShell with a shell_id to stop a running shell task.')
+  return lines.join('\n')
+}
+

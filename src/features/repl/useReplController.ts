@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
-import { buildInitCommandContent, buildSystemPrompt, buildUserContent } from '../../prompts'
+import { buildSystemPrompt, buildUserContent } from '../../prompts'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../env/config'
 import type { StreamEvent, TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import { formatToolResult } from '../../utils/toolFormatting'
-import type { TaskManager } from '../../tools/runtime/taskManager'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
+import type { LocalCommandRecord, SlashCommandRegistry } from '../commands/registry'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -32,9 +32,9 @@ export function useReplController(deps: {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
-  taskManager?: TaskManager
   mode: ReplMode
   onModeChange?: (mode: ReplMode) => void
+  commandRegistry?: SlashCommandRegistry
 }): ReplController {
   const [messages, setMessages] = useState<Msg[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -354,7 +354,8 @@ export function useReplController(deps: {
       const text = value.trim()
       if (!text || isLoading) return
 
-      if (text === '/tasks' || text.startsWith('/tasks ')) {
+      const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
+      if (slashEffect?.kind === 'local') {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -362,19 +363,22 @@ export function useReplController(deps: {
           timestamp: new Date(),
         }
 
-        const tasks = deps.taskManager?.list() ?? []
         const assistantMsg: Msg = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          content: formatTasksOutput(tasks),
+          content: slashEffect.stdout,
           timestamp: new Date(),
+        }
+
+        if (slashEffect.recordForNextTurn) {
+          localCommandRef.current = slashEffect.recordForNextTurn
         }
 
         setMessages((prev) => [...prev, userMsg, assistantMsg])
         return
       }
 
-      if (text === '/plan') {
+      if (slashEffect?.kind === 'unimplemented') {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -382,18 +386,10 @@ export function useReplController(deps: {
           timestamp: new Date(),
         }
 
-        const stdout = 'No plan found for current session'
-        localCommandRef.current = {
-          commandName: '/plan',
-          commandMessage: 'plan',
-          commandArgs: '',
-          stdout,
-        }
-
         const assistantMsg: Msg = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          content: stdout,
+          content: slashEffect.message,
           timestamp: new Date(),
         }
 
@@ -410,7 +406,7 @@ export function useReplController(deps: {
 
       setMessages((prev) => [...prev, userMsg])
       setIsLoading(true)
-      setLoadingText(text.startsWith('/init') ? 'Spelunking' : 'Thinking')
+      setLoadingText(slashEffect?.kind === 'llm' ? slashEffect.loadingText || 'Thinking' : 'Thinking')
       setError(null)
       currentAssistantIdRef.current = null
 
@@ -426,8 +422,8 @@ export function useReplController(deps: {
         ]
 
         const user =
-          text.startsWith('/init')
-            ? { role: 'user' as const, content: [...injectedBlocks, ...buildInitCommandContent()] }
+          slashEffect?.kind === 'llm'
+            ? { role: 'user' as const, content: [...injectedBlocks, ...slashEffect.blocks] }
             : { role: 'user' as const, content: [...injectedBlocks, ...buildUserContent(text)] }
 
         const system = buildSystemPrompt({
@@ -478,7 +474,7 @@ export function useReplController(deps: {
         abortControllerRef.current = null
       }
     },
-    [deps.allowedSubagents, deps.engine, deps.mode, deps.taskManager, deps.tools, handleEvent, isLoading],
+    [deps.allowedSubagents, deps.commandRegistry, deps.engine, deps.mode, deps.tools, handleEvent, isLoading],
   )
 
   return {
@@ -495,13 +491,6 @@ export function useReplController(deps: {
       abort,
     },
   }
-}
-
-type LocalCommandRecord = {
-  commandName: string
-  commandMessage: string
-  commandArgs: string
-  stdout: string
 }
 
 function buildModeInjectedBlocks(mode: ReplMode): PromptBlock[] {
@@ -569,21 +558,6 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   }
 
   return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
-}
-
-function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: string; status: string }>): string {
-  if (!tasks || tasks.length === 0) return 'No background tasks.'
-
-  const lines = ['Background tasks:']
-  for (const t of tasks) {
-    const kind = t.kind ? ` ${t.kind}` : ''
-    const label = t.label ? ` — ${t.label}` : ''
-    lines.push(`- ${t.status}${kind} ${t.id}${label}`)
-  }
-  lines.push('')
-  lines.push('Tip: ask me to run TaskOutput with a task_id to fetch output.')
-  lines.push('Tip: ask me to run KillShell with a shell_id to stop a running shell task.')
-  return lines.join('\n')
 }
 
 function formatToolUses(count: number): string {
