@@ -432,6 +432,7 @@ export function useReplController(deps: {
 
         const system = buildSystemPrompt({
           allowedSubagents: deps.allowedSubagents,
+          cwd: process.cwd(),
         })
 
         const exec = {
