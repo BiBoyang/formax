@@ -14,6 +14,7 @@ import { ToolExamplesScreen } from '../screens/ToolExamplesScreen.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { registerBuiltinToolModules } from '../tools/modules/index.js'
 import { TaskManager } from '../tools/runtime/taskManager.js'
+import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 
 async function main() {
   // Clear screen for a clean view
@@ -22,7 +23,10 @@ async function main() {
   const toolRegistry = new ToolRegistry({
     listSpecs: async () => [],
   })
-  registerBuiltinToolModules(toolRegistry, { taskManager: new TaskManager() })
+  registerBuiltinToolModules(toolRegistry, {
+    taskManager: new TaskManager(),
+    userInput: createUserInputManager(),
+  })
 
   render(
     <ToolExamplesScreen

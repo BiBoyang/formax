@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { NotebookEditToolHandler } from './handler'
+import { createNotebookEditToolHandler } from './handler'
 
 function makeNotebook(cells: any[]) {
   return {
@@ -15,19 +15,27 @@ function makeNotebook(cells: any[]) {
 
 describe('NotebookEditToolHandler', () => {
   it('replaces a cell source by id', async () => {
+    const handler = createNotebookEditToolHandler({
+      requestAnswers: async () => {
+        throw new Error('Unexpected prompt')
+      },
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
     const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-1.ipynb`)
     const nb = makeNotebook([
       { id: 'a', cell_type: 'code', metadata: {}, source: ['print("old")\n'], outputs: [], execution_count: null },
     ])
     await fsp.writeFile(tmp, JSON.stringify(nb), 'utf8')
 
-    const result = await NotebookEditToolHandler.execute(
+    const result = await handler.execute(
       {
         id: '1',
         name: 'NotebookEdit',
         input: { notebook_path: tmp, cell_id: 'a', new_source: 'print("new")' },
       },
-      { cwd: process.cwd(), agentDepth: 0 },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'acceptEdits' },
     )
 
     expect(result.is_error).toBeUndefined()
@@ -37,6 +45,14 @@ describe('NotebookEditToolHandler', () => {
   })
 
   it('inserts a new cell after an id', async () => {
+    const handler = createNotebookEditToolHandler({
+      requestAnswers: async () => {
+        throw new Error('Unexpected prompt')
+      },
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
     const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-2.ipynb`)
     const nb = makeNotebook([
       { id: 'a', cell_type: 'markdown', metadata: {}, source: ['# old\n'] },
@@ -44,13 +60,13 @@ describe('NotebookEditToolHandler', () => {
     ])
     await fsp.writeFile(tmp, JSON.stringify(nb), 'utf8')
 
-    const result = await NotebookEditToolHandler.execute(
+    const result = await handler.execute(
       {
         id: '2',
         name: 'NotebookEdit',
         input: { notebook_path: tmp, cell_id: 'a', new_source: '# inserted', edit_mode: 'insert', cell_type: 'markdown' },
       },
-      { cwd: process.cwd(), agentDepth: 0 },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'acceptEdits' },
     )
 
     expect(result.is_error).toBeUndefined()
@@ -61,4 +77,3 @@ describe('NotebookEditToolHandler', () => {
     await fsp.unlink(tmp)
   })
 })
-

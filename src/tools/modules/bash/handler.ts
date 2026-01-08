@@ -30,7 +30,7 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
 
         const decision = classifyBashCommand({
           command: String(cmd),
-          mode: ctx.replMode,
+          mode: ctx.getReplMode?.() ?? ctx.replMode,
           agentDepth: ctx.agentDepth,
         })
 

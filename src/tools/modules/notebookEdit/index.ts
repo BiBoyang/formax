@@ -1,6 +1,8 @@
 import type { ToolDefinition } from '../../types'
 import type { ToolModule } from '../../registry'
-import { NotebookEditToolHandler } from './handler'
+import type { UserInputManager } from '../../runtime/userInputManager'
+import { createNotebookEditToolHandler } from './handler'
+import { NotebookEditToolPresenter } from './presenter'
 
 const spec: ToolDefinition = {
   name: 'NotebookEdit',
@@ -28,9 +30,11 @@ const spec: ToolDefinition = {
   },
 }
 
-export const notebookEditToolModule: ToolModule = {
-  name: 'NotebookEdit',
-  handler: NotebookEditToolHandler,
-  specOverride: spec,
+export function createNotebookEditToolModule(userInput: UserInputManager): ToolModule {
+  return {
+    name: 'NotebookEdit',
+    handler: createNotebookEditToolHandler(userInput),
+    presenter: NotebookEditToolPresenter,
+    specOverride: spec,
+  }
 }
-

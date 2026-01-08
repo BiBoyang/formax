@@ -1,6 +1,8 @@
 import type { ToolCall, ToolResult } from '../types'
 import type { StreamSink } from '../../streaming/types'
 
+export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
+
 export type ExecutionContext = {
   cwd: string
   signal?: AbortSignal
@@ -10,7 +12,9 @@ export type ExecutionContext = {
   agentDepth: number
 
   // Optional UI mode for policy decisions (e.g., plan mode restrictions)
-  replMode?: 'normal' | 'acceptEdits' | 'plan'
+  replMode?: ReplMode
+  getReplMode?: () => ReplMode | undefined
+  setReplMode?: (mode: ReplMode) => void
 
   // Optional allow/deny lists for executor-level enforcement
   allowTools?: string[]
@@ -33,6 +37,8 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     onEvent: ctx.onEvent,
     agentDepth: ctx.agentDepth ?? 0,
     replMode: ctx.replMode,
+    getReplMode: ctx.getReplMode,
+    setReplMode: ctx.setReplMode,
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
   }

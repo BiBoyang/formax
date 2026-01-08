@@ -45,6 +45,7 @@ describe('AskUserQuestionToolPresenter', () => {
       requestAnswers: async () => ({}),
       submitAnswers,
       reject: () => true,
+      isPending: () => true,
     }
 
     const message = createRunningAskMessage()
@@ -90,6 +91,7 @@ describe('AskUserQuestionToolPresenter', () => {
       requestAnswers: async () => ({}),
       submitAnswers,
       reject: () => true,
+      isPending: () => true,
     }
 
     const message = createRunningAskMessage()

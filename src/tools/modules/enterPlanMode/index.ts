@@ -1,17 +1,26 @@
+import type { ToolDefinition } from '../../types'
 import type { ToolModule } from '../../registry'
-import { EnterPlanModeToolHandler } from './handler'
+import type { UserInputManager } from '../../runtime/userInputManager'
+import { createEnterPlanModeToolHandler } from './handler'
+import { EnterPlanModeToolPresenter } from './presenter'
 
-export const enterPlanModeToolModule: ToolModule = {
+const spec: ToolDefinition = {
   name: 'EnterPlanMode',
-  handler: EnterPlanModeToolHandler,
-  specOverride: {
-    name: 'EnterPlanMode',
-    description:
-      'Enter plan mode. Use this when the user requests planning/analysis only. In plan mode, avoid making edits or running commands until the user approves.',
-    input_schema: {
-      type: 'object',
-      properties: {},
-    },
+  description:
+    "Ask the user to enter plan mode. Use this proactively before non-trivial implementations so you can explore and propose a plan before making edits.\n\nIn plan mode, avoid making edits or running destructive commands until the user approves and you exit plan mode.",
+  input_schema: {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
   },
+}
+
+export function createEnterPlanModeToolModule(userInput: UserInputManager): ToolModule {
+  return {
+    name: 'EnterPlanMode',
+    handler: createEnterPlanModeToolHandler(userInput),
+    presenter: EnterPlanModeToolPresenter,
+    specOverride: spec,
+  }
 }
 

@@ -1,9 +1,13 @@
 import type { ToolModule } from '../../registry'
-import { EditToolHandler } from './handler'
+import type { UserInputManager } from '../../runtime/userInputManager'
+import { createEditToolHandler } from './handler'
 import { EditToolPresenter } from './presenter'
 
-export const editToolModule: ToolModule = {
-  name: 'Edit',
-  handler: EditToolHandler,
-  presenter: EditToolPresenter,
+export function createEditToolModule(userInput: UserInputManager): ToolModule {
+  return {
+    name: 'Edit',
+    handler: createEditToolHandler(userInput),
+    presenter: EditToolPresenter,
+  }
 }
+

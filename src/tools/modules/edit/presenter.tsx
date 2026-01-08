@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
@@ -6,16 +7,23 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
+import { useUserInputManager } from '../../runtime/userInputContext'
 
 const MAX_PREVIEW_LINES = 12
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
+  const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
+
+  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+  const filePathRaw = String((input as any).file_path || (input as any).path || '')
+  const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
@@ -37,7 +45,18 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           <Text color={theme.secondaryText}>)</Text>
         </Box>
 
-      {status !== 'running' && (
+      {status === 'running' && userInput?.isPending(toolUseId) ? (
+        <EditApprovalPrompt
+          title={`Do you want to edit ${fileName}?`}
+          onDecision={(d) => {
+            if (!userInput) return
+            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+            else if (d.kind === 'approve_all') userInput.submitAnswers(toolUseId, { decision: 'approve_all' })
+            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+          }}
+        />
+      ) : status !== 'running' ? (
         <Box flexDirection="column">
           <Box>
             <Text color={theme.secondaryText}>⎿  </Text>
@@ -59,7 +78,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             </Box>
           ) : null}
         </Box>
-      )}
+      ) : null}
     </Box>
   )
 }

@@ -51,11 +51,12 @@ export function useReplController(deps: {
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   >(new Map())
   const localCommandRef = useRef<LocalCommandRecord | null>(null)
+  const modeRef = useRef<ReplMode>(deps.mode)
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
-  const lastNonPlanModeRef = useRef<ReplMode>(deps.mode === 'plan' ? 'normal' : deps.mode)
 
   useEffect(() => {
+    modeRef.current = deps.mode
     const prev = prevModeRef.current
     if (prev === 'plan' && deps.mode !== 'plan') {
       pendingExitPlanReminderRef.current = true
@@ -63,11 +64,13 @@ export function useReplController(deps: {
     prevModeRef.current = deps.mode
   }, [deps.mode])
 
-  useEffect(() => {
-    if (deps.mode !== 'plan') {
-      lastNonPlanModeRef.current = deps.mode
-    }
-  }, [deps.mode])
+  const setReplMode = useCallback(
+    (nextMode: ReplMode) => {
+      modeRef.current = nextMode
+      deps.onModeChange?.(nextMode)
+    },
+    [deps.onModeChange],
+  )
 
   const { staticMessages, transientMessages } = useMemo(() => {
     const isTransient = (m: Msg) =>
@@ -281,12 +284,6 @@ export function useReplController(deps: {
         // After tool, start a new assistant message for subsequent text
         currentAssistantIdRef.current = null
 
-        if (toolNameFromStart === 'EnterPlanMode') {
-          deps.onModeChange?.('plan')
-        }
-        if (toolNameFromStart === 'ExitPlanMode') {
-          deps.onModeChange?.(lastNonPlanModeRef.current || 'normal')
-        }
         return
       }
 
@@ -437,7 +434,11 @@ export function useReplController(deps: {
           allowedSubagents: deps.allowedSubagents,
         })
 
-        const exec = buildExecPolicy(deps.mode)
+        const exec = {
+          replMode: deps.mode,
+          getReplMode: () => modeRef.current,
+          setReplMode,
+        }
         const historyLen = historyRef.current.length
         const nextHistory = await deps.engine.runTurn({
           history: historyRef.current,
@@ -567,11 +568,6 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   }
 
   return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
-}
-
-function buildExecPolicy(mode: ReplMode): { denyTools?: string[]; replMode: ReplMode } {
-  if (mode !== 'plan') return { replMode: mode }
-  return { replMode: mode, denyTools: ['Write', 'Edit', 'NotebookEdit'] }
 }
 
 function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: string; status: string }>): string {

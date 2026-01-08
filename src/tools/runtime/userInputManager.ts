@@ -20,6 +20,7 @@ export type UserInputManager = {
   }) => Promise<AskUserAnswers>
   submitAnswers: (toolUseId: string, answers: AskUserAnswers) => boolean
   reject: (toolUseId: string, error: Error) => boolean
+  isPending: (toolUseId: string) => boolean
 }
 
 type PendingRequest = {
@@ -101,9 +102,14 @@ export function createUserInputManager(): UserInputManager {
     return true
   }
 
+  function isPending(toolUseId: string): boolean {
+    return pending.has(toolUseId)
+  }
+
   return {
     requestAnswers,
     submitAnswers,
     reject: rejectRequest,
+    isPending,
   }
 }

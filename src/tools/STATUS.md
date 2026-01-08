@@ -23,8 +23,9 @@
   - `src/tools/runtime/taskManager.ts`
     - 管理后台任务：`create/list/wait/cancel`
     - 支持“进行中输出更新”（`updateResult`）与取消（`setCancel` + `AbortSignal`）
-  - `src/tools/runtime/userInputManager.ts`
-    - 支持 `AskUserQuestion` “暂停 → 等待用户输入 → 继续执行”
+- `src/tools/runtime/userInputManager.ts`
+    - 支持 “暂停 → 等待用户输入 → 继续执行”（`AskUserQuestion` / PlanMode 确认 / Edit approvals）
+    - `isPending(toolUseId)` 允许 UI 判断是否正在等待输入（从而隐藏输入框/避免抢键盘）
 
 ## 已集成/已实现（重点变更）
 
@@ -72,8 +73,17 @@
 
 - REPL 支持 `shift+tab` 循环切换 `normal → acceptEdits → plan`
 - plan mode 下会在每个 turn 注入 `<system-reminder>`（偏规划、少执行），并在退出 plan mode 时注入一次“Exited Plan Mode”提醒
-- plan mode 会限制执行策略（例如 deny `Write/Edit/NotebookEdit`；`Bash` 更严格）
-- `EnterPlanMode` / `ExitPlanMode` tool 已实现：LLM 可以通过调用工具切换模式，UI 会同步更新
+- plan mode 的限制由工具 handler 侧执行（`Write/Edit/NotebookEdit` 直接拒绝；`Bash` 更严格），支持 tool loop 中途切换 mode
+- `EnterPlanMode` / `ExitPlanMode` tool 已实现交互确认：
+  - `EnterPlanMode`：询问是否进入 plan mode（Yes/No）
+  - `ExitPlanMode`：询问是否开始实现（auto-accept / manual approve / 反馈修改计划）
+
+### 5) Edit approvals（Write/Edit/NotebookEdit）
+
+- `normal` 模式下：每次 `Write/Edit/NotebookEdit` 都会弹出本地确认 UI（Yes / Yes+allow all / 反馈）
+- `acceptEdits` 模式下：自动执行，不再逐次确认
+- “allow all edits during this session” 会把 mode 切到 `acceptEdits`
+- REPL 在出现上述交互提示时会隐藏输入框，避免键盘事件冲突
 
 ## tools-copy.json 还缺什么（未实现）
 

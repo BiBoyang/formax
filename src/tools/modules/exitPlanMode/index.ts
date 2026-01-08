@@ -1,17 +1,29 @@
+import type { ToolDefinition } from '../../types'
 import type { ToolModule } from '../../registry'
-import { ExitPlanModeToolHandler } from './handler'
+import type { UserInputManager } from '../../runtime/userInputManager'
+import { createExitPlanModeToolHandler } from './handler'
+import { ExitPlanModeToolPresenter } from './presenter'
 
-export const exitPlanModeToolModule: ToolModule = {
+const spec: ToolDefinition = {
   name: 'ExitPlanMode',
-  handler: ExitPlanModeToolHandler,
-  specOverride: {
-    name: 'ExitPlanMode',
-    description:
-      'Exit plan mode. Use this once planning is complete and the user has approved execution, so you can proceed with edits and running commands.',
-    input_schema: {
-      type: 'object',
-      properties: {},
+  description:
+    "Ask the user to approve exiting plan mode after you've finished planning.\n\nUse this once you have a clear plan and are ready to proceed with implementation. The user can choose auto-accept edits, manual per-edit approvals, or request plan changes.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      launchSwarm: { type: 'boolean', description: 'Whether to launch a swarm to implement the plan.' },
+      teammateCount: { type: 'number', description: 'Number of teammates to spawn in the swarm.' },
     },
+    additionalProperties: true,
   },
+}
+
+export function createExitPlanModeToolModule(userInput: UserInputManager): ToolModule {
+  return {
+    name: 'ExitPlanMode',
+    handler: createExitPlanModeToolHandler(userInput),
+    presenter: ExitPlanModeToolPresenter,
+    specOverride: spec,
+  }
 }
 

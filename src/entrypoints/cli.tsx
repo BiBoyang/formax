@@ -57,7 +57,8 @@ async function main() {
   const specSource = createProxyJsonSpecSource({ filePath: cfg.paths.toolsJsonPath })
   const toolRegistry = new ToolRegistry(specSource)
   const taskManager = new TaskManager()
-  registerBuiltinToolModules(toolRegistry, { taskManager })
+  const userInputManager = createUserInputManager()
+  registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager })
   toolRegistry.register(
     createWebFetchToolModule({
       client: webFetchClient,
@@ -69,7 +70,6 @@ async function main() {
   toolRegistry.register(createTaskOutputToolModule(taskManager))
   toolRegistry.register(createKillShellToolModule(taskManager))
 
-  const userInputManager = createUserInputManager()
   toolRegistry.register(createAskUserQuestionToolModule(userInputManager))
 
   const subAgentRegistry = createSubAgentRegistry()

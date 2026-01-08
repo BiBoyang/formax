@@ -15,6 +15,7 @@ import { getSlashCommandSuggestions } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { PulsingDot } from '../components/ui/PulsingDot'
 import { nextReplMode, type ReplMode } from '../features/repl/mode'
+import { useUserInputManager } from '../tools/runtime/userInputContext'
 
 type Props = {
   onExit?: () => void
@@ -38,6 +39,7 @@ export function REPL({
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
+  const userInput = useUserInputManager()
   const { state, actions } = useReplController({
     engine,
     tools,
@@ -48,16 +50,20 @@ export function REPL({
     onModeChange: (nextMode) => setMode(nextMode),
   })
 
-  const isAskMode = useMemo(() => {
-    return state.transientMessages.some(
-      (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
-    )
-  }, [state.transientMessages])
+  const isPromptMode = useMemo(() => {
+    if (!userInput) return false
+    const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
+    return state.transientMessages.some((m) => {
+      if (m.role !== 'tool' || m.toolInfo?.status !== 'running') return false
+      const toolUseId = m.toolInfo.toolUseId || (m.id.startsWith('tool-') ? m.id.slice('tool-'.length) : m.id)
+      return alwaysInteractive.has(m.toolInfo.name) || userInput.isPending(toolUseId)
+    })
+  }, [state.transientMessages, userInput])
 
   const slashSuggestions = useMemo(() => {
-    if (isAskMode) return []
+    if (isPromptMode) return []
     return getSlashCommandSuggestions(input).slice(0, 10)
-  }, [input, isAskMode])
+  }, [input, isPromptMode])
 
   const selectedSlash = slashSuggestions[slashIndex]?.command
 
@@ -72,12 +78,12 @@ export function REPL({
       onExit ? onExit() : process.exit(0)
     }
 
-    if (isAskMode) return
-
     if (meta.shift && meta.tab) {
       setMode((m) => nextReplMode(m))
       return
     }
+
+    if (isPromptMode) return
 
     if (meta.escape) {
       actions.abort()
@@ -100,10 +106,10 @@ export function REPL({
       const text = value.trim()
       if (!text) return
 
-      if (slashSuggestions.length > 0 && selectedSlash) {
-        const normalized = text.replace(/\s+$/, '')
-        if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
-          setInput(selectedSlash)
+    if (slashSuggestions.length > 0 && selectedSlash) {
+      const normalized = text.replace(/\s+$/, '')
+      if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
+        setInput(selectedSlash)
           setSlashIndex(0)
           return
         }
@@ -184,7 +190,7 @@ export function REPL({
             <Box key={msg.id}>{renderMessage(msg)}</Box>
           ))}
 
-          {state.isLoading && !isAskMode && (
+          {state.isLoading && !isPromptMode && (
             <Box marginTop={1}>
               <PulsingDot color="yellow" pulse />
               <Text color="yellow">{state.loadingText}.</Text>
@@ -200,7 +206,7 @@ export function REPL({
           )}
         </Box>
 
-        {!isAskMode && (
+        {!isPromptMode && (
           <Box flexDirection="column" flexShrink={0} marginTop={1}>
             <InputBar
               value={input}
