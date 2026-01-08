@@ -16,7 +16,7 @@ export interface ChatEngine {
     onEvent: StreamSink
     cwd: string
     signal?: AbortSignal
-    exec?: Partial<Pick<ExecutionContext, 'agentDepth' | 'allowTools' | 'denyTools'>>
+    exec?: Partial<Pick<ExecutionContext, 'agentDepth' | 'allowTools' | 'denyTools' | 'replMode'>>
   }): Promise<ChatHistory>
 }
 
@@ -42,6 +42,7 @@ export function createChatEngine(deps: {
         signal,
         onEvent,
         agentDepth: exec?.agentDepth ?? 0,
+        replMode: exec?.replMode,
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,
       }

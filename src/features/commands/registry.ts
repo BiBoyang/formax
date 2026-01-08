@@ -6,6 +6,7 @@ export type SlashCommandSpec = {
 
 export const SLASH_COMMANDS: SlashCommandSpec[] = [
   { command: '/tasks', description: 'List and manage background tasks', implemented: true },
+  { command: '/plan', description: 'Show current plan', implemented: true },
   {
     command: '/status',
     description: 'Show status including version, model, API connectivity',
@@ -30,4 +31,3 @@ export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {
 
   return SLASH_COMMANDS.filter((c) => c.command.slice(1).toLowerCase().startsWith(query))
 }
-

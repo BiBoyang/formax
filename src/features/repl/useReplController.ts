@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import { buildInitCommandContent, buildSystemPrompt, buildUserContent } from '../../prompts'
 import type { ToolDefinition } from '../../tools/types'
@@ -7,6 +7,8 @@ import type { StreamEvent, TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import { formatToolResult } from '../../utils/toolFormatting'
 import type { TaskManager } from '../../tools/runtime/taskManager'
+import type { PromptBlock } from '../../prompts'
+import type { ReplMode } from './mode'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -31,6 +33,7 @@ export function useReplController(deps: {
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
   taskManager?: TaskManager
+  mode: ReplMode
 }): ReplController {
   const [messages, setMessages] = useState<Msg[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -46,6 +49,17 @@ export function useReplController(deps: {
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   >(new Map())
+  const localCommandRef = useRef<LocalCommandRecord | null>(null)
+  const prevModeRef = useRef<ReplMode>(deps.mode)
+  const pendingExitPlanReminderRef = useRef(false)
+
+  useEffect(() => {
+    const prev = prevModeRef.current
+    if (prev === 'plan' && deps.mode !== 'plan') {
+      pendingExitPlanReminderRef.current = true
+    }
+    prevModeRef.current = deps.mode
+  }, [deps.mode])
 
   const { staticMessages, transientMessages } = useMemo(() => {
     const isTransient = (m: Msg) =>
@@ -347,6 +361,33 @@ export function useReplController(deps: {
         return
       }
 
+      if (text === '/plan') {
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
+        }
+
+        const stdout = 'No plan found for current session'
+        localCommandRef.current = {
+          commandName: '/plan',
+          commandMessage: 'plan',
+          commandArgs: '',
+          stdout,
+        }
+
+        const assistantMsg: Msg = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: stdout,
+          timestamp: new Date(),
+        }
+
+        setMessages((prev) => [...prev, userMsg, assistantMsg])
+        return
+      }
+
       const userMsg: Msg = {
         id: `user-${Date.now()}`,
         role: 'user',
@@ -365,15 +406,23 @@ export function useReplController(deps: {
       assistantBufferRef.current = ''
 
       try {
+        const injectedBlocks: PromptBlock[] = [
+          ...buildModeInjectedBlocks(deps.mode),
+          ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks() : []),
+          ...(localCommandRef.current ? buildLocalCommandInjectedBlocks(localCommandRef.current) : []),
+        ]
+
         const user =
           text.startsWith('/init')
-            ? { role: 'user' as const, content: buildInitCommandContent() }
-            : { role: 'user' as const, content: buildUserContent(text) }
+            ? { role: 'user' as const, content: [...injectedBlocks, ...buildInitCommandContent()] }
+            : { role: 'user' as const, content: [...injectedBlocks, ...buildUserContent(text)] }
 
         const system = buildSystemPrompt({
           allowedSubagents: deps.allowedSubagents,
         })
 
+        const exec = buildExecPolicy(deps.mode)
+        const historyLen = historyRef.current.length
         const nextHistory = await deps.engine.runTurn({
           history: historyRef.current,
           user,
@@ -382,9 +431,16 @@ export function useReplController(deps: {
           onEvent: handleEvent,
           cwd: process.cwd(),
           signal: abortController.signal,
+          exec,
         })
 
-        historyRef.current = nextHistory
+        pendingExitPlanReminderRef.current = false
+        if (localCommandRef.current) localCommandRef.current = null
+
+        historyRef.current =
+          injectedBlocks.length > 0
+            ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
+            : nextHistory
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to send message'
         if (msg !== 'Stream aborted' && msg !== 'Request aborted') {
@@ -404,7 +460,7 @@ export function useReplController(deps: {
         abortControllerRef.current = null
       }
     },
-    [deps.allowedSubagents, deps.engine, deps.taskManager, deps.tools, handleEvent, isLoading],
+    [deps.allowedSubagents, deps.engine, deps.mode, deps.taskManager, deps.tools, handleEvent, isLoading],
   )
 
   return {
@@ -421,6 +477,85 @@ export function useReplController(deps: {
       abort,
     },
   }
+}
+
+type LocalCommandRecord = {
+  commandName: string
+  commandMessage: string
+  commandArgs: string
+  stdout: string
+}
+
+function buildModeInjectedBlocks(mode: ReplMode): PromptBlock[] {
+  if (mode !== 'plan') return []
+  return [
+    {
+      type: 'text',
+      text:
+        '<system-reminder>\n' +
+        'Plan mode is active. The user indicated that they do not want you to execute yet.\n' +
+        'In plan mode, focus on analysis and proposing a plan. Avoid using tools that modify files or execute destructive commands.\n' +
+        '</system-reminder>',
+      cache_control: { type: 'ephemeral' },
+    },
+  ]
+}
+
+function buildExitPlanInjectedBlocks(): PromptBlock[] {
+  return [
+    {
+      type: 'text',
+      text:
+        '<system-reminder>\n' +
+        '## Exited Plan Mode\n\n' +
+        'You have exited plan mode. You can now make edits, run tools, and take actions.\n' +
+        '</system-reminder>',
+      cache_control: { type: 'ephemeral' },
+    },
+  ]
+}
+
+function buildLocalCommandInjectedBlocks(rec: LocalCommandRecord): PromptBlock[] {
+  return [
+    {
+      type: 'text',
+      text:
+        'Caveat: The messages below were generated by the user while running local commands. ' +
+        'DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.',
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text:
+        `<command-name>${rec.commandName}</command-name>\n` +
+        `            <command-message>${rec.commandMessage}</command-message>\n` +
+        `            <command-args>${rec.commandArgs}</command-args>`,
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: `<local-command-stdout>${rec.stdout}</local-command-stdout>`,
+      cache_control: { type: 'ephemeral' },
+    },
+  ]
+}
+
+function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {
+  const msg = history[userIndex]
+  if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return history
+  if (injectedCount <= 0) return history
+
+  const stripped: ChatHistory[number] = {
+    ...msg,
+    content: msg.content.slice(injectedCount),
+  }
+
+  return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
+}
+
+function buildExecPolicy(mode: ReplMode): { denyTools?: string[]; replMode: ReplMode } {
+  if (mode !== 'plan') return { replMode: mode }
+  return { replMode: mode, denyTools: ['Write', 'Edit', 'NotebookEdit'] }
 }
 
 function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: string; status: string }>): string {

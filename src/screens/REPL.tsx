@@ -14,6 +14,7 @@ import type { TaskManager } from '../tools/runtime/taskManager'
 import { getSlashCommandSuggestions } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { PulsingDot } from '../components/ui/PulsingDot'
+import { nextReplMode, type ReplMode } from '../features/repl/mode'
 
 type Props = {
   onExit?: () => void
@@ -35,6 +36,7 @@ export function REPL({
   taskManager,
 }: Props): React.ReactNode {
   const [input, setInput] = useState('')
+  const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
   const { state, actions } = useReplController({
     engine,
@@ -42,6 +44,7 @@ export function REPL({
     cfg,
     allowedSubagents,
     taskManager,
+    mode,
   })
 
   const isAskMode = useMemo(() => {
@@ -69,6 +72,11 @@ export function REPL({
     }
 
     if (isAskMode) return
+
+    if (meta.shift && meta.tab) {
+      setMode((m) => nextReplMode(m))
+      return
+    }
 
     if (meta.escape) {
       actions.abort()
@@ -207,7 +215,13 @@ export function REPL({
               }))}
             />
             <Box marginTop={1}>
-              <Text dimColor>? for shortcuts</Text>
+              {mode === 'normal' ? (
+                <Text dimColor>? for shortcuts</Text>
+              ) : mode === 'acceptEdits' ? (
+                <Text dimColor>⏵⏵ accept edits on (shift+tab to cycle)</Text>
+              ) : (
+                <Text dimColor>⏸ plan mode on (shift+tab to cycle)</Text>
+              )}
             </Box>
           </Box>
         )}

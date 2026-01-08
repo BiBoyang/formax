@@ -3,6 +3,7 @@ import { exec, spawn } from 'node:child_process'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../../runtime/taskManager'
+import { classifyBashCommand } from './policy'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const MAX_OUTPUT_CHARS = 30000
@@ -19,12 +20,38 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
         const cwd = ctx.cwd || process.cwd()
 
         const cmd = (input as any).command
+        const confirmed = Boolean((input as any).confirm || (input as any).dangerouslyDisableSandbox === true)
         const timeoutMs =
           typeof (input as any).timeout === 'number' ? (input as any).timeout : DEFAULT_TIMEOUT_MS
         const runInBackground = Boolean((input as any).run_in_background)
         const description = typeof (input as any).description === 'string' ? (input as any).description.trim() : ''
 
         if (!cmd) throw new Error('Missing command')
+
+        const decision = classifyBashCommand({
+          command: String(cmd),
+          mode: ctx.replMode,
+          agentDepth: ctx.agentDepth,
+        })
+
+        if (decision.risk === 'deny') {
+          return {
+            tool_use_id: call.id,
+            content: `Error: Bash command denied (${decision.prefix}): ${decision.reason}`,
+            is_error: true,
+          }
+        }
+
+        if (decision.risk === 'confirm' && !confirmed) {
+          return {
+            tool_use_id: call.id,
+            content:
+              `Error: Bash command requires confirmation (${decision.prefix}). ` +
+              `${decision.reason}\n` +
+              `Re-run this Bash call with {"confirm": true} to proceed.`,
+            is_error: true,
+          }
+        }
 
         const cmdCwdRaw = (input as any).cwd || cwd
         const cmdCwd = path.isAbsolute(cmdCwdRaw) ? cmdCwdRaw : path.resolve(cwd, cmdCwdRaw)
@@ -250,4 +277,3 @@ function killProcessTree(child: ReturnType<typeof spawn>): void {
     // ignore
   }
 }
-

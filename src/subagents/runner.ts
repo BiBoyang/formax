@@ -59,6 +59,7 @@ export function createSubAgentRunner(deps: {
           signal,
           exec: {
             agentDepth: 1,
+            replMode: 'plan',
             allowTools: Array.from(allowed),
             denyTools: Array.from(NESTED_DENY_TOOLS),
           },

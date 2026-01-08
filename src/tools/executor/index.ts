@@ -9,6 +9,9 @@ export type ExecutionContext = {
   // 0 = main agent, 1 = sub-agent, ...
   agentDepth: number
 
+  // Optional UI mode for policy decisions (e.g., plan mode restrictions)
+  replMode?: 'normal' | 'acceptEdits' | 'plan'
+
   // Optional allow/deny lists for executor-level enforcement
   allowTools?: string[]
   denyTools?: string[]
@@ -29,6 +32,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     signal: ctx.signal,
     onEvent: ctx.onEvent,
     agentDepth: ctx.agentDepth ?? 0,
+    replMode: ctx.replMode,
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
   }

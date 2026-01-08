@@ -32,6 +32,7 @@
 
 - `Task(run_in_background=true)` → 立即返回 `{ task_id }`，后台跑 sub-agent
 - `Bash(run_in_background=true)` → 立即返回 `{ task_id, shell_id }`，后台跑 shell 命令
+- `Bash(confirm=true)` → 允许执行“可能有副作用”的命令（如安装/删除/写入）；否则会返回错误提示要求显式确认（plan mode / sub-agent 默认更严格）
 - `TaskOutput(task_id, block, timeout)` → 拉取后台任务输出（running 时也会带当前输出）
 - `KillShell(shell_id)` → 取消后台 Bash（通过 `TaskManager.cancel`）
 - 内置命令 `/tasks`（不走模型）→ 列出所有后台任务（id/kind/status/label）
