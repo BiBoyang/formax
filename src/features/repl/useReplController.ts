@@ -37,9 +37,11 @@ export function useReplController(deps: {
   const [loadingText, setLoadingText] = useState('Thinking')
   const [error, setError] = useState<string | null>(null)
 
+  const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentAssistantIdRef = useRef<string | null>(null)
+  const assistantBufferRef = useRef<string>('')
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
@@ -55,9 +57,29 @@ export function useReplController(deps: {
     }
   }, [messages])
 
+  const flushAssistantBuffer = useCallback(() => {
+    const text = assistantBufferRef.current
+    if (!text) return
+    assistantBufferRef.current = ''
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: text,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
   const handleEvent = useCallback((ev: StreamEvent) => {
     switch (ev.type) {
       case 'assistant_delta': {
+        if (assistantTextMode === 'buffered') {
+          assistantBufferRef.current += ev.text
+          return
+        }
+
         setMessages((prev) => {
           const existingId = currentAssistantIdRef.current
 
@@ -86,13 +108,17 @@ export function useReplController(deps: {
       }
 
       case 'tool_start': {
-        // Freeze any currently-streaming assistant message before tool
-        if (currentAssistantIdRef.current) {
-          const id = currentAssistantIdRef.current
-          setMessages((prev) =>
-            prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)),
-          )
-          currentAssistantIdRef.current = null
+        if (assistantTextMode === 'buffered') {
+          flushAssistantBuffer()
+        } else {
+          // Freeze any currently-streaming assistant message before tool
+          if (currentAssistantIdRef.current) {
+            const id = currentAssistantIdRef.current
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)),
+            )
+            currentAssistantIdRef.current = null
+          }
         }
 
         toolNameByIdRef.current.set(ev.id, ev.name)
@@ -243,12 +269,16 @@ export function useReplController(deps: {
       }
 
       case 'complete': {
-        if (currentAssistantIdRef.current) {
-          const id = currentAssistantIdRef.current
-          setMessages((prev) =>
-            prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)),
-          )
-          currentAssistantIdRef.current = null
+        if (assistantTextMode === 'buffered') {
+          flushAssistantBuffer()
+        } else {
+          if (currentAssistantIdRef.current) {
+            const id = currentAssistantIdRef.current
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)),
+            )
+            currentAssistantIdRef.current = null
+          }
         }
         return
       }
@@ -256,12 +286,13 @@ export function useReplController(deps: {
       default:
         return
     }
-  }, [])
+  }, [assistantTextMode, flushAssistantBuffer])
 
   const abort = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
 
+    assistantBufferRef.current = ''
     setIsLoading(false)
     setError(null)
 
@@ -331,6 +362,7 @@ export function useReplController(deps: {
 
       const abortController = new AbortController()
       abortControllerRef.current = abortController
+      assistantBufferRef.current = ''
 
       try {
         const user =

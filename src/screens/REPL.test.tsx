@@ -34,6 +34,9 @@ describe('REPL', () => {
       logsDir: '',
       subagentsDir: '',
     },
+    ui: {
+      assistantTextMode: 'stream',
+    },
   }
 
   describe('basic rendering', () => {

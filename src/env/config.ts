@@ -13,6 +13,9 @@ export type RuntimeConfig = {
     logsDir: string
     subagentsDir: string
   }
+  ui: {
+    assistantTextMode: 'stream' | 'buffered'
+  }
 }
 
 function normalizeAnthropicBaseUrl(baseUrl: string): string {
@@ -45,6 +48,9 @@ export function loadRuntimeConfig(
   const timeoutMs =
     Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 600000
 
+  const assistantTextModeRaw = String(env.FORMAX_ASSISTANT_TEXT_MODE || '').trim().toLowerCase()
+  const assistantTextMode = assistantTextModeRaw === 'stream' ? 'stream' : 'buffered'
+
   return {
     llm: {
       provider: 'anthropic',
@@ -58,6 +64,8 @@ export function loadRuntimeConfig(
       logsDir,
       subagentsDir,
     },
+    ui: {
+      assistantTextMode,
+    },
   }
 }
-
