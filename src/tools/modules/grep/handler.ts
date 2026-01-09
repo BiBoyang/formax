@@ -2,6 +2,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { globPatternToRegex } from '../../utils/globPattern'
 
 export const GrepToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
@@ -27,36 +28,48 @@ export const GrepToolHandler: ToolHandler = {
       const lineRegex = new RegExp(String(pattern), isCaseInsensitive ? 'i' : undefined)
 
       const results: string[] = []
-      const filePattern = patternToRegex(String(glob))
+      const filePattern = globPatternToRegex(String(glob))
+      const skip = new Set(['node_modules', '.git'])
+
+      async function searchFile(full: string) {
+        try {
+          const content = await fsp.readFile(full, 'utf8')
+          const lines = content.split('\n')
+          lines.forEach((line, i) => {
+            if (lineRegex.test(line)) {
+              results.push(`${full}:${i + 1}:${line}`)
+            }
+          })
+        } catch {
+          // Skip files we can't read
+        }
+      }
 
       async function searchDir(dir: string) {
         const entries = await fsp.readdir(dir, { withFileTypes: true })
         for (const ent of entries) {
-          if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
+          if (skip.has(ent.name)) continue
 
           const full = path.join(dir, ent.name)
-          const rel = path.relative(searchPath, full)
+          const rel = path.relative(searchPath, full).split(path.sep).join('/')
 
           if (ent.isDirectory()) {
             await searchDir(full)
           } else if (filePattern.test(rel)) {
-            try {
-              const content = await fsp.readFile(full, 'utf8')
-              const lines = content.split('\n')
-              lines.forEach((line, i) => {
-                if (lineRegex.test(line)) {
-                  results.push(`${full}:${i + 1}:${line}`)
-                }
-              })
-            } catch {
-              // Skip files we can't read
-            }
+            await searchFile(full)
           }
         }
       }
 
       try {
-        await searchDir(searchPath)
+        const stat = await fsp.stat(searchPath)
+        if (stat.isFile()) {
+          await searchFile(searchPath)
+        } else if (stat.isDirectory()) {
+          await searchDir(searchPath)
+        } else {
+          // Best effort: nothing to do
+        }
       } catch {
         // Best-effort
       }
@@ -69,19 +82,3 @@ export const GrepToolHandler: ToolHandler = {
     }
   },
 }
-
-function patternToRegex(pattern: string): RegExp {
-  const regexStr = pattern
-    .split('/')
-    .map((seg: string) => {
-      if (seg === '**') return '(?:.*)'
-      return seg
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '[^/]')
-    })
-    .join('/')
-
-  return new RegExp('^' + regexStr + '$')
-}
-

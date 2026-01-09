@@ -2,6 +2,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { globPatternToRegex } from '../../utils/globPattern'
 
 export const GlobToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
@@ -18,13 +19,14 @@ export const GlobToolHandler: ToolHandler = {
       if (!pattern) throw new Error('Missing pattern')
       const root = path.isAbsolute(rootRaw) ? rootRaw : path.resolve(cwd, rootRaw)
 
-      const regex = patternToRegex(String(pattern))
+      const regex = globPatternToRegex(String(pattern))
       const results: string[] = []
+      const skip = new Set(['node_modules', '.git'])
 
       async function walk(dir: string) {
         const entries = await fsp.readdir(dir, { withFileTypes: true })
         for (const ent of entries) {
-          if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
+          if (skip.has(ent.name)) continue
 
           const full = path.join(dir, ent.name)
           const relNative = path.relative(root, full) || ent.name
@@ -52,19 +54,4 @@ export const GlobToolHandler: ToolHandler = {
       return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
     }
   },
-}
-
-function patternToRegex(pattern: string): RegExp {
-  const regexStr = pattern
-    .split('/')
-    .map((seg: string) => {
-      if (seg === '**') return '(?:.*)'
-      return seg
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '[^/]')
-    })
-    .join('/')
-
-  return new RegExp('^' + regexStr + '$')
 }
