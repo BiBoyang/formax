@@ -5,12 +5,21 @@ import type { ToolSpecSource } from './catalog/proxyJson'
 
 export type ToolSpecPatch = (tools: ToolDefinition[]) => ToolDefinition[]
 
+export type ToolMeta = {
+  /**
+   * Whether this tool takes over the UI and should hide the main input bar as
+   * soon as it starts running (even before a user-input promise is pending).
+   */
+  interactive?: boolean
+}
+
 export type ToolModule = {
   name: string
   aliases?: string[]
   handler?: ToolHandler
   presenter?: ToolPresenter
   specOverride?: ToolDefinition | ((base?: ToolDefinition) => ToolDefinition)
+  meta?: ToolMeta
 }
 
 export class ToolRegistry {
@@ -18,6 +27,7 @@ export class ToolRegistry {
   private presenters = new Map<string, ToolPresenter>()
   private aliases = new Map<string, string>()
   private specOverrides = new Map<string, ToolModule['specOverride']>()
+  private meta = new Map<string, ToolMeta>()
   private patches: ToolSpecPatch[] = []
 
   constructor(private specSource: ToolSpecSource) {}
@@ -26,6 +36,7 @@ export class ToolRegistry {
     if (module.handler) this.handlers.push(module.handler)
     if (module.presenter) this.presenters.set(module.name, module.presenter)
     if (module.specOverride) this.specOverrides.set(module.name, module.specOverride)
+    if (module.meta) this.meta.set(module.name, module.meta)
     for (const alias of module.aliases ?? []) this.aliases.set(alias, module.name)
   }
 
@@ -39,6 +50,10 @@ export class ToolRegistry {
 
   getPresenter(name: string): ToolPresenter | undefined {
     return this.presenters.get(this.resolveName(name))
+  }
+
+  getMeta(name: string): ToolMeta | undefined {
+    return this.meta.get(this.resolveName(name))
   }
 
   getHandlers(): ToolHandler[] {
@@ -60,4 +75,3 @@ export class ToolRegistry {
     return specs
   }
 }
-

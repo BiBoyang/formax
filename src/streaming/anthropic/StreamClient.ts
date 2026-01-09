@@ -7,6 +7,33 @@ import type { PromptBlock, PromptMessage } from '../../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
 import type { StreamSink } from '../types'
 
+export function sortToolResultsByCallOrder(
+  toolCallOrder: string[],
+  toolResults: ToolResult[],
+): ToolResult[] {
+  if (toolCallOrder.length === 0) return toolResults
+
+  const byId = new Map<string, ToolResult>()
+  for (const r of toolResults) {
+    if (!byId.has(r.tool_use_id)) byId.set(r.tool_use_id, r)
+  }
+
+  const orderSet = new Set(toolCallOrder)
+
+  const sorted = toolCallOrder.map((id) => {
+    const found = byId.get(id)
+    if (found) return found
+    return {
+      tool_use_id: id,
+      content: `Error: missing tool_result for tool_use_id=${id}`,
+      is_error: true,
+    }
+  })
+
+  const extras = toolResults.filter((r) => !orderSet.has(r.tool_use_id))
+  return [...sorted, ...extras]
+}
+
 export interface StreamClientConfig {
   apiKey: string
   baseUrl: string
@@ -189,9 +216,7 @@ export class AnthropicStreamClient {
         .filter((b): b is ContentBlock & { type: 'tool_use' } => b.type === 'tool_use')
         .map((b) => b.id!)
 
-      const sortedToolResults = toolCallOrder
-        .map((id) => toolResults.find((r) => r.tool_use_id === id))
-        .filter((r): r is ToolResult => r !== undefined)
+      const sortedToolResults = sortToolResultsByCallOrder(toolCallOrder, toolResults)
 
       return {
         contentBlocks: result.contentBlocks,

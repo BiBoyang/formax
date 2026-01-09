@@ -24,6 +24,6 @@ export function createExitPlanModeToolModule(userInput: UserInputManager): ToolM
     handler: createExitPlanModeToolHandler(userInput),
     presenter: ExitPlanModeToolPresenter,
     specOverride: spec,
+    meta: { interactive: true },
   }
 }
-

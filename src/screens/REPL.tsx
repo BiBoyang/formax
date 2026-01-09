@@ -60,9 +60,10 @@ export function REPL({
     return state.transientMessages.some((m) => {
       if (m.role !== 'tool' || m.toolInfo?.status !== 'running') return false
       const toolUseId = m.toolInfo.toolUseId || (m.id.startsWith('tool-') ? m.id.slice('tool-'.length) : m.id)
-      return alwaysInteractive.has(m.toolInfo.name) || userInput.isPending(toolUseId)
+      const interactive = toolRegistry?.getMeta(m.toolInfo.name)?.interactive ?? alwaysInteractive.has(m.toolInfo.name)
+      return interactive || userInput.isPending(toolUseId)
     })
-  }, [state.transientMessages, userInput])
+  }, [state.transientMessages, toolRegistry, userInput])
 
   const slashSuggestions = useMemo(() => {
     if (isPromptMode) return []
