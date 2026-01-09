@@ -13,18 +13,18 @@ export function ModeIndicator({ mode }: Props): React.ReactNode {
   const modeConfig = {
     normal: {
       icon: '⏺',
-      label: 'NORMAL',
-      color: 'gray',
+      label: 'normal',
+      color: theme.secondaryText,
     },
     acceptEdits: {
-      icon: '✓',
-      label: 'ACCEPT EDITS',
-      color: theme.success,
+      icon: '⏵⏵',
+      label: 'accept edits on',
+      color: theme.permission,
     },
     plan: {
-      icon: '⚙',
-      label: 'PLAN MODE',
-      color: 'blue',
+      icon: '⏸',
+      label: 'plan mode on',
+      color: 'cyan',
     },
   } as const
 

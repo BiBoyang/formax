@@ -10,6 +10,7 @@ import type { Msg } from '../components/tool/ToolMessage'
 import { HeaderBanner } from '../components/chat/HeaderBanner'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
+import { ModeIndicator } from '../components/chat/ModeIndicator'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { createSlashCommandRegistry } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
@@ -213,30 +214,26 @@ export function REPL({
 
         {!isPromptMode && (
           <Box flexDirection="column" flexShrink={0} marginTop={1}>
-            <InputBar
-              value={input}
-              onChange={handleInputChange}
-              onSubmit={handleSend}
-              placeholder={`Try \"fix typecheck errors\"`}
-              disabled={state.isLoading}
-              suggestions={slashSuggestions.map((s, i) => ({
-                command: s.command,
-                description: s.description,
-                selected: i === slashIndex,
-                dim: s.implemented === false,
-              }))}
-            />
-            <Box marginTop={1}>
-              {mode === 'normal' ? (
-                <Text dimColor>? for shortcuts</Text>
-              ) : mode === 'acceptEdits' ? (
-                <Text dimColor>⏵⏵ accept edits on (shift+tab to cycle)</Text>
-              ) : (
-                <Text dimColor>⏸ plan mode on (shift+tab to cycle)</Text>
-              )}
-            </Box>
-          </Box>
-        )}
+	            <InputBar
+	              value={input}
+	              onChange={handleInputChange}
+	              onSubmit={handleSend}
+	              placeholder={`Try \"fix typecheck errors\"`}
+	              disabled={state.isLoading}
+	              suggestions={slashSuggestions.map((s, i) => ({
+	                command: s.command,
+	                description: s.description,
+	                selected: i === slashIndex,
+	                dim: s.implemented === false,
+	              }))}
+	            />
+	            {slashSuggestions.length === 0 && (
+	              <Box>
+	                {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
+	              </Box>
+	            )}
+	          </Box>
+	        )}
       </Box>
     </ReplUiProvider>
   )
