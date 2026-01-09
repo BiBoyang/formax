@@ -289,7 +289,7 @@ describe('formatToolResult', () => {
         fc.string(),
         (result) => {
           const output = formatToolResult('Read', result, false)
-          const lineCount = result.split('\n').length
+          const lineCount = result === '' ? 0 : result.split('\n').length
           expect(output.summary).toBe(`Read ${lineCount} lines`)
           expect(output.lines).toBe(lineCount)
         }
@@ -509,8 +509,8 @@ describe('edge cases', () => {
   describe('formatToolResult edge cases', () => {
     it('should handle empty result string', () => {
       const result = formatToolResult('Read', '', false)
-      expect(result.summary).toBe('Read 1 lines')
-      expect(result.lines).toBe(1)
+      expect(result.summary).toBe('Read 0 lines')
+      expect(result.lines).toBe(0)
     })
 
     it('should handle result with only newlines', () => {

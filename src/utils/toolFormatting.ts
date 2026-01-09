@@ -158,8 +158,10 @@ export function formatToolResult(
   const lineCount = allLines.length
   
   switch (name) {
-    case 'Read':
-      return { summary: `Read ${lineCount} lines`, lines: lineCount }
+    case 'Read': {
+      const lines = result === '' ? 0 : lineCount
+      return { summary: `Read ${lines} lines`, lines }
+    }
     
     case 'Write':
       return { summary: result.slice(0, 100) }

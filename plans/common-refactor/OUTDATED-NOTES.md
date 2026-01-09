@@ -24,6 +24,9 @@
   - `src/tools/registry.ts`
   - `src/tools/modules/{askUserQuestion,enterPlanMode,exitPlanMode}/index.ts`
   - `src/screens/REPL.tsx`
+- [x] 工具 schema 内聚：以 `ToolModule.spec` 为唯一事实来源（`ToolDefinition` 或 “基于 base 合并”的 spec factory）
+  - `src/tools/registry.ts`
+  - `src/tools/modules/*/index.ts`
 - [x] “工具执行 → 二次确认 → 执行/取消”的端到端链路已整理成流程文档
   - `docs/TOOL-EXECUTION-WITH-CONFIRMATION.md`
 
@@ -50,7 +53,6 @@
 
 #### P2（工程化/生态/长期）
 
-- [ ] 工具 schema 内聚：每个 tool module 自带 specOverride（最终可摆脱手写 tools.json）
 - [ ] 内置 commands 模块化（像 tools 一样“命令插件化/只加文件”）
 - [ ] Console logger 安全化（仅 localhost + token + 默认 off）
 - [ ] 测试补齐：路径 guard / plugin trust / 关键 policy 的单测与回归
@@ -85,3 +87,8 @@
 - 文档提到：`ToolMessage` 内部通过 `useInput` 监听 `Ctrl+O`，可能导致多张卡片同时 toggle。
 - 当前代码现状：`src/components/tool/ToolMessage.tsx` 目前是纯展示组件，没有 `useInput`，也没有 `expanded` 状态切换逻辑，因此该问题在当前版本不成立。
 - 后续如果要加“折叠/展开”：建议在 `src/screens/REPL.tsx` 做“选中消息/最新消息”的全局快捷键路由，而不是每个卡片各自监听键盘。
+
+### 2) “specOverride” 命名已过时
+
+- 两份文档中多处使用 `specOverride` 来表达“每个工具模块可覆盖/补全 schema”。
+- 当前代码现状：`ToolModule` 使用 `spec?: ToolSpec`（`ToolDefinition` 或 spec factory），`ToolRegistry.listSpecs()` 会做合并 + patch 后处理；因此可把文档里的 `specOverride` 理解为 `spec`。
