@@ -52,7 +52,12 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
   if (approved) {
     const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
     const planBody = (planText || '').trimEnd() || '(empty plan)'
-    const indented = indentBlock(planBody, 5, MAX_PLAN_PREVIEW_LINES)
+    const indented = indentBlock(planBody, 5, MAX_PLAN_APPROVED_LINES)
+    const modeLabel = resultStr.includes('auto-accept')
+      ? 'auto-accept edits'
+      : resultStr.includes('manual edit')
+        ? 'manual approvals'
+        : null
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -64,7 +69,8 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
         <Box>
           <Text color={theme.secondaryText}>⎿  </Text>
           <Text color={theme.secondaryText}>
-            Plan saved to: {planPathDisplay} · /plan to edit
+            Plan saved to: {planPathDisplay}
+            {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit
           </Text>
         </Box>
 
@@ -188,8 +194,11 @@ function ExitPlanModePrompt({
     const raw = (planText || '').trimEnd()
     if (!raw) return '(empty plan)'
     const lines = raw.split(/\r?\n/)
-    if (lines.length <= MAX_PLAN_PREVIEW_LINES) return raw
-    return lines.slice(0, MAX_PLAN_PREVIEW_LINES).join('\n') + `\n… (${lines.length - MAX_PLAN_PREVIEW_LINES} more lines)`
+    if (lines.length <= MAX_PLAN_PROMPT_LINES) return raw
+    return (
+      lines.slice(0, MAX_PLAN_PROMPT_LINES).join('\n') +
+      `\n… (${lines.length - MAX_PLAN_PROMPT_LINES} more lines)`
+    )
   }, [planText])
 
   return (
@@ -238,7 +247,8 @@ function MenuRow({ cursor, label, dim }: { cursor: boolean; label: string; dim?:
   )
 }
 
-const MAX_PLAN_PREVIEW_LINES = 120
+const MAX_PLAN_PROMPT_LINES = 80
+const MAX_PLAN_APPROVED_LINES = 40
 
 function safeReadFile(filePath: string): string {
   try {

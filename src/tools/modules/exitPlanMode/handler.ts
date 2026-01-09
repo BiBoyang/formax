@@ -1,4 +1,3 @@
-import fsp from 'node:fs/promises'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
@@ -45,7 +44,7 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
           ctx.setReplMode?.('acceptEdits')
           return {
             tool_use_id: call.id,
-            content: await buildApprovedResult({
+            content: buildApprovedResult({
               planPath,
               planMode: 'acceptEdits',
             }),
@@ -56,7 +55,7 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
           ctx.setReplMode?.('normal')
           return {
             tool_use_id: call.id,
-            content: await buildApprovedResult({
+            content: buildApprovedResult({
               planPath,
               planMode: 'normal',
             }),
@@ -84,15 +83,11 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
   }
 }
 
-const MAX_PLAN_CHARS = 20000
-
-async function buildApprovedResult(args: {
+function buildApprovedResult(args: {
   planPath: string | null
   planMode: 'normal' | 'acceptEdits'
-}): Promise<string> {
+}): string {
   const planPath = args.planPath
-  const planText = planPath ? await safeReadFile(planPath) : null
-  const planBody = planText ? truncate(planText.trimEnd(), MAX_PLAN_CHARS) : null
 
   const modeLine =
     args.planMode === 'acceptEdits'
@@ -102,23 +97,8 @@ async function buildApprovedResult(args: {
   return (
     `User has approved your plan. You can now start coding.\n\n` +
     (planPath ? `Your plan has been saved to: ${planPath}\nYou can refer back to it if needed during implementation.\n\n` : '') +
-    (planBody ? `## Approved Plan:\n${planBody}\n\n` : '') +
     modeLine +
     '\n\n' +
     buildExitedPlanModeSystemReminder(planPath)
   )
-}
-
-async function safeReadFile(filePath: string): Promise<string | null> {
-  try {
-    return await fsp.readFile(filePath, 'utf8')
-  } catch {
-    return null
-  }
-}
-
-function truncate(text: string, maxChars: number): string {
-  const raw = String(text || '')
-  if (raw.length <= maxChars) return raw
-  return raw.slice(0, Math.max(0, maxChars - 1)) + '…'
 }
