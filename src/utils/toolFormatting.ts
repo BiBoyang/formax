@@ -166,6 +166,9 @@ export function formatToolResult(
     
     case 'Glob':
     case 'Search': {
+      if (result.trim() === 'No files found') {
+        return { summary: 'Found 0 files', lines: 0 }
+      }
       const files = allLines.filter(l => l.trim()).length
       return { summary: `Found ${files} files`, lines: files }
     }

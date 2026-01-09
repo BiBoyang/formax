@@ -20,7 +20,7 @@ export function createEnterPlanModeToolModule(userInput: UserInputManager): Tool
     name: 'EnterPlanMode',
     handler: createEnterPlanModeToolHandler(userInput),
     presenter: EnterPlanModeToolPresenter,
-    specOverride: spec,
+    spec,
     meta: { interactive: true },
   }
 }

@@ -35,6 +35,6 @@ export function createNotebookEditToolModule(userInput: UserInputManager): ToolM
     name: 'NotebookEdit',
     handler: createNotebookEditToolHandler(userInput),
     presenter: NotebookEditToolPresenter,
-    specOverride: spec,
+    spec,
   }
 }

@@ -23,7 +23,6 @@ export function createKillShellToolModule(taskManager: TaskManager): ToolModule 
     name: 'KillShell',
     handler: createKillShellToolHandler(taskManager),
     presenter: KillShellToolPresenter,
-    specOverride: spec,
+    spec,
   }
 }
-

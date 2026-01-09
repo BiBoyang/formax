@@ -36,7 +36,6 @@ export function createTaskOutputToolModule(taskManager: TaskManager): ToolModule
     name: 'TaskOutput',
     handler: createTaskOutputToolHandler(taskManager),
     presenter: TaskOutputToolPresenter,
-    specOverride: spec,
+    spec,
   }
 }
-

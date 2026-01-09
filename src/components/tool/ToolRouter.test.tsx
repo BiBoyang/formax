@@ -30,9 +30,7 @@ describe('ToolRouter', () => {
   })
 
   it('uses a registered presenter for tool name', () => {
-    const registry = new ToolRegistry({
-      listSpecs: async () => [],
-    })
+    const registry = new ToolRegistry()
 
     registry.register({
       name: 'Read',
@@ -49,9 +47,7 @@ describe('ToolRouter', () => {
   })
 
   it('supports aliases when resolving presenters', () => {
-    const registry = new ToolRegistry({
-      listSpecs: async () => [],
-    })
+    const registry = new ToolRegistry()
 
     registry.register({
       name: 'Read',
@@ -66,4 +62,3 @@ describe('ToolRouter', () => {
     expect(lastFrame()).toContain('Alias presenter')
   })
 })
-

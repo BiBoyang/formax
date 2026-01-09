@@ -13,7 +13,6 @@ import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
 import { AnthropicStreamClient } from '../streaming/anthropic/StreamClient.js'
 import { createChatEngine } from '../chat/engine.js'
-import { createProxyJsonSpecSource } from '../tools/catalog/proxyJson.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { patchTaskToolForSubagents } from '../tools/patches/taskSubagent.js'
 import { registerBuiltinToolModules } from '../tools/modules/index.js'
@@ -47,15 +46,14 @@ async function main() {
     timeoutMs: cfg.llm.timeoutMs,
   })
 
-  const webFetchClient = new AnthropicStreamClient({
+	  const webFetchClient = new AnthropicStreamClient({
     apiKey: cfg.llm.apiKey,
     baseUrl: cfg.llm.baseUrl,
     model: process.env.FORMAX_WEBFETCH_MODEL || model,
     timeoutMs: cfg.llm.timeoutMs,
   })
 
-  const specSource = createProxyJsonSpecSource({ filePath: cfg.paths.toolsJsonPath })
-  const toolRegistry = new ToolRegistry(specSource)
+  const toolRegistry = new ToolRegistry()
   const taskManager = new TaskManager()
   const userInputManager = createUserInputManager()
   registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager })
@@ -76,17 +74,12 @@ async function main() {
   await subAgentRegistry.loadFromDirectory(cfg.paths.subagentsDir)
   const allowedSubagents = subAgentRegistry.list()
 
-  if (process.env.FORMAX_PATCH_TASK_TOOL !== 'false') {
-    toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
-  }
-
-  const tools = await toolRegistry.listSpecs()
-
+  const toolsForSubagents = await toolRegistry.listSpecs()
   const localExecutor = createToolExecutor(toolRegistry.getHandlers())
   const subAgentRunner = createSubAgentRunner({
     client,
     executor: localExecutor,
-    allTools: tools,
+    allTools: toolsForSubagents,
   })
 
   const taskHandler = createTaskSubAgentToolHandler({
@@ -96,6 +89,10 @@ async function main() {
   })
 
   toolRegistry.register(createTaskToolModule(taskHandler))
+  if (process.env.FORMAX_PATCH_TASK_TOOL !== 'false') {
+    toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
+  }
+  const tools = await toolRegistry.listSpecs()
   const executor = createToolExecutor(toolRegistry.getHandlers())
   const engine = createChatEngine({ client, executor })
 

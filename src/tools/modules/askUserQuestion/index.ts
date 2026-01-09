@@ -78,7 +78,7 @@ export function createAskUserQuestionToolModule(userInput: UserInputManager): To
     name: 'AskUserQuestion',
     handler: createAskUserQuestionToolHandler(userInput),
     presenter: AskUserQuestionToolPresenter,
-    specOverride: spec,
+    spec,
     meta: { interactive: true },
   }
 }

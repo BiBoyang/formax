@@ -39,4 +39,4 @@
 
 ## Configuration & Runtime Notes
 - Runtime config comes from env vars loaded via `dotenv/config` in `src/entrypoints/cli.tsx`.
-- Key vars: `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`, and `FORMAX_*` path overrides (defaults to `proxy/tools.json`, `proxy/logs`, `.agent/subagents`).
+- Key vars: `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`, and `FORMAX_*` path overrides (defaults to `proxy/logs`, `.agent/subagents`).

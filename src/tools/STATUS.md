@@ -5,9 +5,10 @@
 ## 当前架构（本项目真实实现）
 
 - **工具规范来源（Spec）**
-  - 基础：`proxy/tools.json`（为了测试 token/成本，暂时只放子集）
-  - 增量：各 Tool Module 通过 `ToolRegistry.specOverride` 注入（逐步补齐 `tools-copy.json` 的全集）
-  - Patch：`src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
+  - **唯一事实来源**：`src/tools/modules/**` 每个 Tool Module 自带 `spec`（`ToolDefinition`）
+  - **运行时聚合**：`src/entrypoints/cli.tsx` 注册 modules → `toolRegistry.listSpecs()` 生成“暴露给模型”的 tools 列表
+  - **Patch**：`src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
+  - **对照参考**：`proxy/tools-copy.json`（抓包得到的“参考全集”）；`proxy/tools.json` 不再参与运行时（仅保留为历史/参考）
 
 - **工具执行（Handler）**
   - `src/chat/engine.ts` 流式 loop 解析到 `tool_use` → `executeTool`
@@ -115,5 +116,5 @@
    - 任务持久化（可选）：重启后还能看到历史任务/输出（写入 logs）
 
 5. **工具规范生成（长期）**
-   - 逐步摆脱手写 `proxy/tools.json`：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
-   - `tools-copy.json` 继续作为“对齐参考全集”，但最终运行时应以模块为准
+   - ✅ 已摆脱运行时对 `proxy/tools.json` 的依赖：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
+   - `tools-copy.json` 继续作为“对齐参考全集”（长期目标），并用 `npm run tools:coverage` 跟踪覆盖率

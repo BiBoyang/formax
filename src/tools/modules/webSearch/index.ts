@@ -29,6 +29,5 @@ const spec: ToolDefinition = {
 export const webSearchToolModule: ToolModule = {
   name: 'WebSearch',
   handler: WebSearchToolHandler,
-  specOverride: spec,
+  spec,
 }
-

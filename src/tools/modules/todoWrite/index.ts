@@ -34,6 +34,5 @@ export const todoWriteToolModule: ToolModule = {
   name: 'TodoWrite',
   handler: TodoWriteToolHandler,
   presenter: TodoWriteToolPresenter,
-  specOverride: spec,
+  spec,
 }
-

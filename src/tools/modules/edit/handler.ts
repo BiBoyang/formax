@@ -77,6 +77,16 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
 
         const content = await fsp.readFile(filePath, 'utf8')
         if (!content.includes(oldString)) {
+          const strippedOld = stripCatNPrefixes(String(oldString))
+          const strippedNew = stripCatNPrefixes(String(newString))
+          if (strippedOld !== oldString && content.includes(strippedOld)) {
+            const newContent = replaceAll
+              ? content.split(strippedOld).join(strippedNew)
+              : content.replace(strippedOld, strippedNew)
+            await fsp.writeFile(filePath, newContent, 'utf8')
+            return { tool_use_id: call.id, content: `Edited ${filePath}` }
+          }
+
           throw new Error(`old_string not found in file: ${String(oldString).slice(0, 50)}...`)
         }
 
@@ -90,4 +100,12 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
       }
     },
   }
+}
+
+function stripCatNPrefixes(text: string): string {
+  const raw = String(text ?? '')
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*\d+\t/, ''))
+    .join('\n')
 }

@@ -26,7 +26,6 @@ export function createWebFetchToolModule(deps: {
   return {
     name: 'WebFetch',
     handler: createWebFetchToolHandler(deps),
-    specOverride: spec,
+    spec,
   }
 }
-

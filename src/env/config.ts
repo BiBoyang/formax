@@ -9,7 +9,6 @@ export type RuntimeConfig = {
     timeoutMs: number
   }
   paths: {
-    toolsJsonPath: string
     logsDir: string
     subagentsDir: string
   }
@@ -29,10 +28,6 @@ export function loadRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
 ): RuntimeConfig {
-  const toolsJsonPath = env.FORMAX_TOOLS_JSON_PATH
-    ? path.resolve(cwd, env.FORMAX_TOOLS_JSON_PATH)
-    : path.resolve(cwd, 'proxy/tools.json')
-
   const logsDir = env.FORMAX_LOGS_DIR
     ? path.resolve(cwd, env.FORMAX_LOGS_DIR)
     : path.resolve(cwd, 'proxy/logs')
@@ -60,7 +55,6 @@ export function loadRuntimeConfig(
       timeoutMs,
     },
     paths: {
-      toolsJsonPath,
       logsDir,
       subagentsDir,
     },

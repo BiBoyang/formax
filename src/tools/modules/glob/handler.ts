@@ -13,8 +13,8 @@ export const GlobToolHandler: ToolHandler = {
       const input = call.input || {}
       const cwd = ctx.cwd || process.cwd()
 
-      const pattern = (input as any).pattern || (input as any).glob || (input as any).path
-      const rootRaw = (input as any).cwd || cwd
+      const pattern = (input as any).pattern || (input as any).glob
+      const rootRaw = (input as any).path || (input as any).cwd || cwd
       if (!pattern) throw new Error('Missing pattern')
       const root = path.isAbsolute(rootRaw) ? rootRaw : path.resolve(cwd, rootRaw)
 
@@ -27,9 +27,10 @@ export const GlobToolHandler: ToolHandler = {
           if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
 
           const full = path.join(dir, ent.name)
-          const rel = path.relative(root, full) || ent.name
+          const relNative = path.relative(root, full) || ent.name
+          const rel = relNative.split(path.sep).join('/')
 
-          if (regex.test(rel)) {
+          if (regex.test(rel) && !ent.isDirectory()) {
             results.push(full)
           }
           if (ent.isDirectory()) {
@@ -67,4 +68,3 @@ function patternToRegex(pattern: string): RegExp {
 
   return new RegExp('^' + regexStr + '$')
 }
-

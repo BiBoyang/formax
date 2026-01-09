@@ -30,7 +30,6 @@ describe('REPL', () => {
       timeoutMs: 600000,
     },
     paths: {
-      toolsJsonPath: '',
       logsDir: '',
       subagentsDir: '',
     },

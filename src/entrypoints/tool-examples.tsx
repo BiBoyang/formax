@@ -20,9 +20,7 @@ async function main() {
   // Clear screen for a clean view
   await clearTerminal()
 
-  const toolRegistry = new ToolRegistry({
-    listSpecs: async () => [],
-  })
+  const toolRegistry = new ToolRegistry()
   registerBuiltinToolModules(toolRegistry, {
     taskManager: new TaskManager(),
     userInput: createUserInputManager(),
