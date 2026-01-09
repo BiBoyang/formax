@@ -5,7 +5,7 @@ import fsp from 'node:fs/promises'
 import { createEditToolHandler } from './handler'
 
 describe('EditToolHandler', () => {
-  it('denies in plan mode', async () => {
+  it('denies non-plan files in plan mode', async () => {
     const handler = createEditToolHandler({
       requestAnswers: async () => {
         throw new Error('Unexpected prompt')
@@ -22,6 +22,32 @@ describe('EditToolHandler', () => {
 
     expect(result.is_error).toBe(true)
     expect(result.content).toContain('Plan mode')
+  })
+
+  it('edits the plan file in plan mode without prompting', async () => {
+    const tmpFile = path.join(os.tmpdir(), `formax-plan-edit-${Date.now()}.md`)
+    await fsp.writeFile(tmpFile, 'hello world', 'utf8')
+    let prompted = false
+
+    const handler = createEditToolHandler({
+      requestAnswers: async () => {
+        prompted = true
+        return { decision: 'approve' }
+      },
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
+
+    const result = await handler.execute(
+      { id: 'p1', name: 'Edit', input: { file_path: tmpFile, old_string: 'world', new_string: 'plan' } },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'plan', getPlanPath: () => tmpFile },
+    )
+
+    expect(prompted).toBe(false)
+    expect(result.is_error).toBeUndefined()
+    expect(await fsp.readFile(tmpFile, 'utf8')).toBe('hello plan')
+    await fsp.unlink(tmpFile)
   })
 
   it('edits when approved', async () => {
@@ -75,4 +101,3 @@ describe('EditToolHandler', () => {
     await fsp.unlink(tmpFile)
   })
 })
-

@@ -9,6 +9,8 @@ import { formatToolResult } from '../../utils/toolFormatting'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { LocalCommandRecord, SlashCommandRegistry } from '../commands/registry'
+import type { PlanSessionManager } from './planSession'
+import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -35,6 +37,7 @@ export function useReplController(deps: {
   mode: ReplMode
   onModeChange?: (mode: ReplMode) => void
   commandRegistry?: SlashCommandRegistry
+  planSession?: PlanSessionManager
 }): ReplController {
   const [messages, setMessages] = useState<Msg[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -415,9 +418,14 @@ export function useReplController(deps: {
       assistantBufferRef.current = ''
 
       try {
+        const planPath =
+          deps.mode === 'plan'
+            ? deps.planSession?.getPlanPath() ?? deps.planSession?.startNewPlan() ?? null
+            : deps.planSession?.getPlanPath() ?? null
+
         const injectedBlocks: PromptBlock[] = [
-          ...buildModeInjectedBlocks(deps.mode),
-          ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks() : []),
+          ...buildModeInjectedBlocks(deps.mode, planPath),
+          ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
           ...(localCommandRef.current ? buildLocalCommandInjectedBlocks(localCommandRef.current) : []),
         ]
 
@@ -435,6 +443,7 @@ export function useReplController(deps: {
           replMode: deps.mode,
           getReplMode: () => modeRef.current,
           setReplMode,
+          getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
         }
         const historyLen = historyRef.current.length
         const nextHistory = await deps.engine.runTurn({
@@ -493,30 +502,36 @@ export function useReplController(deps: {
   }
 }
 
-function buildModeInjectedBlocks(mode: ReplMode): PromptBlock[] {
+function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): PromptBlock[] {
   if (mode !== 'plan') return []
+  if (!planPath) {
+    return [
+      {
+        type: 'text',
+        text:
+          '<system-reminder>\n' +
+          'Plan mode is active. The user indicated that they do not want you to execute yet.\n' +
+          'In plan mode, focus on analysis and proposing a plan. Avoid using tools that modify files or execute destructive commands.\n' +
+          '</system-reminder>',
+        cache_control: { type: 'ephemeral' },
+      },
+    ]
+  }
+
   return [
     {
       type: 'text',
-      text:
-        '<system-reminder>\n' +
-        'Plan mode is active. The user indicated that they do not want you to execute yet.\n' +
-        'In plan mode, focus on analysis and proposing a plan. Avoid using tools that modify files or execute destructive commands.\n' +
-        '</system-reminder>',
+      text: buildPlanModeSystemReminder(planPath),
       cache_control: { type: 'ephemeral' },
     },
   ]
 }
 
-function buildExitPlanInjectedBlocks(): PromptBlock[] {
+function buildExitPlanInjectedBlocks(planPath: string | null): PromptBlock[] {
   return [
     {
       type: 'text',
-      text:
-        '<system-reminder>\n' +
-        '## Exited Plan Mode\n\n' +
-        'You have exited plan mode. You can now make edits, run tools, and take actions.\n' +
-        '</system-reminder>',
+      text: buildExitedPlanModeSystemReminder(planPath),
       cache_control: { type: 'ephemeral' },
     },
   ]

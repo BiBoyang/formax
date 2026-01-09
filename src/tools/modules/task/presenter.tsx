@@ -32,7 +32,6 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Text wrap="truncate-end">
         <PulsingDot color={dotColor} pulse={status === 'running'} />
-        {' '}
         <Text bold>{toolLabel}</Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{params}</Text>

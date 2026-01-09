@@ -65,6 +65,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
 export function createSlashCommandRegistry(deps: {
   cwd: string
   taskManager?: TaskManager
+  plan?: { getPlanPath: () => string | null }
 }): SlashCommandRegistry {
   const pluginEntries = loadClaudeCommandEntries(deps.cwd)
 
@@ -85,17 +86,16 @@ export function createSlashCommandRegistry(deps: {
 
   byCommand.set('/plan', {
     spec: byCommand.get('/plan')!.spec,
-    dispatch: (parsed) => {
-      const stdout = 'No plan found for current session'
-      return {
-        kind: 'local',
-        stdout,
-        recordForNextTurn: {
-          commandName: parsed.command,
-          commandMessage: 'plan',
-          commandArgs: parsed.args,
-          stdout,
-        },
+    dispatch: () => {
+      const planPath = deps.plan?.getPlanPath() ?? null
+      if (!planPath) return { kind: 'local', stdout: 'No plan found for current session.' }
+
+      try {
+        const raw = fs.readFileSync(planPath, 'utf8')
+        const stdout = raw.trimEnd() || '(empty plan)'
+        return { kind: 'local', stdout }
+      } catch {
+        return { kind: 'local', stdout: 'No plan found for current session.' }
       }
     },
   })
@@ -263,4 +263,3 @@ function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: str
   lines.push('Tip: ask me to run KillShell with a shell_id to stop a running shell task.')
   return lines.join('\n')
 }
-

@@ -16,6 +16,10 @@ export type ExecutionContext = {
   getReplMode?: () => ReplMode | undefined
   setReplMode?: (mode: ReplMode) => void
 
+  // Optional plan file context (Claude Code-style plan mode)
+  getPlanPath?: () => string | null
+  planPath?: string | null
+
   // Optional allow/deny lists for executor-level enforcement
   allowTools?: string[]
   denyTools?: string[]
@@ -39,6 +43,8 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     replMode: ctx.replMode,
     getReplMode: ctx.getReplMode,
     setReplMode: ctx.setReplMode,
+    getPlanPath: ctx.getPlanPath,
+    planPath: ctx.planPath,
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
   }

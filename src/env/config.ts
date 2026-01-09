@@ -1,4 +1,5 @@
 import path from 'node:path'
+import os from 'node:os'
 
 export type RuntimeConfig = {
   llm: {
@@ -11,6 +12,7 @@ export type RuntimeConfig = {
   paths: {
     logsDir: string
     subagentsDir: string
+    planDir: string
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
@@ -36,6 +38,9 @@ export function loadRuntimeConfig(
     ? path.resolve(cwd, env.FORMAX_SUBAGENTS_DIR)
     : path.resolve(cwd, '.agent/subagents')
 
+  const defaultPlanDir = path.join(os.homedir(), '.claude', 'plans')
+  const planDir = env.FORMAX_PLAN_DIR ? path.resolve(cwd, env.FORMAX_PLAN_DIR) : defaultPlanDir
+
   const apiKey = env.ANTHROPIC_API_KEY2 || ''
   const baseUrl = normalizeAnthropicBaseUrl(env.ANTHROPIC_BASE_URL2 || '')
   const model = env.ANTHROPIC_MODEL || ''
@@ -57,6 +62,7 @@ export function loadRuntimeConfig(
     paths: {
       logsDir,
       subagentsDir,
+      planDir,
     },
     ui: {
       assistantTextMode,

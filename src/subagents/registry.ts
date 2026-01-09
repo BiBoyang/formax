@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { wsWarn, wsError, wsInfo } from '../utils/consoleLogger'
 import type { SubAgentConfig } from './types'
 
 export interface SubAgentRegistry {
@@ -18,7 +19,8 @@ export function createSubAgentRegistry(): SubAgentRegistry {
       let entries: string[]
       try {
         entries = await fsp.readdir(dir)
-      } catch {
+      } catch (err) {
+        wsError(`[SubAgentRegistry] Failed to read directory ${dir}:`, err)
         return
       }
 
@@ -41,11 +43,13 @@ export function createSubAgentRegistry(): SubAgentRegistry {
 
               if (!name || !description || !systemPrompt) return
               agents.set(name, { name, description, tools, systemPrompt })
-            } catch {
-              // ignore invalid files
+            } catch (err) {
+              wsWarn(`[SubAgentRegistry] Failed to parse ${file}:`, err)
             }
           }),
       )
+
+      wsInfo(`[SubAgentRegistry] Loaded ${agents.size} sub-agent(s) from ${dir}`)
     },
 
     get(name: string): SubAgentConfig | undefined {
@@ -84,13 +88,40 @@ function parseFrontmatter(input: string): { data: Record<string, unknown>; conte
   return { data, content }
 }
 
+/**
+ * Checks if a line starts a new top-level YAML key
+ */
+function isTopLevelKey(line: string): boolean {
+  return /^[A-Za-z0-9_-]+\s*:/.test(line.trim())
+}
+
+/**
+ * Parses a YAML list block (e.g., tools:\n  - Read\n  - Grep)
+ */
+function parseYamlList(lines: string[], startIndex: number): { items: string[]; nextIndex: number } {
+  const items: string[] = []
+  let i = startIndex
+
+  while (i < lines.length) {
+    const nextTrim = lines[i]?.trim()
+
+    // Next top-level key
+    if (isTopLevelKey(nextTrim || '')) break
+
+    const itemMatch = /^-\s*(.+)$/.exec(nextTrim || '')
+    if (itemMatch) items.push(unquote(itemMatch[1]))
+    i++
+  }
+
+  return { items, nextIndex: i }
+}
+
 function parseSimpleYaml(lines: string[]): Record<string, unknown> {
   const data: Record<string, unknown> = {}
 
   let i = 0
   while (i < lines.length) {
-    const line = lines[i]
-    const trimmed = line.trim()
+    const trimmed = lines[i]?.trim() ?? ''
     i++
 
     if (!trimmed || trimmed.startsWith('#')) continue
@@ -106,24 +137,10 @@ function parseSimpleYaml(lines: string[]): Record<string, unknown> {
       continue
     }
 
-    // Parse a simple list block:
-    // tools:
-    //   - Read
-    //   - Grep
-    const items: string[] = []
-    while (i < lines.length) {
-      const next = lines[i]
-      const nextTrim = next.trim()
-
-      // Next top-level key
-      if (/^[A-Za-z0-9_-]+\s*:/.test(nextTrim)) break
-
-      const itemMatch = /^-\s*(.+)$/.exec(nextTrim)
-      if (itemMatch) items.push(unquote(itemMatch[1]))
-      i++
-    }
-
+    // Parse list block
+    const { items, nextIndex } = parseYamlList(lines, i)
     data[key] = items
+    i = nextIndex
   }
 
   return data

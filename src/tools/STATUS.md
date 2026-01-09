@@ -78,10 +78,15 @@
 
 - REPL 支持 `shift+tab` 循环切换 `normal → acceptEdits → plan`
 - plan mode 下会在每个 turn 注入 `<system-reminder>`（偏规划、少执行），并在退出 plan mode 时注入一次“Exited Plan Mode”提醒
-- plan mode 的限制由工具 handler 侧执行（`Write/Edit/NotebookEdit` 直接拒绝；`Bash` 更严格），支持 tool loop 中途切换 mode
+- plan mode 围绕一个 **plan file** 运转（默认 `~/.claude/plans/<slug>.md`，可用 `FORMAX_PLAN_DIR` 覆盖）
+- plan mode 的限制由工具 handler 侧执行：
+  - ✅ `Write/Edit` **仅允许**对 plan file 写入/修改（并跳过逐次确认）；其他路径一律拒绝
+  - `Bash` 会按 policy 更严格（通常需要确认或直接 deny）
 - `EnterPlanMode` / `ExitPlanMode` tool 已实现交互确认：
   - `EnterPlanMode`：询问是否进入 plan mode（Yes/No）
   - `ExitPlanMode`：询问是否开始实现（auto-accept / manual approve / 反馈修改计划）
+- `/plan`：本地命令预览 plan file 内容（不污染下一次请求）
+- TODO：统一 handler/presenter 的“是否为 plan file”路径规范化（当前 presenter 里用 `process.cwd()` 解析相对路径；如果后续支持切换 cwd/多工作目录，需要把 cwd 通过 context 传入或抽到共享 util）
 
 ### 5) Edit approvals（Write/Edit/NotebookEdit）
 

@@ -17,6 +17,8 @@ import { ReplUiProvider } from '../features/repl/replUiContext'
 import { PulsingDot } from '../components/ui/PulsingDot'
 import { nextReplMode, type ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
+import { createPlanSessionManager } from '../features/repl/planSession'
+import { PlanProvider } from '../features/repl/planContext'
 
 type Props = {
   onExit?: () => void
@@ -41,9 +43,14 @@ export function REPL({
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
   const userInput = useUserInputManager()
+  const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
+  const ensurePlanPath = useCallback(
+    () => planSession.getPlanPath() ?? planSession.startNewPlan(),
+    [planSession],
+  )
   const commandRegistry = useMemo(
-    () => createSlashCommandRegistry({ cwd: process.cwd(), taskManager }),
-    [taskManager],
+    () => createSlashCommandRegistry({ cwd: process.cwd(), taskManager, plan: planSession }),
+    [planSession, taskManager],
   )
   const { state, actions } = useReplController({
     engine,
@@ -51,8 +58,12 @@ export function REPL({
     cfg,
     allowedSubagents,
     mode,
-    onModeChange: (nextMode) => setMode(nextMode),
+    onModeChange: (nextMode) => {
+      if (nextMode === 'plan') ensurePlanPath()
+      setMode(nextMode)
+    },
     commandRegistry,
+    planSession,
   })
 
   const isPromptMode = useMemo(() => {
@@ -85,7 +96,11 @@ export function REPL({
     }
 
     if (meta.shift && meta.tab) {
-      setMode((m) => nextReplMode(m))
+      setMode((m) => {
+        const next = nextReplMode(m)
+        if (next === 'plan') ensurePlanPath()
+        return next
+      })
       return
     }
 
@@ -112,10 +127,10 @@ export function REPL({
       const text = value.trim()
       if (!text) return
 
-    if (slashSuggestions.length > 0 && selectedSlash) {
-      const normalized = text.replace(/\s+$/, '')
-      if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
-        setInput(selectedSlash)
+      if (slashSuggestions.length > 0 && selectedSlash) {
+        const normalized = text.replace(/\s+$/, '')
+        if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
+          setInput(selectedSlash)
           setSlashIndex(0)
           return
         }
@@ -138,17 +153,17 @@ export function REPL({
         )
       }
 
-	      if (msg.role === 'assistant') {
-	        if (!msg.content) return null
-	        return (
-	          <Box flexDirection="column" marginTop={1} marginBottom={0}>
-	            <Box>
-	              <Text>⏺</Text>
-	              <Text>{msg.content}</Text>
-	            </Box>
-	          </Box>
-	        )
-	      }
+      if (msg.role === 'assistant') {
+        if (!msg.content) return null
+        return (
+          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+            <Box>
+              <Text>⏺ </Text>
+              <Text>{msg.content}</Text>
+            </Box>
+          </Box>
+        )
+      }
 
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -184,57 +199,59 @@ export function REPL({
   }, [modelLabel, renderMessage, state.staticMessages])
 
   return (
-    <ReplUiProvider abort={actions.abort}>
-      <Box flexDirection="column" height="100%">
-        <Box flexDirection="column" flexGrow={1} overflow="hidden">
-          {/* Header + 消息 Static */}
-          <Static items={staticItems}>
-            {(item) => <Box key={item.key}>{item.jsx}</Box>}
-          </Static>
+    <PlanProvider planSession={planSession}>
+      <ReplUiProvider abort={actions.abort}>
+        <Box flexDirection="column" height="100%">
+          <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            {/* Header + 消息 Static */}
+            <Static items={staticItems}>
+              {(item) => <Box key={item.key}>{item.jsx}</Box>}
+            </Static>
 
-          {state.transientMessages.map((msg) => (
-            <Box key={msg.id}>{renderMessage(msg)}</Box>
-          ))}
+            {state.transientMessages.map((msg) => (
+              <Box key={msg.id}>{renderMessage(msg)}</Box>
+            ))}
 
-          {state.isLoading && !isPromptMode && (
-            <Box marginTop={1}>
-              <PulsingDot color="yellow" pulse />
-              <Text color="yellow">{state.loadingText}.</Text>
-              <Text dimColor> (esc to interrupt)</Text>
-            </Box>
-          )}
+            {state.isLoading && !isPromptMode && (
+              <Box marginTop={1}>
+                <PulsingDot color="yellow" pulse />
+                <Text color="yellow">{state.loadingText}.</Text>
+                <Text dimColor> (esc to interrupt)</Text>
+              </Box>
+            )}
 
-          {state.error && !state.isLoading && (
-            <Box marginTop={1}>
-              <PulsingDot color="red" />
-              <Text color="red">Error: {state.error}</Text>
+            {state.error && !state.isLoading && (
+              <Box marginTop={1}>
+                <PulsingDot color="red" />
+                <Text color="red">Error: {state.error}</Text>
+              </Box>
+            )}
+          </Box>
+
+          {!isPromptMode && (
+            <Box flexDirection="column" flexShrink={0} marginTop={1}>
+              <InputBar
+                value={input}
+                onChange={handleInputChange}
+                onSubmit={handleSend}
+                placeholder={`Try \"fix typecheck errors\"`}
+                disabled={state.isLoading}
+                suggestions={slashSuggestions.map((s, i) => ({
+                  command: s.command,
+                  description: s.description,
+                  selected: i === slashIndex,
+                  dim: s.implemented === false,
+                }))}
+              />
+              {slashSuggestions.length === 0 && (
+                <Box>
+                  {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
+                </Box>
+              )}
             </Box>
           )}
         </Box>
-
-        {!isPromptMode && (
-          <Box flexDirection="column" flexShrink={0} marginTop={1}>
-	            <InputBar
-	              value={input}
-	              onChange={handleInputChange}
-	              onSubmit={handleSend}
-	              placeholder={`Try \"fix typecheck errors\"`}
-	              disabled={state.isLoading}
-	              suggestions={slashSuggestions.map((s, i) => ({
-	                command: s.command,
-	                description: s.description,
-	                selected: i === slashIndex,
-	                dim: s.implemented === false,
-	              }))}
-	            />
-	            {slashSuggestions.length === 0 && (
-	              <Box>
-	                {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
-	              </Box>
-	            )}
-	          </Box>
-	        )}
-      </Box>
-    </ReplUiProvider>
+      </ReplUiProvider>
+    </PlanProvider>
   )
 }

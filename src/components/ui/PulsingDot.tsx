@@ -6,7 +6,7 @@ export function PulsingDot({
   color,
   pulse = false,
   intervalMs = 600,
-  trailingSpace = false,
+  trailingSpace = true,
 }: {
   color?: string
   pulse?: boolean

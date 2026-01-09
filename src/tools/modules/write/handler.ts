@@ -1,8 +1,10 @@
 import fsp from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
+import { buildPlanModeSystemReminder } from '../../../utils/planMode'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -26,13 +28,6 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
         const mode = ctx.getReplMode?.() ?? ctx.replMode
-        if (mode === 'plan') {
-          return {
-            tool_use_id: call.id,
-            content: 'Error: Plan mode is active. Use ExitPlanMode after the user approves your plan.',
-            is_error: true,
-          }
-        }
 
         const input = call.input || {}
         const cwd = ctx.cwd || process.cwd()
@@ -41,9 +36,19 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
         let content = (input as any).content
         if (!filePathRaw) throw new Error('Missing file_path')
 
-        const filePath = path.isAbsolute(filePathRaw) ? filePathRaw : path.resolve(cwd, filePathRaw)
+        const filePath = resolveUserPath(cwd, String(filePathRaw))
+        const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
+        const isPlanFile = Boolean(planPath && path.resolve(planPath) === path.resolve(filePath))
 
-        if (mode !== 'acceptEdits') {
+        if (mode === 'plan' && !isPlanFile) {
+          return {
+            tool_use_id: call.id,
+            content: 'Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.',
+            is_error: true,
+          }
+        }
+
+        if (mode !== 'acceptEdits' && !(mode === 'plan' && isPlanFile)) {
           const answersPromise = userInput.requestAnswers({
             toolUseId: call.id,
             questions: APPROVAL_QUESTIONS,
@@ -82,12 +87,38 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
 
         const dir = path.dirname(filePath)
         await fsp.mkdir(dir, { recursive: true })
+        const existed = await fileExists(filePath)
         await fsp.writeFile(filePath, String(content), 'utf8')
+        if (mode === 'plan' && isPlanFile) {
+          const prefix = existed ? 'The file has been updated at:' : 'File created successfully at:'
+          return {
+            tool_use_id: call.id,
+            content: `${prefix} ${filePath}\n\n${buildPlanModeSystemReminder(filePath)}`,
+          }
+        }
+
         return { tool_use_id: call.id, content: `Wrote ${filePath} (${String(content).length} bytes)` }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
       }
     },
+  }
+}
+
+function resolveUserPath(cwd: string, filePathRaw: string): string {
+  const raw = String(filePathRaw || '').trim()
+  if (!raw) return raw
+  if (raw === '~') return os.homedir()
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
+  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fsp.stat(filePath)
+    return true
+  } catch {
+    return false
   }
 }

@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+import { Box, Text, useInput, useStdout } from 'ink'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -57,6 +57,11 @@ export const EnterPlanModeToolPresenter: ToolPresenter = ({ message }: { message
 
 function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
   const theme = getTheme()
+  const { stdout } = useStdout()
+  const separator = useMemo(() => {
+    const width = Math.max(20, stdout?.columns ?? 80)
+    return '─'.repeat(width)
+  }, [stdout?.columns])
   const [cursor, setCursor] = useState(0)
   const submittedRef = useRef(false)
 
@@ -94,18 +99,33 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text bold>Enter plan mode?</Text>
+      <Text color={theme.secondaryText}>{separator}</Text>
 
-      <Box flexDirection="column" marginTop={1}>
-        <Text color={theme.secondaryText}>
-          Claude wants to enter plan mode to explore and design an implementation approach.
-        </Text>
-        <Text color={theme.secondaryText}>No code changes will be made until you approve the plan.</Text>
-      </Box>
+      <Box flexDirection="column" marginLeft={1}>
+        <Text bold>Enter plan mode?</Text>
 
-      <Box flexDirection="column" marginTop={1}>
-        <MenuRow cursor={cursor === 0} label="1. Yes, enter plan mode" />
-        <MenuRow cursor={cursor === 1} label="2. No, start implementing now" />
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={theme.secondaryText}>
+            Claude wants to enter plan mode to explore and design an implementation approach.
+          </Text>
+
+          <Box marginTop={1} flexDirection="column">
+            <Text color={theme.secondaryText}>In plan mode, Claude will:</Text>
+            <Text color={theme.secondaryText}> · Explore the codebase thoroughly</Text>
+            <Text color={theme.secondaryText}> · Identify existing patterns</Text>
+            <Text color={theme.secondaryText}> · Design an implementation strategy</Text>
+            <Text color={theme.secondaryText}> · Present a plan for your approval</Text>
+          </Box>
+
+          <Box marginTop={1}>
+            <Text color={theme.secondaryText}>No code changes will be made until you approve the plan.</Text>
+          </Box>
+        </Box>
+
+        <Box flexDirection="column" marginTop={1}>
+          <MenuRow cursor={cursor === 0} label="1. Yes, enter plan mode" />
+          <MenuRow cursor={cursor === 1} label="2. No, start implementing now" />
+        </Box>
       </Box>
     </Box>
   )
@@ -120,4 +140,3 @@ function MenuRow({ cursor, label }: { cursor: boolean; label: string }): React.R
     </Box>
   )
 }
-

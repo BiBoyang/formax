@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react'
+import os from 'node:os'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { formatPlanPathForDisplay } from '../../../utils/planMode'
+import { usePlanSession } from '../../../features/repl/planContext'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -15,6 +18,7 @@ const MAX_PREVIEW_LINES = 12
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
+  const planSession = usePlanSession()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -24,9 +28,35 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
+  const planPath = planSession?.getPlanPath() ?? null
+  const isPlanFile = Boolean(planPath && normalizeForCompare(filePathRaw) === normalizeForCompare(planPath))
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
+
+  if (isPlanFile) {
+    return (
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold>Updated plan</Text>
+        </Box>
+
+        {status !== 'running' && (
+          <Box>
+            <Text color={theme.secondaryText}>⎿  </Text>
+            {status === 'error' ? (
+              <Text color={theme.error}>{message.content}</Text>
+            ) : (
+              <Text color={theme.secondaryText}>
+                /plan to preview · {formatPlanPathForDisplay(planPath!)}
+              </Text>
+            )}
+          </Box>
+        )}
+      </Box>
+    )
+  }
 
   const filePath = String((input as any).file_path || (input as any).path || '')
   const oldString = (input as any).old_string
@@ -116,4 +146,12 @@ function renderDiffBlock(args: {
 
 function toLines(value: string): string[] {
   return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+}
+
+function normalizeForCompare(rawPath: string): string {
+  const raw = String(rawPath || '').trim()
+  if (!raw) return ''
+  if (raw === '~') return path.normalize(os.homedir())
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.normalize(path.join(os.homedir(), raw.slice(2)))
+  return path.normalize(path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw))
 }

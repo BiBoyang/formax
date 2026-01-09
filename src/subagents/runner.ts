@@ -4,8 +4,13 @@ import type { PromptBlock } from '../prompts'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolExecutor } from '../tools/executor'
 import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
-import type { StreamSink } from '../streaming/types'
+import type { StreamEvent, StreamSink } from '../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
+
+const DEFAULT_SUMMARY_MAX_CHARS = 500
+const SUMMARY_TRUNCATION_SUFFIX = '…'
+const DEFAULT_SUB_AGENT_REPL_MODE: 'plan' = 'plan'
+const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
 
 export interface SubAgentRunner {
   run(args: {
@@ -15,8 +20,6 @@ export interface SubAgentRunner {
     onEvent?: StreamSink
   }): Promise<SubAgentResult>
 }
-
-const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
 
 export function createSubAgentRunner(deps: {
   client: AnthropicStreamClient
@@ -41,9 +44,9 @@ export function createSubAgentRunner(deps: {
       ]
 
       let summary = ''
-      const handleEvent: StreamSink = (ev: any) => {
+      const handleEvent: StreamSink = (ev: StreamEvent) => {
         onEvent?.(ev)
-        if (ev?.type === 'assistant_delta' && typeof ev.text === 'string') {
+        if (ev.type === 'assistant_delta' && typeof ev.text === 'string') {
           summary += ev.text
         }
       }
@@ -59,14 +62,17 @@ export function createSubAgentRunner(deps: {
           signal,
           exec: {
             agentDepth: 1,
-            replMode: 'plan',
+            replMode: DEFAULT_SUB_AGENT_REPL_MODE,
             allowTools: Array.from(allowed),
             denyTools: Array.from(NESTED_DENY_TOOLS),
           },
         })
 
         const trimmed = summary.trim()
-        const limited = trimmed.length > 500 ? trimmed.slice(0, 500) + '…' : trimmed
+        const limited =
+          trimmed.length > DEFAULT_SUMMARY_MAX_CHARS
+            ? trimmed.slice(0, DEFAULT_SUMMARY_MAX_CHARS) + SUMMARY_TRUNCATION_SUFFIX
+            : trimmed
 
         return { summary: limited, success: true }
       } catch (e) {

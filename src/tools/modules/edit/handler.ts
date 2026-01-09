@@ -1,8 +1,10 @@
 import fsp from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
+import { buildPlanModeSystemReminder } from '../../../utils/planMode'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -26,13 +28,6 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
         const mode = ctx.getReplMode?.() ?? ctx.replMode
-        if (mode === 'plan') {
-          return {
-            tool_use_id: call.id,
-            content: 'Error: Plan mode is active. Use ExitPlanMode after the user approves your plan.',
-            is_error: true,
-          }
-        }
 
         const input = call.input || {}
         const cwd = ctx.cwd || process.cwd()
@@ -46,9 +41,19 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
         if (oldString === undefined) throw new Error('Missing old_string')
         if (newString === undefined) throw new Error('Missing new_string')
 
-        const filePath = path.isAbsolute(filePathRaw) ? filePathRaw : path.resolve(cwd, filePathRaw)
+        const filePath = resolveUserPath(cwd, String(filePathRaw))
+        const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
+        const isPlanFile = Boolean(planPath && path.resolve(planPath) === path.resolve(filePath))
 
-        if (mode !== 'acceptEdits') {
+        if (mode === 'plan' && !isPlanFile) {
+          return {
+            tool_use_id: call.id,
+            content: 'Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.',
+            is_error: true,
+          }
+        }
+
+        if (mode !== 'acceptEdits' && !(mode === 'plan' && isPlanFile)) {
           const answersPromise = userInput.requestAnswers({
             toolUseId: call.id,
             questions: APPROVAL_QUESTIONS,
@@ -84,6 +89,17 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
               ? content.split(strippedOld).join(strippedNew)
               : content.replace(strippedOld, strippedNew)
             await fsp.writeFile(filePath, newContent, 'utf8')
+            if (mode === 'plan' && isPlanFile) {
+              return {
+                tool_use_id: call.id,
+                content:
+                  `The file ${filePath} has been updated. Here's the result of running \`cat -n\` on a snippet of the edited file:\n` +
+                  formatPlanSnippet(newContent) +
+                  '\n\n' +
+                  buildPlanModeSystemReminder(filePath),
+              }
+            }
+
             return { tool_use_id: call.id, content: `Edited ${filePath}` }
           }
 
@@ -93,6 +109,17 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
         const newContent = replaceAll ? content.split(oldString).join(newString) : content.replace(oldString, newString)
 
         await fsp.writeFile(filePath, newContent, 'utf8')
+        if (mode === 'plan' && isPlanFile) {
+          return {
+            tool_use_id: call.id,
+            content:
+              `The file ${filePath} has been updated. Here's the result of running \`cat -n\` on a snippet of the edited file:\n` +
+              formatPlanSnippet(newContent) +
+              '\n\n' +
+              buildPlanModeSystemReminder(filePath),
+          }
+        }
+
         return { tool_use_id: call.id, content: `Edited ${filePath}` }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -108,4 +135,28 @@ function stripCatNPrefixes(text: string): string {
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*\d+\t/, ''))
     .join('\n')
+}
+
+function resolveUserPath(cwd: string, filePathRaw: string): string {
+  const raw = String(filePathRaw || '').trim()
+  if (!raw) return raw
+  if (raw === '~') return os.homedir()
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
+  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
+}
+
+function formatPlanSnippet(contents: string): string {
+  const lines = String(contents || '').split(/\r?\n/)
+  const maxLines = 24
+  const start = Math.max(0, lines.length - maxLines)
+  const slice = lines.slice(start)
+  const rendered = slice
+    .map((line, i) => formatCatNArrowLine(start + i + 1, line))
+    .join('\n')
+  return rendered ? `\n${rendered}` : '\n(no content)'
+}
+
+function formatCatNArrowLine(lineNo: number, content: string): string {
+  const num = String(lineNo).padStart(6, ' ')
+  return `${num}→${content}`
 }

@@ -32,6 +32,7 @@ describe('REPL', () => {
     paths: {
       logsDir: '',
       subagentsDir: '',
+      planDir: '',
     },
     ui: {
       assistantTextMode: 'stream',

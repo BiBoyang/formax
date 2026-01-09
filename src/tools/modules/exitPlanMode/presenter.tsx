@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
 import type { ToolPresenter } from '../../presenters/types'
@@ -5,15 +6,22 @@ import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { usePlanSession } from '../../../features/repl/planContext'
+import { formatPlanPathForDisplay } from '../../../utils/planMode'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
+  const planSession = usePlanSession()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { status } = message.toolInfo
   const toolUseId = message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id
+
+  const planPath = planSession?.getPlanPath() ?? null
+  const planText = useMemo(() => (planPath ? safeReadFile(planPath) : ''), [planPath])
 
   if (status === 'running') {
     if (!userInput) {
@@ -26,6 +34,7 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
 
     return (
       <ExitPlanModePrompt
+        planText={planText}
         onAuto={() => userInput.submitAnswers(toolUseId, { choice: 'auto' })}
         onManual={() => userInput.submitAnswers(toolUseId, { choice: 'manual' })}
         onFeedback={(feedback) => userInput.submitAnswers(toolUseId, { choice: 'feedback', feedback })}
@@ -39,18 +48,46 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
     return null
   }
 
-  const dotColor =
-    status === 'error' ? theme.error : resultStr.includes('Approved') ? theme.success : theme.secondaryText
+  const approved = status !== 'error' && resultStr.includes('User has approved your plan')
+  if (approved) {
+    const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
+    const planBody = (planText || '').trimEnd() || '(empty plan)'
+    const indented = indentBlock(planBody, 5, MAX_PLAN_PREVIEW_LINES)
+
+    return (
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={theme.success} />
+          <Text bold>User approved Claude's plan</Text>
+        </Box>
+
+        <Box>
+          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text color={theme.secondaryText}>
+            Plan saved to: {planPathDisplay} · /plan to edit
+          </Text>
+        </Box>
+
+        <Box>
+          <Text>{indented}</Text>
+        </Box>
+      </Box>
+    )
+  }
+
+  const dotColor = status === 'error' ? theme.error : theme.secondaryText
+  const headline = status === 'error' ? 'ExitPlanMode error' : 'ExitPlanMode'
+  const firstLine = (resultStr || message.content || '').split('\n')[0] || ''
 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <Text color={dotColor}>⏺</Text>
-        <Text bold> ExitPlanMode</Text>
+        <PulsingDot color={dotColor} />
+        <Text bold>{headline}</Text>
       </Box>
-      {resultStr ? (
+      {firstLine ? (
         <Box marginLeft={2}>
-          <Text color={theme.secondaryText}>{resultStr.split('\n')[0]}</Text>
+          <Text color={theme.secondaryText}>{firstLine}</Text>
         </Box>
       ) : null}
     </Box>
@@ -58,11 +95,13 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
 }
 
 function ExitPlanModePrompt({
+  planText,
   onAuto,
   onManual,
   onFeedback,
   onCancel,
 }: {
+  planText: string
   onAuto: () => void
   onManual: () => void
   onFeedback: (text: string) => void
@@ -73,6 +112,10 @@ function ExitPlanModePrompt({
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
     return '─'.repeat(width)
+  }, [stdout?.columns])
+  const planDivider = useMemo(() => {
+    const width = Math.max(20, stdout?.columns ?? 80)
+    return '╌'.repeat(width)
   }, [stdout?.columns])
 
   const [cursor, setCursor] = useState(0) // 0..2
@@ -141,16 +184,33 @@ function ExitPlanModePrompt({
   )
 
   const feedbackLine = typing ? `${typingValue}▏` : typingValue.trim() ? typingValue.trim() : 'Type here to tell Claude what to change'
+  const planBody = useMemo(() => {
+    const raw = (planText || '').trimEnd()
+    if (!raw) return '(empty plan)'
+    const lines = raw.split(/\r?\n/)
+    if (lines.length <= MAX_PLAN_PREVIEW_LINES) return raw
+    return lines.slice(0, MAX_PLAN_PREVIEW_LINES).join('\n') + `\n… (${lines.length - MAX_PLAN_PREVIEW_LINES} more lines)`
+  }, [planText])
 
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={theme.secondaryText}>{separator}</Text>
 
-      <Box flexDirection="column" marginTop={1} marginBottom={1} marginLeft={1}>
+      <Box flexDirection="column" marginTop={1} marginLeft={1}>
         <Text bold>Ready to code?</Text>
       </Box>
 
-      <Box flexDirection="column" marginLeft={1} marginBottom={1}>
+      <Box flexDirection="column" marginLeft={1} marginTop={1}>
+        <Text color={theme.secondaryText}>Here is Claude's plan:</Text>
+      </Box>
+
+      <Text color={theme.secondaryText}>{planDivider}</Text>
+      <Box flexDirection="column" marginLeft={1}>
+        <Text>{planBody}</Text>
+      </Box>
+      <Text color={theme.secondaryText}>{planDivider}</Text>
+
+      <Box flexDirection="column" marginLeft={1} marginTop={1} marginBottom={1}>
         <Text color={theme.secondaryText}>Would you like to proceed?</Text>
       </Box>
 
@@ -161,7 +221,7 @@ function ExitPlanModePrompt({
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Esc to cancel</Text>
+        <Text color={theme.secondaryText}>Esc to cancel · ctrl-g to edit in VS Code</Text>
       </Box>
     </Box>
   )
@@ -178,3 +238,21 @@ function MenuRow({ cursor, label, dim }: { cursor: boolean; label: string; dim?:
   )
 }
 
+const MAX_PLAN_PREVIEW_LINES = 120
+
+function safeReadFile(filePath: string): string {
+  try {
+    return fs.readFileSync(filePath, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+function indentBlock(text: string, spaces: number, maxLines: number): string {
+  const prefix = ' '.repeat(Math.max(0, spaces))
+  const rawLines = String(text || '').split(/\r?\n/)
+  const visible = rawLines.slice(0, Math.max(0, maxLines))
+  const out = visible.map((line) => prefix + line).join('\n')
+  if (rawLines.length <= visible.length) return out
+  return out + `\n${prefix}… (${rawLines.length - visible.length} more lines)`
+}

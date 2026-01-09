@@ -1,14 +1,22 @@
 import React, { useMemo } from 'react'
+import os from 'node:os'
 import path from 'node:path'
+import { Box, Text } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { usePlanSession } from '../../../features/repl/planContext'
+import { getTheme } from '../../../utils/theme'
+import { formatPlanPathForDisplay } from '../../../utils/planMode'
 
 export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+  const theme = getTheme()
   const userInput = useUserInputManager()
+  const planSession = usePlanSession()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -17,6 +25,36 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
+
+  const planPath = planSession?.getPlanPath() ?? null
+  const isPlanFile = Boolean(planPath && normalizeForCompare(filePathRaw) === normalizeForCompare(planPath))
+
+  if (isPlanFile) {
+    const dotColor =
+      status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
+
+    return (
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold>Updated plan</Text>
+        </Box>
+
+        {status !== 'running' && (
+          <Box>
+            <Text color={theme.secondaryText}>⎿  </Text>
+            {status === 'error' ? (
+              <Text color={theme.error}>{message.content}</Text>
+            ) : (
+              <Text color={theme.secondaryText}>
+                /plan to preview · {formatPlanPathForDisplay(planPath!)}
+              </Text>
+            )}
+          </Box>
+        )}
+      </Box>
+    )
+  }
 
   if (status === 'running' && userInput?.isPending(toolUseId)) {
     return (
@@ -36,3 +74,10 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   return <ToolMessage message={message} />
 }
 
+function normalizeForCompare(rawPath: string): string {
+  const raw = String(rawPath || '').trim()
+  if (!raw) return ''
+  if (raw === '~') return path.normalize(os.homedir())
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.normalize(path.join(os.homedir(), raw.slice(2)))
+  return path.normalize(path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw))
+}

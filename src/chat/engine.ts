@@ -19,7 +19,7 @@ export interface ChatEngine {
     exec?: Partial<
       Pick<
         ExecutionContext,
-        'agentDepth' | 'allowTools' | 'denyTools' | 'replMode' | 'getReplMode' | 'setReplMode'
+        'agentDepth' | 'allowTools' | 'denyTools' | 'replMode' | 'getReplMode' | 'setReplMode' | 'getPlanPath' | 'planPath'
       >
     >
   }): Promise<ChatHistory>
@@ -50,6 +50,8 @@ export function createChatEngine(deps: {
         replMode: exec?.replMode,
         getReplMode: exec?.getReplMode,
         setReplMode: exec?.setReplMode,
+        getPlanPath: exec?.getPlanPath,
+        planPath: exec?.planPath,
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,
       }

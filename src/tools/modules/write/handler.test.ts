@@ -5,7 +5,7 @@ import fsp from 'node:fs/promises'
 import { createWriteToolHandler } from './handler'
 
 describe('WriteToolHandler', () => {
-  it('denies in plan mode', async () => {
+  it('denies non-plan files in plan mode', async () => {
     const handler = createWriteToolHandler({
       requestAnswers: async () => {
         throw new Error('Unexpected prompt')
@@ -22,6 +22,32 @@ describe('WriteToolHandler', () => {
 
     expect(result.is_error).toBe(true)
     expect(result.content).toContain('Plan mode')
+  })
+
+  it('writes the plan file in plan mode without prompting', async () => {
+    const tmpDir = path.join(os.tmpdir(), `formax-plan-${Date.now()}`)
+    const planFile = path.join(tmpDir, 'plan.md')
+    let prompted = false
+
+    const handler = createWriteToolHandler({
+      requestAnswers: async () => {
+        prompted = true
+        return { decision: 'approve' }
+      },
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
+
+    const result = await handler.execute(
+      { id: 'p1', name: 'Write', input: { file_path: planFile, content: '# Plan' } },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'plan', getPlanPath: () => planFile },
+    )
+
+    expect(prompted).toBe(false)
+    expect(result.is_error).toBeUndefined()
+    expect(await fsp.readFile(planFile, 'utf8')).toBe('# Plan')
+    await fsp.rm(tmpDir, { recursive: true, force: true })
   })
 
   it('writes when approved', async () => {
@@ -71,4 +97,3 @@ describe('WriteToolHandler', () => {
     await fsp.unlink(tmpFile)
   })
 })
-
