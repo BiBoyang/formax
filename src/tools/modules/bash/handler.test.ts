@@ -1,11 +1,26 @@
 import { describe, it, expect } from 'vitest'
 import { TaskManager } from '../../runtime/taskManager'
+import type { UserInputManager } from '../../runtime/userInputManager'
 import { createBashToolHandler } from './handler'
 
 describe('BashToolHandler', () => {
+  const approveUserInput: UserInputManager = {
+    requestAnswers: async () => ({ decision: 'approve' }),
+    submitAnswers: () => true,
+    reject: () => true,
+    isPending: () => false,
+  }
+
+  const cancelUserInput: UserInputManager = {
+    requestAnswers: async () => ({ decision: 'cancel' }),
+    submitAnswers: () => true,
+    reject: () => true,
+    isPending: () => false,
+  }
+
   it('runs commands in the background and stores output', async () => {
     const taskManager = new TaskManager()
-    const handler = createBashToolHandler({ taskManager })
+    const handler = createBashToolHandler({ taskManager, userInput: approveUserInput })
 
     const command = `"${process.execPath}" -e "console.log('hi')"`
 
@@ -25,7 +40,7 @@ describe('BashToolHandler', () => {
 
   it('denies destructive commands', async () => {
     const taskManager = new TaskManager()
-    const handler = createBashToolHandler({ taskManager })
+    const handler = createBashToolHandler({ taskManager, userInput: approveUserInput })
 
     const result = await handler.execute(
       { id: '1', name: 'Bash', input: { command: 'rm -rf /', confirm: true } } as any,
@@ -38,19 +53,20 @@ describe('BashToolHandler', () => {
 
   it('requires confirmation for risky commands', async () => {
     const taskManager = new TaskManager()
-    const handler = createBashToolHandler({ taskManager })
+    const handler = createBashToolHandler({ taskManager, userInput: cancelUserInput })
 
     const command = `"${process.execPath}" -e "console.log('ok')"`
 
-    const denied = await handler.execute(
-      { id: '1', name: 'Bash', input: { command } } as any,
+    const rejectedEvenWithConfirmFlag = await handler.execute(
+      { id: '1', name: 'Bash', input: { command, confirm: true } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    expect(denied.is_error).toBe(true)
-    expect(denied.content).toContain('requires confirmation')
+    expect(rejectedEvenWithConfirmFlag.is_error).toBe(true)
+    expect(rejectedEvenWithConfirmFlag.content).toContain('User rejected')
 
-    const allowed = await handler.execute(
-      { id: '2', name: 'Bash', input: { command, confirm: true } } as any,
+    const approvingHandler = createBashToolHandler({ taskManager, userInput: approveUserInput })
+    const allowed = await approvingHandler.execute(
+      { id: '2', name: 'Bash', input: { command } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
     expect(allowed.is_error).toBeUndefined()
@@ -59,7 +75,7 @@ describe('BashToolHandler', () => {
 
   it('plan mode allows read-only commands but blocks others by default', async () => {
     const taskManager = new TaskManager()
-    const handler = createBashToolHandler({ taskManager })
+    const handler = createBashToolHandler({ taskManager, userInput: cancelUserInput })
 
     const ok = await handler.execute(
       { id: '1', name: 'Bash', input: { command: 'echo hi' } } as any,
@@ -73,6 +89,6 @@ describe('BashToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0, replMode: 'plan' },
     )
     expect(blocked.is_error).toBe(true)
-    expect(blocked.content).toContain('requires confirmation')
+    expect(blocked.content).toContain('User rejected')
   })
 })

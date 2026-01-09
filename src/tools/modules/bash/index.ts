@@ -1,13 +1,14 @@
 import type { ToolModule } from '../../registry'
 import type { TaskManager } from '../../runtime/taskManager'
+import type { UserInputManager } from '../../runtime/userInputManager'
 import { createBashToolHandler } from './handler'
 import { BashToolPresenter } from './presenter'
 import type { ToolDefinition } from '../../types'
 
-export function createBashToolModule(taskManager: TaskManager): ToolModule {
+export function createBashToolModule(deps: { taskManager: TaskManager; userInput: UserInputManager }): ToolModule {
   return {
     name: 'Bash',
-    handler: createBashToolHandler({ taskManager }),
+    handler: createBashToolHandler({ taskManager: deps.taskManager, userInput: deps.userInput }),
     presenter: BashToolPresenter,
     specOverride: (base?: ToolDefinition) => {
       const baseSchema = (base?.input_schema && typeof base.input_schema === 'object' ? base.input_schema : {}) as any
@@ -25,7 +26,7 @@ export function createBashToolModule(taskManager: TaskManager): ToolModule {
             confirm: {
               type: 'boolean',
               description:
-                'Set to true to confirm running a command that may have side effects (e.g., installs, deletes, writes).',
+                'Whether the assistant is requesting confirmation before running a command that may have side effects.',
             },
           },
         },

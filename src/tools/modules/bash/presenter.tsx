@@ -7,17 +7,41 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { extractFilepathsFromCommandOutput } from './filepaths'
+import { BashApprovalPrompt } from '../../presenters/bashApprovalPrompt'
+import { useUserInputManager } from '../../runtime/userInputContext'
 
 export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
+  const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
+  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
+
+  if (status === 'running' && userInput?.isPending(toolUseId)) {
+    const command = String((input as any)?.command || '')
+    const cmdCwdRaw = String((input as any)?.cwd || '')
+    const cwd = cmdCwdRaw || process.cwd()
+
+    return (
+      <BashApprovalPrompt
+        title="Approve running this command?"
+        command={command}
+        cwd={cwd}
+        onDecision={(d) => {
+          if (!userInput) return
+          if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+          else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+          else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+        }}
+      />
+    )
+  }
 
   const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
   const bg = parseBackgroundBashResult(rawResult)

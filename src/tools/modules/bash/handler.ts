@@ -3,12 +3,28 @@ import { exec, spawn } from 'node:child_process'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../../runtime/taskManager'
+import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { classifyBashCommand } from './policy'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const MAX_OUTPUT_CHARS = 30000
 
-export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolHandler {
+const APPROVAL_QUESTIONS: AskUserQuestion[] = [
+  {
+    header: 'Bash',
+    question: 'Approve running this command?',
+    options: [
+      { label: 'Yes', description: 'Run this command once.' },
+      { label: 'Yes, remember for this session', description: 'Run this command and do not ask again (session only).' },
+      { label: 'No', description: 'Cancel this command.' },
+    ],
+    multiSelect: false,
+  },
+]
+
+export function createBashToolHandler(deps: { taskManager: TaskManager; userInput: UserInputManager }): ToolHandler {
+  const approvedKeys = new Set<string>()
+
   return {
     canHandle(name: string): boolean {
       return name === 'Bash'
@@ -20,7 +36,6 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
         const cwd = ctx.cwd || process.cwd()
 
         const cmd = (input as any).command
-        const confirmed = Boolean((input as any).confirm || (input as any).dangerouslyDisableSandbox === true)
         const timeoutMs =
           typeof (input as any).timeout === 'number' ? (input as any).timeout : DEFAULT_TIMEOUT_MS
         const runInBackground = Boolean((input as any).run_in_background)
@@ -28,8 +43,13 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
 
         if (!cmd) throw new Error('Missing command')
 
+        const cmdCwdRaw = (input as any).cwd || cwd
+        const cmdCwd = path.isAbsolute(cmdCwdRaw) ? cmdCwdRaw : path.resolve(cwd, cmdCwdRaw)
+        const cmdStr = String(cmd)
+        const approvalKey = `${cmdCwd}\n${cmdStr}`
+
         const decision = classifyBashCommand({
-          command: String(cmd),
+          command: cmdStr,
           mode: ctx.getReplMode?.() ?? ctx.replMode,
           agentDepth: ctx.agentDepth,
         })
@@ -42,31 +62,37 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
           }
         }
 
-        if (decision.risk === 'confirm' && !confirmed) {
-          return {
-            tool_use_id: call.id,
-            content:
-              `Error: Bash command requires confirmation (${decision.prefix}). ` +
-              `${decision.reason}\n` +
-              `Re-run this Bash call with {"confirm": true} to proceed.`,
-            is_error: true,
+        if (decision.risk === 'confirm' && !approvedKeys.has(approvalKey)) {
+          const answersPromise = deps.userInput.requestAnswers({
+            toolUseId: call.id,
+            questions: APPROVAL_QUESTIONS,
+            signal: ctx.signal,
+          })
+          ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
+          const answers = await answersPromise
+
+          const decisionStr = String(answers.decision || '').toLowerCase()
+          if (decisionStr === 'approve') {
+            // ok
+          } else if (decisionStr === 'approve_remember') {
+            approvedKeys.add(approvalKey)
+          } else {
+            return { tool_use_id: call.id, content: 'Error: User rejected this command.', is_error: true }
           }
         }
 
-        const cmdCwdRaw = (input as any).cwd || cwd
-        const cmdCwd = path.isAbsolute(cmdCwdRaw) ? cmdCwdRaw : path.resolve(cwd, cmdCwdRaw)
         const env = { ...process.env, ...(((input as any).env as any) || {}) }
 
         if (!runInBackground) {
-          const { content, isError } = await runForeground({ cmd: String(cmd), cmdCwd, env, timeoutMs, signal: ctx.signal })
+          const { content, isError } = await runForeground({ cmd: cmdStr, cmdCwd, env, timeoutMs, signal: ctx.signal })
           return { tool_use_id: call.id, content, ...(isError ? { is_error: true } : {}) }
         }
 
-        const label = description || truncateCommand(String(cmd), 80)
+        const label = description || truncateCommand(cmdStr, 80)
         const taskId = deps.taskManager.create({
           kind: 'shell',
           label,
-          run: (taskCtx) => runBackground({ taskCtx, cmd: String(cmd), cmdCwd, env, timeoutMs }),
+          run: (taskCtx) => runBackground({ taskCtx, cmd: cmdStr, cmdCwd, env, timeoutMs }),
         })
 
         return {
