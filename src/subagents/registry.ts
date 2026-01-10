@@ -2,6 +2,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { wsWarn, wsError, wsInfo } from '../utils/consoleLogger'
 import type { SubAgentConfig } from './types'
+import { getBuiltinSubagents } from './builtins'
 
 export interface SubAgentRegistry {
   loadFromDirectory(dir: string): Promise<void>
@@ -9,12 +10,22 @@ export interface SubAgentRegistry {
   list(): Array<{ name: string; description: string }>
 }
 
-export function createSubAgentRegistry(): SubAgentRegistry {
+export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): SubAgentRegistry {
   const agents = new Map<string, SubAgentConfig>()
+  const includeBuiltins = args?.includeBuiltins !== false
+
+  const seedBuiltins = () => {
+    if (!includeBuiltins) return
+    for (const agent of getBuiltinSubagents()) {
+      if (!agent?.name) continue
+      agents.set(agent.name, agent)
+    }
+  }
 
   return {
     async loadFromDirectory(dir: string): Promise<void> {
       agents.clear()
+      seedBuiltins()
 
       let entries: string[]
       try {
@@ -49,7 +60,7 @@ export function createSubAgentRegistry(): SubAgentRegistry {
           }),
       )
 
-      wsInfo(`[SubAgentRegistry] Loaded ${agents.size} sub-agent(s) from ${dir}`)
+      wsInfo(`[SubAgentRegistry] Loaded ${agents.size} sub-agent(s) (builtins=${includeBuiltins}) from ${dir}`)
     },
 
     get(name: string): SubAgentConfig | undefined {
@@ -156,4 +167,3 @@ function unquote(value: string): string {
   }
   return v
 }
-

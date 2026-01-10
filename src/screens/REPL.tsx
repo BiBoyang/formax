@@ -42,6 +42,7 @@ export function REPL({
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
+  const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
   const userInput = useUserInputManager()
   const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
   const ensurePlanPath = useCallback(
@@ -49,8 +50,14 @@ export function REPL({
     [planSession],
   )
   const commandRegistry = useMemo(
-    () => createSlashCommandRegistry({ cwd: process.cwd(), taskManager, plan: planSession }),
-    [planSession, taskManager],
+    () =>
+      createSlashCommandRegistry({
+        cwd: process.cwd(),
+        taskManager,
+        plan: planSession,
+        promptProfile: { get: () => promptProfile, set: setPromptProfile },
+      }),
+    [planSession, promptProfile, taskManager],
   )
   const { state, actions } = useReplController({
     engine,
@@ -58,6 +65,7 @@ export function REPL({
     cfg,
     allowedSubagents,
     mode,
+    promptProfile,
     onModeChange: (nextMode) => {
       if (nextMode === 'plan') ensurePlanPath()
       setMode(nextMode)

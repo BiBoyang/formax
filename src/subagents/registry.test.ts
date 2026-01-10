@@ -32,7 +32,7 @@ You are a reviewer.
       'utf8',
     )
 
-    const registry = createSubAgentRegistry()
+    const registry = createSubAgentRegistry({ includeBuiltins: false })
     await registry.loadFromDirectory(dir)
 
     expect(registry.list()).toContainEqual({
@@ -64,9 +64,8 @@ nope
       'utf8',
     )
 
-    const registry = createSubAgentRegistry()
+    const registry = createSubAgentRegistry({ includeBuiltins: false })
     await registry.loadFromDirectory(dir)
     expect(registry.list()).toEqual([])
   })
 })
-

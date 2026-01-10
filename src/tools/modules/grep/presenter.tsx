@@ -49,7 +49,7 @@ function renderGrepSummary(args: {
 
   if (args.status === 'error') return <Text color={args.theme.error}>{summary}</Text>
 
-  const m = /^Found\s+(\d+)\s+matches$/.exec(summary.trim())
+  const m = /^Found\s+(\d+)\s+(matches|files)$/.exec(summary.trim())
   if (!m) return <Text>{summary}</Text>
 
   return (
@@ -58,7 +58,7 @@ function renderGrepSummary(args: {
       <Text color={args.theme.text} bold>
         {m[1]}
       </Text>
-      <Text color={args.theme.secondaryText}> matches</Text>
+      <Text color={args.theme.secondaryText}> {m[2]}</Text>
     </>
   )
 }

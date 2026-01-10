@@ -7,6 +7,7 @@
     "dev": "tsx ./src/entrypoints/cli.tsx",
     "toole": "tsx ./src/entrypoints/tool-examples.tsx",
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
+    "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
     "type-check": "tsc --noEmit",
     "test": "vitest run",

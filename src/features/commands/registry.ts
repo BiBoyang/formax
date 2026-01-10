@@ -39,14 +39,18 @@ export type SlashCommandRegistry = {
   dispatch: (input: string) => SlashCommandEffect | null
 }
 
+export type PromptProfile = 'lite' | 'full'
+
 type CommandEntry = {
   spec: SlashCommandSpec
   dispatch?: (args: { command: string; args: string }) => SlashCommandEffect
 }
 
 const BUILTIN_SPECS: SlashCommandSpec[] = [
+  { command: '/help', description: 'Get help with using Formax', implemented: true },
   { command: '/tasks', description: 'List and manage background tasks', implemented: true },
   { command: '/plan', description: 'Show current plan', implemented: true },
+  { command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
     command: '/status',
     description: 'Show status including version, model, API connectivity',
@@ -66,6 +70,7 @@ export function createSlashCommandRegistry(deps: {
   cwd: string
   taskManager?: TaskManager
   plan?: { getPlanPath: () => string | null }
+  promptProfile?: { get: () => PromptProfile; set: (next: PromptProfile) => void }
 }): SlashCommandRegistry {
   const pluginEntries = loadClaudeCommandEntries(deps.cwd)
 
@@ -76,6 +81,16 @@ export function createSlashCommandRegistry(deps: {
   }
 
   // Built-in dispatchers
+  byCommand.set('/help', {
+    spec: byCommand.get('/help')!.spec,
+    dispatch: () => {
+      const specs = Array.from(byCommand.values())
+        .map((e) => e.spec)
+        .sort((a, b) => a.command.localeCompare(b.command))
+      return { kind: 'local', stdout: formatHelpOutput(specs) }
+    },
+  })
+
   byCommand.set('/tasks', {
     spec: byCommand.get('/tasks')!.spec,
     dispatch: () => ({
@@ -97,6 +112,31 @@ export function createSlashCommandRegistry(deps: {
       } catch {
         return { kind: 'local', stdout: 'No plan found for current session.' }
       }
+    },
+  })
+
+  byCommand.set('/prompt', {
+    spec: byCommand.get('/prompt')!.spec,
+    dispatch: (invocation) => {
+      const current = deps.promptProfile?.get?.() ?? 'full'
+      const raw = (invocation.args || '').trim().toLowerCase()
+      if (!raw) {
+        return {
+          kind: 'local',
+          stdout:
+            `Prompt profile: ${current}\n\n` +
+            `Usage:\n` +
+            `- /prompt full\n` +
+            `- /prompt lite`,
+        }
+      }
+
+      if (raw !== 'full' && raw !== 'lite') {
+        return { kind: 'local', stdout: `Unknown profile: ${raw}\n\nUse: /prompt full|lite` }
+      }
+
+      deps.promptProfile?.set(raw)
+      return { kind: 'local', stdout: `Prompt profile set to: ${raw}` }
     },
   })
 
@@ -261,5 +301,27 @@ function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: str
   lines.push('')
   lines.push('Tip: ask me to run TaskOutput with a task_id to fetch output.')
   lines.push('Tip: ask me to run KillShell with a shell_id to stop a running shell task.')
+  return lines.join('\n')
+}
+
+function formatHelpOutput(specs: SlashCommandSpec[]): string {
+  const lines: string[] = []
+
+  lines.push('Formax help')
+  lines.push('')
+  lines.push('Slash commands:')
+
+  for (const s of specs) {
+    const status = s.implemented === false ? ' (not implemented)' : ''
+    lines.push(`- ${s.command} — ${s.description}${status}`)
+  }
+
+  lines.push('')
+  lines.push('Tips:')
+  lines.push('- Type "/" to see command suggestions; use Tab/Arrow keys to navigate.')
+  lines.push('- Use "/prompt full|lite" to switch system prompt profiles.')
+  lines.push('- Press Shift+Tab to cycle modes (normal → acceptEdits → plan).')
+  lines.push('- Press Esc to cancel interactive prompts (AskUserQuestion / approvals).')
+
   return lines.join('\n')
 }

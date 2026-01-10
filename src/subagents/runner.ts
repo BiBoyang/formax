@@ -31,8 +31,9 @@ export function createSubAgentRunner(deps: {
   return {
     async run({ agent, task, signal, onEvent }): Promise<SubAgentResult> {
       const allowed = new Set(agent.tools || [])
+      const allowAll = allowed.has('*')
       const allowedTools = deps.allTools
-        .filter((t) => allowed.has(t.name))
+        .filter((t) => (allowAll ? true : allowed.has(t.name)))
         .filter((t) => !NESTED_DENY_TOOLS.has(t.name))
 
       const system: PromptBlock[] = [

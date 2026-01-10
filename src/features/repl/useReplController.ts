@@ -11,6 +11,7 @@ import type { ReplMode } from './mode'
 import type { LocalCommandRecord, SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
+import type { SystemPromptProfile } from '../../prompts/system'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -35,6 +36,7 @@ export function useReplController(deps: {
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
   mode: ReplMode
+  promptProfile?: SystemPromptProfile
   onModeChange?: (mode: ReplMode) => void
   commandRegistry?: SlashCommandRegistry
   planSession?: PlanSessionManager
@@ -437,6 +439,8 @@ export function useReplController(deps: {
         const system = buildSystemPrompt({
           allowedSubagents: deps.allowedSubagents,
           cwd: process.cwd(),
+          model: deps.cfg.llm.model,
+          profile: deps.promptProfile ?? deps.cfg.ui.promptProfile,
         })
 
         const exec = {

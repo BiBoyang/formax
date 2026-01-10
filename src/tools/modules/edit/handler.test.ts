@@ -71,6 +71,35 @@ describe('EditToolHandler', () => {
     await fsp.unlink(tmpFile)
   })
 
+  it('accepts cat -n prefixed old/new strings (from Read output)', async () => {
+    const tmpFile = path.join(os.tmpdir(), `formax-edit-catn-${Date.now()}.txt`)
+    await fsp.writeFile(tmpFile, 'hello world\n', 'utf8')
+
+    const handler = createEditToolHandler({
+      requestAnswers: async () => ({ decision: 'approve' }),
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
+
+    const result = await handler.execute(
+      {
+        id: 'catn1',
+        name: 'Edit',
+        input: {
+          file_path: tmpFile,
+          old_string: '     1\thello world',
+          new_string: '     1\thello plan',
+        },
+      },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(await fsp.readFile(tmpFile, 'utf8')).toBe('hello plan\n')
+    await fsp.unlink(tmpFile)
+  })
+
   it('enables acceptEdits for approve_all', async () => {
     const tmpFile = path.join(os.tmpdir(), `formax-edit-${Date.now()}.txt`)
     await fsp.writeFile(tmpFile, 'hello world', 'utf8')

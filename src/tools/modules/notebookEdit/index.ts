@@ -10,9 +10,13 @@ const spec: ToolDefinition = {
   input_schema: {
     type: 'object',
     properties: {
-      notebook_path: { type: 'string', description: 'Absolute path to the notebook (.ipynb).' },
+      notebook_path: {
+        type: 'string',
+        description:
+          'Path to the notebook (.ipynb). Absolute is preferred; relative paths are resolved from the current working directory. Supports ~.',
+      },
       cell_id: { type: 'string', description: 'Cell id to edit (required for replace/delete).' },
-      new_source: { type: 'string', description: 'New cell source.' },
+      new_source: { type: 'string', description: 'New cell source (required for replace/insert).' },
       cell_type: {
         type: 'string',
         enum: ['code', 'markdown'],

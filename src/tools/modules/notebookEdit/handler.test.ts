@@ -76,4 +76,36 @@ describe('NotebookEditToolHandler', () => {
     expect(updated.cells[1].source.join('')).toContain('# inserted')
     await fsp.unlink(tmp)
   })
+
+  it('deletes a cell by id without requiring new_source', async () => {
+    const handler = createNotebookEditToolHandler({
+      requestAnswers: async () => {
+        throw new Error('Unexpected prompt')
+      },
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    })
+    const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-3.ipynb`)
+    const nb = makeNotebook([
+      { id: 'a', cell_type: 'markdown', metadata: {}, source: ['# a\n'] },
+      { id: 'b', cell_type: 'markdown', metadata: {}, source: ['# b\n'] },
+    ])
+    await fsp.writeFile(tmp, JSON.stringify(nb), 'utf8')
+
+    const result = await handler.execute(
+      {
+        id: '3',
+        name: 'NotebookEdit',
+        input: { notebook_path: tmp, cell_id: 'a', edit_mode: 'delete' },
+      },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'acceptEdits' },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    const updated = JSON.parse(await fsp.readFile(tmp, 'utf8'))
+    expect(updated.cells).toHaveLength(1)
+    expect(updated.cells[0].id).toBe('b')
+    await fsp.unlink(tmp)
+  })
 })

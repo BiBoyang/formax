@@ -66,7 +66,8 @@ export function createToolExecutor(handlers: ToolHandler[]): ToolExecutor {
       }
     }
 
-    if (ctx.allowTools && !ctx.allowTools.includes(call.name)) {
+    const allowAll = ctx.allowTools?.includes('*') ?? false
+    if (ctx.allowTools && !allowAll && !ctx.allowTools.includes(call.name)) {
       return {
         tool_use_id: call.id,
         content: `Tool ${call.name} is not in allow-list`,

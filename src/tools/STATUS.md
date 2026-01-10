@@ -9,6 +9,7 @@
   - **运行时聚合**：`src/entrypoints/cli.tsx` 注册 modules → `toolRegistry.listSpecs()` 生成“暴露给模型”的 tools 列表
   - **Patch**：`src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
   - **对照参考**：`proxy/tools-copy.json`（抓包得到的“参考全集”）；`proxy/tools.json` 不再参与运行时（仅保留为历史/参考）
+  - **差异追踪（避免忘记）**：`npm run tools:coverage`（工具名覆盖率）与 `npm run tools:parity`（schema 字段差异）
 
 - **工具执行（Handler）**
   - `src/chat/engine.ts` 流式 loop 解析到 `tool_use` → `executeTool`

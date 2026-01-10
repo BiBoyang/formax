@@ -27,11 +27,11 @@ describe('patchTaskToolForSubagents', () => {
     expect(task!.description).toContain('code-reviewer')
 
     const schema = task!.input_schema as any
-    expect(schema.required).toEqual(['subagent_type', 'prompt'])
+    expect(schema.required).toEqual(['description', 'subagent_type', 'prompt'])
     expect(schema.properties?.subagent_type?.enum).toEqual(['code-reviewer'])
     expect(schema.properties?.prompt).toBeDefined()
     expect(schema.properties?.run_in_background).toBeDefined()
-    expect(schema.properties?.description).toBeUndefined()
+    expect(schema.properties?.description).toBeDefined()
   })
 
   it('adds Task tool when missing', () => {

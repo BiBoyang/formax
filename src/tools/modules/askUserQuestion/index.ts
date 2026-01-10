@@ -60,7 +60,7 @@ const spec: ToolDefinition = {
         minItems: 1,
         maxItems: 4,
         description: 'Questions to ask the user (1-4 questions).',
-      },
+    },
       answers: {
         type: 'object',
         additionalProperties: { type: 'string' },

@@ -10,7 +10,28 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('GrepToolHandler', () => {
-  it('searches dotfiles and respects **/* for root-level files', async () => {
+  it('defaults head_limit to 50 to avoid runaway output', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-default-limit-'))
+    try {
+      const total = 60
+      for (let i = 0; i < total; i++) {
+        await writeFileEnsuringDir(path.join(tmpDir, `f-${String(i).padStart(3, '0')}.txt`), 'hello\n')
+      }
+
+      const result = await GrepToolHandler.execute(
+        { id: '0', name: 'Grep', input: { pattern: 'hello', path: tmpDir, glob: '**/*' } },
+        { cwd: tmpDir, agentDepth: 0 },
+      )
+
+      expect(result.is_error).toBeUndefined()
+      const lines = result.content.split('\n').filter(Boolean)
+      expect(lines.length).toBe(50)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('defaults to files_with_matches and skips .git/node_modules', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-'))
     try {
       const rootReadme = path.join(tmpDir, 'README.md')
@@ -31,7 +52,7 @@ describe('GrepToolHandler', () => {
       expect(result.is_error).toBeUndefined()
       const lines = result.content.split('\n').filter(Boolean)
       expect(lines).toEqual(
-        expect.arrayContaining([`${rootReadme}:1:hello`, `${dotRules}:1:hello`]),
+        expect.arrayContaining([rootReadme, dotRules]),
       )
       expect(lines.some((l) => l.includes(`${path.sep}.git${path.sep}`))).toBe(false)
       expect(lines.some((l) => l.includes(`${path.sep}node_modules${path.sep}`))).toBe(false)
@@ -47,7 +68,7 @@ describe('GrepToolHandler', () => {
       await writeFileEnsuringDir(filePath, 'a\nhello\nb\n')
 
       const result = await GrepToolHandler.execute(
-        { id: '2', name: 'Grep', input: { pattern: 'hello', path: filePath, glob: '**/*' } },
+        { id: '2', name: 'Grep', input: { pattern: 'hello', path: filePath, glob: '**/*', output_mode: 'content' } },
         { cwd: tmpDir, agentDepth: 0 },
       )
 
@@ -57,5 +78,28 @@ describe('GrepToolHandler', () => {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }
   })
-})
 
+  it('supports offset/head_limit for files_with_matches', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-head-'))
+    try {
+      const a = path.join(tmpDir, 'a.txt')
+      const b = path.join(tmpDir, 'b.txt')
+      const c = path.join(tmpDir, 'c.txt')
+      await writeFileEnsuringDir(a, 'hello\n')
+      await writeFileEnsuringDir(b, 'hello\n')
+      await writeFileEnsuringDir(c, 'hello\n')
+
+      const result = await GrepToolHandler.execute(
+        { id: '3', name: 'Grep', input: { pattern: 'hello', path: tmpDir, glob: '**/*', head_limit: 1, offset: 1 } },
+        { cwd: tmpDir, agentDepth: 0 },
+      )
+
+      expect(result.is_error).toBeUndefined()
+      const lines = result.content.split('\n').filter(Boolean)
+      expect(lines).toHaveLength(1)
+      expect([a, b, c]).toContain(lines[0])
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+})

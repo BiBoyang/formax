@@ -20,6 +20,10 @@ const spec: ToolDefinition = {
         type: 'boolean',
         description: 'Set to true to run this command in the background. Use TaskOutput to read the output later.',
       },
+      dangerouslyDisableSandbox: {
+        type: 'boolean',
+        description: 'Set this to true to dangerously override sandbox mode and run commands without sandboxing.',
+      },
       confirm: {
         type: 'boolean',
         description:

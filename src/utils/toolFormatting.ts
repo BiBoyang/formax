@@ -176,10 +176,30 @@ export function formatToolResult(
     }
 
     case 'Grep': {
-      const matches = result.trim() === 'No matches found'
-        ? 0
-        : allLines.filter(l => l.trim()).length
-      return { summary: `Found ${matches} matches`, lines: matches }
+      if (result.trim() === 'No matches found') {
+        return { summary: 'Found 0 matches', lines: 0 }
+      }
+
+      const nonEmpty = allLines.filter((l) => l.trim().length > 0)
+      if (nonEmpty.length === 0) return { summary: 'Found 0 matches', lines: 0 }
+
+      const looksLikeContent = nonEmpty.every((l) => /:\d+:/.test(l))
+      if (looksLikeContent) {
+        const matches = nonEmpty.length
+        return { summary: `Found ${matches} matches`, lines: matches }
+      }
+
+      const looksLikeCount = nonEmpty.every((l) => /:\d+$/.test(l) && !/:\d+:/.test(l))
+      if (looksLikeCount) {
+        const total = nonEmpty.reduce((acc, line) => {
+          const m = /:(\d+)$/.exec(line.trim())
+          return acc + (m ? Number.parseInt(m[1]!, 10) : 0)
+        }, 0)
+        return { summary: `Found ${total} matches`, lines: total }
+      }
+
+      const files = nonEmpty.length
+      return { summary: `Found ${files} files`, lines: files }
     }
 
     case 'WebSearch': {

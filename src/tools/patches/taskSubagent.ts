@@ -20,7 +20,7 @@ export function patchTaskToolForSubagents(
 
 function buildTaskToolDescription(allowedSubagents: SubagentInfo[]): string {
   const header =
-    'Run a local sub-agent (defined in .agent/subagents/*.md) with isolated context and a strict tool allowlist. Returns a short summary only. Set run_in_background=true to run asynchronously and use TaskOutput to retrieve results.'
+    'Launch a new agent to handle complex, multi-step tasks.\n\nNotes:\n- Set run_in_background=true to run asynchronously and use TaskOutput to retrieve results.\n- Use resume to continue an existing agent by ID.\n- Prefer providing a short description to help users understand what is running.'
 
   const list = allowedSubagents
     .filter((a) => a?.name)
@@ -40,6 +40,10 @@ function buildTaskToolInputSchema(allowedSubagents: SubagentInfo[]): unknown {
   return {
     type: 'object',
     properties: {
+      description: {
+        type: 'string',
+        description: 'A short (3-5 word) description of the task',
+      },
       subagent_type: {
         type: 'string',
         description: 'Which sub-agent to run.',
@@ -49,12 +53,22 @@ function buildTaskToolInputSchema(allowedSubagents: SubagentInfo[]): unknown {
         type: 'string',
         description: 'The task for the sub-agent. Provide all necessary context here.',
       },
+      model: {
+        type: 'string',
+        enum: ['sonnet', 'opus', 'haiku'],
+        description:
+          'Optional model to use for this agent. If not specified, inherits from parent. Prefer haiku for quick tasks.',
+      },
+      resume: {
+        type: 'string',
+        description: 'Optional agent ID to resume from. If provided, continues from previous context.',
+      },
       run_in_background: {
         type: 'boolean',
         description: 'Run the sub-agent in the background. Use TaskOutput to retrieve results.',
       },
     },
-    required: ['subagent_type', 'prompt'],
+    required: ['description', 'subagent_type', 'prompt'],
     additionalProperties: false,
     $schema: 'http://json-schema.org/draft-07/schema#',
   }

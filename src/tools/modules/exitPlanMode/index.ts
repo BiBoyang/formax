@@ -11,10 +11,17 @@ const spec: ToolDefinition = {
   input_schema: {
     type: 'object',
     properties: {
-      launchSwarm: { type: 'boolean', description: 'Whether to launch a swarm to implement the plan.' },
-      teammateCount: { type: 'number', description: 'Number of teammates to spawn in the swarm.' },
+      launchSwarm: {
+        type: 'boolean',
+        description: 'Whether to launch a swarm to implement the plan.',
+      },
+      teammateCount: {
+        type: 'number',
+        description: 'Number of teammates to spawn in the swarm.',
+      },
     },
     additionalProperties: true,
+    $schema: 'http://json-schema.org/draft-07/schema#',
   },
 }
 

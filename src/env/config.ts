@@ -16,6 +16,7 @@ export type RuntimeConfig = {
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
+    promptProfile: 'lite' | 'full'
   }
 }
 
@@ -51,6 +52,9 @@ export function loadRuntimeConfig(
   const assistantTextModeRaw = String(env.FORMAX_ASSISTANT_TEXT_MODE || '').trim().toLowerCase()
   const assistantTextMode = assistantTextModeRaw === 'stream' ? 'stream' : 'buffered'
 
+  const promptProfileRaw = String(env.FORMAX_PROMPT_PROFILE || '').trim().toLowerCase()
+  const promptProfile = promptProfileRaw === 'lite' ? 'lite' : 'full'
+
   return {
     llm: {
       provider: 'anthropic',
@@ -66,6 +70,7 @@ export function loadRuntimeConfig(
     },
     ui: {
       assistantTextMode,
+      promptProfile,
     },
   }
 }

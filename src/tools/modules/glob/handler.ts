@@ -47,6 +47,26 @@ export const GlobToolHandler: ToolHandler = {
         // Best-effort: return what we have
       }
 
+      if (results.length) {
+        const withTimes = await Promise.all(
+          results.map(async (filePath) => {
+            try {
+              const st = await fsp.stat(filePath)
+              return { filePath, mtimeMs: st.mtimeMs }
+            } catch {
+              return { filePath, mtimeMs: 0 }
+            }
+          }),
+        )
+
+        withTimes.sort((a, b) => {
+          if (a.mtimeMs !== b.mtimeMs) return b.mtimeMs - a.mtimeMs
+          return a.filePath.localeCompare(b.filePath)
+        })
+
+        results.splice(0, results.length, ...withTimes.map((x) => x.filePath))
+      }
+
       const content = results.length ? results.join('\n') : 'No files found'
       return { tool_use_id: call.id, content }
     } catch (e) {

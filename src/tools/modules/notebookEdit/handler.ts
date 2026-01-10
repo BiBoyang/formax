@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
@@ -47,14 +48,14 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
         if (typeof notebookPathRaw !== 'string' || !notebookPathRaw.trim()) {
           throw new Error('Missing notebook_path')
         }
-        if (typeof newSource !== 'string') {
-          throw new Error('Missing new_source')
-        }
         if (!['replace', 'insert', 'delete'].includes(editMode)) {
           throw new Error('Invalid edit_mode')
         }
+        if (editMode !== 'delete' && typeof newSource !== 'string') {
+          throw new Error('Missing new_source')
+        }
 
-        const notebookPath = resolvePath(ctx.cwd || process.cwd(), notebookPathRaw)
+        const notebookPath = resolveUserPath(ctx.cwd || process.cwd(), notebookPathRaw)
 
         if (mode !== 'acceptEdits') {
           const answersPromise = userInput.requestAnswers({
@@ -98,7 +99,7 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
           }
           const insertAt = cellId ? findCellIndexById(cells, String(cellId)) + 1 : 0
           const idx = Math.max(0, Math.min(Number.isFinite(insertAt) ? insertAt : 0, cells.length))
-          cells.splice(idx, 0, createNewCell({ cellType, source: String(newSource) }))
+          cells.splice(idx, 0, createNewCell({ cellType, source: String(newSource ?? '') }))
           await fsp.writeFile(notebookPath, JSON.stringify(notebook, null, 2) + '\n', 'utf8')
           return { tool_use_id: call.id, content: `Inserted cell in ${notebookPath}` }
         }
@@ -121,7 +122,7 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
         if (cellType === 'code' || cellType === 'markdown') {
           cell.cell_type = cellType
         }
-        cell.source = toNotebookSource(String(newSource))
+        cell.source = toNotebookSource(String(newSource ?? ''))
         if (cell.cell_type === 'code') {
           cell.outputs = Array.isArray(cell.outputs) ? cell.outputs : []
           if (!('execution_count' in cell)) cell.execution_count = null
@@ -137,8 +138,12 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
   }
 }
 
-function resolvePath(cwd: string, filePath: string): string {
-  return path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath)
+function resolveUserPath(cwd: string, filePathRaw: string): string {
+  const raw = String(filePathRaw || '').trim()
+  if (!raw) return raw
+  if (raw === '~') return os.homedir()
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
+  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
 }
 
 function findCellIndexById(cells: any[], cellId: string): number {

@@ -36,6 +36,7 @@ describe('REPL', () => {
     },
     ui: {
       assistantTextMode: 'stream',
+      promptProfile: 'lite',
     },
   }
 
