@@ -15,17 +15,16 @@ export function HeaderBanner({
   cwd,
 }: Props) {
   const logoLines = [
-    '▄▖           ',
-    '▙▖ ▛▌ ▛▘ ▛▛▌ ▀▌ ▚▘',
-    '▌  ▙▌ ▌  ▌▌▌ █▌ ▞▖',
+    '             ',
+    '█▀▀ █▀█ █▀█ █▀▄▀█ ▄▀█ ▀▄▀',
+    '█▀  █▄█ █▀▄ █ ▀ █ █▀█ █ █',
     '             ',
   ]
-
   return (
-    <Box flexDirection="column"  marginTop={1}>
+    <Box flexDirection="column" marginTop={0}>
       <Box>
         <Box flexDirection="column" marginRight={3}>
-          {logoLines.map((line, idx) => (
+        {logoLines.map((line, idx) => (
             <Text
               key={idx}
               color={'#d57455'}
@@ -34,12 +33,10 @@ export function HeaderBanner({
             </Text>
           ))}
         </Box>
-        <Box flexDirection="column" marginTop={1}>
-          <Text>
-            <Text bold >
-              {modelLabel}
-            </Text>
-          </Text>
+        <Box flexDirection="column">
+          <Text>&nbsp;</Text>
+          <Text bold>{modelLabel}</Text>
+          {/* <Text color="gray">v{version}</Text> */}
           <Text color="gray">{cwd}</Text>
         </Box>
       </Box>
