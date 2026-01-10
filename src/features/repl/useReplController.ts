@@ -19,6 +19,7 @@ export type ReplControllerState = {
   transientMessages: Msg[]
   isLoading: boolean
   loadingText: string
+  thinkingText: string
   error: string | null
 }
 
@@ -44,6 +45,7 @@ export function useReplController(deps: {
   const [messages, setMessages] = useState<Msg[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
+  const [thinkingText, setThinkingText] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
@@ -51,6 +53,8 @@ export function useReplController(deps: {
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentAssistantIdRef = useRef<string | null>(null)
   const assistantBufferRef = useRef<string>('')
+  const thinkingBufferRef = useRef<string>('')
+  const thinkingLastFlushAtRef = useRef(0)
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
@@ -134,6 +138,16 @@ export function useReplController(deps: {
               : m,
           )
         })
+        return
+      }
+
+      case 'thinking_delta': {
+        thinkingBufferRef.current += ev.thinking
+        const now = Date.now()
+        if (now - thinkingLastFlushAtRef.current > 200) {
+          thinkingLastFlushAtRef.current = now
+          setThinkingText(thinkingBufferRef.current)
+        }
         return
       }
 
@@ -315,6 +329,8 @@ export function useReplController(deps: {
             currentAssistantIdRef.current = null
           }
         }
+
+        setThinkingText(thinkingBufferRef.current)
         return
       }
 
@@ -328,6 +344,9 @@ export function useReplController(deps: {
     abortControllerRef.current = null
 
     assistantBufferRef.current = ''
+    thinkingBufferRef.current = ''
+    thinkingLastFlushAtRef.current = 0
+    setThinkingText('')
     setIsLoading(false)
     setError(null)
 
@@ -415,6 +434,9 @@ export function useReplController(deps: {
       setMessages((prev) => [...prev, userMsg])
       setIsLoading(true)
       setLoadingText(slashEffect?.kind === 'llm' ? slashEffect.loadingText || 'Thinking' : 'Thinking')
+      thinkingBufferRef.current = ''
+      thinkingLastFlushAtRef.current = 0
+      setThinkingText('')
       setError(null)
       currentAssistantIdRef.current = null
 
@@ -500,6 +522,7 @@ export function useReplController(deps: {
       transientMessages,
       isLoading,
       loadingText,
+      thinkingText,
       error,
     },
     actions: {

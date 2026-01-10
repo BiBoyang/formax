@@ -16,12 +16,14 @@ import {
 // Helper to create default callbacks with spies
 function createMockCallbacks(): SSECallbacks & {
   textDeltas: Array<{ text: string; index: number }>
+  thinkingDeltas: Array<{ thinking: string; index: number }>
   toolStarts: Array<{ id: string; name: string; index: number }>
   toolCompletes: Array<{ index: number; toolUse: any }>
   errors: Error[]
   completions: Array<{ stopReason: string | null; content: ContentBlock[] }>
 } {
   const textDeltas: Array<{ text: string; index: number }> = []
+  const thinkingDeltas: Array<{ thinking: string; index: number }> = []
   const toolStarts: Array<{ id: string; name: string; index: number }> = []
   const toolCompletes: Array<{ index: number; toolUse: any }> = []
   const errors: Error[] = []
@@ -29,11 +31,13 @@ function createMockCallbacks(): SSECallbacks & {
 
   return {
     textDeltas,
+    thinkingDeltas,
     toolStarts,
     toolCompletes,
     errors,
     completions,
     onTextDelta: (text, index) => textDeltas.push({ text, index }),
+    onThinkingDelta: (thinking, index) => thinkingDeltas.push({ thinking, index }),
     onToolUseStart: (id, name, index) => toolStarts.push({ id, name, index }),
     onToolUseComplete: (index, toolUse) => toolCompletes.push({ index, toolUse }),
     onError: (error) => errors.push(error),

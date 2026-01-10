@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Box, Text, useInput, Static } from 'ink'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
@@ -14,6 +14,8 @@ import { ModeIndicator } from '../components/chat/ModeIndicator'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { createSlashCommandRegistry } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
+import { ClaudeCodeLoading } from '../components/ui/ClaudeCodeLoading'
+import { ClaudeCodeThinkingStatus } from '../components/ui/ClaudeCodeThinkingStatus'
 import { PulsingDot } from '../components/ui/PulsingDot'
 import { nextReplMode, type ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
@@ -43,6 +45,8 @@ export function REPL({
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
   const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
+  const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
+  const [showThinking, setShowThinking] = useState(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
   const ensurePlanPath = useCallback(
@@ -74,6 +78,15 @@ export function REPL({
     planSession,
   })
 
+  useEffect(() => {
+    if (state.isLoading) {
+      setLoadingStartedAtMs((prev) => prev ?? Date.now())
+      return
+    }
+    setLoadingStartedAtMs(null)
+    setShowThinking(false)
+  }, [state.isLoading])
+
   const isPromptMode = useMemo(() => {
     if (!userInput) return false
     const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
@@ -101,6 +114,13 @@ export function REPL({
     if (meta.ctrl && key === 'c') {
       actions.abort()
       onExit ? onExit() : process.exit(0)
+    }
+
+    if (meta.ctrl && key === 'o') {
+      if (!state.isLoading) return
+      if (!state.thinkingText.trim()) return
+      setShowThinking((v) => !v)
+      return
     }
 
     if (meta.shift && meta.tab) {
@@ -206,6 +226,22 @@ export function REPL({
     return [header, ...items]
   }, [modelLabel, renderMessage, state.staticMessages])
 
+  const showLoadingBlock = useMemo(() => {
+    if (!state.isLoading || isPromptMode) return false
+
+    const hasStreamingAssistant = state.transientMessages.some(
+      (m) => m.role === 'assistant' && Boolean(m.isStreaming),
+    )
+    if (hasStreamingAssistant) return false
+
+    const hasRunningTool = state.transientMessages.some(
+      (m) => m.role === 'tool' && m.toolInfo?.status === 'running',
+    )
+    if (hasRunningTool) return false
+
+    return true
+  }, [isPromptMode, state.isLoading, state.transientMessages])
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -220,11 +256,20 @@ export function REPL({
               <Box key={msg.id}>{renderMessage(msg)}</Box>
             ))}
 
-            {state.isLoading && !isPromptMode && (
-              <Box marginTop={1}>
-                <PulsingDot color="yellow" pulse />
-                <Text color="yellow">{state.loadingText}.</Text>
-                <Text dimColor> (esc to interrupt)</Text>
+            {showLoadingBlock && (
+              <Box marginTop={1} flexDirection="column">
+                <Box marginBottom={1}>
+                  <ClaudeCodeThinkingStatus
+                    startedAtMs={loadingStartedAtMs}
+                    showThinkingHint={Boolean(state.thinkingText.trim())}
+                  />
+                </Box>
+                {showThinking && state.thinkingText.trim() && (
+                  <Box marginBottom={1}>
+                    <Text dimColor>{state.thinkingText.trimEnd()}</Text>
+                  </Box>
+                )}
+                <ClaudeCodeLoading cycleWords />
               </Box>
             )}
 

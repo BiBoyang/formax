@@ -24,6 +24,7 @@ export interface ContentBlock {
 
 export interface SSECallbacks {
   onTextDelta: (text: string, blockIndex: number) => void
+  onThinkingDelta: (thinking: string, blockIndex: number) => void
   onToolUseStart: (id: string, name: string, blockIndex: number) => void
   onToolUseComplete: (blockIndex: number, toolUse: { id: string; name: string; input: any }) => void
   onMessageComplete: (stopReason: string | null, content: ContentBlock[]) => void
@@ -184,6 +185,9 @@ function handleSSEEvent(
           type: 'thinking',
           thinking: block.thinking || ''
         }
+        if (block.thinking) {
+          callbacks.onThinkingDelta(block.thinking, index)
+        }
       }
       break
     }
@@ -220,6 +224,9 @@ function handleSSEEvent(
         const thinking = delta.thinking ?? ''
         if (contentBlocks[index]) {
           contentBlocks[index].thinking = (contentBlocks[index].thinking || '') + thinking
+        }
+        if (thinking) {
+          callbacks.onThinkingDelta(thinking, index)
         }
       }
       break

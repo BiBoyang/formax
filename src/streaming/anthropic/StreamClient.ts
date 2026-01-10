@@ -142,6 +142,7 @@ export class AnthropicStreamClient {
 
       const sseCallbacks: SSECallbacks = {
         onTextDelta: (text) => args.onEvent({ type: 'assistant_delta', text }),
+        onThinkingDelta: (thinking) => args.onEvent({ type: 'thinking_delta', thinking }),
         onToolUseStart: (id, name) => {
           args.onEvent({ type: 'tool_start', id, name })
         },

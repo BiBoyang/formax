@@ -9,6 +9,7 @@ export type TokenUsage = Partial<{
 
 export type StreamEvent =
   | { type: 'assistant_delta'; text: string }
+  | { type: 'thinking_delta'; thinking: string }
   | { type: 'tool_start'; id: string; name: string }
   | { type: 'tool_input'; id: string; input: unknown }
   | { type: 'tool_update'; id: string; middleLines?: string[]; toolUses?: number; usage?: TokenUsage }
