@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 
-const CLAUDE_CODE_LOADING_WORDS: readonly string[] = [
+const DEFAULT_LOADING_WORDS: readonly string[] = [
   'Accomplishing',
   'Actioning',
   'Actualizing',
@@ -97,7 +97,7 @@ const CLAUDE_CODE_LOADING_WORDS: readonly string[] = [
 
 export type ShimmerFrame = { start: number; length: number }
 
-export function buildClaudeCodeShimmerFrames(charCount: number): ShimmerFrame[] {
+export function buildShimmerFrames(charCount: number): ShimmerFrame[] {
   if (charCount <= 0) return [{ start: 0, length: 0 }]
   if (charCount === 1) return [{ start: 0, length: 1 }, { start: 0, length: 0 }]
   if (charCount === 2) {
@@ -184,11 +184,11 @@ export function pickNextRandomIndex(
   return next
 }
 
-export function ClaudeCodeLoading({
+export function LoadingStatusLine({
   text,
   words,
   cycleWords = false,
-  wordIntervalMs = 1000,
+  wordIntervalMs = 2000,
   rng = Math.random,
   prefix = '✻',
   animate = true,
@@ -220,7 +220,7 @@ export function ClaudeCodeLoading({
 
   const wordList = useMemo(() => {
     if (!cycleWords) return []
-    const source = words && words.length > 0 ? words : CLAUDE_CODE_LOADING_WORDS
+    const source = words && words.length > 0 ? words : DEFAULT_LOADING_WORDS
     return normalizeWords(source)
   }, [cycleWords, words])
 
@@ -279,7 +279,7 @@ export function ClaudeCodeLoading({
 
   const displayText = useMemo(() => withEllipsis(resolvedWord, ellipsis), [ellipsis, resolvedWord])
   const chars = useMemo(() => Array.from(displayText), [displayText])
-  const frames = useMemo(() => buildClaudeCodeShimmerFrames(chars.length), [chars.length])
+  const frames = useMemo(() => buildShimmerFrames(chars.length), [chars.length])
 
   const [phase, setPhase] = useState(() => Math.max(0, frames.length - 1))
 

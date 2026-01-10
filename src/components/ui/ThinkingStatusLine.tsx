@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 
-export function ClaudeCodeThinkingStatus({
+export function ThinkingStatusLine({
   startedAtMs,
   showThinkingHint = false,
   hintAfterMs = 2000,

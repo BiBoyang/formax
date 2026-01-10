@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { ClaudeCodeThinkingStatus } from './ClaudeCodeThinkingStatus'
+import { ThinkingStatusLine } from './ThinkingStatusLine'
 
-describe('ClaudeCodeThinkingStatus', () => {
+describe('ThinkingStatusLine', () => {
   it('shows Thinking… within threshold', () => {
     const startedAtMs = Date.now()
     const { lastFrame } = render(
-      <ClaudeCodeThinkingStatus
+      <ThinkingStatusLine
         startedAtMs={startedAtMs}
         hintAfterMs={60_000}
         updateIntervalMs={60_000}
@@ -19,7 +19,7 @@ describe('ClaudeCodeThinkingStatus', () => {
   it('shows Thought for Ns after threshold (without hint)', () => {
     const startedAtMs = Date.now() - 5_000
     const { lastFrame } = render(
-      <ClaudeCodeThinkingStatus
+      <ThinkingStatusLine
         startedAtMs={startedAtMs}
         showThinkingHint={false}
         hintAfterMs={2_000}
@@ -33,7 +33,7 @@ describe('ClaudeCodeThinkingStatus', () => {
   it('shows ctrl+o hint when showThinkingHint enabled', () => {
     const startedAtMs = Date.now() - 5_000
     const { lastFrame } = render(
-      <ClaudeCodeThinkingStatus
+      <ThinkingStatusLine
         startedAtMs={startedAtMs}
         showThinkingHint
         hintAfterMs={2_000}
@@ -45,4 +45,3 @@ describe('ClaudeCodeThinkingStatus', () => {
     expect(lastFrame()).toContain('to show thinking')
   })
 })
-

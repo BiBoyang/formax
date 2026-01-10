@@ -14,8 +14,8 @@ import { ModeIndicator } from '../components/chat/ModeIndicator'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { createSlashCommandRegistry } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
-import { ClaudeCodeLoading } from '../components/ui/ClaudeCodeLoading'
-import { ClaudeCodeThinkingStatus } from '../components/ui/ClaudeCodeThinkingStatus'
+import { LoadingStatusLine } from '../components/ui/LoadingStatusLine'
+import { ThinkingStatusLine } from '../components/ui/ThinkingStatusLine'
 import { PulsingDot } from '../components/ui/PulsingDot'
 import { nextReplMode, type ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
@@ -259,7 +259,7 @@ export function REPL({
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">
                 <Box marginBottom={1}>
-                  <ClaudeCodeThinkingStatus
+                  <ThinkingStatusLine
                     startedAtMs={loadingStartedAtMs}
                     showThinkingHint={Boolean(state.thinkingText.trim())}
                   />
@@ -269,7 +269,7 @@ export function REPL({
                     <Text dimColor>{state.thinkingText.trimEnd()}</Text>
                   </Box>
                 )}
-                <ClaudeCodeLoading cycleWords />
+                <LoadingStatusLine cycleWords />
               </Box>
             )}
 

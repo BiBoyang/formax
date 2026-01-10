@@ -2,17 +2,17 @@ import { describe, it, expect } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import {
-  buildClaudeCodeShimmerFrames,
+  buildShimmerFrames,
   splitCharsByFrame,
   pickNextRandomIndex,
-  ClaudeCodeLoading,
-} from './ClaudeCodeLoading'
+  LoadingStatusLine,
+} from './LoadingStatusLine'
 
-describe('ClaudeCodeLoading', () => {
-  it('buildClaudeCodeShimmerFrames matches Cogitating sweep from cast', () => {
+describe('LoadingStatusLine', () => {
+  it('buildShimmerFrames matches Cogitating sweep from cast', () => {
     const text = 'Cogitating…'
     const chars = Array.from(text)
-    const frames = buildClaudeCodeShimmerFrames(chars.length)
+    const frames = buildShimmerFrames(chars.length)
 
     const highlights = frames.map((f) => splitCharsByFrame(chars, f).highlight)
 
@@ -35,7 +35,7 @@ describe('ClaudeCodeLoading', () => {
   })
 
   it('renders text with ellipsis and default esc hint', () => {
-    const { lastFrame } = render(<ClaudeCodeLoading text="Thinking" animate={false} />)
+    const { lastFrame } = render(<LoadingStatusLine text="Thinking" animate={false} />)
     expect(lastFrame()).toContain('✻')
     expect(lastFrame()).toContain('Thinking…')
     expect(lastFrame()).toContain('esc')
@@ -50,7 +50,7 @@ describe('ClaudeCodeLoading', () => {
   it('uses provided words list when cycleWords enabled', () => {
     const rng = () => 0
     const { lastFrame } = render(
-      <ClaudeCodeLoading
+      <LoadingStatusLine
         text="NotInList"
         cycleWords
         words={['Alpha', 'Beta']}

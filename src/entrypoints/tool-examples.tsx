@@ -4,7 +4,7 @@
  * Tool Examples Entry Point
  * 
  * Launches the ToolExamplesScreen for debugging and testing tool UI components.
- * Run with: npm run tool-examples
+ * Run with: npm run toole
  */
 
 import React from 'react'
