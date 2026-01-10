@@ -115,6 +115,11 @@ export function formatToolCallParts(
       params = `${count} items`
       break
     }
+    case 'SlashCommand': {
+      const cmd = String(input.command || '')
+      params = cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd
+      break
+    }
     default:
       // For unknown tools, show truncated JSON of input
       params = JSON.stringify(input).slice(0, 40)

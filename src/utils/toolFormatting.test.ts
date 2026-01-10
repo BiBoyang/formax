@@ -191,13 +191,13 @@ describe('formatToolCallParts', () => {
   })
 
   // Property test: Unknown tools use JSON stringification
-  it('should use JSON for unknown tools', () => {
-    fc.assert(
-      fc.property(
-        fc.string().filter(s => !['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'Search'].includes(s)),
-        fc.dictionary(fc.string(), fc.string()),
-        (name, input) => {
-          const result = formatToolCallParts(name, input)
+	  it('should use JSON for unknown tools', () => {
+	    fc.assert(
+	      fc.property(
+	        fc.string().filter(s => !['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'Search', 'SlashCommand'].includes(s)),
+	        fc.dictionary(fc.string(), fc.string()),
+	        (name, input) => {
+	          const result = formatToolCallParts(name, input)
           
           // Should be truncated JSON
           expect(result.params.length).toBeLessThanOrEqual(40)
@@ -224,17 +224,22 @@ describe('formatToolCallParts', () => {
       expect(result).toEqual({ toolName: 'Bash', params: 'ls -la' })
     })
 
-    it('should format Bash tool with long command', () => {
-      const longCmd = 'npm run build && npm run test && npm run lint && npm run format'
-      const result = formatToolCallParts('Bash', { command: longCmd })
-      expect(result.toolName).toBe('Bash')
-      expect(result.params).toBe(longCmd.slice(0, 50) + '...')
-    })
+	    it('should format Bash tool with long command', () => {
+	      const longCmd = 'npm run build && npm run test && npm run lint && npm run format'
+	      const result = formatToolCallParts('Bash', { command: longCmd })
+	      expect(result.toolName).toBe('Bash')
+	      expect(result.params).toBe(longCmd.slice(0, 50) + '...')
+	    })
 
-    it('should handle empty input gracefully', () => {
-      const result = formatToolCallParts('Read', {})
-      expect(result).toEqual({ toolName: 'Read', params: '' })
-    })
+	    it('should format SlashCommand tool correctly', () => {
+	      const result = formatToolCallParts('SlashCommand', { command: '/review-pr 123' })
+	      expect(result).toEqual({ toolName: 'SlashCommand', params: '/review-pr 123' })
+	    })
+
+	    it('should handle empty input gracefully', () => {
+	      const result = formatToolCallParts('Read', {})
+	      expect(result).toEqual({ toolName: 'Read', params: '' })
+	    })
   })
 })
 

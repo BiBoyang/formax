@@ -10,7 +10,7 @@ import type { SubAgentConfig, SubAgentResult } from './types'
 const DEFAULT_SUMMARY_MAX_CHARS = 500
 const SUMMARY_TRUNCATION_SUFFIX = '…'
 const DEFAULT_SUB_AGENT_REPL_MODE: 'plan' = 'plan'
-const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
+const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
 
 export interface SubAgentRunner {
   run(args: {

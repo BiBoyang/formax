@@ -54,6 +54,7 @@
 - `NotebookEdit`
 - `TodoWrite`
 - `WebSearch`, `WebFetch`
+- `SlashCommand`（执行 `.claude/commands/*.md` 自定义命令）
 - `Task`（sub-agent）
 - `TaskOutput`
 - `AskUserQuestion`
@@ -99,7 +100,6 @@
 ## tools-copy.json 还缺什么（未实现）
 
 来自 `proxy/tools-copy.json`（对齐目标）但目前仍缺：
-- `SlashCommand` tool（让模型也能“显式调用命令”；目前命令系统已本地注册化，但还未暴露 tool）
 - `Skill`（技能执行：需要定义“skill 是什么/从哪里来/是否允许访问哪些能力”）
 
 ## 后续建议路线（按价值/依赖排序）

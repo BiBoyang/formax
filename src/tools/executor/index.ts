@@ -32,7 +32,7 @@ export interface ToolHandler {
 
 export type ToolExecutor = (call: ToolCall, ctx: ExecutionContext) => Promise<ToolResult>
 
-const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch'])
+const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
 
 function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   return {
