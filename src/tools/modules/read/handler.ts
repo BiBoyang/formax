@@ -1,10 +1,9 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import { createInterface } from 'node:readline'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { requireAbsolutePath } from '../../utils/paths'
 
 const DEFAULT_LIMIT = 2000
 const MAX_LINE_CHARS = 2000
@@ -23,7 +22,11 @@ export const ReadToolHandler: ToolHandler = {
       const filePathRaw = (input as any).file_path || (input as any).path
       if (!filePathRaw) throw new Error('Missing file_path')
 
-      const filePath = resolveUserPath(cwd, String(filePathRaw))
+      const { absolutePath: filePath } = requireAbsolutePath({
+        cwd,
+        rawPath: String(filePathRaw),
+        fieldName: 'file_path',
+      })
 
       const offsetRaw = (input as any).offset
       const limitRaw = (input as any).limit
@@ -77,14 +80,6 @@ function formatCatNLine(lineNo: number, content: string): string {
   const num = String(lineNo)
   const padded = num.length >= 6 ? num : ' '.repeat(6 - num.length) + num
   return `${padded}\t${content}`
-}
-
-function resolveUserPath(cwd: string, filePathRaw: string): string {
-  const raw = String(filePathRaw || '').trim()
-  if (!raw) return raw
-  if (raw === '~') return os.homedir()
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
-  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
 }
 
 async function readCatNLines(args: {

@@ -7,11 +7,11 @@ import { EditToolPresenter } from './presenter'
 const spec: ToolDefinition = {
   name: 'Edit',
   description:
-    'Perform exact string replacements in a file.\n\nNotes:\n- file_path should be an absolute path when possible (relative paths are resolved from the current working directory).\n- When copying from Read output, do NOT include the cat -n line number prefix in old_string/new_string.',
+    'Perform exact string replacements in a file.\n\nNotes:\n- file_path must be an absolute path (supports ~).\n- When copying from Read output, do NOT include the cat -n line number prefix in old_string/new_string.',
   input_schema: {
     type: 'object',
     properties: {
-      file_path: { type: 'string', description: 'Path to the file to modify (absolute preferred).' },
+      file_path: { type: 'string', description: 'Absolute path to the file to modify (supports ~).' },
       old_string: { type: 'string', description: 'Exact text to replace.' },
       new_string: { type: 'string', description: 'Replacement text (must differ from old_string).' },
       replace_all: { type: 'boolean', default: false, description: 'Replace all occurrences (default false).' },

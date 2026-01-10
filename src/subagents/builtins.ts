@@ -99,15 +99,15 @@ export function getBuiltinSubagents(): SubAgentConfig[] {
     {
       name: 'Explore',
       description:
-        'Fast agent specialized for exploring codebases (read-only). Use for file discovery, codebase questions, and broad searches. (Tools: Glob, Grep, Read, Bash)',
-      tools: ['Glob', 'Grep', 'Read', 'Bash'],
+        'Fast agent specialized for exploring codebases. Use for file discovery, codebase questions, and broad searches. (Tools: All tools)',
+      tools: ['*'],
       systemPrompt: explorePrompt,
     },
     {
       name: 'Plan',
       description:
-        'Software architect agent for designing implementation plans (read-only). Returns step-by-step plans and highlights critical files. (Tools: Glob, Grep, Read, Bash)',
-      tools: ['Glob', 'Grep', 'Read', 'Bash'],
+        'Software architect agent for designing implementation plans. Returns step-by-step plans and highlights critical files. (Tools: All tools)',
+      tools: ['*'],
       systemPrompt: planPrompt,
     },
     {

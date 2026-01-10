@@ -17,3 +17,7 @@ These items are intentionally omitted or simplified in `full` until implemented:
 - `/help` exists (local command), but help content parity is still incomplete
 - Tool policy sections that reference tools/behaviors we don’t have yet (e.g. `gh` workflows)
 - Rich environment snapshot block: ✅ basic parity added (`<env>` + git snapshot + model id); still missing Claude-specific extras (knowledge cutoff, claude_background_info, main branch inference)
+
+## Reference prompt inventory
+
+- `system-prompts/PORTING-STATUS.md` tracks which files under `system-prompts/` are actually integrated into runtime (`src/`) vs kept as reference only.

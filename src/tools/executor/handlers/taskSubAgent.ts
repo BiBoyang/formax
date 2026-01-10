@@ -2,7 +2,7 @@ import type { SubAgentRegistry } from '../../../subagents/registry'
 import type { SubAgentRunner } from '../../../subagents/runner'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../index'
-import type { TaskManager } from '../../runtime/taskManager'
+import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'
 import { formatToolCallParts, formatToolResult } from '../../../utils/toolFormatting'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 
@@ -30,14 +30,29 @@ export function createTaskSubAgentToolHandler(deps: {
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       const input = call.input || {}
+      const description = (input as any).description
       const subagentType = (input as any).subagent_type
       const prompt = (input as any).prompt
+      const resume = (input as any).resume
       const runInBackground = Boolean((input as any).run_in_background)
 
-      if (typeof subagentType !== 'string' || typeof prompt !== 'string') {
+      if (typeof resume === 'string' && resume.trim()) {
         return {
           tool_use_id: call.id,
-          content: 'Error: Missing required fields subagent_type or prompt.',
+          content: 'Error: resume is not supported yet.',
+          is_error: true,
+        }
+      }
+
+      if (
+        typeof description !== 'string' ||
+        !description.trim() ||
+        typeof subagentType !== 'string' ||
+        typeof prompt !== 'string'
+      ) {
+        return {
+          tool_use_id: call.id,
+          content: 'Error: Missing required fields description, subagent_type, or prompt.',
           is_error: true,
         }
       }
@@ -53,13 +68,20 @@ export function createTaskSubAgentToolHandler(deps: {
 
       const run = async (
         signal?: AbortSignal,
-        opts?: { emitUi?: boolean },
+        opts?: { emitUi?: boolean; updateTask?: (result: ManagedTaskResult) => void },
       ): Promise<{ content: string; is_error?: boolean }> => {
         const entries: NestedToolEntry[] = []
         let toolUses = 0
         const usageTotal: TokenUsage = {}
 
+        const scheduleTaskUpdate = opts?.updateTask
+          ? createThrottledUpdater(() => {
+              opts.updateTask?.({ content: renderNestedLines(entries, toolUses).join('\n') })
+            })
+          : null
+
         const emitProgress = (): void => {
+          scheduleTaskUpdate?.()
           if (!opts?.emitUi) return
           if (!ctx.onEvent || signal?.aborted) return
           ctx.onEvent({
@@ -137,6 +159,8 @@ export function createTaskSubAgentToolHandler(deps: {
         const summary = result.summary || ''
         const limited = summary.length > 500 ? summary.slice(0, 500) + '…' : summary
 
+        scheduleTaskUpdate?.flush()
+
         if (result.artifacts && result.artifacts.length > 0) {
           return {
             content: JSON.stringify({ summary: limited, artifacts: result.artifacts }, null, 2),
@@ -153,11 +177,11 @@ export function createTaskSubAgentToolHandler(deps: {
       }
 
       if (runInBackground) {
-        const label = `Task(${String(subagentType)})`
+        const label = `Task(${String(subagentType)}): ${description.trim()}`
         const taskId = deps.taskManager.create({
           kind: 'agent',
           label,
-          run: ({ signal }) => run(signal, { emitUi: false }),
+          run: ({ signal, updateResult }) => run(signal, { emitUi: false, updateTask: updateResult }),
         })
         return {
           tool_use_id: call.id,
@@ -249,4 +273,30 @@ function toSingleLine(s: string): string {
 function truncateLine(s: string, maxChars: number): string {
   if (s.length <= maxChars) return s
   return s.slice(0, Math.max(0, maxChars - 1)) + '…'
+}
+
+function createThrottledUpdater(fn: () => void): (() => void) & { flush: () => void } {
+  let pending = false
+  let timer: NodeJS.Timeout | null = null
+
+  const tick = () => {
+    pending = false
+    timer = null
+    fn()
+  }
+
+  const schedule = () => {
+    if (pending) return
+    pending = true
+    timer = setTimeout(tick, 100)
+  }
+
+  schedule.flush = () => {
+    if (timer) clearTimeout(timer)
+    pending = false
+    timer = null
+    fn()
+  }
+
+  return schedule
 }

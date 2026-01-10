@@ -241,11 +241,14 @@ export function useReplController(deps: {
             taskStatsByToolUseIdRef.current.delete(ev.id)
 
             const tokens = formatTokenTotal(stats?.usage)
+            const backgroundTaskId = parseBackgroundTaskId(rawResult)
             const doneText = ev.result.is_error
               ? displayResult || 'Error'
-              : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                  Date.now() - (stats?.startedAt ?? Date.now()),
-                )})`
+              : backgroundTaskId
+                ? `Started (task_id: ${backgroundTaskId})`
+                : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                    Date.now() - (stats?.startedAt ?? Date.now()),
+                  )})`
 
             return prev.map((m) =>
               m.id === toolMsgId
@@ -618,6 +621,24 @@ function formatDuration(ms: number): string {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
   if (minutes > 0) return `${minutes}m ${seconds}s`
   return `${seconds}s`
+}
+
+function parseBackgroundTaskId(rawResult: string): string | null {
+  const text = String(rawResult || '').trim()
+  if (!text) return null
+
+  try {
+    const parsed = JSON.parse(text)
+    const taskId = (parsed as any)?.task_id
+    const status = (parsed as any)?.status
+    if (typeof taskId === 'string' && taskId.trim() && status === 'running') {
+      return taskId.trim()
+    }
+  } catch {
+    // not JSON
+  }
+
+  return null
 }
 
  

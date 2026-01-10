@@ -58,6 +58,7 @@ export function formatToolCallParts(
   name: string,
   input: Record<string, any>
 ): ToolCallParts {
+  let toolName = name
   let params = ''
   
   switch (name) {
@@ -79,13 +80,25 @@ export function formatToolCallParts(
       break
     }
     case 'Glob':
-      params = input.pattern || input.glob || ''
+      toolName = 'Search'
+      params = formatSearchParams({
+        pattern: input.pattern || input.glob || '',
+        path: input.path,
+      })
       break
     case 'Grep':
-      params = `${input.pattern || ''} in ${input.path || '.'}`
+      toolName = 'Search'
+      // Treat blank/whitespace-only paths as the default search root.
+      // Claude Code shows this as path: ".".
+      const grepPath = typeof input.path === 'string' ? input.path.trim() : ''
+      params = formatSearchParams({
+        pattern: input.pattern || '',
+        path: grepPath || '.',
+        outputMode: input.output_mode,
+      })
       break
     case 'Search':
-      params = `pattern: "${input.pattern || ''}"`
+      params = formatSearchParams({ pattern: input.pattern || '', path: input.path, outputMode: input.output_mode })
       break
     case 'WebSearch': {
       const q = String(input.query || '')
@@ -107,7 +120,27 @@ export function formatToolCallParts(
       params = JSON.stringify(input).slice(0, 40)
   }
   
-  return { toolName: name, params }
+  return { toolName, params }
+}
+
+function formatSearchParams(args: { pattern: unknown; path?: unknown; outputMode?: unknown }): string {
+  const parts: string[] = []
+
+  const pattern = String(args.pattern ?? '')
+  parts.push(`pattern: ${jsonQuote(pattern)}`)
+
+  const path = typeof args.path === 'string' ? args.path.trim() : ''
+  if (path) parts.push(`path: ${jsonQuote(path)}`)
+
+  const outputMode = typeof args.outputMode === 'string' ? args.outputMode.trim() : ''
+  if (outputMode) parts.push(`output_mode: ${jsonQuote(outputMode)}`)
+
+  return parts.join(', ')
+}
+
+function jsonQuote(value: string): string {
+  // JSON.stringify gives us correct escaping + surrounding quotes.
+  return JSON.stringify(String(value))
 }
 
 /**
@@ -186,7 +219,7 @@ export function formatToolResult(
       const looksLikeContent = nonEmpty.every((l) => /:\d+:/.test(l))
       if (looksLikeContent) {
         const matches = nonEmpty.length
-        return { summary: `Found ${matches} matches`, lines: matches }
+        return { summary: `Found ${matches} lines`, lines: matches }
       }
 
       const looksLikeCount = nonEmpty.every((l) => /:\d+$/.test(l) && !/:\d+:/.test(l))

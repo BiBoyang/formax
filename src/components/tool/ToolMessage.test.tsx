@@ -25,6 +25,10 @@ function createToolInfo(overrides: Partial<ToolInfo> = {}): ToolInfo {
   }
 }
 
+function displayToolName(name: string): string {
+  return name === 'Glob' || name === 'Grep' ? 'Search' : name
+}
+
 // Arbitrary for generating tool names
 const toolNameArb = fc.constantFrom('Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'Search', 'Unknown')
 
@@ -93,7 +97,7 @@ describe('ToolMessage', () => {
       fc.assert(
         fc.property(msgWithToolInfoArb, (msg) => {
           const { lastFrame } = render(<ToolMessage message={msg} />)
-          expect(lastFrame()).toContain(msg.toolInfo!.name)
+          expect(lastFrame()).toContain(displayToolName(msg.toolInfo!.name))
         }),
         { numRuns: 100 }
       )
@@ -205,7 +209,7 @@ describe('ToolMessage', () => {
         })
       })
       const { lastFrame } = render(<ToolMessage message={msg} />)
-      expect(lastFrame()).toContain('Glob')
+      expect(lastFrame()).toContain('Search')
       expect(lastFrame()).toContain('**/*.ts')
       expect(lastFrame()).toContain('Found 5 files')
     })
@@ -361,7 +365,7 @@ describe('Property 3: Graceful Edge Case Handling', () => {
           })
           const { lastFrame } = render(<ToolMessage message={msg} />)
           expect(lastFrame()).toContain('⏺')
-          expect(lastFrame()).toContain(name)
+          expect(lastFrame()).toContain(displayToolName(name))
         }
       ),
       { numRuns: 100 }

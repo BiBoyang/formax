@@ -6,11 +6,11 @@ import { ReadToolPresenter } from './presenter'
 const spec: ToolDefinition = {
   name: 'Read',
   description:
-    'Read a text file from the local filesystem.\n\nNotes:\n- file_path should be an absolute path when possible (relative paths are resolved from the current working directory).\n- By default reads up to 2000 lines.\n- Supports offset/limit for large files.\n- Output is returned in cat -n format (line numbers start at 1).',
+    'Read a text file from the local filesystem.\n\nNotes:\n- file_path must be an absolute path (supports ~).\n- By default reads up to 2000 lines.\n- Supports offset/limit for large files.\n- Output is returned in cat -n format (line numbers start at 1).',
   input_schema: {
     type: 'object',
     properties: {
-      file_path: { type: 'string', description: 'Path to the file to read (absolute preferred).' },
+      file_path: { type: 'string', description: 'Absolute path to the file to read (supports ~).' },
       offset: { type: 'number', description: '1-based line number to start reading from.' },
       limit: { type: 'number', description: 'Max number of lines to read.' },
     },

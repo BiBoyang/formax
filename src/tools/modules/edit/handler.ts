@@ -1,10 +1,10 @@
 import fsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildPlanModeSystemReminder } from '../../../utils/planMode'
+import { requireAbsolutePath } from '../../utils/paths'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -41,7 +41,11 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
         if (oldString === undefined) throw new Error('Missing old_string')
         if (newString === undefined) throw new Error('Missing new_string')
 
-        const filePath = resolveUserPath(cwd, String(filePathRaw))
+        const { absolutePath: filePath } = requireAbsolutePath({
+          cwd,
+          rawPath: String(filePathRaw),
+          fieldName: 'file_path',
+        })
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
         const isPlanFile = Boolean(planPath && path.resolve(planPath) === path.resolve(filePath))
 
@@ -135,14 +139,6 @@ function stripCatNPrefixes(text: string): string {
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*\d+\t/, ''))
     .join('\n')
-}
-
-function resolveUserPath(cwd: string, filePathRaw: string): string {
-  const raw = String(filePathRaw || '').trim()
-  if (!raw) return raw
-  if (raw === '~') return os.homedir()
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
-  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
 }
 
 function formatPlanSnippet(contents: string): string {

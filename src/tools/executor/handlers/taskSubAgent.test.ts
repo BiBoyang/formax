@@ -41,7 +41,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'missing', prompt: 'hi' },
+      input: { description: 'Missing agent', subagent_type: 'missing', prompt: 'hi' },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
@@ -80,7 +80,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'code-reviewer', prompt: 'review' },
+      input: { description: 'Code review', subagent_type: 'code-reviewer', prompt: 'review' },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
@@ -119,7 +119,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'code-reviewer', prompt: 'review' },
+      input: { description: 'Code review', subagent_type: 'code-reviewer', prompt: 'review' },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
@@ -159,7 +159,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'code-reviewer', prompt: 'review' },
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
@@ -199,7 +199,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'code-reviewer', prompt: 'review' },
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
@@ -236,7 +236,7 @@ describe('TaskSubAgentToolHandler', () => {
     const call: ToolCall = {
       id: '1',
       name: 'Task',
-      input: { subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
     }
 
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })

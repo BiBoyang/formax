@@ -26,8 +26,10 @@ describe('formatToolCallParts', () => {
           expect(typeof result.toolName).toBe('string')
           expect(typeof result.params).toBe('string')
           
-          // toolName should match input name
-          expect(result.toolName).toBe(name)
+          // toolName is a display label; some tools share a common label.
+          const expectedToolName =
+            name === 'Glob' || name === 'Grep' ? 'Search' : name
+          expect(result.toolName).toBe(expectedToolName)
         }
       ),
       { numRuns: 100 }
@@ -123,30 +125,36 @@ describe('formatToolCallParts', () => {
         fc.string(),
         (pattern) => {
           const result1 = formatToolCallParts('Glob', { pattern })
-          expect(result1.params).toBe(pattern)
+          expect(result1.toolName).toBe('Search')
+          expect(result1.params).toBe(`pattern: ${JSON.stringify(pattern)}`)
           
           const result2 = formatToolCallParts('Glob', { glob: pattern })
-          expect(result2.params).toBe(pattern)
+          expect(result2.toolName).toBe('Search')
+          expect(result2.params).toBe(`pattern: ${JSON.stringify(pattern)}`)
         }
       ),
       { numRuns: 100 }
     )
   })
 
-  // Property test: Grep tool formats pattern and path
-  it('should format Grep tool with pattern and path', () => {
-    fc.assert(
-      fc.property(
-        fc.string(),
-        fc.string({ minLength: 1 }), // path must be non-empty to avoid default '.'
-        (pattern, path) => {
-          const result = formatToolCallParts('Grep', { pattern, path })
-          expect(result.params).toBe(`${pattern} in ${path}`)
-        }
-      ),
-      { numRuns: 100 }
-    )
-  })
+	  // Property test: Grep tool formats pattern and path
+	  it('should format Grep tool with pattern and path', () => {
+	    fc.assert(
+	      fc.property(
+	        fc.string(),
+	        fc.string({ minLength: 1 }), // blank/whitespace is treated as default '.'
+	        (pattern, rawPath) => {
+	          const result = formatToolCallParts('Grep', { pattern, path: rawPath })
+	          expect(result.toolName).toBe('Search')
+	          const normalizedPath = rawPath.trim() ? rawPath.trim() : '.'
+	          expect(result.params).toBe(
+	            `pattern: ${JSON.stringify(pattern)}, path: ${JSON.stringify(normalizedPath)}`,
+	          )
+	        }
+	      ),
+	      { numRuns: 100 }
+	    )
+	  })
 
   // Property test: Grep tool uses default path when empty
   it('should use default path for Grep tool when path is empty', () => {
@@ -155,10 +163,12 @@ describe('formatToolCallParts', () => {
         fc.string(),
         (pattern) => {
           const result = formatToolCallParts('Grep', { pattern, path: '' })
-          expect(result.params).toBe(`${pattern} in .`)
+          expect(result.toolName).toBe('Search')
+          expect(result.params).toBe(`pattern: ${JSON.stringify(pattern)}, path: ${JSON.stringify('.')}`)
           
           const result2 = formatToolCallParts('Grep', { pattern })
-          expect(result2.params).toBe(`${pattern} in .`)
+          expect(result2.toolName).toBe('Search')
+          expect(result2.params).toBe(`pattern: ${JSON.stringify(pattern)}, path: ${JSON.stringify('.')}`)
         }
       ),
       { numRuns: 100 }
@@ -172,7 +182,8 @@ describe('formatToolCallParts', () => {
         fc.string(),
         (pattern) => {
           const result = formatToolCallParts('Search', { pattern })
-          expect(result.params).toBe(`pattern: "${pattern}"`)
+          expect(result.toolName).toBe('Search')
+          expect(result.params).toBe(`pattern: ${JSON.stringify(pattern)}`)
         }
       ),
       { numRuns: 100 }
@@ -488,7 +499,8 @@ describe('edge cases', () => {
 
     it('should handle Grep with empty pattern', () => {
       const result = formatToolCallParts('Grep', { pattern: '', path: 'src/' })
-      expect(result.params).toBe(' in src/')
+      expect(result.toolName).toBe('Search')
+      expect(result.params).toBe(`pattern: ${JSON.stringify('')}, path: ${JSON.stringify('src/')}`)
     })
 
     it('should handle unknown tool with circular reference gracefully', () => {

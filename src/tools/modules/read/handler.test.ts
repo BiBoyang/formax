@@ -62,5 +62,14 @@ describe('ReadToolHandler', () => {
     expect(parts[1]).toBe('a'.repeat(2000))
     await fsp.unlink(tmpFile)
   })
-})
 
+  it('rejects relative file_path', async () => {
+    const result = await ReadToolHandler.execute(
+      { id: 'rel1', name: 'Read', input: { file_path: 'README.md' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('file_path must be an absolute path')
+  })
+})
