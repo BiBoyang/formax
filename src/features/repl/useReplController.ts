@@ -511,20 +511,6 @@ export function useReplController(deps: {
 
 function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): PromptBlock[] {
   if (mode !== 'plan') return []
-  if (!planPath) {
-    return [
-      {
-        type: 'text',
-        text:
-          '<system-reminder>\n' +
-          'Plan mode is active. The user indicated that they do not want you to execute yet.\n' +
-          'In plan mode, focus on analysis and proposing a plan. Avoid using tools that modify files or execute destructive commands.\n' +
-          '</system-reminder>',
-        cache_control: { type: 'ephemeral' },
-      },
-    ]
-  }
-
   return [
     {
       type: 'text',

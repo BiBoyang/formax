@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react'
-import os from 'node:os'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
@@ -11,7 +10,7 @@ import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
-import { formatPlanPathForDisplay } from '../../../utils/planMode'
+import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
 
 export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -27,7 +26,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
 
   const planPath = planSession?.getPlanPath() ?? null
-  const isPlanFile = Boolean(planPath && normalizeForCompare(filePathRaw) === normalizeForCompare(planPath))
+  const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
   if (isPlanFile) {
     const dotColor =
@@ -72,12 +71,4 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   }
 
   return <ToolMessage message={message} />
-}
-
-function normalizeForCompare(rawPath: string): string {
-  const raw = String(rawPath || '').trim()
-  if (!raw) return ''
-  if (raw === '~') return path.normalize(os.homedir())
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.normalize(path.join(os.homedir(), raw.slice(2)))
-  return path.normalize(path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw))
 }

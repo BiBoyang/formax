@@ -1,11 +1,10 @@
 import React, { useMemo } from 'react'
-import os from 'node:os'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
-import { formatPlanPathForDisplay } from '../../../utils/planMode'
+import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
@@ -29,7 +28,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
   const planPath = planSession?.getPlanPath() ?? null
-  const isPlanFile = Boolean(planPath && normalizeForCompare(filePathRaw) === normalizeForCompare(planPath))
+  const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
@@ -146,12 +145,4 @@ function renderDiffBlock(args: {
 
 function toLines(value: string): string[] {
   return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-}
-
-function normalizeForCompare(rawPath: string): string {
-  const raw = String(rawPath || '').trim()
-  if (!raw) return ''
-  if (raw === '~') return path.normalize(os.homedir())
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.normalize(path.join(os.homedir(), raw.slice(2)))
-  return path.normalize(path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw))
 }

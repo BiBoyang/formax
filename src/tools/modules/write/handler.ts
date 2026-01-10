@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
-import { buildPlanModeSystemReminder } from '../../../utils/planMode'
+import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -38,7 +38,7 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
 
         const filePath = resolveUserPath(cwd, String(filePathRaw))
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
-        const isPlanFile = Boolean(planPath && path.resolve(planPath) === path.resolve(filePath))
+        const isPlanFile = Boolean(planPath && isSameFilePath(filePath, planPath, cwd))
 
         if (mode === 'plan' && !isPlanFile) {
           return {
