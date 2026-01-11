@@ -217,7 +217,7 @@ src/
 - [x] PR3b：Provider 选择 UX：Anthropic + OpenAI-compatible（Gemini 置灰/隐藏；可加 `--experimental-providers` 开关）
 - [x] PR3c：实现 connection test adapter（Anthropic：复用现有 `fetchAnthropicModels`；OpenAI/Gemini 先返回 “未实现” 但要有清晰提示）
 - [x] PR3c：实现写入：config.json + auth.json + log dir +（可选）初始化 rules.json
-- [ ] PR3c：测试：状态机回退/取消/重试；写入失败；401/403/DNS/timeout 文案
+- [x] PR3c：测试：状态机回退/取消/重试；写入失败；401/403/DNS/timeout 文案
 
 **验收脚本（人工）**
 - [ ] 全新环境：`rm -rf ~/.formax` → `formax` → wizard 走通

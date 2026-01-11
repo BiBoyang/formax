@@ -29,6 +29,26 @@ describe('SetupWizard', () => {
     expect(lastFrame()).toContain('Formax Setup')
   })
 
+  it('calls onCancel on Esc', async () => {
+    const onCancel = vi.fn()
+
+    const { stdin } = render(
+      <SetupWizard
+        providers={PROVIDERS}
+        testConnection={async () => ({ ok: true, models: ['m1'] })}
+        onWrite={async () => {}}
+        onDone={() => {}}
+        onCancel={onCancel}
+      />,
+    )
+
+    await tick()
+    stdin.write('\u001b')
+    await tick()
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('shows write errors without getting stuck', async () => {
     const onWrite = vi.fn(async () => {
       throw new Error('permission denied')
