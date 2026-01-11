@@ -24,6 +24,18 @@ export const LlmConfigSchema = z
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>
 
+export const LlmConfigPatchSchema = z
+  .object({
+    provider: ProviderIdSchema.optional(),
+    baseUrl: z.string().optional(),
+    model: z.string().optional(),
+    timeoutMs: TimeoutMsSchema.optional(),
+    authRef: z.string().optional(),
+  })
+  .strict()
+
+export type LlmConfigPatch = z.infer<typeof LlmConfigPatchSchema>
+
 export const PathsConfigSchema = z
   .object({
     logsDir: z.string().optional(),
@@ -35,6 +47,16 @@ export const PathsConfigSchema = z
 
 export type PathsConfig = z.infer<typeof PathsConfigSchema>
 
+export const PathsConfigPatchSchema = z
+  .object({
+    logsDir: z.string().optional(),
+    subagentsDir: z.string().optional(),
+    planDir: z.string().optional(),
+  })
+  .strict()
+
+export type PathsConfigPatch = z.infer<typeof PathsConfigPatchSchema>
+
 export const UiConfigSchema = z
   .object({
     assistantTextMode: AssistantTextModeSchema.default('buffered'),
@@ -44,6 +66,15 @@ export const UiConfigSchema = z
   .default({})
 
 export type UiConfig = z.infer<typeof UiConfigSchema>
+
+export const UiConfigPatchSchema = z
+  .object({
+    assistantTextMode: AssistantTextModeSchema.optional(),
+    promptProfile: PromptProfileSchema.optional(),
+  })
+  .strict()
+
+export type UiConfigPatch = z.infer<typeof UiConfigPatchSchema>
 
 export const FormaxConfigV1Schema = z
   .object({
@@ -55,6 +86,17 @@ export const FormaxConfigV1Schema = z
   .strict()
 
 export type FormaxConfigV1 = z.infer<typeof FormaxConfigV1Schema>
+
+export const FormaxConfigV1PatchSchema = z
+  .object({
+    version: z.literal(1).optional(),
+    llm: LlmConfigPatchSchema.optional(),
+    paths: PathsConfigPatchSchema.optional(),
+    ui: UiConfigPatchSchema.optional(),
+  })
+  .strict()
+
+export type FormaxConfigV1Patch = z.infer<typeof FormaxConfigV1PatchSchema>
 
 export const AuthEntrySchema = z
   .object({
@@ -83,4 +125,3 @@ export const AuthStoreV1Schema = z
   .strict()
 
 export type AuthStoreV1 = z.infer<typeof AuthStoreV1Schema>
-
