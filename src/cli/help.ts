@@ -12,7 +12,7 @@ export function formatCliHelp(): string {
     `  formax auth delete <provider> <authRef> [--json]\n\n` +
     `  formax status [--json]\n` +
     `  formax doctor [--json]\n` +
-    `  formax setup [--json]\n` +
+    `  formax setup\n` +
     `  formax policy [--json]\n\n` +
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +

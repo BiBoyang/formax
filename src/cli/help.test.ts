@@ -18,7 +18,7 @@ describe('formatCliHelp', () => {
 
         formax status [--json]
         formax doctor [--json]
-        formax setup [--json]
+        formax setup
         formax policy [--json]
 
       Flags:

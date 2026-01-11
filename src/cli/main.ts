@@ -176,7 +176,11 @@ export async function dispatchCli(
 
   if (args[0] === 'status') return unimplemented('status')
   if (args[0] === 'doctor') return unimplemented('doctor')
-  if (args[0] === 'setup') return unimplemented('setup')
+  if (args[0] === 'setup') {
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('setup', '--json is not supported for interactive setup'), stderr: '' }
+    process.env.FORMAX_FORCE_SETUP = '1'
+    return { kind: 'repl' }
+  }
   if (args[0] === 'policy') return unimplemented('policy')
 
   if (args[0] === 'config' && !args[1]) {

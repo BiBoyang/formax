@@ -4,6 +4,7 @@ import { clearTerminal } from '../utils/terminal.js'
 import { REPL } from '../screens/REPL.js'
 import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js'
 import { loadRuntimeConfig } from '../env/config.js'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { createToolExecutor } from '../tools/executor/index.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
@@ -22,6 +23,10 @@ import { createAskUserQuestionToolModule } from '../tools/modules/askUserQuestio
 import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
 import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 import type { App } from '../core/app/createApp.js'
+import { SetupWizard } from '../ui/SetupWizard.js'
+import { testSetupConnection } from '../adapters/setup/connectionTest.js'
+import { writeSetupFiles } from '../adapters/setup/writeSetupFiles.js'
+import type { SetupProviderOption } from '../core/setup/types.js'
 
 export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   // 启动控制台日志服务器（可选，通过环境变量控制）
@@ -34,7 +39,71 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   // Optional: clear screen for a clean chat view
   await clearTerminal()
 
-  const cfg = await loadRuntimeConfig(process.env, process.cwd())
+  let cfg = await loadRuntimeConfig(process.env, process.cwd())
+  const forceSetup = process.env.FORMAX_FORCE_SETUP === '1'
+  if (forceSetup || !cfg.llm.apiKey.trim()) {
+    const providerOptions: SetupProviderOption[] = [
+      {
+        id: 'anthropic',
+        label: 'Anthropic (Claude)',
+        description: 'Claude API (streaming + tools supported)',
+      },
+      {
+        id: 'openai',
+        label: 'OpenAI-compatible',
+        description: 'Not supported yet in Formax REPL',
+        disabled: true,
+      },
+      {
+        id: 'gemini',
+        label: 'Gemini',
+        description: 'Not supported yet in Formax REPL',
+        disabled: true,
+      },
+    ]
+
+    const store = createNodeFileStore()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const instance = render(
+          <SetupWizard
+            providers={providerOptions}
+            testConnection={testSetupConnection}
+            onWrite={async (draft) => {
+              if (!draft.provider) throw new Error('Missing provider')
+              await writeSetupFiles({
+                fileStore: store,
+                cwd: process.cwd(),
+                env: process.env,
+                provider: draft.provider,
+                baseUrl: draft.baseUrl,
+                apiKey: draft.apiKey,
+                model: draft.model,
+              })
+            }}
+            onDone={() => {
+              instance.unmount()
+              resolve()
+            }}
+            onCancel={() => {
+              instance.unmount()
+              reject(new Error('Setup canceled'))
+            }}
+          />,
+          { exitOnCtrlC: false },
+        )
+      })
+    } catch (err) {
+      stopConsoleLogger()
+      await clearTerminal()
+      const msg = err instanceof Error ? err.message : String(err)
+      process.stderr.write(`Error: ${msg}\n`)
+      process.exit(1)
+    }
+
+    await clearTerminal()
+    cfg = await loadRuntimeConfig(process.env, process.cwd())
+  }
   const model = cfg.llm.model || 'claude-sonnet-4-5-20250929'
 
   const client = new AnthropicStreamClient({
