@@ -11,6 +11,33 @@ describe('dispatchCli', () => {
     expect(res.kind).toBe('repl')
   })
 
+  it('shows help for --help', async () => {
+    const res = await dispatchCli(['--help'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout.includes('Usage:')).toBe(true)
+    expect(res.stdout.includes('Exit codes:')).toBe(true)
+  })
+
+  it('returns usage error for unknown command', async () => {
+    const res = await dispatchCli(['wat'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    expect(res.stderr.includes('Unknown command.')).toBe(true)
+  })
+
+  it('returns JSON error envelope for unknown command with --json', async () => {
+    const res = await dispatchCli(['wat', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('unknown')
+  })
+
   it('config show --json does not leak apiKey', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-config-show-'))
     try {

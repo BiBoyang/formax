@@ -12,8 +12,11 @@ export function formatCliHelp(): string {
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +
     `  -h, --help Show help\n\n` +
+    `Exit codes:\n` +
+    `  0 Success\n` +
+    `  1 Error\n` +
+    `  2 Usage error\n\n` +
     `Environment:\n` +
     `  FORMAX_CONFIG_DIR Override global config directory (default: ~/.formax)\n`
   )
 }
-

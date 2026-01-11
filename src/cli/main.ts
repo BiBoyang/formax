@@ -8,6 +8,7 @@ import { ProviderIdSchema } from '../core/config/schema.js'
 import { configMigrate } from '../core/config/migrate.js'
 import { configShow } from '../core/config/show.js'
 import { parseCliArgs } from './args.js'
+import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
@@ -144,28 +145,32 @@ export async function dispatchCli(
   const flags = parsed.flags
 
   if (flags.help) {
-    return { kind: 'handled', exitCode: 0, stdout: formatCliHelp(), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
   }
 
   if (args.length === 0 || args[0] === 'repl') return { kind: 'repl' }
 
   if (args[0] === 'config' && args[1] === 'show') {
     const res = await configShow({ fileStore: store, cwd, env, platform, homedir })
-    if (flags.json) return { kind: 'handled', exitCode: 0, stdout: okJson('config show', res, res.warnings), stderr: '' }
-    return { kind: 'handled', exitCode: 0, stdout: formatConfigShowHuman(res), stderr: '' }
+    if (flags.json) {
+      return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('config show', res, res.warnings), stderr: '' }
+    }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatConfigShowHuman(res), stderr: '' }
   }
 
   if (args[0] === 'config' && args[1] === 'migrate') {
     const res = await configMigrate({ fileStore: store, cwd, env, platform, homedir })
-    if (flags.json) return { kind: 'handled', exitCode: 0, stdout: okJson('config migrate', res, res.warnings), stderr: '' }
-    return { kind: 'handled', exitCode: 0, stdout: formatConfigMigrateHuman(res), stderr: '' }
+    if (flags.json) {
+      return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('config migrate', res, res.warnings), stderr: '' }
+    }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatConfigMigrateHuman(res), stderr: '' }
   }
 
   if (args[0] === 'auth' && args[1] === 'list') {
     const paths = getConfigPaths({ cwd, env, platform, homedir })
     const res = await authList({ fileStore: store, authPath: paths.globalAuthPath })
-    if (flags.json) return { kind: 'handled', exitCode: 0, stdout: okJson('auth list', res, res.warnings), stderr: '' }
-    return { kind: 'handled', exitCode: 0, stdout: formatAuthListHuman(res), stderr: '' }
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth list', res, res.warnings), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatAuthListHuman(res), stderr: '' }
   }
 
   if (args[0] === 'auth' && args[1] === 'set') {
@@ -175,12 +180,12 @@ export async function dispatchCli(
       const apiKey = args[4]
       const paths = getConfigPaths({ cwd, env, platform, homedir })
       const res = await authSet({ fileStore: store, authPath: paths.globalAuthPath, provider, authRef, apiKey })
-      if (flags.json) return { kind: 'handled', exitCode: 0, stdout: okJson('auth set', res, res.warnings), stderr: '' }
-      return { kind: 'handled', exitCode: 0, stdout: `Saved ${res.provider}:${res.authRef} to ${res.authPath}\n`, stderr: '' }
+      if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth set', res, res.warnings), stderr: '' }
+      return { kind: 'handled', exitCode: ExitCode.Ok, stdout: `Saved ${res.provider}:${res.authRef} to ${res.authPath}\n`, stderr: '' }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      if (flags.json) return { kind: 'handled', exitCode: 2, stdout: errJson('auth set', message), stderr: '' }
-      return { kind: 'handled', exitCode: 2, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
+      if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth set', message), stderr: '' }
+      return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
     }
   }
 
@@ -190,22 +195,22 @@ export async function dispatchCli(
       const authRef = args[3]
       const paths = getConfigPaths({ cwd, env, platform, homedir })
       const res = await authDelete({ fileStore: store, authPath: paths.globalAuthPath, provider, authRef })
-      if (flags.json) return { kind: 'handled', exitCode: 0, stdout: okJson('auth delete', res, res.warnings), stderr: '' }
+      if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth delete', res, res.warnings), stderr: '' }
       return {
         kind: 'handled',
-        exitCode: 0,
+        exitCode: ExitCode.Ok,
         stdout: res.deleted ? `Deleted ${res.provider}:${res.authRef}\n` : `Not found: ${res.provider}:${res.authRef}\n`,
         stderr: '',
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      if (flags.json) return { kind: 'handled', exitCode: 2, stdout: errJson('auth delete', message), stderr: '' }
-      return { kind: 'handled', exitCode: 2, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
+      if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth delete', message), stderr: '' }
+      return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
     }
   }
 
   if (flags.json) {
-    return { kind: 'handled', exitCode: 2, stdout: errJson('unknown', 'Unknown command'), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('unknown', 'Unknown command'), stderr: '' }
   }
-  return { kind: 'handled', exitCode: 2, stdout: '', stderr: `Unknown command.\n\n` + formatCliHelp() }
+  return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Unknown command.\n\n` + formatCliHelp() }
 }
