@@ -181,14 +181,14 @@ src/
 - `formax --help` 输出稳定且可测试；`--json` 输出 schema v1；exit codes 可依赖
 
 **TODO（建议拆成 PR2a/PR2b）**
-- [ ] PR2a：新增 `src/cli/args.ts`（argv parse：subcommand + flags + `--json`）
-- [ ] PR2a：新增 `src/cli/help.ts`（help 文案集中管理，可做快照测试）
+- [x] PR2a：新增 `src/cli/args.ts`（argv parse：subcommand + flags + `--json`）
+- [x] PR2a：新增 `src/cli/help.ts`（help 文案集中管理，可做快照测试）
 - [ ] PR2a：定义 exit codes（0/1/2/3…）并写入文档与 help
 - [ ] PR2a：实现命令树骨架：`repl/setup/status/doctor/config/auth/policy`（先让它能跑、允许 stub）
 - [ ] PR2b：建立 `--json` 输出契约（JSON envelope v1）：`schemaVersion/command/ok/data/error/warnings/meta`（stdout 只输出 JSON；日志/调试走 stderr）
 - [ ] PR2b：增加 `--no-color`（禁用 ANSI；用于快照/CI）并保证 help/status/doctor 在 80 列不爆版
-- [ ] PR2b：把 PR1d 的 core API 接到 CLI：`formax config show|migrate`、`formax auth list|set|delete`（并支持 `FORMAX_CONFIG_DIR` 隔离目录）
-- [ ] PR2b：把 “unknown command / invalid args” 统一成 exit=2 + 指向 `--help`
+- [x] PR2b：把 PR1d 的 core API 接到 CLI：`formax config show|migrate`、`formax auth list|set|delete`（并支持 `FORMAX_CONFIG_DIR` 隔离目录）
+- [x] PR2b：把 “unknown command / invalid args” 统一成 exit=2 + 指向 `--help`
 - [ ] PR2b：测试：help 快照、unknown command、`--json` 输出可被 JSON.parse
 
 **备注**
