@@ -1,6 +1,6 @@
 import type { ProviderId } from '../config/schema.js'
-import { ErrorCode } from '../errors/codes.js'
 import type { ConnectionTestResult, SetupDraft, SetupProviderOption, SetupStep } from './types.js'
+import { mapUnknownError } from './errorMapping.js'
 
 export type ConnectionTester = (input: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
 
@@ -130,8 +130,8 @@ export function createSetupSession(args: {
     try {
       res = await args.testConnection({ provider, baseUrl, apiKey })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      res = { ok: false, code: ErrorCode.Unknown, message }
+      const mapped = mapUnknownError(err)
+      res = { ok: false, code: mapped.code, message: mapped.message }
     }
     if (res.ok === true) {
       state.availableModels = res.models
