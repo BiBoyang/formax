@@ -1,5 +1,6 @@
 import path from 'node:path'
 import os from 'node:os'
+import { resolveRuntimeConfig } from '../core/config/resolve.js'
 
 export type RuntimeConfig = {
   llm: {
@@ -31,29 +32,28 @@ export function loadRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
 ): RuntimeConfig {
-  const logsDir = env.FORMAX_LOGS_DIR
-    ? path.resolve(cwd, env.FORMAX_LOGS_DIR)
+  const resolved = resolveRuntimeConfig({ env: env as Record<string, string | undefined> })
+
+  const logsDirRaw = resolved.config.paths.logsDir || env.FORMAX_LOGS_DIR || ''
+  const logsDir = logsDirRaw
+    ? path.resolve(cwd, logsDirRaw)
     : path.resolve(cwd, 'proxy/logs')
 
-  const subagentsDir = env.FORMAX_SUBAGENTS_DIR
-    ? path.resolve(cwd, env.FORMAX_SUBAGENTS_DIR)
+  const subagentsDirRaw = resolved.config.paths.subagentsDir || env.FORMAX_SUBAGENTS_DIR || ''
+  const subagentsDir = subagentsDirRaw
+    ? path.resolve(cwd, subagentsDirRaw)
     : path.resolve(cwd, '.agent/subagents')
 
   const defaultPlanDir = path.join(os.homedir(), '.claude', 'plans')
-  const planDir = env.FORMAX_PLAN_DIR ? path.resolve(cwd, env.FORMAX_PLAN_DIR) : defaultPlanDir
+  const planDirRaw = resolved.config.paths.planDir || env.FORMAX_PLAN_DIR || ''
+  const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 
-  const apiKey = env.ANTHROPIC_API_KEY2 || ''
-  const baseUrl = normalizeAnthropicBaseUrl(env.ANTHROPIC_BASE_URL2 || '')
-  const model = env.ANTHROPIC_MODEL || ''
-  const timeoutMsRaw = Number(env.ANTHROPIC_TIMEOUT_MS || 600000)
-  const timeoutMs =
-    Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 600000
-
-  const assistantTextModeRaw = String(env.FORMAX_ASSISTANT_TEXT_MODE || '').trim().toLowerCase()
-  const assistantTextMode = assistantTextModeRaw === 'stream' ? 'stream' : 'buffered'
-
-  const promptProfileRaw = String(env.FORMAX_PROMPT_PROFILE || '').trim().toLowerCase()
-  const promptProfile = promptProfileRaw === 'lite' ? 'lite' : 'full'
+  const apiKey = resolved.auth?.apiKey || ''
+  const baseUrl = resolved.config.llm.baseUrl || normalizeAnthropicBaseUrl(env.ANTHROPIC_BASE_URL2 || '')
+  const model = resolved.config.llm.model || ''
+  const timeoutMs = resolved.config.llm.timeoutMs || 600000
+  const assistantTextMode = resolved.config.ui.assistantTextMode
+  const promptProfile = resolved.config.ui.promptProfile
 
   return {
     llm: {
