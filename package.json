@@ -10,7 +10,8 @@
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
-    "type-check": "tsc --noEmit",
+    "core:boundaries": "tsx ./scripts/check-core-boundaries.ts",
+    "type-check": "tsc --noEmit && tsx ./scripts/check-core-boundaries.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

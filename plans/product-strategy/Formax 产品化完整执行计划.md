@@ -129,12 +129,12 @@ src/
 - 行为完全不变；仅引入骨架与编译期约束（tsconfig path + lint 规则可选）
 
 **TODO（建议拆成 PR0a/PR0b）**
-- [ ] PR0a：新增 `src/core/app/*`（`createApp` + `EventBus` + `Logger` interface），不接任何现有逻辑
-- [ ] PR0a：新增 `src/adapters/*` 的 interface（先只定义最小能力，不写实现）
-- [ ] PR0a：新增 `src/legacy/*`，把现有启动逻辑包一层导出（`runLegacyCli()`）
-- [ ] PR0a：`src/entrypoints/cli.tsx` 改为 `createApp(adapters)` 后调用 legacy（行为必须不变）
-- [ ] PR0a：vitest 增加一个最小 smoke test（`createApp` 可实例化、event bus 可 publish/subscribe）
-- [ ] PR0b：加自动化边界约束（eslint `no-restricted-imports` 或 boundaries）：禁止 `src/core/**` import `ink`/`node:fs`/`@anthropic-ai/sdk`/网络实现等
+- [x] PR0a：新增 `src/core/app/*`（`createApp` + `EventBus` + `Logger` interface），不接任何现有逻辑
+- [x] PR0a：新增 `src/adapters/*` 的 interface（先只定义最小能力，不写实现）
+- [x] PR0a：新增 `src/legacy/*`，把现有启动逻辑包一层导出（`runLegacyCli()`）
+- [x] PR0a：`src/entrypoints/cli.tsx` 改为 `createApp(adapters)` 后调用 legacy（行为必须不变）
+- [x] PR0a：vitest 增加一个最小 smoke test（`createApp` 可实例化、event bus 可 publish/subscribe）
+- [x] PR0b：加自动化边界约束（脚本）：禁止 `src/core/**` import 任何 `node:*`、`ink`、`@anthropic-ai/sdk`、`openai` 等（`npm run type-check` 内执行）
 
 ---
 
