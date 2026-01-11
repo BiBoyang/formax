@@ -22,5 +22,45 @@ describe('loadRuntimeConfig', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('loads global auth.json and uses it as apiKey when env auth is missing', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: { anthropic: { default: { apiKey: 'sk-from-file' } } },
+      })
+
+      const cfg = await loadRuntimeConfig({ FORMAX_CONFIG_DIR: globalConfigDir } as any, projectDir)
+      expect(cfg.llm.apiKey).toBe('sk-from-file')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prefers env auth over global auth.json', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: { anthropic: { default: { apiKey: 'sk-from-file' } } },
+      })
+
+      const cfg = await loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir, ANTHROPIC_API_KEY2: 'sk-from-env' } as any,
+        projectDir,
+      )
+      expect(cfg.llm.apiKey).toBe('sk-from-env')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+})
