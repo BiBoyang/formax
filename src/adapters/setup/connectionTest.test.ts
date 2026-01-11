@@ -26,6 +26,19 @@ describe('testSetupConnection', () => {
     expect(res.code).toBe(ErrorCode.Unauthorized)
   })
 
+  it.each([
+    ['403 Forbidden', ErrorCode.Forbidden],
+    ['Request timed out', ErrorCode.Timeout],
+    ['ENOTFOUND api.example.com', ErrorCode.NetworkError],
+    ['SSL certificate error', ErrorCode.NetworkError],
+  ])('maps anthropic error "%s"', async (message, expectedCode) => {
+    mockedFetchAnthropicModels.mockRejectedValueOnce(new Error(message))
+
+    const res = await testSetupConnection({ provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', apiKey: 'sk' })
+    if (!('code' in res)) throw new Error('Expected error result')
+    expect(res.code).toBe(expectedCode)
+  })
+
   it('returns a clear placeholder for unimplemented providers', async () => {
     const res = await testSetupConnection({ provider: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' })
     if (!('code' in res)) throw new Error('Expected error result')

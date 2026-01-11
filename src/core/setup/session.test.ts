@@ -127,4 +127,40 @@ describe('createSetupSession', () => {
     expect(state.test.status).toBe('error')
     expect(state.error).toBe('boom')
   })
+
+  it('supports back navigation', async () => {
+    const testConnection = vi.fn(async () => ok(['model-a']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    expect(s.getState().step).toBe('welcome')
+    s.back()
+    expect(s.getState().step).toBe('welcome')
+
+    await s.next()
+    expect(s.getState().step).toBe('provider')
+    s.back()
+    expect(s.getState().step).toBe('welcome')
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    expect(s.getState().step).toBe('baseUrl')
+    s.back()
+    expect(s.getState().step).toBe('provider')
+
+    await s.next()
+    expect(s.getState().step).toBe('baseUrl')
+    await s.next()
+    expect(s.getState().step).toBe('apiKey')
+    s.back()
+    expect(s.getState().step).toBe('baseUrl')
+
+    await s.next()
+    expect(s.getState().step).toBe('apiKey')
+    s.setApiKey('sk-test')
+    await s.next()
+    expect(s.getState().step).toBe('model')
+    s.back()
+    expect(s.getState().step).toBe('apiKey')
+  })
 })

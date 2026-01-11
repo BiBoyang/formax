@@ -5,8 +5,10 @@ import { LoadingStatusLine } from '../components/ui/LoadingStatusLine.js'
 import TextInput from '../components/ui/TextInput.js'
 import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
+import { getConnectionTestHint } from '../core/setup/hints.js'
 import type { SetupDraft, SetupProviderOption } from '../core/setup/types.js'
 import type { ProviderId } from '../core/config/schema.js'
+import type { ErrorCode as ErrorCodeValue } from '../core/errors/codes.js'
 
 type ChoiceOption = {
   label: string
@@ -231,6 +233,8 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         />
       ) : step === 'test' ? (
         <TestStep
+          provider={draft.provider}
+          baseUrl={draft.baseUrl}
           status={sessionState.test.status}
           lastError={sessionState.test.lastError}
           onBack={goBack}
@@ -420,13 +424,17 @@ function ApiKeyStep({
 }
 
 function TestStep({
+  provider,
+  baseUrl,
   status,
   lastError,
   onRetry,
   onBack,
 }: {
+  provider: ProviderId | null
+  baseUrl: string
   status: 'idle' | 'running' | 'error'
-  lastError: { ok: false; code: string; message: string } | { ok: true; models: string[] } | null
+  lastError: { ok: false; code: ErrorCodeValue; message: string } | { ok: true; models: string[] } | null
   onRetry: () => Promise<void>
   onBack: () => void
 }): React.ReactNode {
@@ -438,6 +446,14 @@ function TestStep({
   })
 
   const err = lastError && 'code' in lastError ? lastError : null
+  const hint =
+    err && provider
+      ? getConnectionTestHint({
+          provider,
+          baseUrl,
+          error: { ok: false, code: err.code, message: err.message },
+        })
+      : null
 
   return (
     <Box flexDirection="column" paddingTop={1}>
@@ -451,6 +467,18 @@ function TestStep({
           <Text color={theme.secondaryText}>Press Enter to run the connection test.</Text>
         )}
       </Box>
+
+      {status !== 'running' && hint ? (
+        <Box marginTop={1} flexDirection="column">
+          <Text color={theme.secondaryText}>{hint.title}:</Text>
+          {hint.lines.map((line) => (
+            <Text key={line} color={theme.secondaryText}>
+              - {line}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
+
       <Box marginTop={1}>
         <Text color={theme.secondaryText}>
           {status === 'running' ? 'Running…' : 'Enter to retry · Shift+Tab to go back · Esc to cancel'}
