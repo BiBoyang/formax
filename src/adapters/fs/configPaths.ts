@@ -11,6 +11,9 @@ export type ConfigPaths = {
   globalConfigPath: string
   globalAuthPath: string
   globalRulesPath: string
+
+  projectConfigPath: string
+  projectRulesPath: string
 }
 
 function getLegacyConfigDir(homedir: string): string {
@@ -50,6 +53,7 @@ export function getConfigPaths(args: { cwd?: string; env?: NodeJS.ProcessEnv; pl
     globalConfigPath: path.join(globalConfigDir, 'config.json'),
     globalAuthPath: path.join(globalConfigDir, 'auth.json'),
     globalRulesPath: path.join(globalConfigDir, 'rules.json'),
+    projectConfigPath: path.join(projectConfigDir, 'config.json'),
+    projectRulesPath: path.join(projectConfigDir, 'rules.json'),
   }
 }
-

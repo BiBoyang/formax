@@ -9,6 +9,8 @@ describe('getConfigPaths', () => {
     expect(paths.globalConfigDir).toBe(path.join(homedir, 'Library', 'Application Support', 'formax'))
     expect(paths.projectConfigDir).toBe('/repo/.formax')
     expect(paths.legacyConfigDir).toBe('/Users/alice/.formax')
+    expect(paths.projectConfigPath).toBe('/repo/.formax/config.json')
+    expect(paths.projectRulesPath).toBe('/repo/.formax/rules.json')
   })
 
   it('supports Linux XDG config dir', () => {
@@ -31,6 +33,6 @@ describe('getConfigPaths', () => {
     })
     expect(paths.globalConfigDir).toBe('/tmp/formax-config')
     expect(paths.globalConfigPath).toBe('/tmp/formax-config/config.json')
+    expect(paths.globalRulesPath).toBe('/tmp/formax-config/rules.json')
   })
 })
-
