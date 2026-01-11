@@ -6,9 +6,9 @@ describe('getConfigPaths', () => {
   it('supports macOS global config dir', () => {
     const homedir = '/Users/alice'
     const paths = getConfigPaths({ cwd: '/repo', homedir, platform: 'darwin', env: {} as any })
-    expect(paths.globalConfigDir).toBe(path.join(homedir, 'Library', 'Application Support', 'formax'))
+    expect(paths.globalConfigDir).toBe(path.join(homedir, '.formax'))
     expect(paths.projectConfigDir).toBe('/repo/.formax')
-    expect(paths.legacyConfigDir).toBe('/Users/alice/.formax')
+    expect(paths.legacyConfigDir).toBe(path.join(homedir, 'Library', 'Application Support', 'formax'))
     expect(paths.projectConfigPath).toBe('/repo/.formax/config.json')
     expect(paths.projectRulesPath).toBe('/repo/.formax/rules.json')
   })
@@ -21,7 +21,8 @@ describe('getConfigPaths', () => {
       platform: 'linux',
       env: { XDG_CONFIG_HOME: '/home/alice/.config' } as any,
     })
-    expect(paths.globalConfigDir).toBe('/home/alice/.config/formax')
+    expect(paths.globalConfigDir).toBe('/home/alice/.formax')
+    expect(paths.legacyConfigDir).toBe('/home/alice/.config/formax')
   })
 
   it('respects FORMAX_CONFIG_DIR override', () => {

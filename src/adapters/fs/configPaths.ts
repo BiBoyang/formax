@@ -16,13 +16,12 @@ export type ConfigPaths = {
   projectRulesPath: string
 }
 
-function getLegacyConfigDir(homedir: string): string {
+function getDefaultGlobalConfigDir(env: NodeJS.ProcessEnv, homedir: string): string {
+  if (env.FORMAX_CONFIG_DIR) return env.FORMAX_CONFIG_DIR
   return path.join(homedir, '.formax')
 }
 
-function getDefaultGlobalConfigDir(platform: Platform, env: NodeJS.ProcessEnv, homedir: string): string {
-  if (env.FORMAX_CONFIG_DIR) return env.FORMAX_CONFIG_DIR
-
+function getLegacyConfigDir(platform: Platform, env: NodeJS.ProcessEnv, homedir: string): string {
   if (platform === 'win32') {
     const appData = env.APPDATA || path.join(homedir, 'AppData', 'Roaming')
     return path.join(appData, 'formax')
@@ -42,8 +41,8 @@ export function getConfigPaths(args: { cwd?: string; env?: NodeJS.ProcessEnv; pl
   const platform = args.platform ?? process.platform
   const homedir = args.homedir ?? os.homedir()
 
-  const globalConfigDir = getDefaultGlobalConfigDir(platform, env, homedir)
-  const legacyConfigDir = getLegacyConfigDir(homedir)
+  const globalConfigDir = getDefaultGlobalConfigDir(env, homedir)
+  const legacyConfigDir = getLegacyConfigDir(platform, env, homedir)
   const projectConfigDir = path.join(cwd, '.formax')
 
   return {
