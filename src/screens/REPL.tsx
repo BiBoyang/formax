@@ -60,8 +60,22 @@ export function REPL({
         taskManager,
         plan: planSession,
         promptProfile: { get: () => promptProfile, set: setPromptProfile },
+        status: {
+          get: () => ({
+            version: String((pkg as any)?.version || 'unknown'),
+            cwd: process.cwd(),
+            llm: {
+              provider: cfg.llm.provider,
+              baseUrl: cfg.llm.baseUrl,
+              model: cfg.llm.model,
+              timeoutMs: cfg.llm.timeoutMs,
+            },
+            paths: cfg.paths,
+            ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
+          }),
+        },
       }),
-    [planSession, promptProfile, taskManager],
+    [cfg.llm.baseUrl, cfg.llm.model, cfg.llm.provider, cfg.llm.timeoutMs, cfg.paths, cfg.ui.assistantTextMode, planSession, promptProfile, taskManager],
   )
   const { state, actions } = useReplController({
     engine,

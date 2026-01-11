@@ -31,4 +31,25 @@ describe('SlashCommandRegistry', () => {
     const reg = createSlashCommandRegistry({ cwd })
     expect(reg.list().some((c) => c.command === '/hello')).toBe(true)
   })
+
+  it('dispatches /status as a local command when status is provided', () => {
+    const reg = createSlashCommandRegistry({
+      cwd: process.cwd(),
+      status: {
+        get: () => ({
+          version: '0.0.0-test',
+          cwd: '/tmp/repo',
+          llm: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'm', timeoutMs: 123 },
+          paths: { logsDir: '/tmp/logs', subagentsDir: '/tmp/subagents', planDir: '/tmp/plans' },
+          ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+        }),
+      },
+    })
+
+    const effect = reg.dispatch('/status')
+    expect(effect?.kind).toBe('local')
+    if (!effect || effect.kind !== 'local') return
+    expect(effect.stdout).toContain('Formax v0.0.0-test')
+    expect(effect.stdout).toContain('LLM:')
+  })
 })
