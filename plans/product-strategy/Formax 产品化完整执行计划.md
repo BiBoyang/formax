@@ -158,10 +158,11 @@ src/
 - [x] PR1a：定义稳定 `ErrorCode` 枚举（setup/doctor/cli 共用），并写一份表格（避免 PR3 依赖 PR4 才能复用）
 - [x] PR1a：schema 里把 provider 作为一等字段（至少 `anthropic | openai`，`gemini` 先占位但可禁用）
 - [x] PR1a：AuthStore 支持多个 `authRef`（按 provider 分组；不把 apiKey 写进 config）
-- [ ] PR1b：实现 `ConfigPaths`（global/project/legacy）与 OS 标准路径计算（XDG/APPDATA/macOS）
-- [ ] PR1b：实现 `FileStore`（atomic write + 权限 best-effort + `~` 展开）
-- [ ] PR1c：实现 `resolveRuntimeConfig(inputs)`（`flags > env > project > global > defaults`，输出 `sources/warnings`）
-- [ ] PR1c：把 `src/env/config.ts` 退化为 env 输入适配器（只负责读 env，不负责合并）
+- [x] PR1b：实现 `ConfigPaths`（global/project/legacy）与 OS 标准路径计算（XDG/APPDATA/macOS）
+- [x] PR1b：实现 `FileStore`（atomic write + 权限 best-effort + `~` 展开）
+- [x] PR1b：实现读取：global/project 的 `config.json` + `auth.json` + `rules.json`（adapter）
+- [x] PR1c：实现 `resolveRuntimeConfig(inputs)`（`flags > env > project > global > defaults`，输出 `sources/warnings`）
+- [x] PR1c：把 `src/env/config.ts` 退化为 env 输入适配器（只负责读 env，不负责合并）
 - [ ] PR1d：提供 programmatic API（core）：`configShow()` / `configMigrate()` / `authList|set|delete()`（CLI wiring 放到 PR2b）
 - [ ] PR1d：测试：precedence/atomic write/schema 校验失败/脱敏不泄露（至少 10 条）
 
