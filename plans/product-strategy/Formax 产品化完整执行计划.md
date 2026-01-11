@@ -211,7 +211,7 @@ src/
 - vitest：wizard 状态机纯逻辑单测 + connectionTest error mapping
 
 **TODO（建议拆成 PR3a/PR3b/PR3c）**
-- [ ] PR3a：实现 `src/core/setup/*` 状态机（纯逻辑），步骤：welcome → provider → baseUrl → apiKey → test → model → confirm → write → done
+- [x] PR3a：实现 `src/core/setup/*` 状态机（纯逻辑），步骤：welcome → provider → baseUrl → apiKey → test → model → confirm → write → done
 - [ ] PR3a：把错误类型映射到稳定 ErrorCode（复用 PR1a 的 ErrorCode 枚举，避免依赖 PR4）
 - [ ] PR3b：实现 `src/ui/SetupWizard.tsx`（Ink UI），并在 wizard 期间隐藏 REPL 输入框
 - [ ] PR3b：Provider 选择 UX：Anthropic + OpenAI-compatible（Gemini 置灰/隐藏；可加 `--experimental-providers` 开关）
