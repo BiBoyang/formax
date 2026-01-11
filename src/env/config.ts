@@ -1,6 +1,7 @@
 import path from 'node:path'
 import os from 'node:os'
 import { resolveRuntimeConfig } from '../core/config/resolve.js'
+import type { FileStore } from '../adapters/fs/fileStore.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { loadConfigFiles } from '../adapters/fs/configFiles.js'
 
@@ -33,9 +34,16 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
 export async function loadRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
+  opts: { fileStore?: FileStore; platform?: string; homedir?: string } = {},
 ): Promise<RuntimeConfig> {
-  const store = createNodeFileStore()
-  const disk = await loadConfigFiles({ fileStore: store, cwd, env })
+  const store = opts.fileStore ?? createNodeFileStore()
+  const disk = await loadConfigFiles({
+    fileStore: store,
+    cwd,
+    env,
+    platform: opts.platform,
+    homedir: opts.homedir,
+  })
   const resolved = resolveRuntimeConfig({
     env: env as Record<string, string | undefined>,
     globalConfig: disk.globalConfig,
@@ -53,7 +61,7 @@ export async function loadRuntimeConfig(
     ? path.resolve(cwd, subagentsDirRaw)
     : path.resolve(cwd, '.agent/subagents')
 
-  const defaultPlanDir = path.join(os.homedir(), '.claude', 'plans')
+  const defaultPlanDir = path.join(opts.homedir ?? os.homedir(), '.claude', 'plans')
   const planDirRaw = resolved.config.paths.planDir || env.FORMAX_PLAN_DIR || ''
   const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 

@@ -215,4 +215,82 @@ describe('dispatchCli', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('doctor --json reports failing checks when config is incomplete', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-doctor-missing-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      const res = await dispatchCli(['doctor', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_LOGS_DIR: path.join(dir, 'logs'),
+          FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
+          FORMAX_PLAN_DIR: path.join(dir, 'plans'),
+        } as any,
+        homedir: dir,
+        platform: 'linux',
+        testConnection: async () => ({ ok: true, models: [] }),
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(1)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('doctor')
+      expect(Array.isArray(parsed?.data?.checks)).toBe(true)
+      expect(parsed.data.checks.some((c: any) => c.status === 'fail')).toBe(true)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('doctor passes when auth/model/baseUrl are configured and connectivity succeeds', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-doctor-ok-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const apiKey = 'sk-doctor-secret'
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: { anthropic: { default: { apiKey } } },
+      })
+
+      const res = await dispatchCli(['doctor', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          ANTHROPIC_BASE_URL2: 'https://api.anthropic.com/v1',
+          ANTHROPIC_MODEL: 'claude-test',
+          FORMAX_LOGS_DIR: path.join(dir, 'logs'),
+          FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
+          FORMAX_PLAN_DIR: path.join(dir, 'plans'),
+        } as any,
+        homedir: dir,
+        platform: 'linux',
+        testConnection: async () => ({ ok: true, models: ['m1'] }),
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+      expect(res.stdout.includes(apiKey)).toBe(false)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('doctor')
+      expect(parsed.data.checks.every((c: any) => c.status === 'pass')).toBe(true)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
 })
