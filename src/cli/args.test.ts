@@ -6,7 +6,14 @@ describe('parseCliArgs', () => {
     const res = parseCliArgs(['config', 'show', '--json', '-h'])
     expect(res.flags.json).toBe(true)
     expect(res.flags.help).toBe(true)
+    expect(res.flags.noColor).toBe(false)
     expect(res.positionals).toEqual(['config', 'show'])
   })
-})
 
+  it('parses --no-color', () => {
+    const res = parseCliArgs(['--no-color'])
+    expect(res.flags.noColor).toBe(true)
+    expect(res.flags.json).toBe(false)
+    expect(res.flags.help).toBe(false)
+  })
+})

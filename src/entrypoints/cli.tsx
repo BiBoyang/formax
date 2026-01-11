@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 
 import 'dotenv/config'
+import { parseCliArgs } from '../cli/args.js'
 import { dispatchCli } from '../cli/main.js'
-import { createApp } from '../core/app/createApp.js'
-import { runLegacyCli } from '../legacy/runLegacyCli.js'
 
 async function main(): Promise<void> {
-  const res = await dispatchCli(process.argv.slice(2))
+  const argv = process.argv.slice(2)
+  const parsed = parseCliArgs(argv)
+  if (parsed.flags.noColor) {
+    process.env.NO_COLOR = '1'
+    process.env.FORCE_COLOR = '0'
+  }
+
+  const res = await dispatchCli(argv)
   if (res.kind === 'handled') {
     if (res.stdout) process.stdout.write(res.stdout)
     if (res.stderr) process.stderr.write(res.stderr)
@@ -14,6 +20,8 @@ async function main(): Promise<void> {
     return
   }
 
+  const { createApp } = await import('../core/app/createApp.js')
+  const { runLegacyCli } = await import('../legacy/runLegacyCli.js')
   const app = createApp()
   await runLegacyCli({ app })
 }

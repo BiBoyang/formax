@@ -16,6 +16,7 @@ export function formatCliHelp(): string {
     `  formax policy [--json]\n\n` +
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +
+    `  --no-color Disable ANSI colors\n` +
     `  -h, --help Show help\n\n` +
     `Exit codes:\n` +
     `  0 Success\n` +

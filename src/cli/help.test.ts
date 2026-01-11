@@ -23,6 +23,7 @@ describe('formatCliHelp', () => {
 
       Flags:
         --json     Output machine-readable JSON
+        --no-color Disable ANSI colors
         -h, --help Show help
 
       Exit codes:
