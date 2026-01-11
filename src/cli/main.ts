@@ -150,6 +150,26 @@ export async function dispatchCli(
 
   if (args.length === 0 || args[0] === 'repl') return { kind: 'repl' }
 
+  if (args[0] === 'help') {
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
+  }
+
+  const unimplemented = (command: string): CliDispatchResult => {
+    const message = `Command "${command}" is not implemented yet.`
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Error, stdout: errJson(command, message), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Error, stdout: message + '\n', stderr: '' }
+  }
+
+  if (args[0] === 'status') return unimplemented('status')
+  if (args[0] === 'doctor') return unimplemented('doctor')
+  if (args[0] === 'setup') return unimplemented('setup')
+  if (args[0] === 'policy') return unimplemented('policy')
+
+  if (args[0] === 'config' && !args[1]) {
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('config', 'Missing subcommand'), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: formatCliHelp() }
+  }
+
   if (args[0] === 'config' && args[1] === 'show') {
     const res = await configShow({ fileStore: store, cwd, env, platform, homedir })
     if (flags.json) {
@@ -164,6 +184,16 @@ export async function dispatchCli(
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('config migrate', res, res.warnings), stderr: '' }
     }
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatConfigMigrateHuman(res), stderr: '' }
+  }
+
+  if (args[0] === 'config') {
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('config', 'Unknown subcommand'), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: formatCliHelp() }
+  }
+
+  if (args[0] === 'auth' && !args[1]) {
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth', 'Missing subcommand'), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: formatCliHelp() }
   }
 
   if (args[0] === 'auth' && args[1] === 'list') {
@@ -207,6 +237,11 @@ export async function dispatchCli(
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth delete', message), stderr: '' }
       return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
     }
+  }
+
+  if (args[0] === 'auth') {
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth', 'Unknown subcommand'), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: formatCliHelp() }
   }
 
   if (flags.json) {

@@ -9,11 +9,17 @@ describe('formatCliHelp', () => {
       Usage:
         formax                     Start the REPL
         formax repl                Start the REPL
+        formax help
         formax config show [--json]
         formax config migrate [--json]
         formax auth list [--json]
         formax auth set <provider> <authRef> <apiKey> [--json]
         formax auth delete <provider> <authRef> [--json]
+
+        formax status [--json]
+        formax doctor [--json]
+        formax setup [--json]
+        formax policy [--json]
 
       Flags:
         --json     Output machine-readable JSON
@@ -30,4 +36,3 @@ describe('formatCliHelp', () => {
     `)
   })
 })
-

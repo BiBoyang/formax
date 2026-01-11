@@ -20,6 +20,40 @@ describe('dispatchCli', () => {
     expect(res.stdout.includes('Exit codes:')).toBe(true)
   })
 
+  it('shows help for "help" subcommand', async () => {
+    const res = await dispatchCli(['help'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout.includes('Usage:')).toBe(true)
+  })
+
+  it('returns error for unimplemented command', async () => {
+    const res = await dispatchCli(['status'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout.includes('not implemented yet')).toBe(true)
+  })
+
+  it('returns JSON error envelope for unimplemented command with --json', async () => {
+    const res = await dispatchCli(['status', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(1)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('status')
+  })
+
+  it('returns usage error for missing subcommand', async () => {
+    const res = await dispatchCli(['config'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    expect(res.stderr.includes('Usage:')).toBe(true)
+  })
+
   it('returns usage error for unknown command', async () => {
     const res = await dispatchCli(['wat'])
     expect(res.kind).toBe('handled')
