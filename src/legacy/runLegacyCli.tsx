@@ -34,7 +34,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   // Optional: clear screen for a clean chat view
   await clearTerminal()
 
-  const cfg = loadRuntimeConfig(process.env, process.cwd())
+  const cfg = await loadRuntimeConfig(process.env, process.cwd())
   const model = cfg.llm.model || 'claude-sonnet-4-5-20250929'
 
   const client = new AnthropicStreamClient({
@@ -113,4 +113,3 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     },
   )
 }
-

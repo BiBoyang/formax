@@ -1,6 +1,8 @@
 import path from 'node:path'
 import os from 'node:os'
 import { resolveRuntimeConfig } from '../core/config/resolve.js'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
+import { loadConfigFiles } from '../adapters/fs/configFiles.js'
 
 export type RuntimeConfig = {
   llm: {
@@ -28,11 +30,17 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 }
 
-export function loadRuntimeConfig(
+export async function loadRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
-): RuntimeConfig {
-  const resolved = resolveRuntimeConfig({ env: env as Record<string, string | undefined> })
+): Promise<RuntimeConfig> {
+  const store = createNodeFileStore()
+  const disk = await loadConfigFiles({ fileStore: store, cwd, env })
+  const resolved = resolveRuntimeConfig({
+    env: env as Record<string, string | undefined>,
+    globalConfig: disk.globalConfig,
+    projectConfig: disk.projectConfig,
+  })
 
   const logsDirRaw = resolved.config.paths.logsDir || env.FORMAX_LOGS_DIR || ''
   const logsDir = logsDirRaw
@@ -49,7 +57,7 @@ export function loadRuntimeConfig(
   const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 
   const apiKey = resolved.auth?.apiKey || ''
-  const baseUrl = resolved.config.llm.baseUrl || normalizeAnthropicBaseUrl(env.ANTHROPIC_BASE_URL2 || '')
+  const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.ANTHROPIC_BASE_URL2 || '')
   const model = resolved.config.llm.model || ''
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const assistantTextMode = resolved.config.ui.assistantTextMode
