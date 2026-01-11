@@ -5,6 +5,7 @@ export type JsonEnvelope =
       ok: true
       data: unknown
       warnings?: string[]
+      meta?: Record<string, unknown>
     }
   | {
       schemaVersion: 1
@@ -12,9 +13,9 @@ export type JsonEnvelope =
       ok: false
       error: { message: string }
       warnings?: string[]
+      meta?: Record<string, unknown>
     }
 
 export function toJson(value: unknown): string {
   return JSON.stringify(value, null, 2) + '\n'
 }
-

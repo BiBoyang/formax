@@ -17,13 +17,27 @@ export type CliDispatchResult =
   | { kind: 'repl' }
   | { kind: 'handled'; exitCode: number; stdout: string; stderr: string }
 
-function okJson(command: string, data: unknown, warnings: string[] = []): string {
-  const envelope: JsonEnvelope = { schemaVersion: 1, command, ok: true, data, warnings: warnings.length ? warnings : undefined }
+function okJson(command: string, data: unknown, warnings: string[] = [], meta?: Record<string, unknown>): string {
+  const envelope: JsonEnvelope = {
+    schemaVersion: 1,
+    command,
+    ok: true,
+    data,
+    warnings: warnings.length ? warnings : undefined,
+    meta,
+  }
   return toJson(envelope)
 }
 
-function errJson(command: string, message: string, warnings: string[] = []): string {
-  const envelope: JsonEnvelope = { schemaVersion: 1, command, ok: false, error: { message }, warnings: warnings.length ? warnings : undefined }
+function errJson(command: string, message: string, warnings: string[] = [], meta?: Record<string, unknown>): string {
+  const envelope: JsonEnvelope = {
+    schemaVersion: 1,
+    command,
+    ok: false,
+    error: { message },
+    warnings: warnings.length ? warnings : undefined,
+    meta,
+  }
   return toJson(envelope)
 }
 
