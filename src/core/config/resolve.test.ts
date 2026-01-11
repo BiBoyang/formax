@@ -46,6 +46,43 @@ describe('resolveRuntimeConfig', () => {
     expect(res.auth?.source).toBe('env')
   })
 
+  it('uses auth store when env auth is missing', () => {
+    const res = resolveRuntimeConfig({
+      authStore: {
+        version: 1,
+        providers: {
+          anthropic: {
+            default: { apiKey: 'sk-default' },
+            alt: { apiKey: 'sk-alt' },
+          },
+        },
+      },
+      projectConfig: { llm: { authRef: 'alt' } },
+    })
+
+    expect(res.auth?.provider).toBe('anthropic')
+    expect(res.auth?.apiKey).toBe('sk-alt')
+    expect(res.auth?.source).toBe('global')
+  })
+
+  it('prefers env auth over auth store', () => {
+    const res = resolveRuntimeConfig({
+      authStore: {
+        version: 1,
+        providers: {
+          anthropic: {
+            default: { apiKey: 'sk-file' },
+          },
+        },
+      },
+      env: { ANTHROPIC_API_KEY2: 'sk-env' },
+    })
+
+    expect(res.auth?.provider).toBe('anthropic')
+    expect(res.auth?.apiKey).toBe('sk-env')
+    expect(res.auth?.source).toBe('env')
+  })
+
   it('fills source map for defaulted fields', () => {
     const res = resolveRuntimeConfig({})
     expect(res.sources['llm.provider']).toBe('default')

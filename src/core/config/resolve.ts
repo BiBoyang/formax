@@ -1,10 +1,10 @@
-import type { FormaxConfigV1, FormaxConfigV1Patch } from './schema'
-import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema'
+import type { AuthStoreV1, FormaxConfigV1, FormaxConfigV1Patch, ProviderId } from './schema'
+import { AuthStoreV1Schema, FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema'
 
 export type ConfigSource = 'flags' | 'env' | 'project' | 'global' | 'default'
 
 export type ResolvedAuth = {
-  provider: string
+  provider: ProviderId
   apiKey: string
   source: ConfigSource
 }
@@ -20,6 +20,7 @@ export type ResolveRuntimeConfigInputs = {
   defaults?: unknown
   globalConfig?: unknown
   projectConfig?: unknown
+  authStore?: unknown
   env?: Record<string, string | undefined>
   flags?: unknown
 }
@@ -51,6 +52,31 @@ function parsePatch(source: ConfigSource, input: unknown, warnings: string[]): F
   if (res.success) return res.data
   warnings.push(`${source} config is invalid and was ignored`)
   return {}
+}
+
+function parseAuthStore(input: unknown, warnings: string[]): AuthStoreV1 | null {
+  if (!input) return null
+  const res = AuthStoreV1Schema.safeParse(input)
+  if (res.success) return res.data
+  warnings.push('auth store is invalid and was ignored')
+  return null
+}
+
+function resolveAuthFromStore(
+  store: AuthStoreV1 | null,
+  provider: ProviderId,
+  authRef: string,
+  warnings: string[],
+): ResolvedAuth | null {
+  if (!store) return null
+  const providerEntries = store.providers[provider]
+  if (!providerEntries) return null
+  const entry = providerEntries[authRef]
+  if (!entry) {
+    warnings.push(`auth ref "${authRef}" not found for provider "${provider}"`)
+    return null
+  }
+  return { provider, apiKey: entry.apiKey, source: 'global' }
 }
 
 function envToPatch(
@@ -170,6 +196,7 @@ function computeSources(patches: Record<ConfigSource, FormaxConfigV1Patch>): Rec
 export function resolveRuntimeConfig(inputs: ResolveRuntimeConfigInputs): ResolvedConfig {
   const warnings: string[] = []
 
+  const authStore = parseAuthStore(inputs.authStore, warnings)
   const defaultsPatch = parsePatch('default', inputs.defaults ?? {}, warnings)
   const globalPatch = parsePatch('global', inputs.globalConfig ?? {}, warnings)
   const projectPatch = parsePatch('project', inputs.projectConfig ?? {}, warnings)
@@ -191,5 +218,8 @@ export function resolveRuntimeConfig(inputs: ResolveRuntimeConfigInputs): Resolv
     if (!(key in sources)) sources[key] = 'default'
   }
 
-  return { config, auth: envParsed.auth, sources, warnings }
+  const auth =
+    envParsed.auth ?? resolveAuthFromStore(authStore, config.llm.provider, config.llm.authRef, warnings)
+
+  return { config, auth, sources, warnings }
 }

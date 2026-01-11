@@ -40,6 +40,7 @@ export async function loadRuntimeConfig(
     env: env as Record<string, string | undefined>,
     globalConfig: disk.globalConfig,
     projectConfig: disk.projectConfig,
+    authStore: disk.authStore,
   })
 
   const logsDirRaw = resolved.config.paths.logsDir || env.FORMAX_LOGS_DIR || ''
