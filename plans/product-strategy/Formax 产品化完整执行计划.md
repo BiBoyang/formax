@@ -154,10 +154,10 @@ src/
 - vitest：precedence、atomic write、redaction 不泄露 secrets
 
 **TODO（建议拆成 PR1a/PR1b/PR1c/PR1d）**
-- [ ] PR1a：定义 zod schema（`FormaxConfigV1` / `AuthStoreV1` / `ResolvedConfig` / `RedactionRules`）
-- [ ] PR1a：定义稳定 `ErrorCode` 枚举（setup/doctor/cli 共用），并写一份表格（避免 PR3 依赖 PR4 才能复用）
-- [ ] PR1a：schema 里把 provider 作为一等字段（至少 `anthropic | openai`，`gemini` 先占位但可禁用）
-- [ ] PR1a：AuthStore 支持多个 `authRef`（按 provider 分组；不把 apiKey 写进 config）
+- [x] PR1a：定义 zod schema（`FormaxConfigV1` / `AuthStoreV1` / `ResolvedConfig` / `RedactionRules`）
+- [x] PR1a：定义稳定 `ErrorCode` 枚举（setup/doctor/cli 共用），并写一份表格（避免 PR3 依赖 PR4 才能复用）
+- [x] PR1a：schema 里把 provider 作为一等字段（至少 `anthropic | openai`，`gemini` 先占位但可禁用）
+- [x] PR1a：AuthStore 支持多个 `authRef`（按 provider 分组；不把 apiKey 写进 config）
 - [ ] PR1b：实现 `ConfigPaths`（global/project/legacy）与 OS 标准路径计算（XDG/APPDATA/macOS）
 - [ ] PR1b：实现 `FileStore`（atomic write + 权限 best-effort + `~` 展开）
 - [ ] PR1c：实现 `resolveRuntimeConfig(inputs)`（`flags > env > project > global > defaults`，输出 `sources/warnings`）
