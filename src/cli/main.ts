@@ -12,6 +12,7 @@ import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
+import pkg from '../../package.json'
 
 export type CliDispatchResult =
   | { kind: 'repl' }
@@ -114,6 +115,44 @@ function formatConfigMigrateHuman(res: Awaited<ReturnType<typeof configMigrate>>
   return lines.join('\n') + '\n'
 }
 
+function formatStatusHuman(args: { version: string; cwd: string; res: Awaited<ReturnType<typeof configShow>> }): string {
+  const { res } = args
+  const lines: string[] = []
+  lines.push(`Formax v${args.version}`)
+  lines.push(`CWD: ${args.cwd}`)
+  lines.push('')
+
+  lines.push('LLM:')
+  lines.push(`- provider: ${res.config.llm.provider} (source: ${res.sources['llm.provider'] ?? 'unknown'})`)
+  lines.push(`- baseUrl: ${res.config.llm.baseUrl} (source: ${res.sources['llm.baseUrl'] ?? 'unknown'})`)
+  lines.push(`- model: ${res.config.llm.model} (source: ${res.sources['llm.model'] ?? 'unknown'})`)
+  lines.push(`- timeoutMs: ${res.config.llm.timeoutMs} (source: ${res.sources['llm.timeoutMs'] ?? 'unknown'})`)
+  lines.push('')
+
+  lines.push('Auth:')
+  if (!res.auth) lines.push('- present: no')
+  else {
+    lines.push('- present: yes')
+    lines.push(`- provider: ${res.auth.provider}`)
+    lines.push(`- authRef: ${res.auth.authRef}`)
+    lines.push(`- source: ${res.auth.source}`)
+  }
+  lines.push('')
+
+  lines.push('Config dirs:')
+  lines.push(`- global: ${res.paths.globalConfigDir}`)
+  lines.push(`- project: ${res.paths.projectConfigDir}`)
+  lines.push(`- legacy: ${res.paths.legacyConfigDir}`)
+
+  if (res.warnings.length) {
+    lines.push('')
+    lines.push('Warnings:')
+    for (const w of res.warnings) lines.push(`- ${w}`)
+  }
+
+  return lines.join('\n') + '\n'
+}
+
 function formatAuthListHuman(res: Awaited<ReturnType<typeof authList>>): string {
   if (!res.items.length) return `No auth entries found (${res.authPath}).\n`
 
@@ -174,7 +213,27 @@ export async function dispatchCli(
     return { kind: 'handled', exitCode: ExitCode.Error, stdout: message + '\n', stderr: '' }
   }
 
-  if (args[0] === 'status') return unimplemented('status')
+  if (args[0] === 'status') {
+    const res = await configShow({ fileStore: store, cwd, env, platform, homedir })
+    const version = String((pkg as any)?.version || 'unknown')
+    const { warnings, ...data } = res
+
+    if (flags.json) {
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Ok,
+        stdout: okJson('status', { version, cwd, ...data }, warnings),
+        stderr: '',
+      }
+    }
+
+    return {
+      kind: 'handled',
+      exitCode: ExitCode.Ok,
+      stdout: formatStatusHuman({ version, cwd, res }),
+      stderr: '',
+    }
+  }
   if (args[0] === 'doctor') return unimplemented('doctor')
   if (args[0] === 'setup') {
     if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('setup', '--json is not supported for interactive setup'), stderr: '' }

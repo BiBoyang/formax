@@ -28,22 +28,71 @@ describe('dispatchCli', () => {
     expect(res.stdout.includes('Usage:')).toBe(true)
   })
 
-  it('returns error for unimplemented command', async () => {
-    const res = await dispatchCli(['status'])
-    expect(res.kind).toBe('handled')
-    if (res.kind !== 'handled') return
-    expect(res.exitCode).toBe(1)
-    expect(res.stdout.includes('not implemented yet')).toBe(true)
+  it('returns status output', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-status-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const res = await dispatchCli(['status'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+      expect(res.stdout).toContain('Formax v')
+      expect(res.stdout).toContain('LLM:')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
   })
 
-  it('returns JSON error envelope for unimplemented command with --json', async () => {
-    const res = await dispatchCli(['status', '--json'])
-    expect(res.kind).toBe('handled')
-    if (res.kind !== 'handled') return
-    expect(res.exitCode).toBe(1)
-    const parsed = JSON.parse(res.stdout)
-    expect(parsed.ok).toBe(false)
-    expect(parsed.command).toBe('status')
+  it('status --json does not leak apiKey', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-status-json-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const apiKey = 'sk-status-secret'
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: {
+          anthropic: {
+            default: { apiKey },
+          },
+        },
+      })
+
+      const res = await dispatchCli(['status', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+
+      expect(res.exitCode).toBe(0)
+      expect(res.stdout.includes(apiKey)).toBe(false)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.schemaVersion).toBe(1)
+      expect(parsed.command).toBe('status')
+      expect(parsed.ok).toBe(true)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
   })
 
   it('returns usage error for missing subcommand', async () => {
