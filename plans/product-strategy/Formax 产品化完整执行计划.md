@@ -164,8 +164,8 @@ src/
 - [x] PR1c：实现 `resolveRuntimeConfig(inputs)`（`flags > env > project > global > defaults`，输出 `sources/warnings`）
 - [x] PR1c：把 `src/env/config.ts` 退化为 env 输入适配器（只负责读 env，不负责合并）
 - [x] PR1d：让 `auth.json` 真正生效：按 `llm.provider + llm.authRef` 解析 apiKey（env 仍可覆盖）
-- [ ] PR1d：提供 programmatic API（core）：`configShow()` / `configMigrate()` / `authList|set|delete()`（CLI wiring 放到 PR2b）
-- [ ] PR1d：测试：precedence/atomic write/schema 校验失败/脱敏不泄露（至少 10 条）
+- [x] PR1d：提供 programmatic API（core）：`configShow()` / `configMigrate()` / `authList|set|delete()`（CLI wiring 放到 PR2b）
+- [x] PR1d：测试：precedence/atomic write/schema 校验失败/脱敏不泄露（至少 10 条）
 
 ---
 
