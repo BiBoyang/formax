@@ -18,8 +18,70 @@ export type DoctorReport = {
   warnings: string[]
 }
 
+export type DoctorConfigContext = {
+  paths: {
+    globalConfigDir: string
+    legacyConfigDir: string
+    projectConfigDir: string
+    globalConfigPath: string
+    globalAuthPath: string
+    globalRulesPath: string
+    projectConfigPath: string
+    projectRulesPath: string
+  }
+  files: {
+    globalConfigLoaded: boolean
+    projectConfigLoaded: boolean
+    authStoreLoaded: boolean
+    globalRulesLoaded: boolean
+    projectRulesLoaded: boolean
+  }
+}
+
 export type ConnectionTester = (args: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
 export type WritableDirChecker = (dirPath: string) => Promise<{ ok: true } | { ok: false; error: string }>
+
+function findWarning(warnings: string[], needle: string): string | null {
+  for (const w of warnings) {
+    if (w.includes(needle)) return w
+  }
+  return null
+}
+
+function pushConfigFileCheck(args: {
+  checks: DoctorCheck[]
+  warnings: string[]
+  id: string
+  title: string
+  filePath: string
+  loaded: boolean
+  missingHint: string
+}): void {
+  if (args.loaded) {
+    args.checks.push({ id: args.id, status: 'pass', title: args.title, message: args.filePath })
+    return
+  }
+
+  const warning = findWarning(args.warnings, args.filePath)
+  if (warning) {
+    args.checks.push({
+      id: args.id,
+      status: 'warn',
+      title: args.title,
+      message: warning,
+      hint: args.missingHint,
+    })
+    return
+  }
+
+  args.checks.push({
+    id: args.id,
+    status: 'warn',
+    title: args.title,
+    message: `Not found: ${args.filePath}`,
+    hint: args.missingHint,
+  })
+}
 
 export async function runDoctor(args: {
   version: string
@@ -29,6 +91,7 @@ export async function runDoctor(args: {
     llm: { apiKey: string; baseUrl: string; model: string }
     paths: { logsDir: string; subagentsDir: string; planDir: string }
   }
+  config?: DoctorConfigContext
   warnings?: string[]
   testConnection: ConnectionTester
   checkWritableDir: WritableDirChecker
@@ -108,6 +171,84 @@ export async function runDoctor(args: {
     else checks.push({ id, status: 'fail', title, message: dir, hint: checked.error })
   }
 
+  if (args.config) {
+    const { files, paths } = args.config
+    pushConfigFileCheck({
+      checks,
+      warnings,
+      id: 'config.global',
+      title: 'Global config readable',
+      filePath: paths.globalConfigPath,
+      loaded: files.globalConfigLoaded,
+      missingHint: 'Run `formax setup` (recommended) or create the file by hand.',
+    })
+
+    pushConfigFileCheck({
+      checks,
+      warnings,
+      id: 'config.project',
+      title: 'Project config readable',
+      filePath: paths.projectConfigPath,
+      loaded: files.projectConfigLoaded,
+      missingHint: 'Optional. Create .formax/config.json if you need per-repo config.',
+    })
+
+    pushConfigFileCheck({
+      checks,
+      warnings,
+      id: 'auth.store',
+      title: 'Auth store readable',
+      filePath: paths.globalAuthPath,
+      loaded: files.authStoreLoaded,
+      missingHint: 'Run `formax setup` or set ANTHROPIC_API_KEY2.',
+    })
+
+    pushConfigFileCheck({
+      checks,
+      warnings,
+      id: 'rules.global',
+      title: 'Global rules readable',
+      filePath: paths.globalRulesPath,
+      loaded: files.globalRulesLoaded,
+      missingHint: 'Optional. Create rules.json if you want custom policies.',
+    })
+
+    pushConfigFileCheck({
+      checks,
+      warnings,
+      id: 'rules.project',
+      title: 'Project rules readable',
+      filePath: paths.projectRulesPath,
+      loaded: files.projectRulesLoaded,
+      missingHint: 'Optional. Create .formax/rules.json if you want per-repo policies.',
+    })
+
+    const configDirCheck = await args.checkWritableDir(paths.globalConfigDir)
+    if (configDirCheck.ok === true) {
+      checks.push({
+        id: 'paths.configDir',
+        status: 'pass',
+        title: 'Config directory writable',
+        message: paths.globalConfigDir,
+      })
+    } else {
+      checks.push({
+        id: 'paths.configDir',
+        status: 'fail',
+        title: 'Config directory writable',
+        message: paths.globalConfigDir,
+        hint: configDirCheck.error,
+      })
+    }
+  } else {
+    checks.push({
+      id: 'config.files',
+      status: 'warn',
+      title: 'Config files inspected',
+      message: 'Skipped (no config context provided).',
+      hint: 'Run `formax doctor` for a full diagnostic report.',
+    })
+  }
+
   return { version: args.version, cwd: args.cwd, checks, warnings }
 }
-

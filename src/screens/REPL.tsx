@@ -25,6 +25,8 @@ import { runDoctor } from '../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../core/diagnostics/format'
 import { testSetupConnection } from '../adapters/setup/connectionTest'
 import { checkWritableDir } from '../adapters/fs/checkWritableDir'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
+import { configShow } from '../core/config/show'
 
 type Props = {
   onExit?: () => void
@@ -80,14 +82,23 @@ export function REPL({
         },
         doctor: {
           run: async () => {
+            const store = createNodeFileStore()
+            const shown = await configShow({
+              fileStore: store,
+              cwd: process.cwd(),
+              env: process.env,
+              platform: process.platform,
+            })
             const report = await runDoctor({
               version: String((pkg as any)?.version || 'unknown'),
               cwd: process.cwd(),
-              provider: cfg.llm.provider,
+              provider: shown.config.llm.provider,
               runtime: {
                 llm: { apiKey: cfg.llm.apiKey, baseUrl: cfg.llm.baseUrl, model: cfg.llm.model },
                 paths: cfg.paths,
               },
+              config: { paths: shown.paths, files: shown.files },
+              warnings: shown.warnings,
               testConnection: testSetupConnection,
               checkWritableDir,
             })

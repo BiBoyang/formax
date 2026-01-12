@@ -260,6 +260,7 @@ export async function dispatchCli(
         llm: { apiKey: runtime.llm.apiKey, baseUrl: runtime.llm.baseUrl, model: runtime.llm.model },
         paths: runtime.paths,
       },
+      config: { paths: shown.paths, files: shown.files },
       warnings: shown.warnings,
       testConnection,
       checkWritableDir,
