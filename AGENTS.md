@@ -2,7 +2,12 @@
 
 ## Project Structure & Module Organization
 - `src/` contains TypeScript source.
-  - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`).
+  - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
+  - `cli/` argument parsing + command dispatch for the CLI wrapper.
+  - `core/` productized app core (config resolution, setup flows, boundaries checks).
+  - `ui/` Ink “wizard” UIs (first-run setup, selectors, forms).
+  - `legacy/` current REPL bootstrap + wiring (loads config, tools, subagents, renders `REPL`).
+  - `adapters/` filesystem + setup adapters (config files, setup persistence).
   - `screens/` Ink screens; `components/` reusable UI.
   - `tools/` tool registry, modules, handlers, presenters, runtime managers.
   - `streaming/` Anthropic streaming client and parsers.
@@ -10,16 +15,18 @@
   - `prompts/`, `env/`, `services/`, `utils/` supporting code.
 - Tests live next to source as `*.test.ts`/`*.test.tsx`.
 - `docs/` holds architecture notes and guides; `plans/` captures refactor plans.
-- `proxy/` contains the proxy logger (`proxy/index.js`), tool specs, and traffic/log artifacts used by runtime defaults.
+- `proxy/` contains proxy/logger scripts plus traffic/log artifacts used for parity/reference during development.
+- `CODEMAP.md` is the “where to change what” index (entrypoints, main loop, tools, plan mode, sub-tasks).
 
 ## Build, Test, and Development Commands
 - `bun install` or `npm install` installs dependencies.
-- `bun run dev` / `npm run dev` runs the CLI via `tsx`.
+- `bun run dev` / `npm run dev` runs the CLI via `tsx` (entry: `src/entrypoints/cli.tsx`).
 - `bun run toole` / `npm run toole` runs the tool examples entrypoint.
+- `bun run loade` / `npm run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
-- `npm run type-check` runs TypeScript type checks (no emit).
-- `npm test` runs `vitest run`; `npm run test:watch` runs Vitest in watch mode.
-- Single test: `npm test -- src/tools/registry.test.ts` or `npm run test:watch -- -t "registry"`.
+- `bun run type-check` / `npm run type-check` runs TypeScript checks + core boundary checks.
+- `bun run test` / `npm test` runs `vitest run`; `bun run test:watch` / `npm run test:watch` runs Vitest watch.
+- Single test: `bun run test -- src/tools/registry.test.ts` (or `npm test -- src/tools/registry.test.ts`).
 
 ## Coding Style & Naming Conventions
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
@@ -32,17 +39,34 @@
 - Property-based tests use `fast-check` where appropriate.
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
 
+## Tool Contract Checks
+If you modify tool specs/contracts or tool module coverage, consider running:
+- `bun run tools:parity` (or `npm run tools:parity`)
+- `bun run tools:coverage` (or `npm run tools:coverage`)
+
 ## Commit & Pull Request Guidelines
 - Commits follow Conventional Commit style in history: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:` with optional scope (`refactor(chat): ...`).
 - Avoid placeholder messages like `tmp`; keep summaries imperative and specific.
 - PRs should include a concise description, link relevant issues/plans, list tests run, and add terminal screenshots for Ink UI changes.
 
 ## Configuration & Runtime Notes
-- Runtime config comes from env vars loaded via `dotenv/config` in `src/entrypoints/cli.tsx`.
-- Key vars: `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`, and `FORMAX_*` path overrides (defaults to `proxy/logs`, `.agent/subagents`).
+- Runtime config is loaded via `loadRuntimeConfig()` (`src/env/config.ts`) and supports:
+  - env vars (loaded via `dotenv/config` in `src/entrypoints/cli.tsx`)
+  - global config files under `FORMAX_CONFIG_DIR` (default `~/.formax/`)
+  - per-project overrides under `<repo>/.formax/`
+- Key env vars:
+  - Anthropic: `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`
+  - Paths: `FORMAX_CONFIG_DIR`, `FORMAX_LOGS_DIR`, `FORMAX_SUBAGENTS_DIR`, `FORMAX_PLAN_DIR`
+  - Setup: `FORMAX_FORCE_SETUP=1` (force the setup wizard)
+
+## Security & Config Tips
+- Do not commit secrets. Local config uses `.env` (e.g., `ANTHROPIC_API_KEY2`); keep `.env` and traffic logs out of git.
+- When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting.
 
 ## Pitfalls & Gotchas (Keep Updated)
-When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `CLAUDE.md` so future agents can avoid re-discovering it.
+When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it:
+1) in `pitfalls.md` (canonical long-term log), and
+2) here **and** in `CLAUDE.md` if it affects day-to-day agent behavior.
 
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
