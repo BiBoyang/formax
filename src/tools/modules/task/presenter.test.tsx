@@ -3,6 +3,8 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { TaskToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { UserInputProvider } from '../../runtime/userInputContext'
+import { createUserInputManager } from '../../runtime/userInputManager'
 
 describe('TaskToolPresenter', () => {
   it('renders subagent label, params, and done summary', () => {
@@ -44,5 +46,47 @@ describe('TaskToolPresenter', () => {
     const frame = lastFrame()
     expect(frame).toContain('Sub-agent failed')
     expect(frame).not.toContain('Error:')
+  })
+
+  it('renders nested approval prompts when a sub-tool is awaiting input', () => {
+    const userInput = createUserInputManager()
+    userInput.requestAnswers({
+      toolUseId: 'nested-1',
+      questions: [
+        {
+          header: 'Edit',
+          question: 'Approve this edit?',
+          options: [{ label: 'Yes', description: '' }],
+          multiSelect: false,
+        },
+      ],
+    })
+
+    const message: Msg = {
+      id: 'tool-task-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'Explore', description: 'Analyze repo' },
+        nestedTools: [
+          {
+            id: 'nested-1',
+            name: 'Write',
+            status: 'running',
+            input: { file_path: '/tmp/b.js' },
+          },
+        ],
+      },
+    }
+
+    const { lastFrame } = render(
+      <UserInputProvider userInput={userInput}>
+        <TaskToolPresenter message={message} />
+      </UserInputProvider>,
+    )
+    expect(lastFrame()).toContain('Do you want to create b.js?')
   })
 })

@@ -6,9 +6,9 @@ export type SubAgentConfig = {
 }
 
 export type SubAgentResult = {
+  agentId: string
   summary: string
   success: boolean
   artifacts?: string[]
   error?: string
 }
-

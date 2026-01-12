@@ -24,6 +24,14 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
+        if ((ctx.agentDepth ?? 0) > 0) {
+          return {
+            tool_use_id: call.id,
+            content: 'Error: ExitPlanMode is interactive and cannot be used inside a sub-agent.',
+            is_error: true,
+          }
+        }
+
         const mode = ctx.getReplMode?.() ?? ctx.replMode
         if (mode !== 'plan') {
           return { tool_use_id: call.id, content: 'Not in plan mode.' }

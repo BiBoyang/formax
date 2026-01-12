@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export const SlashCommandToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
@@ -10,7 +11,8 @@ export const SlashCommandToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'SlashCommand.input')
+      assertNoExtraKeys(input, ['command'], 'SlashCommand.input')
       const rawCommand = (input as any).command
 
       if (typeof rawCommand !== 'string' || !rawCommand.trim()) {

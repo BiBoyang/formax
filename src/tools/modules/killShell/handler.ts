@@ -1,6 +1,7 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { TaskManager } from '../../runtime/taskManager'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export function createKillShellToolHandler(taskManager: TaskManager): ToolHandler {
   return {
@@ -10,7 +11,8 @@ export function createKillShellToolHandler(taskManager: TaskManager): ToolHandle
 
     async execute(call: ToolCall, _ctx: ExecutionContext): Promise<ToolResult> {
       try {
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'KillShell.input')
+        assertNoExtraKeys(input, ['shell_id'], 'KillShell.input')
         const shellId = (input as any).shell_id
 
         if (typeof shellId !== 'string' || !shellId.trim()) {
@@ -59,4 +61,3 @@ export function createKillShellToolHandler(taskManager: TaskManager): ToolHandle
     },
   }
 }
-

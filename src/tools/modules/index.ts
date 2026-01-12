@@ -9,6 +9,7 @@ import { createNotebookEditToolModule } from './notebookEdit'
 import { readToolModule } from './read'
 import { searchToolModule } from './search'
 import { slashCommandToolModule } from './slashCommand'
+import { skillToolModule } from './skill'
 import { todoWriteToolModule } from './todoWrite'
 import { webSearchToolModule } from './webSearch'
 import { createWriteToolModule } from './write'
@@ -29,6 +30,7 @@ export function registerBuiltinToolModules(
   registry.register(readToolModule)
   registry.register(searchToolModule)
   registry.register(slashCommandToolModule)
+  registry.register(skillToolModule)
   registry.register(todoWriteToolModule)
   registry.register(webSearchToolModule)
   registry.register(createWriteToolModule(deps.userInput))

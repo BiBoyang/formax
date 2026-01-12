@@ -12,7 +12,20 @@ export type StreamEvent =
   | { type: 'thinking_delta'; thinking: string }
   | { type: 'tool_start'; id: string; name: string }
   | { type: 'tool_input'; id: string; input: unknown }
-  | { type: 'tool_update'; id: string; middleLines?: string[]; toolUses?: number; usage?: TokenUsage }
+  | {
+      type: 'tool_update'
+      id: string
+      middleLines?: string[]
+      toolUses?: number
+      usage?: TokenUsage
+      nestedTools?: Array<{
+        id: string
+        name: string
+        input: Record<string, any>
+        status: 'running' | 'completed' | 'error'
+        summary?: string
+      }>
+    }
   | { type: 'usage'; usage: TokenUsage; model?: string }
   | { type: 'tool_end'; id: string; result: ToolResult }
   | { type: 'error'; error: Error }

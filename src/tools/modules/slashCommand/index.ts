@@ -3,16 +3,7 @@ import path from 'node:path'
 import type { ToolModule } from '../../registry'
 import type { ToolDefinition } from '../../types'
 import { SlashCommandToolHandler } from './handler'
-
-const BASE_DESCRIPTION =
-  'Execute a custom slash command within the main conversation.\n\n' +
-  'How slash commands work:\n' +
-  'When you use this tool (or when a user types a slash command), you will see <command-message>{name} is running…</command-message> followed by the expanded prompt.\n\n' +
-  'Usage:\n' +
-  '- command (required): The slash command to execute, including any arguments\n' +
-  '- Example: command: "/review-pr 123"\n\n' +
-  'IMPORTANT: Only use this tool for custom slash commands from `.claude/commands/*.md`.\n' +
-  'Do NOT use this tool for built-in CLI commands (like /help, /clear, etc.).\n'
+import { baseSpec } from './spec'
 
 function buildAvailableCommandsSection(cwd: string): string {
   const dir = path.join(cwd, '.claude', 'commands')
@@ -45,19 +36,8 @@ function buildAvailableCommandsSection(cwd: string): string {
 
 const spec: ToolDefinition = {
   name: 'SlashCommand',
-  description: BASE_DESCRIPTION + buildAvailableCommandsSection(process.cwd()),
-  input_schema: {
-    type: 'object',
-    properties: {
-      command: {
-        type: 'string',
-        description: 'The slash command to execute with its arguments, e.g., "/review-pr 123"',
-      },
-    },
-    required: ['command'],
-    additionalProperties: false,
-    $schema: 'http://json-schema.org/draft-07/schema#',
-  },
+  description: baseSpec.description + buildAvailableCommandsSection(process.cwd()),
+  input_schema: baseSpec.input_schema,
 }
 
 export const slashCommandToolModule: ToolModule = {

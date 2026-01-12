@@ -19,7 +19,7 @@ describe('TaskSubAgentToolHandler', () => {
   it('returns error when required fields are missing', async () => {
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: 'ok', success: true }
+        return { agentId: 'a', summary: 'ok', success: true }
       },
     }
 
@@ -33,7 +33,7 @@ describe('TaskSubAgentToolHandler', () => {
   it('returns error when sub-agent is not found', async () => {
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: 'ok', success: true }
+        return { agentId: 'a', summary: 'ok', success: true }
       },
     }
 
@@ -68,7 +68,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: 'looks good', success: true }
+        return { agentId: 'agent-1', summary: 'looks good', success: true }
       },
     }
 
@@ -84,7 +84,10 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    expect(result.content).toBe('looks good')
+    const parsed = JSON.parse(result.content)
+    expect(parsed.status).toBe('completed')
+    expect(parsed.summary).toBe('looks good')
+    expect(parsed.agent_id).toBe('agent-1')
   })
 
   it('truncates long summaries to 500 characters', async () => {
@@ -107,7 +110,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: 'a'.repeat(600), success: true }
+        return { agentId: 'agent-1', summary: 'a'.repeat(600), success: true }
       },
     }
 
@@ -123,8 +126,9 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    expect(result.content).toHaveLength(501)
-    expect(result.content.endsWith('…')).toBe(true)
+    const parsed = JSON.parse(result.content)
+    expect(parsed.summary).toHaveLength(501)
+    expect(parsed.summary.endsWith('…')).toBe(true)
   })
 
   it('returns JSON when artifacts are present', async () => {
@@ -147,7 +151,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: 'ok', success: true, artifacts: ['a.txt'] }
+        return { agentId: 'agent-1', summary: 'ok', success: true, artifacts: ['a.txt'] }
       },
     }
 
@@ -164,7 +168,10 @@ describe('TaskSubAgentToolHandler', () => {
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
     const parsed = JSON.parse(result.content)
-    expect(parsed).toEqual({ summary: 'ok', artifacts: ['a.txt'] })
+    expect(parsed.status).toBe('completed')
+    expect(parsed.summary).toBe('ok')
+    expect(parsed.artifacts).toEqual(['a.txt'])
+    expect(parsed.agent_id).toBe('agent-1')
   })
 
   it('returns error when runner fails', async () => {
@@ -187,7 +194,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { summary: '', success: false, error: 'boom' }
+        return { agentId: 'agent-1', summary: '', success: false, error: 'boom' }
       },
     }
 
@@ -203,7 +210,10 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
-    expect(result.content).toBe('Error: boom')
+    const parsed = JSON.parse(result.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.error).toBe('boom')
+    expect(parsed.agent_id).toBe('agent-1')
   })
 
   it('supports run_in_background and stores result', async () => {
@@ -225,9 +235,9 @@ describe('TaskSubAgentToolHandler', () => {
     }
 
     const runner: SubAgentRunner = {
-      async run() {
+      async run(args) {
         await new Promise((r) => setTimeout(r, 10))
-        return { summary: 'background', success: true }
+        return { agentId: typeof args.agentId === 'string' ? args.agentId : 'agent-1', summary: 'background', success: true }
       },
     }
 
@@ -243,6 +253,7 @@ describe('TaskSubAgentToolHandler', () => {
     const parsed = JSON.parse(result.content)
     expect(parsed.status).toBe('running')
     expect(typeof parsed.task_id).toBe('string')
+    expect(parsed.agent_id).toBe(parsed.task_id)
 
     const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('completed')

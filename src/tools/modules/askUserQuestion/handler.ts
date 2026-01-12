@@ -1,6 +1,7 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export function createAskUserQuestionToolHandler(userInput: UserInputManager): ToolHandler {
   return {
@@ -10,8 +11,10 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'AskUserQuestion.input')
+        assertNoExtraKeys(input, ['questions', 'answers'], 'AskUserQuestion.input')
         const questionsRaw = (input as any).questions
+        const prefilledAnswers = (input as any).answers
 
         if (!Array.isArray(questionsRaw) || questionsRaw.length === 0) {
           return {
@@ -33,6 +36,17 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
           multiSelect: Boolean(q?.multiSelect),
         }))
 
+        if (prefilledAnswers && typeof prefilledAnswers === 'object' && !Array.isArray(prefilledAnswers)) {
+          const answers: Record<string, string> = {}
+          for (const [k, v] of Object.entries(prefilledAnswers as any)) {
+            answers[String(k)] = String(v)
+          }
+          return {
+            tool_use_id: call.id,
+            content: JSON.stringify({ answers }, null, 2),
+          }
+        }
+
         const answers = await userInput.requestAnswers({
           toolUseId: call.id,
           questions,
@@ -50,4 +64,3 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
     },
   }
 }
-

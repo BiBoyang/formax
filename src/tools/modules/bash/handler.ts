@@ -1,12 +1,13 @@
-import path from 'node:path'
 import { exec, spawn } from 'node:child_process'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../../runtime/taskManager'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { classifyBashCommand } from './policy'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 const DEFAULT_TIMEOUT_MS = 120000
+const MAX_TIMEOUT_MS = 600000
 const MAX_OUTPUT_CHARS = 30000
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
@@ -32,27 +33,43 @@ export function createBashToolHandler(deps: { taskManager: TaskManager; userInpu
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'Bash.input')
+        assertNoExtraKeys(
+          input,
+          ['command', 'timeout', 'description', 'run_in_background', 'dangerouslyDisableSandbox'],
+          'Bash.input',
+        )
         const cwd = ctx.cwd || process.cwd()
 
         const cmd = (input as any).command
         const timeoutMs =
-          typeof (input as any).timeout === 'number' ? (input as any).timeout : DEFAULT_TIMEOUT_MS
+          (input as any).timeout === undefined
+            ? DEFAULT_TIMEOUT_MS
+            : assertTimeout((input as any).timeout)
         const runInBackground = Boolean((input as any).run_in_background)
         const description = typeof (input as any).description === 'string' ? (input as any).description.trim() : ''
+        const dangerouslyDisableSandbox = Boolean((input as any).dangerouslyDisableSandbox)
 
         if (!cmd) throw new Error('Missing command')
 
-        const cmdCwdRaw = (input as any).cwd || cwd
-        const cmdCwd = path.isAbsolute(cmdCwdRaw) ? cmdCwdRaw : path.resolve(cwd, cmdCwdRaw)
+        const cmdCwd = cwd
         const cmdStr = String(cmd)
         const approvalKey = `${cmdCwd}\n${cmdStr}`
 
-        const decision = classifyBashCommand({
+        let decision = classifyBashCommand({
           command: cmdStr,
           mode: ctx.getReplMode?.() ?? ctx.replMode,
           agentDepth: ctx.agentDepth,
         })
+
+        if (decision.risk !== 'deny' && dangerouslyDisableSandbox) {
+          decision = {
+            ...decision,
+            risk: 'confirm',
+            reason: 'dangerouslyDisableSandbox requested',
+            matchedRule: 'confirm_disable_sandbox',
+          }
+        }
 
         if (decision.risk === 'deny') {
           return {
@@ -81,7 +98,7 @@ export function createBashToolHandler(deps: { taskManager: TaskManager; userInpu
           }
         }
 
-        const env = { ...process.env, ...(((input as any).env as any) || {}) }
+        const env = { ...process.env }
 
         if (!runInBackground) {
           const { content, isError } = await runForeground({ cmd: cmdStr, cmdCwd, env, timeoutMs, signal: ctx.signal })
@@ -124,7 +141,7 @@ async function runForeground(args: {
         signal: args.signal as any,
       },
       (err, stdout, stderr) => {
-        const content = formatShellOutput(stdout, stderr)
+        const content = formatShellOutput(appendLimited('', stdout), appendLimited('', stderr))
         if (err) {
           const msg = err instanceof Error ? err.message : String(err)
           resolve({ content: content ? `Error: ${msg}\n${content}` : `Error: ${msg}`, isError: true })
@@ -256,6 +273,15 @@ function appendLimited(prev: string, nextChunk: string): string {
   const next = (prev || '') + (nextChunk || '')
   if (next.length <= MAX_OUTPUT_CHARS) return next
   return next.slice(next.length - MAX_OUTPUT_CHARS)
+}
+
+function assertTimeout(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error('timeout must be a number')
+  }
+  if (value < 0) throw new Error('timeout must be >= 0')
+  if (value > MAX_TIMEOUT_MS) throw new Error(`timeout must be <= ${MAX_TIMEOUT_MS}`)
+  return Math.floor(value)
 }
 
 function createThrottledUpdater(fn: () => void): (() => void) & { flush: () => void } {

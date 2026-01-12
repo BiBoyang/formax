@@ -1,10 +1,12 @@
 import fsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
+import { hasReadFile } from '../../runtime/readLedger'
+import { requireAbsolutePath } from '../../utils/paths'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -29,14 +31,20 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
       try {
         const mode = ctx.getReplMode?.() ?? ctx.replMode
 
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'Write.input')
+        assertNoExtraKeys(input, ['file_path', 'content'], 'Write.input')
         const cwd = ctx.cwd || process.cwd()
 
-        const filePathRaw = (input as any).file_path || (input as any).path
-        let content = (input as any).content
+        const filePathRaw = (input as any).file_path
+        const content = (input as any).content
         if (!filePathRaw) throw new Error('Missing file_path')
+        if (typeof content !== 'string') throw new Error('Missing content')
 
-        const filePath = resolveUserPath(cwd, String(filePathRaw))
+        const { absolutePath: filePath } = requireAbsolutePath({
+          cwd,
+          rawPath: String(filePathRaw),
+          fieldName: 'file_path',
+        })
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
         const isPlanFile = Boolean(planPath && isSameFilePath(filePath, planPath, cwd))
 
@@ -75,20 +83,17 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
           }
         }
 
-        if (Array.isArray(content)) {
-          content = content
-            .map((c: any) =>
-              typeof c === 'string' ? c : c?.text || (typeof c === 'object' ? JSON.stringify(c) : ''),
-            )
-            .join('')
-        }
-
-        if (content === undefined || content === null) content = ''
-
         const dir = path.dirname(filePath)
         await fsp.mkdir(dir, { recursive: true })
         const existed = await fileExists(filePath)
-        await fsp.writeFile(filePath, String(content), 'utf8')
+        if (existed && !hasReadFile(filePath)) {
+          return {
+            tool_use_id: call.id,
+            content: `Error: Write requires reading the existing file first: ${filePath}`,
+            is_error: true,
+          }
+        }
+        await fsp.writeFile(filePath, content, 'utf8')
         if (mode === 'plan' && isPlanFile) {
           const prefix = existed ? 'The file has been updated at:' : 'File created successfully at:'
           return {
@@ -97,21 +102,13 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
           }
         }
 
-        return { tool_use_id: call.id, content: `Wrote ${filePath} (${String(content).length} bytes)` }
+        return { tool_use_id: call.id, content: `Wrote ${filePath} (${content.length} bytes)` }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
       }
     },
   }
-}
-
-function resolveUserPath(cwd: string, filePathRaw: string): string {
-  const raw = String(filePathRaw || '').trim()
-  if (!raw) return raw
-  if (raw === '~') return os.homedir()
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
-  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

@@ -28,6 +28,12 @@ export function classifyBashCommand(args: {
     }
   }
 
+  const tokens = shellWords(normalized)
+  const wrapped = unwrapShellWrapper(tokens)
+  if (wrapped) {
+    return classifyBashCommand({ ...args, command: wrapped })
+  }
+
   const lower = normalized.toLowerCase()
 
   // Hard-deny obviously destructive patterns
@@ -59,7 +65,7 @@ export function classifyBashCommand(args: {
   }
 
   // Shell redirections are almost always writes; require explicit confirmation.
-  if (/[<>]|(?:\s|^)(?:tee)\b/.test(lower)) {
+  if (hasUnquotedRedirection(normalized) || hasTeeWrite(tokens)) {
     return {
       risk: 'confirm',
       prefix: inferPrefix(normalized),
@@ -68,11 +74,34 @@ export function classifyBashCommand(args: {
     }
   }
 
-  const tokens = shellWords(normalized)
   const cmd = (tokens[0] || '').toLowerCase()
   const sub = (tokens[1] || '').toLowerCase()
 
   const prefix = cmd === 'git' && sub ? `git ${sub}` : cmd || inferPrefix(normalized)
+
+  // `tree` is a read-only listing command in most cases, but can write to a file via `-o`.
+  // Allow it when it isn't attempting to write output.
+  if (cmd === 'tree') {
+    const hasOutputFlag = tokens.some((t) => t === '-o' || t.startsWith('-o'))
+    if (hasOutputFlag) {
+      return {
+        risk: 'confirm',
+        prefix,
+        reason:
+          effectiveMode === 'plan'
+            ? 'Plan mode: tree output file requires confirmation'
+            : 'tree output file requires confirmation',
+        matchedRule: 'confirm_tree_output',
+      }
+    }
+
+    return {
+      risk: 'allow',
+      prefix,
+      reason: 'Read-only command',
+      matchedRule: 'allow_tree',
+    }
+  }
 
   // Safe read-only commands
   if (isSafeReadOnly(cmd, sub)) {
@@ -84,17 +113,94 @@ export function classifyBashCommand(args: {
     }
   }
 
-  // Mutating commands: require confirmation, and in plan/sub-agent mode they are denied unless explicitly confirmed.
-  const risk: BashRisk = 'confirm'
-  const reason = effectiveMode === 'plan' ? 'Plan mode: command requires confirmation' : 'Command may have side effects'
-  const matchedRule = 'confirm_default'
-
+  // Potentially mutating commands: require confirmation.
   if (isAlwaysConfirm(cmd)) {
-    return { risk, prefix, reason, matchedRule: 'confirm_known_risky' }
+    return {
+      risk: 'confirm',
+      prefix,
+      reason: effectiveMode === 'plan' ? 'Plan mode: command requires confirmation' : 'Command requires confirmation',
+      matchedRule: 'confirm_known_risky',
+    }
   }
 
-  // Default: confirm for anything unknown.
-  return { risk, prefix, reason, matchedRule }
+  // Default: allow. Claude Code relies on prompt discipline + hard denylists rather than prompting for every command.
+  return {
+    risk: 'allow',
+    prefix,
+    reason: 'Allowed by default',
+    matchedRule: 'allow_default',
+  }
+}
+
+function unwrapShellWrapper(tokens: string[]): string | null {
+  const cmd = (tokens[0] || '').toLowerCase()
+  if (!cmd || !['bash', 'sh', 'zsh'].includes(cmd)) return null
+
+  let sawCommandFlag = false
+  for (let i = 1; i < tokens.length; i++) {
+    const t = tokens[i] || ''
+    const lower = t.toLowerCase()
+
+    if (sawCommandFlag) {
+      const rest = tokens.slice(i).join(' ').trim()
+      return rest || null
+    }
+
+    if (lower === '-c' || lower === '--command') {
+      sawCommandFlag = true
+      continue
+    }
+
+    if (/^-[a-z]+$/i.test(lower) && lower.includes('c')) {
+      sawCommandFlag = true
+    }
+  }
+
+  return null
+}
+
+function hasUnquotedRedirection(command: string): boolean {
+  const text = command || ''
+  let quote: '"' | "'" | null = null
+  let escape = false
+
+  for (const ch of text) {
+    if (escape) {
+      escape = false
+      continue
+    }
+
+    if (ch === '\\\\') {
+      escape = true
+      continue
+    }
+
+    if (quote) {
+      if (ch === quote) quote = null
+      continue
+    }
+
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      continue
+    }
+
+    if (ch === '<' || ch === '>') return true
+  }
+
+  return false
+}
+
+function hasTeeWrite(tokens: string[]): boolean {
+  for (let i = 0; i < tokens.length; i++) {
+    const t = (tokens[i] || '').toLowerCase()
+    if (t !== 'tee') continue
+    if (i === 0) return true
+
+    const prev = tokens[i - 1] || ''
+    if (prev === '|' || prev.endsWith('|')) return true
+  }
+  return false
 }
 
 function isSafeReadOnly(cmd: string, sub: string): boolean {
@@ -138,13 +244,6 @@ function isAlwaysConfirm(cmd: string): boolean {
     'touch',
     'sed',
     'perl',
-    'python',
-    'python3',
-    'node',
-    'bun',
-    'npm',
-    'pnpm',
-    'yarn',
     'curl',
     'wget',
     'chmod',
@@ -152,7 +251,6 @@ function isAlwaysConfirm(cmd: string): boolean {
     'kill',
     'killall',
     'pkill',
-    'make',
   ])
 
   return confirm.has(cmd)
@@ -218,4 +316,3 @@ function shellWords(command: string): string[] {
   push()
   return out
 }
-

@@ -122,7 +122,9 @@ describe('SubAgentRunner', () => {
       task: 'review',
     })
 
-    expect(result).toEqual({ success: true, summary: 'ok' })
+    expect(result.success).toBe(true)
+    expect(typeof result.agentId).toBe('string')
+    expect(result.summary).toBe('ok')
     expect(client.calls).toHaveLength(1)
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
   })
@@ -148,6 +150,7 @@ describe('SubAgentRunner', () => {
     })
 
     expect(result.success).toBe(true)
+    expect(typeof result.agentId).toBe('string')
     expect(result.summary).toHaveLength(501)
     expect(result.summary.endsWith('…')).toBe(true)
   })
@@ -171,7 +174,9 @@ describe('SubAgentRunner', () => {
       task: 'x',
     })
 
-    expect(result).toEqual({ success: true, summary: 'done' })
+    expect(result.success).toBe(true)
+    expect(typeof result.agentId).toBe('string')
+    expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Read'])
     expect(client.firstToolResult?.is_error).toBe(true)
     expect(client.firstToolResult?.content).toContain('not allowed inside a sub-agent')
@@ -204,7 +209,9 @@ describe('SubAgentRunner', () => {
       task: 'x',
     })
 
-    expect(result).toEqual({ success: true, summary: 'done' })
+    expect(result.success).toBe(true)
+    expect(typeof result.agentId).toBe('string')
+    expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
   })

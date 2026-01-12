@@ -3,10 +3,11 @@ import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { globPatternToRegex } from '../../utils/globPattern'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type GrepOutputMode = 'content' | 'files_with_matches' | 'count'
 
-const DEFAULT_HEAD_LIMIT = 50
+const DEFAULT_HEAD_LIMIT = 0
 
 export const GrepToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
@@ -15,7 +16,26 @@ export const GrepToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'Grep.input')
+      assertNoExtraKeys(
+        input,
+        [
+          'pattern',
+          'path',
+          'glob',
+          'output_mode',
+          '-B',
+          '-A',
+          '-C',
+          '-n',
+          '-i',
+          'type',
+          'head_limit',
+          'offset',
+          'multiline',
+        ],
+        'Grep.input',
+      )
       const cwd = ctx.cwd || process.cwd()
 
       const pattern = (input as any).pattern

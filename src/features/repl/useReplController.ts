@@ -222,11 +222,18 @@ export function useReplController(deps: {
           }
         }
 
-        if (ev.middleLines) {
+        if (ev.middleLines || ev.nestedTools) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === toolMsgId
-                ? { ...m, toolInfo: { ...m.toolInfo!, middleLines: ev.middleLines } }
+                ? {
+                    ...m,
+                    toolInfo: {
+                      ...m.toolInfo!,
+                      ...(ev.middleLines ? { middleLines: ev.middleLines } : {}),
+                      ...(ev.nestedTools ? { nestedTools: ev.nestedTools } : {}),
+                    },
+                  }
                 : m,
             ),
           )

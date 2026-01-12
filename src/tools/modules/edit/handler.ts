@@ -3,7 +3,9 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
+import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../utils/paths'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 const APPROVAL_QUESTIONS: AskUserQuestion[] = [
   {
@@ -28,23 +30,35 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
       try {
         const mode = ctx.getReplMode?.() ?? ctx.replMode
 
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'Edit.input')
+        assertNoExtraKeys(input, ['file_path', 'old_string', 'new_string', 'replace_all'], 'Edit.input')
         const cwd = ctx.cwd || process.cwd()
 
-        const filePathRaw = (input as any).file_path || (input as any).path
+        const filePathRaw = (input as any).file_path
         const oldString = (input as any).old_string
         const newString = (input as any).new_string
         const replaceAll = Boolean((input as any).replace_all)
 
         if (!filePathRaw) throw new Error('Missing file_path')
-        if (oldString === undefined) throw new Error('Missing old_string')
-        if (newString === undefined) throw new Error('Missing new_string')
+        if (typeof oldString !== 'string') throw new Error('Missing old_string')
+        if (typeof newString !== 'string') throw new Error('Missing new_string')
+        if (oldString === newString) throw new Error('new_string must be different from old_string')
+        if (!oldString) throw new Error('old_string must not be empty')
 
         const { absolutePath: filePath } = requireAbsolutePath({
           cwd,
           rawPath: String(filePathRaw),
           fieldName: 'file_path',
         })
+
+        if (!hasReadFile(filePath)) {
+          return {
+            tool_use_id: call.id,
+            content: `Error: Edit requires reading the file first: ${filePath}`,
+            is_error: true,
+          }
+        }
+
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
         const isPlanFile = Boolean(planPath && isSameFilePath(filePath, planPath, cwd))
 
@@ -84,32 +98,21 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
         }
 
         const content = await fsp.readFile(filePath, 'utf8')
-        if (!content.includes(oldString)) {
-          const strippedOld = stripCatNPrefixes(String(oldString))
-          const strippedNew = stripCatNPrefixes(String(newString))
-          if (strippedOld !== oldString && content.includes(strippedOld)) {
-            const newContent = replaceAll
-              ? content.split(strippedOld).join(strippedNew)
-              : content.replace(strippedOld, strippedNew)
-            await fsp.writeFile(filePath, newContent, 'utf8')
-            if (mode === 'plan' && isPlanFile) {
-              return {
-                tool_use_id: call.id,
-                content:
-                  `The file ${filePath} has been updated. Here's the result of running \`cat -n\` on a snippet of the edited file:\n` +
-                  formatPlanSnippet(newContent) +
-                  '\n\n' +
-                  buildPlanModeSystemReminder(filePath),
-              }
-            }
 
-            return { tool_use_id: call.id, content: `Edited ${filePath}` }
-          }
+        const { oldToUse, newToUse, occurrences } = resolveOldNewStrings({
+          filePath,
+          fileContent: content,
+          oldString,
+          newString,
+        })
 
-          throw new Error(`old_string not found in file: ${String(oldString).slice(0, 50)}...`)
+        if (occurrences > 1 && !replaceAll) {
+          throw new Error('old_string is not unique in the file; provide more context or set replace_all=true')
         }
 
-        const newContent = replaceAll ? content.split(oldString).join(newString) : content.replace(oldString, newString)
+        const newContent = replaceAll
+          ? content.split(oldToUse).join(newToUse)
+          : content.replace(oldToUse, newToUse)
 
         await fsp.writeFile(filePath, newContent, 'utf8')
         if (mode === 'plan' && isPlanFile) {
@@ -154,4 +157,39 @@ function formatPlanSnippet(contents: string): string {
 function formatCatNArrowLine(lineNo: number, content: string): string {
   const num = String(lineNo).padStart(6, ' ')
   return `${num}→${content}`
+}
+
+function resolveOldNewStrings(args: {
+  filePath: string
+  fileContent: string
+  oldString: string
+  newString: string
+}): { oldToUse: string; newToUse: string; occurrences: number } {
+  const { fileContent, oldString, newString } = args
+
+  const directCount = countOccurrences(fileContent, oldString)
+  if (directCount > 0) {
+    return { oldToUse: oldString, newToUse: newString, occurrences: directCount }
+  }
+
+  const strippedOld = stripCatNPrefixes(oldString)
+  const strippedNew = stripCatNPrefixes(newString)
+  const strippedCount = strippedOld !== oldString ? countOccurrences(fileContent, strippedOld) : 0
+  if (strippedCount > 0) {
+    return { oldToUse: strippedOld, newToUse: strippedNew, occurrences: strippedCount }
+  }
+
+  throw new Error(`old_string not found in file: ${oldString.slice(0, 80)}…`)
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0
+  let count = 0
+  let idx = 0
+  while (true) {
+    const next = haystack.indexOf(needle, idx)
+    if (next === -1) return count
+    count++
+    idx = next + needle.length
+  }
 }

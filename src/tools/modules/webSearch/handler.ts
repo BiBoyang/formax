@@ -1,5 +1,6 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type WebSearchResult = {
   title: string
@@ -15,7 +16,8 @@ export const WebSearchToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'WebSearch.input')
+      assertNoExtraKeys(input, ['query', 'allowed_domains', 'blocked_domains'], 'WebSearch.input')
       const query = (input as any).query
       const allowedDomains = normalizeDomains((input as any).allowed_domains)
       const blockedDomains = normalizeDomains((input as any).blocked_domains)
@@ -189,4 +191,3 @@ function decodeHtmlEntities(text: string): string {
     }
   })
 }
-

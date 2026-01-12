@@ -6,16 +6,19 @@ import type { ToolExecutor } from '../tools/executor'
 import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
 import type { StreamEvent, StreamSink } from '../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
+import { randomUUID } from 'node:crypto'
 
 const DEFAULT_SUMMARY_MAX_CHARS = 500
 const SUMMARY_TRUNCATION_SUFFIX = '…'
-const DEFAULT_SUB_AGENT_REPL_MODE: 'plan' = 'plan'
 const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
 
 export interface SubAgentRunner {
   run(args: {
     agent: SubAgentConfig
     task: string
+    resume?: string
+    agentId?: string
+    replMode?: 'normal' | 'acceptEdits' | 'plan'
     signal?: AbortSignal
     onEvent?: StreamSink
   }): Promise<SubAgentResult>
@@ -27,9 +30,43 @@ export function createSubAgentRunner(deps: {
   allTools: ToolDefinition[]
 }): SubAgentRunner {
   const engine: ChatEngine = createChatEngine({ client: deps.client, executor: deps.executor })
+  const sessions = new Map<
+    string,
+    {
+      agentName: string
+      history: Awaited<ReturnType<ChatEngine['runTurn']>>
+    }
+  >()
 
   return {
-    async run({ agent, task, signal, onEvent }): Promise<SubAgentResult> {
+    async run({
+      agent,
+      task,
+      resume,
+      agentId: requestedAgentId,
+      replMode,
+      signal,
+      onEvent,
+    }): Promise<SubAgentResult> {
+      const agentId = typeof resume === 'string' && resume.trim()
+        ? resume.trim()
+        : typeof requestedAgentId === 'string' && requestedAgentId.trim()
+          ? requestedAgentId.trim()
+          : randomUUID()
+
+      const resumeSession = typeof resume === 'string' && resume.trim() ? sessions.get(resume.trim()) : null
+      if (resume && !resumeSession) {
+        return { agentId, summary: '', success: false, error: `Unknown agent ID: ${resume}` }
+      }
+      if (resumeSession && resumeSession.agentName !== agent.name) {
+        return {
+          agentId,
+          summary: '',
+          success: false,
+          error: `Agent ID ${resume} belongs to '${resumeSession.agentName}', not '${agent.name}'.`,
+        }
+      }
+
       const allowed = new Set(agent.tools || [])
       const allowAll = allowed.has('*')
       const allowedTools = deps.allTools
@@ -53,8 +90,8 @@ export function createSubAgentRunner(deps: {
       }
 
       try {
-        await engine.runTurn({
-          history: [],
+        const nextHistory = await engine.runTurn({
+          history: resumeSession?.history ?? [],
           user: { role: 'user', content: [{ type: 'text', text: task }] },
           system,
           tools: allowedTools,
@@ -63,11 +100,12 @@ export function createSubAgentRunner(deps: {
           signal,
           exec: {
             agentDepth: 1,
-            replMode: DEFAULT_SUB_AGENT_REPL_MODE,
+            replMode: replMode ?? 'normal',
             allowTools: Array.from(allowed),
             denyTools: Array.from(NESTED_DENY_TOOLS),
           },
         })
+        sessions.set(agentId, { agentName: agent.name, history: nextHistory })
 
         const trimmed = summary.trim()
         const limited =
@@ -75,10 +113,11 @@ export function createSubAgentRunner(deps: {
             ? trimmed.slice(0, DEFAULT_SUMMARY_MAX_CHARS) + SUMMARY_TRUNCATION_SUFFIX
             : trimmed
 
-        return { summary: limited, success: true }
+        return { agentId, summary: limited, success: true }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         return {
+          agentId,
           summary: '',
           success: false,
           error: msg,

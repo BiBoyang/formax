@@ -188,6 +188,10 @@ export function formatToolResult(
   result: string,
   isError: boolean
 ): ToolResultFormat {
+  if (name === 'Task') {
+    return formatTaskToolResult(result, isError)
+  }
+
   if (isError) {
     return { summary: `Error: ${result.slice(0, 100)}` }
   }
@@ -283,4 +287,35 @@ export function formatToolResult(
     default:
       return { summary: result.slice(0, 100), lines: lineCount }
   }
+}
+
+function formatTaskToolResult(raw: string, isError: boolean): ToolResultFormat {
+  const trimmed = (raw || '').trim()
+  if (!trimmed) return { summary: isError ? 'Error: (no output)' : '(no output)', lines: 0 }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    const status = typeof parsed?.status === 'string' ? parsed.status : ''
+
+    if (status === 'running') {
+      const taskId = typeof parsed?.task_id === 'string' ? parsed.task_id : ''
+      const label = taskId ? `Task queued (${shortId(taskId)})` : 'Task queued'
+      return { summary: label }
+    }
+
+    const summary = typeof parsed?.summary === 'string' ? parsed.summary.trim() : ''
+    const error = typeof parsed?.error === 'string' ? parsed.error.trim() : ''
+    if (error) return { summary: `Error: ${error}` }
+    if (isError || status === 'error') return { summary: summary ? `Error: ${summary}` : 'Error: Task failed' }
+    return { summary: summary || '(no output)' }
+  } catch {
+    // Fall back to plain text
+    return isError ? { summary: `Error: ${trimmed.slice(0, 100)}` } : { summary: trimmed.slice(0, 100) }
+  }
+}
+
+function shortId(id: string): string {
+  const s = String(id || '').trim()
+  if (s.length <= 8) return s
+  return s.slice(0, 8) + '…'
 }

@@ -1,6 +1,10 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { TaskManager } from '../../runtime/taskManager'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+
+const DEFAULT_TIMEOUT_MS = 30000
+const MAX_TIMEOUT_MS = 600000
 
 export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandler {
   return {
@@ -10,10 +14,11 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'TaskOutput.input')
+        assertNoExtraKeys(input, ['task_id', 'block', 'timeout'], 'TaskOutput.input')
         const taskId = (input as any).task_id
         const block = typeof (input as any).block === 'boolean' ? (input as any).block : true
-        const timeout = typeof (input as any).timeout === 'number' ? (input as any).timeout : 30000
+        const timeout = parseTimeout((input as any).timeout)
 
         if (typeof taskId !== 'string' || !taskId.trim()) {
           return {
@@ -101,4 +106,14 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
       }
     },
   }
+}
+
+function parseTimeout(value: unknown): number {
+  if (value === undefined || value === null || value === '') return DEFAULT_TIMEOUT_MS
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error('timeout must be a number')
+  }
+  if (value < 0) throw new Error('timeout must be >= 0')
+  if (value > MAX_TIMEOUT_MS) throw new Error(`timeout must be <= ${MAX_TIMEOUT_MS}`)
+  return Math.floor(value)
 }

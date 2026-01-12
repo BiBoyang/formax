@@ -5,6 +5,7 @@ import type { ExecutionContext, ToolHandler } from '../index'
 import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'
 import { formatToolCallParts, formatToolResult } from '../../../utils/toolFormatting'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type NestedToolEntry = {
   id: string
@@ -29,20 +30,15 @@ export function createTaskSubAgentToolHandler(deps: {
     },
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'Task.input')
+      assertNoExtraKeys(input, ['description', 'prompt', 'subagent_type', 'model', 'resume', 'run_in_background'], 'Task.input')
+
       const description = (input as any).description
       const subagentType = (input as any).subagent_type
       const prompt = (input as any).prompt
+      const model = (input as any).model
       const resume = (input as any).resume
       const runInBackground = Boolean((input as any).run_in_background)
-
-      if (typeof resume === 'string' && resume.trim()) {
-        return {
-          tool_use_id: call.id,
-          content: 'Error: resume is not supported yet.',
-          is_error: true,
-        }
-      }
 
       if (
         typeof description !== 'string' ||
@@ -57,6 +53,16 @@ export function createTaskSubAgentToolHandler(deps: {
         }
       }
 
+      if (model !== undefined && model !== null && model !== '') {
+        const raw = String(model).trim().toLowerCase()
+        if (!raw) {
+          return { tool_use_id: call.id, content: 'Error: model must be one of: sonnet, opus, haiku.', is_error: true }
+        }
+        if (!['sonnet', 'opus', 'haiku'].includes(raw)) {
+          return { tool_use_id: call.id, content: `Error: Unsupported model: ${raw}`, is_error: true }
+        }
+      }
+
       const agent = deps.registry.get(subagentType)
       if (!agent) {
         return {
@@ -68,8 +74,8 @@ export function createTaskSubAgentToolHandler(deps: {
 
       const run = async (
         signal?: AbortSignal,
-        opts?: { emitUi?: boolean; updateTask?: (result: ManagedTaskResult) => void },
-      ): Promise<{ content: string; is_error?: boolean }> => {
+        opts?: { emitUi?: boolean; updateTask?: (result: ManagedTaskResult) => void; agentId?: string },
+      ): Promise<{ agent_id: string; summary: string; json: string; is_error?: boolean }> => {
         const entries: NestedToolEntry[] = []
         let toolUses = 0
         const usageTotal: TokenUsage = {}
@@ -90,6 +96,13 @@ export function createTaskSubAgentToolHandler(deps: {
             middleLines: renderNestedLines(entries, toolUses),
             toolUses,
             usage: usageTotal,
+            nestedTools: entries.map((e) => ({
+              id: e.id,
+              name: e.name,
+              input: e.input,
+              status: e.status,
+              summary: e.summary,
+            })),
           })
         }
 
@@ -124,10 +137,11 @@ export function createTaskSubAgentToolHandler(deps: {
                 string,
                 any
               >
+              const compact = compactInputForNestedUi(entries[idx]!.name, input)
               entries[idx] = {
                 ...entries[idx]!,
-                input,
-                header: formatNestedHeader(entries[idx]!.name, input),
+                input: compact,
+                header: formatNestedHeader(entries[idx]!.name, compact),
               }
               emitProgress()
             }
@@ -153,25 +167,48 @@ export function createTaskSubAgentToolHandler(deps: {
               emitProgress()
             }
           }
+
+          if (ev.type === 'tool_update') {
+            // Nested tools emit tool_update when they are about to block on user input.
+            // Propagate so the UI can render the approval prompt and the REPL can
+            // enter prompt mode (hide the input bar).
+            emitProgress()
+          }
         }
 
-        const result = await deps.runner.run({ agent, task: prompt, signal, onEvent: onSubEvent })
+        const parentMode = ctx.getReplMode?.() ?? ctx.replMode
+        const subMode = parentMode === 'acceptEdits' ? 'acceptEdits' : 'normal'
+
+        const result = await deps.runner.run({
+          agent,
+          task: prompt,
+          resume: typeof resume === 'string' && resume.trim() ? resume.trim() : undefined,
+          agentId: opts?.agentId,
+          replMode: subMode,
+          signal,
+          onEvent: onSubEvent,
+        })
         const summary = result.summary || ''
         const limited = summary.length > 500 ? summary.slice(0, 500) + '…' : summary
 
         scheduleTaskUpdate?.flush()
 
-        if (result.artifacts && result.artifacts.length > 0) {
-          return {
-            content: JSON.stringify({ summary: limited, artifacts: result.artifacts }, null, 2),
-            is_error: !result.success,
-          }
+        const payload: Record<string, any> = {
+          agent_id: result.agentId,
+          status: result.success ? 'completed' : 'error',
+          summary: limited || (result.success ? '(no output)' : ''),
+          ...(result.artifacts && result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
+          ...(!result.success && result.error ? { error: result.error } : {}),
+          ...(toolUses ? { tool_uses: toolUses } : {}),
+          ...(Object.keys(usageTotal).length > 0 ? { usage: usageTotal } : {}),
         }
 
         return {
-          content:
+          agent_id: result.agentId,
+          summary:
             limited ||
             (result.success ? '(no output)' : `Error: ${result.error || 'Sub-agent failed'}`),
+          json: JSON.stringify(payload, null, 2),
           is_error: !result.success,
         }
       }
@@ -181,18 +218,28 @@ export function createTaskSubAgentToolHandler(deps: {
         const taskId = deps.taskManager.create({
           kind: 'agent',
           label,
-          run: ({ signal, updateResult }) => run(signal, { emitUi: false, updateTask: updateResult }),
+          run: ({ id, signal, updateResult }) =>
+            run(signal, {
+              emitUi: false,
+              updateTask: updateResult,
+              agentId: typeof resume === 'string' && resume.trim() ? undefined : id,
+            }).then(({ summary, is_error }) => ({ content: summary, ...(is_error ? { is_error } : {}) })),
         })
+
+        const agentId =
+          typeof resume === 'string' && resume.trim()
+            ? resume.trim()
+            : taskId
         return {
           tool_use_id: call.id,
-          content: JSON.stringify({ task_id: taskId, status: 'running' }, null, 2),
+          content: JSON.stringify({ task_id: taskId, agent_id: agentId, status: 'running' }, null, 2),
         }
       }
 
       const result = await run(ctx.signal, { emitUi: true })
       return {
         tool_use_id: call.id,
-        content: result.content,
+        content: result.json,
         ...(result.is_error ? { is_error: true } : {}),
       }
     },
@@ -258,6 +305,53 @@ function compactInputForHeader(name: string, input: Record<string, any>): Record
       return next
     }
   }
+  return input
+}
+
+function compactInputForNestedUi(name: string, input: Record<string, any>): Record<string, any> {
+  const n = String(name || '')
+
+  if (n === 'Write' || n === 'Edit') {
+    const next: Record<string, any> = {}
+    if (typeof input.file_path === 'string') next.file_path = input.file_path
+    if (typeof input.path === 'string') next.path = input.path
+    return next
+  }
+
+  if (n === 'NotebookEdit') {
+    const next: Record<string, any> = {}
+    if (typeof input.notebook_path === 'string') next.notebook_path = input.notebook_path
+    if (typeof input.cell_id === 'string') next.cell_id = input.cell_id
+    if (typeof input.cell_type === 'string') next.cell_type = input.cell_type
+    if (typeof input.edit_mode === 'string') next.edit_mode = input.edit_mode
+    return next
+  }
+
+  if (n === 'Bash') {
+    const next: Record<string, any> = {}
+    if (typeof input.command === 'string') next.command = input.command
+    if (typeof input.cwd === 'string') next.cwd = input.cwd
+    if (typeof input.timeout === 'number') next.timeout = input.timeout
+    if (typeof input.run_in_background === 'boolean') next.run_in_background = input.run_in_background
+    if (typeof input.description === 'string') next.description = input.description
+    return next
+  }
+
+  if (n === 'AskUserQuestion') {
+    const next: Record<string, any> = {}
+    if (Array.isArray(input.questions)) next.questions = input.questions
+    return next
+  }
+
+  if (n === 'Task') {
+    const next: Record<string, any> = {}
+    if (typeof input.subagent_type === 'string') next.subagent_type = input.subagent_type
+    if (typeof input.description === 'string') next.description = input.description
+    if (typeof input.prompt === 'string') next.prompt = input.prompt
+    if (typeof input.run_in_background === 'boolean') next.run_in_background = input.run_in_background
+    return next
+  }
+
   return input
 }
 

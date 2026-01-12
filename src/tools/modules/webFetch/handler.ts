@@ -1,6 +1,7 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AnthropicStreamClient } from '../../../streaming/anthropic/StreamClient'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export function createWebFetchToolHandler(deps: {
   client: AnthropicStreamClient
@@ -14,7 +15,8 @@ export function createWebFetchToolHandler(deps: {
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'WebFetch.input')
+        assertNoExtraKeys(input, ['url', 'prompt'], 'WebFetch.input')
         const urlRaw = (input as any).url
         const prompt = (input as any).prompt
 
@@ -176,4 +178,3 @@ function buildWebFetchAnalyzerPrompt(args: {
     args.content,
   ].join('\n')
 }
-

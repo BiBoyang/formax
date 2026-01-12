@@ -10,7 +10,7 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('GrepToolHandler', () => {
-  it('defaults head_limit to 50 to avoid runaway output', async () => {
+  it('defaults head_limit to 0 (unlimited) per spec', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-default-limit-'))
     try {
       const total = 60
@@ -25,7 +25,7 @@ describe('GrepToolHandler', () => {
 
       expect(result.is_error).toBeUndefined()
       const lines = result.content.split('\n').filter(Boolean)
-      expect(lines.length).toBe(50)
+      expect(lines.length).toBe(total)
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }

@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { globPatternToRegex } from '../../utils/globPattern'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export const GlobToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
@@ -11,13 +12,18 @@ export const GlobToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'Glob.input')
+      assertNoExtraKeys(input, ['pattern', 'path'], 'Glob.input')
       const cwd = ctx.cwd || process.cwd()
 
-      const pattern = (input as any).pattern || (input as any).glob
-      const rootRaw = (input as any).path || (input as any).cwd || cwd
+      const pattern = (input as any).pattern
+      const rootRaw = (input as any).path || cwd
       if (!pattern) throw new Error('Missing pattern')
       const root = path.isAbsolute(rootRaw) ? rootRaw : path.resolve(cwd, rootRaw)
+      const rootStat = await fsp.stat(root)
+      if (!rootStat.isDirectory()) {
+        throw new Error(`path must be a directory: ${root}`)
+      }
 
       const regex = globPatternToRegex(String(pattern))
       const results: string[] = []

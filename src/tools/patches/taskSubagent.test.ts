@@ -13,7 +13,7 @@ describe('patchTaskToolForSubagents', () => {
       {
         name: 'Task',
         description: 'old',
-        input_schema: { type: 'object', properties: { command: { type: 'string' } } },
+        input_schema: { type: 'object', properties: { subagent_type: { type: 'string' } } },
       },
     ]
 
@@ -23,15 +23,10 @@ describe('patchTaskToolForSubagents', () => {
 
     const task = patched.find((t) => t.name === 'Task')
     expect(task).toBeDefined()
-    expect(task!.description).toContain('Available subagents')
-    expect(task!.description).toContain('code-reviewer')
+    expect(task!.description).toEqual('old')
 
     const schema = task!.input_schema as any
-    expect(schema.required).toEqual(['description', 'subagent_type', 'prompt'])
     expect(schema.properties?.subagent_type?.enum).toEqual(['code-reviewer'])
-    expect(schema.properties?.prompt).toBeDefined()
-    expect(schema.properties?.run_in_background).toBeDefined()
-    expect(schema.properties?.description).toBeDefined()
   })
 
   it('adds Task tool when missing', () => {

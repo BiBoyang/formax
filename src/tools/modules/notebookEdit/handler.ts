@@ -1,9 +1,9 @@
 import fsp from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
+import { requireAbsolutePath } from '../../utils/paths'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type EditMode = 'replace' | 'insert' | 'delete'
 type CellType = 'code' | 'markdown'
@@ -38,7 +38,12 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
           }
         }
 
-        const input = call.input || {}
+        const input = requirePlainObject(call.input || {}, 'NotebookEdit.input')
+        assertNoExtraKeys(
+          input,
+          ['notebook_path', 'cell_id', 'new_source', 'cell_type', 'edit_mode'],
+          'NotebookEdit.input',
+        )
         const notebookPathRaw = (input as any).notebook_path
         const cellId = (input as any).cell_id
         const newSource = (input as any).new_source
@@ -51,11 +56,15 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
         if (!['replace', 'insert', 'delete'].includes(editMode)) {
           throw new Error('Invalid edit_mode')
         }
-        if (editMode !== 'delete' && typeof newSource !== 'string') {
+        if (typeof newSource !== 'string') {
           throw new Error('Missing new_source')
         }
 
-        const notebookPath = resolveUserPath(ctx.cwd || process.cwd(), notebookPathRaw)
+        const { absolutePath: notebookPath } = requireAbsolutePath({
+          cwd: ctx.cwd || process.cwd(),
+          rawPath: notebookPathRaw,
+          fieldName: 'notebook_path',
+        })
 
         if (mode !== 'acceptEdits') {
           const answersPromise = userInput.requestAnswers({
@@ -136,14 +145,6 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
       }
     },
   }
-}
-
-function resolveUserPath(cwd: string, filePathRaw: string): string {
-  const raw = String(filePathRaw || '').trim()
-  if (!raw) return raw
-  if (raw === '~') return os.homedir()
-  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(os.homedir(), raw.slice(2))
-  return path.isAbsolute(raw) ? raw : path.resolve(cwd, raw)
 }
 
 function findCellIndexById(cells: any[], cellId: string): number {

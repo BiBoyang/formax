@@ -2,6 +2,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
 
@@ -18,7 +19,8 @@ export const TodoWriteToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'TodoWrite.input')
+      assertNoExtraKeys(input, ['todos'], 'TodoWrite.input')
       const todosRaw = (input as any).todos
       if (!Array.isArray(todosRaw)) throw new Error('Missing todos')
 
@@ -58,4 +60,3 @@ function resolveTodosPath(cwd: string): string {
 
   return path.join(logsDir, 'todos.json')
 }
-

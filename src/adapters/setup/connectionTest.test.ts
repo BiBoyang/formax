@@ -5,7 +5,7 @@ import { fetchAnthropicModels } from '../../services/models.js'
 
 vi.mock('../../services/models.js', () => ({ fetchAnthropicModels: vi.fn() }))
 
-const mockedFetchAnthropicModels = vi.mocked(fetchAnthropicModels)
+const mockedFetchAnthropicModels = fetchAnthropicModels as unknown as ReturnType<typeof vi.fn>
 
 describe('testSetupConnection', () => {
   it('returns models for anthropic', async () => {

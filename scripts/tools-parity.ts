@@ -51,13 +51,26 @@ async function main(): Promise<void> {
   printSection(`Missing tools vs ${path.basename(refPath)} (${missingTools.length})`, missingTools)
   printSection(`Extra tools (not in ${path.basename(refPath)}) (${extraTools.length})`, extraTools)
 
-  console.log(`\nSchema parity checks (${shared.length} tools)`)
+  console.log(`\nParity checks (${shared.length} tools)`)
+  let hasAnyDiff = false
   for (const name of shared) {
     const refTool = reference.get(name)!
     const implTool = implemented.get(name)!
-    const diff = diffSchemas(refTool.input_schema, implTool.input_schema)
-    if (!diff.hasDiff) continue
-    printSchemaDiff(name, diff)
+    
+    // Description comparison
+    const descDiff = diffDescriptions(refTool.description, implTool.description)
+    
+    // Schema comparison (enhanced with canonical JSON)
+    const schemaDiff = diffSchemas(refTool.input_schema, implTool.input_schema)
+    
+    if (descDiff.hasDiff || schemaDiff.hasDiff) {
+      hasAnyDiff = true
+      printToolDiff(name, { description: descDiff, schema: schemaDiff })
+    }
+  }
+  
+  if (!hasAnyDiff) {
+    console.log('  ✓ All tools match reference')
   }
 }
 
@@ -105,6 +118,25 @@ function normalizeSchema(inputSchema: unknown): SchemaShape {
   return { properties, required, additionalProperties: schema.additionalProperties }
 }
 
+function diffDescriptions(ref: string, impl: string): {
+  hasDiff: boolean
+  normalizedRef: string
+  normalizedImpl: string
+} {
+  const normalizedRef = normalizeDescription(ref)
+  const normalizedImpl = normalizeDescription(impl)
+  return {
+    hasDiff: normalizedRef !== normalizedImpl,
+    normalizedRef,
+    normalizedImpl,
+  }
+}
+
+function normalizeDescription(desc: string): string {
+  // Normalize: unify line endings, trim trailing whitespace
+  return desc.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[ \t]+$/gm, '').trimEnd()
+}
+
 function diffSchemas(refSchema: unknown, implSchema: unknown): {
   hasDiff: boolean
   missingProps: string[]
@@ -113,6 +145,7 @@ function diffSchemas(refSchema: unknown, implSchema: unknown): {
   requiredOnlyInImpl: string[]
   additionalPropertiesRef: unknown
   additionalPropertiesImpl: unknown
+  deepEqual: boolean
 } {
   const ref = normalizeSchema(refSchema)
   const impl = normalizeSchema(implSchema)
@@ -125,8 +158,10 @@ function diffSchemas(refSchema: unknown, implSchema: unknown): {
   const additionalPropertiesRef = ref.additionalProperties
   const additionalPropertiesImpl = impl.additionalProperties
 
-  const additionalDiff = !deepEqual(additionalPropertiesRef, additionalPropertiesImpl)
-  const hasDiff = missingProps.length > 0 || extraProps.length > 0 || requiredOnlyInRef.length > 0 || requiredOnlyInImpl.length > 0 || additionalDiff
+  // Use canonical JSON comparison for deep equality
+  const deepEqual = canonicalStringify(refSchema) === canonicalStringify(implSchema)
+  const additionalDiff = !deepEqualValues(additionalPropertiesRef, additionalPropertiesImpl)
+  const hasDiff = missingProps.length > 0 || extraProps.length > 0 || requiredOnlyInRef.length > 0 || requiredOnlyInImpl.length > 0 || additionalDiff || !deepEqual
 
   return {
     hasDiff,
@@ -136,37 +171,79 @@ function diffSchemas(refSchema: unknown, implSchema: unknown): {
     requiredOnlyInImpl,
     additionalPropertiesRef,
     additionalPropertiesImpl,
+    deepEqual,
   }
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+function deepEqualValues(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
   if (!a || !b) return false
   if (typeof a !== typeof b) return false
   if (typeof a !== 'object') return false
   try {
-    return JSON.stringify(a) === JSON.stringify(b)
+    return canonicalStringify(a) === canonicalStringify(b)
   } catch {
     return false
   }
 }
 
-function printSchemaDiff(
+/**
+ * Canonical JSON stringify: recursively sorts object keys for consistent comparison.
+ */
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || obj === undefined) return String(obj)
+  if (typeof obj !== 'object') return JSON.stringify(obj)
+  if (Array.isArray(obj)) {
+    return '[' + obj.map((item) => canonicalStringify(item)).join(',') + ']'
+  }
+  
+  const sortedKeys = Object.keys(obj).sort()
+  const pairs = sortedKeys.map((key) => {
+    const value = (obj as Record<string, unknown>)[key]
+    return JSON.stringify(key) + ':' + canonicalStringify(value)
+  })
+  return '{' + pairs.join(',') + '}'
+}
+
+function printToolDiff(
   name: string,
-  diff: ReturnType<typeof diffSchemas>,
+  diffs: {
+    description: ReturnType<typeof diffDescriptions>
+    schema: ReturnType<typeof diffSchemas>
+  },
 ): void {
   console.log(`\n- ${name}`)
-  if (diff.missingProps.length > 0) console.log(`  - missing properties: ${diff.missingProps.join(', ')}`)
-  if (diff.extraProps.length > 0) console.log(`  - extra properties: ${diff.extraProps.join(', ')}`)
-  if (diff.requiredOnlyInRef.length > 0) console.log(`  - required (ref only): ${diff.requiredOnlyInRef.join(', ')}`)
-  if (diff.requiredOnlyInImpl.length > 0) console.log(`  - required (impl only): ${diff.requiredOnlyInImpl.join(', ')}`)
+  
+  // Description differences
+  if (diffs.description.hasDiff) {
+    console.log(`  - description mismatch`)
+    const refLines = diffs.description.normalizedRef.split('\n')
+    const implLines = diffs.description.normalizedImpl.split('\n')
+    const maxLines = Math.max(refLines.length, implLines.length)
+    const diffCount = refLines.length !== implLines.length
+      ? ` (${refLines.length} vs ${implLines.length} lines)`
+      : ''
+    console.log(`    Reference${diffCount}: ${refLines.slice(0, 3).join(' ')}${refLines.length > 3 ? '...' : ''}`)
+    console.log(`    Implementation${diffCount}: ${implLines.slice(0, 3).join(' ')}${implLines.length > 3 ? '...' : ''}`)
+  }
+  
+  // Schema differences
+  if (diffs.schema.hasDiff) {
+    if (!diffs.schema.deepEqual) {
+      console.log(`  - schema structure mismatch (use canonical JSON comparison)`)
+    }
+    if (diffs.schema.missingProps.length > 0) console.log(`  - missing properties: ${diffs.schema.missingProps.join(', ')}`)
+    if (diffs.schema.extraProps.length > 0) console.log(`  - extra properties: ${diffs.schema.extraProps.join(', ')}`)
+    if (diffs.schema.requiredOnlyInRef.length > 0) console.log(`  - required (ref only): ${diffs.schema.requiredOnlyInRef.join(', ')}`)
+    if (diffs.schema.requiredOnlyInImpl.length > 0) console.log(`  - required (impl only): ${diffs.schema.requiredOnlyInImpl.join(', ')}`)
 
-  if (!deepEqual(diff.additionalPropertiesRef, diff.additionalPropertiesImpl)) {
-    console.log(
-      `  - additionalProperties: ref=${formatValue(diff.additionalPropertiesRef)} impl=${formatValue(
-        diff.additionalPropertiesImpl,
-      )}`,
-    )
+    if (!deepEqualValues(diffs.schema.additionalPropertiesRef, diffs.schema.additionalPropertiesImpl)) {
+      console.log(
+        `  - additionalProperties: ref=${formatValue(diffs.schema.additionalPropertiesRef)} impl=${formatValue(
+          diffs.schema.additionalPropertiesImpl,
+        )}`,
+      )
+    }
   }
 }
 

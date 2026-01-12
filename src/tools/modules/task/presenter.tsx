@@ -1,13 +1,20 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { useUserInputManager } from '../../runtime/userInputContext'
+import { BashToolPresenter } from '../bash/presenter'
+import { WriteToolPresenter } from '../write/presenter'
+import { EditToolPresenter } from '../edit/presenter'
+import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
+import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
 
 export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
+  const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -28,6 +35,29 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         : ''
   const params = paramsRaw ? truncate(normalizeInlineText(paramsRaw), 60) : ''
 
+  const pendingNested = useMemo(() => {
+    if (!userInput) return null
+    if (status !== 'running') return null
+    const nested = message.toolInfo?.nestedTools
+    if (!Array.isArray(nested) || nested.length === 0) return null
+
+    for (const t of nested) {
+      const id = typeof t?.id === 'string' ? t.id : String(t?.id || '')
+      if (!id) continue
+      if (t?.status !== 'running') continue
+      if (userInput.isPending(id)) return { ...t, id }
+    }
+    return null
+  }, [message.toolInfo?.nestedTools, status, userInput])
+
+  const nestedPrompt = pendingNested
+    ? renderNestedPrompt({
+        id: pendingNested.id,
+        name: pendingNested.name,
+        input: pendingNested.input,
+      })
+    : null
+
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Text wrap="truncate-end">
@@ -47,6 +77,8 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           ))}
         </Box>
       ) : null}
+
+      {nestedPrompt ? <Box marginTop={1}>{nestedPrompt}</Box> : null}
 
       {status !== 'running' ? (
         <Box>
@@ -76,4 +108,31 @@ function getTaskDisplayName(subagentType: unknown): string {
   if (!raw) return 'Task'
   if (raw === 'code-reviewer') return 'Reviewer'
   return raw
+}
+
+function renderNestedPrompt(args: { id: string; name: string; input: Record<string, any> }): React.ReactNode {
+  const msg: Msg = {
+    id: `tool-${args.id}`,
+    role: 'tool',
+    content: '',
+    timestamp: new Date(),
+    toolInfo: {
+      name: args.name,
+      toolUseId: args.id,
+      input: args.input || {},
+      status: 'running',
+    },
+  }
+
+  if (args.name === 'Bash') return <BashToolPresenter message={msg} />
+  if (args.name === 'Write') return <WriteToolPresenter message={msg} />
+  if (args.name === 'Edit') return <EditToolPresenter message={msg} />
+  if (args.name === 'NotebookEdit') return <NotebookEditToolPresenter message={msg} />
+  if (args.name === 'AskUserQuestion') return <AskUserQuestionToolPresenter message={msg} />
+
+  return (
+    <Box flexDirection="column">
+      <Text>Waiting for input: {args.name}</Text>
+    </Box>
+  )
 }

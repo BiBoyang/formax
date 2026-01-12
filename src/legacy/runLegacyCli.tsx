@@ -155,7 +155,9 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   })
 
   toolRegistry.register(createTaskToolModule(taskHandler))
-  if (process.env.FORMAX_PATCH_TASK_TOOL !== 'false') {
+  // Keep tools-copy.json as the single source of truth for tool specs by default.
+  // Set FORMAX_PATCH_TASK_TOOL=true if you want to patch Task.subagent_type into an enum of available subagents.
+  if (process.env.FORMAX_PATCH_TASK_TOOL === 'true') {
     toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
   }
   const tools = await toolRegistry.listSpecs()

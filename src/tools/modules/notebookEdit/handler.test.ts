@@ -77,7 +77,7 @@ describe('NotebookEditToolHandler', () => {
     await fsp.unlink(tmp)
   })
 
-  it('deletes a cell by id without requiring new_source', async () => {
+  it('deletes a cell by id', async () => {
     const handler = createNotebookEditToolHandler({
       requestAnswers: async () => {
         throw new Error('Unexpected prompt')
@@ -97,7 +97,7 @@ describe('NotebookEditToolHandler', () => {
       {
         id: '3',
         name: 'NotebookEdit',
-        input: { notebook_path: tmp, cell_id: 'a', edit_mode: 'delete' },
+        input: { notebook_path: tmp, cell_id: 'a', new_source: '', edit_mode: 'delete' },
       },
       { cwd: process.cwd(), agentDepth: 0, replMode: 'acceptEdits' },
     )

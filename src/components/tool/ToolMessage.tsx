@@ -34,6 +34,14 @@ export interface ToolInfo {
   expandInfo?: string
   /** Middle lines for multi-line output (e.g., Bash) */
   middleLines?: string[]
+  /** Nested tool previews (used by Task to surface sub-agent tool activity) */
+  nestedTools?: Array<{
+    id: string
+    name: string
+    input: Record<string, any>
+    status: 'running' | 'completed' | 'error'
+    summary?: string
+  }>
 }
 
 /**

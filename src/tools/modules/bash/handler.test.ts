@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
 import { TaskManager } from '../../runtime/taskManager'
 import type { UserInputManager } from '../../runtime/userInputManager'
 import { createBashToolHandler } from './handler'
@@ -25,7 +28,7 @@ describe('BashToolHandler', () => {
     const command = `"${process.execPath}" -e "console.log('hi')"`
 
     const result = await handler.execute(
-      { id: '1', name: 'Bash', input: { command, run_in_background: true, confirm: true } } as any,
+      { id: '1', name: 'Bash', input: { command, run_in_background: true } } as any,
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
@@ -43,7 +46,7 @@ describe('BashToolHandler', () => {
     const handler = createBashToolHandler({ taskManager, userInput: approveUserInput })
 
     const result = await handler.execute(
-      { id: '1', name: 'Bash', input: { command: 'rm -rf /', confirm: true } } as any,
+      { id: '1', name: 'Bash', input: { command: 'rm -rf /' } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
 
@@ -55,14 +58,17 @@ describe('BashToolHandler', () => {
     const taskManager = new TaskManager()
     const handler = createBashToolHandler({ taskManager, userInput: cancelUserInput })
 
-    const command = `"${process.execPath}" -e "console.log('ok')"`
+    const dir = path.join(os.tmpdir(), `formax-bash-confirm-${Date.now()}`)
+    const command = `mkdir \"${dir}\"`
 
     const rejectedEvenWithConfirmFlag = await handler.execute(
-      { id: '1', name: 'Bash', input: { command, confirm: true } } as any,
+      { id: '1', name: 'Bash', input: { command } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
     expect(rejectedEvenWithConfirmFlag.is_error).toBe(true)
     expect(rejectedEvenWithConfirmFlag.content).toContain('User rejected')
+
+    await expect(fsp.stat(dir)).rejects.toThrow()
 
     const approvingHandler = createBashToolHandler({ taskManager, userInput: approveUserInput })
     const allowed = await approvingHandler.execute(
@@ -70,7 +76,7 @@ describe('BashToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
     expect(allowed.is_error).toBeUndefined()
-    expect(allowed.content).toContain('ok')
+    await expect(fsp.stat(dir)).resolves.toBeDefined()
   })
 
   it('plan mode allows read-only commands but blocks others by default', async () => {
@@ -90,5 +96,26 @@ describe('BashToolHandler', () => {
     )
     expect(blocked.is_error).toBe(true)
     expect(blocked.content).toContain('User rejected')
+  })
+
+  it('allows confirmation prompts inside a sub-agent', async () => {
+    const taskManager = new TaskManager()
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({ decision: 'approve' }),
+      submitAnswers: () => true,
+      reject: () => true,
+      isPending: () => false,
+    }
+    const handler = createBashToolHandler({ taskManager, userInput })
+
+    const dir = path.join(os.tmpdir(), `formax-bash-subagent-${Date.now()}`)
+    const command = `mkdir \"${dir}\"`
+    const result = await handler.execute(
+      { id: '1', name: 'Bash', input: { command } } as any,
+      { cwd: process.cwd(), agentDepth: 1, replMode: 'plan' },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    await expect(fsp.stat(dir)).resolves.toBeDefined()
   })
 })

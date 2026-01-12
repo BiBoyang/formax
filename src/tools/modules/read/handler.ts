@@ -4,6 +4,8 @@ import { createInterface } from 'node:readline'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { requireAbsolutePath } from '../../utils/paths'
+import { markFileRead } from '../../runtime/readLedger'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 const DEFAULT_LIMIT = 2000
 const MAX_LINE_CHARS = 2000
@@ -16,10 +18,11 @@ export const ReadToolHandler: ToolHandler = {
 
   async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
     try {
-      const input = call.input || {}
+      const input = requirePlainObject(call.input || {}, 'Read.input')
+      assertNoExtraKeys(input, ['file_path', 'offset', 'limit'], 'Read.input')
       const cwd = ctx.cwd || process.cwd()
 
-      const filePathRaw = (input as any).file_path || (input as any).path
+      const filePathRaw = (input as any).file_path
       if (!filePathRaw) throw new Error('Missing file_path')
 
       const { absolutePath: filePath } = requireAbsolutePath({
@@ -43,6 +46,7 @@ export const ReadToolHandler: ToolHandler = {
       }
 
       const out = await readCatNLines({ filePath, startLine, limit })
+      markFileRead(filePath)
       return { tool_use_id: call.id, content: out }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

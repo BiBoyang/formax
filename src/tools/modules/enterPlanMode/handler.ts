@@ -1,6 +1,7 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
+import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 const QUESTIONS: AskUserQuestion[] = [
   {
@@ -22,10 +23,21 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
       try {
+        if ((ctx.agentDepth ?? 0) > 0) {
+          return {
+            tool_use_id: call.id,
+            content: 'Error: EnterPlanMode is interactive and cannot be used inside a sub-agent.',
+            is_error: true,
+          }
+        }
+
         const mode = ctx.getReplMode?.() ?? ctx.replMode
         if (mode === 'plan') {
           return { tool_use_id: call.id, content: 'Already in plan mode.' }
         }
+
+        const input = requirePlainObject(call.input || {}, 'EnterPlanMode.input')
+        assertNoExtraKeys(input, [], 'EnterPlanMode.input')
 
         const answers = await userInput.requestAnswers({
           toolUseId: call.id,
@@ -53,4 +65,3 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
     },
   }
 }
-
