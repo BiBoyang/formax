@@ -125,7 +125,9 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
       {/* Tool call header: ⏺ ToolName(params) */}
       <Box>
         <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold>{toolName}</Text>
+        <Text bold color={theme.text}>
+          {toolName}
+        </Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{params}</Text>
         <Text color={theme.secondaryText}>)</Text>

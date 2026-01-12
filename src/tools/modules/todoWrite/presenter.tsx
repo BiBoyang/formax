@@ -22,7 +22,9 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold>TodoWrite</Text>
+          <Text bold color={theme.text}>
+            TodoWrite
+          </Text>
           <Text color={theme.secondaryText}>(</Text>
           <Text color={theme.secondaryText}>{todos.length} items</Text>
           <Text color={theme.secondaryText}>)</Text>

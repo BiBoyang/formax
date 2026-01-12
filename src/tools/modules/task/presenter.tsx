@@ -62,7 +62,9 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold>{toolLabel}</Text>
+        <Text bold color={theme.text}>
+          {toolLabel}
+        </Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{params}</Text>
         <Text color={theme.secondaryText}>)</Text>

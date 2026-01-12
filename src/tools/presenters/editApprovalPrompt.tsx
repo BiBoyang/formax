@@ -45,7 +45,7 @@ export function EditApprovalPrompt({
         // Escape should cancel the tool use and also interrupt the current turn so
         // the model doesn't continue emitting output after a rejected edit/write.
         submit({ kind: 'cancel' })
-        replUi?.abort()
+        queueMicrotask(() => replUi?.abort())
         return
       }
 
@@ -94,7 +94,7 @@ export function EditApprovalPrompt({
         else if (cursor === 2) setTyping(true)
         else {
           submit({ kind: 'cancel' })
-          replUi?.abort()
+          queueMicrotask(() => replUi?.abort())
         }
         return
       }

@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
+import { useReplUi } from '../../features/repl/replUiContext'
 
 export type BashApprovalDecision =
   | { kind: 'approve' }
@@ -19,6 +20,7 @@ export function BashApprovalPrompt({
   onDecision: (decision: BashApprovalDecision) => void
 }): React.ReactNode {
   const theme = getTheme()
+  const replUi = useReplUi()
   const [cursor, setCursor] = useState(0) // 0..2
   const submittedRef = useRef(false)
 
@@ -37,6 +39,9 @@ export function BashApprovalPrompt({
 
       if (key.escape) {
         submit({ kind: 'cancel' })
+        // Interrupt the current turn so the model doesn't continue emitting output
+        // after a rejected command approval.
+        queueMicrotask(() => replUi?.abort())
         return
       }
 
@@ -50,7 +55,10 @@ export function BashApprovalPrompt({
       if (key.return) {
         if (cursor === 0) submit({ kind: 'approve' })
         else if (cursor === 1) submit({ kind: 'approve_remember' })
-        else submit({ kind: 'cancel' })
+        else {
+          submit({ kind: 'cancel' })
+          queueMicrotask(() => replUi?.abort())
+        }
       }
     },
     { isActive: true },
@@ -92,4 +100,3 @@ function MenuRow({ cursor, label }: { cursor: boolean; label: string }): React.R
     </Box>
   )
 }
-

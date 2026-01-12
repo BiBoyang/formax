@@ -53,7 +53,9 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <PulsingDot color={dotColor} />
-        <Text bold>AskUserQuestion</Text>
+        <Text bold color={theme.text}>
+          AskUserQuestion
+        </Text>
         <Text color={theme.secondaryText}>(</Text>
         <Text color={theme.secondaryText}>{String(questions.length || 1)} questions</Text>
         <Text color={theme.secondaryText}>)</Text>

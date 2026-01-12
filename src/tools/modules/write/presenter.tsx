@@ -36,7 +36,9 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold>Updated plan</Text>
+          <Text bold color={theme.text}>
+            Updated plan
+          </Text>
         </Box>
 
         {status !== 'running' && (
@@ -67,7 +69,9 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <PulsingDot color={theme.secondaryText} pulse />
-          <Text bold>Write</Text>
+          <Text bold color={theme.text}>
+            Write
+          </Text>
           <Text color={theme.secondaryText}>(</Text>
           <Text color={theme.secondaryText}>{fileName}</Text>
           <Text color={theme.secondaryText}>)</Text>
