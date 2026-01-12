@@ -44,6 +44,11 @@ export type SlashCommandEffect =
       recordForNextTurn?: LocalCommandRecord
     }
   | {
+      kind: 'local_async'
+      loadingText?: string
+      run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
+    }
+  | {
       kind: 'llm'
       blocks: PromptBlock[]
       loadingText?: string
@@ -81,7 +86,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { command: '/statusline', description: "Configure Claude Code's status line UI", implemented: false },
   { command: '/ide', description: 'Manage IDE integrations and show status', implemented: false },
   { command: '/cost', description: 'Show total cost and duration of the session', implemented: false },
-  { command: '/doctor', description: 'Diagnose and verify installation and settings', implemented: false },
+  { command: '/doctor', description: 'Diagnose and verify installation and settings', implemented: true },
   { command: '/terminal-setup', description: 'Install terminal key bindings and settings', implemented: false },
   { command: '/init', description: 'Initialize a CLAUDE.md file with repo documentation', implemented: true },
 ]
@@ -92,6 +97,7 @@ export function createSlashCommandRegistry(deps: {
   plan?: { getPlanPath: () => string | null }
   promptProfile?: { get: () => PromptProfile; set: (next: PromptProfile) => void }
   status?: { get: () => StatusSnapshot }
+  doctor?: { run: () => Promise<string> }
 }): SlashCommandRegistry {
   const pluginEntries = loadClaudeCommandEntries(deps.cwd)
 
@@ -167,6 +173,18 @@ export function createSlashCommandRegistry(deps: {
       const snapshot = deps.status?.get?.()
       if (!snapshot) return { kind: 'local', stdout: 'Status is not available in this context.' }
       return { kind: 'local', stdout: formatStatusOutput(snapshot) }
+    },
+  })
+
+  byCommand.set('/doctor', {
+    spec: byCommand.get('/doctor')!.spec,
+    dispatch: () => {
+      if (!deps.doctor) return { kind: 'local', stdout: 'Doctor is not available in this context.' }
+      return {
+        kind: 'local_async',
+        loadingText: 'Diagnosing',
+        run: async () => ({ stdout: await deps.doctor.run() }),
+      }
     },
   })
 

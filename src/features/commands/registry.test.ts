@@ -52,4 +52,17 @@ describe('SlashCommandRegistry', () => {
     expect(effect.stdout).toContain('Formax v0.0.0-test')
     expect(effect.stdout).toContain('LLM:')
   })
+
+  it('dispatches /doctor as an async local command when doctor is provided', async () => {
+    const reg = createSlashCommandRegistry({
+      cwd: process.cwd(),
+      doctor: { run: async () => 'Doctor OK\n' },
+    })
+
+    const effect = reg.dispatch('/doctor')
+    expect(effect?.kind).toBe('local_async')
+    if (!effect || effect.kind !== 'local_async') return
+    const out = await effect.run()
+    expect(out.stdout).toContain('Doctor OK')
+  })
 })

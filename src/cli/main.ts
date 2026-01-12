@@ -1,7 +1,6 @@
 import os from 'node:os'
-import { constants as fsConstants } from 'node:fs'
-import fs from 'node:fs/promises'
 import type { FileStore } from '../adapters/fs/fileStore.js'
+import { checkWritableDir } from '../adapters/fs/checkWritableDir.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { testSetupConnection } from '../adapters/setup/connectionTest.js'
@@ -10,6 +9,8 @@ import type { ProviderId } from '../core/config/schema.js'
 import { ProviderIdSchema } from '../core/config/schema.js'
 import { configMigrate } from '../core/config/migrate.js'
 import { configShow } from '../core/config/show.js'
+import { runDoctor } from '../core/diagnostics/doctor.js'
+import { formatDoctorHuman } from '../core/diagnostics/format.js'
 import type { ConnectionTestResult } from '../core/setup/types.js'
 import { loadRuntimeConfig } from '../env/config.js'
 import { parseCliArgs } from './args.js'
@@ -160,58 +161,6 @@ function formatStatusHuman(args: { version: string; cwd: string; res: Awaited<Re
   return lines.join('\n') + '\n'
 }
 
-type DoctorCheckStatus = 'pass' | 'warn' | 'fail'
-type DoctorCheck = {
-  id: string
-  status: DoctorCheckStatus
-  title: string
-  message: string
-  hint?: string
-}
-
-function formatDoctorHuman(args: { version: string; cwd: string; checks: DoctorCheck[]; warnings: string[] }): string {
-  const failed = args.checks.filter((c) => c.status === 'fail').length
-  const warned = args.checks.filter((c) => c.status === 'warn').length
-  const passed = args.checks.filter((c) => c.status === 'pass').length
-
-  const lines: string[] = []
-  lines.push(`Formax v${args.version}`)
-  lines.push(`CWD: ${args.cwd}`)
-  lines.push('')
-  lines.push(`Doctor: ${passed} passed · ${warned} warnings · ${failed} failed`)
-  lines.push('')
-
-  for (const c of args.checks) {
-    const icon = c.status === 'pass' ? '✓' : c.status === 'warn' ? '!' : '✗'
-    lines.push(`${icon} ${c.title}`)
-    lines.push(`  ${c.message}`)
-    if (c.hint) lines.push(`  Hint: ${c.hint}`)
-    lines.push('')
-  }
-
-  if (args.warnings.length) {
-    lines.push('Warnings:')
-    for (const w of args.warnings) lines.push(`- ${w}`)
-    lines.push('')
-  }
-
-  return lines.join('\n')
-}
-
-async function checkWritableDir(dirPath: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const dir = String(dirPath || '').trim()
-  if (!dir) return { ok: false, error: 'Missing directory path' }
-
-  try {
-    await fs.mkdir(dir, { recursive: true })
-    await fs.access(dir, fsConstants.W_OK)
-    return { ok: true }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: msg }
-  }
-}
-
 function formatAuthListHuman(res: Awaited<ReturnType<typeof authList>>): string {
   if (!res.items.length) return `No auth entries found (${res.authPath}).\n`
 
@@ -303,88 +252,35 @@ export async function dispatchCli(
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
     ])
 
-    const checks: DoctorCheck[] = []
+    const report = await runDoctor({
+      version,
+      cwd,
+      provider: shown.config.llm.provider,
+      runtime: {
+        llm: { apiKey: runtime.llm.apiKey, baseUrl: runtime.llm.baseUrl, model: runtime.llm.model },
+        paths: runtime.paths,
+      },
+      warnings: shown.warnings,
+      testConnection,
+      checkWritableDir,
+    })
 
-    if (!runtime.llm.apiKey) {
-      checks.push({
-        id: 'auth.apiKey',
-        status: 'fail',
-        title: 'API key configured',
-        message: 'No API key is configured.',
-        hint: 'Run `formax setup`, or write it to auth.json, or set ANTHROPIC_API_KEY2.',
-      })
-    } else {
-      checks.push({ id: 'auth.apiKey', status: 'pass', title: 'API key configured', message: 'API key is present (redacted).' })
-    }
-
-    if (!runtime.llm.baseUrl.trim()) {
-      checks.push({
-        id: 'llm.baseUrl',
-        status: 'fail',
-        title: 'Base URL configured',
-        message: 'No base URL is configured.',
-        hint: 'Run `formax setup` or set ANTHROPIC_BASE_URL2.',
-      })
-    } else {
-      checks.push({ id: 'llm.baseUrl', status: 'pass', title: 'Base URL configured', message: runtime.llm.baseUrl })
-    }
-
-    if (!runtime.llm.model.trim()) {
-      checks.push({
-        id: 'llm.model',
-        status: 'fail',
-        title: 'Model configured',
-        message: 'No model is configured.',
-        hint: 'Run `formax setup` or set it in config.json (llm.model).',
-      })
-    } else {
-      checks.push({ id: 'llm.model', status: 'pass', title: 'Model configured', message: runtime.llm.model })
-    }
-
-    if (runtime.llm.apiKey && runtime.llm.baseUrl.trim()) {
-      const res = await testConnection({ provider: shown.config.llm.provider, baseUrl: runtime.llm.baseUrl, apiKey: runtime.llm.apiKey })
-      if (res.ok === true) {
-        checks.push({ id: 'llm.connectivity', status: 'pass', title: 'API connectivity', message: 'Connection test succeeded.' })
-      } else {
-        checks.push({
-          id: 'llm.connectivity',
-          status: 'fail',
-          title: 'API connectivity',
-          message: `Connection test failed (${res.code}): ${res.message}`,
-          hint: 'Double-check base URL and credentials, then run `formax setup` to update.',
-        })
-      }
-    } else {
-      checks.push({
-        id: 'llm.connectivity',
-        status: 'warn',
-        title: 'API connectivity',
-        message: 'Skipped (missing API key or base URL).',
-      })
-    }
-
-    for (const [id, title, dir] of [
-      ['paths.logsDir', 'Logs directory writable', runtime.paths.logsDir],
-      ['paths.subagentsDir', 'Subagents directory writable', runtime.paths.subagentsDir],
-      ['paths.planDir', 'Plan directory writable', runtime.paths.planDir],
-    ] as const) {
-      const checked = await checkWritableDir(dir)
-      if (checked.ok === true) checks.push({ id, status: 'pass', title, message: dir })
-      else checks.push({ id, status: 'fail', title, message: dir, hint: checked.error })
-    }
-
-    const failed = checks.some((c) => c.status === 'fail')
-    const warnings = [...shown.warnings]
-    const data = { version, cwd, checks }
+    const failed = report.checks.some((c) => c.status === 'fail')
+    const data = { version: report.version, cwd: report.cwd, checks: report.checks }
 
     if (flags.json) {
-      return { kind: 'handled', exitCode: failed ? ExitCode.Error : ExitCode.Ok, stdout: okJson('doctor', data, warnings), stderr: '' }
+      return {
+        kind: 'handled',
+        exitCode: failed ? ExitCode.Error : ExitCode.Ok,
+        stdout: okJson('doctor', data, report.warnings),
+        stderr: '',
+      }
     }
 
     return {
       kind: 'handled',
       exitCode: failed ? ExitCode.Error : ExitCode.Ok,
-      stdout: formatDoctorHuman({ version, cwd, checks, warnings }) + '\n',
+      stdout: formatDoctorHuman({ version: report.version, cwd: report.cwd, checks: report.checks, warnings: report.warnings }) + '\n',
       stderr: '',
     }
   }

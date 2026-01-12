@@ -382,6 +382,54 @@ export function useReplController(deps: {
       if (!text || isLoading) return
 
       const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
+      if (slashEffect?.kind === 'local_async') {
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, userMsg])
+
+        setIsLoading(true)
+        setLoadingText(slashEffect.loadingText || 'Working')
+        thinkingBufferRef.current = ''
+        thinkingLastFlushAtRef.current = 0
+        setThinkingText('')
+        setError(null)
+        currentAssistantIdRef.current = null
+
+        try {
+          const out = await slashEffect.run()
+          const assistantMsg: Msg = {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: out.stdout,
+            timestamp: new Date(),
+          }
+
+          if (out.recordForNextTurn) {
+            localCommandRef.current = out.recordForNextTurn
+          }
+
+          setMessages((prev) => [...prev, assistantMsg])
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Command failed'
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              content: `Error: ${msg}`,
+              timestamp: new Date(),
+            },
+          ])
+        } finally {
+          setIsLoading(false)
+        }
+
+        return
+      }
       if (slashEffect?.kind === 'local') {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,

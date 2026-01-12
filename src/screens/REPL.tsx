@@ -21,6 +21,10 @@ import { nextReplMode, type ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
+import { runDoctor } from '../core/diagnostics/doctor'
+import { formatDoctorHuman } from '../core/diagnostics/format'
+import { testSetupConnection } from '../adapters/setup/connectionTest'
+import { checkWritableDir } from '../adapters/fs/checkWritableDir'
 
 type Props = {
   onExit?: () => void
@@ -74,8 +78,40 @@ export function REPL({
             ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
           }),
         },
+        doctor: {
+          run: async () => {
+            const report = await runDoctor({
+              version: String((pkg as any)?.version || 'unknown'),
+              cwd: process.cwd(),
+              provider: cfg.llm.provider,
+              runtime: {
+                llm: { apiKey: cfg.llm.apiKey, baseUrl: cfg.llm.baseUrl, model: cfg.llm.model },
+                paths: cfg.paths,
+              },
+              testConnection: testSetupConnection,
+              checkWritableDir,
+            })
+            return formatDoctorHuman({
+              version: report.version,
+              cwd: report.cwd,
+              checks: report.checks,
+              warnings: report.warnings,
+            }) + '\n'
+          },
+        },
       }),
-    [cfg.llm.baseUrl, cfg.llm.model, cfg.llm.provider, cfg.llm.timeoutMs, cfg.paths, cfg.ui.assistantTextMode, planSession, promptProfile, taskManager],
+    [
+      cfg.llm.apiKey,
+      cfg.llm.baseUrl,
+      cfg.llm.model,
+      cfg.llm.provider,
+      cfg.llm.timeoutMs,
+      cfg.paths,
+      cfg.ui.assistantTextMode,
+      planSession,
+      promptProfile,
+      taskManager,
+    ],
   )
   const { state, actions } = useReplController({
     engine,
