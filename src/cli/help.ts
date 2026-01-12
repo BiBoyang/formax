@@ -13,7 +13,11 @@ export function formatCliHelp(): string {
     `  formax status [--json]\n` +
     `  formax doctor [--json]\n` +
     `  formax setup\n` +
-    `  formax policy [--json]\n\n` +
+    `  formax policy list [--json]\n` +
+    `  formax policy explain --action <kind> [--cmd/--path/--url/--query <value>] [--json]\n` +
+    `  formax policy test --bash <cmd> [--json]\n` +
+    `  formax policy disable <ruleId> [--json]\n` +
+    `  formax policy delete <ruleId> [--json]\n\n` +
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +
     `  --no-color Disable ANSI colors\n` +

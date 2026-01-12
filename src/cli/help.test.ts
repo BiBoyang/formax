@@ -19,7 +19,11 @@ describe('formatCliHelp', () => {
         formax status [--json]
         formax doctor [--json]
         formax setup
-        formax policy [--json]
+        formax policy list [--json]
+        formax policy explain --action <kind> [--cmd/--path/--url/--query <value>] [--json]
+        formax policy test --bash <cmd> [--json]
+        formax policy disable <ruleId> [--json]
+        formax policy delete <ruleId> [--json]
 
       Flags:
         --json     Output machine-readable JSON

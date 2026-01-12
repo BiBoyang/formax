@@ -293,4 +293,250 @@ describe('dispatchCli', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('policy list --json returns empty rules when files are missing', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-list-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const res = await dispatchCli(['policy', 'list', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('policy list')
+      expect(Array.isArray(parsed?.data?.rules)).toBe(true)
+      expect(parsed.data.rules).toEqual([])
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy explain --json returns matched rule and decision', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-explain-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            reason: 'dangerous',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const res = await dispatchCli(['policy', 'explain', '--action', 'bash.exec', '--cmd', 'rm -rf /', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('policy explain')
+      expect(parsed.data.decision).toBe('deny')
+      expect(parsed.data.matchedRule.ruleId).toBe('deny-rm')
+      expect(parsed.data.matchedRule.reason).toBe('dangerous')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy test exits non-zero when decision is not allow', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-test-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const res = await dispatchCli(['policy', 'test', '--bash', 'rm -rf /', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(1)
+
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('policy test')
+      expect(parsed.data.decision).toBe('deny')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy explain returns usage error when required args are missing', async () => {
+    const res = await dispatchCli(['policy', 'explain', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('policy explain')
+  })
+
+  it('policy disable updates the matched rule', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-disable-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const disableRes = await dispatchCli(['policy', 'disable', 'deny-rm', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(disableRes.kind).toBe('handled')
+      if (disableRes.kind !== 'handled') return
+      expect(disableRes.exitCode).toBe(0)
+
+      const disableAgainRes = await dispatchCli(['policy', 'disable', 'deny-rm', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(disableAgainRes.kind).toBe('handled')
+      if (disableAgainRes.kind !== 'handled') return
+      expect(disableAgainRes.exitCode).toBe(0)
+
+      const listRes = await dispatchCli(['policy', 'list', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(listRes.kind).toBe('handled')
+      if (listRes.kind !== 'handled') return
+      const parsed = JSON.parse(listRes.stdout)
+      const rule = (parsed?.data?.rules || []).find((r: any) => r.ruleId === 'deny-rm')
+      expect(rule).toBeTruthy()
+      expect(rule.enabled).toBe(false)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy delete removes the matched rule', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-delete-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const deleteRes = await dispatchCli(['policy', 'delete', 'deny-rm', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(deleteRes.kind).toBe('handled')
+      if (deleteRes.kind !== 'handled') return
+      expect(deleteRes.exitCode).toBe(0)
+
+      const listRes = await dispatchCli(['policy', 'list', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(listRes.kind).toBe('handled')
+      if (listRes.kind !== 'handled') return
+      const parsed = JSON.parse(listRes.stdout)
+      expect((parsed?.data?.rules || []).some((r: any) => r.ruleId === 'deny-rm')).toBe(false)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
 })
