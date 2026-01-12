@@ -31,6 +31,7 @@ export interface ToolHandler {
 }
 
 export type ToolExecutor = (call: ToolCall, ctx: ExecutionContext) => Promise<ToolResult>
+export type ToolPreflight = (call: ToolCall, ctx: ExecutionContext) => Promise<ToolResult | null>
 
 const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
 
@@ -50,7 +51,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   }
 }
 
-export function createToolExecutor(handlers: ToolHandler[]): ToolExecutor {
+export function createToolExecutor(handlers: ToolHandler[], opts: { preflight?: ToolPreflight } = {}): ToolExecutor {
   return async (call, ctxPartial) => {
     const ctx = normalizeCtx(ctxPartial)
 
@@ -93,6 +94,10 @@ export function createToolExecutor(handlers: ToolHandler[]): ToolExecutor {
     }
 
     try {
+      if (opts.preflight) {
+        const res = await opts.preflight(call, ctx)
+        if (res) return res
+      }
       return await handler.execute(call, ctx)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

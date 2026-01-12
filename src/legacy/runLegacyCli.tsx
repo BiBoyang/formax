@@ -6,6 +6,7 @@ import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js
 import { loadRuntimeConfig } from '../env/config.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { createToolExecutor } from '../tools/executor/index.js'
+import { createPolicyPreflight } from '../tools/executor/policyPreflight.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
@@ -39,7 +40,8 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   // Optional: clear screen for a clean chat view
   await clearTerminal()
 
-  let cfg = await loadRuntimeConfig(process.env, process.cwd())
+  const fileStore = createNodeFileStore()
+  let cfg = await loadRuntimeConfig(process.env, process.cwd(), { fileStore })
   const forceSetup = process.env.FORMAX_FORCE_SETUP === '1'
   if (forceSetup || !cfg.llm.apiKey.trim()) {
     const providerOptions: SetupProviderOption[] = [
@@ -62,7 +64,6 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
       },
     ]
 
-    const store = createNodeFileStore()
     try {
       await new Promise<void>((resolve, reject) => {
         const instance = render(
@@ -72,7 +73,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
             onWrite={async (draft) => {
               if (!draft.provider) throw new Error('Missing provider')
               await writeSetupFiles({
-                fileStore: store,
+                fileStore,
                 cwd: process.cwd(),
                 env: process.env,
                 provider: draft.provider,
@@ -102,7 +103,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     }
 
     await clearTerminal()
-    cfg = await loadRuntimeConfig(process.env, process.cwd())
+    cfg = await loadRuntimeConfig(process.env, process.cwd(), { fileStore })
   }
   const model = cfg.llm.model || 'claude-sonnet-4-5-20250929'
 
@@ -141,7 +142,8 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()
-  const localExecutor = createToolExecutor(toolRegistry.getHandlers())
+  const preflight = createPolicyPreflight({ fileStore })
+  const localExecutor = createToolExecutor(toolRegistry.getHandlers(), { preflight })
   const subAgentRunner = createSubAgentRunner({
     client,
     executor: localExecutor,
@@ -161,7 +163,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
   }
   const tools = await toolRegistry.listSpecs()
-  const executor = createToolExecutor(toolRegistry.getHandlers())
+  const executor = createToolExecutor(toolRegistry.getHandlers(), { preflight })
   const engine = createChatEngine({ client, executor })
 
   render(
