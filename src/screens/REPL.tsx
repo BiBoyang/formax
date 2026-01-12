@@ -180,38 +180,39 @@ export function REPL({
     setSlashIndex(0)
   }, [])
 
-  useInput((key, meta) => {
-    if (meta.ctrl && key === 'c') {
-      actions.abort()
-      onExit ? onExit() : process.exit(0)
-    }
+	  useInput((key, meta) => {
+	    if (meta.ctrl && key === 'c') {
+	      actions.abort()
+	      onExit ? onExit() : process.exit(0)
+	    }
 
     if (meta.ctrl && key === 'o') {
       if (!state.isLoading) return
       if (!state.thinkingText.trim()) return
       setShowThinking((v) => !v)
-      return
-    }
+	      return
+	    }
 
-    if (meta.shift && meta.tab) {
-      setMode((m) => {
-        const next = nextReplMode(m)
+	    if (meta.escape) {
+	      actions.abort()
+	      return
+	    }
+
+	    if (isPromptMode) return
+
+	    if (meta.shift && meta.tab) {
+	      setMode((m) => {
+	        const next = nextReplMode(m)
         if (next === 'plan') ensurePlanPath()
         return next
-      })
-      return
-    }
+	      })
+	      return
+	    }
 
-    if (isPromptMode) return
-
-    if (meta.escape) {
-      actions.abort()
-    }
-
-    if (slashSuggestions.length > 0) {
-      if (meta.downArrow) {
-        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
-      } else if (meta.upArrow) {
+	    if (slashSuggestions.length > 0) {
+	      if (meta.downArrow) {
+	        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
+	      } else if (meta.upArrow) {
         setSlashIndex((i) => Math.max(i - 1, 0))
       } else if (meta.tab && selectedSlash) {
         setInput(selectedSlash)

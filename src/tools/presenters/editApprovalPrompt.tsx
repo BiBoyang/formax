@@ -18,7 +18,7 @@ export function EditApprovalPrompt({
 }): React.ReactNode {
   const theme = getTheme()
   const replUi = useReplUi()
-  const [cursor, setCursor] = useState(0) // 0..2
+  const [cursor, setCursor] = useState(0) // 0..3
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
   const submittedRef = useRef(false)
@@ -35,6 +35,11 @@ export function EditApprovalPrompt({
   useInput(
     (input, key) => {
       if (submittedRef.current) return
+
+      if (key.shift && key.tab) {
+        submit({ kind: 'approve_all' })
+        return
+      }
 
       if (key.escape) {
         // Escape should cancel the tool use and also interrupt the current turn so
@@ -53,7 +58,7 @@ export function EditApprovalPrompt({
         }
         if (key.downArrow) {
           setTyping(false)
-          setCursor((c) => Math.min(2, c + 1))
+          setCursor((c) => Math.min(3, c + 1))
           return
         }
 
@@ -79,14 +84,18 @@ export function EditApprovalPrompt({
         return
       }
       if (key.downArrow) {
-        setCursor((c) => Math.min(2, c + 1))
+        setCursor((c) => Math.min(3, c + 1))
         return
       }
 
       if (key.return) {
         if (cursor === 0) submit({ kind: 'approve' })
         else if (cursor === 1) submit({ kind: 'approve_all' })
-        else setTyping(true)
+        else if (cursor === 2) setTyping(true)
+        else {
+          submit({ kind: 'cancel' })
+          replUi?.abort()
+        }
         return
       }
 
@@ -110,15 +119,13 @@ export function EditApprovalPrompt({
         setCursor(2)
         return
       }
+      if (input === '4') {
+        setCursor(3)
+        return
+      }
     },
     { isActive: true },
   )
-
-  const feedbackLine = typing
-    ? `${typingValue}▏`
-    : typingValue.trim()
-      ? typingValue.trim()
-      : 'Type here to tell Claude what to do differently'
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -129,7 +136,8 @@ export function EditApprovalPrompt({
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes" />
         <MenuRow cursor={cursor === 1} label="2. Yes, allow all edits during this session (shift+tab)" />
-        <MenuRow cursor={cursor === 2} label={`3. ${feedbackLine}`} dim={!typing && !typingValue.trim()} />
+        <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
+        <MenuRow cursor={cursor === 3} label="4. Cancel" />
       </Box>
 
       <Box marginTop={1}>
@@ -146,6 +154,39 @@ function MenuRow({ cursor, label, dim }: { cursor: boolean; label: string; dim?:
     <Box>
       <Text>{cursor ? '❯ ' : '  '}</Text>
       <Text color={dim ? theme.secondaryText : color}>{label}</Text>
+    </Box>
+  )
+}
+
+function FeedbackRow({
+  cursor,
+  typing,
+  value,
+}: {
+  cursor: boolean
+  typing: boolean
+  value: string
+}): React.ReactNode {
+  const theme = getTheme()
+
+  const hasValue = Boolean(value.trim())
+  const showPlaceholder = !typing && !hasValue
+
+  const color = cursor ? theme.text : theme.secondaryText
+  const placeholderColor = cursor ? theme.secondaryText : theme.secondaryText
+
+  return (
+    <Box>
+      <Text>{cursor ? '❯ ' : '  '}</Text>
+      <Text color={color}>3. </Text>
+      {showPlaceholder ? (
+        <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
+      ) : (
+        <>
+          <Text color={color}>{(value || '').trim() || value}</Text>
+          {typing ? <Text inverse> </Text> : null}
+        </>
+      )}
     </Box>
   )
 }

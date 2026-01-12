@@ -19,9 +19,7 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
-    stdin.write('\u001B[B')
-    await tick()
-    stdin.write('\u001B[B')
+    stdin.write('3')
     await tick()
 
     stdin.write('1')
@@ -47,9 +45,7 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
-    stdin.write('\u001B[B')
-    await tick()
-    stdin.write('\u001B[B')
+    stdin.write('3')
     await tick()
 
     stdin.write('a')
@@ -94,4 +90,3 @@ describe('EditApprovalPrompt', () => {
     expect(abort).toHaveBeenCalledTimes(1)
   })
 })
-
