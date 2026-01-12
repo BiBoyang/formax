@@ -10,7 +10,8 @@ import { ProviderIdSchema } from '../core/config/schema.js'
 import { configMigrate } from '../core/config/migrate.js'
 import { configShow } from '../core/config/show.js'
 import { runDoctor } from '../core/diagnostics/doctor.js'
-import { formatDoctorHuman } from '../core/diagnostics/format.js'
+import { formatDoctorHuman, formatStatusHuman } from '../core/diagnostics/format.js'
+import { createStatusSnapshot } from '../core/diagnostics/status.js'
 import type { ConnectionTestResult } from '../core/setup/types.js'
 import { loadRuntimeConfig } from '../env/config.js'
 import { parseCliArgs } from './args.js'
@@ -123,44 +124,6 @@ function formatConfigMigrateHuman(res: Awaited<ReturnType<typeof configMigrate>>
   return lines.join('\n') + '\n'
 }
 
-function formatStatusHuman(args: { version: string; cwd: string; res: Awaited<ReturnType<typeof configShow>> }): string {
-  const { res } = args
-  const lines: string[] = []
-  lines.push(`Formax v${args.version}`)
-  lines.push(`CWD: ${args.cwd}`)
-  lines.push('')
-
-  lines.push('LLM:')
-  lines.push(`- provider: ${res.config.llm.provider} (source: ${res.sources['llm.provider'] ?? 'unknown'})`)
-  lines.push(`- baseUrl: ${res.config.llm.baseUrl} (source: ${res.sources['llm.baseUrl'] ?? 'unknown'})`)
-  lines.push(`- model: ${res.config.llm.model} (source: ${res.sources['llm.model'] ?? 'unknown'})`)
-  lines.push(`- timeoutMs: ${res.config.llm.timeoutMs} (source: ${res.sources['llm.timeoutMs'] ?? 'unknown'})`)
-  lines.push('')
-
-  lines.push('Auth:')
-  if (!res.auth) lines.push('- present: no')
-  else {
-    lines.push('- present: yes')
-    lines.push(`- provider: ${res.auth.provider}`)
-    lines.push(`- authRef: ${res.auth.authRef}`)
-    lines.push(`- source: ${res.auth.source}`)
-  }
-  lines.push('')
-
-  lines.push('Config dirs:')
-  lines.push(`- global: ${res.paths.globalConfigDir}`)
-  lines.push(`- project: ${res.paths.projectConfigDir}`)
-  lines.push(`- legacy: ${res.paths.legacyConfigDir}`)
-
-  if (res.warnings.length) {
-    lines.push('')
-    lines.push('Warnings:')
-    for (const w of res.warnings) lines.push(`- ${w}`)
-  }
-
-  return lines.join('\n') + '\n'
-}
-
 function formatAuthListHuman(res: Awaited<ReturnType<typeof authList>>): string {
   if (!res.items.length) return `No auth entries found (${res.authPath}).\n`
 
@@ -223,9 +186,30 @@ export async function dispatchCli(
   }
 
   if (args[0] === 'status') {
-    const res = await configShow({ fileStore: store, cwd, env, platform, homedir })
     const version = String((pkg as any)?.version || 'unknown')
-    const { warnings, ...data } = res
+    const [shown, runtime] = await Promise.all([
+      configShow({ fileStore: store, cwd, env, platform, homedir }),
+      loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
+    ])
+
+    const snapshot = createStatusSnapshot({
+      version,
+      cwd,
+      runtime: {
+        llm: {
+          provider: runtime.llm.provider,
+          baseUrl: runtime.llm.baseUrl,
+          model: runtime.llm.model,
+          timeoutMs: runtime.llm.timeoutMs,
+          apiKey: runtime.llm.apiKey,
+        },
+        paths: runtime.paths,
+        ui: runtime.ui,
+      },
+      shown,
+      workspaceRoots: [cwd],
+    })
+    const { warnings, ...data } = snapshot
 
     if (flags.json) {
       return {
@@ -239,7 +223,7 @@ export async function dispatchCli(
     return {
       kind: 'handled',
       exitCode: ExitCode.Ok,
-      stdout: formatStatusHuman({ version, cwd, res }),
+      stdout: formatStatusHuman(snapshot) + '\n',
       stderr: '',
     }
   }

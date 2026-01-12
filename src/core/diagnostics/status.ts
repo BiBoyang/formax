@@ -24,6 +24,8 @@ export type StatusSnapshot = {
   version: string
   cwd: string
   runtime: RuntimeStatusSnapshot
+  workspaceRoots: string[]
+  policySummary: string | null
   config: Pick<ConfigShowResult, 'paths' | 'files' | 'sources' | 'auth'> | null
   warnings: string[]
 }
@@ -31,6 +33,8 @@ export type StatusSnapshot = {
 export function createStatusSnapshot(args: {
   version: string
   cwd: string
+  workspaceRoots?: string[]
+  policySummary?: string | null
   runtime: {
     llm: { provider: string; baseUrl: string; model: string; timeoutMs: number; apiKey?: string }
     paths: { logsDir: string; subagentsDir: string; planDir: string }
@@ -40,6 +44,11 @@ export function createStatusSnapshot(args: {
 }): StatusSnapshot {
   const shown = args.shown ?? null
   const warnings = shown ? [...shown.warnings] : []
+
+  const workspaceRootsRaw = args.workspaceRoots?.length ? args.workspaceRoots : [args.cwd]
+  const workspaceRoots = Array.from(
+    new Set(workspaceRootsRaw.map((p) => String(p || '').trim()).filter(Boolean)),
+  )
 
   return {
     version: args.version,
@@ -62,8 +71,9 @@ export function createStatusSnapshot(args: {
         assistantTextMode: args.runtime.ui.assistantTextMode,
       },
     },
+    workspaceRoots,
+    policySummary: args.policySummary ?? null,
     config: shown ? { paths: shown.paths, files: shown.files, sources: shown.sources, auth: shown.auth } : null,
     warnings,
   }
 }
-

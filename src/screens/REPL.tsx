@@ -23,6 +23,7 @@ import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
 import { runDoctor } from '../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../core/diagnostics/format'
+import { createStatusSnapshot } from '../core/diagnostics/status'
 import { testSetupConnection } from '../adapters/setup/connectionTest'
 import { checkWritableDir } from '../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
@@ -67,18 +68,23 @@ export function REPL({
         plan: planSession,
         promptProfile: { get: () => promptProfile, set: setPromptProfile },
         status: {
-          get: () => ({
-            version: String((pkg as any)?.version || 'unknown'),
-            cwd: process.cwd(),
-            llm: {
-              provider: cfg.llm.provider,
-              baseUrl: cfg.llm.baseUrl,
-              model: cfg.llm.model,
-              timeoutMs: cfg.llm.timeoutMs,
-            },
-            paths: cfg.paths,
-            ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
-          }),
+          get: () =>
+            createStatusSnapshot({
+              version: String((pkg as any)?.version || 'unknown'),
+              cwd: process.cwd(),
+              runtime: {
+                llm: {
+                  provider: cfg.llm.provider,
+                  baseUrl: cfg.llm.baseUrl,
+                  model: cfg.llm.model,
+                  timeoutMs: cfg.llm.timeoutMs,
+                  apiKey: cfg.llm.apiKey,
+                },
+                paths: cfg.paths,
+                ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
+              },
+              workspaceRoots: [process.cwd()],
+            }),
         },
         doctor: {
           run: async () => {

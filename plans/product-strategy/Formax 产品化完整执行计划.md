@@ -239,7 +239,7 @@ src/
 - vitest：401/ENOENT/EACCES/DNS/timeout 映射稳定
 
 **TODO（建议拆成 PR4a/PR4b）**
-- [ ] PR4a：实现 `getStatusSnapshot()`：profile/provider/model/baseUrl/configPath/authPresent/logDir/workspaceRoots/policySummary/sources/warnings（全部脱敏）
+  - [x] PR4a：实现 `getStatusSnapshot()`：profile/provider/model/baseUrl/configPath/authPresent/logDir/workspaceRoots/policySummary/sources/warnings（全部脱敏）
 - [x] PR4a：实现 `runDoctor()`：至少 10 项检查（config/auth 可读写、目录权限、网络连通性、provider 可用性、规则解析、日志目录等）
 - [ ] PR4a：错误码与提示文案统一：每个错误给 “原因 + 可执行修复步骤”
 - [x] PR4b：CLI 子命令接入：`formax status|doctor`（human + `--json`）

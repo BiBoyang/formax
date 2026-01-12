@@ -2,32 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { PromptBlock } from '../../prompts'
 import { buildInitCommandContent } from '../../prompts'
+import { formatStatusHuman } from '../../core/diagnostics/format.js'
+import type { StatusSnapshot } from '../../core/diagnostics/status.js'
 import type { TaskManager } from '../../tools/runtime/taskManager'
 
 export type SlashCommandSpec = {
   command: string
   description: string
   implemented?: boolean
-}
-
-export type StatusSnapshot = {
-  version: string
-  cwd: string
-  llm: {
-    provider: string
-    baseUrl: string
-    model: string
-    timeoutMs: number
-  }
-  paths: {
-    logsDir: string
-    subagentsDir: string
-    planDir: string
-  }
-  ui: {
-    promptProfile: PromptProfile
-    assistantTextMode: 'stream' | 'buffered'
-  }
 }
 
 export type LocalCommandRecord = {
@@ -172,7 +154,7 @@ export function createSlashCommandRegistry(deps: {
     dispatch: () => {
       const snapshot = deps.status?.get?.()
       if (!snapshot) return { kind: 'local', stdout: 'Status is not available in this context.' }
-      return { kind: 'local', stdout: formatStatusOutput(snapshot) }
+      return { kind: 'local', stdout: formatStatusHuman(snapshot) + '\n' }
     },
   })
 
@@ -232,28 +214,6 @@ export function createSlashCommandRegistry(deps: {
   }
 
   return { list, suggest, dispatch }
-}
-
-function formatStatusOutput(s: StatusSnapshot): string {
-  const lines: string[] = []
-  lines.push(`Formax v${s.version}`)
-  lines.push(`CWD: ${s.cwd}`)
-  lines.push('')
-  lines.push('LLM:')
-  lines.push(`- provider: ${s.llm.provider}`)
-  lines.push(`- baseUrl: ${s.llm.baseUrl}`)
-  lines.push(`- model: ${s.llm.model}`)
-  lines.push(`- timeoutMs: ${s.llm.timeoutMs}`)
-  lines.push('')
-  lines.push('Paths:')
-  lines.push(`- logsDir: ${s.paths.logsDir}`)
-  lines.push(`- subagentsDir: ${s.paths.subagentsDir}`)
-  lines.push(`- planDir: ${s.paths.planDir}`)
-  lines.push('')
-  lines.push('UI:')
-  lines.push(`- promptProfile: ${s.ui.promptProfile}`)
-  lines.push(`- assistantTextMode: ${s.ui.assistantTextMode}`)
-  return lines.join('\n') + '\n'
 }
 
 export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {

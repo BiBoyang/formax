@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
+import { createStatusSnapshot } from '../../core/diagnostics/status.js'
 import { createSlashCommandRegistry } from './registry'
 
 describe('SlashCommandRegistry', () => {
@@ -33,16 +34,20 @@ describe('SlashCommandRegistry', () => {
   })
 
   it('dispatches /status as a local command when status is provided', () => {
+    const snapshot = createStatusSnapshot({
+      version: '0.0.0-test',
+      cwd: '/tmp/repo',
+      runtime: {
+        llm: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'm', timeoutMs: 123, apiKey: '' },
+        paths: { logsDir: '/tmp/logs', subagentsDir: '/tmp/subagents', planDir: '/tmp/plans' },
+        ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+      },
+    })
+
     const reg = createSlashCommandRegistry({
       cwd: process.cwd(),
       status: {
-        get: () => ({
-          version: '0.0.0-test',
-          cwd: '/tmp/repo',
-          llm: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'm', timeoutMs: 123 },
-          paths: { logsDir: '/tmp/logs', subagentsDir: '/tmp/subagents', planDir: '/tmp/plans' },
-          ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
-        }),
+        get: () => snapshot,
       },
     })
 

@@ -19,6 +19,8 @@ describe('createStatusSnapshot', () => {
     expect(snapshot.runtime.llm.apiKeyPresent).toBe(true)
     expect(snapshot.runtime.llm.model).toBe('m1')
     expect(snapshot.config).toBeNull()
+    expect(snapshot.workspaceRoots).toEqual(['/repo'])
+    expect(snapshot.policySummary).toBeNull()
   })
 
   it('includes config paths and warnings when provided', () => {
@@ -67,6 +69,7 @@ describe('createStatusSnapshot', () => {
 
     expect(snapshot.config?.paths.globalConfigDir).toBe('/g')
     expect(snapshot.warnings).toEqual(['w1'])
+    expect(snapshot.workspaceRoots).toEqual(['/repo'])
+    expect(snapshot.policySummary).toBeNull()
   })
 })
-
