@@ -81,6 +81,12 @@ export function createSubAgentRunner(deps: {
         },
       ]
 
+      let currentMode: 'normal' | 'acceptEdits' | 'plan' = replMode ?? 'normal'
+      const getReplMode = () => currentMode
+      const setReplMode = (next: 'normal' | 'acceptEdits' | 'plan') => {
+        currentMode = next
+      }
+
       let summary = ''
       const handleEvent: StreamSink = (ev: StreamEvent) => {
         onEvent?.(ev)
@@ -100,7 +106,9 @@ export function createSubAgentRunner(deps: {
           signal,
           exec: {
             agentDepth: 1,
-            replMode: replMode ?? 'normal',
+            replMode: currentMode,
+            getReplMode,
+            setReplMode,
             allowTools: Array.from(allowed),
             denyTools: Array.from(NESTED_DENY_TOOLS),
           },

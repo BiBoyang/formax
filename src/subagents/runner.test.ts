@@ -102,6 +102,45 @@ class WildcardToolUseClient {
   }
 }
 
+class ReplModeFlipClient {
+  private callCount = 0
+
+  async streamOnce(args: StreamOnceArgs): Promise<{
+    contentBlocks: any[]
+    stopReason: string | null
+    toolResults: ToolResult[]
+  }> {
+    this.callCount++
+
+    if (this.callCount === 1) {
+      const call: ToolCall = { id: 'w1', name: 'Write', input: { file_path: '/tmp/one', content: 'x' } }
+      const result = await args.executeTool(call)
+      return {
+        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        stopReason: 'tool_use',
+        toolResults: [result],
+      }
+    }
+
+    if (this.callCount === 2) {
+      const call: ToolCall = { id: 'w2', name: 'Write', input: { file_path: '/tmp/two', content: 'y' } }
+      const result = await args.executeTool(call)
+      return {
+        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        stopReason: 'tool_use',
+        toolResults: [result],
+      }
+    }
+
+    args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
+    return {
+      contentBlocks: [{ type: 'text', text: 'done' }],
+      stopReason: 'end_turn',
+      toolResults: [],
+    }
+  }
+}
+
 describe('SubAgentRunner', () => {
   it('filters tools by allowlist and forbids nested tools', async () => {
     const client = new RecordingClient('ok')
@@ -214,5 +253,42 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
+  })
+
+  it('supports acceptEdits mode flips inside subagents', async () => {
+    const client = new ReplModeFlipClient()
+    const seen: string[] = []
+    const handler: ToolHandler = {
+      canHandle(name) {
+        return name === 'Write'
+      },
+      async execute(call, ctx) {
+        const mode = String(ctx.getReplMode?.() ?? ctx.replMode ?? '')
+        seen.push(mode)
+        if (call.id === 'w1') ctx.setReplMode?.('acceptEdits')
+        return { tool_use_id: call.id, content: mode }
+      },
+    }
+    const executor = createToolExecutor([handler])
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [tool('Write'), tool('Read')],
+    })
+
+    const result = await runner.run({
+      agent: {
+        name: 'any',
+        description: 'any',
+        tools: ['Write'],
+        systemPrompt: 'Return summary only.',
+      },
+      task: 'x',
+      replMode: 'normal',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.summary).toBe('done')
+    expect(seen).toEqual(['normal', 'acceptEdits'])
   })
 })
