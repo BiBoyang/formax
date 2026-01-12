@@ -1,12 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-type Violation = {
-  file: string
-  specifier: string
-  reason: string
-}
-
 const REPO_ROOT = process.cwd()
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
 const CORE_ROOT = path.join(SRC_ROOT, 'core')
@@ -19,14 +13,14 @@ const IMPORT_SPECIFIER_RE = /(?:^|\n)\s*(?:import|export)\s+(?:[^'"]*?\sfrom\s+)
 const DYNAMIC_IMPORT_RE = /import\(\s*['"]([^'"]+)['"]\s*\)/g
 const REQUIRE_RE = /require\(\s*['"]([^'"]+)['"]\s*\)/g
 
-function isUnderDir(filePath: string, dir: string): boolean {
+function isUnderDir(filePath, dir) {
   const rel = path.relative(dir, filePath)
   return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..')
 }
 
-function listSourceFiles(dir: string): string[] {
-  const out: string[] = []
-  const stack: string[] = [dir]
+function listSourceFiles(dir) {
+  const out = []
+  const stack = [dir]
 
   while (stack.length > 0) {
     const current = stack.pop()
@@ -52,12 +46,12 @@ function listSourceFiles(dir: string): string[] {
   return out
 }
 
-function extractImportSpecifiers(source: string): string[] {
-  const specs = new Set<string>()
+function extractImportSpecifiers(source) {
+  const specs = new Set()
 
   for (const re of [IMPORT_SPECIFIER_RE, DYNAMIC_IMPORT_RE, REQUIRE_RE]) {
     re.lastIndex = 0
-    let match: RegExpExecArray | null = null
+    let match = null
     while ((match = re.exec(source))) {
       const spec = match[1]
       if (spec) specs.add(spec)
@@ -67,13 +61,13 @@ function extractImportSpecifiers(source: string): string[] {
   return Array.from(specs)
 }
 
-function packageNameFromSpecifier(specifier: string): string {
+function packageNameFromSpecifier(specifier) {
   const s = specifier.trim()
   if (s.startsWith('@')) return s.split('/').slice(0, 2).join('/')
   return s.split('/')[0] || s
 }
 
-function checkCoreImports(file: string, specifier: string): string | null {
+function checkCoreImports(file, specifier) {
   const raw = specifier.trim()
   if (!raw) return null
 
@@ -89,16 +83,17 @@ function checkCoreImports(file: string, specifier: string): string | null {
   const pkg = packageNameFromSpecifier(raw)
   if (pkg.startsWith('node:')) return 'Node built-ins are not allowed in core'
   if (FORBIDDEN_EXTERNAL_PACKAGES.has(pkg)) return `External package "${pkg}" is not allowed in core`
-  if (!ALLOWED_EXTERNAL_PACKAGES.has(pkg))
+  if (!ALLOWED_EXTERNAL_PACKAGES.has(pkg)) {
     return `External package "${pkg}" is not in the allowlist (allowed: ${Array.from(ALLOWED_EXTERNAL_PACKAGES).join(', ') || '(none)'})`
+  }
 
   return null
 }
 
-function main(): void {
+function main() {
   if (!fs.existsSync(CORE_ROOT)) return
 
-  const violations: Violation[] = []
+  const violations = []
   for (const file of listSourceFiles(CORE_ROOT)) {
     const source = fs.readFileSync(file, 'utf8')
     const imports = extractImportSpecifiers(source)
@@ -110,7 +105,7 @@ function main(): void {
 
   if (violations.length === 0) return
 
-  const rel = (p: string) => path.relative(REPO_ROOT, p)
+  const rel = (p) => path.relative(REPO_ROOT, p)
   const lines = violations
     .map((v) => `- ${rel(v.file)}: "${v.specifier}" (${v.reason})`)
     .sort((a, b) => a.localeCompare(b))
@@ -121,3 +116,4 @@ function main(): void {
 }
 
 main()
+
