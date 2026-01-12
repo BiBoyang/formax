@@ -169,7 +169,7 @@ function FeedbackRow({
 }): React.ReactNode {
   const theme = getTheme()
 
-  const hasValue = Boolean(value.trim())
+  const hasValue = Boolean((value || '').trim())
   const showPlaceholder = !typing && !hasValue
 
   const color = cursor ? theme.text : theme.secondaryText
@@ -183,8 +183,8 @@ function FeedbackRow({
         <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
       ) : (
         <>
-          <Text color={color}>{(value || '').trim() || value}</Text>
-          {typing ? <Text inverse> </Text> : null}
+          <Text color={color}>{value || ''}</Text>
+          {typing ? <Text color={theme.secondaryText}>▏</Text> : null}
         </>
       )}
     </Box>

@@ -92,7 +92,7 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
             }
             return {
               tool_use_id: call.id,
-              content: `Tool use rejected with user message: ${feedback}`,
+              content: `User requested changes. Feedback: ${feedback}`,
               is_error: true,
             }
           } else {
