@@ -304,11 +304,6 @@ export function REPL({
     )
     if (hasStreamingAssistant) return false
 
-    const hasRunningTool = state.transientMessages.some(
-      (m) => m.role === 'tool' && m.toolInfo?.status === 'running',
-    )
-    if (hasRunningTool) return false
-
     return true
   }, [isPromptMode, state.isLoading, state.transientMessages])
 
