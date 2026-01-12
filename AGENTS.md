@@ -49,6 +49,15 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Avoid placeholder messages like `tmp`; keep summaries imperative and specific.
 - PRs should include a concise description, link relevant issues/plans, list tests run, and add terminal screenshots for Ink UI changes.
 
+## Documentation Hygiene
+- Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
+- For complex subsystems that have a local deep-dive README, keep it in sync when you change boundaries, control-flow, invariants, or extension points:
+  - `src/tools/README.md`
+  - `src/core/README.md`
+  - `src/streaming/README.md`
+  - `src/subagents/README.md`
+- Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
+
 ## Configuration & Runtime Notes
 - Runtime config is loaded via `loadRuntimeConfig()` (`src/env/config.ts`) and supports:
   - env vars (loaded via `dotenv/config` in `src/entrypoints/cli.tsx`)

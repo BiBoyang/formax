@@ -85,9 +85,14 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Config paths + migration/legacy behavior: `src/adapters/fs/configPaths.ts`
 - Reading config files (auth.json, etc): `src/adapters/fs/configFiles.ts`
 
+## Subsystem READMEs (Deep Dives)
+- Core (config/auth/setup/policy): `src/core/README.md`
+- Tools (registry/executor/presenters/runtime): `src/tools/README.md`
+- Streaming (SSE parsing + tool execution): `src/streaming/README.md`
+- Sub-agents (registry/runner/allowlist): `src/subagents/README.md`
+
 ## If You’re Adding a Feature, Start Here
 - UI behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
 - New tool: add `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}`, then register in `src/tools/registry.ts`
 - New slash command: add to `src/features/commands/registry.ts` (and optionally implement LLM tool exposure later)
 - Sub-agent capability/prompt: update `src/subagents/builtins.ts` and related prompt sources under `src/subagents/prompts/`
-
