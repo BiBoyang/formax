@@ -269,7 +269,7 @@ src/
 - [x] PR5a：定义 `PolicyAction`（fs.read/fs.write/bash.exec/net.fetch/net.search）+ `PolicyContext`（cwd/workspaceRoots/provider）
 - [x] PR5a：定义 rules JSON schema（global/project/session；decision=allow/prompt/deny；reason/template）
 - [x] PR5a：rules 必须包含 `ruleId/enabled/createdAt/scope`（否则无法撤销/审计，也不敢让用户点“remember”）
-- [ ] PR5b：实现 rules store（load/save/merge）+ precedence（project > global）
+- [x] PR5b：实现 rules store（load/save/merge）+ precedence（project > global）
 - [ ] PR5b：实现匹配算法与 explain（命中规则、拒绝原因、下一步建议）
 - [ ] PR5c：实现 CLI：`formax policy list|test|explain`（不依赖工具执行）
 - [ ] PR5c：实现 CLI：`formax policy delete|disable <ruleId>`（避免“点错一次永久坏掉”）
