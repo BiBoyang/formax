@@ -1,4 +1,6 @@
 import type { ProviderId } from '../config/schema.js'
+import { ErrorCode } from '../errors/codes.js'
+import type { ErrorCode as ErrorCodeValue } from '../errors/codes.js'
 import type { ConnectionTestResult } from '../setup/types.js'
 
 export type DoctorCheckStatus = 'pass' | 'warn' | 'fail'
@@ -9,6 +11,7 @@ export type DoctorCheck = {
   title: string
   message: string
   hint?: string
+  code?: ErrorCodeValue
 }
 
 export type DoctorReport = {
@@ -83,6 +86,27 @@ function pushConfigFileCheck(args: {
   })
 }
 
+function buildWritableDirHint(args: { id: string; error: string }): string {
+  const error = String(args.error || 'unknown error')
+
+  const mapping: Record<string, { envVar: string; configKey?: string }> = {
+    'paths.logsDir': { envVar: 'FORMAX_LOGS_DIR', configKey: 'paths.logsDir' },
+    'paths.subagentsDir': { envVar: 'FORMAX_SUBAGENTS_DIR', configKey: 'paths.subagentsDir' },
+    'paths.planDir': { envVar: 'FORMAX_PLAN_DIR', configKey: 'paths.planDir' },
+    'paths.configDir': { envVar: 'FORMAX_CONFIG_DIR' },
+  }
+
+  const entry = mapping[args.id]
+  const envVar = entry?.envVar ?? 'FORMAX_*'
+  const configKey = entry?.configKey
+
+  const steps: string[] = []
+  steps.push(`Permission error: ${error}`)
+  steps.push(`Pick a writable path and set ${envVar}.`)
+  if (configKey) steps.push(`Or set ${configKey} in config.json.`)
+  return steps.join(' ')
+}
+
 export async function runDoctor(args: {
   version: string
   cwd: string
@@ -106,6 +130,7 @@ export async function runDoctor(args: {
       title: 'API key configured',
       message: 'No API key is configured.',
       hint: 'Run `formax setup`, or write it to auth.json, or set ANTHROPIC_API_KEY2.',
+      code: ErrorCode.SetupRequired,
     })
   } else {
     checks.push({ id: 'auth.apiKey', status: 'pass', title: 'API key configured', message: 'API key is present (redacted).' })
@@ -118,6 +143,7 @@ export async function runDoctor(args: {
       title: 'Base URL configured',
       message: 'No base URL is configured.',
       hint: 'Run `formax setup` or set ANTHROPIC_BASE_URL2.',
+      code: ErrorCode.SetupRequired,
     })
   } else {
     checks.push({ id: 'llm.baseUrl', status: 'pass', title: 'Base URL configured', message: args.runtime.llm.baseUrl })
@@ -130,6 +156,7 @@ export async function runDoctor(args: {
       title: 'Model configured',
       message: 'No model is configured.',
       hint: 'Run `formax setup` or set it in config.json (llm.model).',
+      code: ErrorCode.SetupRequired,
     })
   } else {
     checks.push({ id: 'llm.model', status: 'pass', title: 'Model configured', message: args.runtime.llm.model })
@@ -150,6 +177,7 @@ export async function runDoctor(args: {
         title: 'API connectivity',
         message: `Connection test failed (${res.code}): ${res.message}`,
         hint: 'Double-check base URL and credentials, then run `formax setup` to update.',
+        code: res.code,
       })
     }
   } else {
@@ -168,7 +196,7 @@ export async function runDoctor(args: {
   ] as const) {
     const checked = await args.checkWritableDir(dir)
     if (checked.ok === true) checks.push({ id, status: 'pass', title, message: dir })
-    else checks.push({ id, status: 'fail', title, message: dir, hint: checked.error })
+    else checks.push({ id, status: 'fail', title, message: dir, hint: buildWritableDirHint({ id, error: checked.error }), code: ErrorCode.FsPermission })
   }
 
   if (args.config) {
@@ -237,7 +265,8 @@ export async function runDoctor(args: {
         status: 'fail',
         title: 'Config directory writable',
         message: paths.globalConfigDir,
-        hint: configDirCheck.error,
+        hint: buildWritableDirHint({ id: 'paths.configDir', error: configDirCheck.error }),
+        code: ErrorCode.FsPermission,
       })
     }
   } else {

@@ -239,15 +239,15 @@ src/
 - vitest：401/ENOENT/EACCES/DNS/timeout 映射稳定
 
 **TODO（建议拆成 PR4a/PR4b）**
-  - [x] PR4a：实现 `getStatusSnapshot()`：profile/provider/model/baseUrl/configPath/authPresent/logDir/workspaceRoots/policySummary/sources/warnings（全部脱敏）
+- [x] PR4a：实现 `getStatusSnapshot()`：profile/provider/model/baseUrl/configPath/authPresent/logDir/workspaceRoots/policySummary/sources/warnings（全部脱敏）
 - [x] PR4a：实现 `runDoctor()`：至少 10 项检查（config/auth 可读写、目录权限、网络连通性、provider 可用性、规则解析、日志目录等）
-- [ ] PR4a：错误码与提示文案统一：每个错误给 “原因 + 可执行修复步骤”
+- [x] PR4a：错误码与提示文案统一：每个错误给 “原因 + 可执行修复步骤”
 - [x] PR4b：CLI 子命令接入：`formax status|doctor`（human + `--json`）
 - [x] PR4b：REPL slash commands 接入：`/status` `/doctor`（当前 `/status` 基于 runtime snapshot；`/doctor` 复用 core/diagnostics）
-- [ ] PR4b：测试：doctor 的 error mapping、status 的 redaction、exit code 语义
+- [x] PR4b：测试：doctor 的 error mapping、status 的 redaction、exit code 语义
 
 **DoD（产品视角补充）**
-- [ ] `formax doctor` 在 3 种常见失败场景下能直接告诉用户下一步怎么做（缺 key / baseUrl 不通 / 无写权限）
+- [x] `formax doctor` 在 3 种常见失败场景下能直接告诉用户下一步怎么做（缺 key / baseUrl 不通 / 无写权限）
 
 ---
 

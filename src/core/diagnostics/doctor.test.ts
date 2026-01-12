@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ErrorCode } from '../errors/codes.js'
 import { runDoctor } from './doctor.js'
 
 describe('runDoctor', () => {
@@ -19,6 +20,7 @@ describe('runDoctor', () => {
     const connectivity = report.checks.find((c) => c.id === 'llm.connectivity')
 
     expect(apiKey?.status).toBe('fail')
+    expect(apiKey?.code).toBe(ErrorCode.SetupRequired)
     expect(connectivity?.status).toBe('warn')
   })
 
@@ -35,8 +37,14 @@ describe('runDoctor', () => {
       checkWritableDir: async () => ({ ok: false, error: 'EACCES' }),
     })
 
-    expect(report.checks.find((c) => c.id === 'llm.connectivity')?.status).toBe('fail')
-    expect(report.checks.find((c) => c.id === 'paths.logsDir')?.status).toBe('fail')
+    const connectivity = report.checks.find((c) => c.id === 'llm.connectivity')
+    const logsDir = report.checks.find((c) => c.id === 'paths.logsDir')
+
+    expect(connectivity?.status).toBe('fail')
+    expect(connectivity?.code).toBe(ErrorCode.NetworkError)
+
+    expect(logsDir?.status).toBe('fail')
+    expect(logsDir?.code).toBe(ErrorCode.FsPermission)
+    expect(logsDir?.hint).toContain('FORMAX_LOGS_DIR')
   })
 })
-
