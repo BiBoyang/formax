@@ -89,7 +89,7 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
               is_error: true,
             }
           } else {
-            return { tool_use_id: call.id, content: 'Error: User rejected this edit.', is_error: true }
+            return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
           }
         }
 

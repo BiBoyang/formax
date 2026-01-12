@@ -193,6 +193,9 @@ export function formatToolResult(
   }
 
   if (isError) {
+    if (/^Tool use rejected\b/.test(result)) {
+      return { summary: result.slice(0, 100) }
+    }
     return { summary: `Error: ${result.slice(0, 100)}` }
   }
   

@@ -1,36 +1,15 @@
-import os from 'node:os'
-import path from 'node:path'
+import { formatPathForDisplay, isSameFilePath as isSameFilePathUtil, normalizePathForCompare as normalizePathForCompareUtil } from './paths'
 
 export function formatPlanPathForDisplay(filePath: string): string {
-  const raw = String(filePath || '')
-  if (!raw) return raw
-
-  const home = os.homedir()
-  if (home && (raw === home || raw.startsWith(home + path.sep))) {
-    return `~${raw.slice(home.length)}`
-  }
-
-  return raw
+  return formatPathForDisplay(filePath)
 }
 
 export function normalizePathForCompare(rawPath: string, cwd: string = process.cwd()): string {
-  const raw = String(rawPath || '').trim()
-  if (!raw) return ''
-
-  const home = os.homedir()
-  const expanded =
-    raw === '~'
-      ? home
-      : raw.startsWith('~/') || raw.startsWith('~\\')
-        ? path.join(home, raw.slice(2))
-        : raw
-
-  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(cwd || process.cwd(), expanded)
-  return path.normalize(absolute)
+  return normalizePathForCompareUtil(rawPath, cwd)
 }
 
 export function isSameFilePath(a: string, b: string, cwd: string = process.cwd()): boolean {
-  return normalizePathForCompare(a, cwd) === normalizePathForCompare(b, cwd)
+  return isSameFilePathUtil(a, b, cwd)
 }
 
 export function buildPlanModeSystemReminder(planPath: string | null): string {

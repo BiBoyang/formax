@@ -87,13 +87,16 @@ export function createEditToolHandler(userInput: UserInputManager): ToolHandler 
           } else if (decision === 'approve') {
             // ok
           } else if (decision === 'feedback') {
+            if (!feedback) {
+              return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
+            }
             return {
               tool_use_id: call.id,
-              content: `Error: User requested changes. ${feedback ? `Feedback: ${feedback}` : ''}`.trim(),
+              content: `Tool use rejected with user message: ${feedback}`,
               is_error: true,
             }
           } else {
-            return { tool_use_id: call.id, content: 'Error: User rejected this edit.', is_error: true }
+            return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
           }
         }
 

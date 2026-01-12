@@ -31,6 +31,16 @@ export type ReplController = {
   }
 }
 
+function isAbortLikeError(err: unknown): boolean {
+  if (!err) return false
+  const e = err as { name?: unknown; message?: unknown }
+  const name = typeof e.name === 'string' ? e.name : ''
+  const message = typeof e.message === 'string' ? e.message : ''
+  if (name === 'AbortError') return true
+  if (message === 'Stream aborted' || message === 'Request aborted') return true
+  return /aborted/i.test(message)
+}
+
 export function useReplController(deps: {
   engine: ChatEngine
   tools: ToolDefinition[]
@@ -317,7 +327,7 @@ export function useReplController(deps: {
       }
 
       case 'error': {
-        if (ev.error.message === 'Stream aborted' || ev.error.message === 'Request aborted') {
+        if (isAbortLikeError(ev.error)) {
           return
         }
         setError(ev.error.message)
@@ -550,7 +560,7 @@ export function useReplController(deps: {
             : nextHistory
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to send message'
-        if (msg !== 'Stream aborted' && msg !== 'Request aborted') {
+        if (!isAbortLikeError(e)) {
           setError(msg)
           setMessages((prev) => [
             ...prev.filter((m) => !(m.role === 'assistant' && m.content === '')),

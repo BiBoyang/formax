@@ -56,19 +56,71 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   }
 
   if (status === 'running' && userInput?.isPending(toolUseId)) {
+    const cols = Math.max((process.stdout.columns || 80), 40)
+    const line = '─'.repeat(cols)
+
+    const rawContent = (input as any).content
+    const content = typeof rawContent === 'string' ? rawContent : ''
+    const preview = buildPreviewLines(content, 18)
+
     return (
-      <EditApprovalPrompt
-        title={`Do you want to create ${fileName}?`}
-        onDecision={(d) => {
-          if (!userInput) return
-          if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-          else if (d.kind === 'approve_all') userInput.submitAnswers(toolUseId, { decision: 'approve_all' })
-          else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-          else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-        }}
-      />
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={theme.secondaryText} pulse />
+          <Text bold>Write</Text>
+          <Text color={theme.secondaryText}>(</Text>
+          <Text color={theme.secondaryText}>{fileName}</Text>
+          <Text color={theme.secondaryText}>)</Text>
+        </Box>
+
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={theme.secondaryText}>{line}</Text>
+          <Box marginTop={1} marginBottom={1}>
+            <Text>Create file</Text>
+          </Box>
+
+          <Box borderStyle="round" borderColor={theme.secondaryText} paddingX={1} flexDirection="column">
+            <Text>{fileName}</Text>
+            <Text> </Text>
+            {preview.lines.map((l, i) => (
+              <Text key={i}>{l}</Text>
+            ))}
+            {preview.remaining > 0 ? (
+              <Text color={theme.secondaryText}>… +{preview.remaining} lines</Text>
+            ) : null}
+          </Box>
+
+          <EditApprovalPrompt
+            title={`Do you want to create ${fileName}?`}
+            onDecision={(d) => {
+              if (!userInput) return
+              if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+              else if (d.kind === 'approve_all') userInput.submitAnswers(toolUseId, { decision: 'approve_all' })
+              else if (d.kind === 'feedback')
+                userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+              else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+            }}
+          />
+        </Box>
+      </Box>
     )
   }
 
   return <ToolMessage message={message} />
+}
+
+function buildPreviewLines(
+  raw: string,
+  maxLines: number,
+): {
+  lines: string[]
+  remaining: number
+} {
+  const all = String(raw || '').split(/\r?\n/)
+  const slice = all.slice(0, maxLines)
+  const remaining = Math.max(0, all.length - slice.length)
+  return {
+    lines: slice.map((l) => (l.length === 0 ? ' ' : l)),
+    remaining,
+  }
 }

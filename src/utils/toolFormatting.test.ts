@@ -283,15 +283,19 @@ describe('formatToolResult', () => {
     )
   })
 
-  // Property test: Error results always start with "Error:"
-  it('should prefix error results with "Error:"', () => {
+  // Property test: Error results usually start with "Error:" (except known Claude-style rejections)
+  it('should prefix error results with "Error:" unless it is a tool-use rejection', () => {
     fc.assert(
       fc.property(
         fc.string(),
         fc.string(),
         (name, result) => {
           const output = formatToolResult(name, result, true)
-          expect(output.summary.startsWith('Error:')).toBe(true)
+          if (result.startsWith('Tool use rejected')) {
+            expect(output.summary).toBe(result.slice(0, 100))
+          } else {
+            expect(output.summary.startsWith('Error:')).toBe(true)
+          }
         }
       ),
       { numRuns: 100 }
