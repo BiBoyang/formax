@@ -2,26 +2,12 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
 import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
-const APPROVAL_QUESTIONS: AskUserQuestion[] = [
-  {
-    header: 'Edit',
-    question: 'Approve this edit?',
-    options: [
-      { label: 'Yes', description: 'Apply this change.' },
-      { label: 'Yes, allow all edits during this session', description: 'Enable auto-accept edits for this session.' },
-      { label: 'Type here to tell Claude what to do differently', description: 'Reject and provide guidance.' },
-    ],
-    multiSelect: false,
-  },
-]
-
-export function createWriteToolHandler(userInput: UserInputManager): ToolHandler {
+export function createWriteToolHandler(): ToolHandler {
   return {
     canHandle(name: string): boolean {
       return name === 'Write'
@@ -53,36 +39,6 @@ export function createWriteToolHandler(userInput: UserInputManager): ToolHandler
             tool_use_id: call.id,
             content: 'Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.',
             is_error: true,
-          }
-        }
-
-        if (mode !== 'acceptEdits' && !(mode === 'plan' && isPlanFile)) {
-          const answersPromise = userInput.requestAnswers({
-            toolUseId: call.id,
-            questions: APPROVAL_QUESTIONS,
-            signal: ctx.signal,
-          })
-          ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
-          const answers = await answersPromise
-
-          const decision = String(answers.decision || '').toLowerCase()
-          const feedback = String(answers.feedback || '').trim()
-
-          if (decision === 'approve_all') {
-            ctx.setReplMode?.('acceptEdits')
-          } else if (decision === 'approve') {
-            // ok
-          } else if (decision === 'feedback') {
-            if (!feedback) {
-              return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
-            }
-            return {
-              tool_use_id: call.id,
-              content: `User requested changes. Feedback: ${feedback}`,
-              is_error: true,
-            }
-          } else {
-            return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
           }
         }
 

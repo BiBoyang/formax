@@ -36,7 +36,8 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         onDecision={(d) => {
           if (!userInput) return
           if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-          else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+          else if (d.kind === 'approve_remember')
+            userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
           else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
         }}
       />

@@ -15,14 +15,7 @@ function makeNotebook(cells: any[]) {
 
 describe('NotebookEditToolHandler', () => {
   it('replaces a cell source by id', async () => {
-    const handler = createNotebookEditToolHandler({
-      requestAnswers: async () => {
-        throw new Error('Unexpected prompt')
-      },
-      submitAnswers: () => true,
-      reject: () => true,
-      isPending: () => false,
-    })
+    const handler = createNotebookEditToolHandler()
     const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-1.ipynb`)
     const nb = makeNotebook([
       { id: 'a', cell_type: 'code', metadata: {}, source: ['print("old")\n'], outputs: [], execution_count: null },
@@ -45,14 +38,7 @@ describe('NotebookEditToolHandler', () => {
   })
 
   it('inserts a new cell after an id', async () => {
-    const handler = createNotebookEditToolHandler({
-      requestAnswers: async () => {
-        throw new Error('Unexpected prompt')
-      },
-      submitAnswers: () => true,
-      reject: () => true,
-      isPending: () => false,
-    })
+    const handler = createNotebookEditToolHandler()
     const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-2.ipynb`)
     const nb = makeNotebook([
       { id: 'a', cell_type: 'markdown', metadata: {}, source: ['# old\n'] },
@@ -78,14 +64,7 @@ describe('NotebookEditToolHandler', () => {
   })
 
   it('deletes a cell by id', async () => {
-    const handler = createNotebookEditToolHandler({
-      requestAnswers: async () => {
-        throw new Error('Unexpected prompt')
-      },
-      submitAnswers: () => true,
-      reject: () => true,
-      isPending: () => false,
-    })
+    const handler = createNotebookEditToolHandler()
     const tmp = path.join(os.tmpdir(), `formax-notebook-${Date.now()}-3.ipynb`)
     const nb = makeNotebook([
       { id: 'a', cell_type: 'markdown', metadata: {}, source: ['# a\n'] },

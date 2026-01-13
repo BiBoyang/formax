@@ -2,7 +2,6 @@ import { exec, spawn } from 'node:child_process'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../../runtime/taskManager'
-import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { classifyBashCommand } from './policy'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
@@ -10,22 +9,7 @@ const DEFAULT_TIMEOUT_MS = 120000
 const MAX_TIMEOUT_MS = 600000
 const MAX_OUTPUT_CHARS = 30000
 
-const APPROVAL_QUESTIONS: AskUserQuestion[] = [
-  {
-    header: 'Bash',
-    question: 'Approve running this command?',
-    options: [
-      { label: 'Yes', description: 'Run this command once.' },
-      { label: 'Yes, remember for this session', description: 'Run this command and do not ask again (session only).' },
-      { label: 'No', description: 'Cancel this command.' },
-    ],
-    multiSelect: false,
-  },
-]
-
-export function createBashToolHandler(deps: { taskManager: TaskManager; userInput: UserInputManager }): ToolHandler {
-  const approvedKeys = new Set<string>()
-
+export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolHandler {
   return {
     canHandle(name: string): boolean {
       return name === 'Bash'
@@ -54,7 +38,6 @@ export function createBashToolHandler(deps: { taskManager: TaskManager; userInpu
 
         const cmdCwd = cwd
         const cmdStr = String(cmd)
-        const approvalKey = `${cmdCwd}\n${cmdStr}`
 
         let decision = classifyBashCommand({
           command: cmdStr,
@@ -76,25 +59,6 @@ export function createBashToolHandler(deps: { taskManager: TaskManager; userInpu
             tool_use_id: call.id,
             content: `Error: Bash command denied (${decision.prefix}): ${decision.reason}`,
             is_error: true,
-          }
-        }
-
-        if (decision.risk === 'confirm' && !approvedKeys.has(approvalKey)) {
-          const answersPromise = deps.userInput.requestAnswers({
-            toolUseId: call.id,
-            questions: APPROVAL_QUESTIONS,
-            signal: ctx.signal,
-          })
-          ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
-          const answers = await answersPromise
-
-          const decisionStr = String(answers.decision || '').toLowerCase()
-          if (decisionStr === 'approve') {
-            // ok
-          } else if (decisionStr === 'approve_remember') {
-            approvedKeys.add(approvalKey)
-          } else {
-            return { tool_use_id: call.id, content: 'Error: User rejected this command.', is_error: true }
           }
         }
 

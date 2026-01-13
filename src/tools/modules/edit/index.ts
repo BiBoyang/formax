@@ -1,13 +1,12 @@
 import type { ToolModule } from '../../registry'
-import type { UserInputManager } from '../../runtime/userInputManager'
 import { createEditToolHandler } from './handler'
 import { EditToolPresenter } from './presenter'
 import { spec } from './spec'
 
-export function createEditToolModule(userInput: UserInputManager): ToolModule {
+export function createEditToolModule(): ToolModule {
   return {
     name: 'Edit',
-    handler: createEditToolHandler(userInput),
+    handler: createEditToolHandler(),
     presenter: EditToolPresenter,
     spec,
   }

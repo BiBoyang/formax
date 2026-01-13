@@ -35,7 +35,7 @@ const SCOPE_PRIORITY: Record<PolicyScope, number> = {
 const DEFAULT_DECISIONS: Record<PolicyAction['kind'], PolicyDecision> = {
   'fs.read': 'allow',
   'fs.write': 'prompt',
-  'bash.exec': 'prompt',
+  'bash.exec': 'allow',
   'net.fetch': 'deny',
   'net.search': 'deny',
 }

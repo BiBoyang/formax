@@ -16,7 +16,7 @@ describe('policy engine', () => {
   it('uses safe defaults when no rules match', () => {
     expect(evaluatePolicy({ action: { kind: 'fs.read', path: '/repo/README.md' }, rules: [] })).toBe('allow')
     expect(evaluatePolicy({ action: { kind: 'fs.write', path: '/repo/tmp.txt' }, rules: [] })).toBe('prompt')
-    expect(evaluatePolicy({ action: { kind: 'bash.exec', command: 'ls -la' }, rules: [] })).toBe('prompt')
+    expect(evaluatePolicy({ action: { kind: 'bash.exec', command: 'ls -la' }, rules: [] })).toBe('allow')
     expect(evaluatePolicy({ action: { kind: 'net.fetch', url: 'https://example.com' }, rules: [] })).toBe('deny')
     expect(evaluatePolicy({ action: { kind: 'net.search', query: 'hello' }, rules: [] })).toBe('deny')
   })
@@ -133,8 +133,7 @@ describe('policy engine', () => {
 
     const a2: PolicyAction = { kind: 'bash.exec', command: 'rmdir /tmp' }
     const r2 = explainPolicy({ action: a2, rules })
-    expect(r2.decision).toBe('prompt')
+    expect(r2.decision).toBe('allow')
     expect(r2.matchedRule).toBeUndefined()
   })
 })
-

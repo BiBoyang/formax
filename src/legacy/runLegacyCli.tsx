@@ -6,6 +6,7 @@ import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js
 import { loadRuntimeConfig } from '../env/config.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { createToolExecutor } from '../tools/executor/index.js'
+import { createApprovalService } from '../tools/executor/approvalService.js'
 import { createPolicyPreflight } from '../tools/executor/policyPreflight.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
@@ -142,7 +143,8 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()
-  const preflight = createPolicyPreflight({ fileStore })
+  const approval = createApprovalService({ fileStore, userInput: userInputManager })
+  const preflight = createPolicyPreflight({ fileStore, approval })
   const localExecutor = createToolExecutor(toolRegistry.getHandlers(), { preflight })
   const subAgentRunner = createSubAgentRunner({
     client,

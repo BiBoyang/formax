@@ -1,27 +1,13 @@
 import fsp from 'node:fs/promises'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type EditMode = 'replace' | 'insert' | 'delete'
 type CellType = 'code' | 'markdown'
 
-const APPROVAL_QUESTIONS: AskUserQuestion[] = [
-  {
-    header: 'Edit',
-    question: 'Approve this edit?',
-    options: [
-      { label: 'Yes', description: 'Apply this change.' },
-      { label: 'Yes, allow all edits during this session', description: 'Enable auto-accept edits for this session.' },
-      { label: 'Type here to tell Claude what to do differently', description: 'Reject and provide guidance.' },
-    ],
-    multiSelect: false,
-  },
-]
-
-export function createNotebookEditToolHandler(userInput: UserInputManager): ToolHandler {
+export function createNotebookEditToolHandler(): ToolHandler {
   return {
     canHandle(name: string): boolean {
       return name === 'NotebookEdit'
@@ -65,33 +51,6 @@ export function createNotebookEditToolHandler(userInput: UserInputManager): Tool
           rawPath: notebookPathRaw,
           fieldName: 'notebook_path',
         })
-
-        if (mode !== 'acceptEdits') {
-          const answersPromise = userInput.requestAnswers({
-            toolUseId: call.id,
-            questions: APPROVAL_QUESTIONS,
-            signal: ctx.signal,
-          })
-          ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
-          const answers = await answersPromise
-
-          const decision = String(answers.decision || '').toLowerCase()
-          const feedback = String(answers.feedback || '').trim()
-
-          if (decision === 'approve_all') {
-            ctx.setReplMode?.('acceptEdits')
-          } else if (decision === 'approve') {
-            // ok
-          } else if (decision === 'feedback') {
-            return {
-              tool_use_id: call.id,
-              content: `Error: User requested changes. ${feedback ? `Feedback: ${feedback}` : ''}`.trim(),
-              is_error: true,
-            }
-          } else {
-            return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
-          }
-        }
 
         const raw = await fsp.readFile(notebookPath, 'utf8')
         const notebook = JSON.parse(raw)

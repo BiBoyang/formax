@@ -5,7 +5,7 @@ import { useReplUi } from '../../features/repl/replUiContext'
 
 export type BashApprovalDecision =
   | { kind: 'approve' }
-  | { kind: 'approve_remember' }
+  | { kind: 'approve_remember'; scope: 'session' | 'project' | 'global' }
   | { kind: 'cancel' }
 
 export function BashApprovalPrompt({
@@ -22,6 +22,7 @@ export function BashApprovalPrompt({
   const theme = getTheme()
   const replUi = useReplUi()
   const [cursor, setCursor] = useState(0) // 0..2
+  const [rememberScope, setRememberScope] = useState<'session' | 'project' | 'global'>('session')
   const submittedRef = useRef(false)
 
   const submit = useCallback(
@@ -36,6 +37,12 @@ export function BashApprovalPrompt({
   useInput(
     (input, key) => {
       if (submittedRef.current) return
+
+      if (key.shift && key.tab) {
+        setRememberScope((s) => (s === 'session' ? 'project' : s === 'project' ? 'global' : 'session'))
+        setCursor(1)
+        return
+      }
 
       if (key.escape) {
         submit({ kind: 'cancel' })
@@ -54,7 +61,7 @@ export function BashApprovalPrompt({
 
       if (key.return) {
         if (cursor === 0) submit({ kind: 'approve' })
-        else if (cursor === 1) submit({ kind: 'approve_remember' })
+        else if (cursor === 1) submit({ kind: 'approve_remember', scope: rememberScope })
         else {
           submit({ kind: 'cancel' })
           queueMicrotask(() => replUi?.abort())
@@ -79,7 +86,7 @@ export function BashApprovalPrompt({
 
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes, run" />
-        <MenuRow cursor={cursor === 1} label="2. Yes, remember for this session" />
+        <MenuRow cursor={cursor === 1} label={`2. Yes, remember for ${rememberScope} (shift+tab to cycle)`} />
         <MenuRow cursor={cursor === 2} label="3. Cancel" />
       </Box>
 

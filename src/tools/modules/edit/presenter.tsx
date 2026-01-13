@@ -84,7 +84,8 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           onDecision={(d) => {
             if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_all') userInput.submitAnswers(toolUseId, { decision: 'approve_all' })
+            else if (d.kind === 'approve_remember')
+              userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
             else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
             else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
           }}

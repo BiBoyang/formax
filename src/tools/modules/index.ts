@@ -20,18 +20,18 @@ export function registerBuiltinToolModules(
   registry: ToolRegistry,
   deps: { taskManager: TaskManager; userInput: UserInputManager },
 ): void {
-  registry.register(createBashToolModule({ taskManager: deps.taskManager, userInput: deps.userInput }))
-  registry.register(createEditToolModule(deps.userInput))
+  registry.register(createBashToolModule({ taskManager: deps.taskManager }))
+  registry.register(createEditToolModule())
   registry.register(createEnterPlanModeToolModule(deps.userInput))
   registry.register(createExitPlanModeToolModule(deps.userInput))
   registry.register(globToolModule)
   registry.register(grepToolModule)
-  registry.register(createNotebookEditToolModule(deps.userInput))
+  registry.register(createNotebookEditToolModule())
   registry.register(readToolModule)
   registry.register(searchToolModule)
   registry.register(slashCommandToolModule)
   registry.register(skillToolModule)
   registry.register(todoWriteToolModule)
   registry.register(webSearchToolModule)
-  registry.register(createWriteToolModule(deps.userInput))
+  registry.register(createWriteToolModule())
 }
