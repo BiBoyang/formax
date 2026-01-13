@@ -9,6 +9,8 @@ import type { ExecutionContext } from './index.js'
 import { createAllowRuleFromAction } from '../../core/approval/rules.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { formatPolicyExplainLines } from './policyExplain.js'
+import type { AuditLog } from '../../adapters/audit/auditLog.js'
+import { nowIso } from '../../core/audit/schema.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
 
@@ -33,6 +35,7 @@ export type ApprovalService = {
 export function createApprovalService(args: {
   fileStore: FileStore
   userInput: UserInputManager | null
+  audit?: AuditLog
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
@@ -132,6 +135,18 @@ export function createApprovalService(args: {
       return { ok: false, result: { tool_use_id: call.id, content: 'Request aborted', is_error: true } }
     }
 
+    if (args.audit) {
+      void args.audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'approval.prompt',
+        agentDepth: ctx.agentDepth,
+        tool: { name: call.name, toolUseId: call.id },
+        action: args2.action,
+        effectiveDecision: args2.effectiveDecision,
+      })
+    }
+
     const answersPromise = args.userInput.requestAnswers({
       toolUseId: call.id,
       questions: [],
@@ -153,10 +168,33 @@ export function createApprovalService(args: {
     const scope: PolicyScope = scopeRaw === 'global' ? 'global' : scopeRaw === 'project' ? 'project' : 'session'
 
     if (decision === 'approve') {
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'approval.result',
+          agentDepth: ctx.agentDepth,
+          tool: { name: call.name, toolUseId: call.id },
+          action: args2.action,
+          outcome: 'approve',
+        })
+      }
       return { ok: true }
     }
 
     if (decision === 'approve_remember') {
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'approval.result',
+          agentDepth: ctx.agentDepth,
+          tool: { name: call.name, toolUseId: call.id },
+          action: args2.action,
+          outcome: 'approve_remember',
+          scope,
+        })
+      }
       if (scope === 'session') {
         // For session-only remembers, rely on existing REPL modes where applicable
         // (e.g. acceptEdits) and also keep a conservative policy allow for this action.
@@ -185,7 +223,29 @@ export function createApprovalService(args: {
 
     if (decision === 'feedback') {
       if (!feedback) {
+        if (args.audit) {
+          void args.audit.append({
+            schemaVersion: 1,
+            ts: nowIso(),
+            kind: 'approval.result',
+            agentDepth: ctx.agentDepth,
+            tool: { name: call.name, toolUseId: call.id },
+            action: args2.action,
+            outcome: 'cancel',
+          })
+        }
         return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
+      }
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'approval.result',
+          agentDepth: ctx.agentDepth,
+          tool: { name: call.name, toolUseId: call.id },
+          action: args2.action,
+          outcome: 'feedback',
+        })
       }
       return {
         ok: false,
@@ -197,6 +257,17 @@ export function createApprovalService(args: {
       }
     }
 
+    if (args.audit) {
+      void args.audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'approval.result',
+        agentDepth: ctx.agentDepth,
+        tool: { name: call.name, toolUseId: call.id },
+        action: args2.action,
+        outcome: 'cancel',
+      })
+    }
     return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
   }
 

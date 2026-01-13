@@ -87,4 +87,76 @@ describe('createDebugBundle', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('captures audit log with redaction when present', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-debug-bundle-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const logsDir = path.join(dir, 'logs')
+
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeTextAtomic(
+        path.join(logsDir, 'audit.ndjson'),
+        JSON.stringify({ schemaVersion: 1, kind: 'test', token: 'sk-super-secret' }) + '\n',
+        { mode: 0o600 },
+      )
+
+      const env = {
+        FORMAX_CONFIG_DIR: globalConfigDir,
+        FORMAX_LOGS_DIR: logsDir,
+        FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
+        FORMAX_PLAN_DIR: path.join(dir, 'plans'),
+        ANTHROPIC_BASE_URL2: 'https://api.anthropic.com/v1',
+        ANTHROPIC_MODEL: 'claude-test',
+      } as any
+
+      const [shown, runtime, policy] = await Promise.all([
+        configShow({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
+        loadRuntimeConfig(env, projectDir, { fileStore: store, platform: 'linux', homedir: dir }),
+        loadPolicyRules({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
+      ])
+
+      const status = createStatusSnapshot({
+        version: '0.0.0',
+        cwd: projectDir,
+        runtime: {
+          llm: {
+            provider: runtime.llm.provider,
+            baseUrl: runtime.llm.baseUrl,
+            model: runtime.llm.model,
+            timeoutMs: runtime.llm.timeoutMs,
+            apiKey: runtime.llm.apiKey,
+          },
+          paths: runtime.paths,
+          ui: runtime.ui,
+        },
+        shown,
+        workspaceRoots: [projectDir],
+      })
+
+      const doctor = { version: '0.0.0', cwd: projectDir, checks: [], warnings: [] }
+
+      const res = await createDebugBundle({
+        fileStore: store,
+        bundleDir: path.join(logsDir, 'doctor-bundle-audit-test'),
+        version: '0.0.0',
+        cwd: projectDir,
+        platform: 'linux',
+        nodeVersion: 'v-test',
+        shown,
+        status,
+        doctor,
+        policy,
+        logsDir,
+      })
+
+      const bundledAudit = await store.readText(path.join(res.bundleDir, 'logs', 'audit.ndjson'))
+      expect(bundledAudit).toContain('sk-<redacted>')
+      expect(bundledAudit).not.toContain('sk-super-secret')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
 })

@@ -3,6 +3,7 @@ import type { ConfigShowResult } from '../config/show.js'
 import type { LoadedPolicyRules } from '../policy/store.js'
 import type { DoctorReport } from './doctor.js'
 import type { StatusSnapshot } from './status.js'
+import { redactJsonSecrets, redactTextSecrets } from './redaction.js'
 
 type CapturedFile = {
   sourcePath: string
@@ -40,6 +41,7 @@ export async function createDebugBundle(args: {
   status: StatusSnapshot
   doctor: DoctorReport
   policy: LoadedPolicyRules
+  logsDir?: string
 }): Promise<DebugBundleResult> {
   const createdAt = new Date().toISOString()
   const bundleDir = args.bundleDir
@@ -97,6 +99,30 @@ export async function createDebugBundle(args: {
   await captureJsonFile(args.shown.paths.globalRulesPath, 'config/global-rules.json')
   await captureJsonFile(args.shown.paths.projectRulesPath, 'config/project-rules.json')
 
+  const captureTextFile = async (sourcePath: string, rel: string): Promise<void> => {
+    const bundlePath = joinPath(bundleDir, rel)
+    const exists = await args.fileStore.exists(sourcePath)
+    if (!exists) {
+      files.push({ sourcePath, bundlePath: rel, status: 'missing', redacted: false })
+      return
+    }
+
+    try {
+      const raw = await args.fileStore.readText(sourcePath)
+      const redactedText = redactTextSecrets(raw)
+      await args.fileStore.writeTextAtomic(bundlePath, redactedText, { mode: 0o600 })
+      files.push({ sourcePath, bundlePath: rel, status: 'written', redacted: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      warnings.push(`Failed to read ${sourcePath}: ${msg}`)
+      files.push({ sourcePath, bundlePath: rel, status: 'error', redacted: false, error: msg })
+    }
+  }
+
+  if (args.logsDir) {
+    await captureTextFile(joinPath(args.logsDir, 'audit.ndjson'), 'logs/audit.ndjson')
+  }
+
   const manifest: DebugBundleManifestV1 = {
     schemaVersion: 1,
     createdAt,
@@ -124,36 +150,4 @@ function joinPath(baseRaw: string, relRaw: string): string {
   const normalizedBase = base.endsWith(sep) ? base.slice(0, -1) : base
   const normalizedRel = rel.replaceAll('\\', '/').replaceAll('/', sep).replace(new RegExp(`^${sep}+`), '')
   return normalizedBase + sep + normalizedRel
-}
-
-function redactJsonSecrets(value: unknown): unknown {
-  if (typeof value === 'string') return redactTextSecrets(value)
-  if (value === null || value === undefined) return value
-  if (Array.isArray(value)) return value.map((v) => redactJsonSecrets(v))
-  if (typeof value !== 'object') return value
-
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (isSecretKey(k)) out[k] = '<redacted>'
-    else out[k] = redactJsonSecrets(v)
-  }
-  return out
-}
-
-function isSecretKey(key: string): boolean {
-  const k = String(key || '').toLowerCase()
-  return k.includes('apikey') || k.includes('api_key') || k.includes('token') || k.includes('authorization') || k.includes('password') || k.includes('secret')
-}
-
-function redactTextSecrets(text: string): string {
-  let out = String(text || '')
-
-  // Common key prefix patterns (OpenAI/Anthropic-style)
-  out = out.replace(/\bsk-[a-z0-9_-]{6,}\b/gi, 'sk-<redacted>')
-
-  // Common HTTP auth headers
-  out = out.replace(/(Authorization:\s*Bearer\s+)[^\s]+/gi, '$1<redacted>')
-  out = out.replace(/(x-api-key:\s*)[^\s]+/gi, '$1<redacted>')
-
-  return out
 }

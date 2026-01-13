@@ -416,6 +416,7 @@ export async function dispatchCli(
           status,
           doctor: report,
           policy,
+          logsDir: runtime.paths.logsDir,
         })
 
         bundle = { dir: res.bundleDir, manifestPath: res.manifestPath }

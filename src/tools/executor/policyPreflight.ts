@@ -11,10 +11,13 @@ import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { formatPolicyExplainLines } from './policyExplain.js'
+import type { AuditLog } from '../../adapters/audit/auditLog.js'
+import { nowIso } from '../../core/audit/schema.js'
 
 export function createPolicyPreflight(args: {
   fileStore: FileStore
   approval?: ApprovalService
+  audit?: AuditLog
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
@@ -80,6 +83,24 @@ export function createPolicyPreflight(args: {
       if (shouldPrompt) effectiveDecision = 'prompt'
     }
 
+    if (args.audit) {
+      void args.audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'policy.decision',
+        agentDepth: ctx.agentDepth,
+        tool: { name: call.name, toolUseId: call.id },
+        replMode: replMode ?? undefined,
+        action,
+        decision: {
+          raw: explained.decision,
+          effective: effectiveDecision,
+          matchedRule: explained.matchedRule,
+          suggestions: explained.suggestions,
+        },
+      })
+    }
+
     if (effectiveDecision === 'allow') return null
 
     if (effectiveDecision === 'deny') {
@@ -90,6 +111,18 @@ export function createPolicyPreflight(args: {
         ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
       )
 
+      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+    }
+
+    // Never block a sub-agent on interactive approval. Instead, return a structured error
+    // that the sub-agent can react to (e.g. choose a safer command or avoid writes).
+    if (ctx.agentDepth > 0) {
+      const lines: string[] = []
+      lines.push(`Error: Policy requires approval for ${action.kind}, but sub-agents cannot request approvals.`)
+      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
+      lines.push(
+        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
+      )
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 

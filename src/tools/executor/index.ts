@@ -1,5 +1,7 @@
 import type { ToolCall, ToolResult } from '../types'
 import type { StreamSink } from '../../streaming/types'
+import type { AuditLog } from '../../adapters/audit/auditLog.js'
+import { nowIso } from '../../core/audit/schema.js'
 
 export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 
@@ -51,61 +53,108 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   }
 }
 
-export function createToolExecutor(handlers: ToolHandler[], opts: { preflight?: ToolPreflight } = {}): ToolExecutor {
+export function createToolExecutor(
+  handlers: ToolHandler[],
+  opts: { preflight?: ToolPreflight; audit?: AuditLog } = {},
+): ToolExecutor {
   return async (call, ctxPartial) => {
     const ctx = normalizeCtx(ctxPartial)
+    const startedAt = Date.now()
+    const audit = opts.audit
+
+    const auditStart = () => {
+      if (!audit) return
+      void audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'tool.start',
+        agentDepth: ctx.agentDepth,
+        tool: { name: call.name, toolUseId: call.id },
+      })
+    }
+    const auditEnd = (isError: boolean) => {
+      if (!audit) return
+      void audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'tool.end',
+        agentDepth: ctx.agentDepth,
+        tool: { name: call.name, toolUseId: call.id },
+        durationMs: Math.max(0, Date.now() - startedAt),
+        isError,
+      })
+    }
+
+    auditStart()
 
     if (ctx.signal?.aborted) {
-      return { tool_use_id: call.id, content: 'Request aborted', is_error: true }
+      const res = { tool_use_id: call.id, content: 'Request aborted', is_error: true }
+      auditEnd(true)
+      return res
     }
 
     if (ctx.agentDepth > 0 && NESTED_DENY_TOOLS.has(call.name)) {
-      return {
+      const res = {
         tool_use_id: call.id,
         content: `Tool ${call.name} is not allowed inside a sub-agent`,
         is_error: true,
       }
+      auditEnd(true)
+      return res
     }
 
     const allowAll = ctx.allowTools?.includes('*') ?? false
     if (ctx.allowTools && !allowAll && !ctx.allowTools.includes(call.name)) {
-      return {
+      const res = {
         tool_use_id: call.id,
         content: `Tool ${call.name} is not in allow-list`,
         is_error: true,
       }
+      auditEnd(true)
+      return res
     }
 
     if (ctx.denyTools && ctx.denyTools.includes(call.name)) {
-      return {
+      const res = {
         tool_use_id: call.id,
         content: `Tool ${call.name} is in deny-list`,
         is_error: true,
       }
+      auditEnd(true)
+      return res
     }
 
     const handler = handlers.find((h) => h.canHandle(call.name))
     if (!handler) {
-      return {
+      const res = {
         tool_use_id: call.id,
         content: `Tool ${call.name} not implemented`,
         is_error: true,
       }
+      auditEnd(true)
+      return res
     }
 
     try {
       if (opts.preflight) {
         const res = await opts.preflight(call, ctx)
-        if (res) return res
+        if (res) {
+          auditEnd(Boolean(res.is_error))
+          return res
+        }
       }
-      return await handler.execute(call, ctx)
+      const res = await handler.execute(call, ctx)
+      auditEnd(Boolean(res.is_error))
+      return res
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      return {
+      const res = {
         tool_use_id: call.id,
         content: msg,
         is_error: true,
       }
+      auditEnd(true)
+      return res
     }
   }
 }

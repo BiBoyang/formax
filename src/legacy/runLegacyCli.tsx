@@ -8,6 +8,7 @@ import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { createToolExecutor } from '../tools/executor/index.js'
 import { createApprovalService } from '../tools/executor/approvalService.js'
 import { createPolicyPreflight } from '../tools/executor/policyPreflight.js'
+import { createNodeAuditLog } from '../adapters/audit/nodeAuditLog.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
@@ -143,9 +144,10 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()
-  const approval = createApprovalService({ fileStore, userInput: userInputManager })
-  const preflight = createPolicyPreflight({ fileStore, approval })
-  const localExecutor = createToolExecutor(toolRegistry.getHandlers(), { preflight })
+  const audit = createNodeAuditLog({ logsDir: cfg.paths.logsDir })
+  const approval = createApprovalService({ fileStore, userInput: userInputManager, audit })
+  const preflight = createPolicyPreflight({ fileStore, approval, audit })
+  const localExecutor = createToolExecutor(toolRegistry.getHandlers(), { preflight, audit })
   const subAgentRunner = createSubAgentRunner({
     client,
     executor: localExecutor,
@@ -165,7 +167,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
   }
   const tools = await toolRegistry.listSpecs()
-  const executor = createToolExecutor(toolRegistry.getHandlers(), { preflight })
+  const executor = createToolExecutor(toolRegistry.getHandlers(), { preflight, audit })
   const engine = createChatEngine({ client, executor })
 
   render(
