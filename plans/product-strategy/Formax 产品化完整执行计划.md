@@ -309,7 +309,7 @@ src/
 - [x] PR6d：测试：preflight 必经、remember 生效、deny 覆盖 allow、subagent wildcard 不回归
 
 **DoD（体验版）**
-- [ ] 任意需要审批的行为，用户看到的 UI/文案/选项顺序一致（至少手测 3 类：fs.write / bash.exec / net.fetch）
+- [x] 任意需要审批的行为，用户看到的 UI/文案/选项顺序一致（至少手测 3 类：fs.write / bash.exec / net.fetch）
 
 ---
 
