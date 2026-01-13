@@ -37,6 +37,24 @@ export function createApprovalService(args: {
 
   const getSessionRules = () => sessionRules.slice()
 
+  function buildUserRejectedContent(action: PolicyAction): string {
+    const what = (() => {
+      switch (action.kind) {
+        case 'fs.read':
+          return 'this read'
+        case 'fs.write':
+          return 'this edit'
+        case 'bash.exec':
+          return 'this command'
+        case 'net.fetch':
+        case 'net.search':
+          return 'this request'
+      }
+    })()
+
+    return `Error: User rejected ${what}.`
+  }
+
   async function persistAllowRule(args2: {
     scope: Exclude<PolicyScope, 'session'>
     action: PolicyAction
@@ -152,19 +170,19 @@ export function createApprovalService(args: {
 
     if (decision === 'feedback') {
       if (!feedback) {
-        return { ok: false, result: { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true } }
+        return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
       }
       return {
         ok: false,
         result: {
           tool_use_id: call.id,
-          content: `User requested changes. Feedback: ${feedback}`,
+          content: `Error: User requested changes. Feedback: ${feedback}`,
           is_error: true,
         },
       }
     }
 
-    return { ok: false, result: { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true } }
+    return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
   }
 
   return { getSessionRules, ensureApproved }

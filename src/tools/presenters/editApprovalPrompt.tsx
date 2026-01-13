@@ -18,7 +18,7 @@ export function EditApprovalPrompt({
 }): React.ReactNode {
   const theme = getTheme()
   const replUi = useReplUi()
-  const [cursor, setCursor] = useState(0) // 0..3
+  const [cursor, setCursor] = useState(0) // 0..2
   const [rememberScope, setRememberScope] = useState<'session' | 'project' | 'global'>('session')
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
@@ -60,7 +60,7 @@ export function EditApprovalPrompt({
         }
         if (key.downArrow) {
           setTyping(false)
-          setCursor((c) => Math.min(3, c + 1))
+          setCursor((c) => Math.min(2, c + 1))
           return
         }
 
@@ -86,18 +86,14 @@ export function EditApprovalPrompt({
         return
       }
       if (key.downArrow) {
-        setCursor((c) => Math.min(3, c + 1))
+        setCursor((c) => Math.min(2, c + 1))
         return
       }
 
       if (key.return) {
         if (cursor === 0) submit({ kind: 'approve' })
         else if (cursor === 1) submit({ kind: 'approve_remember', scope: rememberScope })
-        else if (cursor === 2) setTyping(true)
-        else {
-          submit({ kind: 'cancel' })
-          queueMicrotask(() => replUi?.abort())
-        }
+        else setTyping(true)
         return
       }
 
@@ -121,10 +117,6 @@ export function EditApprovalPrompt({
         setCursor(2)
         return
       }
-      if (input === '4') {
-        setCursor(3)
-        return
-      }
     },
     { isActive: true },
   )
@@ -139,7 +131,6 @@ export function EditApprovalPrompt({
         <MenuRow cursor={cursor === 0} label="1. Yes" />
         <MenuRow cursor={cursor === 1} label={`2. Yes, remember for ${rememberScope} (shift+tab to cycle)`} />
         <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
-        <MenuRow cursor={cursor === 3} label="4. Cancel" />
       </Box>
 
       <Box marginTop={1}>
@@ -186,7 +177,7 @@ function FeedbackRow({
       ) : (
         <>
           <Text color={color}>{value || ''}</Text>
-          {typing ? <Text color={theme.secondaryText}>▏</Text> : null}
+          {typing ? <Text inverse> </Text> : null}
         </>
       )}
     </Box>

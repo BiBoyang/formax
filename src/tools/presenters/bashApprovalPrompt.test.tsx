@@ -28,7 +28,7 @@ describe('BashApprovalPrompt', () => {
     expect(abort).toHaveBeenCalledTimes(1)
   })
 
-  it('cancel option aborts the current turn', async () => {
+  it('allows providing feedback by typing on option 3', async () => {
     const onDecision = vi.fn()
     const abort = vi.fn()
 
@@ -39,16 +39,19 @@ describe('BashApprovalPrompt', () => {
     )
 
     await tick()
-    stdin.write('\u001B[B')
+    stdin.write('3')
     await tick()
-    stdin.write('\u001B[B')
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+    stdin.write('c')
     await tick()
     stdin.write('\r')
     await tick()
 
     expect(onDecision).toHaveBeenCalledTimes(1)
-    expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
-    expect(abort).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'abc' })
+    expect(abort).toHaveBeenCalledTimes(0)
   })
 })
-

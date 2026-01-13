@@ -1,16 +1,16 @@
 import React from 'react'
 import { Box, Text } from 'ink'
+import { ToolMessage } from '../../../components/tool/ToolMessage'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { useUserInputManager } from '../../runtime/userInputContext'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
-import path from 'node:path'
+import { useUserInputManager } from '../../runtime/userInputContext'
 
-export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
 
@@ -21,16 +21,17 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  const filePathRaw = String((input as any).file_path || (input as any).path || '')
-  const fileName = path.basename(filePathRaw || 'file')
-
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
-  return (
+  if (status === 'running' && userInput?.isPending(toolUseId)) {
+    const query = String((input as any)?.query || '').trim()
+    const title = query ? `Do you want to search for "${query}"?` : 'Do you want to search the web?'
+
+    return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <PulsingDot color={dotColor} pulse />
           <Text bold color={theme.text}>
             {toolName}
           </Text>
@@ -39,9 +40,8 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           <Text color={theme.secondaryText}>)</Text>
         </Box>
 
-      {status === 'running' && userInput?.isPending(toolUseId) ? (
         <EditApprovalPrompt
-          title={`Do you want to read ${fileName}?`}
+          title={title}
           onDecision={(d) => {
             if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
@@ -51,39 +51,10 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
           }}
         />
-      ) : null}
+      </Box>
+    )
+  }
 
-      {status !== 'running' && (
-        <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
-            {renderReadSummary({ theme, summary: message.content, status })}
-          </Box>
-        </Box>
-      )}
-    </Box>
-  )
+  return <ToolMessage message={message} />
 }
 
-function renderReadSummary(args: {
-  theme: ReturnType<typeof getTheme>
-  summary: string
-  status: 'running' | 'completed' | 'error'
-}): React.ReactNode {
-  const summary = args.summary || ''
-
-  if (args.status === 'error') return <Text color={args.theme.error}>{summary}</Text>
-
-  const m = /^Read\s+(\d+)\s+lines$/.exec(summary.trim())
-  if (!m) return <Text>{summary}</Text>
-
-  return (
-    <>
-      <Text color={args.theme.secondaryText}>Read </Text>
-      <Text color={args.theme.text} bold>
-        {m[1]}
-      </Text>
-      <Text color={args.theme.secondaryText}> lines</Text>
-    </>
-  )
-}
