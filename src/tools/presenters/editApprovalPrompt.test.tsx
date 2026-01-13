@@ -71,12 +71,11 @@ describe('EditApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'abc' })
   })
 
-  it('esc cancels and aborts the current turn', async () => {
+  it('esc cancels', async () => {
     const onDecision = vi.fn()
-    const abort = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={abort}>
+      <ReplUiProvider abort={() => {}}>
         <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
       </ReplUiProvider>,
     )
@@ -87,6 +86,5 @@ describe('EditApprovalPrompt', () => {
 
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
-    expect(abort).toHaveBeenCalledTimes(1)
   })
 })

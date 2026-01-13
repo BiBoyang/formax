@@ -45,22 +45,10 @@ export function createApprovalService(args: {
 
   const getSessionRules = () => sessionRules.slice()
 
-  function buildUserRejectedContent(action: PolicyAction): string {
-    const what = (() => {
-      switch (action.kind) {
-        case 'fs.read':
-          return 'this read'
-        case 'fs.write':
-          return 'this edit'
-        case 'bash.exec':
-          return 'this command'
-        case 'net.fetch':
-        case 'net.search':
-          return 'this request'
-      }
-    })()
-
-    return `Error: User rejected ${what}.`
+  function buildToolUseRejectedContent(args2: { message?: string }): string {
+    const msg = String(args2.message ?? '').trim()
+    if (msg) return `Tool use rejected with user message: ${msg}`
+    return 'Tool use rejected by user.'
   }
 
   async function persistAllowRule(args2: {
@@ -234,7 +222,7 @@ export function createApprovalService(args: {
             outcome: 'cancel',
           })
         }
-        return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
+        return { ok: false, result: { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true } }
       }
       if (args.audit) {
         void args.audit.append({
@@ -251,7 +239,7 @@ export function createApprovalService(args: {
         ok: false,
         result: {
           tool_use_id: call.id,
-          content: `Error: User requested changes. Feedback: ${feedback}`,
+          content: buildToolUseRejectedContent({ message: feedback }),
           is_error: true,
         },
       }
@@ -268,7 +256,7 @@ export function createApprovalService(args: {
         outcome: 'cancel',
       })
     }
-    return { ok: false, result: { tool_use_id: call.id, content: buildUserRejectedContent(args2.action), is_error: true } }
+    return { ok: false, result: { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true } }
   }
 
   return { getSessionRules, ensureApproved }

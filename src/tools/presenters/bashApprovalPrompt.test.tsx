@@ -9,12 +9,11 @@ function tick(): Promise<void> {
 }
 
 describe('BashApprovalPrompt', () => {
-  it('esc cancels and aborts the current turn', async () => {
+  it('esc cancels', async () => {
     const onDecision = vi.fn()
-    const abort = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={abort}>
+      <ReplUiProvider abort={() => {}}>
         <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
       </ReplUiProvider>,
     )
@@ -25,15 +24,13 @@ describe('BashApprovalPrompt', () => {
 
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
-    expect(abort).toHaveBeenCalledTimes(1)
   })
 
   it('allows providing feedback by typing on option 3', async () => {
     const onDecision = vi.fn()
-    const abort = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={abort}>
+      <ReplUiProvider abort={() => {}}>
         <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
       </ReplUiProvider>,
     )
@@ -52,6 +49,5 @@ describe('BashApprovalPrompt', () => {
 
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'abc' })
-    expect(abort).toHaveBeenCalledTimes(0)
   })
 })

@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { useReplUi } from '../../features/repl/replUiContext'
 
 export type EditApprovalDecision =
   | { kind: 'approve' }
@@ -17,7 +16,6 @@ export function EditApprovalPrompt({
   onDecision: (decision: EditApprovalDecision) => void
 }): React.ReactNode {
   const theme = getTheme()
-  const replUi = useReplUi()
   const [cursor, setCursor] = useState(0) // 0..2
   const [rememberScope, setRememberScope] = useState<'session' | 'project' | 'global'>('session')
   const [typing, setTyping] = useState(false)
@@ -66,10 +64,7 @@ export function EditApprovalPrompt({
       }
 
       if (key.escape) {
-        // Escape should cancel the tool use and also interrupt the current turn so
-        // the model doesn't continue emitting output after a rejected edit/write.
         submit({ kind: 'cancel' })
-        queueMicrotask(() => replUi?.abort())
         return
       }
 
@@ -188,7 +183,7 @@ function FeedbackRow({
   const showPlaceholder = !typing && !hasValue
 
   const color = cursor ? theme.text : theme.secondaryText
-  const placeholderColor = cursor ? theme.secondaryText : theme.secondaryText
+  const placeholderColor = theme.secondaryText
 
   return (
     <Box>
@@ -197,10 +192,7 @@ function FeedbackRow({
       {showPlaceholder ? (
         <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
       ) : (
-        <>
-          <Text color={color}>{value || ''}</Text>
-          {typing ? <Text inverse> </Text> : null}
-        </>
+        <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
       )}
     </Box>
   )

@@ -83,7 +83,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
             <Text>Create file</Text>
           </Box>
 
-          <Box borderStyle="round" borderColor={theme.secondaryText} paddingX={1} flexDirection="column">
+          <Box borderStyle="single" borderColor={theme.secondaryText} paddingX={1} flexDirection="column" width={cols}>
             <Text>{fileName}</Text>
             <Text> </Text>
             {preview.lines.map((l, i) => (

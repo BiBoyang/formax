@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { useReplUi } from '../../features/repl/replUiContext'
 
 export type BashApprovalDecision =
   | { kind: 'approve' }
@@ -21,7 +20,6 @@ export function BashApprovalPrompt({
   onDecision: (decision: BashApprovalDecision) => void
 }): React.ReactNode {
   const theme = getTheme()
-  const replUi = useReplUi()
   const [cursor, setCursor] = useState(0) // 0..2
   const [rememberScope, setRememberScope] = useState<'session' | 'project' | 'global'>('session')
   const [typing, setTyping] = useState(false)
@@ -49,9 +47,6 @@ export function BashApprovalPrompt({
 
       if (key.escape) {
         submit({ kind: 'cancel' })
-        // Interrupt the current turn so the model doesn't continue emitting output
-        // after a rejected command approval.
-        queueMicrotask(() => replUi?.abort())
         return
       }
 
@@ -183,10 +178,7 @@ function FeedbackRow({
       {showPlaceholder ? (
         <Text color={theme.secondaryText}>Type here to tell Claude what to do differently</Text>
       ) : (
-        <>
-          <Text color={color}>{value || ''}</Text>
-          {typing ? <Text inverse> </Text> : null}
-        </>
+        <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
       )}
     </Box>
   )
