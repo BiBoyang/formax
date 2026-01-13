@@ -23,6 +23,26 @@ export function EditApprovalPrompt({
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
   const submittedRef = useRef(false)
+  const cursorRef = useRef(0)
+  const typingRef = useRef(false)
+  const typingValueRef = useRef('')
+
+  const setCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
+    const v = typeof next === 'function' ? next(cursorRef.current) : next
+    cursorRef.current = v
+    setCursor(v)
+  }, [])
+
+  const setTypingImmediate = useCallback((next: boolean) => {
+    typingRef.current = next
+    setTyping(next)
+  }, [])
+
+  const setTypingValueImmediate = useCallback((next: string | ((current: string) => string)) => {
+    const v = typeof next === 'function' ? next(typingValueRef.current) : next
+    typingValueRef.current = v
+    setTypingValue(v)
+  }, [])
 
   const submit = useCallback(
     (d: EditApprovalDecision) => {
@@ -36,10 +56,12 @@ export function EditApprovalPrompt({
   useInput(
     (input, key) => {
       if (submittedRef.current) return
+      const currentCursor = cursorRef.current
+      const isTyping = typingRef.current
 
       if (key.shift && key.tab) {
         setRememberScope((s) => (s === 'session' ? 'project' : s === 'project' ? 'global' : 'session'))
-        setCursor(1)
+        setCursorImmediate(1)
         return
       }
 
@@ -51,70 +73,70 @@ export function EditApprovalPrompt({
         return
       }
 
-      if (typing) {
+      if (isTyping) {
         // Claude Code preserves the draft even if you navigate away while typing.
         if (key.upArrow) {
-          setTyping(false)
-          setCursor((c) => Math.max(0, c - 1))
+          setTypingImmediate(false)
+          setCursorImmediate((c) => Math.max(0, c - 1))
           return
         }
         if (key.downArrow) {
-          setTyping(false)
-          setCursor((c) => Math.min(2, c + 1))
+          setTypingImmediate(false)
+          setCursorImmediate((c) => Math.min(2, c + 1))
           return
         }
 
         if (key.return) {
-          submit({ kind: 'feedback', feedback: typingValue.trim() })
+          submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })
           return
         }
 
         if (key.backspace || key.delete) {
-          setTypingValue((v) => v.slice(0, -1))
+          setTypingValueImmediate((v) => v.slice(0, -1))
           return
         }
 
         if (input && !key.ctrl && !key.meta) {
-          setTypingValue((v) => v + input)
+          setTypingValueImmediate((v) => v + input)
         }
 
         return
       }
 
       if (key.upArrow) {
-        setCursor((c) => Math.max(0, c - 1))
+        setCursorImmediate((c) => Math.max(0, c - 1))
         return
       }
       if (key.downArrow) {
-        setCursor((c) => Math.min(2, c + 1))
+        setCursorImmediate((c) => Math.min(2, c + 1))
         return
       }
 
       if (key.return) {
-        if (cursor === 0) submit({ kind: 'approve' })
-        else if (cursor === 1) submit({ kind: 'approve_remember', scope: rememberScope })
-        else setTyping(true)
+        if (currentCursor === 0) submit({ kind: 'approve' })
+        else if (currentCursor === 1) submit({ kind: 'approve_remember', scope: rememberScope })
+        else setTypingImmediate(true)
         return
       }
 
       // When the "custom message" row is selected, any character (including digits)
       // should start editing instead of triggering numeric shortcuts.
-      if (cursor === 2 && input && !key.ctrl && !key.meta) {
-        setTyping(true)
-        setTypingValue((v) => v + input)
+      if (currentCursor === 2 && input && !key.ctrl && !key.meta) {
+        setTypingImmediate(true)
+        setTypingValueImmediate((v) => v + input)
         return
       }
 
       if (input === '1') {
-        setCursor(0)
+        setCursorImmediate(0)
         return
       }
       if (input === '2') {
-        setCursor(1)
+        setCursorImmediate(1)
         return
       }
       if (input === '3') {
-        setCursor(2)
+        setCursorImmediate(2)
         return
       }
     },
