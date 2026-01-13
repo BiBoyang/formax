@@ -318,7 +318,7 @@ src/
 - 把排障材料标准化，减少维护成本；同时补齐“可交付产品”的文档入口；并把关键动作可审计化。
 
 **主要改动**
-- 新增：`src/core/diagnostics/debugBundle.ts` + `src/adapters/fs/auditLog.ts`
+- 新增：`src/core/diagnostics/debugBundle.ts` + `src/adapters/audit/nodeAuditLog.ts`
 - 新增：`docs/troubleshooting.md`（最小）
 - 修改：`README.md`（QuickStart）
 - 修改：`src/cli/help.ts`（集中 help 文案）
@@ -329,11 +329,12 @@ src/
 - vitest：bundle 不含 secrets（pattern 扫描必须 mask）
 
 **TODO（建议拆成 PR7a/PR7b/PR7c）**
-- [ ] PR7a：定义审计事件 schema（NDJSON）：policy decision / approval outcome / tool call / tool result / errors / durations
-- [ ] PR7a：默认 **不** 记录对话文本（transcript）进审计/Bundle；如确需，提供 `--include-transcript` 显式开关
-- [ ] PR7a：实现 `AuditLog` adapter：写入 `~/.formax/logs/audit.ndjson`（或 config 指定），并做 redaction
+- [x] PR7a：定义审计事件 schema（NDJSON）：policy decision / approval outcome / tool call / tool result / errors / durations
+- [x] PR7a：默认 **不** 记录对话文本（transcript）进审计/Bundle（当前不支持 `--include-transcript`）
+- [ ] PR7a：如确需，提供 `--include-transcript` 显式开关
+- [x] PR7a：实现 `AuditLog` adapter：写入 `logsDir/audit.ndjson`（可配置），并做 redaction
 - [x] PR7b：实现 debug bundle builder（core）：收集 status/doctor/config.redacted/rules + manifest
-- [ ] PR7b：bundle 增加 logs/audit（如存在），并做 redaction
+- [x] PR7b：bundle 增加 logs/audit（如存在），并做 redaction
 - [x] PR7b：实现 `formax doctor --bundle`：生成 bundle 目录（可选 tar.gz）
 - [ ] PR7c：补齐 docs：README QuickStart + `docs/troubleshooting.md` + “如何提交 bug（附 bundle）”
 - [x] PR7c：测试：bundle 不含 secrets（扫描 `sk-`、`Authorization:`、`apiKey` 等必须被 mask）
