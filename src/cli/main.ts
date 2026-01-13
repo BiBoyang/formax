@@ -14,6 +14,7 @@ import { createDebugBundle } from '../core/diagnostics/debugBundle.js'
 import { runDoctor } from '../core/diagnostics/doctor.js'
 import { formatDoctorHuman, formatStatusHuman } from '../core/diagnostics/format.js'
 import { createStatusSnapshot } from '../core/diagnostics/status.js'
+import { createTarGz } from '../adapters/diagnostics/nodeArchive.js'
 import { explainPolicy } from '../core/policy/engine.js'
 import type { PolicyRule } from '../core/policy/schema.js'
 import { loadPolicyRules, savePolicyRules } from '../core/policy/store.js'
@@ -282,6 +283,7 @@ export async function dispatchCli(
     homedir?: string
     platform?: string
     testConnection?: ConnectionTester
+    tarGz?: (args: { sourceDir: string; outPath: string }) => Promise<void>
   } = {},
 ): Promise<CliDispatchResult> {
   const env = opts.env ?? process.env
@@ -368,6 +370,7 @@ export async function dispatchCli(
     const version = String((pkg as any)?.version || 'unknown')
     const testConnection = opts.testConnection ?? testSetupConnection
     const wantsBundle = flags.bundle
+    const wantsBundleTar = flags.bundleTar
 
     const [shown, runtime] = await Promise.all([
       configShow({ fileStore: store, cwd, env, platform, homedir }),
@@ -390,7 +393,7 @@ export async function dispatchCli(
 
     const failed = report.checks.some((c) => c.status === 'fail')
 
-    let bundle: { dir: string; manifestPath: string } | null = null
+    let bundle: { dir: string; manifestPath: string; archivePath?: string } | null = null
     const bundleWarnings: string[] = []
 
     if (wantsBundle) {
@@ -433,6 +436,18 @@ export async function dispatchCli(
 
         bundle = { dir: res.bundleDir, manifestPath: res.manifestPath }
         bundleWarnings.push(...res.warnings)
+
+        if (wantsBundleTar) {
+          try {
+            const archivePath = `${bundleDir}.tgz`
+            const tarImpl = opts.tarGz ?? createTarGz
+            await tarImpl({ sourceDir: bundleDir, outPath: archivePath })
+            bundle.archivePath = archivePath
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            bundleWarnings.push(`Failed to create bundle archive: ${msg}`)
+          }
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         bundleWarnings.push(`Failed to write debug bundle: ${msg}`)
@@ -466,6 +481,7 @@ export async function dispatchCli(
           warnings: [...report.warnings, ...bundleWarnings],
         }) +
         (bundle ? `\nDebug bundle: ${bundle.dir}\n` : '') +
+        (bundle?.archivePath ? `Debug bundle archive: ${bundle.archivePath}\n` : '') +
         '\n',
       stderr: '',
     }

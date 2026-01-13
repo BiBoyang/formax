@@ -139,7 +139,7 @@ bun run build
 ### 排障（推荐）
 
 ```bash
-formax doctor --bundle
+formax doctor --bundle --bundle-tar
 ```
 
 更多排障信息见：`docs/troubleshooting.md`

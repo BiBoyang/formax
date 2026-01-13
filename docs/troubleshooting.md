@@ -7,7 +7,7 @@ This document helps you diagnose common issues and produce a debug bundle that y
 Run:
 
 ```bash
-formax doctor --bundle
+formax doctor --bundle --bundle-tar
 ```
 
 It prints a summary and writes a **redacted** debug bundle under your logs directory, e.g.:
@@ -15,6 +15,10 @@ It prints a summary and writes a **redacted** debug bundle under your logs direc
 ```
 .../proxy/logs/bundles/doctor-bundle-<timestamp>/
 ```
+
+You will get:
+- the bundle directory
+- a `.tgz` archive you can share directly
 
 The bundle includes:
 - `doctor.json` / `status.json` / `config-show.json`
@@ -86,17 +90,11 @@ Sub-agents cannot request interactive approvals. If a sub-agent hits an approval
 
 1) Generate a bundle:
 ```bash
-formax doctor --bundle
+formax doctor --bundle --bundle-tar
 ```
 
-2) Compress it (optional but recommended):
-```bash
-tar -czf formax-bundle.tgz -C <bundleDirParent> <bundleDirName>
-```
-
-3) Share:
+2) Share:
 - the `.tgz` (or the directory)
 - what you ran (command line)
 - expected vs actual behavior
 - OS + Node version (`node -v`)
-

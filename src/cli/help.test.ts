@@ -19,7 +19,7 @@ describe('formatCliHelp', () => {
         formax auth delete <provider> <authRef> [--json]
 
         formax status [--json]
-        formax doctor [--json] [--bundle]
+        formax doctor [--json] [--bundle] [--bundle-tar]
         formax setup
         formax policy list [--json]
         formax policy explain --action <kind> [--cmd/--path/--url/--query <value>] [--json]
@@ -30,6 +30,7 @@ describe('formatCliHelp', () => {
       Flags:
         --json     Output machine-readable JSON
         --bundle   Write a redacted debug bundle (doctor only)
+        --bundle-tar Also write <bundleDir>.tgz (doctor only)
         --no-color Disable ANSI colors
         -v, --version Print version
         -h, --help Show help

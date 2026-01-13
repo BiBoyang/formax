@@ -48,6 +48,55 @@ describe('dispatchCli', () => {
     expect(res.stdout.includes('Usage:')).toBe(true)
   })
 
+  it('doctor --bundle --bundle-tar includes archive path', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-doctor-bundle-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const logsDir = path.join(dir, 'logs')
+      const apiKey = 'sk-doctor-bundle-secret'
+
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: { anthropic: { default: { apiKey } } },
+      })
+
+      const env = {
+        FORMAX_CONFIG_DIR: globalConfigDir,
+        FORMAX_LOGS_DIR: logsDir,
+        FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
+        FORMAX_PLAN_DIR: path.join(dir, 'plans'),
+        ANTHROPIC_BASE_URL2: 'https://api.anthropic.com/v1',
+        ANTHROPIC_MODEL: 'claude-test',
+      } as any
+
+      const tarGz = async ({ outPath }: { sourceDir: string; outPath: string }) => {
+        await fs.mkdir(path.dirname(outPath), { recursive: true })
+        await fs.writeFile(outPath, 'fake', 'utf8')
+      }
+
+      const res = await dispatchCli(['doctor', '--bundle', '--bundle-tar'], {
+        fileStore: store,
+        cwd: projectDir,
+        env,
+        homedir: dir,
+        platform: 'linux',
+        tarGz,
+        testConnection: async () => ({ ok: true, models: ['m1'] } as any),
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+      expect(res.stdout).toContain('Debug bundle:')
+      expect(res.stdout).toContain('Debug bundle archive:')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('returns status output', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-status-'))
     try {
