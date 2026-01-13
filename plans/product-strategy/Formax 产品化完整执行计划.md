@@ -332,10 +332,11 @@ src/
 - [ ] PR7a：定义审计事件 schema（NDJSON）：policy decision / approval outcome / tool call / tool result / errors / durations
 - [ ] PR7a：默认 **不** 记录对话文本（transcript）进审计/Bundle；如确需，提供 `--include-transcript` 显式开关
 - [ ] PR7a：实现 `AuditLog` adapter：写入 `~/.formax/logs/audit.ndjson`（或 config 指定），并做 redaction
-- [ ] PR7b：实现 debug bundle builder（core）：收集 status/doctor/config.redacted/rules/logs/audit + manifest
-- [ ] PR7b：实现 `formax doctor --bundle`：生成 bundle 目录（可选 tar.gz）
+- [x] PR7b：实现 debug bundle builder（core）：收集 status/doctor/config.redacted/rules + manifest
+- [ ] PR7b：bundle 增加 logs/audit（如存在），并做 redaction
+- [x] PR7b：实现 `formax doctor --bundle`：生成 bundle 目录（可选 tar.gz）
 - [ ] PR7c：补齐 docs：README QuickStart + `docs/troubleshooting.md` + “如何提交 bug（附 bundle）”
-- [ ] PR7c：测试：bundle 不含 secrets（扫描 `sk-`、`Authorization:`、`apiKey` 等必须被 mask）
+- [x] PR7c：测试：bundle 不含 secrets（扫描 `sk-`、`Authorization:`、`apiKey` 等必须被 mask）
 
 **DoD（支持视角）**
 - [ ] 你可以让朋友在他机器上跑 `formax doctor --bundle`，把压缩包发给你；你能仅凭 bundle 定位到“缺 key / 网络不通 / 权限拒绝 / policy 拦截”中的一种
