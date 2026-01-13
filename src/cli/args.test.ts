@@ -7,6 +7,7 @@ describe('parseCliArgs', () => {
     expect(res.flags.json).toBe(true)
     expect(res.flags.help).toBe(true)
     expect(res.flags.noColor).toBe(false)
+    expect(res.flags.bundle).toBe(false)
     expect(res.positionals).toEqual(['config', 'show'])
   })
 
@@ -15,5 +16,13 @@ describe('parseCliArgs', () => {
     expect(res.flags.noColor).toBe(true)
     expect(res.flags.json).toBe(false)
     expect(res.flags.help).toBe(false)
+    expect(res.flags.bundle).toBe(false)
+  })
+
+  it('parses --bundle', () => {
+    const res = parseCliArgs(['doctor', '--bundle'])
+    expect(res.flags.bundle).toBe(true)
+    expect(res.flags.json).toBe(false)
+    expect(res.positionals).toEqual(['doctor'])
   })
 })

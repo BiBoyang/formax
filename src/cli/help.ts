@@ -11,7 +11,7 @@ export function formatCliHelp(): string {
     `  formax auth set <provider> <authRef> <apiKey> [--json]\n` +
     `  formax auth delete <provider> <authRef> [--json]\n\n` +
     `  formax status [--json]\n` +
-    `  formax doctor [--json]\n` +
+    `  formax doctor [--json] [--bundle]\n` +
     `  formax setup\n` +
     `  formax policy list [--json]\n` +
     `  formax policy explain --action <kind> [--cmd/--path/--url/--query <value>] [--json]\n` +
@@ -20,6 +20,7 @@ export function formatCliHelp(): string {
     `  formax policy delete <ruleId> [--json]\n\n` +
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +
+    `  --bundle   Write a redacted debug bundle (doctor only)\n` +
     `  --no-color Disable ANSI colors\n` +
     `  -h, --help Show help\n\n` +
     `Exit codes:\n` +

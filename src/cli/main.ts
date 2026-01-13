@@ -1,4 +1,5 @@
 import os from 'node:os'
+import path from 'node:path'
 import type { FileStore } from '../adapters/fs/fileStore.js'
 import { checkWritableDir } from '../adapters/fs/checkWritableDir.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
@@ -9,6 +10,7 @@ import type { ProviderId } from '../core/config/schema.js'
 import { ProviderIdSchema } from '../core/config/schema.js'
 import { configMigrate } from '../core/config/migrate.js'
 import { configShow } from '../core/config/show.js'
+import { createDebugBundle } from '../core/diagnostics/debugBundle.js'
 import { runDoctor } from '../core/diagnostics/doctor.js'
 import { formatDoctorHuman, formatStatusHuman } from '../core/diagnostics/format.js'
 import { createStatusSnapshot } from '../core/diagnostics/status.js'
@@ -353,6 +355,7 @@ export async function dispatchCli(
   if (args[0] === 'doctor') {
     const version = String((pkg as any)?.version || 'unknown')
     const testConnection = opts.testConnection ?? testSetupConnection
+    const wantsBundle = flags.bundle
 
     const [shown, runtime] = await Promise.all([
       configShow({ fileStore: store, cwd, env, platform, homedir }),
@@ -374,13 +377,67 @@ export async function dispatchCli(
     })
 
     const failed = report.checks.some((c) => c.status === 'fail')
-    const data = { version: report.version, cwd: report.cwd, checks: report.checks }
+
+    let bundle: { dir: string; manifestPath: string } | null = null
+    const bundleWarnings: string[] = []
+
+    if (wantsBundle) {
+      try {
+        const policy = await loadPolicyRules({ fileStore: store, cwd, env, platform, homedir })
+        const status = createStatusSnapshot({
+          version,
+          cwd,
+          runtime: {
+            llm: {
+              provider: runtime.llm.provider,
+              baseUrl: runtime.llm.baseUrl,
+              model: runtime.llm.model,
+              timeoutMs: runtime.llm.timeoutMs,
+              apiKey: runtime.llm.apiKey,
+            },
+            paths: runtime.paths,
+            ui: runtime.ui,
+          },
+          shown,
+          workspaceRoots: [cwd],
+        })
+
+        const createdAt = new Date().toISOString()
+        const safeStamp = createdAt.replace(/[:.]/g, '-')
+        const bundleDir = path.join(runtime.paths.logsDir, 'bundles', `doctor-bundle-${safeStamp}`)
+        const res = await createDebugBundle({
+          fileStore: store,
+          bundleDir,
+          version,
+          cwd,
+          platform,
+          nodeVersion: process.version,
+          shown,
+          status,
+          doctor: report,
+          policy,
+        })
+
+        bundle = { dir: res.bundleDir, manifestPath: res.manifestPath }
+        bundleWarnings.push(...res.warnings)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        bundleWarnings.push(`Failed to write debug bundle: ${msg}`)
+      }
+    }
+
+    const data = {
+      version: report.version,
+      cwd: report.cwd,
+      checks: report.checks,
+      ...(bundle ? { bundle } : {}),
+    }
 
     if (flags.json) {
       return {
         kind: 'handled',
         exitCode: failed ? ExitCode.Error : ExitCode.Ok,
-        stdout: okJson('doctor', data, report.warnings),
+        stdout: okJson('doctor', data, [...report.warnings, ...bundleWarnings]),
         stderr: '',
       }
     }
@@ -388,7 +445,15 @@ export async function dispatchCli(
     return {
       kind: 'handled',
       exitCode: failed ? ExitCode.Error : ExitCode.Ok,
-      stdout: formatDoctorHuman({ version: report.version, cwd: report.cwd, checks: report.checks, warnings: report.warnings }) + '\n',
+      stdout:
+        formatDoctorHuman({
+          version: report.version,
+          cwd: report.cwd,
+          checks: report.checks,
+          warnings: [...report.warnings, ...bundleWarnings],
+        }) +
+        (bundle ? `\nDebug bundle: ${bundle.dir}\n` : '') +
+        '\n',
       stderr: '',
     }
   }
