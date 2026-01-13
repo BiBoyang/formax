@@ -27,6 +27,7 @@ import { createStatusSnapshot } from '../core/diagnostics/status'
 import { testSetupConnection } from '../adapters/setup/connectionTest'
 import { checkWritableDir } from '../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
+import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
 
 type Props = {
@@ -52,6 +53,8 @@ export function REPL({
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
   const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
+  const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
+  const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
   const [showThinking, setShowThinking] = useState(false)
   const userInput = useUserInputManager()
@@ -60,6 +63,20 @@ export function REPL({
     () => planSession.getPlanPath() ?? planSession.startNewPlan(),
     [planSession],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    const store = createNodeFileStore()
+    detectWorkspaceRoots({ fileStore: store, cwd: process.cwd() }).then((res) => {
+      if (cancelled) return
+      setWorkspaceRoots(res.workspaceRoots)
+      setWorkspaceRootWarnings(res.warnings)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const commandRegistry = useMemo(
     () =>
       createSlashCommandRegistry({
@@ -69,22 +86,27 @@ export function REPL({
         promptProfile: { get: () => promptProfile, set: setPromptProfile },
         status: {
           get: () =>
-            createStatusSnapshot({
-              version: String((pkg as any)?.version || 'unknown'),
-              cwd: process.cwd(),
-              runtime: {
-                llm: {
-                  provider: cfg.llm.provider,
-                  baseUrl: cfg.llm.baseUrl,
-                  model: cfg.llm.model,
-                  timeoutMs: cfg.llm.timeoutMs,
-                  apiKey: cfg.llm.apiKey,
+            (() => {
+              const base = createStatusSnapshot({
+                version: String((pkg as any)?.version || 'unknown'),
+                cwd: process.cwd(),
+                runtime: {
+                  llm: {
+                    provider: cfg.llm.provider,
+                    baseUrl: cfg.llm.baseUrl,
+                    model: cfg.llm.model,
+                    timeoutMs: cfg.llm.timeoutMs,
+                    apiKey: cfg.llm.apiKey,
+                  },
+                  paths: cfg.paths,
+                  ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
                 },
-                paths: cfg.paths,
-                ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
-              },
-              workspaceRoots: [process.cwd()],
-            }),
+                workspaceRoots,
+              })
+
+              if (!workspaceRootWarnings.length) return base
+              return { ...base, warnings: [...base.warnings, ...workspaceRootWarnings] }
+            })(),
         },
         doctor: {
           run: async () => {
@@ -127,6 +149,8 @@ export function REPL({
       cfg.ui.assistantTextMode,
       planSession,
       promptProfile,
+      workspaceRoots,
+      workspaceRootWarnings,
       taskManager,
     ],
   )

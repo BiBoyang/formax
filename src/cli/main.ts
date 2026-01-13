@@ -15,6 +15,7 @@ import { runDoctor } from '../core/diagnostics/doctor.js'
 import { formatDoctorHuman, formatStatusHuman } from '../core/diagnostics/format.js'
 import { createStatusSnapshot } from '../core/diagnostics/status.js'
 import { createTarGz } from '../adapters/diagnostics/nodeArchive.js'
+import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots.js'
 import { explainPolicy } from '../core/policy/engine.js'
 import type { PolicyRule } from '../core/policy/schema.js'
 import { loadPolicyRules, savePolicyRules } from '../core/policy/store.js'
@@ -326,12 +327,13 @@ export async function dispatchCli(
 
   if (args[0] === 'status') {
     const version = String((pkg as any)?.version || 'unknown')
-    const [shown, runtime] = await Promise.all([
+    const [shown, runtime, roots] = await Promise.all([
       configShow({ fileStore: store, cwd, env, platform, homedir }),
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
+      detectWorkspaceRoots({ fileStore: store, cwd }),
     ])
 
-    const snapshot = createStatusSnapshot({
+    const baseSnapshot = createStatusSnapshot({
       version,
       cwd,
       runtime: {
@@ -346,8 +348,9 @@ export async function dispatchCli(
         ui: runtime.ui,
       },
       shown,
-      workspaceRoots: [cwd],
+      workspaceRoots: roots.workspaceRoots,
     })
+    const snapshot = { ...baseSnapshot, warnings: [...baseSnapshot.warnings, ...roots.warnings] }
     const { warnings, ...data } = snapshot
 
     if (flags.json) {
@@ -372,9 +375,10 @@ export async function dispatchCli(
     const wantsBundle = flags.bundle
     const wantsBundleTar = flags.bundleTar
 
-    const [shown, runtime] = await Promise.all([
+    const [shown, runtime, roots] = await Promise.all([
       configShow({ fileStore: store, cwd, env, platform, homedir }),
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
+      detectWorkspaceRoots({ fileStore: store, cwd }),
     ])
 
     const report = await runDoctor({
@@ -399,7 +403,7 @@ export async function dispatchCli(
     if (wantsBundle) {
       try {
         const policy = await loadPolicyRules({ fileStore: store, cwd, env, platform, homedir })
-        const status = createStatusSnapshot({
+        const baseStatus = createStatusSnapshot({
           version,
           cwd,
           runtime: {
@@ -414,8 +418,9 @@ export async function dispatchCli(
             ui: runtime.ui,
           },
           shown,
-          workspaceRoots: [cwd],
+          workspaceRoots: roots.workspaceRoots,
         })
+        const status = { ...baseStatus, warnings: [...baseStatus.warnings, ...roots.warnings] }
 
         const createdAt = new Date().toISOString()
         const safeStamp = createdAt.replace(/[:.]/g, '-')

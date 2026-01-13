@@ -275,7 +275,7 @@ src/
 - [x] PR5c：实现 CLI：`formax policy list|test|explain`（不依赖工具执行）
 - [x] PR5c：实现 CLI：`formax policy delete|disable <ruleId>`（避免“点错一次永久坏掉”）
 - [x] PR5c：`policy explain --json` 输出固定结构：`decision` + `matchedRule{ruleId,scope,decision,reason}` + `suggestions[]`
-- [ ] PR5c：实现 workspaceRoots 探测 adapter（git-root + cwd fallback，多 root 支持）
+- [x] PR5c：实现 workspaceRoots 探测 adapter（git-root + cwd fallback，多 root 支持）
 - [x] PR5c：测试：deny 覆盖 allow、subdomain 匹配、路径越界、scope precedence（至少 15 条）
 
 **关键约束（别省略）**
