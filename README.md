@@ -89,10 +89,19 @@ npm install
 
 ### 配置
 
-创建 `.env` 文件（或使用环境变量）：
+推荐使用交互式向导（会写入 `~/.formax/`）：
 
 ```bash
-# 必需配置
+# 运行一次交互式 setup
+node bin/formax.js setup
+# 或（如果你已 npm link，见下方“运行”）
+formax setup
+```
+
+你也可以使用环境变量（适合 CI/临时测试）：
+
+```bash
+# 必需（Anthropic）
 ANTHROPIC_API_KEY2=your_api_key_here
 ANTHROPIC_BASE_URL2=https://api.anthropic.com
 ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
@@ -106,7 +115,14 @@ FORMAX_SUBAGENTS_DIR=.agent/subagents
 ### 运行
 
 ```bash
-# 开发模式（使用 tsx）
+# 方式 1：直接从仓库运行（推荐）
+node bin/formax.js
+
+# 方式 2：把本仓库链接为本机命令（仅本地，不发布）
+npm link
+formax
+
+# 开发模式（使用 tsx，开发者用）
 bun run dev
 # 或
 npm run dev
@@ -119,6 +135,14 @@ npm run toole
 # 构建生产版本（需要 Bun）
 bun run build
 ```
+
+### 排障（推荐）
+
+```bash
+formax doctor --bundle
+```
+
+更多排障信息见：`docs/troubleshooting.md`
 
 ## 📚 使用指南
 

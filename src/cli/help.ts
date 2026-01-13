@@ -23,6 +23,9 @@ export function formatCliHelp(): string {
     `  --bundle   Write a redacted debug bundle (doctor only)\n` +
     `  --no-color Disable ANSI colors\n` +
     `  -h, --help Show help\n\n` +
+    `Tips:\n` +
+    `  - If you hit a bug, run: formax doctor --bundle\n` +
+    `  - See docs/troubleshooting.md for common issues\n\n` +
     `Exit codes:\n` +
     `  0 Success\n` +
     `  1 Error\n` +

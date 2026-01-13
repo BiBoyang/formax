@@ -336,7 +336,7 @@ src/
 - [x] PR7b：实现 debug bundle builder（core）：收集 status/doctor/config.redacted/rules + manifest
 - [x] PR7b：bundle 增加 logs/audit（如存在），并做 redaction
 - [x] PR7b：实现 `formax doctor --bundle`：生成 bundle 目录（可选 tar.gz）
-- [ ] PR7c：补齐 docs：README QuickStart + `docs/troubleshooting.md` + “如何提交 bug（附 bundle）”
+- [x] PR7c：补齐 docs：README QuickStart + `docs/troubleshooting.md` + “如何提交 bug（附 bundle）”
 - [x] PR7c：测试：bundle 不含 secrets（扫描 `sk-`、`Authorization:`、`apiKey` 等必须被 mask）
 
 **DoD（支持视角）**

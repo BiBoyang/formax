@@ -6,7 +6,8 @@ dist/
 .env.local
 .cursor
 dist/
-docs
+docs/*
+!docs/troubleshooting.md
 .claude
 proxy/*
 !proxy/tools.json

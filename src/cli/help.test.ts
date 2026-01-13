@@ -31,6 +31,10 @@ describe('formatCliHelp', () => {
         --no-color Disable ANSI colors
         -h, --help Show help
 
+      Tips:
+        - If you hit a bug, run: formax doctor --bundle
+        - See docs/troubleshooting.md for common issues
+
       Exit codes:
         0 Success
         1 Error
