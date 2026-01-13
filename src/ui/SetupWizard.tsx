@@ -22,14 +22,9 @@ function firstEnabledIndex(options: ChoiceOption[]): number {
   return idx >= 0 ? idx : 0
 }
 
-function nextEnabledIndex(options: ChoiceOption[], from: number, dir: 1 | -1): number {
+function nextIndex(options: ChoiceOption[], from: number, dir: 1 | -1): number {
   if (options.length === 0) return 0
-  let i = from
-  for (let step = 0; step < options.length; step++) {
-    i = (i + dir + options.length) % options.length
-    if (!options[i]?.disabled) return i
-  }
-  return from
+  return (from + dir + options.length) % options.length
 }
 
 function ChoiceList({
@@ -49,8 +44,8 @@ function ChoiceList({
 
   useInput((_input, key) => {
     if (options.length === 0) return
-    if (key.downArrow) onFocus(nextEnabledIndex(options, focusedIndex, 1))
-    if (key.upArrow) onFocus(nextEnabledIndex(options, focusedIndex, -1))
+    if (key.downArrow) onFocus(nextIndex(options, focusedIndex, 1))
+    if (key.upArrow) onFocus(nextIndex(options, focusedIndex, -1))
     if (key.return) {
       const opt = options[focusedIndex]
       if (!opt || opt.disabled) return

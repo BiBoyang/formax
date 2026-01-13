@@ -103,6 +103,40 @@ describe('SetupWizard', () => {
     expect(lastFrame()).toContain('Write failed')
   })
 
+  it('allows moving focus onto disabled provider options', async () => {
+    const { lastFrame, stdin } = render(
+      <SetupWizard
+        providers={PROVIDERS}
+        testConnection={async () => ({ ok: true, models: ['m1'] })}
+        onWrite={async () => {}}
+        onDone={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+
+    // Attach input listeners.
+    await tick()
+
+    // welcome -> provider
+    stdin.write('\r')
+    await tick()
+    expect(lastFrame()).toContain('Select a provider')
+
+    // Move focus down to the disabled OpenAI option.
+    stdin.write('\u001B[B')
+    await tick()
+
+    const frame = lastFrame() || ''
+    expect(frame).toContain('❯ OpenAI-compatible')
+    expect(frame).not.toContain('❯ Anthropic (Claude)')
+
+    // Hitting enter on a disabled option should not advance.
+    stdin.write('\r')
+    await tick()
+    expect(lastFrame()).toContain('Select a provider')
+    expect(lastFrame()).not.toContain('Base URL')
+  })
+
   it.each([
     [ErrorCode.Unauthorized, 'Verify the API key you pasted is correct'],
     [ErrorCode.Forbidden, 'provider denied access'],
