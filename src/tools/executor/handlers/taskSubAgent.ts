@@ -185,6 +185,7 @@ export function createTaskSubAgentToolHandler(deps: {
           resume: typeof resume === 'string' && resume.trim() ? resume.trim() : undefined,
           agentId: opts?.agentId,
           replMode: subMode,
+          interactive: opts?.emitUi ?? true,
           signal,
           onEvent: onSubEvent,
         })

@@ -27,6 +27,7 @@ export interface SubAgentRunner {
     resume?: string
     agentId?: string
     replMode?: 'normal' | 'acceptEdits' | 'plan'
+    interactive?: boolean
     signal?: AbortSignal
     onEvent?: StreamSink
   }): Promise<SubAgentResult>
@@ -53,6 +54,7 @@ export function createSubAgentRunner(deps: {
       resume,
       agentId: requestedAgentId,
       replMode,
+      interactive,
       signal,
       onEvent,
     }): Promise<SubAgentResult> {
@@ -117,6 +119,7 @@ export function createSubAgentRunner(deps: {
             replMode: currentMode,
             getReplMode,
             setReplMode,
+            interactive,
             allowTools: Array.from(allowed),
             denyTools: Array.from(NESTED_DENY_TOOLS),
           },

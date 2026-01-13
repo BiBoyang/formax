@@ -346,4 +346,70 @@ describe('createPolicyPreflight', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('denies prompts when interactive prompts are disabled (e.g. background tasks)', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-noninteractive-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const approval: ApprovalService = {
+        getSessionRules: () => [],
+        ensureApproved: async () => ({ ok: true }),
+      }
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'hi' } },
+        { cwd: projectDir, agentDepth: 1, replMode: 'normal', interactive: false },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('interactive prompts are disabled')
+      expect(res?.content).toContain('APPROVAL_REQUIRED')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows sub-agents to request approvals when interactive', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-subagent-approve-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const approval: ApprovalService = {
+        getSessionRules: () => [],
+        ensureApproved: async () => ({ ok: true }),
+      }
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'hi' } },
+        { cwd: projectDir, agentDepth: 1, replMode: 'normal', interactive: true },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
 })

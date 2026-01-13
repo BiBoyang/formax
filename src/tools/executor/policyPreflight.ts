@@ -114,11 +114,13 @@ export function createPolicyPreflight(args: {
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 
-    // Never block a sub-agent on interactive approval. Instead, return a structured error
-    // that the sub-agent can react to (e.g. choose a safer command or avoid writes).
-    if (ctx.agentDepth > 0) {
+    // Some contexts (e.g. background tasks) deliberately disable interactive prompts.
+    // In those cases, do not hang waiting for user input; return a stable error instead.
+    if (ctx.interactive === false) {
       const lines: string[] = []
-      lines.push(`Error: Policy requires approval for ${action.kind}, but sub-agents cannot request approvals.`)
+      lines.push(
+        `Error: Policy requires approval for ${action.kind}, but interactive prompts are disabled in this context`,
+      )
       lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
       lines.push(
         ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),

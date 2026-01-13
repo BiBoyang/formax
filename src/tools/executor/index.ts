@@ -10,6 +10,10 @@ export type ExecutionContext = {
   signal?: AbortSignal
   onEvent?: StreamSink
 
+  // Whether the current tool execution context is allowed to prompt the user
+  // (e.g. approvals). Background tasks may disable this to avoid deadlocks.
+  interactive?: boolean
+
   // 0 = main agent, 1 = sub-agent, ...
   agentDepth: number
 
@@ -52,6 +56,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     cwd: ctx.cwd ?? process.cwd(),
     signal: ctx.signal,
     onEvent: ctx.onEvent,
+    interactive: ctx.interactive,
     agentDepth: ctx.agentDepth ?? 0,
     replMode: ctx.replMode,
     getReplMode: ctx.getReplMode,
