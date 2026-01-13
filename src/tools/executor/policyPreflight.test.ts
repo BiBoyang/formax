@@ -111,6 +111,8 @@ describe('createPolicyPreflight', () => {
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Policy requires approval for fs.write')
       expect(res?.content).toContain('APPROVAL_REQUIRED')
+      expect(res?.content).toContain('EffectiveDecision: prompt')
+      expect(res?.content).toContain('PolicyDecision: prompt')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -172,6 +174,7 @@ describe('createPolicyPreflight', () => {
       )
       expect(res1?.is_error).toBe(true)
       expect(res1?.content).toContain('Policy requires approval for fs.read')
+      expect(res1?.content).toContain('MatchedRule: prompt-read (global)')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],

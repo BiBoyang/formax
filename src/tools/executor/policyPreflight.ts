@@ -10,6 +10,7 @@ import { isSameFilePath } from '../../utils/planMode.js'
 import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
 import { ErrorCode } from '../../core/errors/codes.js'
+import { formatPolicyExplainLines } from './policyExplain.js'
 
 export function createPolicyPreflight(args: {
   fileStore: FileStore
@@ -85,12 +86,9 @@ export function createPolicyPreflight(args: {
       const lines: string[] = []
       lines.push(`Error: Policy denied ${action.kind}`)
       lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
-      if (explained.matchedRule) {
-        lines.push(`Matched rule: ${explained.matchedRule.ruleId} (${explained.matchedRule.scope})`)
-        if (explained.matchedRule.reason) lines.push(`Reason: ${explained.matchedRule.reason}`)
-      }
-      for (const s of explained.suggestions || []) lines.push(`Suggestion: ${s}`)
-      for (const w of loaded.warnings || []) lines.push(`Warning: ${w}`)
+      lines.push(
+        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
+      )
 
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
@@ -99,12 +97,20 @@ export function createPolicyPreflight(args: {
       const lines: string[] = []
       lines.push(`Error: Policy requires approval for ${action.kind}, but no approval service is configured`)
       lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
-      for (const s of explained.suggestions || []) lines.push(`Suggestion: ${s}`)
-      for (const w of loaded.warnings || []) lines.push(`Warning: ${w}`)
+      lines.push(
+        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
+      )
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 
-    const approved = await args.approval.ensureApproved({ call, ctx, action, loaded })
+    const approved = await args.approval.ensureApproved({
+      call,
+      ctx,
+      action,
+      effectiveDecision,
+      explained,
+      loaded,
+    })
     if ('result' in approved) return approved.result
     return null
   }

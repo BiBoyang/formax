@@ -2,11 +2,13 @@ import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { Platform } from '../../adapters/fs/configPaths.js'
 import type { PolicyRule, PolicyScope } from '../../core/policy/schema.js'
 import { savePolicyRules, type LoadedPolicyRules } from '../../core/policy/store.js'
-import type { PolicyAction } from '../../core/policy/types.js'
+import type { PolicyAction, PolicyDecision } from '../../core/policy/types.js'
+import type { PolicyExplainResult } from '../../core/policy/engine.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ExecutionContext } from './index.js'
 import { createAllowRuleFromAction } from '../../core/approval/rules.js'
 import { ErrorCode } from '../../core/errors/codes.js'
+import { formatPolicyExplainLines } from './policyExplain.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
 
@@ -22,6 +24,8 @@ export type ApprovalService = {
     call: ToolCall
     ctx: ExecutionContext
     action: PolicyAction
+    effectiveDecision: PolicyDecision
+    explained: PolicyExplainResult
     loaded: LoadedPolicyRules
   }) => Promise<{ ok: true } | { ok: false; result: ToolResult }>
 }
@@ -99,6 +103,8 @@ export function createApprovalService(args: {
     call: ToolCall
     ctx: ExecutionContext
     action: PolicyAction
+    effectiveDecision: PolicyDecision
+    explained: PolicyExplainResult
     loaded: LoadedPolicyRules
   }): Promise<{ ok: true } | { ok: false; result: ToolResult }> {
     const { call, ctx } = args2
@@ -109,10 +115,13 @@ export function createApprovalService(args: {
         result: {
           tool_use_id: call.id,
           content: [
-            `Error: Approval required for ${args2.action.kind}, but no interactive UI is available.`,
+            `Error: Policy requires approval for ${args2.action.kind}, but no interactive UI is available`,
             `ErrorCode: ${ErrorCode.ApprovalRequired}`,
-            'Suggestion: Re-run in an interactive session, or add an allow rule to skip prompting.',
-            ...((args2.loaded.warnings || []).map((w) => `Warning: ${w}`)),
+            ...formatPolicyExplainLines({
+              effectiveDecision: args2.effectiveDecision,
+              explained: args2.explained,
+              warnings: args2.loaded.warnings,
+            }),
           ].join('\n'),
           is_error: true,
         },
