@@ -74,6 +74,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Subagent registry: `src/subagents/registry.ts`
 - Runner (spawning + tool allowlist enforcement): `src/subagents/runner.ts`
 - Validator: `src/subagents/validator.ts`
+- Approval/“read-only” strategy notes (Claude Code vs Formax vs Kode): `docs/SUBAGENT-APPROVAL-STRATEGY.md`
 
 ## Slash Commands
 - Slash command registry + dispatch: `src/features/commands/registry.ts`
