@@ -340,7 +340,7 @@ src/
 - [x] PR7c：测试：bundle 不含 secrets（扫描 `sk-`、`Authorization:`、`apiKey` 等必须被 mask）
 
 **DoD（支持视角）**
-- [ ] 你可以让朋友在他机器上跑 `formax doctor --bundle`，把压缩包发给你；你能仅凭 bundle 定位到“缺 key / 网络不通 / 权限拒绝 / policy 拦截”中的一种
+- [ ] 你可以让朋友在他机器上跑 `formax doctor --bundle --bundle-tar`，把生成的 `.tgz` 发给你；你能仅凭 bundle 定位到“缺 key / 网络不通 / 权限拒绝 / policy 拦截”中的一种
 
 ---
 
