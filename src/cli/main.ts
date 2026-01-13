@@ -294,6 +294,12 @@ export async function dispatchCli(
   const args = parsed.positionals
   const flags = parsed.flags
 
+  if (flags.version) {
+    const version = String((pkg as any)?.version || 'unknown')
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('version', { version }), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
+  }
+
   if (flags.help) {
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
   }
@@ -302,6 +308,12 @@ export async function dispatchCli(
 
   if (args[0] === 'help') {
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
+  }
+
+  if (args[0] === 'version') {
+    const version = String((pkg as any)?.version || 'unknown')
+    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('version', { version }), stderr: '' }
+    return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
   }
 
   const unimplemented = (command: string): CliDispatchResult => {

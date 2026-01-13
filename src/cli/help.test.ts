@@ -9,6 +9,8 @@ describe('formatCliHelp', () => {
       Usage:
         formax                     Start the REPL
         formax repl                Start the REPL
+        formax --version
+        formax version [--json]
         formax help
         formax config show [--json]
         formax config migrate [--json]
@@ -29,6 +31,7 @@ describe('formatCliHelp', () => {
         --json     Output machine-readable JSON
         --bundle   Write a redacted debug bundle (doctor only)
         --no-color Disable ANSI colors
+        -v, --version Print version
         -h, --help Show help
 
       Tips:

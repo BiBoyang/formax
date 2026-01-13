@@ -4,6 +4,8 @@ export function formatCliHelp(): string {
     `Usage:\n` +
     `  formax                     Start the REPL\n` +
     `  formax repl                Start the REPL\n` +
+    `  formax --version\n` +
+    `  formax version [--json]\n` +
     `  formax help\n` +
     `  formax config show [--json]\n` +
     `  formax config migrate [--json]\n` +
@@ -22,6 +24,7 @@ export function formatCliHelp(): string {
     `  --json     Output machine-readable JSON\n` +
     `  --bundle   Write a redacted debug bundle (doctor only)\n` +
     `  --no-color Disable ANSI colors\n` +
+    `  -v, --version Print version\n` +
     `  -h, --help Show help\n\n` +
     `Tips:\n` +
     `  - If you hit a bug, run: formax doctor --bundle\n` +

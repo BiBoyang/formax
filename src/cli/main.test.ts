@@ -4,8 +4,28 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { dispatchCli } from './main.js'
+import pkg from '../../package.json'
 
 describe('dispatchCli', () => {
+  it('prints version for --version', async () => {
+    const res = await dispatchCli(['--version'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toBe(`${(pkg as any).version}\n`)
+  })
+
+  it('prints version JSON for "version --json"', async () => {
+    const res = await dispatchCli(['version', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(true)
+    expect(parsed.command).toBe('version')
+    expect(parsed.data?.version).toBe((pkg as any).version)
+  })
+
   it('falls back to repl with no args', async () => {
     const res = await dispatchCli([])
     expect(res.kind).toBe('repl')
