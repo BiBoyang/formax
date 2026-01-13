@@ -270,15 +270,15 @@ src/
 - [x] PR5a：定义 rules JSON schema（global/project/session；decision=allow/prompt/deny；reason/template）
 - [x] PR5a：rules 必须包含 `ruleId/enabled/createdAt/scope`（否则无法撤销/审计，也不敢让用户点“remember”）
 - [x] PR5b：实现 rules store（load/save/merge）+ precedence（project > global）
-- [ ] PR5b：实现匹配算法与 explain（命中规则、拒绝原因、下一步建议）
-- [ ] PR5c：实现 CLI：`formax policy list|test|explain`（不依赖工具执行）
-- [ ] PR5c：实现 CLI：`formax policy delete|disable <ruleId>`（避免“点错一次永久坏掉”）
-- [ ] PR5c：`policy explain --json` 输出固定结构：`decision` + `matchedRule{ruleId,scope,decision,reason}` + `suggestions[]`
+- [x] PR5b：实现匹配算法与 explain（命中规则、拒绝原因、下一步建议）
+- [x] PR5c：实现 CLI：`formax policy list|test|explain`（不依赖工具执行）
+- [x] PR5c：实现 CLI：`formax policy delete|disable <ruleId>`（避免“点错一次永久坏掉”）
+- [x] PR5c：`policy explain --json` 输出固定结构：`decision` + `matchedRule{ruleId,scope,decision,reason}` + `suggestions[]`
 - [ ] PR5c：实现 workspaceRoots 探测 adapter（git-root + cwd fallback，多 root 支持）
-- [ ] PR5c：测试：deny 覆盖 allow、subdomain 匹配、路径越界、scope precedence（至少 15 条）
+- [x] PR5c：测试：deny 覆盖 allow、subdomain 匹配、路径越界、scope precedence（至少 15 条）
 
 **关键约束（别省略）**
-- [ ] policy 的判断必须基于 `PolicyAction` 而不是 tool name（否则以后加 provider/插件会崩）
+- [x] policy 的判断必须基于 `PolicyAction` 而不是 tool name（否则以后加 provider/插件会崩）
 
 ---
 
@@ -297,15 +297,15 @@ src/
 - vitest：preflight 必经；wildcard subagent/tool allow-list 也要回归（避免“工具全部被拒绝”）
 
 **TODO（强烈建议拆成 PR6a/PR6b/PR6c/PR6d）**
-- [ ] PR6a：在 ToolExecutor 层加入 preflight hook（tool call → PolicyAction → PolicyDecision），先只做到“可拒绝/可 explain”（不弹 UI）
+- [x] PR6a：在 ToolExecutor 层加入 preflight hook（tool call → PolicyAction → PolicyDecision），先只做到“可拒绝/可 explain”（不弹 UI）
 - [ ] PR6b：实现 `ApprovalService`（core）：把 decision=prompt 转成 “allow once / allow always / deny” 三选一
 - [ ] PR6b：实现 UI adapter（Ink）：统一文案、支持 remember scope（session/project/global）
 - [ ] PR6b：非交互模式（无 TTY/CI）：默认不弹 UI，直接 deny 并返回稳定 ErrorCode + explain（避免卡住自动化）
 - [ ] PR6b：remember 的落盘：把 “allow always” 写入 rules（project 或 global），并能在 `policy list` 看见
 - [ ] PR6c：建立 tool→action 映射表（集中在一处）：Read/Write/Edit/Bash/WebFetch/WebSearch/Glob/Grep/NotebookEdit/TaskOutput
 - [ ] PR6c：逐个工具迁移（每次 2–3 个）：先 Bash/Write/Edit/WebFetch → 再 Read/Glob/Grep → 再 NotebookEdit/TaskOutput
-- [ ] PR6d：统一取消/中断：Esc/abort 逻辑一致，且不会把“半截审批内容”塞进后续对话
-- [ ] PR6d：回归 wildcard subagent：`tools:['*']` 代表“允许全部工具”，不要被 allow-list 误杀
+- [x] PR6d：统一取消/中断：Esc/abort 逻辑一致，且不会把“半截审批内容”塞进后续对话（先覆盖 Edit/Write/Bash 审批）
+- [x] PR6d：回归 wildcard subagent：`tools:['*']` 代表“允许全部工具”，不要被 allow-list 误杀
 - [ ] PR6d：测试：preflight 必经、remember 生效、deny 覆盖 allow、subagent wildcard 不回归
 
 **DoD（体验版）**
