@@ -10,7 +10,15 @@ import { randomUUID } from 'node:crypto'
 
 const DEFAULT_SUMMARY_MAX_CHARS = 500
 const SUMMARY_TRUNCATION_SUFFIX = '…'
-const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
+const NESTED_DENY_TOOLS = new Set([
+  'Task',
+  'Agent',
+  'Dispatch',
+  'SlashCommand',
+  'AskUserQuestion',
+  'EnterPlanMode',
+  'ExitPlanMode',
+])
 
 export interface SubAgentRunner {
   run(args: {

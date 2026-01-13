@@ -69,6 +69,43 @@ class ToolUseClient {
   }
 }
 
+class AskUserQuestionClient {
+  public calls: Array<{ tools: ToolDefinition[] }> = []
+  public firstToolResult: ToolResult | null = null
+  private callCount = 0
+
+  async streamOnce(args: StreamOnceArgs): Promise<{
+    contentBlocks: any[]
+    stopReason: string | null
+    toolResults: ToolResult[]
+  }> {
+    this.calls.push({ tools: args.tools })
+    this.callCount++
+
+    if (this.callCount === 1) {
+      const call: ToolCall = {
+        id: 'q1',
+        name: 'AskUserQuestion',
+        input: { questions: [{ question: 'x', header: 'x', options: [], multiSelect: false }] },
+      }
+      const result = await args.executeTool(call)
+      this.firstToolResult = result
+      return {
+        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        stopReason: 'tool_use',
+        toolResults: [result],
+      }
+    }
+
+    args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
+    return {
+      contentBlocks: [{ type: 'text', text: 'done' }],
+      stopReason: 'end_turn',
+      toolResults: [],
+    }
+  }
+}
+
 class WildcardToolUseClient {
   public calls: Array<{ tools: ToolDefinition[] }> = []
   public firstToolResult: ToolResult | null = null
@@ -253,6 +290,32 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
+  })
+
+  it('denies interactive tools inside subagents', async () => {
+    const client = new AskUserQuestionClient()
+    const executor = createToolExecutor([])
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [tool('Read'), tool('AskUserQuestion')],
+    })
+
+    const result = await runner.run({
+      agent: {
+        name: 'general-purpose',
+        description: 'Any task',
+        tools: ['*'],
+        systemPrompt: 'Return summary only.',
+      },
+      task: 'x',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.summary).toBe('done')
+    expect(client.calls[0]!.tools.map((t) => t.name)).toEqual(['Read'])
+    expect(client.firstToolResult?.is_error).toBe(true)
+    expect(client.firstToolResult?.content).toContain('not allowed inside a sub-agent')
   })
 
   it('supports acceptEdits mode flips inside subagents', async () => {

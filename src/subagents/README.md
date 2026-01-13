@@ -60,7 +60,7 @@ flowchart TD
 
 ### ❌ 禁止
 
-- Sub-agent 禁止调用 `Task` / `Agent` / `Dispatch` / `SlashCommand`（NESTED_DENY_TOOLS）
+- Sub-agent 禁止调用 `Task` / `Agent` / `Dispatch` / `SlashCommand` / `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode`（NESTED_DENY_TOOLS）
 - Agent system prompt 不得包含敏感信息（会传给 LLM）
 - Registry 不做工具校验（只存名称列表）
 - Runner 不管理持久化 session（内存 Map，进程退出即失效）

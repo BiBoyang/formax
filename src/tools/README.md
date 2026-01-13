@@ -66,7 +66,7 @@ flowchart LR
 - Handler 不得修改 registry 状态
 - Presenter 不得执行副作用（只负责渲染）
 - 禁止在 handler 中 import streaming 模块（依赖方向应为 streaming → tools）
-- Sub-agent 禁用 Task/Agent/Dispatch/SlashCommand 工具（由 NESTED_DENY_TOOLS 硬编码）
+- Sub-agent 禁用 Task/Agent/Dispatch/SlashCommand/AskUserQuestion/EnterPlanMode/ExitPlanMode 工具（由 NESTED_DENY_TOOLS 硬编码）
 
 ### 关键不变量
 

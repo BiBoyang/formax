@@ -307,6 +307,7 @@ src/
 - [x] PR6c：逐个工具迁移（每次 2–3 个）：先 Bash/Write/Edit/WebFetch → 再 Read/Glob/Grep → 再 NotebookEdit/TaskOutput
 - [x] PR6d：统一取消/中断：Esc/abort 逻辑一致，且不会把“半截审批内容”塞进后续对话（先覆盖 Edit/Write/Bash 审批）
 - [x] PR6d：回归 wildcard subagent：`tools:['*']` 代表“允许全部工具”，不要被 allow-list 误杀
+- [x] PR6d：subagent 禁止交互/会话态工具（AskUserQuestion/EnterPlanMode/ExitPlanMode），避免卡住/重复确认
 - [x] PR6d：测试：preflight 必经、remember 生效、deny 覆盖 allow、subagent wildcard 不回归
 
 **DoD（体验版）**

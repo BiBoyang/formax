@@ -35,7 +35,17 @@ export interface ToolHandler {
 export type ToolExecutor = (call: ToolCall, ctx: ExecutionContext) => Promise<ToolResult>
 export type ToolPreflight = (call: ToolCall, ctx: ExecutionContext) => Promise<ToolResult | null>
 
-const NESTED_DENY_TOOLS = new Set(['Task', 'Agent', 'Dispatch', 'SlashCommand'])
+// Sub-agents must not use interactive/session-affecting tools. They cannot reliably
+// coordinate user input and should not mutate the parent session state.
+const NESTED_DENY_TOOLS = new Set([
+  'Task',
+  'Agent',
+  'Dispatch',
+  'SlashCommand',
+  'AskUserQuestion',
+  'EnterPlanMode',
+  'ExitPlanMode',
+])
 
 function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   return {
