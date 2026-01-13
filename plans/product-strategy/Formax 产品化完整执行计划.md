@@ -218,6 +218,7 @@ src/
 - [x] PR3c：实现 connection test adapter（Anthropic：复用现有 `fetchAnthropicModels`；OpenAI/Gemini 先返回 “未实现” 但要有清晰提示）
 - [x] PR3c：实现写入：config.json + auth.json + log dir +（可选）初始化 rules.json
 - [x] PR3c：测试：状态机回退/取消/重试；写入失败；401/403/DNS/timeout 文案
+- [ ] PR3d：抽一个通用的“菜单/确认框/输入框”键盘交互层（如 `useMenuInput`/`MenuPrompt`），统一 Up/Down/Enter/Esc/数字快捷键/typing-mode，避免不同交互之间按键语义冲突（SetupWizard/AskUserQuestion/审批 Prompt 等）
 
 **验收脚本（人工）**
 - [ ] 全新环境：`rm -rf ~/.formax` → `formax` → wizard 走通
