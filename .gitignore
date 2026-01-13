@@ -16,3 +16,4 @@ Kode-cli
 *.txt
 system-prompts
 record
+!docs/SUBAGENT-APPROVAL-STRATEGY.md
