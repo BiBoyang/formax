@@ -300,10 +300,10 @@ src/
 - [x] PR6a：在 ToolExecutor 层加入 preflight hook（tool call → PolicyAction → PolicyDecision），先只做到“可拒绝/可 explain”（不弹 UI）
 - [x] PR6b：实现 `ApprovalService`（core）：把 decision=prompt 转成 “allow once / allow always / deny” 三选一
 - [x] PR6b：实现 UI adapter（Ink）：统一文案、支持 remember scope（session/project/global）
-- [ ] PR6b：非交互模式（无 TTY/CI）：默认不弹 UI，直接 deny 并返回稳定 ErrorCode + explain（避免卡住自动化）
+- [x] PR6b：非交互模式（无 TTY/CI）：默认不弹 UI，直接 deny 并返回稳定 ErrorCode + explain（避免卡住自动化）
 - [x] PR6b：remember 的落盘：把 “allow always” 写入 rules（project 或 global），并能在 `policy list` 看见
-- [ ] PR6c：建立 tool→action 映射表（集中在一处）：Read/Write/Edit/Bash/WebFetch/WebSearch/Glob/Grep/NotebookEdit/TaskOutput
-- [ ] PR6c：逐个工具迁移（每次 2–3 个）：先 Bash/Write/Edit/WebFetch → 再 Read/Glob/Grep → 再 NotebookEdit/TaskOutput
+- [x] PR6c：建立 tool→action 映射表（集中在一处）：Read/Write/Edit/Bash/WebFetch/WebSearch/Glob/Grep/NotebookEdit/TaskOutput
+- [x] PR6c：逐个工具迁移（每次 2–3 个）：先 Bash/Write/Edit/WebFetch → 再 Read/Glob/Grep → 再 NotebookEdit/TaskOutput
 - [x] PR6d：统一取消/中断：Esc/abort 逻辑一致，且不会把“半截审批内容”塞进后续对话（先覆盖 Edit/Write/Bash 审批）
 - [x] PR6d：回归 wildcard subagent：`tools:['*']` 代表“允许全部工具”，不要被 allow-list 误杀
 - [x] PR6d：测试：preflight 必经、remember 生效、deny 覆盖 allow、subagent wildcard 不回归

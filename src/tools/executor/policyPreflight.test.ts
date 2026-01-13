@@ -110,6 +110,7 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Policy requires approval for fs.write')
+      expect(res?.content).toContain('APPROVAL_REQUIRED')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -131,6 +132,64 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 0 },
       )
       expect(allowed).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('can prompt for Glob/Grep when a matching fs.read rule requires approval', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-read-prompt-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-read',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'fs.read', path: projectDir },
+          },
+        ],
+      })
+
+      const withoutApproval = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res1 = await withoutApproval(
+        { id: 't1', name: 'Glob', input: { pattern: '**/*', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res1?.is_error).toBe(true)
+      expect(res1?.content).toContain('Policy requires approval for fs.read')
+
+      const approval: ApprovalService = {
+        getSessionRules: () => [],
+        ensureApproved: async () => ({ ok: true }),
+      }
+      const withApproval = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res2 = await withApproval(
+        { id: 't2', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res2).toBeNull()
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

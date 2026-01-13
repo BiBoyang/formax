@@ -8,7 +8,8 @@ export const ErrorCode = {
   NetworkError: 'NETWORK_ERROR',
   Timeout: 'TIMEOUT',
   FsPermission: 'FS_PERMISSION',
+  ApprovalRequired: 'APPROVAL_REQUIRED',
+  PolicyDenied: 'POLICY_DENIED',
 } as const
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
-

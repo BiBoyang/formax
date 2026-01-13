@@ -6,6 +6,7 @@ import type { PolicyAction } from '../../core/policy/types.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ExecutionContext } from './index.js'
 import { createAllowRuleFromAction } from '../../core/approval/rules.js'
+import { ErrorCode } from '../../core/errors/codes.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
 
@@ -107,7 +108,12 @@ export function createApprovalService(args: {
         ok: false,
         result: {
           tool_use_id: call.id,
-          content: `Error: Approval required for ${args2.action.kind}, but no interactive UI is available.`,
+          content: [
+            `Error: Approval required for ${args2.action.kind}, but no interactive UI is available.`,
+            `ErrorCode: ${ErrorCode.ApprovalRequired}`,
+            'Suggestion: Re-run in an interactive session, or add an allow rule to skip prompting.',
+            ...((args2.loaded.warnings || []).map((w) => `Warning: ${w}`)),
+          ].join('\n'),
           is_error: true,
         },
       }

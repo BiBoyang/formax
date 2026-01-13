@@ -6,20 +6,54 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { useUserInputManager } from '../../runtime/userInputContext'
+import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 
 export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
+  const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
+  const toolUseId =
+    message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
-  return (
+  if (status === 'running' && userInput?.isPending(toolUseId)) {
+    return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <Box>
+          <PulsingDot color={theme.secondaryText} pulse />
+          <Text bold color={theme.text}>
+            {toolName}
+          </Text>
+          <Text color={theme.secondaryText}>(</Text>
+          <Text color={theme.secondaryText}>{params}</Text>
+          <Text color={theme.secondaryText}>)</Text>
+        </Box>
+
+        <EditApprovalPrompt
+          title={`Approve this ${toolName} call?`}
+          onDecision={(d) => {
+            if (!userInput) return
+            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+            else if (d.kind === 'approve_remember')
+              userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
+            else if (d.kind === 'feedback')
+              userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+          }}
+        />
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <PulsingDot color={dotColor} pulse={status === 'running'} />
         <Text bold color={theme.text}>
