@@ -34,11 +34,7 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
         <Box flexDirection="column">
           <Box>
             <Text color={theme.secondaryText}>⎿  </Text>
-            {status === 'error' ? (
-              <Text color={theme.error}>{message.content}</Text>
-            ) : (
-              <Text>{message.content}</Text>
-            )}
+            {status === 'error' ? <Text color={theme.error}>{message.content}</Text> : <Text>Updated todo list</Text>}
           </Box>
 
           {todos.length > 0 ? (
@@ -46,8 +42,7 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
               {todos.map((t, i) => (
                 <Box key={i}>
                   <Text color={theme.secondaryText}>   </Text>
-                  <Text>{statusBadge(String((t as any)?.status))} </Text>
-                  <Text>{String((t as any)?.content || '')}</Text>
+                  <TodoLine todo={t} />
                 </Box>
               ))}
             </Box>
@@ -58,13 +53,35 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
   )
 }
 
-function statusBadge(status: string): string {
-  switch (status) {
-    case 'completed':
-      return '[x]'
-    case 'in_progress':
-      return '[>]'
-    default:
-      return '[ ]'
+function TodoLine({ todo }: { todo: TodoItem }): React.ReactNode {
+  const theme = getTheme()
+  const status = String((todo as any)?.status || '')
+  const content = String((todo as any)?.content || '')
+
+  if (status === 'completed') {
+    return (
+      <>
+        <Text color={theme.secondaryText}>☒ </Text>
+        <Text color={theme.secondaryText} strikethrough>
+          {content}
+        </Text>
+      </>
+    )
   }
+
+  if (status === 'in_progress') {
+    return (
+      <>
+        <Text>☐ </Text>
+        <Text bold>{content}</Text>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Text>☐ </Text>
+      <Text>{content}</Text>
+    </>
+  )
 }
