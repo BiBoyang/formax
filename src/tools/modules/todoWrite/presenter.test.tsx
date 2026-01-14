@@ -9,7 +9,8 @@ describe('TodoWriteToolPresenter', () => {
     const message: Msg = {
       id: 'tool-1',
       role: 'tool',
-      content: 'Updated 2 todos',
+      content:
+        'Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable',
       timestamp: new Date(),
       toolInfo: {
         name: 'TodoWrite',
@@ -33,4 +34,3 @@ describe('TodoWriteToolPresenter', () => {
     expect(frame).toContain('Finish')
   })
 })
-

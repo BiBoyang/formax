@@ -188,28 +188,33 @@ export function formatToolResult(
   result: string,
   isError: boolean
 ): ToolResultFormat {
+  // Claude Code sometimes appends internal `<system-reminder>` blocks to the end of
+  // tool_result content for the *next* model call. Those reminders should not be
+  // treated as part of the user-visible tool output.
+  const cleaned = stripTrailingSystemReminderBlock(result)
+
   if (name === 'Task') {
-    return formatTaskToolResult(result, isError)
+    return formatTaskToolResult(cleaned, isError)
   }
 
   if (isError) {
-    if (/^Tool use rejected\b/.test(result)) {
-      return { summary: result.slice(0, 100) }
+    if (/^Tool use rejected\b/.test(cleaned)) {
+      return { summary: cleaned.slice(0, 100) }
     }
-    return { summary: `Error: ${result.slice(0, 100)}` }
+    return { summary: `Error: ${cleaned.slice(0, 100)}` }
   }
   
-  const allLines = result.split('\n')
+  const allLines = cleaned.split('\n')
   const lineCount = allLines.length
   
   switch (name) {
     case 'Read': {
-      const lines = result === '' ? 0 : lineCount
+      const lines = cleaned === '' ? 0 : lineCount
       return { summary: `Read ${lines} lines`, lines }
     }
     
     case 'Write':
-      return { summary: result.slice(0, 100) }
+      return { summary: cleaned.slice(0, 100) }
     
     case 'Glob':
     case 'Search': {
@@ -288,7 +293,7 @@ export function formatToolResult(
     }
     
     default:
-      return { summary: result.slice(0, 100), lines: lineCount }
+      return { summary: cleaned.slice(0, 100), lines: lineCount }
   }
 }
 
@@ -321,4 +326,21 @@ function shortId(id: string): string {
   const s = String(id || '').trim()
   if (s.length <= 8) return s
   return s.slice(0, 8) + '…'
+}
+
+function stripTrailingSystemReminderBlock(raw: string): string {
+  const s = String(raw || '')
+  const marker = '\n\n<system-reminder>'
+  const idx = s.lastIndexOf(marker)
+  if (idx < 0) return s
+
+  const tail = s.slice(idx + 2) // starts at "<system-reminder>"
+  const close = '</system-reminder>'
+  const closeIdx = tail.lastIndexOf(close)
+  if (closeIdx < 0) return s
+
+  const after = tail.slice(closeIdx + close.length)
+  if (after.trim().length !== 0) return s
+
+  return s.slice(0, idx).trimEnd()
 }

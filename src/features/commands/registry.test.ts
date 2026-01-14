@@ -5,6 +5,10 @@ import fsp from 'node:fs/promises'
 import { createStatusSnapshot } from '../../core/diagnostics/status.js'
 import { createSlashCommandRegistry } from './registry'
 
+function stripAnsi(text: string): string {
+  return String(text || '').replace(/\u001b\[[0-9;]*m/g, '')
+}
+
 describe('SlashCommandRegistry', () => {
   it('returns empty when not a slash command', () => {
     const reg = createSlashCommandRegistry({ cwd: process.cwd() })
@@ -69,5 +73,49 @@ describe('SlashCommandRegistry', () => {
     if (!effect || effect.kind !== 'local_async') return
     const out = await effect.run()
     expect(out.stdout).toContain('Doctor OK')
+  })
+
+  it('dispatches /todos as empty when no store exists', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
+    const prev = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      const reg = createSlashCommandRegistry({ cwd })
+      const effect = reg.dispatch('/todos')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toBe('No todos currently tracked')
+    } finally {
+      if (prev === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prev
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /todos with list when store exists', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
+    const prev = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      await fsp.writeFile(
+        path.join(cwd, 'todos.json'),
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const reg = createSlashCommandRegistry({ cwd })
+      const effect = reg.dispatch('/todos')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      const stdout = stripAnsi(effect.stdout)
+      expect(stdout).toContain('1 todo:')
+      expect(stdout).toContain('☐ x')
+    } finally {
+      if (prev === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prev
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
   })
 })

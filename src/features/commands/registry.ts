@@ -5,6 +5,7 @@ import { buildInitCommandContent } from '../../prompts'
 import { formatStatusHuman } from '../../core/diagnostics/format.js'
 import type { StatusSnapshot } from '../../core/diagnostics/status.js'
 import type { TaskManager } from '../../tools/runtime/taskManager'
+import { readTodos } from '../../tools/runtime/todosFile'
 
 export type SlashCommandSpec = {
   command: string
@@ -56,6 +57,7 @@ type CommandEntry = {
 const BUILTIN_SPECS: SlashCommandSpec[] = [
   { command: '/help', description: 'Get help with using Formax', implemented: true },
   { command: '/tasks', description: 'List and manage background tasks', implemented: true },
+  { command: '/todos', description: 'List current todos', implemented: true },
   { command: '/plan', description: 'Show current plan', implemented: true },
   { command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -106,6 +108,24 @@ export function createSlashCommandRegistry(deps: {
       kind: 'local',
       stdout: formatTasksOutput(deps.taskManager?.list() ?? []),
     }),
+  })
+
+  byCommand.set('/todos', {
+    spec: byCommand.get('/todos')!.spec,
+    dispatch: (invocation) => {
+      const { todos } = readTodos(deps.cwd)
+      const stdout = formatTodosCommandOutput(todos)
+      return {
+        kind: 'local',
+        stdout,
+        recordForNextTurn: {
+          commandName: invocation.command,
+          commandMessage: invocation.command.startsWith('/') ? invocation.command.slice(1) : invocation.command,
+          commandArgs: invocation.args,
+          stdout,
+        },
+      }
+    },
   })
 
   byCommand.set('/plan', {
@@ -231,6 +251,32 @@ export function parseSlashCommand(input: string): { command: string; args: strin
   const cmd = raw.slice(0, firstSpace)
   const args = raw.slice(firstSpace + 1).trim()
   return { command: cmd, args }
+}
+
+function formatTodosCommandOutput(
+  todos: Array<{ content: string; status: string }> | null,
+): string {
+  if (!todos || todos.length === 0) return 'No todos currently tracked'
+
+  const headerCount = todos.length
+  const headerNoun = headerCount === 1 ? 'todo' : 'todos'
+  const header = `\u001b[1m${headerCount} ${headerNoun}\u001b[22m:`
+
+  const lines: string[] = [header, '']
+  for (const t of todos) {
+    const content = String(t?.content ?? '')
+    const status = String(t?.status ?? '')
+
+    if (status === 'in_progress') {
+      lines.push(`☐ \u001b[1m${content}\u001b[22m`)
+    } else if (status === 'completed') {
+      lines.push(`\u001b[38;2;153;153;153m☒ \u001b[9m${content}\u001b[29m\u001b[39m`)
+    } else {
+      lines.push(`☐ ${content}`)
+    }
+  }
+
+  return lines.join('\n')
 }
 
 function loadClaudeCommandEntries(cwd: string): CommandEntry[] {

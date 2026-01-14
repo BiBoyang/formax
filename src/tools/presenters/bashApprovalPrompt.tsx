@@ -112,6 +112,8 @@ export function BashApprovalPrompt({
       }
       if (input === '3') {
         setCursor(2)
+        setTyping(true)
+        setTypingValue('')
         return
       }
     },

@@ -16,6 +16,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
+  - TodoWrite “stale todo” reminder injection (Claude Code style): `src/chat/engine.ts` (appends `<system-reminder>` to last `tool_result` content)
 - Anthropic streaming client: `src/streaming/anthropic/StreamClient.ts`
 - SSE parser: `src/streaming/anthropic/sseParser.ts`
 - Stream events/types: `src/streaming/types.ts`
@@ -23,6 +24,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Prompts
 - System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
 - Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`
+- TodoWrite reminder text + formatting helpers: `src/prompts/reminders/todos.ts`
 - Prompt porting status/TODOs: `src/prompts/STATUS.md`, `system-prompts/PORTING-STATUS.md`
 
 ## Tools (Registry → Execution → Presentation)

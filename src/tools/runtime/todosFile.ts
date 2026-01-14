@@ -1,29 +1,55 @@
 import fs from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { getConfigPaths } from '../../adapters/fs/configPaths'
+
+let cachedTodosSessionId: string | null = null
+
+export function getTodosSessionId(): string {
+  if (cachedTodosSessionId) return cachedTodosSessionId
+
+  const fromEnv = process.env.FORMAX_TODOS_SESSION_ID || process.env.FORMAX_SESSION_ID
+  const normalized = typeof fromEnv === 'string' ? fromEnv.trim() : ''
+
+  cachedTodosSessionId = normalized || randomUUID()
+  return cachedTodosSessionId
+}
 
 export function resolveTodosPath(cwd: string): string {
   const envPath = process.env.FORMAX_TODOS_PATH
   if (envPath) return path.resolve(cwd, envPath)
 
-  const logsDir = process.env.FORMAX_LOGS_DIR
-    ? path.resolve(cwd, process.env.FORMAX_LOGS_DIR)
-    : path.resolve(cwd, 'proxy/logs')
-
-  return path.join(logsDir, 'todos.json')
+  const sessionId = getTodosSessionId()
+  const { globalConfigDir } = getConfigPaths({ cwd, env: process.env })
+  const todosDir = path.join(globalConfigDir, 'todos')
+  return path.join(todosDir, `${sessionId}-agent-${sessionId}.json`)
 }
 
-export function readTodosCount(cwd: string): { exists: boolean; count: number | null } {
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+
+export type StoredTodo = {
+  content: string
+  status: TodoStatus
+  activeForm: string
+}
+
+export function readTodos(cwd: string): { exists: boolean; todos: StoredTodo[] | null } {
   const filePath = resolveTodosPath(cwd)
-  if (!fs.existsSync(filePath)) return { exists: false, count: 0 }
+  if (!fs.existsSync(filePath)) return { exists: false, todos: [] }
 
   try {
     const raw = fs.readFileSync(filePath, 'utf8')
     const parsed = JSON.parse(raw)
     const todos = (parsed as any)?.todos
-    if (!Array.isArray(todos)) return { exists: true, count: 0 }
-    return { exists: true, count: todos.length }
+    if (!Array.isArray(todos)) return { exists: true, todos: [] }
+    return { exists: true, todos: todos as StoredTodo[] }
   } catch {
-    return { exists: true, count: null }
+    return { exists: true, todos: null }
   }
 }
 
+export function readTodosCount(cwd: string): { exists: boolean; count: number | null } {
+  const { exists, todos } = readTodos(cwd)
+  if (todos === null) return { exists, count: null }
+  return { exists, count: todos.length }
+}

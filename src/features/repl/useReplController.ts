@@ -12,7 +12,7 @@ import type { LocalCommandRecord, SlashCommandRegistry } from '../commands/regis
 import type { PlanSessionManager } from './planSession'
 import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 import type { SystemPromptProfile } from '../../prompts/system'
-import { buildClaudeMdInjectedBlocks, buildTodoInjectedBlocks } from './injectedBlocks'
+import { ReminderService } from './reminders/ReminderService'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -74,6 +74,7 @@ export function useReplController(deps: {
   const modeRef = useRef<ReplMode>(deps.mode)
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
+  const reminderServiceRef = useRef<ReminderService | null>(null)
 
   useEffect(() => {
     modeRef.current = deps.mode
@@ -321,6 +322,11 @@ export function useReplController(deps: {
           )
         })
 
+        reminderServiceRef.current?.recordToolResult({
+          toolName: toolNameFromStart || 'Tool',
+          ok: !ev.result.is_error,
+        })
+
         // After tool, start a new assistant message for subsequent text
         currentAssistantIdRef.current = null
 
@@ -511,6 +517,8 @@ export function useReplController(deps: {
       assistantBufferRef.current = ''
 
       try {
+        if (!reminderServiceRef.current) reminderServiceRef.current = new ReminderService()
+
         const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
         const planPath =
           deps.mode === 'plan'
@@ -519,8 +527,7 @@ export function useReplController(deps: {
 
         const cwd = process.cwd()
         const injectedBlocks: PromptBlock[] = [
-          ...(promptProfile === 'full' ? buildTodoInjectedBlocks({ cwd }) : []),
-          ...(promptProfile === 'full' ? buildClaudeMdInjectedBlocks({ cwd }) : []),
+          ...(promptProfile === 'full' ? reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
           ...buildModeInjectedBlocks(deps.mode, planPath),
           ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
           ...(localCommandRef.current ? buildLocalCommandInjectedBlocks(localCommandRef.current) : []),

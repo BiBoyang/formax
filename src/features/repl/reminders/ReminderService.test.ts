@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
+import { ReminderService } from './ReminderService'
+
+describe('ReminderService', () => {
+  it('injects CLAUDE.md context when present', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      await fsp.writeFile(path.join(dir, 'CLAUDE.md'), '# CLAUDE.md\n\nHello\n', 'utf8')
+      await fsp.writeFile(
+        path.join(dir, 'todos.json'),
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'y' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService()
+      const blocks = service.generateInjectedBlocks({ cwd: dir, now: 1 })
+
+      expect(blocks).toHaveLength(1)
+      expect((blocks[0] as any).text).toContain('# claudeMd')
+      expect((blocks[0] as any).text).toContain('Contents of')
+      expect((blocks[0] as any).text).toContain('# CLAUDE.md')
+    } finally {
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('injects empty todo reminder every turn while empty', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      const service = new ReminderService({ config: { todoEmptyTtlMs: 1000 } })
+
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
+      expect(first).toHaveLength(1)
+      expect((first[0] as any).text).toContain('todo list is currently empty')
+
+      const second = service.generateInjectedBlocks({ cwd: dir, now: 500 })
+      expect(second).toHaveLength(1)
+      expect((second[0] as any).text).toContain('todo list is currently empty')
+
+      const third = service.generateInjectedBlocks({ cwd: dir, now: 1500 })
+      expect(third).toHaveLength(1)
+      expect((third[0] as any).text).toContain('todo list is currently empty')
+    } finally {
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not inject stale reminder (handled by tool-loop injection)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      const service = new ReminderService({ config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY } })
+
+      await fsp.writeFile(
+        path.join(dir, 'todos.json'),
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
+      expect(first).toHaveLength(0)
+
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 2 })
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 3 })
+
+      const stale = service.generateInjectedBlocks({ cwd: dir, now: 4 })
+      expect(stale).toHaveLength(0)
+    } finally {
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('injects empty todo reminder even when maxRemindersPerSession is 0', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    process.env.FORMAX_TODOS_PATH = 'todos.json'
+
+    try {
+      const service = new ReminderService({ config: { maxRemindersPerSession: 0 } })
+
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
+      expect(first).toHaveLength(1)
+      expect((first[0] as any).text).toContain('todo list is currently empty')
+    } finally {
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

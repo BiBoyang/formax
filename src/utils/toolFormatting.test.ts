@@ -333,6 +333,27 @@ describe('formatToolResult', () => {
     )
   })
 
+  it('strips trailing <system-reminder> blocks from displayed results', () => {
+    const base = ['Usage: bilibili2str [options] <url>', 'line2', 'line3', 'line4'].join('\n')
+    const injected =
+      base +
+      "\n\n<system-reminder>\nThe TodoWrite tool hasn't been used recently.\n</system-reminder>"
+
+    const output = formatToolResult('Bash', injected, false)
+
+    expect(output.summary).toBe('Usage: bilibili2str [options] <url>')
+    expect(output.middleLines).toEqual(['line2', 'line3'])
+    expect(output.expandInfo).toBe('… +1 lines (ctrl+o to expand)')
+    expect(output.lines).toBe(4)
+  })
+
+  it('keeps Task JSON parsing stable when a trailing <system-reminder> is appended', () => {
+    const raw = JSON.stringify({ status: 'completed', summary: 'Done (1 tool uses · 10 tokens · 1s)' })
+    const injected = raw + '\n\n<system-reminder>\ninternal\n</system-reminder>'
+    const output = formatToolResult('Task', injected, false)
+    expect(output.summary).toBe('Done (1 tool uses · 10 tokens · 1s)')
+  })
+
   // Property test: Glob/Search shows file count
   it('should show file count for Glob tool', () => {
     fc.assert(
