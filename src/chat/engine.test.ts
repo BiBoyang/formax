@@ -6,6 +6,7 @@ import { createChatEngine } from './engine'
 import type { PromptMessage } from '../prompts'
 import type { ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamEvent, StreamTurnResult } from '../streaming/types'
+import { resolveTodosPath } from '../tools/runtime/todosFile'
 
 describe('ChatEngine', () => {
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
@@ -61,11 +62,18 @@ describe('ChatEngine', () => {
   it('appends todo_stale reminder to the last tool_result block after threshold', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-engine-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = dir
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
       await fsp.writeFile(
-        path.join(dir, 'todos.json'),
+        todosPath,
         JSON.stringify(
           {
             todos: [
@@ -137,6 +145,10 @@ describe('ChatEngine', () => {
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })

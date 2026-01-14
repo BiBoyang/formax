@@ -3,17 +3,25 @@ import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { ReminderService } from './ReminderService'
+import { resolveTodosPath } from '../../../tools/runtime/todosFile'
 
 describe('ReminderService', () => {
   it('injects CLAUDE.md context when present', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = dir
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
       await fsp.writeFile(path.join(dir, 'CLAUDE.md'), '# CLAUDE.md\n\nHello\n', 'utf8')
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
       await fsp.writeFile(
-        path.join(dir, 'todos.json'),
+        todosPath,
         JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'y' }] }, null, 2),
         'utf8',
       )
@@ -28,6 +36,10 @@ describe('ReminderService', () => {
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -35,9 +47,14 @@ describe('ReminderService', () => {
   it('injects empty todo reminder every turn while empty', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = dir
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
       const service = new ReminderService({ config: { todoEmptyTtlMs: 1000 } })
 
       const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
@@ -54,6 +71,10 @@ describe('ReminderService', () => {
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -61,13 +82,20 @@ describe('ReminderService', () => {
   it('does not inject stale reminder (handled by tool-loop injection)', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = dir
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
       const service = new ReminderService({ config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY } })
 
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
       await fsp.writeFile(
-        path.join(dir, 'todos.json'),
+        todosPath,
         JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
         'utf8',
       )
@@ -84,6 +112,10 @@ describe('ReminderService', () => {
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -91,9 +123,14 @@ describe('ReminderService', () => {
   it('injects empty todo reminder even when maxRemindersPerSession is 0', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = dir
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
       const service = new ReminderService({ config: { maxRemindersPerSession: 0 } })
 
       const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
@@ -102,6 +139,10 @@ describe('ReminderService', () => {
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })

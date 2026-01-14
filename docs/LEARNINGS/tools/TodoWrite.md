@@ -69,7 +69,7 @@
 ## 5) 怎么验证（建议用“无污染”方式）
 
 1) 用临时目录跑 Formax（避免污染真实 `~/.formax`）：
-   - `FORMAX_TODOS_PATH=./tmp/todos.json bun run dev`
+   - `FORMAX_CONFIG_DIR=./tmp/formax-config FORMAX_TODOS_SESSION_ID=demo bun run dev`
 2) 运行 `/todos`，确认空列表提示正确
 3) 让模型调用 `TodoWrite` 创建 2 条 todo
 4) 再运行 `/todos`，确认数量/样式/顺序正确
@@ -80,4 +80,3 @@
 
 - ❓ stale 的阈值/TTL/去重策略：不同版本可能不同，后续需要更多抓包确认后再做成可配置
 - ❓ TodoWrite tool 自己的 presenter 是否要对齐到和 `/todos` 一致的“checkbox/加粗/删除线”样式
-

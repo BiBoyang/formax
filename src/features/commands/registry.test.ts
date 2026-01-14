@@ -77,30 +77,46 @@ describe('SlashCommandRegistry', () => {
 
   it('dispatches /todos as empty when no store exists', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
-    const prev = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = cwd
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
       const reg = createSlashCommandRegistry({ cwd })
       const effect = reg.dispatch('/todos')
       expect(effect?.kind).toBe('local')
       if (!effect || effect.kind !== 'local') return
       expect(effect.stdout).toBe('No todos currently tracked')
     } finally {
-      if (prev === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prev
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(cwd, { recursive: true, force: true })
     }
   })
 
   it('dispatches /todos with list when store exists', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
-    const prev = process.env.FORMAX_TODOS_PATH
-    process.env.FORMAX_TODOS_PATH = 'todos.json'
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
 
     try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      process.env.FORMAX_CONFIG_DIR = cwd
+      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+
+      const todosPath = path.join(cwd, 'todos', 'test-session-agent-test-session.json')
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
       await fsp.writeFile(
-        path.join(cwd, 'todos.json'),
+        todosPath,
         JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
         'utf8',
       )
@@ -113,8 +129,12 @@ describe('SlashCommandRegistry', () => {
       expect(stdout).toContain('1 todo:')
       expect(stdout).toContain('☐ x')
     } finally {
-      if (prev === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prev
+      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
+      else process.env.FORMAX_TODOS_PATH = prevTodosPath
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
+      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(cwd, { recursive: true, force: true })
     }
   })
