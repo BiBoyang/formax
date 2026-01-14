@@ -3,7 +3,7 @@ import { createChatEngine } from '../chat/engine'
 import type { PromptBlock } from '../prompts'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolExecutor } from '../tools/executor'
-import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
+import type { LlmStreamClient } from '../streaming/types'
 import type { StreamEvent, StreamSink } from '../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
 import { randomUUID } from 'node:crypto'
@@ -34,7 +34,7 @@ export interface SubAgentRunner {
 }
 
 export function createSubAgentRunner(deps: {
-  client: AnthropicStreamClient
+  client: LlmStreamClient
   executor: ToolExecutor
   allTools: ToolDefinition[]
 }): SubAgentRunner {

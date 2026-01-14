@@ -3,7 +3,7 @@ import { createSubAgentRunner } from './runner'
 import type { ToolDefinition, ToolCall, ToolResult } from '../tools/types'
 import { createToolExecutor } from '../tools/executor'
 import type { ToolHandler } from '../tools/executor'
-import type { StreamOnceArgs } from '../streaming/anthropic/StreamClient'
+import type { LlmStreamOnceArgs, StreamTurnResult } from '../streaming/types'
 
 function tool(name: string): ToolDefinition {
   return { name, description: `${name} tool`, input_schema: {} }
@@ -17,15 +17,11 @@ class RecordingClient {
     this.responseText = responseText
   }
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: any[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
     this.calls.push({ tools: args.tools })
     args.onEvent({ type: 'assistant_delta', text: this.responseText } as any)
     return {
-      contentBlocks: [{ type: 'text', text: this.responseText }],
+      assistantBlocks: [{ type: 'text', text: this.responseText }],
       stopReason: 'end_turn',
       toolResults: [],
     }
@@ -37,11 +33,7 @@ class ToolUseClient {
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: any[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
     this.calls.push({ tools: args.tools })
     this.callCount++
 
@@ -54,7 +46,7 @@ class ToolUseClient {
       const result = await args.executeTool(call)
       this.firstToolResult = result
       return {
-        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        assistantBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
         stopReason: 'tool_use',
         toolResults: [result],
       }
@@ -62,7 +54,7 @@ class ToolUseClient {
 
     args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
     return {
-      contentBlocks: [{ type: 'text', text: 'done' }],
+      assistantBlocks: [{ type: 'text', text: 'done' }],
       stopReason: 'end_turn',
       toolResults: [],
     }
@@ -74,11 +66,7 @@ class AskUserQuestionClient {
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: any[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
     this.calls.push({ tools: args.tools })
     this.callCount++
 
@@ -91,7 +79,7 @@ class AskUserQuestionClient {
       const result = await args.executeTool(call)
       this.firstToolResult = result
       return {
-        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        assistantBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
         stopReason: 'tool_use',
         toolResults: [result],
       }
@@ -99,7 +87,7 @@ class AskUserQuestionClient {
 
     args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
     return {
-      contentBlocks: [{ type: 'text', text: 'done' }],
+      assistantBlocks: [{ type: 'text', text: 'done' }],
       stopReason: 'end_turn',
       toolResults: [],
     }
@@ -111,11 +99,7 @@ class WildcardToolUseClient {
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: any[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
     this.calls.push({ tools: args.tools })
     this.callCount++
 
@@ -124,7 +108,7 @@ class WildcardToolUseClient {
       const result = await args.executeTool(call)
       this.firstToolResult = result
       return {
-        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        assistantBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
         stopReason: 'tool_use',
         toolResults: [result],
       }
@@ -132,7 +116,7 @@ class WildcardToolUseClient {
 
     args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
     return {
-      contentBlocks: [{ type: 'text', text: 'done' }],
+      assistantBlocks: [{ type: 'text', text: 'done' }],
       stopReason: 'end_turn',
       toolResults: [],
     }
@@ -142,18 +126,14 @@ class WildcardToolUseClient {
 class ReplModeFlipClient {
   private callCount = 0
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: any[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
     this.callCount++
 
     if (this.callCount === 1) {
       const call: ToolCall = { id: 'w1', name: 'Write', input: { file_path: '/tmp/one', content: 'x' } }
       const result = await args.executeTool(call)
       return {
-        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        assistantBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
         stopReason: 'tool_use',
         toolResults: [result],
       }
@@ -163,7 +143,7 @@ class ReplModeFlipClient {
       const call: ToolCall = { id: 'w2', name: 'Write', input: { file_path: '/tmp/two', content: 'y' } }
       const result = await args.executeTool(call)
       return {
-        contentBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+        assistantBlocks: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
         stopReason: 'tool_use',
         toolResults: [result],
       }
@@ -171,7 +151,7 @@ class ReplModeFlipClient {
 
     args.onEvent({ type: 'assistant_delta', text: 'done' } as any)
     return {
-      contentBlocks: [{ type: 'text', text: 'done' }],
+      assistantBlocks: [{ type: 'text', text: 'done' }],
       stopReason: 'end_turn',
       toolResults: [],
     }

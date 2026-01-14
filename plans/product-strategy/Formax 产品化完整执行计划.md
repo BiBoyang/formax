@@ -365,21 +365,8 @@ src/
 ---
 
 ### PR9 — 多家大模型兼容（Anthropic + OpenAI-compatible）
-**目标**
-- 在不破坏现有工具调用/流式体验的前提下，增加 OpenAI-compatible（OpenAI 官方/其他兼容网关）；Gemini 放到 PR10（可选）。
-
-**Checklist（建议拆成 PR9a/PR9b/PR9c）**
-- [ ] PR9a：定义统一 LLM 事件接口（streaming）：text delta / tool call / tool result / error（core 只看统一事件，不看 SDK）
-- [ ] PR9a：定义 provider 抽象：`anthropic | openai`（`gemini` 先占位，不启用）
-- [ ] PR9b：Anthropic adapter：用现有 streaming 实现适配到统一接口（必须不回退工具调用行为）
-- [ ] PR9b：把现有 `streaming/anthropic/*` 迁移到 `src/adapters/llm/anthropic/*`（或先做 wrapper，逐步搬）
-- [ ] PR9c：OpenAI-compatible adapter：支持 baseUrl 自定义（OpenAI 官方与兼容网关），并把 tool-calling 映射到统一事件
-- [ ] PR9c：实现 OpenAI 的连接测试 + models 列表（最小可用即可：能验证 key/baseUrl/model）
-- [ ] PR9c：setup wizard 启用 OpenAI-compatible 选项（没有实现前必须置灰/隐藏，避免“选了跑不动”）
-- [ ] PR9c：测试：同一段“触发工具调用”的对话在 Anthropic 与 OpenAI 下都能跑通（至少覆盖：Read/Glob + Bash/Write 其中一个）
-
-**DoD**
-- [ ] `formax setup` 可选 Anthropic/OpenAI-compatible，并能完成一次包含工具调用的对话（手测 + 录屏/截图）
+已拆分到独立文档：`plans/product-strategy/PR9-multiprovider.md`（PR9 TODO + DoD + 手工验收）。
+- 当前进度：PR9a 已完成（ChatEngine 解耦 Anthropic-only 类型；type-check/test 通过），PR9b+ 暂缓。
 
 ---
 
@@ -465,9 +452,7 @@ src/
   - 按 README 安装/升级/卸载路径走一遍（至少 macOS）
 
 ### PR9（Anthropic + OpenAI-compatible）
-- Manual checks:
-  - Anthropic：纯对话 + 触发一个工具调用 + 401 错误分支
-  - OpenAI-compatible：纯对话 + 触发一个工具调用 + baseUrl 不通错误分支
+- Manual checks：见 `plans/product-strategy/PR9-multiprovider.md`
 
 ### PR10（Gemini，可选）
 - Manual checks:

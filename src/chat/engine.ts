@@ -1,9 +1,7 @@
 import type { PromptBlock, PromptMessage } from '../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
-import type { StreamSink } from '../streaming/types'
-import type { ContentBlock } from '../streaming/anthropic/sseParser'
-import type { AnthropicStreamClient } from '../streaming/anthropic/StreamClient'
+import type { LlmStreamClient, StreamSink } from '../streaming/types'
 
 export type ChatHistory = PromptMessage[]
 
@@ -33,8 +31,16 @@ export interface ChatEngine {
   }): Promise<ChatHistory>
 }
 
+function isToolUseBlock(
+  block: PromptBlock,
+): block is { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> } {
+  if (!block || typeof block !== 'object') return false
+  if ((block as any).type !== 'tool_use') return false
+  return typeof (block as any).id === 'string' && typeof (block as any).name === 'string'
+}
+
 export function createChatEngine(deps: {
-  client: AnthropicStreamClient
+  client: LlmStreamClient
   executor: ToolExecutor
 }): ChatEngine {
   return {
@@ -72,7 +78,7 @@ export function createChatEngine(deps: {
       try {
         let iteration = 0
         while (true) {
-          const { contentBlocks, stopReason, toolResults } =
+          const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
               messages: loopMessages,
               system,
@@ -82,31 +88,11 @@ export function createChatEngine(deps: {
               signal,
             })
 
-          const toolCalls = contentBlocks
-            .filter((b): b is ContentBlock & { type: 'tool_use' } => b.type === 'tool_use')
-            .map((b) => ({ id: b.id!, name: b.name!, input: b.input || {} }))
+          const toolUseBlocks = assistantBlocks.filter(isToolUseBlock)
 
-          const assistantContent = contentBlocks.map((block) => {
-            if (block.type === 'text') {
-              return { type: 'text', text: block.text || '' }
-            }
-            if (block.type === 'tool_use') {
-              return {
-                type: 'tool_use',
-                id: block.id,
-                name: block.name,
-                input: block.input || {},
-              }
-            }
-            if (block.type === 'thinking') {
-              return { type: 'thinking', thinking: block.thinking || '' }
-            }
-            return block as any
-          })
+          loopMessages.push({ role: 'assistant', content: assistantBlocks })
 
-          loopMessages.push({ role: 'assistant', content: assistantContent })
-
-          if (toolCalls.length === 0 || stopReason !== 'tool_use') {
+          if (toolUseBlocks.length === 0 || stopReason !== 'tool_use') {
             break
           }
 

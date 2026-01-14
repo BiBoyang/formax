@@ -21,9 +21,9 @@ Anthropic API 流式通信层：处理 SSE 解析、tool 并行执行与事件�
 | --------------------------- | -------------------------------------- |
 | `anthropic/StreamClient.ts` | AnthropicStreamClient 类，发起流式请求 |
 | `anthropic/sseParser.ts`    | parseAnthropicSSEStream 解析 SSE 流    |
-| `types.ts`                  | StreamEvent / StreamSink / TokenUsage  |
+| `types.ts`                  | StreamEvent / StreamSink / TokenUsage / LlmStreamClient |
 
-上层 chat engine (`src/chat/engine.ts`) 实例化 `AnthropicStreamClient` 并调用 `streamOnce`。
+上层 chat engine (`src/chat/engine.ts`) 依赖 `LlmStreamClient` 接口；legacy wiring 目前注入的是 `AnthropicStreamClient`（实现 `LlmStreamClient`）。
 
 ## 3) 流程（Flow）
 
@@ -88,7 +88,7 @@ sequenceDiagram
 ### 支持新 API provider
 
 1. 创建 `<provider>/StreamClient.ts` 和 `<provider>/sseParser.ts`
-2. 实现相同的 `streamOnce` 接口，返回 `{ contentBlocks, stopReason, toolResults }`
+2. 实现 `LlmStreamClient.streamOnce` 接口，返回 `{ assistantBlocks, stopReason, toolResults }`
 3. 上层 engine 根据 config 选择 client
 
 ### 添加 token 使用统计

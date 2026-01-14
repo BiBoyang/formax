@@ -82,3 +82,6 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 
 ## Codex local project path
 - /Users/david/Documents/github/codex
+
+## OpenCode local project path
+- /Users/david/Documents/github/opencode

@@ -5,7 +5,7 @@ import {
 } from './sseParser'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
-import type { StreamSink } from '../types'
+import type { LlmStreamClient, LlmStreamOnceArgs, StreamTurnResult } from '../types'
 
 export function sortToolResultsByCallOrder(
   toolCallOrder: string[],
@@ -41,15 +41,7 @@ export interface StreamClientConfig {
   timeoutMs?: number
 }
 
-export interface StreamOnceArgs {
-  messages: PromptMessage[]
-  system: PromptBlock[]
-  tools: ToolDefinition[]
-  onEvent: StreamSink
-  executeTool: (call: ToolCall) => Promise<ToolResult>
-  signal?: AbortSignal
-  maxTokens?: number
-}
+export type StreamOnceArgs = LlmStreamOnceArgs
 
 function getDefaultHeaders(apiKey: string): Record<string, string> {
   return {
@@ -82,7 +74,7 @@ function normalizeBaseUrl(baseUrl?: string): string {
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 }
 
-export class AnthropicStreamClient {
+export class AnthropicStreamClient implements LlmStreamClient {
   private config: StreamClientConfig
   private headers: Record<string, string>
 
@@ -95,11 +87,7 @@ export class AnthropicStreamClient {
     this.headers = getDefaultHeaders(config.apiKey)
   }
 
-  async streamOnce(args: StreamOnceArgs): Promise<{
-    contentBlocks: ContentBlock[]
-    stopReason: string | null
-    toolResults: ToolResult[]
-  }> {
+  async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
     const payload = {
       stream: true,
       model: this.config.model,
@@ -219,10 +207,29 @@ export class AnthropicStreamClient {
 
       const sortedToolResults = sortToolResultsByCallOrder(toolCallOrder, toolResults)
 
+      const assistantBlocks: PromptBlock[] = result.contentBlocks.map((block) => {
+        if (block.type === 'text') {
+          return { type: 'text', text: block.text || '' }
+        }
+        if (block.type === 'tool_use') {
+          return {
+            type: 'tool_use',
+            id: String(block.id || ''),
+            name: String(block.name || ''),
+            input: (block.input || {}) as Record<string, unknown>,
+          }
+        }
+        if (block.type === 'thinking') {
+          return { type: 'thinking', thinking: block.thinking || '' }
+        }
+        return block as any
+      })
+
       return {
-        contentBlocks: result.contentBlocks,
+        assistantBlocks,
         stopReason: result.stopReason,
         toolResults: sortedToolResults,
+        usage: result.usage,
       }
     } finally {
       clearTimeout(timeoutId)

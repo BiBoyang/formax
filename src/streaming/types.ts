@@ -1,4 +1,5 @@
-import type { ToolResult } from '../tools/types'
+import type { PromptBlock, PromptMessage } from '../prompts'
+import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 
 export type TokenUsage = Partial<{
   input_tokens: number
@@ -6,6 +7,8 @@ export type TokenUsage = Partial<{
   cache_read_input_tokens: number
   cache_creation_input_tokens: number
 }>
+
+export type StopReason = string | null
 
 export type StreamEvent =
   | { type: 'assistant_delta'; text: string }
@@ -32,3 +35,24 @@ export type StreamEvent =
   | { type: 'complete' }
 
 export type StreamSink = (ev: StreamEvent) => void
+
+export type StreamTurnResult = {
+  assistantBlocks: PromptBlock[]
+  stopReason: StopReason
+  toolResults: ToolResult[]
+  usage?: TokenUsage
+}
+
+export type LlmStreamOnceArgs = {
+  messages: PromptMessage[]
+  system: PromptBlock[]
+  tools: ToolDefinition[]
+  onEvent: StreamSink
+  executeTool: (call: ToolCall) => Promise<ToolResult>
+  signal?: AbortSignal
+  maxTokens?: number
+}
+
+export interface LlmStreamClient {
+  streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult>
+}
