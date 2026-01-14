@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { resolveTodosPath } from '../../runtime/todosFile'
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
 
@@ -48,15 +49,4 @@ export const TodoWriteToolHandler: ToolHandler = {
       return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
     }
   },
-}
-
-function resolveTodosPath(cwd: string): string {
-  const envPath = process.env.FORMAX_TODOS_PATH
-  if (envPath) return path.resolve(cwd, envPath)
-
-  const logsDir = process.env.FORMAX_LOGS_DIR
-    ? path.resolve(cwd, process.env.FORMAX_LOGS_DIR)
-    : path.resolve(cwd, 'proxy/logs')
-
-  return path.join(logsDir, 'todos.json')
 }

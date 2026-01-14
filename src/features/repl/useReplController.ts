@@ -12,6 +12,7 @@ import type { LocalCommandRecord, SlashCommandRegistry } from '../commands/regis
 import type { PlanSessionManager } from './planSession'
 import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 import type { SystemPromptProfile } from '../../prompts/system'
+import { buildClaudeMdInjectedBlocks, buildTodoInjectedBlocks } from './injectedBlocks'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -510,12 +511,16 @@ export function useReplController(deps: {
       assistantBufferRef.current = ''
 
       try {
+        const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
         const planPath =
           deps.mode === 'plan'
             ? deps.planSession?.getPlanPath() ?? deps.planSession?.startNewPlan() ?? null
             : deps.planSession?.getPlanPath() ?? null
 
+        const cwd = process.cwd()
         const injectedBlocks: PromptBlock[] = [
+          ...(promptProfile === 'full' ? buildTodoInjectedBlocks({ cwd }) : []),
+          ...(promptProfile === 'full' ? buildClaudeMdInjectedBlocks({ cwd }) : []),
           ...buildModeInjectedBlocks(deps.mode, planPath),
           ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
           ...(localCommandRef.current ? buildLocalCommandInjectedBlocks(localCommandRef.current) : []),
@@ -528,9 +533,9 @@ export function useReplController(deps: {
 
         const system = buildSystemPrompt({
           allowedSubagents: deps.allowedSubagents,
-          cwd: process.cwd(),
+          cwd,
           model: deps.cfg.llm.model,
-          profile: deps.promptProfile ?? deps.cfg.ui.promptProfile,
+          profile: promptProfile,
         })
 
         const exec = {
@@ -546,7 +551,7 @@ export function useReplController(deps: {
           system,
           tools: deps.tools,
           onEvent: handleEvent,
-          cwd: process.cwd(),
+          cwd,
           signal: abortController.signal,
           exec,
         })

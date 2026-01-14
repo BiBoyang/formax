@@ -14,6 +14,8 @@ Select via:
 
 These items are intentionally omitted or simplified in `full` until implemented:
 
+- Per-turn `CLAUDE.md` injection: ✅ project `CLAUDE.md` is injected as a `<system-reminder>#claudeMd` block; TODO: also support a user-level global `~/.claude/CLAUDE.md` equivalent (opt-in / env-gated)
+- TodoWrite reminders: ✅ inject an “empty todo list” system reminder; TODO: implement “TodoWrite hasn’t been used recently” based on session state + support per-session todo stores
 - `/help` exists (local command), but help content parity is still incomplete
 - Tool policy sections that reference tools/behaviors we don’t have yet (e.g. `gh` workflows)
 - Rich environment snapshot block: ✅ basic parity added (`<env>` + git snapshot + model id); still missing Claude-specific extras (knowledge cutoff, claude_background_info, main branch inference)
