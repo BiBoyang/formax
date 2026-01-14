@@ -27,31 +27,16 @@ function nextIndex(options: ChoiceOption[], from: number, dir: 1 | -1): number {
   return (from + dir + options.length) % options.length
 }
 
-function ChoiceList({
+function ChoiceListView({
   options,
   focusedIndex,
   selectedValue,
-  onFocus,
-  onSelect,
 }: {
   options: ChoiceOption[]
   focusedIndex: number
   selectedValue?: string
-  onFocus: (nextIndex: number) => void
-  onSelect: (value: string) => void
 }): React.ReactNode {
   const theme = getTheme()
-
-  useInput((_input, key) => {
-    if (options.length === 0) return
-    if (key.downArrow) onFocus(nextIndex(options, focusedIndex, 1))
-    if (key.upArrow) onFocus(nextIndex(options, focusedIndex, -1))
-    if (key.return) {
-      const opt = options[focusedIndex]
-      if (!opt || opt.disabled) return
-      onSelect(opt.value)
-    }
-  })
 
   return (
     <Box flexDirection="column">
@@ -128,10 +113,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     refresh()
   }, [refresh, session])
 
-  useInput((_input, key) => {
-    if (key.escape) onCancel()
-  })
-
   const providerOptions = useMemo(() => toProviderOptions(providers), [providers])
   const modelOptions = useMemo<ChoiceOption[]>(() => {
     const models = sessionState.availableModels || []
@@ -184,6 +165,147 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const step = sessionState.step
   const draft = sessionState.draft
 
+  const handleProviderInput = useCallback(
+    (input: string, key: any) => {
+      if (providerOptions.length === 0) return
+      if (key.downArrow) {
+        setProviderFocus((idx) => nextIndex(providerOptions, idx, 1))
+        return
+      }
+      if (key.upArrow) {
+        setProviderFocus((idx) => nextIndex(providerOptions, idx, -1))
+        return
+      }
+      if (input && /^[1-9]$/.test(input)) {
+        const idx = Number.parseInt(input, 10) - 1
+        if (idx >= 0 && idx < providerOptions.length) setProviderFocus(idx)
+        return
+      }
+      if (key.return) {
+        const opt = providerOptions[providerFocus]
+        if (!opt || opt.disabled) return
+        onProviderSelect(opt.value)
+      }
+    },
+    [onProviderSelect, providerFocus, providerOptions],
+  )
+
+  const handleModelInput = useCallback(
+    (input: string, key: any) => {
+      if (modelOptions.length === 0) return
+      if (key.tab && key.shift) {
+        goBack()
+        return
+      }
+      if (key.downArrow) {
+        setModelFocus((idx) => nextIndex(modelOptions, idx, 1))
+        return
+      }
+      if (key.upArrow) {
+        setModelFocus((idx) => nextIndex(modelOptions, idx, -1))
+        return
+      }
+      if (input && /^[1-9]$/.test(input)) {
+        const idx = Number.parseInt(input, 10) - 1
+        if (idx >= 0 && idx < modelOptions.length) setModelFocus(idx)
+        return
+      }
+      if (key.return) {
+        const opt = modelOptions[modelFocus]
+        if (!opt || opt.disabled) return
+        onModelSelect(opt.value)
+      }
+    },
+    [goBack, modelFocus, modelOptions, onModelSelect],
+  )
+
+  const handleConfirmInput = useCallback(
+    (input: string, key: any) => {
+      if (writing.status === 'running') return
+      if (key.downArrow) setConfirmFocus((idx) => Math.min(1, idx + 1))
+      if (key.upArrow) setConfirmFocus((idx) => Math.max(0, idx - 1))
+      if (input === '1') setConfirmFocus(0)
+      if (input === '2') setConfirmFocus(1)
+      if (key.tab && key.shift) goBack()
+      if (key.return) {
+        if (confirmFocus === 0) startWrite()
+        else goBack()
+      }
+    },
+    [confirmFocus, goBack, startWrite, writing.status],
+  )
+
+  const handleTestInput = useCallback(
+    (_input: string, key: any) => {
+      if (sessionState.test.status === 'running') return
+      if (key.tab && key.shift) goBack()
+      if (key.return) void runNext()
+    },
+    [goBack, runNext, sessionState.test.status],
+  )
+
+  const handleWelcomeInput = useCallback(() => {
+    void runNext()
+  }, [runNext])
+
+  const handleBaseUrlInput = useCallback(
+    (_input: string, key: any) => {
+      if (key.tab && key.shift) goBack()
+    },
+    [goBack],
+  )
+
+  const handleApiKeyInput = useCallback(
+    (_input: string, key: any) => {
+      if (key.tab && key.shift) goBack()
+    },
+    [goBack],
+  )
+
+  useInput(
+    (input, key) => {
+      if (key.escape) {
+        onCancel()
+        return
+      }
+
+      if (step === 'welcome') {
+        if (key.return) handleWelcomeInput()
+        return
+      }
+
+      if (step === 'provider') {
+        handleProviderInput(input, key)
+        return
+      }
+
+      if (step === 'baseUrl') {
+        handleBaseUrlInput(input, key)
+        return
+      }
+
+      if (step === 'apiKey') {
+        handleApiKeyInput(input, key)
+        return
+      }
+
+      if (step === 'test') {
+        handleTestInput(input, key)
+        return
+      }
+
+      if (step === 'model') {
+        handleModelInput(input, key)
+        return
+      }
+
+      if (step === 'confirm') {
+        handleConfirmInput(input, key)
+      }
+    },
+    { isActive: true },
+  )
+
   useEffect(() => {
     if (step !== 'confirm') {
       setWriting({ status: 'idle', error: null })
@@ -194,15 +316,13 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   return (
     <Box flexDirection="column">
       {step === 'welcome' ? (
-        <WelcomeStep onNext={runNext} />
+        <WelcomeStep />
       ) : step === 'provider' ? (
         <ProviderStep
           options={providerOptions}
           focusedIndex={providerFocus}
           selectedValue={draft.provider || undefined}
           error={sessionState.error}
-          onFocus={setProviderFocus}
-          onSelect={onProviderSelect}
         />
       ) : step === 'baseUrl' ? (
         <BaseUrlStep
@@ -241,8 +361,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
           focusedIndex={modelFocus}
           selectedValue={draft.model || undefined}
           error={sessionState.error}
-          onFocus={setModelFocus}
-          onSelect={onModelSelect}
           onBack={goBack}
           onEnsureSelected={(value) => {
             session.setModel(value)
@@ -254,7 +372,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
           draft={draft}
           focusIndex={confirmFocus}
           writing={writing}
-          onFocus={setConfirmFocus}
           onBack={goBack}
           onConfirm={startWrite}
         />
@@ -274,12 +391,8 @@ function toProviderOptions(providers: SetupProviderOption[]): ChoiceOption[] {
   }))
 }
 
-function WelcomeStep({ onNext }: { onNext: () => Promise<void> }): React.ReactNode {
+function WelcomeStep(): React.ReactNode {
   const theme = getTheme()
-  useInput((_input, key) => {
-    if (key.return) void onNext()
-  })
-
   return (
     <Box flexDirection="column" paddingTop={1}>
       <Text bold color={theme.text}>
@@ -305,22 +418,18 @@ function ProviderStep({
   focusedIndex,
   selectedValue,
   error,
-  onFocus,
-  onSelect,
 }: {
   options: ChoiceOption[]
   focusedIndex: number
   selectedValue?: string
   error: string | null
-  onFocus: (idx: number) => void
-  onSelect: (value: string) => void
 }): React.ReactNode {
   const theme = getTheme()
   return (
     <Box flexDirection="column" paddingTop={1}>
       <Text bold>Select a provider</Text>
       <Box marginTop={1}>
-        <ChoiceList options={options} focusedIndex={focusedIndex} selectedValue={selectedValue} onFocus={onFocus} onSelect={onSelect} />
+        <ChoiceListView options={options} focusedIndex={focusedIndex} selectedValue={selectedValue} />
       </Box>
       {error ? (
         <Box marginTop={1}>
@@ -348,10 +457,6 @@ function BaseUrlStep({
   onSubmit: () => void
 }): React.ReactNode {
   const theme = getTheme()
-  useInput((_input, key) => {
-    if (key.tab && key.shift) onBack()
-  })
-
   return (
     <Box flexDirection="column" paddingTop={1}>
       <Text bold>Base URL</Text>
@@ -388,10 +493,6 @@ function ApiKeyStep({
   onSubmit: () => void
 }): React.ReactNode {
   const theme = getTheme()
-  useInput((_input, key) => {
-    if (key.tab && key.shift) onBack()
-  })
-
   return (
     <Box flexDirection="column" paddingTop={1}>
       <Text bold>API Key</Text>
@@ -434,12 +535,6 @@ function TestStep({
   onBack: () => void
 }): React.ReactNode {
   const theme = getTheme()
-  useInput((_input, key) => {
-    if (status === 'running') return
-    if (key.tab && key.shift) onBack()
-    if (key.return) void onRetry()
-  })
-
   const err = lastError && 'code' in lastError ? lastError : null
   const hint =
     err && provider
@@ -488,8 +583,6 @@ function ModelStep({
   focusedIndex,
   selectedValue,
   error,
-  onFocus,
-  onSelect,
   onBack,
   onEnsureSelected,
 }: {
@@ -497,8 +590,6 @@ function ModelStep({
   focusedIndex: number
   selectedValue?: string
   error: string | null
-  onFocus: (idx: number) => void
-  onSelect: (value: string) => void
   onBack: () => void
   onEnsureSelected: (value: string) => void
 }): React.ReactNode {
@@ -510,16 +601,12 @@ function ModelStep({
     if (first) onEnsureSelected(first)
   }, [onEnsureSelected, options, selectedValue])
 
-  useInput((_input, key) => {
-    if (key.tab && key.shift) onBack()
-  })
-
   return (
     <Box flexDirection="column" paddingTop={1}>
       <Text bold>Select a model</Text>
       <Box marginTop={1}>
         {options.length ? (
-          <ChoiceList options={options} focusedIndex={Math.min(focusedIndex, options.length - 1)} selectedValue={selectedValue} onFocus={onFocus} onSelect={onSelect} />
+          <ChoiceListView options={options} focusedIndex={Math.min(focusedIndex, options.length - 1)} selectedValue={selectedValue} />
         ) : (
           <Text color={theme.secondaryText}>No models found.</Text>
         )}
@@ -540,29 +627,16 @@ function ConfirmStep({
   draft,
   focusIndex,
   writing,
-  onFocus,
   onBack,
   onConfirm,
 }: {
   draft: SetupDraft
   focusIndex: number
   writing: { status: 'idle' | 'running' | 'error'; error: string | null }
-  onFocus: (idx: number) => void
   onBack: () => void
   onConfirm: () => void
 }): React.ReactNode {
   const theme = getTheme()
-
-  useInput((_input, key) => {
-    if (writing.status === 'running') return
-    if (key.downArrow) onFocus(Math.min(1, focusIndex + 1))
-    if (key.upArrow) onFocus(Math.max(0, focusIndex - 1))
-    if (key.tab && key.shift) onBack()
-    if (key.return) {
-      if (focusIndex === 0) onConfirm()
-      else onBack()
-    }
-  })
 
   return (
     <Box flexDirection="column" paddingTop={1}>

@@ -219,6 +219,8 @@ src/
 - [x] PR3c：实现写入：config.json + auth.json + log dir +（可选）初始化 rules.json
 - [x] PR3c：测试：状态机回退/取消/重试；写入失败；401/403/DNS/timeout 文案
 - [ ] PR3d：抽一个通用的“菜单/确认框/输入框”键盘交互层（如 `useMenuInput`/`MenuPrompt`），统一 Up/Down/Enter/Esc/数字快捷键/typing-mode，避免不同交互之间按键语义冲突（SetupWizard/AskUserQuestion/审批 Prompt 等）
+  - [x] SetupWizard：集中到单一 `useInput` 分发（避免多处 handler 互相打架）
+  - [ ] 后续：把审批 Prompt/AskUserQuestion 的交互也迁移到同一套抽象（优先解决“数字键/上下键冲突”）
 
 **验收脚本（人工）**
 - [ ] 全新环境：`rm -rf ~/.formax` → `formax` → wizard 走通
