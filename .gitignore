@@ -8,6 +8,8 @@ dist/
 dist/
 docs/*
 !docs/troubleshooting.md
+!docs/LEARNINGS/
+!docs/LEARNINGS/**
 .claude
 proxy/*
 !proxy/tools.json

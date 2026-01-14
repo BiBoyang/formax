@@ -51,6 +51,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 
 ## Documentation Hygiene
 - Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
+- Treat `docs/LEARNINGS/` as the long-term “how Claude Code works (as observed) + how Formax maps to it” knowledge base; when you ship a behavior-alignment change, add/update a short learning note there.
 - For complex subsystems that have a local deep-dive README, keep it in sync when you change boundaries, control-flow, invariants, or extension points:
   - `src/tools/README.md`
   - `src/core/README.md`
