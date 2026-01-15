@@ -5,6 +5,7 @@ export type ModelInfo = {
   model: string
   provider: string
   max_tokens?: number
+  contextWindowTokens?: number
   supports_reasoning_effort?: boolean
   supports_vision?: boolean
   supports_function_calling?: boolean
@@ -49,6 +50,7 @@ export async function fetchAnthropicModels(
           model: model.modelName || model.id || model.name || model.model || 'unknown',
           provider: 'anthropic',
           max_tokens: model.max_tokens || model.context_length || 8192,
+          contextWindowTokens: model.context_length || model.context_window || model.max_tokens,
           supports_reasoning_effort: false,
           supports_vision: Boolean(model.supports_vision ?? true),
           supports_function_calling: model.supports_function_calling ?? true,
@@ -73,6 +75,7 @@ export async function fetchAnthropicModels(
         model: 'claude-3-5-sonnet-latest',
         provider: 'anthropic',
         max_tokens: 8192,
+        contextWindowTokens: 200000,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,
@@ -81,6 +84,7 @@ export async function fetchAnthropicModels(
         model: 'claude-3-5-haiku-latest',
         provider: 'anthropic',
         max_tokens: 8192,
+        contextWindowTokens: 200000,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,
@@ -89,6 +93,7 @@ export async function fetchAnthropicModels(
         model: 'claude-3-opus-latest',
         provider: 'anthropic',
         max_tokens: 4096,
+        contextWindowTokens: 200000,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,
@@ -97,6 +102,7 @@ export async function fetchAnthropicModels(
         model: 'claude-3-sonnet-latest',
         provider: 'anthropic',
         max_tokens: 4096,
+        contextWindowTokens: 200000,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,
@@ -105,6 +111,7 @@ export async function fetchAnthropicModels(
         model: 'claude-3-haiku-latest',
         provider: 'anthropic',
         max_tokens: 4096,
+        contextWindowTokens: 200000,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,
@@ -159,11 +166,18 @@ export async function fetchOpenAIModels(
     const response = await openai.models.list()
 
     // Reference model metadata from Kode-cli's models.ts
-    const modelMetadata: Record<string, { max_tokens: number; supports_reasoning_effort: boolean }> = {
-      'gpt-4o': { max_tokens: 16384, supports_reasoning_effort: false },
-      'gpt-4-turbo': { max_tokens: 4096, supports_reasoning_effort: false },
-      'gpt-4': { max_tokens: 4096, supports_reasoning_effort: false },
-      'gpt-3.5-turbo': { max_tokens: 4096, supports_reasoning_effort: false },
+    const modelMetadata: Record<
+      string,
+      {
+        max_tokens: number
+        supports_reasoning_effort: boolean
+        contextWindowTokens?: number
+      }
+    > = {
+      'gpt-4o': { max_tokens: 16384, supports_reasoning_effort: false, contextWindowTokens: 128000 },
+      'gpt-4-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 128000 },
+      'gpt-4': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 8192 },
+      'gpt-3.5-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 16385 },
       'o1': { max_tokens: 100000, supports_reasoning_effort: true },
       'o1-preview': { max_tokens: 100000, supports_reasoning_effort: true },
       'o1-mini': { max_tokens: 100000, supports_reasoning_effort: true },
@@ -192,6 +206,7 @@ export async function fetchOpenAIModels(
           model: modelId,
           provider: 'openai',
           max_tokens: metadata?.max_tokens || 8192,
+          contextWindowTokens: metadata?.contextWindowTokens,
           supports_reasoning_effort: metadata?.supports_reasoning_effort || false,
           supports_vision: modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo'),
           supports_function_calling: true,
@@ -205,6 +220,7 @@ export async function fetchOpenAIModels(
           model: 'gpt-4o',
           provider: 'openai',
           max_tokens: 16384,
+          contextWindowTokens: 128000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -213,6 +229,7 @@ export async function fetchOpenAIModels(
           model: 'gpt-4-turbo',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 128000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -221,6 +238,7 @@ export async function fetchOpenAIModels(
           model: 'gpt-4',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 8192,
           supports_reasoning_effort: false,
           supports_vision: false,
           supports_function_calling: true,
@@ -229,6 +247,7 @@ export async function fetchOpenAIModels(
           model: 'gpt-3.5-turbo',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 16385,
           supports_reasoning_effort: false,
           supports_vision: false,
           supports_function_calling: true,
@@ -382,6 +401,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'claude-3-5-sonnet-latest',
           provider: 'anthropic',
           max_tokens: 8192,
+          contextWindowTokens: 200000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -390,6 +410,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'claude-3-5-haiku-latest',
           provider: 'anthropic',
           max_tokens: 8192,
+          contextWindowTokens: 200000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -398,6 +419,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'claude-3-opus-latest',
           provider: 'anthropic',
           max_tokens: 4096,
+          contextWindowTokens: 200000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -409,6 +431,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'gpt-4o',
           provider: 'openai',
           max_tokens: 16384,
+          contextWindowTokens: 128000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -417,6 +440,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'gpt-4-turbo',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 128000,
           supports_reasoning_effort: false,
           supports_vision: true,
           supports_function_calling: true,
@@ -425,6 +449,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'gpt-4',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 8192,
           supports_reasoning_effort: false,
           supports_vision: false,
           supports_function_calling: true,
@@ -433,6 +458,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
           model: 'gpt-3.5-turbo',
           provider: 'openai',
           max_tokens: 4096,
+          contextWindowTokens: 16385,
           supports_reasoning_effort: false,
           supports_vision: false,
           supports_function_calling: true,

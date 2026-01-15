@@ -23,18 +23,18 @@
 ## P1 — context window 数据源（决定 meter/阈值）
 
 - [ ] 明确 `contextWindowTokens` 数据源（推荐先落地：模型元数据表）
-  - [ ] 为 model 元数据新增 `contextWindowTokens?: number`
-  - [ ] Anthropic 常用模型先填一版默认表（可后续扩展）
+  - [x] 为 model 元数据新增 `contextWindowTokens?: number`
+  - [x] Anthropic 常用模型先填一版默认表（可后续扩展）
   - [ ] 允许 config 覆盖（env/config）
 - [ ] 新增通用参数（参考 Codex，可配置）
   - [ ] `effective_context_window_percent`（默认 0.95）
   - [ ] `auto_compact_token_limit_percent`（默认 0.90）
   - [ ] `baseline_tokens`（默认 12000）
-- [ ] 单测：给定 contextWindow/percent/baseline，输出 `effectiveLimit/autoCompactLimit/percentRemaining` 稳定
+- [x] 单测：给定 contextWindow/percent/baseline，输出 `effectiveLimit/autoCompactLimit/percentRemaining` 稳定
 
 **DoD**
-- [ ] `bun run test`（相关 tests）通过
-- [ ] `bun run type-check` 通过
+- [x] `bun run test`（相关 tests）通过
+- [x] `bun run type-check` 通过
 
 ## P2 — Context Meter（先只显示，不改变 prompt）
 
@@ -131,4 +131,3 @@
 - 然后给超细 checklist（按 P0/P1/P2，包含：改哪些文件、加哪些类型/函数、DoD、要跑的 tests/commands）
 - 最后给风险清单与最小回滚策略
 ```
-
