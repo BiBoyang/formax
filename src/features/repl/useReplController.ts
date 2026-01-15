@@ -19,7 +19,13 @@ import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
 import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
-import { buildAgentsWizardQuestions, createAgentFromWizardAnswers } from '../../subagents/agentsWizard'
+import {
+  buildAgentsWizardEntryQuestions,
+  buildAgentsWizardGenerateQuestions,
+  buildAgentsWizardManualQuestions,
+  createAgentFromWizardAnswers,
+  generateAgentDraftWithClaude,
+} from '../../subagents/agentsWizard'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -659,53 +665,229 @@ export function useReplController(deps: {
         abortControllerRef.current = abortController
         setError(null)
 
-        const toolUseId = `agents-${Date.now()}`
-        const toolMsgId = `tool-${toolUseId}`
-        const questions = buildAgentsWizardQuestions()
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: toolMsgId,
-            role: 'tool',
-            content: '',
-            timestamp: new Date(),
-            toolInfo: {
-              name: 'AskUserQuestion',
-              toolUseId,
-              input: { questions },
-              status: 'running',
-            },
-          },
-        ])
-
         try {
-          const answers = await userInput.requestAnswers({
-            toolUseId,
-            questions,
-            signal: abortController.signal,
-          })
+          const created = await (async () => {
+            const entryToolUseId = `agents-entry-${Date.now()}`
+            const entryMsgId = `tool-${entryToolUseId}`
+            const entryQuestions = buildAgentsWizardEntryQuestions()
 
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === toolMsgId
-                ? {
-                    ...m,
-                    toolInfo: {
-                      ...m.toolInfo!,
-                      status: 'completed',
-                      result: JSON.stringify({ answers }, null, 2),
-                    },
-                  }
-                : m,
-            ),
-          )
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: entryMsgId,
+                role: 'tool',
+                content: '',
+                timestamp: new Date(),
+                toolInfo: {
+                  name: 'AskUserQuestion',
+                  toolUseId: entryToolUseId,
+                  input: { questions: entryQuestions },
+                  status: 'running',
+                },
+              },
+            ])
 
-          const created = await createAgentFromWizardAnswers({
-            answers,
-            cwd: process.cwd(),
-            projectAgentsDir: deps.cfg.paths.subagentsDir,
-          })
+            const entryAnswers = await userInput.requestAnswers({
+              toolUseId: entryToolUseId,
+              questions: entryQuestions,
+              signal: abortController.signal,
+            })
+
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === entryMsgId
+                  ? {
+                      ...m,
+                      toolInfo: {
+                        ...m.toolInfo!,
+                        status: 'completed',
+                        result: JSON.stringify({ answers: entryAnswers }, null, 2),
+                      },
+                    }
+                  : m,
+              ),
+            )
+
+            const scope = String(entryAnswers.scope || '')
+            const mode = String(entryAnswers.mode || '').toLowerCase()
+            const wantsGenerate = mode.includes('generate')
+
+            if (!wantsGenerate) {
+              const manualToolUseId = `agents-manual-${Date.now()}`
+              const manualMsgId = `tool-${manualToolUseId}`
+              const manualQuestions = buildAgentsWizardManualQuestions()
+
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: manualMsgId,
+                  role: 'tool',
+                  content: '',
+                  timestamp: new Date(),
+                  toolInfo: {
+                    name: 'AskUserQuestion',
+                    toolUseId: manualToolUseId,
+                    input: { questions: manualQuestions },
+                    status: 'running',
+                  },
+                },
+              ])
+
+              const manualAnswers = await userInput.requestAnswers({
+                toolUseId: manualToolUseId,
+                questions: manualQuestions,
+                signal: abortController.signal,
+              })
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === manualMsgId
+                    ? {
+                        ...m,
+                        toolInfo: {
+                          ...m.toolInfo!,
+                          status: 'completed',
+                          result: JSON.stringify({ answers: manualAnswers }, null, 2),
+                        },
+                      }
+                    : m,
+                ),
+              )
+
+              return createAgentFromWizardAnswers({
+                answers: { ...manualAnswers, scope },
+                cwd: process.cwd(),
+                projectAgentsDir: deps.cfg.paths.subagentsDir,
+              })
+            }
+
+            const generateToolUseId = `agents-generate-${Date.now()}`
+            const generateMsgId = `tool-${generateToolUseId}`
+            const generateQuestions = buildAgentsWizardGenerateQuestions()
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: generateMsgId,
+                role: 'tool',
+                content: '',
+                timestamp: new Date(),
+                toolInfo: {
+                  name: 'AskUserQuestion',
+                  toolUseId: generateToolUseId,
+                  input: { questions: generateQuestions },
+                  status: 'running',
+                },
+              },
+            ])
+
+            const generateAnswers = await userInput.requestAnswers({
+              toolUseId: generateToolUseId,
+              questions: generateQuestions,
+              signal: abortController.signal,
+            })
+
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === generateMsgId
+                  ? {
+                      ...m,
+                      toolInfo: {
+                        ...m.toolInfo!,
+                        status: 'completed',
+                        result: JSON.stringify({ answers: generateAnswers }, null, 2),
+                      },
+                    }
+                  : m,
+              ),
+            )
+
+            const agentDescription = String(generateAnswers.agentDescription || '').trim()
+            let draft: { name: string; description: string; systemPrompt: string } | null = null
+
+            try {
+              draft = await generateAgentDraftWithClaude({
+                engine: deps.engine,
+                description: agentDescription,
+                cwd: process.cwd(),
+                signal: abortController.signal,
+              })
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e)
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `assistant-${Date.now()}`,
+                  role: 'assistant',
+                  content: `Note: Generate with Claude failed (${msg}); falling back to manual input.`,
+                  timestamp: new Date(),
+                },
+              ])
+            }
+
+            if (!draft) {
+              const manualToolUseId = `agents-manual-${Date.now()}`
+              const manualMsgId = `tool-${manualToolUseId}`
+              const manualQuestions = buildAgentsWizardManualQuestions()
+
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: manualMsgId,
+                  role: 'tool',
+                  content: '',
+                  timestamp: new Date(),
+                  toolInfo: {
+                    name: 'AskUserQuestion',
+                    toolUseId: manualToolUseId,
+                    input: { questions: manualQuestions },
+                    status: 'running',
+                  },
+                },
+              ])
+
+              const manualAnswers = await userInput.requestAnswers({
+                toolUseId: manualToolUseId,
+                questions: manualQuestions,
+                signal: abortController.signal,
+              })
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === manualMsgId
+                    ? {
+                        ...m,
+                        toolInfo: {
+                          ...m.toolInfo!,
+                          status: 'completed',
+                          result: JSON.stringify({ answers: manualAnswers }, null, 2),
+                        },
+                      }
+                    : m,
+                ),
+              )
+
+              return createAgentFromWizardAnswers({
+                answers: { ...manualAnswers, scope },
+                cwd: process.cwd(),
+                projectAgentsDir: deps.cfg.paths.subagentsDir,
+              })
+            }
+
+            return createAgentFromWizardAnswers({
+              answers: {
+                scope,
+                name: draft.name,
+                description: draft.description,
+                tools: generateAnswers.tools,
+                model: generateAnswers.model,
+                color: generateAnswers.color,
+                systemPrompt: draft.systemPrompt,
+              },
+              cwd: process.cwd(),
+              projectAgentsDir: deps.cfg.paths.subagentsDir,
+            })
+          })()
 
           try {
             const next = await deps.reloadSubagents?.()
@@ -729,7 +911,7 @@ export function useReplController(deps: {
             {
               id: `assistant-${Date.now()}`,
               role: 'assistant',
-              content: `Created agent: ${created.name}`,
+              content: `Created agent: ${created.name} (${created.filePath})`,
               timestamp: new Date(),
             },
           ])

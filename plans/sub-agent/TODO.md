@@ -60,12 +60,12 @@
 
 ## P3 — `/agents` 的 “Generate with Claude”（可选但体验关键）
 
-- [ ] 实现 “agent architect” 小请求（无 tools，返回 JSON）
-  - [ ] 输入：用户描述（“这个 agent 什么时候用/做什么”）
-  - [ ] 输出：`name/description/systemPrompt`（以及可选 `whenToUse` 文本）
-  - [ ] 失败兜底：回到手动输入
-- [ ] 把生成结果写入 agent 文件（与 P2 写入规则一致）
-- [ ] 单测：JSON 解析健壮性（缺字段/多字段/非 JSON）
+- [x] 实现 “agent architect” 小请求（无 tools，返回 JSON）
+  - [x] 输入：用户描述（“这个 agent 什么时候用/做什么”）
+  - [x] 输出：`name/description/systemPrompt`（以及可选 `whenToUse` 文本）
+  - [x] 失败兜底：回到手动输入
+- [x] 把生成结果写入 agent 文件（与 P2 写入规则一致）
+- [x] 单测：JSON 解析健壮性（缺字段/多字段/非 JSON）
 
 ## P4 — Task UI 对齐（锦上添花）
 

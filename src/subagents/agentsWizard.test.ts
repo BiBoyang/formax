@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { createAgentFromWizardAnswers } from './agentsWizard'
+import { createAgentFromWizardAnswers, parseAgentArchitectDraft } from './agentsWizard'
 
 describe('createAgentFromWizardAnswers', () => {
   it('writes a project-level agent file and omits tools when all tools selected', async () => {
@@ -91,3 +91,47 @@ describe('createAgentFromWizardAnswers', () => {
   })
 })
 
+describe('parseAgentArchitectDraft', () => {
+  it('parses a plain JSON object', () => {
+    const raw = JSON.stringify({
+      identifier: 'code-reviewer',
+      whenToUse: 'Use this agent when you need a review.',
+      systemPrompt: 'You are a code reviewer.',
+    })
+
+    expect(parseAgentArchitectDraft(raw)).toEqual({
+      identifier: 'code-reviewer',
+      whenToUse: 'Use this agent when you need a review.',
+      systemPrompt: 'You are a code reviewer.',
+    })
+  })
+
+  it('parses a fenced JSON object and ignores surrounding text', () => {
+    const raw = [
+      'Sure — here is the JSON:',
+      '```json',
+      JSON.stringify({
+        identifier: 'test-runner',
+        whenToUse: 'Use this agent when tests should be run.',
+        systemPrompt: 'You are a test runner.',
+      }),
+      '```',
+      'Done.',
+    ].join('\n')
+
+    expect(parseAgentArchitectDraft(raw)).toEqual({
+      identifier: 'test-runner',
+      whenToUse: 'Use this agent when tests should be run.',
+      systemPrompt: 'You are a test runner.',
+    })
+  })
+
+  it('throws when required fields are missing', () => {
+    const raw = JSON.stringify({ identifier: 'x', systemPrompt: 'y' })
+    expect(() => parseAgentArchitectDraft(raw)).toThrow(/whenToUse/i)
+  })
+
+  it('throws when no JSON object is present', () => {
+    expect(() => parseAgentArchitectDraft('not json')).toThrow(/json object/i)
+  })
+})
