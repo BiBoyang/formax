@@ -45,13 +45,15 @@
 
 > 先做“能生成同格式文件 + 能被 Task 使用”，UI 细节再逐步对齐。
 
-- [x] `/agents` 接入（当前为交互式向导；实现位于 `src/features/repl/useReplController.ts`）
-- [x] Ink 向导（最小字段闭环）
+- [x] `/agents` 接入（交互式向导；入口位于 `src/features/repl/useReplController.ts`，UI 位于 `src/ui/AgentsDialog.tsx`）
+- [x] Ink 向导（最小字段闭环，避免复用 AskUserQuestion 的 tab UI）
   - [x] 选择 scope：Project-level（`.formax/agents/`）/ User-level（`~/.formax/agents/`）
+  - [x] 选择 method：Generate with Claude / Write manually
   - [x] 选择 tools preset：All tools / Read-only / Edit / Execution / 自定义（comma list）
   - [x] 选择 model：Sonnet/Opus/Haiku/Inherit
   - [x] 选择 color：Automatic/Red/Blue/Green/Yellow/Purple/Orange/Pink/Cyan
-  - [x] Confirm & Save：使用 AskUserQuestion 的 Review/Submit 页作为最小确认（UI 细节留给 P4）
+  - [x] Confirm & Save：Claude Code 风格的 boxed UI（`s/Enter` 保存，`e` 保存后提示在编辑器中打开）
+  - [x] `Esc` 行为：向导内返回上一级；在列表页 `Esc` 退出并输出简短摘要（`Agent changes`/`Agents dialog dismissed`）
 - [x] 文件写入格式对齐
   - [x] frontmatter：`name/description/model/color` 字段名对齐
   - [x] `tools`：All tools 时省略；否则写为逗号分隔字符串
@@ -60,7 +62,7 @@
 
 ## P3 — `/agents` 的 “Generate with Claude”（可选但体验关键）
 
-- [x] 实现 “agent architect” 小请求（无 tools，返回 JSON）
+- [x] 实现 “agent architect” 小请求（无 tools，返回 JSON；在 `/agents` 向导内以输入框收集描述）
   - [x] 输入：用户描述（“这个 agent 什么时候用/做什么”）
   - [x] 输出：`name/description/systemPrompt`（以及可选 `whenToUse` 文本）
   - [x] 失败兜底：回到手动输入

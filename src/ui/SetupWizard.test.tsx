@@ -9,6 +9,20 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForText(
+  lastFrame: () => string | undefined,
+  text: string,
+  timeoutMs = 1500,
+): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const frame = lastFrame() || ''
+    if (frame.includes(text)) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for UI to contain: ${text}`)
+}
+
 const PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic (Claude)' },
   { id: 'openai', label: 'OpenAI-compatible', disabled: true },
@@ -69,18 +83,15 @@ describe('SetupWizard', () => {
 
     // welcome -> provider
     stdin.write('\r')
-    await tick()
-    expect(lastFrame()).toContain('Select a provider')
+    await waitForText(lastFrame, 'Select a provider')
 
     // provider select anthropic -> baseUrl
     stdin.write('\r')
-    await tick()
-    expect(lastFrame()).toContain('Base URL')
+    await waitForText(lastFrame, 'Base URL')
 
     // baseUrl -> apiKey
     stdin.write('\r')
-    await tick()
-    expect(lastFrame()).toContain('API Key')
+    await waitForText(lastFrame, 'API Key')
 
     // apiKey -> test -> model
     stdin.write('sk-test')
@@ -88,19 +99,18 @@ describe('SetupWizard', () => {
     stdin.write('\r')
     await tick()
     await tick()
-    expect(lastFrame()).toContain('Select a model')
+    await waitForText(lastFrame, 'Select a model')
 
     // model -> confirm
     stdin.write('\r')
-    await tick()
-    expect(lastFrame()).toContain('Review your settings')
+    await waitForText(lastFrame, 'Review your settings')
 
     // confirm -> write (fails)
     stdin.write('\r')
     await tick()
     await tick()
     expect(onWrite).toHaveBeenCalledTimes(1)
-    expect(lastFrame()).toContain('Write failed')
+    await waitForText(lastFrame, 'Write failed')
   })
 
   it('allows moving focus onto disabled provider options', async () => {
@@ -119,8 +129,7 @@ describe('SetupWizard', () => {
 
     // welcome -> provider
     stdin.write('\r')
-    await tick()
-    expect(lastFrame()).toContain('Select a provider')
+    await waitForText(lastFrame, 'Select a provider')
 
     // Move focus down to the disabled OpenAI option.
     stdin.write('\u001B[B')
@@ -133,7 +142,7 @@ describe('SetupWizard', () => {
     // Hitting enter on a disabled option should not advance.
     stdin.write('\r')
     await tick()
-    expect(lastFrame()).toContain('Select a provider')
+    await waitForText(lastFrame, 'Select a provider')
     expect(lastFrame()).not.toContain('Base URL')
   })
 
@@ -158,15 +167,15 @@ describe('SetupWizard', () => {
 
     // welcome -> provider
     stdin.write('\r')
-    await tick()
+    await waitForText(lastFrame, 'Select a provider')
 
     // provider select anthropic -> baseUrl
     stdin.write('\r')
-    await tick()
+    await waitForText(lastFrame, 'Base URL')
 
     // baseUrl -> apiKey
     stdin.write('\r')
-    await tick()
+    await waitForText(lastFrame, 'API Key')
 
     // apiKey -> test (fails)
     stdin.write('sk-test')

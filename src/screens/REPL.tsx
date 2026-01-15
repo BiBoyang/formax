@@ -29,6 +29,7 @@ import { checkWritableDir } from '../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
+import { AgentsDialog } from '../ui/AgentsDialog'
 
 type Props = {
   onExit?: () => void
@@ -182,6 +183,7 @@ export function REPL({
   }, [state.isLoading])
 
   const isPromptMode = useMemo(() => {
+    if (state.agentsDialogOpen) return true
     if (!userInput) return false
     const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
     return state.transientMessages.some((m) => {
@@ -193,7 +195,7 @@ export function REPL({
       }
       return interactive || userInput.isPending(toolUseId)
     })
-  }, [state.transientMessages, toolRegistry, userInput])
+  }, [state.agentsDialogOpen, state.transientMessages, toolRegistry, userInput])
 
   const slashSuggestions = useMemo(() => {
     if (isPromptMode) return []
@@ -207,41 +209,42 @@ export function REPL({
     setSlashIndex(0)
   }, [])
 
-	  useInput((key, meta) => {
-	    if (meta.ctrl && key === 'c') {
-	      actions.abort()
-	      onExit ? onExit() : process.exit(0)
-	    }
+  useInput((inputKey, key) => {
+    if (key.ctrl && inputKey === 'c') {
+      actions.abort()
+      onExit ? onExit() : process.exit(0)
+    }
 
-    if (meta.ctrl && key === 'o') {
+    if (key.ctrl && inputKey === 'o') {
       if (!state.isLoading) return
       if (!state.thinkingText.trim()) return
       setShowThinking((v) => !v)
-	      return
-	    }
+      return
+    }
 
-	    if (meta.escape) {
-	      actions.abort()
-	      return
-	    }
+    if (key.escape) {
+      if (state.agentsDialogOpen) return
+      actions.abort()
+      return
+    }
 
-	    if (isPromptMode) return
+    if (isPromptMode) return
 
-	    if (meta.shift && meta.tab) {
-	      setMode((m) => {
-	        const next = nextReplMode(m)
+    if (key.shift && key.tab) {
+      setMode((m) => {
+        const next = nextReplMode(m)
         if (next === 'plan') ensurePlanPath()
         return next
-	      })
-	      return
-	    }
+      })
+      return
+    }
 
-	    if (slashSuggestions.length > 0) {
-	      if (meta.downArrow) {
-	        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
-	      } else if (meta.upArrow) {
+    if (slashSuggestions.length > 0) {
+      if (key.downArrow) {
+        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
+      } else if (key.upArrow) {
         setSlashIndex((i) => Math.max(i - 1, 0))
-      } else if (meta.tab && selectedSlash) {
+      } else if (key.tab && selectedSlash) {
         setInput(selectedSlash)
         setSlashIndex(0)
       }
@@ -358,6 +361,16 @@ export function REPL({
             {state.transientMessages.map((msg) => (
               <Box key={msg.id}>{renderMessage(msg)}</Box>
             ))}
+
+            {state.agentsDialogOpen && (
+              <AgentsDialog
+                agents={state.allowedSubagents}
+                toolNames={tools.map((t) => t.name)}
+                onGenerateDraft={actions.generateAgentDraft}
+                onSaveAgent={actions.saveAgentFromDialog}
+                onExit={actions.closeAgentsDialog}
+              />
+            )}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">
