@@ -307,19 +307,9 @@ export function REPL({
 
   // Header 作为 Static 列表的第一项
   const staticItems = useMemo(() => {
-    const header = {
-      key: 'header',
-      jsx: (
-        <HeaderBanner
-          version={(pkg as any).version || '0.0.0'}
-          modelLabel={modelLabel}
-          cwd={process.cwd()}
-        />
-      ),
-    }
     const items = state.staticMessages.map((m) => ({ key: m.id, jsx: renderMessage(m) }))
-    return [header, ...items]
-  }, [modelLabel, renderMessage, state.staticMessages])
+    return items
+  }, [renderMessage, state.staticMessages])
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
@@ -337,6 +327,13 @@ export function REPL({
       <ReplUiProvider abort={actions.abort}>
         <Box flexDirection="column" height="100%">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            <HeaderBanner
+              version={(pkg as any).version || '0.0.0'}
+              modelLabel={modelLabel}
+              cwd={process.cwd()}
+              context={state.context}
+            />
+
             {/* Header + 消息 Static */}
             <Static items={staticItems}>
               {(item) => <Box key={item.key}>{item.jsx}</Box>}

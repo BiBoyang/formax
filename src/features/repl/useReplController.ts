@@ -13,6 +13,9 @@ import type { PlanSessionManager } from './planSession'
 import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
+import { computeContextStats } from '../../chat/context/budget'
+import { estimatePromptTokens } from '../../chat/context/estimate'
+import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -22,6 +25,12 @@ export type ReplControllerState = {
   loadingText: string
   thinkingText: string
   error: string | null
+  context: null | {
+    usedTokens: number
+    limitTokens: number
+    percentRemaining: number
+    source: 'estimate'
+  }
 }
 
 export type ReplController = {
@@ -58,6 +67,7 @@ export function useReplController(deps: {
   const [loadingText, setLoadingText] = useState('Thinking')
   const [thinkingText, setThinkingText] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [context, setContext] = useState<ReplControllerState['context']>(null)
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])
@@ -405,6 +415,8 @@ export function useReplController(deps: {
       const text = value.trim()
       if (!text || isLoading) return
 
+      const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
+
       const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
       if (slashEffect?.kind === 'local_async') {
         const userMsg: Msg = {
@@ -545,6 +557,20 @@ export function useReplController(deps: {
           profile: promptProfile,
         })
 
+        const contextWindowTokens = getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
+        if (contextWindowTokens) {
+          const usedTokens = estimatePromptTokens({ system, messages: [...historyRef.current, user] })
+          const stats = computeContextStats({ config: { contextWindowTokens }, usedTokens })
+          setContext({
+            usedTokens: stats.usedTokens,
+            limitTokens: stats.effectiveLimitTokens,
+            percentRemaining: stats.percentRemaining,
+            source: 'estimate',
+          })
+        } else {
+          setContext(null)
+        }
+
         const exec = {
           replMode: deps.mode,
           getReplMode: () => modeRef.current,
@@ -570,6 +596,17 @@ export function useReplController(deps: {
           injectedBlocks.length > 0
             ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
             : nextHistory
+
+        if (contextWindowTokens) {
+          const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
+          const stats = computeContextStats({ config: { contextWindowTokens }, usedTokens })
+          setContext({
+            usedTokens: stats.usedTokens,
+            limitTokens: stats.effectiveLimitTokens,
+            percentRemaining: stats.percentRemaining,
+            source: 'estimate',
+          })
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to send message'
         if (!isAbortLikeError(e)) {
@@ -601,6 +638,7 @@ export function useReplController(deps: {
       loadingText,
       thinkingText,
       error,
+      context,
     },
     actions: {
       send,

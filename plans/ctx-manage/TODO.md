@@ -38,13 +38,15 @@
 
 ## P2 — Context Meter（先只显示，不改变 prompt）
 
-- [ ] 定义 `ContextStats`（used/limit/percentRemaining/shouldAutoCompact/source）
-- [ ] token 估算策略：usage 优先，估算兜底（bytes/4 或你已有估算方式）
-- [ ] UI 显示：放在 Header/状态栏（先做最小、稳定、不闪）
+- [x] 定义 `ContextStats`（used/limit/percentRemaining/shouldAutoCompact/source）
+- [ ] token 估算策略：usage 优先，估算兜底
+  - [x] 估算兜底：bytes/4（基于 prompt JSON 体积粗估）
+  - [ ] usage 优先：拿到“当前 prompt/history 使用量”再替换估算（provider usage 目前仅是本轮消耗）
+- [x] UI 显示：放在 Header/状态栏（先做最小、稳定、不闪）
 - [ ] 开关：可关闭 meter（不影响行为）
 
 **DoD**
-- [ ] UI 可见稳定的 percent/tokens（不闪、不乱跳）
+- [x] UI 可见稳定的 percent/tokens（不闪、不乱跳）
 
 ## P3 — Prompt 写入点的“硬截断”（安全兜底，不做总结）
 
