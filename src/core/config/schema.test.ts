@@ -17,6 +17,7 @@ describe('FormaxConfigV1Schema', () => {
       ui: {
         assistantTextMode: 'buffered',
         promptProfile: 'full',
+        showContextMeter: true,
       },
       context: {
         effectiveContextWindowPercent: 0.95,

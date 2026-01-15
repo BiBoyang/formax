@@ -27,6 +27,7 @@ export type RuntimeConfig = {
   ui: {
     assistantTextMode: 'stream' | 'buffered'
     promptProfile: 'lite' | 'full'
+    showContextMeter: boolean
   }
 }
 
@@ -78,6 +79,7 @@ export async function loadRuntimeConfig(
   const contextWindowTokens = resolved.config.llm.contextWindowTokens
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const promptProfile = resolved.config.ui.promptProfile
+  const showContextMeter = resolved.config.ui.showContextMeter
   const context = resolved.config.context
 
   return {
@@ -102,6 +104,7 @@ export async function loadRuntimeConfig(
     ui: {
       assistantTextMode,
       promptProfile,
+      showContextMeter,
     },
   }
 }

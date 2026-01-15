@@ -39,6 +39,7 @@ const KNOWN_SOURCE_KEYS = [
   'paths.planDir',
   'ui.assistantTextMode',
   'ui.promptProfile',
+  'ui.showContextMeter',
   'context.effectiveContextWindowPercent',
   'context.autoCompactTokenLimitPercent',
   'context.baselineTokens',
@@ -112,6 +113,17 @@ function envToPatch(
 
   const promptProfileRaw = (env.FORMAX_PROMPT_PROFILE || '').trim().toLowerCase()
   const promptProfile = promptProfileRaw === 'lite' ? 'lite' : promptProfileRaw === 'full' ? 'full' : undefined
+
+  const showContextMeterRaw = (env.FORMAX_SHOW_CONTEXT_METER || '').trim().toLowerCase()
+  const showContextMeter =
+    showContextMeterRaw === '1' || showContextMeterRaw === 'true'
+      ? true
+      : showContextMeterRaw === '0' || showContextMeterRaw === 'false'
+        ? false
+        : undefined
+  if (showContextMeterRaw && showContextMeter === undefined) {
+    warnings.push('env FORMAX_SHOW_CONTEXT_METER is invalid and was ignored')
+  }
 
   const contextWindowTokensRaw = (env.FORMAX_CONTEXT_WINDOW_TOKENS || '').trim()
   const contextWindowTokensParsed = contextWindowTokensRaw ? Number(contextWindowTokensRaw) : undefined
@@ -201,6 +213,13 @@ function envToPatch(
       ...(patch.ui || {}),
       ...(assistantTextMode ? { assistantTextMode } : {}),
       ...(promptProfile ? { promptProfile } : {}),
+    }
+  }
+
+  if (showContextMeter !== undefined) {
+    patch.ui = {
+      ...(patch.ui || {}),
+      showContextMeter,
     }
   }
 

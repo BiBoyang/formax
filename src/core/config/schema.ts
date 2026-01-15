@@ -66,6 +66,7 @@ export const UiConfigSchema = z
   .object({
     assistantTextMode: AssistantTextModeSchema.default('buffered'),
     promptProfile: PromptProfileSchema.default('full'),
+    showContextMeter: z.boolean().default(true),
   })
   .strict()
   .default({})
@@ -76,6 +77,7 @@ export const UiConfigPatchSchema = z
   .object({
     assistantTextMode: AssistantTextModeSchema.optional(),
     promptProfile: PromptProfileSchema.optional(),
+    showContextMeter: z.boolean().optional(),
   })
   .strict()
 

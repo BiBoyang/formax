@@ -305,6 +305,15 @@ export function REPL({
     return `Model: ${model}`
   }, [cfg.llm.model])
 
+  const contextLine = useMemo(() => {
+    if (!cfg.ui.showContextMeter) return null
+    if (!state.context) return null
+    const pct = clampPct(state.context.percentRemaining)
+    const used = formatTokens(state.context.usedTokens)
+    const limit = formatTokens(state.context.limitTokens)
+    return `Context: ${pct}% free (${used}/${limit}, est.)`
+  }, [cfg.ui.showContextMeter, state.context])
+
   // Header 作为 Static 列表的第一项（避免 Static items 把消息刷到 header 上方）
   const staticItems = useMemo(() => {
     const header = {
@@ -314,13 +323,12 @@ export function REPL({
           version={(pkg as any).version || '0.0.0'}
           modelLabel={modelLabel}
           cwd={process.cwd()}
-          context={state.context}
         />
       ),
     }
     const messages = state.staticMessages.map((m) => ({ key: m.id, jsx: renderMessage(m) }))
     return [header, ...messages]
-  }, [modelLabel, renderMessage, state.context, state.staticMessages])
+  }, [modelLabel, renderMessage, state.staticMessages])
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
@@ -388,8 +396,11 @@ export function REPL({
                 }))}
               />
               {slashSuggestions.length === 0 && (
-                <Box>
-                  {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
+                <Box flexDirection="column">
+                  {contextLine ? <Text dimColor>{contextLine}</Text> : null}
+                  <Box>
+                    {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
+                  </Box>
                 </Box>
               )}
             </Box>
@@ -398,4 +409,17 @@ export function REPL({
       </ReplUiProvider>
     </PlanProvider>
   )
+}
+
+function clampPct(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, Math.round(n)))
+}
+
+function formatTokens(n: number): string {
+  const v = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
+  if (v < 1000) return String(v)
+  if (v < 100000) return `${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`
+  if (v < 1000000) return `${Math.round(v / 1000)}k`
+  return `${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}m`
 }
