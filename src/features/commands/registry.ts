@@ -61,6 +61,11 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { command: '/plan', description: 'Show current plan', implemented: true },
   { command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
+    command: '/compact',
+    description: 'Clear conversation history but keep a summary in context. Optional: /compact <instructions>',
+    implemented: true,
+  },
+  {
     command: '/status',
     description: 'Show status including version, model, API connectivity',
     implemented: true,

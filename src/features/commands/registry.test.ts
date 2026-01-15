@@ -27,6 +27,13 @@ describe('SlashCommandRegistry', () => {
     expect(res.some((c) => c.command === '/tasks')).toBe(true)
   })
 
+  it('includes /compact in suggestions (handled by controller)', () => {
+    const reg = createSlashCommandRegistry({ cwd: process.cwd() })
+    expect(reg.list().some((c) => c.command === '/compact')).toBe(true)
+    expect(reg.suggest('/co').some((c) => c.command === '/compact')).toBe(true)
+    expect(reg.dispatch('/compact')).toBe(null)
+  })
+
   it('loads .claude/commands/*.md as commands', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
     const dir = path.join(cwd, '.claude', 'commands')

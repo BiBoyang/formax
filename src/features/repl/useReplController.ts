@@ -434,6 +434,154 @@ export function useReplController(deps: {
 
       const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
 
+      if (isExactSlashCommand(text, '/compact')) {
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, userMsg])
+
+        setIsLoading(true)
+        setLoadingText('Compacting')
+        thinkingBufferRef.current = ''
+        thinkingLastFlushAtRef.current = 0
+        setThinkingText('')
+        setError(null)
+        currentAssistantIdRef.current = null
+
+        const abortController = new AbortController()
+        abortControllerRef.current = abortController
+        assistantBufferRef.current = ''
+        contextBudgetConfigRef.current = null
+
+        try {
+          const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
+          const cwd = process.cwd()
+
+          const system = buildSystemPrompt({
+            allowedSubagents: deps.allowedSubagents,
+            cwd,
+            model: deps.cfg.llm.model,
+            profile: promptProfile,
+          })
+
+          const contextWindowTokens =
+            deps.cfg.llm.contextWindowTokens ??
+            getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
+
+          contextBudgetConfigRef.current = contextWindowTokens
+            ? {
+                contextWindowTokens,
+                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+                baselineTokens: deps.cfg.context.baselineTokens,
+              }
+            : null
+
+          const instructions = text.replace(/^\/compact\b/i, '').trim()
+          const compactUser: ChatHistory[number] = {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: buildCompactRequest(instructions),
+              },
+            ],
+          }
+
+          const compactSink = (ev: StreamEvent) => {
+            if (
+              ev.type === 'thinking_delta' ||
+              ev.type === 'usage' ||
+              ev.type === 'error' ||
+              ev.type === 'complete'
+            ) {
+              handleEvent(ev)
+            }
+          }
+
+          const nextHistory = await deps.engine.runTurn({
+            history: historyRef.current,
+            user: compactUser,
+            system,
+            tools: [],
+            onEvent: compactSink,
+            cwd,
+            signal: abortController.signal,
+            exec: {
+              replMode: deps.mode,
+              getReplMode: () => modeRef.current,
+              setReplMode,
+              getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
+            },
+          })
+
+          const summary = extractAssistantText(nextHistory).trim()
+          if (!summary) throw new Error('Compact failed: empty summary')
+
+          historyRef.current = [
+            {
+              role: 'assistant',
+              content: [{ type: 'text', text: summary }],
+            },
+          ]
+          if (localCommandRef.current) localCommandRef.current = null
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: 'Conversation history compacted (summary kept for future turns).',
+              timestamp: new Date(),
+            },
+          ])
+
+          if (contextWindowTokens) {
+            const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
+            const stats = computeContextStats({
+              config: {
+                contextWindowTokens,
+                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+                baselineTokens: deps.cfg.context.baselineTokens,
+              },
+              usedTokens,
+            })
+            setContext({
+              usedTokens: stats.usedTokens,
+              limitTokens: stats.effectiveLimitTokens,
+              percentRemaining: stats.percentRemaining,
+              source: 'estimate',
+            })
+          } else {
+            setContext(null)
+          }
+        } catch (e) {
+          if (isAbortLikeError(e)) {
+            return
+          }
+          const msg = e instanceof Error ? e.message : 'Compact failed'
+          setError(msg)
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              content: `Error: ${msg}`,
+              timestamp: new Date(),
+            },
+          ])
+        } finally {
+          setIsLoading(false)
+          abortControllerRef.current = null
+        }
+
+        return
+      }
+
       const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
       if (slashEffect?.kind === 'local_async') {
         const userMsg: Msg = {
@@ -777,6 +925,54 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   }
 
   return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
+}
+
+function isExactSlashCommand(input: string, command: string): boolean {
+  const raw = String(input || '').trimStart()
+  const cmd = String(command || '').trim()
+  if (!raw.startsWith('/')) return false
+  if (!cmd.startsWith('/')) return false
+
+  const re = new RegExp(`^${escapeRegex(cmd)}(?:\\s|$)`, 'i')
+  return re.test(raw)
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function buildCompactRequest(instructions: string): string {
+  const extra = instructions.trim()
+  return (
+    'Summarize the conversation so far for future context.\n\n' +
+    'Requirements:\n' +
+    '- Preserve user goals, constraints, and preferences.\n' +
+    '- Preserve key technical decisions and trade-offs.\n' +
+    '- Preserve important file paths, commands, and APIs discussed.\n' +
+    '- Preserve open questions and next steps.\n' +
+    '- Keep it concise and structured (bullets or short sections).\n' +
+    '- Do NOT call tools.\n\n' +
+    (extra ? `Additional user instructions:\n${extra}\n\n` : '') +
+    'Output only the summary.'
+  )
+}
+
+function extractAssistantText(history: ChatHistory): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i]
+    if (msg?.role !== 'assistant') continue
+
+    const content = (msg as any).content
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) continue
+
+    const parts = content
+      .map((b: any) => (b?.type === 'text' && typeof b?.text === 'string' ? b.text : ''))
+      .filter(Boolean)
+    return parts.join('')
+  }
+
+  return ''
 }
 
 function formatToolUses(count: number): string {
