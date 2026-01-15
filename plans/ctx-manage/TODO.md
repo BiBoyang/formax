@@ -84,10 +84,10 @@
   - [x] compact 后立刻更新 meter
 - [ ] 单测：
   - [x] `/compact` 前后，下一次请求 messages 确实变短但含 summary
-  - [ ] tool loop 中途触发 `/compact` 的行为明确且不破坏工具链（可先禁用）
+  - [x] tool loop 中途触发 `/compact` 的行为明确且不破坏工具链（可先禁用）
 
 **DoD**
-- [ ] `/compact` 可用；compact 后继续对话与 tool loop 正常
+- [x] `/compact` 可用；compact 后继续对话与 tool loop 正常
 
 ## P5 — 自动压缩（可选，等 P3/P4 稳定再做）
 
