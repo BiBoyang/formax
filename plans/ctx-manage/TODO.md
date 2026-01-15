@@ -13,12 +13,12 @@
 
 ## P0 — 盘点现状（不改行为）
 
-- [ ] 画清链路图：UI messages、prompt history、system/injected blocks、streaming usage 的来源与流向
-- [ ] 列表：哪些内容会进 prompt history、哪些只进 UI（先按现状写）
-- [ ] 输出短文档：把“改哪儿”写清楚（后续实现对照）
+- [x] 画清链路图：UI messages、prompt history、system/injected blocks、streaming usage 的来源与流向
+- [x] 列表：哪些内容会进 prompt history、哪些只进 UI（先按现状写）
+- [x] 输出短文档：把“改哪儿”写清楚（后续实现对照）
 
 **DoD**
-- [ ] 文档可被新人读懂，并能定位到关键入口文件
+- [x] 文档可被新人读懂，并能定位到关键入口文件
 
 ## P1 — context window 数据源（决定 meter/阈值）
 
