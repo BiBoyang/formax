@@ -43,6 +43,7 @@ const KNOWN_SOURCE_KEYS = [
   'context.effectiveContextWindowPercent',
   'context.autoCompactTokenLimitPercent',
   'context.baselineTokens',
+  'context.compactKeepLastTurns',
 ] as const
 
 function normalizeAnthropicBaseUrl(baseUrl: string): string {
@@ -181,6 +182,19 @@ function envToPatch(
     warnings.push('env FORMAX_BASELINE_TOKENS is invalid and was ignored')
   }
 
+  const compactKeepLastTurnsRaw = (env.FORMAX_COMPACT_KEEP_LAST_TURNS || '').trim()
+  const compactKeepLastTurnsParsed = compactKeepLastTurnsRaw ? Number(compactKeepLastTurnsRaw) : undefined
+  const compactKeepLastTurns =
+    compactKeepLastTurnsRaw &&
+    Number.isFinite(compactKeepLastTurnsParsed) &&
+    Number.isInteger(compactKeepLastTurnsParsed) &&
+    compactKeepLastTurnsParsed >= 0
+      ? compactKeepLastTurnsParsed
+      : undefined
+  if (compactKeepLastTurnsRaw && compactKeepLastTurns === undefined) {
+    warnings.push('env FORMAX_COMPACT_KEEP_LAST_TURNS is invalid and was ignored')
+  }
+
   const hasAnthropic = Boolean(apiKey || baseUrl || model || timeoutMsRaw)
   if (hasAnthropic) {
     patch.llm = {
@@ -223,12 +237,18 @@ function envToPatch(
     }
   }
 
-  if (effectiveContextWindowPercent !== undefined || autoCompactTokenLimitPercent !== undefined || baselineTokens !== undefined) {
+  if (
+    effectiveContextWindowPercent !== undefined ||
+    autoCompactTokenLimitPercent !== undefined ||
+    baselineTokens !== undefined ||
+    compactKeepLastTurns !== undefined
+  ) {
     patch.context = {
       ...(patch.context || {}),
       ...(effectiveContextWindowPercent !== undefined ? { effectiveContextWindowPercent } : {}),
       ...(autoCompactTokenLimitPercent !== undefined ? { autoCompactTokenLimitPercent } : {}),
       ...(baselineTokens !== undefined ? { baselineTokens } : {}),
+      ...(compactKeepLastTurns !== undefined ? { compactKeepLastTurns } : {}),
     }
   }
 

@@ -23,6 +23,7 @@ describe('FormaxConfigV1Schema', () => {
         effectiveContextWindowPercent: 0.95,
         autoCompactTokenLimitPercent: 0.9,
         baselineTokens: 12000,
+        compactKeepLastTurns: 4,
       },
     })
   })

@@ -23,6 +23,7 @@ export type RuntimeConfig = {
     effectiveContextWindowPercent: number
     autoCompactTokenLimitPercent: number
     baselineTokens: number
+    compactKeepLastTurns: number
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
@@ -100,6 +101,7 @@ export async function loadRuntimeConfig(
       effectiveContextWindowPercent: context.effectiveContextWindowPercent,
       autoCompactTokenLimitPercent: context.autoCompactTokenLimitPercent,
       baselineTokens: context.baselineTokens,
+      compactKeepLastTurns: context.compactKeepLastTurns,
     },
     ui: {
       assistantTextMode,

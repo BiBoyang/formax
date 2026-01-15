@@ -61,6 +61,7 @@ describe('REPL', () => {
       effectiveContextWindowPercent: 0.95,
       autoCompactTokenLimitPercent: 0.9,
       baselineTokens: 12000,
+      compactKeepLastTurns: 4,
     },
     ui: {
       assistantTextMode: 'stream',
@@ -182,11 +183,11 @@ describe('REPL', () => {
       await waitForFrame(lastFrame, (f) => f.includes('Conversation history compacted'))
       await sleep(25)
 
-      // Next message should see the compacted prompt history (summary-only => length 1).
+      // Next message should see the compacted prompt history (summary + kept tail).
       stdin.write('hi')
       await tick()
       stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:1'))
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:3'))
     })
   })
 })

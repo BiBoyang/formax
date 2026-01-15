@@ -88,6 +88,7 @@ export const ContextConfigSchema = z
     effectiveContextWindowPercent: Percent01Schema.default(0.95),
     autoCompactTokenLimitPercent: Percent01Schema.default(0.9),
     baselineTokens: NonNegativeIntSchema.default(12000),
+    compactKeepLastTurns: NonNegativeIntSchema.default(4),
   })
   .strict()
   .default({})
@@ -99,6 +100,7 @@ export const ContextConfigPatchSchema = z
     effectiveContextWindowPercent: Percent01Schema.optional(),
     autoCompactTokenLimitPercent: Percent01Schema.optional(),
     baselineTokens: NonNegativeIntSchema.optional(),
+    compactKeepLastTurns: NonNegativeIntSchema.optional(),
   })
   .strict()
 

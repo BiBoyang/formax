@@ -17,6 +17,7 @@ import { computeContextStats, type ContextBudgetConfig } from '../../chat/contex
 import { estimatePromptTokens } from '../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
+import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -459,6 +460,7 @@ export function useReplController(deps: {
         try {
           const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
           const cwd = process.cwd()
+          const previousHistory = historyRef.current
 
           const system = buildSystemPrompt({
             allowedSubagents: deps.allowedSubagents,
@@ -503,7 +505,7 @@ export function useReplController(deps: {
           }
 
           const nextHistory = await deps.engine.runTurn({
-            history: historyRef.current,
+            history: previousHistory,
             user: compactUser,
             system,
             tools: [],
@@ -521,12 +523,23 @@ export function useReplController(deps: {
           const summary = extractAssistantText(nextHistory).trim()
           if (!summary) throw new Error('Compact failed: empty summary')
 
-          historyRef.current = [
-            {
-              role: 'assistant',
-              content: [{ type: 'text', text: summary }],
-            },
-          ]
+          const compacted = rebuildHistoryAfterCompaction({
+            summary,
+            previousHistory,
+            keepLastTurns: deps.cfg.context.compactKeepLastTurns,
+          })
+
+          historyRef.current =
+            contextWindowTokens
+              ? pruneForPromptBudget({
+                  system,
+                  messages: compacted,
+                  contextWindowTokens,
+                  effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+                  autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+                  baselineTokens: deps.cfg.context.baselineTokens,
+                }).messages
+              : compacted
           if (localCommandRef.current) localCommandRef.current = null
 
           setMessages((prev) => [

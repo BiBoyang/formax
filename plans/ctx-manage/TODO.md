@@ -77,7 +77,7 @@
 - [x] 实现 `/compact` 命令（registry kind 按现有体系）
 - [ ] Compact 行为：
   - [x] 用一次“总结回合”生成 summary（写入 prompt history）
-  - [ ] 重写 prompt history：`system + summary + 最近 N 条 turn/必要 tool 对`
+  - [x] 重写 prompt history：`system + summary + 最近 N 条 turn/必要 tool 对`
   - [x] UI 插入一条“已压缩”的提示（不删除 UI 历史）
 - [ ] 防抖/防循环：
   - [x] 同一 turn 不重复 compact
