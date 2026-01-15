@@ -305,11 +305,22 @@ export function REPL({
     return `Model: ${model}`
   }, [cfg.llm.model])
 
-  // Header 作为 Static 列表的第一项
+  // Header 作为 Static 列表的第一项（避免 Static items 把消息刷到 header 上方）
   const staticItems = useMemo(() => {
-    const items = state.staticMessages.map((m) => ({ key: m.id, jsx: renderMessage(m) }))
-    return items
-  }, [renderMessage, state.staticMessages])
+    const header = {
+      key: 'header',
+      jsx: (
+        <HeaderBanner
+          version={(pkg as any).version || '0.0.0'}
+          modelLabel={modelLabel}
+          cwd={process.cwd()}
+          context={state.context}
+        />
+      ),
+    }
+    const messages = state.staticMessages.map((m) => ({ key: m.id, jsx: renderMessage(m) }))
+    return [header, ...messages]
+  }, [modelLabel, renderMessage, state.context, state.staticMessages])
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
@@ -327,13 +338,6 @@ export function REPL({
       <ReplUiProvider abort={actions.abort}>
         <Box flexDirection="column" height="100%">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            <HeaderBanner
-              version={(pkg as any).version || '0.0.0'}
-              modelLabel={modelLabel}
-              cwd={process.cwd()}
-              context={state.context}
-            />
-
             {/* Header + 消息 Static */}
             <Static items={staticItems}>
               {(item) => <Box key={item.key}>{item.jsx}</Box>}
