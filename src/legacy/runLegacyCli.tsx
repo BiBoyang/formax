@@ -14,6 +14,7 @@ import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
 import { AnthropicStreamClient } from '../streaming/anthropic/StreamClient.js'
 import { createChatEngine } from '../chat/engine.js'
+import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { patchTaskToolForSubagents } from '../tools/patches/taskSubagent.js'
 import { registerBuiltinToolModules } from '../tools/modules/index.js'
@@ -144,6 +145,17 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()
+  const providerForBudget = 'anthropic' as const
+  const contextWindowTokens = cfg.llm.contextWindowTokens
+    ?? getKnownContextWindowTokens({ provider: providerForBudget, model: cfg.llm.model })
+  const promptBudget = contextWindowTokens
+    ? {
+        contextWindowTokens,
+        effectiveContextWindowPercent: cfg.context.effectiveContextWindowPercent,
+        autoCompactLimitPercent: cfg.context.autoCompactTokenLimitPercent,
+        baselineTokens: cfg.context.baselineTokens,
+      }
+    : null
   const audit = createNodeAuditLog({ logsDir: cfg.paths.logsDir })
   const approval = createApprovalService({ fileStore, userInput: userInputManager, audit })
   const preflight = createPolicyPreflight({ fileStore, approval, audit })
@@ -152,6 +164,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     client,
     executor: localExecutor,
     allTools: toolsForSubagents,
+    promptBudget,
   })
 
   const taskHandler = createTaskSubAgentToolHandler({

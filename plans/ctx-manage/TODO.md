@@ -108,6 +108,14 @@
 - [x] `CODEMAP.md` 增加“上下文管理去哪改”的入口索引
 - [x] `pitfalls.md` 记录：如何复现/定位“prompt 被撑爆”的坑（关键词+复现步骤）
 
+## P7 — 子代理（subagent）也要强制 prompt budget（补齐一致性）
+
+> 目标：子代理在 tool loop 时也要在每次 `streamOnce()` 前跑 `pruneForPromptBudget()`，避免长 tool_result / 长输出把子代理 prompt 撑爆。
+
+- [x] `createSubAgentRunner()` 支持注入 `promptBudget` 并转交给 `engine.runTurn()`
+- [x] legacy 入口传入同一份 `promptBudget`（与主 REPL 一致的 cfg/context）
+- [x] 单测：不开 budget 时会超限/失败；开 budget 时能自动截断继续跑通
+
 ---
 
 ## 可选：如果还想再问一次 WebGPT（只问两件最不确定的）

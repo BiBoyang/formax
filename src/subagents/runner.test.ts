@@ -158,6 +158,31 @@ class ReplModeFlipClient {
   }
 }
 
+class SizeLimitClient {
+  private responseText: string
+  private maxChars: number
+  private callCount = 0
+
+  constructor(args: { responseText: string; maxChars: number }) {
+    this.responseText = args.responseText
+    this.maxChars = args.maxChars
+  }
+
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+    this.callCount++
+    const size = JSON.stringify(args.messages).length
+    if (size > this.maxChars) throw new Error(`too big (${size} chars)`)
+
+    const text = `ok-${this.callCount}`
+    args.onEvent({ type: 'assistant_delta', text } as any)
+    return {
+      assistantBlocks: [{ type: 'text', text: this.responseText }],
+      stopReason: 'end_turn',
+      toolResults: [],
+    }
+  }
+}
+
 describe('SubAgentRunner', () => {
   it('filters tools by allowlist and forbids nested tools', async () => {
     const client = new RecordingClient('ok')
@@ -333,5 +358,44 @@ describe('SubAgentRunner', () => {
     expect(result.success).toBe(true)
     expect(result.summary).toBe('done')
     expect(seen).toEqual(['normal', 'acceptEdits'])
+  })
+
+  it('enforces prompt budget inside subagents (prevents runaway history)', async () => {
+    const executor = createToolExecutor([])
+    const agent = {
+      name: 'any',
+      description: 'any',
+      tools: ['*'],
+      systemPrompt: 'Return summary only.',
+    }
+
+    const responseText = 'a'.repeat(8000)
+
+    const noBudgetClient = new SizeLimitClient({ responseText, maxChars: 5000 })
+    const noBudgetRunner = createSubAgentRunner({
+      client: noBudgetClient as any,
+      executor,
+      allTools: [],
+    })
+    const first = await noBudgetRunner.run({ agent, task: 'one' })
+    const second = await noBudgetRunner.run({ agent, task: 'two', resume: first.agentId })
+    expect(second.success).toBe(false)
+    expect(second.error).toContain('too big')
+
+    const budgetClient = new SizeLimitClient({ responseText, maxChars: 5000 })
+    const budgetRunner = createSubAgentRunner({
+      client: budgetClient as any,
+      executor,
+      allTools: [],
+      promptBudget: {
+        contextWindowTokens: 200,
+        effectiveContextWindowPercent: 1,
+        autoCompactLimitPercent: 1,
+        baselineTokens: 0,
+      },
+    })
+    const firstBudget = await budgetRunner.run({ agent, task: 'one' })
+    const secondBudget = await budgetRunner.run({ agent, task: 'two', resume: firstBudget.agentId })
+    expect(secondBudget.success).toBe(true)
   })
 })

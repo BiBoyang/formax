@@ -1,5 +1,6 @@
 import type { ChatEngine } from '../chat/engine'
 import { createChatEngine } from '../chat/engine'
+import type { ContextBudgetConfig } from '../chat/context/budget'
 import type { PromptBlock } from '../prompts'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolExecutor } from '../tools/executor'
@@ -37,6 +38,7 @@ export function createSubAgentRunner(deps: {
   client: LlmStreamClient
   executor: ToolExecutor
   allTools: ToolDefinition[]
+  promptBudget?: ContextBudgetConfig | null
 }): SubAgentRunner {
   const engine: ChatEngine = createChatEngine({ client: deps.client, executor: deps.executor })
   const sessions = new Map<
@@ -114,6 +116,7 @@ export function createSubAgentRunner(deps: {
           onEvent: handleEvent,
           cwd: process.cwd(),
           signal,
+          promptBudget: deps.promptBudget ?? null,
           exec: {
             agentDepth: 1,
             replMode: currentMode,
