@@ -2,6 +2,32 @@ import { describe, expect, it } from 'vitest'
 import { pruneForPromptBudget } from './prune'
 import { estimatePromptTokens } from './estimate'
 
+function extractToolPairs(messages: any[]): { toolUseIds: Set<string>; toolResultIds: Set<string> } {
+  const toolUseIds = new Set<string>()
+  const toolResultIds = new Set<string>()
+
+  for (const msg of messages) {
+    if (!msg || !Array.isArray(msg.content)) continue
+    if (msg.role === 'assistant') {
+      for (const b of msg.content) {
+        if (b?.type === 'tool_use' && typeof b.id === 'string') toolUseIds.add(b.id)
+      }
+    }
+    if (msg.role === 'user') {
+      for (const b of msg.content) {
+        if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') toolResultIds.add(b.tool_use_id)
+      }
+    }
+  }
+
+  return { toolUseIds, toolResultIds }
+}
+
+function expectNoOrphanTools(messages: any[]): void {
+  const { toolUseIds, toolResultIds } = extractToolPairs(messages)
+  expect(Array.from(toolUseIds).sort()).toEqual(Array.from(toolResultIds).sort())
+}
+
 describe('pruneForPromptBudget', () => {
   it('truncates long tool_result content first', () => {
     const messages = [
@@ -81,5 +107,49 @@ describe('pruneForPromptBudget', () => {
 
     const estimate = estimatePromptTokens({ system: [], messages: out.messages })
     expect(estimate).toBeLessThanOrEqual(2_000)
+  })
+
+  it('never emits orphan tool_use/tool_result pairs when trimming', () => {
+    const messages = [
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/x' } }],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result', tool_use_id: 't1', content: 'x'.repeat(50_000) }],
+      },
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use', id: 't2', name: 'Read', input: { file_path: '/y' } }],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result', tool_use_id: 't2', content: 'y'.repeat(50_000) }],
+      },
+      { role: 'assistant' as const, content: [{ type: 'text', text: 'later' }] },
+    ]
+
+    const out = pruneForPromptBudget({ system: [], messages, contextWindowTokens: 1_000 })
+    expectNoOrphanTools(out.messages as any)
+  })
+
+  it('truncates oversized ephemeral injected blocks', () => {
+    const big = '<system-reminder>\n' + 'x'.repeat(50_000) + '\n</system-reminder>'
+    const messages = [
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'text', text: big, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: 'hello' },
+        ],
+      },
+    ]
+
+    const out = pruneForPromptBudget({ system: [], messages, contextWindowTokens: 1_000 })
+    const first = out.messages[0] as any
+    const injected = first?.content?.[0]?.text as string
+    expect(injected).toContain('[truncated]')
+    expect(injected).toContain('</system-reminder>')
   })
 })

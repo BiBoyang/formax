@@ -3,11 +3,72 @@ import { computeContextBudget } from './budget'
 import { estimatePromptTokens } from './estimate'
 
 const MAX_TOOL_RESULT_CHARS = 8_000
+const MAX_EPHEMERAL_TEXT_CHARS = 8_000
 const MIN_FALLBACK_TEXT_CHARS = 200
 
 function isToolResultMessage(msg: PromptMessage): boolean {
   if (msg.role !== 'user' || !Array.isArray(msg.content)) return false
   return msg.content.some((b: any) => b?.type === 'tool_result')
+}
+
+function getToolUseIds(msg: PromptMessage): string[] {
+  if (msg.role !== 'assistant' || !Array.isArray(msg.content)) return []
+  const ids: string[] = []
+  for (const b of msg.content as any[]) {
+    if (b?.type === 'tool_use' && typeof b.id === 'string') ids.push(b.id)
+  }
+  return ids
+}
+
+function getToolResultIds(msg: PromptMessage): string[] {
+  if (msg.role !== 'user' || !Array.isArray(msg.content)) return []
+  const ids: string[] = []
+  for (const b of msg.content as any[]) {
+    if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') ids.push(b.tool_use_id)
+  }
+  return ids
+}
+
+function normalizeToolPairs(messages: PromptMessage[]): PromptMessage[] {
+  const toolUses = new Set<string>()
+  const toolResults = new Set<string>()
+
+  for (const msg of messages) {
+    for (const id of getToolUseIds(msg)) toolUses.add(id)
+    for (const id of getToolResultIds(msg)) toolResults.add(id)
+  }
+
+  const paired = new Set<string>()
+  for (const id of toolUses) {
+    if (toolResults.has(id)) paired.add(id)
+  }
+
+  const out: PromptMessage[] = []
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content) || msg.content.length === 0) continue
+
+    if (msg.role === 'assistant') {
+      const next = msg.content.filter((b: any) => b?.type !== 'tool_use' || paired.has(String(b.id)))
+      if (next.length > 0) out.push({ ...msg, content: next as any })
+      continue
+    }
+
+    if (msg.role === 'user') {
+      const next = msg.content.filter((b: any) => b?.type !== 'tool_result' || paired.has(String(b.tool_use_id)))
+      if (next.length > 0) out.push({ ...msg, content: next as any })
+      continue
+    }
+
+    out.push(msg)
+  }
+
+  return out
+}
+
+function dropLeadingToolResultMessages(messages: PromptMessage[]): PromptMessage[] {
+  let start = 0
+  while (start < messages.length && isToolResultMessage(messages[start]!)) start++
+  return messages.slice(start)
 }
 
 function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): PromptMessage {
@@ -22,7 +83,12 @@ function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): Prompt
   }
 
   const raw = chunks.join('\n').trim()
-  const clipped = raw.length > maxChars ? raw.slice(0, maxChars) + '\n\n… [truncated]' : raw
+  const clipped =
+    raw.length > maxChars
+      ? raw.startsWith('<')
+        ? truncateTaggedText(raw, maxChars)
+        : raw.slice(0, maxChars) + '\n\n… [truncated]'
+      : raw
   return { role: msg.role, content: [{ type: 'text', text: clipped }] as any }
 }
 
@@ -48,19 +114,50 @@ function forceFit(args: { system: PromptBlock[]; budgetTokens: number; messages:
   return candidate
 }
 
-function truncateToolResultContent(msg: PromptMessage): PromptMessage {
-  if (msg.role !== 'user' || !Array.isArray(msg.content)) return msg
+function truncateTaggedText(raw: string, maxChars: number): string {
+  const text = String(raw ?? '')
+  if (text.length <= maxChars) return text
+
+  const openMatch = text.match(/^<([a-zA-Z0-9_-]+)(?:\s[^>]*)?>/)
+  if (!openMatch) return text.slice(0, maxChars) + '\n… [truncated]'
+
+  const tag = openMatch[1]
+  const close = `</${tag}>`
+  const hadClose = text.includes(close)
+  let clipped = text.slice(0, maxChars)
+
+  if (hadClose && !clipped.includes(close)) {
+    clipped = clipped.replace(/\s*$/, '') + `\n… [truncated]\n${close}`
+  } else if (!hadClose) {
+    clipped = clipped + '\n… [truncated]'
+  }
+
+  return clipped
+}
+
+function truncateHotContent(msg: PromptMessage): PromptMessage {
+  if (!Array.isArray(msg.content) || msg.content.length === 0) return msg
 
   let changed = false
   const next = msg.content.map((b: any) => {
-    if (b?.type !== 'tool_result') return b
-    const raw = typeof b.content === 'string' ? b.content : String(b.content ?? '')
-    if (raw.length <= MAX_TOOL_RESULT_CHARS) return b
-    changed = true
-    return {
-      ...b,
-      content: raw.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n… [truncated]',
+    if (b?.type === 'tool_result') {
+      const raw = typeof b.content === 'string' ? b.content : String(b.content ?? '')
+      if (raw.length <= MAX_TOOL_RESULT_CHARS) return b
+      changed = true
+      return {
+        ...b,
+        content: raw.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n… [truncated]',
+      }
     }
+
+    if (b?.type === 'text' && b?.cache_control?.type === 'ephemeral') {
+      const raw = typeof b.text === 'string' ? b.text : String(b.text ?? '')
+      if (raw.length <= MAX_EPHEMERAL_TEXT_CHARS) return b
+      changed = true
+      return { ...b, text: truncateTaggedText(raw, MAX_EPHEMERAL_TEXT_CHARS) }
+    }
+
+    return b
   })
 
   return changed ? { ...msg, content: next as any } : msg
@@ -87,29 +184,34 @@ export function pruneForPromptBudget(args: {
   }
 
   // Pass 1: truncate tool_result payloads (keeps tool pairs intact, only shortens content).
-  const truncated = args.messages.map(truncateToolResultContent)
+  const truncated = args.messages.map(truncateHotContent)
   const truncatedEstimate = estimatePromptTokens({ system: args.system, messages: truncated })
   if (truncatedEstimate <= budget.effectiveLimitTokens) {
     return { messages: truncated, pruned: true }
   }
 
-  // Pass 2: drop oldest messages until within budget, but never start with a tool_result message.
+  // Pass 2: drop oldest messages until within budget, while maintaining tool_use/tool_result pairs.
   let start = 0
   while (start < truncated.length) {
-    const slice = truncated.slice(start)
-    const estimate = estimatePromptTokens({ system: args.system, messages: slice })
-    if (estimate <= budget.effectiveLimitTokens) break
+    const normalized = dropLeadingToolResultMessages(normalizeToolPairs(truncated.slice(start)))
+    const estimate = estimatePromptTokens({ system: args.system, messages: normalized })
+    if (estimate <= budget.effectiveLimitTokens) {
+      return {
+        messages: forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: normalized }),
+        pruned: true,
+      }
+    }
     start++
   }
 
-  while (start < truncated.length && isToolResultMessage(truncated[start]!)) {
-    start++
-  }
-
-  const sliced = truncated.slice(start)
-  if (sliced.length > 0) {
+  const normalizedAll = dropLeadingToolResultMessages(normalizeToolPairs(truncated))
+  if (normalizedAll.length > 0) {
     return {
-      messages: forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: sliced }),
+      messages: forceFit({
+        system: args.system,
+        budgetTokens: budget.effectiveLimitTokens,
+        messages: normalizedAll,
+      }),
       pruned: true,
     }
   }
@@ -117,12 +219,13 @@ export function pruneForPromptBudget(args: {
   // Last-resort fallback: prefer returning nothing over emitting a tool_result-only prompt.
   // Callers that always append a user message (typical turn) will still be safe.
   for (let i = truncated.length - 1; i >= 0; i--) {
-    const msg = truncated[i]!
-    if (!isToolResultMessage(msg)) {
-      return {
-        messages: forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: [msg] }),
-        pruned: true,
-      }
+    const normalized = dropLeadingToolResultMessages(normalizeToolPairs([truncated[i]!]))
+    const msg = normalized[0]
+    if (!msg) continue
+    if (isToolResultMessage(msg)) continue
+    return {
+      messages: forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: [msg] }),
+      pruned: true,
     }
   }
 
