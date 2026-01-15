@@ -8,18 +8,11 @@ import type { LlmStreamClient } from '../streaming/types'
 import type { StreamEvent, StreamSink } from '../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
 import { randomUUID } from 'node:crypto'
+import { SUBAGENT_DENY_TOOLS } from '../tools/executor/subagentDenyTools'
 
 const DEFAULT_SUMMARY_MAX_CHARS = 500
 const SUMMARY_TRUNCATION_SUFFIX = '…'
-const NESTED_DENY_TOOLS = new Set([
-  'Task',
-  'Agent',
-  'Dispatch',
-  'SlashCommand',
-  'AskUserQuestion',
-  'EnterPlanMode',
-  'ExitPlanMode',
-])
+const READONLY_SUBAGENT_DENY_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const
 
 export interface SubAgentRunner {
   run(args: {
@@ -31,7 +24,15 @@ export interface SubAgentRunner {
     interactive?: boolean
     signal?: AbortSignal
     onEvent?: StreamSink
-  }): Promise<SubAgentResult>
+}): Promise<SubAgentResult>
+}
+
+function getDenyToolsForSubagent(agent: SubAgentConfig): string[] {
+  const deny = new Set<string>(SUBAGENT_DENY_TOOLS)
+  if (agent.name === 'Explore' || agent.name === 'Plan') {
+    for (const toolName of READONLY_SUBAGENT_DENY_TOOLS) deny.add(toolName)
+  }
+  return Array.from(deny)
 }
 
 export function createSubAgentRunner(deps: {
@@ -81,9 +82,11 @@ export function createSubAgentRunner(deps: {
 
       const allowed = new Set(agent.tools || [])
       const allowAll = allowed.has('*')
+      const denyTools = getDenyToolsForSubagent(agent)
+      const denyToolsSet = new Set(denyTools)
       const allowedTools = deps.allTools
         .filter((t) => (allowAll ? true : allowed.has(t.name)))
-        .filter((t) => !NESTED_DENY_TOOLS.has(t.name))
+        .filter((t) => !denyToolsSet.has(t.name))
 
       const system: PromptBlock[] = [
         {
@@ -124,7 +127,7 @@ export function createSubAgentRunner(deps: {
             setReplMode,
             interactive,
             allowTools: Array.from(allowed),
-            denyTools: Array.from(NESTED_DENY_TOOLS),
+            denyTools,
           },
         })
         sessions.set(agentId, { agentName: agent.name, history: nextHistory })

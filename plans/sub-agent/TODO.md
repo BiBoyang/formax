@@ -29,17 +29,17 @@
 
 > 目标：即使 agent 配置写了 `tools: *`，也不能越权。
 
-- [ ] **统一 NESTED_DENY_TOOLS（与抓包一致）**
-  - [ ] `Task`（防止嵌套）
-  - [ ] `TaskOutput`（仅主会话取后台结果）
-  - [ ] `EnterPlanMode` / `ExitPlanMode`（会话模式控制仅主会话）
-  - [ ] `KillShell`（影响主会话进程）
-  - [ ] `AskUserQuestion`（主会话交互，结果再回传）
-  - [ ] 删除不该 deny 的：`SlashCommand`（抓包里 subagent tools 允许它）
-- [ ] **按 subagent 类型加硬 deny（对齐 Claude Code 最新描述）**
-  - [ ] Explore / Plan：deny `Edit`, `Write`, `NotebookEdit`（且仍然 deny 上面的会话型工具）
-  - [ ] general-purpose：允许写工具（但依旧 obey 审批/Policy 与“向上审批”最后防线）
-- [ ] 单测：Explore/Plan tools 生成后不包含上述 deny 工具；general-purpose 包含
+- [x] **统一 NESTED_DENY_TOOLS（与抓包一致）**
+  - [x] `Task`（防止嵌套）
+  - [x] `TaskOutput`（仅主会话取后台结果）
+  - [x] `EnterPlanMode` / `ExitPlanMode`（会话模式控制仅主会话）
+  - [x] `KillShell`（影响主会话进程）
+  - [x] `AskUserQuestion`（主会话交互，结果再回传）
+  - [x] 删除不该 deny 的：`SlashCommand`（抓包里 subagent tools 允许它）
+- [x] **按 subagent 类型加硬 deny（对齐 Claude Code 最新描述）**
+  - [x] Explore / Plan：deny `Edit`, `Write`, `NotebookEdit`（且仍然 deny 上面的会话型工具）
+  - [x] general-purpose：允许写工具（但依旧 obey 审批/Policy 与“向上审批”最后防线）
+- [x] 单测：Explore/Plan tools 生成后不包含上述 deny 工具；general-purpose 包含
 
 ## P2 — `/agents` 命令（先对齐最小闭环）
 

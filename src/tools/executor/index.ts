@@ -2,6 +2,7 @@ import type { ToolCall, ToolResult } from '../types'
 import type { StreamSink } from '../../streaming/types'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
+import { SUBAGENT_DENY_TOOLS_SET } from './subagentDenyTools'
 
 export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 
@@ -41,15 +42,6 @@ export type ToolPreflight = (call: ToolCall, ctx: ExecutionContext) => Promise<T
 
 // Sub-agents must not use interactive/session-affecting tools. They cannot reliably
 // coordinate user input and should not mutate the parent session state.
-const NESTED_DENY_TOOLS = new Set([
-  'Task',
-  'Agent',
-  'Dispatch',
-  'SlashCommand',
-  'AskUserQuestion',
-  'EnterPlanMode',
-  'ExitPlanMode',
-])
 
 function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
   return {
@@ -108,7 +100,7 @@ export function createToolExecutor(
       return res
     }
 
-    if (ctx.agentDepth > 0 && NESTED_DENY_TOOLS.has(call.name)) {
+    if (ctx.agentDepth > 0 && SUBAGENT_DENY_TOOLS_SET.has(call.name)) {
       const res = {
         tool_use_id: call.id,
         content: `Tool ${call.name} is not allowed inside a sub-agent`,

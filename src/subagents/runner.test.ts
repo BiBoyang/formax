@@ -277,7 +277,7 @@ describe('SubAgentRunner', () => {
     const runner = createSubAgentRunner({
       client: client as any,
       executor,
-      allTools: [tool('Read'), tool('Glob'), tool('Task'), tool('Dispatch')],
+      allTools: [tool('Read'), tool('Glob'), tool('Task'), tool('TaskOutput')],
     })
 
     const result = await runner.run({
@@ -295,6 +295,42 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
+  })
+
+  it('denies Edit/Write/NotebookEdit inside Explore and Plan subagents', async () => {
+    const client = new RecordingClient('ok')
+    const executor = createToolExecutor([])
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [tool('Read'), tool('Glob'), tool('Bash'), tool('Edit'), tool('Write'), tool('NotebookEdit')],
+    })
+
+    const resultExplore = await runner.run({
+      agent: {
+        name: 'Explore',
+        description: 'Explore',
+        tools: ['*'],
+        systemPrompt: 'Explore.',
+      },
+      task: 'x',
+    })
+
+    expect(resultExplore.success).toBe(true)
+    expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Bash', 'Glob', 'Read'])
+
+    const resultPlan = await runner.run({
+      agent: {
+        name: 'Plan',
+        description: 'Plan',
+        tools: ['*'],
+        systemPrompt: 'Plan.',
+      },
+      task: 'x',
+    })
+
+    expect(resultPlan.success).toBe(true)
+    expect(client.calls[1]!.tools.map((t) => t.name).sort()).toEqual(['Bash', 'Glob', 'Read'])
   })
 
   it('denies interactive tools inside subagents', async () => {
