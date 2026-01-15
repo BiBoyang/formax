@@ -42,7 +42,7 @@ Formax is a terminal-based AI chat interface built with React + Ink, featuring a
 - `src/tools/presenters/` - Output formatting/presentation for tool results
 
 **Sub-Agents**
-- `src/subagents/registry.ts` - Loads and manages sub-agent definitions from `.agent/subagents/*.md`
+- `src/subagents/registry.ts` - Loads and manages sub-agent definitions from `.claude/agents/*.md` and `~/.claude/agents/*.md`
 - `src/subagents/runner.ts` - Executes sub-agents with isolated contexts and tool allowlists
 
 **Supporting Modules**
@@ -101,7 +101,7 @@ Runtime config from environment variables:
 Path overrides:
 - `FORMAX_TOOLS_JSON_PATH` - Tool spec JSON (default: `proxy/tools.json`)
 - `FORMAX_LOGS_DIR` - Traffic logs directory (default: `proxy/logs`)
-- `FORMAX_SUBAGENTS_DIR` - Sub-agent definitions (default: `.agent/subagents`)
+- `FORMAX_SUBAGENTS_DIR` - Project sub-agent definitions directory (default: `.claude/agents`)
 
 ### Testing
 

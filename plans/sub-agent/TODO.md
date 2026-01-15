@@ -20,8 +20,8 @@
   - [x] `model: sonnet|opus|haiku|inherit`（先存下来，后续再接“按 agent 选 model”）
   - [x] `color: blue|red|...`（用于 UI 区分）
 - [ ] **目录扫描与优先级（按官方文档）**
-  - [ ] `.claude/agents/`（项目级，优先）
-  - [ ] `~/.claude/agents/`（用户级）
+  - [x] `.claude/agents/`（项目级，优先）
+  - [x] `~/.claude/agents/`（用户级）
   - [ ] 先不做 plugins/`--agents`，但预留接口与 TODO（见 P2/P3）
 - [x] 单测：新增 fixtures 覆盖 3 种 `tools` 写法 + tools 缺省 + model/color
 

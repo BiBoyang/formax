@@ -1,3 +1,5 @@
+import os from 'node:os'
+import path from 'node:path'
 import React from 'react'
 import { render } from 'ink'
 import { clearTerminal } from '../utils/terminal.js'
@@ -141,7 +143,8 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   toolRegistry.register(createAskUserQuestionToolModule(userInputManager))
 
   const subAgentRegistry = createSubAgentRegistry()
-  await subAgentRegistry.loadFromDirectory(cfg.paths.subagentsDir)
+  const userAgentsDir = path.join(os.homedir(), '.claude', 'agents')
+  await subAgentRegistry.loadFromDirectories([userAgentsDir, cfg.paths.subagentsDir])
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()

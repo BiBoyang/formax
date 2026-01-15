@@ -109,7 +109,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
 # 可选配置
 ANTHROPIC_TIMEOUT_MS=300000
 FORMAX_LOGS_DIR=proxy/logs
-FORMAX_SUBAGENTS_DIR=.agent/subagents
+FORMAX_SUBAGENTS_DIR=.claude/agents
 ```
 
 ### 运行
@@ -199,19 +199,23 @@ Formax 内置了丰富的工具模块：
 
 Formax 支持子代理（Sub-Agents），允许 AI 将复杂任务分解为子任务并委托给专门的代理执行。
 
-子代理定义存储在 `.agent/subagents/` 目录下的 Markdown 文件中：
+子代理定义存储在项目的 `.claude/agents/` 或用户级的 `~/.claude/agents/` 目录下的 Markdown 文件（YAML frontmatter + system prompt）中：
 
 ```markdown
-# 子代理名称
+---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Read, Glob, Grep
+model: sonnet
+color: blue
+---
 
-## 描述
-这是一个用于处理特定任务的子代理。
-
-## 工具权限
-- read
-- write
-- bash
+You are a senior code reviewer. Focus on correctness, readability, and security.
 ```
+
+提示：
+- `tools` 可省略（表示 All tools）；也兼容 YAML list 形式
+- project-level（`.claude/agents/`）会覆盖 user-level（`~/.claude/agents/`）同名 agent
 
 ### 后台任务
 
@@ -375,7 +379,7 @@ npm run test:watch -- -t "registry"
 
 #### 路径配置
 - `FORMAX_LOGS_DIR` - 日志目录（默认: `proxy/logs`）
-- `FORMAX_SUBAGENTS_DIR` - 子代理目录（默认: `.agent/subagents`）
+- `FORMAX_SUBAGENTS_DIR` - 子代理目录（默认: `.claude/agents`；同时会加载 `~/.claude/agents`）
 
 #### 功能开关
 - `FORMAX_PATCH_TASK_TOOL` - 启用 Task 工具子代理补丁（默认: `true`）
@@ -454,5 +458,4 @@ PR 应包含：
 Made with ❤️ by the Formax team
 
 </div>
-
 

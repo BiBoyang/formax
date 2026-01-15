@@ -70,7 +70,7 @@ export async function loadRuntimeConfig(
   const subagentsDirRaw = resolved.config.paths.subagentsDir || env.FORMAX_SUBAGENTS_DIR || ''
   const subagentsDir = subagentsDirRaw
     ? path.resolve(cwd, subagentsDirRaw)
-    : path.resolve(cwd, '.agent/subagents')
+    : path.resolve(cwd, '.claude/agents')
 
   const defaultPlanDir = path.join(opts.homedir ?? os.homedir(), '.claude', 'plans')
   const planDirRaw = resolved.config.paths.planDir || env.FORMAX_PLAN_DIR || ''
