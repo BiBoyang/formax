@@ -61,7 +61,7 @@
      - [x] 长 injected reminder（如 todos stale）统一截断策略
   2) [x] 仍超限：从最老 turn 丢弃，并避免“tool_result 作为开头”导致的孤儿 result
   3) [x] 最后兜底：保留 `system + last user + 必要 tool 对`
-- [ ] 单测覆盖：
+- [x] 单测覆盖：
   - [x] 超长 tool_result 会先截断
   - [x] trimming 后不会以 tool_result 开头（避免孤儿 result）
   - [x] 多工具并发结果 trimming 不破坏对
@@ -75,14 +75,14 @@
 ## P4 — 手动 `/compact`（可见压缩 prompt，UI 不丢）
 
 - [x] 实现 `/compact` 命令（registry kind 按现有体系）
-- [ ] Compact 行为：
+- [x] Compact 行为：
   - [x] 用一次“总结回合”生成 summary（写入 prompt history）
   - [x] 重写 prompt history：`system + summary + 最近 N 条 turn/必要 tool 对`
   - [x] UI 插入一条“已压缩”的提示（不删除 UI 历史）
-- [ ] 防抖/防循环：
+- [x] 防抖/防循环：
   - [x] 同一 turn 不重复 compact
   - [x] compact 后立刻更新 meter
-- [ ] 单测：
+- [x] 单测：
   - [x] `/compact` 前后，下一次请求 messages 确实变短但含 summary
   - [x] tool loop 中途触发 `/compact` 的行为明确且不破坏工具链（可先禁用）
 
@@ -93,14 +93,14 @@
 
 - [x] pre-turn：发请求前若 `shouldAutoCompact` 则自动 compact
 - [x] tool-loop：在每次 `streamOnce()` 前做一次 `pruneForPromptBudget()`（避免 tool 输出把 loop prompt 撑爆）
-- [ ] 限制策略：
+- [x] 限制策略：
   - [x] 每 N turn 最多自动 compact 1 次
   - [x] 避免死循环：超限时优先走硬截断兜底（loop 内也做 prune）
 - [x] UI：轻提示可关闭
 
 **DoD**
-- [ ] 长对话不频繁爆上下文
-- [ ] 不出现自动 compact 死循环
+- [x] 长对话不频繁爆上下文
+- [x] 不出现自动 compact 死循环
 
 ## P6 — 文档沉淀（面向开源读者）
 

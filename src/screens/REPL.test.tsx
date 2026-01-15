@@ -256,5 +256,61 @@ describe('REPL', () => {
       await waitForFrame(lastFrame, (f) => f.includes('auto-compacted'))
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:3'))
     })
+
+    it('respects auto-compact throttling', async () => {
+      function getUserText(msg: PromptMessage): string {
+        const content = msg.content as any
+        if (typeof content === 'string') return content
+        if (!Array.isArray(content)) return ''
+        return content
+          .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
+          .join('')
+      }
+
+      let compactCalls = 0
+      const engineWithCounters: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          const isCompact = /Summarize the conversation/i.test(userText)
+          if (isCompact) compactCalls++
+
+          const assistantText = isCompact ? 'SUMMARY' : `HISTLEN:${history.length}`
+          onEvent({ type: 'assistant_delta', text: assistantText })
+          onEvent({ type: 'complete' })
+
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+          ]
+        },
+      }
+
+      const autoCfg: RuntimeConfig = {
+        ...cfg,
+        llm: { ...cfg.llm, contextWindowTokens: 50_000 },
+        context: {
+          ...cfg.context,
+          autoCompactTokenLimitPercent: 0.0001,
+          compactKeepLastTurns: 1,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 100,
+        },
+        ui: { ...cfg.ui, showAutoCompactNotice: true },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={engineWithCounters} tools={[]} cfg={autoCfg} />)
+      await tick()
+
+      for (const msg of ['hi1', 'hi2', 'hi3', 'hi4', 'hi5']) {
+        stdin.write(msg)
+        await tick()
+        stdin.write('\r')
+        await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:'))
+        await sleep(10)
+      }
+
+      expect(compactCalls).toBe(1)
+    })
   })
 })
