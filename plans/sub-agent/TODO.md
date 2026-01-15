@@ -45,18 +45,18 @@
 
 > 先做“能生成同格式文件 + 能被 Task 使用”，UI 细节再逐步对齐。
 
-- [ ] `/agents` 作为 **local_async** 命令接入命令注册系统
-- [ ] Ink 向导（与终端复制对齐）
-  - [ ] 选择 scope：Project-level（`.formax/agents/`）/ User-level（`~/.formax/agents/`）
-  - [ ] 选择 tools preset：All tools / Read-only / Edit / Execution / Other
-  - [ ] 选择 model：Sonnet/Opus/Haiku/Inherit
-  - [ ] 选择 color：Automatic/Red/Blue/Green/Yellow/Purple/Orange/Pink/Cyan
-  - [ ] Confirm & Save：展示 Name/Location/Tools/Model/Description/System prompt preview
-- [ ] 文件写入格式对齐
-  - [ ] frontmatter：`name/description/model/color` 必须对齐字段名
-  - [ ] `tools`：除非是子集，否则省略（All tools）
-  - [ ] body：system prompt（先做手动输入；Generate with Claude 放到 P3）
-- [ ] 最小验收：创建 agent → `Task(subagent_type=...)` 能加载并运行
+- [x] `/agents` 接入（当前为交互式向导；实现位于 `src/features/repl/useReplController.ts`）
+- [x] Ink 向导（最小字段闭环）
+  - [x] 选择 scope：Project-level（`.formax/agents/`）/ User-level（`~/.formax/agents/`）
+  - [x] 选择 tools preset：All tools / Read-only / Edit / Execution / 自定义（comma list）
+  - [x] 选择 model：Sonnet/Opus/Haiku/Inherit
+  - [x] 选择 color：Automatic/Red/Blue/Green/Yellow/Purple/Orange/Pink/Cyan
+  - [x] Confirm & Save：使用 AskUserQuestion 的 Review/Submit 页作为最小确认（UI 细节留给 P4）
+- [x] 文件写入格式对齐
+  - [x] frontmatter：`name/description/model/color` 字段名对齐
+  - [x] `tools`：All tools 时省略；否则写为逗号分隔字符串
+  - [x] body：system prompt（先做手动输入；Generate with Claude 放到 P3）
+- [x] 最小验收：创建 agent → reload registry → `Task(subagent_type=...)` 可立刻使用（无需重启）
 
 ## P3 — `/agents` 的 “Generate with Claude”（可选但体验关键）
 

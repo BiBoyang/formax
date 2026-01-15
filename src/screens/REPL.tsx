@@ -36,6 +36,7 @@ type Props = {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
+  reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   toolRegistry?: ToolRegistry
   taskManager?: TaskManager
 }
@@ -46,6 +47,7 @@ export function REPL({
   tools,
   cfg,
   allowedSubagents,
+  reloadSubagents,
   toolRegistry,
   taskManager,
 }: Props): React.ReactNode {
@@ -159,6 +161,7 @@ export function REPL({
     tools,
     cfg,
     allowedSubagents,
+    reloadSubagents,
     mode,
     promptProfile,
     onModeChange: (nextMode) => {

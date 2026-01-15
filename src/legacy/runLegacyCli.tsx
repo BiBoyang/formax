@@ -157,6 +157,10 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   )
   await subAgentRegistry.loadFromDirectories(uniqueDirs)
   const allowedSubagents = subAgentRegistry.list()
+  const reloadSubagents = async () => {
+    await subAgentRegistry.loadFromDirectories(uniqueDirs)
+    return subAgentRegistry.list()
+  }
 
   const toolsForSubagents = await toolRegistry.listSpecs()
   const providerForBudget = 'anthropic' as const
@@ -204,6 +208,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
         tools={tools}
         cfg={cfg}
         allowedSubagents={allowedSubagents}
+        reloadSubagents={reloadSubagents}
         toolRegistry={toolRegistry}
         taskManager={taskManager}
         onExit={() => {

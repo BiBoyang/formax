@@ -18,6 +18,8 @@ import { estimatePromptTokens } from '../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
 import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
+import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { buildAgentsWizardQuestions, createAgentFromWizardAnswers } from '../../subagents/agentsWizard'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -58,6 +60,7 @@ export function useReplController(deps: {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   allowedSubagents?: Array<{ name: string; description: string }>
+  reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   mode: ReplMode
   promptProfile?: SystemPromptProfile
   onModeChange?: (mode: ReplMode) => void
@@ -70,6 +73,7 @@ export function useReplController(deps: {
   const [thinkingText, setThinkingText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
+  const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])
@@ -90,6 +94,11 @@ export function useReplController(deps: {
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
   const sendSeqRef = useRef(0)
   const lastAutoCompactSeqRef = useRef(-1_000_000)
+  const userInput = useUserInputManager()
+
+  useEffect(() => {
+    setAllowedSubagents(deps.allowedSubagents ?? [])
+  }, [deps.allowedSubagents])
 
   useEffect(() => {
     modeRef.current = deps.mode
@@ -465,7 +474,7 @@ export function useReplController(deps: {
           const previousHistory = historyRef.current
 
           const system = buildSystemPrompt({
-            allowedSubagents: deps.allowedSubagents,
+            allowedSubagents,
             cwd,
             model: deps.cfg.llm.model,
             profile: promptProfile,
@@ -592,6 +601,152 @@ export function useReplController(deps: {
           ])
         } finally {
           setIsLoading(false)
+          abortControllerRef.current = null
+        }
+
+        return
+      }
+
+      if (isExactSlashCommand(text, '/agents')) {
+        const args = text.replace(/^\/agents\b/i, '').trim()
+        if (args) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `user-${Date.now()}`,
+              role: 'user',
+              content: text,
+              timestamp: new Date(),
+            },
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: 'Usage: /agents',
+              timestamp: new Date(),
+            },
+          ])
+          return
+        }
+
+        if (!userInput) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `user-${Date.now()}`,
+              role: 'user',
+              content: text,
+              timestamp: new Date(),
+            },
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: 'Error: /agents is not available (no UserInputManager).',
+              timestamp: new Date(),
+            },
+          ])
+          return
+        }
+
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, userMsg])
+
+        const abortController = new AbortController()
+        abortControllerRef.current = abortController
+        setError(null)
+
+        const toolUseId = `agents-${Date.now()}`
+        const toolMsgId = `tool-${toolUseId}`
+        const questions = buildAgentsWizardQuestions()
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: toolMsgId,
+            role: 'tool',
+            content: '',
+            timestamp: new Date(),
+            toolInfo: {
+              name: 'AskUserQuestion',
+              toolUseId,
+              input: { questions },
+              status: 'running',
+            },
+          },
+        ])
+
+        try {
+          const answers = await userInput.requestAnswers({
+            toolUseId,
+            questions,
+            signal: abortController.signal,
+          })
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === toolMsgId
+                ? {
+                    ...m,
+                    toolInfo: {
+                      ...m.toolInfo!,
+                      status: 'completed',
+                      result: JSON.stringify({ answers }, null, 2),
+                    },
+                  }
+                : m,
+            ),
+          )
+
+          const created = await createAgentFromWizardAnswers({
+            answers,
+            cwd: process.cwd(),
+            projectAgentsDir: deps.cfg.paths.subagentsDir,
+          })
+
+          try {
+            const next = await deps.reloadSubagents?.()
+            if (next) setAllowedSubagents(next)
+          } catch (e) {
+            // Reload failures should not block agent creation; surface as a soft error.
+            const msg = e instanceof Error ? e.message : String(e)
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `assistant-${Date.now()}`,
+                role: 'assistant',
+                content: `Note: agent created but reload failed: ${msg}`,
+                timestamp: new Date(),
+              },
+            ])
+          }
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: `Created agent: ${created.name}`,
+              timestamp: new Date(),
+            },
+          ])
+        } catch (e) {
+          if (!isAbortLikeError(e)) {
+            const msg = e instanceof Error ? e.message : 'Agents wizard failed'
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `assistant-${Date.now()}`,
+                role: 'assistant',
+                content: `Error: ${msg}`,
+                timestamp: new Date(),
+              },
+            ])
+          }
+        } finally {
           abortControllerRef.current = null
         }
 
@@ -734,7 +889,7 @@ export function useReplController(deps: {
             : { role: 'user' as const, content: [...injectedBlocks, ...buildUserContent(text)] }
 
         const system = buildSystemPrompt({
-          allowedSubagents: deps.allowedSubagents,
+          allowedSubagents,
           cwd,
           model: deps.cfg.llm.model,
           profile: promptProfile,
@@ -947,7 +1102,21 @@ export function useReplController(deps: {
         abortControllerRef.current = null
       }
     },
-    [deps.allowedSubagents, deps.commandRegistry, deps.engine, deps.mode, deps.tools, handleEvent, isLoading],
+    [
+      allowedSubagents,
+      deps.cfg,
+      deps.commandRegistry,
+      deps.engine,
+      deps.mode,
+      deps.planSession,
+      deps.promptProfile,
+      deps.reloadSubagents,
+      deps.tools,
+      handleEvent,
+      isLoading,
+      setReplMode,
+      userInput,
+    ],
   )
 
   return {

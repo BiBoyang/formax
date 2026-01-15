@@ -58,6 +58,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { command: '/help', description: 'Get help with using Formax', implemented: true },
   { command: '/tasks', description: 'List and manage background tasks', implemented: true },
   { command: '/todos', description: 'List current todos', implemented: true },
+  { command: '/agents', description: 'Create and manage custom sub-agents', implemented: true },
   { command: '/plan', description: 'Show current plan', implemented: true },
   { command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
