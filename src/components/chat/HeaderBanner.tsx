@@ -11,7 +11,7 @@ type Props = {
     percentRemaining: number
     usedTokens: number
     limitTokens: number
-    source: 'estimate'
+    source: 'estimate' | 'usage'
   }
 }
 
@@ -31,7 +31,7 @@ export function HeaderBanner({
   const contextLine = context
     ? `Context: ${clampPct(context.percentRemaining)}% free (${formatTokens(context.usedTokens)}/${formatTokens(
         context.limitTokens,
-      )}, est.)`
+      )}, ${context.source === 'usage' ? 'usage' : 'est.'})`
     : null
 
   return (

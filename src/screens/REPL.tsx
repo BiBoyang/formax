@@ -311,7 +311,8 @@ export function REPL({
     const pct = clampPct(state.context.percentRemaining)
     const used = formatTokens(state.context.usedTokens)
     const limit = formatTokens(state.context.limitTokens)
-    return `Context: ${pct}% free (${used}/${limit}, est.)`
+    const src = state.context.source === 'usage' ? 'usage' : 'est.'
+    return `Context: ${pct}% free (${used}/${limit}, ${src})`
   }, [cfg.ui.showContextMeter, state.context])
 
   // Header 作为 Static 列表的第一项（避免 Static items 把消息刷到 header 上方）

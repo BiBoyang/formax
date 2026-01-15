@@ -13,7 +13,7 @@ import type { PlanSessionManager } from './planSession'
 import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
-import { computeContextStats } from '../../chat/context/budget'
+import { computeContextStats, type ContextBudgetConfig } from '../../chat/context/budget'
 import { estimatePromptTokens } from '../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
@@ -30,7 +30,7 @@ export type ReplControllerState = {
     usedTokens: number
     limitTokens: number
     percentRemaining: number
-    source: 'estimate'
+    source: 'estimate' | 'usage'
   }
 }
 
@@ -86,6 +86,7 @@ export function useReplController(deps: {
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
   const reminderServiceRef = useRef<ReminderService | null>(null)
+  const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
 
   useEffect(() => {
     modeRef.current = deps.mode
@@ -171,6 +172,21 @@ export function useReplController(deps: {
           thinkingLastFlushAtRef.current = now
           setThinkingText(thinkingBufferRef.current)
         }
+        return
+      }
+
+      case 'usage': {
+        const cfg = contextBudgetConfigRef.current
+        if (!cfg) return
+
+        const usedTokens = sumInputTokens(ev.usage)
+        const stats = computeContextStats({ config: cfg, usedTokens })
+        setContext({
+          usedTokens: stats.usedTokens,
+          limitTokens: stats.effectiveLimitTokens,
+          percentRemaining: stats.percentRemaining,
+          source: 'usage',
+        })
         return
       }
 
@@ -528,6 +544,7 @@ export function useReplController(deps: {
       const abortController = new AbortController()
       abortControllerRef.current = abortController
       assistantBufferRef.current = ''
+      contextBudgetConfigRef.current = null
 
       try {
         if (!reminderServiceRef.current) reminderServiceRef.current = new ReminderService()
@@ -561,6 +578,15 @@ export function useReplController(deps: {
         const contextWindowTokens =
           deps.cfg.llm.contextWindowTokens ??
           getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
+
+        contextBudgetConfigRef.current = contextWindowTokens
+          ? {
+              contextWindowTokens,
+              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+              baselineTokens: deps.cfg.context.baselineTokens,
+            }
+          : null
         const prunedForTurn = contextWindowTokens
           ? pruneForPromptBudget({
               system,
@@ -762,6 +788,11 @@ function formatTokenTotal(usage: TokenUsage | undefined): string | null {
   const total = sumTokens(usage)
   if (total <= 0) return null
   return formatTokens(total)
+}
+
+function sumInputTokens(usage: TokenUsage | undefined): number {
+  const u = usage || {}
+  return (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
 }
 
 function sumTokens(usage: TokenUsage | undefined): number {
