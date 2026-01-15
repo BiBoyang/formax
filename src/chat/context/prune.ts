@@ -11,6 +11,15 @@ function isToolResultMessage(msg: PromptMessage): boolean {
   return msg.content.some((b: any) => b?.type === 'tool_result')
 }
 
+function findLastNonToolUserIndex(messages: PromptMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg) continue
+    if (msg.role === 'user' && !isToolResultMessage(msg)) return i
+  }
+  return -1
+}
+
 function getToolUseIds(msg: PromptMessage): string[] {
   if (msg.role !== 'assistant' || !Array.isArray(msg.content)) return []
   const ids: string[] = []
@@ -71,6 +80,37 @@ function dropLeadingToolResultMessages(messages: PromptMessage[]): PromptMessage
   return messages.slice(start)
 }
 
+function keepOnlyToolBlocks(msg: PromptMessage): PromptMessage | null {
+  if (!Array.isArray(msg.content) || msg.content.length === 0) return null
+
+  if (msg.role === 'assistant') {
+    const next = msg.content.filter((b: any) => b?.type === 'tool_use')
+    return next.length > 0 ? { ...msg, content: next as any } : null
+  }
+
+  if (msg.role === 'user') {
+    const next = msg.content.filter((b: any) => b?.type === 'tool_result')
+    return next.length > 0 ? { ...msg, content: next as any } : null
+  }
+
+  return msg
+}
+
+function reduceToEssentialTail(messages: PromptMessage[]): PromptMessage[] {
+  if (messages.length <= 0) return messages
+
+  const first = messages[0]!
+  const rest = messages.slice(1)
+
+  const essential: PromptMessage[] = [first]
+  for (const msg of rest) {
+    const kept = keepOnlyToolBlocks(msg)
+    if (kept) essential.push(kept)
+  }
+
+  return dropLeadingToolResultMessages(normalizeToolPairs(essential))
+}
+
 function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): PromptMessage {
   const chunks: string[] = []
   for (const b of msg.content as any[]) {
@@ -101,14 +141,28 @@ function forceFit(args: { system: PromptBlock[]; budgetTokens: number; messages:
     const estimate = estimatePromptTokens({ system: args.system, messages: candidate })
     if (estimate <= limit) return candidate
 
-    const last = candidate[candidate.length - 1]
-    if (!last) return []
+    const lastNonToolUserIndex = findLastNonToolUserIndex(candidate)
+    let target: PromptMessage | undefined
+    if (lastNonToolUserIndex >= 0) {
+      target = candidate[lastNonToolUserIndex]
+    } else {
+      for (let i = candidate.length - 1; i >= 0; i--) {
+        const msg = candidate[i]
+        if (!msg) continue
+        if (!isToolResultMessage(msg)) {
+          target = msg
+          break
+        }
+      }
+      if (!target) target = candidate[candidate.length - 1]
+    }
+    if (!target) return []
 
     const maxChars = Math.max(
       MIN_FALLBACK_TEXT_CHARS,
       Math.floor(limit * 4 * Math.pow(0.6, attempt)),
     )
-    candidate = [squashToSingleTextMessage(last, maxChars)]
+    candidate = [squashToSingleTextMessage(target, maxChars)]
   }
 
   return candidate
@@ -191,6 +245,9 @@ export function pruneForPromptBudget(args: {
   }
 
   // Pass 2: drop oldest messages until within budget, while maintaining tool_use/tool_result pairs.
+  const lastNonToolUserIndex = findLastNonToolUserIndex(truncated)
+  const maxStart = lastNonToolUserIndex >= 0 ? lastNonToolUserIndex : truncated.length - 1
+
   let start = 0
   while (start < truncated.length) {
     const normalized = dropLeadingToolResultMessages(normalizeToolPairs(truncated.slice(start)))
@@ -201,6 +258,20 @@ export function pruneForPromptBudget(args: {
         pruned: true,
       }
     }
+
+    if (start >= maxStart) {
+      const essential = reduceToEssentialTail(normalized)
+      const essentialEstimate = estimatePromptTokens({ system: args.system, messages: essential })
+
+      return {
+        messages:
+          essentialEstimate <= budget.effectiveLimitTokens
+            ? essential
+            : forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: essential }),
+        pruned: true,
+      }
+    }
+
     start++
   }
 

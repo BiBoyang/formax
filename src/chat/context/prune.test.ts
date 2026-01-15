@@ -152,4 +152,51 @@ describe('pruneForPromptBudget', () => {
     expect(injected).toContain('[truncated]')
     expect(injected).toContain('</system-reminder>')
   })
+
+  it('keeps the last non-tool user message under tight budgets', () => {
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'user question' }] },
+      { role: 'assistant' as const, content: [{ type: 'text', text: 'x'.repeat(50_000) }] },
+    ]
+
+    const out = pruneForPromptBudget({
+      system: [],
+      messages,
+      contextWindowTokens: 800,
+      effectiveContextWindowPercent: 1,
+    })
+
+    expect(out.messages.length).toBeGreaterThan(0)
+    expect(out.messages[0]?.role).toBe('user')
+    const firstText = (out.messages[0] as any)?.content?.[0]?.text as string
+    expect(firstText).toContain('user question')
+  })
+
+  it('keeps paired tool blocks while dropping non-tool assistant text in minimal fallback', () => {
+    const huge = 'A'.repeat(50_000)
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'question' }] },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text', text: 'planning...' },
+          { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/x' } },
+        ],
+      },
+      { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] },
+      { role: 'assistant' as const, content: [{ type: 'text', text: huge }] },
+    ]
+
+    const out = pruneForPromptBudget({
+      system: [],
+      messages,
+      contextWindowTokens: 2_000,
+      effectiveContextWindowPercent: 1,
+    })
+
+    expectNoOrphanTools(out.messages as any)
+
+    const combined = JSON.stringify(out.messages)
+    expect(combined).not.toContain(huge.slice(0, 1000))
+  })
 })
