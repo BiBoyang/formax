@@ -1,9 +1,9 @@
 import path from 'node:path'
-import os from 'node:os'
 import { resolveRuntimeConfig } from '../core/config/resolve.js'
 import type { FileStore } from '../adapters/fs/fileStore.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { loadConfigFiles } from '../adapters/fs/configFiles.js'
+import { getConfigPaths } from '../adapters/fs/configPaths.js'
 
 export type RuntimeConfig = {
   llm: {
@@ -67,12 +67,22 @@ export async function loadRuntimeConfig(
     ? path.resolve(cwd, logsDirRaw)
     : path.resolve(cwd, 'proxy/logs')
 
+  const configPaths = getConfigPaths({
+    cwd,
+    env,
+    platform: opts.platform,
+    homedir: opts.homedir,
+  })
+
+  const globalConfigDir = path.resolve(cwd, configPaths.globalConfigDir)
+  const defaultSubagentsDir = path.join(configPaths.projectConfigDir, 'agents')
+  const defaultPlanDir = path.join(globalConfigDir, 'plans')
+
   const subagentsDirRaw = resolved.config.paths.subagentsDir || env.FORMAX_SUBAGENTS_DIR || ''
   const subagentsDir = subagentsDirRaw
     ? path.resolve(cwd, subagentsDirRaw)
-    : path.resolve(cwd, '.claude/agents')
+    : defaultSubagentsDir
 
-  const defaultPlanDir = path.join(opts.homedir ?? os.homedir(), '.claude', 'plans')
   const planDirRaw = resolved.config.paths.planDir || env.FORMAX_PLAN_DIR || ''
   const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 

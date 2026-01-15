@@ -44,7 +44,7 @@ flowchart TD
 ```
 
 1. CLI 启动时调用 `registry.loadFromDirectories(...)`
-   - 当前实现会同时加载 user-level（`~/.claude/agents/`）与 project-level（`.claude/agents/`），并以 project 覆盖 user
+   - 当前实现会同时加载 user-level（`~/.formax/agents/`）与 project-level（`.formax/agents/`），并以 project 覆盖 user（也兼容 `.claude/agents/`）
 2. Task 工具 handler 调用 `registry.get(agentName)` 获取配置
 3. Runner 根据 `agent.tools` 过滤全量工具列表
 4. Runner 创建隔离 ChatEngine 并执行（agentDepth=1）
@@ -57,19 +57,20 @@ flowchart TD
 - Agent 可指定 `tools: ['*']` 使用所有工具
 - Agent 可指定具体工具列表做白名单隔离
 - Runner 支持 resume（用 agentId 继续上次对话）
-- 用户可在 `~/.claude/agents/` 添加 user-level agent，也可在项目的 `.claude/agents/` 添加 project-level agent（优先级更高）
+- 用户可在 `~/.formax/agents/` 添加 user-level agent，也可在项目的 `.formax/agents/` 添加 project-level agent（优先级更高）
 
 ### ❌ 禁止
 
-- Sub-agent 禁止调用 `Task` / `Agent` / `Dispatch` / `SlashCommand` / `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode`（NESTED_DENY_TOOLS）
+- Sub-agent 硬拒绝会话/交互型工具：`Task` / `TaskOutput` / `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` / `KillShell`（见 `src/tools/executor/subagentDenyTools.ts`）
+- Explore/Plan 额外硬拒绝写工具：`Edit` / `Write` / `NotebookEdit`（见 `src/subagents/runner.ts`）
 - Agent system prompt 不得包含敏感信息（会传给 LLM）
 - Registry 不做工具校验（只存名称列表）
 - Runner 不管理持久化 session（内存 Map，进程退出即失效）
 
 ### 关键不变量
 
-1. **NESTED_DENY_TOOLS**：防止无限递归调用 sub-agent
-2. **agentDepth > 0**：Executor 自动拒绝 NESTED_DENY_TOOLS
+1. **SUBAGENT_DENY_TOOLS**：防止无限递归调用 sub-agent
+2. **agentDepth > 0**：Executor 自动拒绝 `SUBAGENT_DENY_TOOLS`
 3. **summary 截断**：默认 500 字符 + `…`
 
 ## 5) 如何扩展（How to extend）
@@ -90,7 +91,7 @@ flowchart TD
 
 ### 用户自定义 sub-agent
 
-1. 在 `~/.claude/agents/` 创建 `my-agent.md`（或在项目 `.claude/agents/`）：
+1. 在 `~/.formax/agents/` 创建 `my-agent.md`（或在项目 `.formax/agents/`）：
    ```yaml
    ---
    name: my-agent

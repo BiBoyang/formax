@@ -80,7 +80,7 @@
 
 - REPL 支持 `shift+tab` 循环切换 `normal → acceptEdits → plan`
 - plan mode 下会在每个 turn 注入 `<system-reminder>`（偏规划、少执行），并在退出 plan mode 时注入一次“Exited Plan Mode”提醒
-- plan mode 围绕一个 **plan file** 运转（默认 `~/.claude/plans/<slug>.md`，可用 `FORMAX_PLAN_DIR` 覆盖）
+- plan mode 围绕一个 **plan file** 运转（默认 `~/.formax/plans/<slug>.md`，可用 `FORMAX_PLAN_DIR` 覆盖）
 - plan mode 的限制由工具 handler 侧执行：
   - ✅ `Write/Edit` **仅允许**对 plan file 写入/修改（并跳过逐次确认）；其他路径一律拒绝
   - `Bash` 会按 policy 更严格（通常需要确认或直接 deny）

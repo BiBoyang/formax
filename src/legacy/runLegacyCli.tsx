@@ -7,6 +7,7 @@ import { REPL } from '../screens/REPL.js'
 import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js'
 import { loadRuntimeConfig } from '../env/config.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
+import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { createToolExecutor } from '../tools/executor/index.js'
 import { createApprovalService } from '../tools/executor/approvalService.js'
 import { createPolicyPreflight } from '../tools/executor/policyPreflight.js'
@@ -143,8 +144,18 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   toolRegistry.register(createAskUserQuestionToolModule(userInputManager))
 
   const subAgentRegistry = createSubAgentRegistry()
-  const userAgentsDir = path.join(os.homedir(), '.claude', 'agents')
-  await subAgentRegistry.loadFromDirectories([userAgentsDir, cfg.paths.subagentsDir])
+  const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
+  const userAgentsDir = path.join(configPaths.globalConfigDir, 'agents')
+
+  // Backward-compatibility: some users may still have sub-agents under `.claude/agents`
+  // (Claude Code convention). Prefer `.formax/agents` but load both if present.
+  const legacyUserAgentsDir = path.join(os.homedir(), '.claude', 'agents')
+  const legacyProjectAgentsDir = path.join(process.cwd(), '.claude', 'agents')
+
+  const uniqueDirs = Array.from(
+    new Set([legacyUserAgentsDir, userAgentsDir, legacyProjectAgentsDir, cfg.paths.subagentsDir]),
+  )
+  await subAgentRegistry.loadFromDirectories(uniqueDirs)
   const allowedSubagents = subAgentRegistry.list()
 
   const toolsForSubagents = await toolRegistry.listSpecs()

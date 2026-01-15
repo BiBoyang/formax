@@ -6,7 +6,7 @@
 
 - subagent 的入口是主会话调用 `Task`，通过 `input.subagent_type` 选择 agent（抓包：`proxy/traffic-logs/0026_2026-01-16T00-07-44,252_REQ__v1_messages.simple.json:621`）。
 - subagent 是一条独立 `/v1/messages` 会话：messages 只有 1 条 user（Task.prompt），system 换成 agent system prompt，tools 列表会被裁剪（抓包：`proxy/traffic-logs/0027_2026-01-16T00-07-48,829_REQ__v1_messages.simple.json:11`、`:45`）。
-- `/agents` 是交互式向导，会落盘 `.claude/agents/*.md`（终端复制：`plans/sub-agent/terminal-copy/5.txt:12`）。
+- `/agents` 是交互式向导，会落盘 `.formax/agents/*.md`（终端复制：`plans/sub-agent/terminal-copy/5.txt:12`；Claude Code 对应为 `.claude/agents/*.md`）。
 - agent 文件为 Markdown + YAML frontmatter，**`tools:` 在文件里是“逗号分隔字符串”，且当选择 All tools 时可能省略该字段**（示例文件：`/Users/david/Documents/github/bilibili2str/.claude/agents/edit-tool-demo.md:4`、`/Users/david/Documents/github/bilibili2str/.claude/agents/code-reviewer.md:1`）。
 - Claude Code 的内置 Explore/Plan 近期把“软限制”写得更明确：`Tools: All tools except Task, ExitPlanMode, Edit, Write, NotebookEdit`（我们需要做到：**运行时硬限制**）。
 
@@ -20,8 +20,8 @@
   - [x] `model: sonnet|opus|haiku|inherit`（先存下来，后续再接“按 agent 选 model”）
   - [x] `color: blue|red|...`（用于 UI 区分）
 - [ ] **目录扫描与优先级（按官方文档）**
-  - [x] `.claude/agents/`（项目级，优先）
-  - [x] `~/.claude/agents/`（用户级）
+  - [x] `.formax/agents/`（项目级，优先）
+  - [x] `~/.formax/agents/`（用户级）
   - [ ] 先不做 plugins/`--agents`，但预留接口与 TODO（见 P2/P3）
 - [x] 单测：新增 fixtures 覆盖 3 种 `tools` 写法 + tools 缺省 + model/color
 
@@ -47,7 +47,7 @@
 
 - [ ] `/agents` 作为 **local_async** 命令接入命令注册系统
 - [ ] Ink 向导（与终端复制对齐）
-  - [ ] 选择 scope：Project-level（`.claude/agents/`）/ User-level（`~/.claude/agents/`）
+  - [ ] 选择 scope：Project-level（`.formax/agents/`）/ User-level（`~/.formax/agents/`）
   - [ ] 选择 tools preset：All tools / Read-only / Edit / Execution / Other
   - [ ] 选择 model：Sonnet/Opus/Haiku/Inherit
   - [ ] 选择 color：Automatic/Red/Blue/Green/Yellow/Purple/Orange/Pink/Cyan
