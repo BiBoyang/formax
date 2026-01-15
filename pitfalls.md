@@ -27,3 +27,16 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Fix**: keep “cancel” handling purely as a selection/action (Esc / Cancel option), never `text === 'cancel'`.
 - **Keywords**: approval prompt, EditApprovalPrompt, feedback, cancel
 
+## Prompt blows context window (tool output + tool loop)
+- **Problem**: long tool output (Grep/Bash/TaskOutput/Task) can bloat the prompt; in the worst case it fails mid tool loop (stopReason=tool_use) before the turn completes.
+- **Repro**:
+  1) trigger a long-output tool (e.g. Grep with a broad glob) that returns thousands of lines
+  2) observe that the prompt grows quickly and may exceed the provider context window
+- **Root cause**:
+  - UI history and prompt history were treated similarly, or pruning happened only after the turn finished.
+  - Tool loops call the model multiple times inside one turn; pruning only “post-turn” is too late.
+- **Fix**:
+  - Keep UI transcript and prompt history separate (`historyRef` vs `messages`).
+  - Apply `pruneForPromptBudget()` before sending each model call (pre-turn) and also inside the tool loop (pre-`streamOnce`).
+- **Links**: `src/chat/context/prune.ts`, `src/chat/engine.ts`, `src/features/repl/useReplController.ts`
+- **Keywords**: context window, prompt budget, prune, tool_result, tool_use, tool loop

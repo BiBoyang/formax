@@ -21,6 +21,16 @@ This file is a “where to change what” index for quickly navigating the codeb
 - SSE parser: `src/streaming/anthropic/sseParser.ts`
 - Stream events/types: `src/streaming/types.ts`
 
+## Context Management (UI transcript vs prompt history)
+- Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact: `src/features/repl/useReplController.ts`
+- Budget + stats: `src/chat/context/budget.ts`
+- Token estimate fallback: `src/chat/context/estimate.ts`
+- Model context window table (current provider-agnostic hints): `src/chat/context/modelWindow.ts`
+- Hard pruning rules (tool pair invariants + truncation): `src/chat/context/prune.ts`
+- Compaction tail selection (keep last N turns): `src/chat/context/compact.ts`
+- Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
+- Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
+
 ## Prompts
 - System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
 - Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`

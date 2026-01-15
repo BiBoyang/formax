@@ -13,6 +13,7 @@
    - 系统提示词/注入：`docs/LEARNINGS/prompts/`
    - UI/交互：`docs/LEARNINGS/ui/`
    - 子任务：`docs/LEARNINGS/subagents/`
+   - 上下文管理：`docs/LEARNINGS/context/`
 
 ## 写作约定（很重要）
 
@@ -39,4 +40,3 @@
 - `CODEMAP.md`：给开发者的“去哪改”索引（偏导航）
 - `pitfalls.md`：踩坑记录（偏故障/修复）
 - `docs/LEARNINGS/`：原理/行为对齐/设计取舍（偏学习）
-

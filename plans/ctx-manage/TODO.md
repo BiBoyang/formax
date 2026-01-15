@@ -39,7 +39,7 @@
 ## P2 — Context Meter（先只显示，不改变 prompt）
 
 - [x] 定义 `ContextStats`（used/limit/percentRemaining/shouldAutoCompact/source）
-- [ ] token 估算策略：usage 优先，估算兜底
+- [x] token 估算策略：usage 优先，估算兜底
   - [x] 估算兜底：bytes/4（基于 prompt JSON 体积粗估）
   - [x] usage 优先：拿到“当前 prompt/history 使用量”再替换估算（provider usage 目前仅是本轮消耗）
 - [x] UI 显示：放在 Header/状态栏（先做最小、稳定、不闪）
@@ -104,9 +104,9 @@
 
 ## P6 — 文档沉淀（面向开源读者）
 
-- [ ] 写一篇 learning note：Codex 的上下文管理（事实）→ Formax 的映射（实现）
-- [ ] `CODEMAP.md` 增加“上下文管理去哪改”的入口索引
-- [ ] `pitfalls.md` 记录：如何复现/定位“prompt 被撑爆”的坑（关键词+复现步骤）
+- [x] 写一篇 learning note：Codex 的上下文管理（事实）→ Formax 的映射（实现）
+- [x] `CODEMAP.md` 增加“上下文管理去哪改”的入口索引
+- [x] `pitfalls.md` 记录：如何复现/定位“prompt 被撑爆”的坑（关键词+复现步骤）
 
 ---
 
