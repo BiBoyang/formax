@@ -514,6 +514,7 @@ export function useReplController(deps: {
             onEvent: compactSink,
             cwd,
             signal: abortController.signal,
+            promptBudget: contextBudgetConfigRef.current,
             exec: {
               replMode: deps.mode,
               getReplMode: () => modeRef.current,
@@ -793,6 +794,7 @@ export function useReplController(deps: {
               onEvent: compactSink,
               cwd,
               signal: abortController.signal,
+              promptBudget: contextBudgetConfigRef.current,
               exec: {
                 replMode: deps.mode,
                 getReplMode: () => modeRef.current,
@@ -884,6 +886,7 @@ export function useReplController(deps: {
           onEvent: handleEvent,
           cwd,
           signal: abortController.signal,
+          promptBudget: contextBudgetConfigRef.current,
           exec,
         })
 

@@ -4,6 +4,8 @@ import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
 import { readTodos } from '../tools/runtime/todosFile'
 import { buildTodoStaleReminderBody } from '../prompts/reminders/todos'
+import type { ContextBudgetConfig } from './context/budget'
+import { pruneForPromptBudget } from './context/prune'
 
 export type ChatHistory = PromptMessage[]
 
@@ -16,6 +18,7 @@ export interface ChatEngine {
     onEvent: StreamSink
     cwd: string
     signal?: AbortSignal
+    promptBudget?: ContextBudgetConfig | null
     exec?: Partial<
       Pick<
         ExecutionContext,
@@ -30,7 +33,7 @@ export interface ChatEngine {
         | 'interactive'
       >
     >
-  }): Promise<ChatHistory>
+}): Promise<ChatHistory>
 }
 
 function isToolUseBlock(
@@ -54,6 +57,7 @@ export function createChatEngine(deps: {
       onEvent,
       cwd,
       signal,
+      promptBudget,
       exec,
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
@@ -86,6 +90,23 @@ export function createChatEngine(deps: {
 
         let iteration = 0
         while (true) {
+          const prunedLoopMessages =
+            promptBudget?.contextWindowTokens
+              ? pruneForPromptBudget({
+                  system,
+                  messages: loopMessages,
+                  contextWindowTokens: promptBudget.contextWindowTokens,
+                  effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
+                  autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
+                  baselineTokens: promptBudget.baselineTokens,
+                }).messages
+              : loopMessages
+
+          if (prunedLoopMessages !== loopMessages) {
+            loopMessages.length = 0
+            loopMessages.push(...prunedLoopMessages)
+          }
+
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
               messages: loopMessages.slice(),

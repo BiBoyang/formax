@@ -59,6 +59,51 @@ describe('ChatEngine', () => {
     expect(events.some((e) => e.type === 'complete')).toBe(true)
   })
 
+  it('prunes oversized tool loop messages when promptBudget is provided', async () => {
+    const tailMark = 'TAIL_MARK_SHOULD_NOT_SURVIVE'
+    const huge = 'x'.repeat(9000) + tailMark
+    let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount++
+        if (callCount === 1) {
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/tmp/a' } }],
+            stopReason: 'tool_use',
+            toolResults: [{ tool_use_id: 't1', content: huge }],
+          }
+        }
+        secondCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
+    }
+
+    const engine = createChatEngine({ client, executor })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+      promptBudget: { contextWindowTokens: 1000, effectiveContextWindowPercent: 1, autoCompactLimitPercent: 1, baselineTokens: 0 },
+    })
+
+    expect(callCount).toBe(2)
+    expect(secondCallMessages).not.toBeNull()
+    expect(JSON.stringify(secondCallMessages)).not.toContain(tailMark)
+  })
+
   it('appends todo_stale reminder to the last tool_result block after threshold', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-engine-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH

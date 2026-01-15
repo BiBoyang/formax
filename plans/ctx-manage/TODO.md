@@ -92,10 +92,10 @@
 ## P5 — 自动压缩（可选，等 P3/P4 稳定再做）
 
 - [x] pre-turn：发请求前若 `shouldAutoCompact` 则自动 compact
-- [ ] tool-loop：只有在“还需要继续下一轮”且预算不足时才触发
+- [x] tool-loop：在每次 `streamOnce()` 前做一次 `pruneForPromptBudget()`（避免 tool 输出把 loop prompt 撑爆）
 - [ ] 限制策略：
   - [x] 每 N turn 最多自动 compact 1 次
-  - [ ] 避免死循环：超限时优先走硬截断兜底
+  - [x] 避免死循环：超限时优先走硬截断兜底（loop 内也做 prune）
 - [x] UI：轻提示可关闭
 
 **DoD**
