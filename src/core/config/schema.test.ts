@@ -18,12 +18,15 @@ describe('FormaxConfigV1Schema', () => {
         assistantTextMode: 'buffered',
         promptProfile: 'full',
         showContextMeter: true,
+        showAutoCompactNotice: true,
       },
       context: {
         effectiveContextWindowPercent: 0.95,
         autoCompactTokenLimitPercent: 0.9,
         baselineTokens: 12000,
         compactKeepLastTurns: 4,
+        enableAutoCompact: true,
+        autoCompactMinTurnsBetweenRuns: 8,
       },
     })
   })

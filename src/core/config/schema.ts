@@ -67,6 +67,7 @@ export const UiConfigSchema = z
     assistantTextMode: AssistantTextModeSchema.default('buffered'),
     promptProfile: PromptProfileSchema.default('full'),
     showContextMeter: z.boolean().default(true),
+    showAutoCompactNotice: z.boolean().default(true),
   })
   .strict()
   .default({})
@@ -78,6 +79,7 @@ export const UiConfigPatchSchema = z
     assistantTextMode: AssistantTextModeSchema.optional(),
     promptProfile: PromptProfileSchema.optional(),
     showContextMeter: z.boolean().optional(),
+    showAutoCompactNotice: z.boolean().optional(),
   })
   .strict()
 
@@ -89,6 +91,8 @@ export const ContextConfigSchema = z
     autoCompactTokenLimitPercent: Percent01Schema.default(0.9),
     baselineTokens: NonNegativeIntSchema.default(12000),
     compactKeepLastTurns: NonNegativeIntSchema.default(4),
+    enableAutoCompact: z.boolean().default(true),
+    autoCompactMinTurnsBetweenRuns: NonNegativeIntSchema.default(8),
   })
   .strict()
   .default({})
@@ -101,6 +105,8 @@ export const ContextConfigPatchSchema = z
     autoCompactTokenLimitPercent: Percent01Schema.optional(),
     baselineTokens: NonNegativeIntSchema.optional(),
     compactKeepLastTurns: NonNegativeIntSchema.optional(),
+    enableAutoCompact: z.boolean().optional(),
+    autoCompactMinTurnsBetweenRuns: NonNegativeIntSchema.optional(),
   })
   .strict()
 

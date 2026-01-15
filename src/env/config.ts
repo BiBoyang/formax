@@ -24,11 +24,14 @@ export type RuntimeConfig = {
     autoCompactTokenLimitPercent: number
     baselineTokens: number
     compactKeepLastTurns: number
+    enableAutoCompact: boolean
+    autoCompactMinTurnsBetweenRuns: number
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
     promptProfile: 'lite' | 'full'
     showContextMeter: boolean
+    showAutoCompactNotice: boolean
   }
 }
 
@@ -81,6 +84,7 @@ export async function loadRuntimeConfig(
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const promptProfile = resolved.config.ui.promptProfile
   const showContextMeter = resolved.config.ui.showContextMeter
+  const showAutoCompactNotice = resolved.config.ui.showAutoCompactNotice
   const context = resolved.config.context
 
   return {
@@ -102,11 +106,14 @@ export async function loadRuntimeConfig(
       autoCompactTokenLimitPercent: context.autoCompactTokenLimitPercent,
       baselineTokens: context.baselineTokens,
       compactKeepLastTurns: context.compactKeepLastTurns,
+      enableAutoCompact: context.enableAutoCompact,
+      autoCompactMinTurnsBetweenRuns: context.autoCompactMinTurnsBetweenRuns,
     },
     ui: {
       assistantTextMode,
       promptProfile,
       showContextMeter,
+      showAutoCompactNotice,
     },
   }
 }

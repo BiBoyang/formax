@@ -40,10 +40,13 @@ const KNOWN_SOURCE_KEYS = [
   'ui.assistantTextMode',
   'ui.promptProfile',
   'ui.showContextMeter',
+  'ui.showAutoCompactNotice',
   'context.effectiveContextWindowPercent',
   'context.autoCompactTokenLimitPercent',
   'context.baselineTokens',
   'context.compactKeepLastTurns',
+  'context.enableAutoCompact',
+  'context.autoCompactMinTurnsBetweenRuns',
 ] as const
 
 function normalizeAnthropicBaseUrl(baseUrl: string): string {
@@ -126,6 +129,17 @@ function envToPatch(
     warnings.push('env FORMAX_SHOW_CONTEXT_METER is invalid and was ignored')
   }
 
+  const showAutoCompactNoticeRaw = (env.FORMAX_SHOW_AUTO_COMPACT_NOTICE || '').trim().toLowerCase()
+  const showAutoCompactNotice =
+    showAutoCompactNoticeRaw === '1' || showAutoCompactNoticeRaw === 'true'
+      ? true
+      : showAutoCompactNoticeRaw === '0' || showAutoCompactNoticeRaw === 'false'
+        ? false
+        : undefined
+  if (showAutoCompactNoticeRaw && showAutoCompactNotice === undefined) {
+    warnings.push('env FORMAX_SHOW_AUTO_COMPACT_NOTICE is invalid and was ignored')
+  }
+
   const contextWindowTokensRaw = (env.FORMAX_CONTEXT_WINDOW_TOKENS || '').trim()
   const contextWindowTokensParsed = contextWindowTokensRaw ? Number(contextWindowTokensRaw) : undefined
   const contextWindowTokens =
@@ -195,6 +209,32 @@ function envToPatch(
     warnings.push('env FORMAX_COMPACT_KEEP_LAST_TURNS is invalid and was ignored')
   }
 
+  const enableAutoCompactRaw = (env.FORMAX_ENABLE_AUTO_COMPACT || '').trim().toLowerCase()
+  const enableAutoCompact =
+    enableAutoCompactRaw === '1' || enableAutoCompactRaw === 'true'
+      ? true
+      : enableAutoCompactRaw === '0' || enableAutoCompactRaw === 'false'
+        ? false
+        : undefined
+  if (enableAutoCompactRaw && enableAutoCompact === undefined) {
+    warnings.push('env FORMAX_ENABLE_AUTO_COMPACT is invalid and was ignored')
+  }
+
+  const autoCompactMinTurnsBetweenRunsRaw = (env.FORMAX_AUTO_COMPACT_MIN_TURNS_BETWEEN_RUNS || '').trim()
+  const autoCompactMinTurnsBetweenRunsParsed = autoCompactMinTurnsBetweenRunsRaw
+    ? Number(autoCompactMinTurnsBetweenRunsRaw)
+    : undefined
+  const autoCompactMinTurnsBetweenRuns =
+    autoCompactMinTurnsBetweenRunsRaw &&
+    Number.isFinite(autoCompactMinTurnsBetweenRunsParsed) &&
+    Number.isInteger(autoCompactMinTurnsBetweenRunsParsed) &&
+    autoCompactMinTurnsBetweenRunsParsed >= 0
+      ? autoCompactMinTurnsBetweenRunsParsed
+      : undefined
+  if (autoCompactMinTurnsBetweenRunsRaw && autoCompactMinTurnsBetweenRuns === undefined) {
+    warnings.push('env FORMAX_AUTO_COMPACT_MIN_TURNS_BETWEEN_RUNS is invalid and was ignored')
+  }
+
   const hasAnthropic = Boolean(apiKey || baseUrl || model || timeoutMsRaw)
   if (hasAnthropic) {
     patch.llm = {
@@ -237,11 +277,20 @@ function envToPatch(
     }
   }
 
+  if (showAutoCompactNotice !== undefined) {
+    patch.ui = {
+      ...(patch.ui || {}),
+      showAutoCompactNotice,
+    }
+  }
+
   if (
     effectiveContextWindowPercent !== undefined ||
     autoCompactTokenLimitPercent !== undefined ||
     baselineTokens !== undefined ||
-    compactKeepLastTurns !== undefined
+    compactKeepLastTurns !== undefined ||
+    enableAutoCompact !== undefined ||
+    autoCompactMinTurnsBetweenRuns !== undefined
   ) {
     patch.context = {
       ...(patch.context || {}),
@@ -249,6 +298,8 @@ function envToPatch(
       ...(autoCompactTokenLimitPercent !== undefined ? { autoCompactTokenLimitPercent } : {}),
       ...(baselineTokens !== undefined ? { baselineTokens } : {}),
       ...(compactKeepLastTurns !== undefined ? { compactKeepLastTurns } : {}),
+      ...(enableAutoCompact !== undefined ? { enableAutoCompact } : {}),
+      ...(autoCompactMinTurnsBetweenRuns !== undefined ? { autoCompactMinTurnsBetweenRuns } : {}),
     }
   }
 

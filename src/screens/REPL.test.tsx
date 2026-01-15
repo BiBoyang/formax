@@ -62,11 +62,14 @@ describe('REPL', () => {
       autoCompactTokenLimitPercent: 0.9,
       baselineTokens: 12000,
       compactKeepLastTurns: 4,
+      enableAutoCompact: true,
+      autoCompactMinTurnsBetweenRuns: 8,
     },
     ui: {
       assistantTextMode: 'stream',
       promptProfile: 'lite',
       showContextMeter: true,
+      showAutoCompactNotice: true,
     },
   }
 
@@ -187,6 +190,70 @@ describe('REPL', () => {
       stdin.write('hi')
       await tick()
       stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:3'))
+    })
+  })
+
+  describe('auto-compact', () => {
+    it('auto-compacts prompt history before sending when over the limit', async () => {
+      function getUserText(msg: PromptMessage): string {
+        const content = msg.content as any
+        if (typeof content === 'string') return content
+        if (!Array.isArray(content)) return ''
+        return content
+          .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
+          .join('')
+      }
+
+      const compactEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          const isCompact = /Summarize the conversation/i.test(userText)
+          const assistantText = isCompact ? 'SUMMARY' : `HISTLEN:${history.length}`
+
+          onEvent({ type: 'assistant_delta', text: assistantText })
+          onEvent({ type: 'complete' })
+
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+          ]
+        },
+      }
+
+      const autoCfg: RuntimeConfig = {
+        ...cfg,
+        llm: { ...cfg.llm, contextWindowTokens: 50_000 },
+        context: {
+          ...cfg.context,
+          autoCompactTokenLimitPercent: 0.0001,
+          compactKeepLastTurns: 1,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 0,
+        },
+        ui: { ...cfg.ui, showAutoCompactNotice: true },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={compactEngine} tools={[]} cfg={autoCfg} />)
+      await tick()
+
+      stdin.write('hi1')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+      await sleep(25)
+
+      stdin.write('hi2')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:2'))
+      await sleep(25)
+
+      stdin.write('hi3')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('auto-compacted'))
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:3'))
     })
   })

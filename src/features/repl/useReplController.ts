@@ -88,6 +88,8 @@ export function useReplController(deps: {
   const pendingExitPlanReminderRef = useRef(false)
   const reminderServiceRef = useRef<ReminderService | null>(null)
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
+  const sendSeqRef = useRef(0)
+  const lastAutoCompactSeqRef = useRef(-1_000_000)
 
   useEffect(() => {
     modeRef.current = deps.mode
@@ -706,6 +708,7 @@ export function useReplController(deps: {
       abortControllerRef.current = abortController
       assistantBufferRef.current = ''
       contextBudgetConfigRef.current = null
+      const sendSeq = (sendSeqRef.current += 1)
 
       try {
         if (!reminderServiceRef.current) reminderServiceRef.current = new ReminderService()
@@ -748,6 +751,88 @@ export function useReplController(deps: {
               baselineTokens: deps.cfg.context.baselineTokens,
             }
           : null
+
+        if (
+          deps.cfg.context.enableAutoCompact &&
+          contextWindowTokens &&
+          historyRef.current.length > 0 &&
+          countNonToolUserTurns(historyRef.current) >= 2 &&
+          sendSeq - lastAutoCompactSeqRef.current >= deps.cfg.context.autoCompactMinTurnsBetweenRuns
+        ) {
+          const usedTokens = estimatePromptTokens({ system, messages: [...historyRef.current, user] })
+          const stats = computeContextStats({
+            config: {
+              contextWindowTokens,
+              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+              baselineTokens: deps.cfg.context.baselineTokens,
+            },
+            usedTokens,
+          })
+
+          if (stats.shouldAutoCompact) {
+            const previousHistory = historyRef.current
+            const compactUser: ChatHistory[number] = {
+              role: 'user',
+              content: [{ type: 'text', text: buildCompactRequest('') }],
+            }
+
+            const compactSink = (ev: StreamEvent) => {
+              // Auto-compact runs inside an active turn; forwarding complete/error into the main
+              // event handler would incorrectly reset loading state or surface irrelevant errors.
+              if (ev.type === 'thinking_delta' || ev.type === 'usage') {
+                handleEvent(ev)
+              }
+            }
+
+            const compactedHistory = await deps.engine.runTurn({
+              history: previousHistory,
+              user: compactUser,
+              system,
+              tools: [],
+              onEvent: compactSink,
+              cwd,
+              signal: abortController.signal,
+              exec: {
+                replMode: deps.mode,
+                getReplMode: () => modeRef.current,
+                setReplMode,
+                getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
+              },
+            })
+
+            const summary = extractAssistantText(compactedHistory).trim()
+            if (summary) {
+              const compacted = rebuildHistoryAfterCompaction({
+                summary,
+                previousHistory,
+                keepLastTurns: deps.cfg.context.compactKeepLastTurns,
+              })
+
+              historyRef.current = pruneForPromptBudget({
+                system,
+                messages: compacted,
+                contextWindowTokens,
+                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+                baselineTokens: deps.cfg.context.baselineTokens,
+              }).messages
+
+              lastAutoCompactSeqRef.current = sendSeq
+              if (deps.cfg.ui.showAutoCompactNotice) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `assistant-${Date.now()}`,
+                    role: 'assistant',
+                    content: 'Conversation history auto-compacted (summary kept for future turns).',
+                    timestamp: new Date(),
+                  },
+                ])
+              }
+            }
+          }
+        }
         const prunedForTurn = contextWindowTokens
           ? pruneForPromptBudget({
               system,
@@ -968,6 +1053,21 @@ function buildCompactRequest(instructions: string): string {
     (extra ? `Additional user instructions:\n${extra}\n\n` : '') +
     'Output only the summary.'
   )
+}
+
+function countNonToolUserTurns(history: ChatHistory): number {
+  let n = 0
+  for (const msg of history) {
+    if (!msg || msg.role !== 'user') continue
+    const content = (msg as any).content
+    if (!Array.isArray(content)) {
+      n++
+      continue
+    }
+    const hasToolResult = content.some((b: any) => b?.type === 'tool_result')
+    if (!hasToolResult) n++
+  }
+  return n
 }
 
 function extractAssistantText(history: ChatHistory): string {
