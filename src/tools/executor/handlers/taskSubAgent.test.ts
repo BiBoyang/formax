@@ -8,6 +8,7 @@ import { TaskManager } from '../../runtime/taskManager'
 describe('TaskSubAgentToolHandler', () => {
   const registry: SubAgentRegistry = {
     async loadFromDirectory() {},
+    async loadFromDirectories() {},
     get() {
       return undefined
     },
@@ -58,6 +59,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const registryOk: SubAgentRegistry = {
       async loadFromDirectory() {},
+      async loadFromDirectories() {},
       get(name: string) {
         return name === 'code-reviewer' ? agent : undefined
       },
@@ -100,6 +102,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const registryOk: SubAgentRegistry = {
       async loadFromDirectory() {},
+      async loadFromDirectories() {},
       get() {
         return agent
       },
@@ -141,6 +144,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const registryOk: SubAgentRegistry = {
       async loadFromDirectory() {},
+      async loadFromDirectories() {},
       get() {
         return agent
       },
@@ -184,6 +188,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const registryOk: SubAgentRegistry = {
       async loadFromDirectory() {},
+      async loadFromDirectories() {},
       get() {
         return agent
       },
@@ -226,6 +231,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const registryOk: SubAgentRegistry = {
       async loadFromDirectory() {},
+      async loadFromDirectories() {},
       get() {
         return agent
       },

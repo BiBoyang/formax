@@ -3,6 +3,8 @@ export type SubAgentConfig = {
   description: string
   tools: string[]
   systemPrompt: string
+  model?: string
+  color?: string
 }
 
 export type SubAgentResult = {

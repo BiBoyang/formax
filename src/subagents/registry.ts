@@ -6,6 +6,7 @@ import { getBuiltinSubagents } from './builtins'
 
 export interface SubAgentRegistry {
   loadFromDirectory(dir: string): Promise<void>
+  loadFromDirectories(dirs: string[]): Promise<void>
   get(name: string): SubAgentConfig | undefined
   list(): Array<{ name: string; description: string }>
 }
@@ -24,43 +25,66 @@ export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): Su
 
   return {
     async loadFromDirectory(dir: string): Promise<void> {
+      await this.loadFromDirectories([dir])
+    },
+
+    async loadFromDirectories(dirs: string[]): Promise<void> {
       agents.clear()
       seedBuiltins()
 
-      let entries: string[]
-      try {
-        entries = await fsp.readdir(dir)
-      } catch (err) {
-        wsError(`[SubAgentRegistry] Failed to read directory ${dir}:`, err)
-        return
+      const dirList = Array.isArray(dirs) ? dirs.filter((d) => Boolean((d || '').trim())) : []
+      const loadedFrom: string[] = []
+
+      for (const dir of dirList) {
+        let entries: string[]
+        try {
+          entries = await fsp.readdir(dir)
+        } catch (err) {
+          if (isMissingDir(err)) continue
+          wsWarn(`[SubAgentRegistry] Failed to read directory ${dir}:`, err)
+          continue
+        }
+
+        loadedFrom.push(dir)
+
+        await Promise.all(
+          entries
+            .filter((f) => f.endsWith('.md'))
+            .map(async (file) => {
+              const fullPath = path.join(dir, file)
+              try {
+                const raw = await fsp.readFile(fullPath, 'utf8')
+                const parsed = parseFrontmatter(raw)
+
+                const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
+                const description =
+                  typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
+
+                const tools = parseToolsField(parsed.data.tools)
+                const systemPrompt = parsed.content.trim()
+                const model = typeof parsed.data.model === 'string' ? parsed.data.model.trim() : ''
+                const color = typeof parsed.data.color === 'string' ? parsed.data.color.trim() : ''
+
+                if (!name || !description || !systemPrompt) return
+                agents.set(name, {
+                  name,
+                  description,
+                  tools,
+                  systemPrompt,
+                  ...(model ? { model } : {}),
+                  ...(color ? { color } : {}),
+                })
+              } catch (err) {
+                wsWarn(`[SubAgentRegistry] Failed to parse ${file}:`, err)
+              }
+            }),
+        )
       }
 
-      await Promise.all(
-        entries
-          .filter((f) => f.endsWith('.md'))
-          .map(async (file) => {
-            const fullPath = path.join(dir, file)
-            try {
-              const raw = await fsp.readFile(fullPath, 'utf8')
-              const parsed = parseFrontmatter(raw)
-
-              const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
-              const description =
-                typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
-              const tools = Array.isArray(parsed.data.tools)
-                ? parsed.data.tools.filter((t: unknown) => typeof t === 'string').map((t: string) => t.trim())
-                : []
-              const systemPrompt = parsed.content.trim()
-
-              if (!name || !description || !systemPrompt) return
-              agents.set(name, { name, description, tools, systemPrompt })
-            } catch (err) {
-              wsWarn(`[SubAgentRegistry] Failed to parse ${file}:`, err)
-            }
-          }),
+      const locations = loadedFrom.length > 0 ? loadedFrom.join(', ') : '(none)'
+      wsInfo(
+        `[SubAgentRegistry] Loaded ${agents.size} sub-agent(s) (builtins=${includeBuiltins}) from ${locations}`,
       )
-
-      wsInfo(`[SubAgentRegistry] Loaded ${agents.size} sub-agent(s) (builtins=${includeBuiltins}) from ${dir}`)
     },
 
     get(name: string): SubAgentConfig | undefined {
@@ -166,4 +190,33 @@ function unquote(value: string): string {
     return v.slice(1, -1)
   }
   return v
+}
+
+function parseToolsField(raw: unknown): string[] {
+  if (raw === undefined) return ['*']
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    if (trimmed === '*') return ['*']
+    return trimmed
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+  }
+
+  if (Array.isArray(raw)) {
+    const items = raw
+      .filter((t: unknown) => typeof t === 'string')
+      .map((t: string) => t.trim())
+      .filter(Boolean)
+    return items
+  }
+
+  return []
+}
+
+function isMissingDir(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  return (err as any).code === 'ENOENT'
 }
