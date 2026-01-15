@@ -16,6 +16,7 @@ import { ReminderService } from './reminders/ReminderService'
 import { computeContextStats } from '../../chat/context/budget'
 import { estimatePromptTokens } from '../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
+import { pruneForPromptBudget } from '../../chat/context/prune'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -558,8 +559,20 @@ export function useReplController(deps: {
         })
 
         const contextWindowTokens = getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
+        const prunedForTurn = contextWindowTokens
+          ? pruneForPromptBudget({
+              system,
+              messages: [...historyRef.current, user],
+              contextWindowTokens,
+            })
+          : { messages: [...historyRef.current, user], pruned: false }
+
+        const prunedUser = prunedForTurn.messages[prunedForTurn.messages.length - 1]!
+        const prunedHistory = prunedForTurn.messages.slice(0, -1)
+        historyRef.current = prunedHistory
+
         if (contextWindowTokens) {
-          const usedTokens = estimatePromptTokens({ system, messages: [...historyRef.current, user] })
+          const usedTokens = estimatePromptTokens({ system, messages: [...prunedHistory, prunedUser] })
           const stats = computeContextStats({ config: { contextWindowTokens }, usedTokens })
           setContext({
             usedTokens: stats.usedTokens,
@@ -577,10 +590,10 @@ export function useReplController(deps: {
           setReplMode,
           getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
         }
-        const historyLen = historyRef.current.length
+        const historyLen = prunedHistory.length
         const nextHistory = await deps.engine.runTurn({
-          history: historyRef.current,
-          user,
+          history: prunedHistory,
+          user: prunedUser,
           system,
           tools: deps.tools,
           onEvent: handleEvent,
@@ -592,10 +605,19 @@ export function useReplController(deps: {
         pendingExitPlanReminderRef.current = false
         if (localCommandRef.current) localCommandRef.current = null
 
-        historyRef.current =
+        const stripped =
           injectedBlocks.length > 0
             ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
             : nextHistory
+
+        historyRef.current =
+          contextWindowTokens
+            ? pruneForPromptBudget({
+                system,
+                messages: stripped,
+                contextWindowTokens,
+              }).messages
+            : stripped
 
         if (contextWindowTokens) {
           const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
@@ -697,6 +719,7 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   const msg = history[userIndex]
   if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return history
   if (injectedCount <= 0) return history
+  if (msg.content.length <= injectedCount) return history
 
   const stripped: ChatHistory[number] = {
     ...msg,

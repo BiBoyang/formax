@@ -52,14 +52,18 @@
 
 > 这一刀是“立刻止血”：即使没有 `/compact`，也保证不会因 tool 输出/提醒太长把 prompt 撑爆。
 
-- [ ] 在“写入 prompt history”的统一入口加 `pruneForPromptBudget()`
-  - [ ] **只影响 prompt**，不删 UI messages
+- [x] 在“写入 prompt history”的统一入口加 `pruneForPromptBudget()`
+  - [x] **只影响 prompt**，不删 UI messages
 - [ ] `pruneForPromptBudget()` 规则（必须保持 tool 成对）
-  1) [ ] 先截断容易爆的块：`tool_result` / 长 stdout / 长 injected reminder（加“已截断”标记）
-  2) [ ] 仍超限：从最老 turn 丢弃，但保持 `tool_use/tool_result` 不变量
+  1) [ ] 先截断容易爆的块
+     - [x] `tool_result`（超长内容截断并标记）
+     - [ ] 长 stdout（Bash/TaskOutput 等）统一截断策略
+     - [ ] 长 injected reminder（如 todos stale）统一截断策略
+  2) [x] 仍超限：从最老 turn 丢弃，并避免“tool_result 作为开头”导致的孤儿 result
   3) [ ] 最后兜底：保留 `system + last user + 必要 tool 对`
 - [ ] 单测覆盖：
-  - [ ] 超长 tool_result 截断后仍成对
+  - [x] 超长 tool_result 会先截断
+  - [x] trimming 后不会以 tool_result 开头（避免孤儿 result）
   - [ ] 多工具并发结果 trimming 不破坏对
   - [ ] injected reminders 很长时优先截断
   - [ ] 仍超限时的“最小保留集”正确
