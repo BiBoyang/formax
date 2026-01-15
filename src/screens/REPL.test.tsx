@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library'
 import { REPL } from './REPL'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
+import type { PromptBlock, PromptMessage } from '../prompts'
 
 /**
  * Feature: tool-ui-refactor
@@ -15,6 +16,28 @@ import type { RuntimeConfig } from '../env/config'
  * handling, streaming, and user interactions.
  */
 describe('REPL', () => {
+  function tick(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0))
+  }
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  async function waitForFrame(
+    lastFrame: () => string | undefined,
+    predicate: (frame: string) => boolean,
+    timeoutMs = 1500,
+  ): Promise<string> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const frame = lastFrame() || ''
+      if (predicate(frame)) return frame
+      await tick()
+    }
+    throw new Error('Timed out waiting for UI update')
+  }
+
   const engine: ChatEngine = {
     async runTurn({ history }) {
       return history
@@ -111,6 +134,59 @@ describe('REPL', () => {
       expect(lastFrame()).toBeDefined()
       // Note: We can't easily test Ctrl+C in ink-testing-library
       // but we verify the prop is accepted
+    })
+  })
+
+  describe('/compact', () => {
+    it('compacts prompt history and continues the chat', async () => {
+      function getUserText(msg: PromptMessage): string {
+        const content = msg.content as any
+        if (typeof content === 'string') return content
+        if (!Array.isArray(content)) return ''
+        return content
+          .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
+          .join('')
+      }
+
+      const compactEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          const isCompact = /Summarize the conversation/i.test(userText)
+          const assistantText = isCompact ? 'SUMMARY' : `HISTLEN:${history.length}`
+
+          onEvent({ type: 'assistant_delta', text: assistantText })
+          onEvent({ type: 'complete' })
+
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+          ]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={compactEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      // Regular message: history starts empty.
+      stdin.write('hi')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+      await sleep(25)
+
+      // Compact
+      stdin.write('/compact')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('Conversation history compacted'))
+      await sleep(25)
+
+      // Next message should see the compacted prompt history (summary-only => length 1).
+      stdin.write('hi')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:1'))
     })
   })
 })

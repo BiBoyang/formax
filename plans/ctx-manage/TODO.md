@@ -80,10 +80,10 @@
   - [ ] 重写 prompt history：`system + summary + 最近 N 条 turn/必要 tool 对`
   - [x] UI 插入一条“已压缩”的提示（不删除 UI 历史）
 - [ ] 防抖/防循环：
-  - [ ] 同一 turn 不重复 compact
-  - [ ] compact 后立刻更新 meter
+  - [x] 同一 turn 不重复 compact
+  - [x] compact 后立刻更新 meter
 - [ ] 单测：
-  - [ ] `/compact` 前后，下一次请求 messages 确实变短但含 summary
+  - [x] `/compact` 前后，下一次请求 messages 确实变短但含 summary
   - [ ] tool loop 中途触发 `/compact` 的行为明确且不破坏工具链（可先禁用）
 
 **DoD**
