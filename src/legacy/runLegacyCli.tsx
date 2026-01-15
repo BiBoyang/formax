@@ -36,7 +36,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const enableLogger = process.env.ENABLE_CONSOLE_LOGGER !== 'false'
   if (enableLogger) {
     const port = parseInt(process.env.CONSOLE_LOGGER_PORT || '3001', 10)
-    startConsoleLogger(port)
+    // startConsoleLogger(port)
   }
 
   // Optional: clear screen for a clean chat view
@@ -180,7 +180,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
         toolRegistry={toolRegistry}
         taskManager={taskManager}
         onExit={() => {
-          stopConsoleLogger()
+          // stopConsoleLogger()
           process.exit(0)
         }}
       />
