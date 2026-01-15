@@ -33,11 +33,15 @@ const KNOWN_SOURCE_KEYS = [
   'llm.model',
   'llm.timeoutMs',
   'llm.authRef',
+  'llm.contextWindowTokens',
   'paths.logsDir',
   'paths.subagentsDir',
   'paths.planDir',
   'ui.assistantTextMode',
   'ui.promptProfile',
+  'context.effectiveContextWindowPercent',
+  'context.autoCompactTokenLimitPercent',
+  'context.baselineTokens',
 ] as const
 
 function normalizeAnthropicBaseUrl(baseUrl: string): string {
@@ -109,6 +113,62 @@ function envToPatch(
   const promptProfileRaw = (env.FORMAX_PROMPT_PROFILE || '').trim().toLowerCase()
   const promptProfile = promptProfileRaw === 'lite' ? 'lite' : promptProfileRaw === 'full' ? 'full' : undefined
 
+  const contextWindowTokensRaw = (env.FORMAX_CONTEXT_WINDOW_TOKENS || '').trim()
+  const contextWindowTokensParsed = contextWindowTokensRaw ? Number(contextWindowTokensRaw) : undefined
+  const contextWindowTokens =
+    contextWindowTokensRaw &&
+    Number.isFinite(contextWindowTokensParsed) &&
+    Number.isInteger(contextWindowTokensParsed) &&
+    contextWindowTokensParsed > 0
+      ? contextWindowTokensParsed
+      : undefined
+  if (contextWindowTokensRaw && contextWindowTokens === undefined) {
+    warnings.push('env FORMAX_CONTEXT_WINDOW_TOKENS is invalid and was ignored')
+  }
+
+  const effectiveContextWindowPercentRaw = (env.FORMAX_EFFECTIVE_CONTEXT_WINDOW_PERCENT || '').trim()
+  const effectiveContextWindowPercentParsed = effectiveContextWindowPercentRaw
+    ? Number(effectiveContextWindowPercentRaw)
+    : undefined
+  const effectiveContextWindowPercent =
+    effectiveContextWindowPercentRaw &&
+    Number.isFinite(effectiveContextWindowPercentParsed) &&
+    effectiveContextWindowPercentParsed >= 0 &&
+    effectiveContextWindowPercentParsed <= 1
+      ? effectiveContextWindowPercentParsed
+      : undefined
+  if (effectiveContextWindowPercentRaw && effectiveContextWindowPercent === undefined) {
+    warnings.push('env FORMAX_EFFECTIVE_CONTEXT_WINDOW_PERCENT is invalid and was ignored')
+  }
+
+  const autoCompactTokenLimitPercentRaw = (env.FORMAX_AUTO_COMPACT_TOKEN_LIMIT_PERCENT || '').trim()
+  const autoCompactTokenLimitPercentParsed = autoCompactTokenLimitPercentRaw
+    ? Number(autoCompactTokenLimitPercentRaw)
+    : undefined
+  const autoCompactTokenLimitPercent =
+    autoCompactTokenLimitPercentRaw &&
+    Number.isFinite(autoCompactTokenLimitPercentParsed) &&
+    autoCompactTokenLimitPercentParsed >= 0 &&
+    autoCompactTokenLimitPercentParsed <= 1
+      ? autoCompactTokenLimitPercentParsed
+      : undefined
+  if (autoCompactTokenLimitPercentRaw && autoCompactTokenLimitPercent === undefined) {
+    warnings.push('env FORMAX_AUTO_COMPACT_TOKEN_LIMIT_PERCENT is invalid and was ignored')
+  }
+
+  const baselineTokensRaw = (env.FORMAX_BASELINE_TOKENS || '').trim()
+  const baselineTokensParsed = baselineTokensRaw ? Number(baselineTokensRaw) : undefined
+  const baselineTokens =
+    baselineTokensRaw &&
+    Number.isFinite(baselineTokensParsed) &&
+    Number.isInteger(baselineTokensParsed) &&
+    baselineTokensParsed >= 0
+      ? baselineTokensParsed
+      : undefined
+  if (baselineTokensRaw && baselineTokens === undefined) {
+    warnings.push('env FORMAX_BASELINE_TOKENS is invalid and was ignored')
+  }
+
   const hasAnthropic = Boolean(apiKey || baseUrl || model || timeoutMsRaw)
   if (hasAnthropic) {
     patch.llm = {
@@ -117,6 +177,13 @@ function envToPatch(
       ...(baseUrl ? { baseUrl } : {}),
       ...(model ? { model } : {}),
       ...(Number.isFinite(timeoutMs) ? { timeoutMs: timeoutMs as number } : {}),
+    }
+  }
+
+  if (contextWindowTokens !== undefined) {
+    patch.llm = {
+      ...(patch.llm || {}),
+      contextWindowTokens,
     }
   }
 
@@ -134,6 +201,15 @@ function envToPatch(
       ...(patch.ui || {}),
       ...(assistantTextMode ? { assistantTextMode } : {}),
       ...(promptProfile ? { promptProfile } : {}),
+    }
+  }
+
+  if (effectiveContextWindowPercent !== undefined || autoCompactTokenLimitPercent !== undefined || baselineTokens !== undefined) {
+    patch.context = {
+      ...(patch.context || {}),
+      ...(effectiveContextWindowPercent !== undefined ? { effectiveContextWindowPercent } : {}),
+      ...(autoCompactTokenLimitPercent !== undefined ? { autoCompactTokenLimitPercent } : {}),
+      ...(baselineTokens !== undefined ? { baselineTokens } : {}),
     }
   }
 
@@ -161,6 +237,7 @@ function mergePatch(base: FormaxConfigV1Patch, next: FormaxConfigV1Patch): Forma
     llm: { ...(base.llm || {}), ...(next.llm || {}) },
     paths: { ...(base.paths || {}), ...(next.paths || {}) },
     ui: { ...(base.ui || {}), ...(next.ui || {}) },
+    context: { ...(base.context || {}), ...(next.context || {}) },
   }
 }
 
@@ -169,6 +246,7 @@ function flattenPatch(patch: FormaxConfigV1Patch): Record<string, unknown> {
   if (patch.llm) for (const [k, v] of Object.entries(patch.llm)) out[`llm.${k}`] = v
   if (patch.paths) for (const [k, v] of Object.entries(patch.paths)) out[`paths.${k}`] = v
   if (patch.ui) for (const [k, v] of Object.entries(patch.ui)) out[`ui.${k}`] = v
+  if (patch.context) for (const [k, v] of Object.entries(patch.context)) out[`context.${k}`] = v
   if (patch.version !== undefined) out.version = patch.version
   return out
 }

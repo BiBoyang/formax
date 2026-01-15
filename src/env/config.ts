@@ -12,11 +12,17 @@ export type RuntimeConfig = {
     apiKey: string
     model: string
     timeoutMs: number
+    contextWindowTokens?: number
   }
   paths: {
     logsDir: string
     subagentsDir: string
     planDir: string
+  }
+  context: {
+    effectiveContextWindowPercent: number
+    autoCompactTokenLimitPercent: number
+    baselineTokens: number
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
@@ -69,8 +75,10 @@ export async function loadRuntimeConfig(
   const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.ANTHROPIC_BASE_URL2 || '')
   const model = resolved.config.llm.model || ''
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
+  const contextWindowTokens = resolved.config.llm.contextWindowTokens
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const promptProfile = resolved.config.ui.promptProfile
+  const context = resolved.config.context
 
   return {
     llm: {
@@ -79,11 +87,17 @@ export async function loadRuntimeConfig(
       apiKey,
       model,
       timeoutMs,
+      ...(contextWindowTokens ? { contextWindowTokens } : {}),
     },
     paths: {
       logsDir,
       subagentsDir,
       planDir,
+    },
+    context: {
+      effectiveContextWindowPercent: context.effectiveContextWindowPercent,
+      autoCompactTokenLimitPercent: context.autoCompactTokenLimitPercent,
+      baselineTokens: context.baselineTokens,
     },
     ui: {
       assistantTextMode,

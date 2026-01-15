@@ -558,12 +558,17 @@ export function useReplController(deps: {
           profile: promptProfile,
         })
 
-        const contextWindowTokens = getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
+        const contextWindowTokens =
+          deps.cfg.llm.contextWindowTokens ??
+          getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
         const prunedForTurn = contextWindowTokens
           ? pruneForPromptBudget({
               system,
               messages: [...historyRef.current, user],
               contextWindowTokens,
+              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+              baselineTokens: deps.cfg.context.baselineTokens,
             })
           : { messages: [...historyRef.current, user], pruned: false }
 
@@ -573,7 +578,15 @@ export function useReplController(deps: {
 
         if (contextWindowTokens) {
           const usedTokens = estimatePromptTokens({ system, messages: [...prunedHistory, prunedUser] })
-          const stats = computeContextStats({ config: { contextWindowTokens }, usedTokens })
+          const stats = computeContextStats({
+            config: {
+              contextWindowTokens,
+              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+              baselineTokens: deps.cfg.context.baselineTokens,
+            },
+            usedTokens,
+          })
           setContext({
             usedTokens: stats.usedTokens,
             limitTokens: stats.effectiveLimitTokens,
@@ -616,12 +629,23 @@ export function useReplController(deps: {
                 system,
                 messages: stripped,
                 contextWindowTokens,
+                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+                baselineTokens: deps.cfg.context.baselineTokens,
               }).messages
             : stripped
 
         if (contextWindowTokens) {
           const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
-          const stats = computeContextStats({ config: { contextWindowTokens }, usedTokens })
+          const stats = computeContextStats({
+            config: {
+              contextWindowTokens,
+              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
+              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
+              baselineTokens: deps.cfg.context.baselineTokens,
+            },
+            usedTokens,
+          })
           setContext({
             usedTokens: stats.usedTokens,
             limitTokens: stats.effectiveLimitTokens,

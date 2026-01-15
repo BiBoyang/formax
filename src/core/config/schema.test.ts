@@ -18,6 +18,11 @@ describe('FormaxConfigV1Schema', () => {
         assistantTextMode: 'buffered',
         promptProfile: 'full',
       },
+      context: {
+        effectiveContextWindowPercent: 0.95,
+        autoCompactTokenLimitPercent: 0.9,
+        baselineTokens: 12000,
+      },
     })
   })
 
@@ -51,4 +56,3 @@ describe('AuthStoreV1Schema', () => {
     ).toThrow()
   })
 })
-

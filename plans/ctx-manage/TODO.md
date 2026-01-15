@@ -22,14 +22,14 @@
 
 ## P1 — context window 数据源（决定 meter/阈值）
 
-- [ ] 明确 `contextWindowTokens` 数据源（推荐先落地：模型元数据表）
+- [x] 明确 `contextWindowTokens` 数据源（推荐先落地：模型元数据表）
   - [x] 为 model 元数据新增 `contextWindowTokens?: number`
   - [x] Anthropic 常用模型先填一版默认表（可后续扩展）
-  - [ ] 允许 config 覆盖（env/config）
-- [ ] 新增通用参数（参考 Codex，可配置）
-  - [ ] `effective_context_window_percent`（默认 0.95）
-  - [ ] `auto_compact_token_limit_percent`（默认 0.90）
-  - [ ] `baseline_tokens`（默认 12000）
+  - [x] 允许 config 覆盖（env/config）
+- [x] 新增通用参数（参考 Codex，可配置）
+  - [x] `effective_context_window_percent`（默认 0.95）
+  - [x] `auto_compact_token_limit_percent`（默认 0.90）
+  - [x] `baseline_tokens`（默认 12000）
 - [x] 单测：给定 contextWindow/percent/baseline，输出 `effectiveLimit/autoCompactLimit/percentRemaining` 稳定
 
 **DoD**

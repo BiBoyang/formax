@@ -10,6 +10,9 @@ export const PromptProfileSchema = z.enum(['lite', 'full'])
 export type PromptProfile = z.infer<typeof PromptProfileSchema>
 
 const TimeoutMsSchema = z.number().int().positive()
+const ContextWindowTokensSchema = z.number().int().positive()
+const Percent01Schema = z.number().min(0).max(1)
+const NonNegativeIntSchema = z.number().int().nonnegative()
 
 export const LlmConfigSchema = z
   .object({
@@ -18,6 +21,7 @@ export const LlmConfigSchema = z
     model: z.string().default(''),
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
+    contextWindowTokens: ContextWindowTokensSchema.optional(),
   })
   .strict()
   .default({})
@@ -31,6 +35,7 @@ export const LlmConfigPatchSchema = z
     model: z.string().optional(),
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
+    contextWindowTokens: ContextWindowTokensSchema.optional(),
   })
   .strict()
 
@@ -76,12 +81,34 @@ export const UiConfigPatchSchema = z
 
 export type UiConfigPatch = z.infer<typeof UiConfigPatchSchema>
 
+export const ContextConfigSchema = z
+  .object({
+    effectiveContextWindowPercent: Percent01Schema.default(0.95),
+    autoCompactTokenLimitPercent: Percent01Schema.default(0.9),
+    baselineTokens: NonNegativeIntSchema.default(12000),
+  })
+  .strict()
+  .default({})
+
+export type ContextConfig = z.infer<typeof ContextConfigSchema>
+
+export const ContextConfigPatchSchema = z
+  .object({
+    effectiveContextWindowPercent: Percent01Schema.optional(),
+    autoCompactTokenLimitPercent: Percent01Schema.optional(),
+    baselineTokens: NonNegativeIntSchema.optional(),
+  })
+  .strict()
+
+export type ContextConfigPatch = z.infer<typeof ContextConfigPatchSchema>
+
 export const FormaxConfigV1Schema = z
   .object({
     version: z.literal(1).default(1),
     llm: LlmConfigSchema,
     paths: PathsConfigSchema,
     ui: UiConfigSchema,
+    context: ContextConfigSchema,
   })
   .strict()
 
@@ -93,6 +120,7 @@ export const FormaxConfigV1PatchSchema = z
     llm: LlmConfigPatchSchema.optional(),
     paths: PathsConfigPatchSchema.optional(),
     ui: UiConfigPatchSchema.optional(),
+    context: ContextConfigPatchSchema.optional(),
   })
   .strict()
 
