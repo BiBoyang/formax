@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pruneForPromptBudget } from './prune'
+import { computeContextBudget } from './budget'
 import { estimatePromptTokens } from './estimate'
 
 function extractToolPairs(messages: any[]): { toolUseIds: Set<string>; toolResultIds: Set<string> } {
@@ -28,6 +29,22 @@ function expectNoOrphanTools(messages: any[]): void {
   expect(Array.from(toolUseIds).sort()).toEqual(Array.from(toolResultIds).sort())
 }
 
+function expectFitsBudget(args: {
+  system: any[]
+  messages: any[]
+  contextWindowTokens: number
+  effectiveContextWindowPercent?: number
+  autoCompactLimitPercent?: number
+}): void {
+  const budget = computeContextBudget({
+    contextWindowTokens: args.contextWindowTokens,
+    effectiveContextWindowPercent: args.effectiveContextWindowPercent,
+    autoCompactLimitPercent: args.autoCompactLimitPercent,
+  })
+  const estimate = estimatePromptTokens({ system: args.system, messages: args.messages })
+  expect(estimate).toBeLessThanOrEqual(budget.effectiveLimitTokens)
+}
+
 describe('pruneForPromptBudget', () => {
   it('truncates long tool_result content first', () => {
     const messages = [
@@ -52,6 +69,7 @@ describe('pruneForPromptBudget', () => {
     const tr = out.messages[1] as any
     expect(tr?.role).toBe('user')
     expect(String(tr?.content?.[0]?.content || '')).toContain('[truncated]')
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 10_000 })
   })
 
   it('never returns a history starting with tool_result', () => {
@@ -107,6 +125,7 @@ describe('pruneForPromptBudget', () => {
 
     const estimate = estimatePromptTokens({ system: [], messages: out.messages })
     expect(estimate).toBeLessThanOrEqual(2_000)
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 2_000, effectiveContextWindowPercent: 1 })
   })
 
   it('never emits orphan tool_use/tool_result pairs when trimming', () => {
@@ -132,6 +151,7 @@ describe('pruneForPromptBudget', () => {
 
     const out = pruneForPromptBudget({ system: [], messages, contextWindowTokens: 1_000 })
     expectNoOrphanTools(out.messages as any)
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 1_000 })
   })
 
   it('truncates oversized ephemeral injected blocks', () => {
@@ -151,6 +171,7 @@ describe('pruneForPromptBudget', () => {
     const injected = first?.content?.[0]?.text as string
     expect(injected).toContain('[truncated]')
     expect(injected).toContain('</system-reminder>')
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 1_000 })
   })
 
   it('keeps the last non-tool user message under tight budgets', () => {
@@ -170,6 +191,7 @@ describe('pruneForPromptBudget', () => {
     expect(out.messages[0]?.role).toBe('user')
     const firstText = (out.messages[0] as any)?.content?.[0]?.text as string
     expect(firstText).toContain('user question')
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 800, effectiveContextWindowPercent: 1 })
   })
 
   it('keeps paired tool blocks while dropping non-tool assistant text in minimal fallback', () => {
@@ -198,5 +220,28 @@ describe('pruneForPromptBudget', () => {
 
     const combined = JSON.stringify(out.messages)
     expect(combined).not.toContain(huge.slice(0, 1000))
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 2_000, effectiveContextWindowPercent: 1 })
+  })
+
+  it('keeps tool_use/tool_result pairs and fits budget with multiple tool outputs', () => {
+    const big = 'x'.repeat(100_000)
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'start' }] },
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } }],
+      },
+      { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 't1', content: big }] },
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use', id: 't2', name: 'Read', input: { file_path: '/x' } }],
+      },
+      { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 't2', content: big }] },
+      { role: 'assistant' as const, content: [{ type: 'text', text: 'done' }] },
+    ]
+
+    const out = pruneForPromptBudget({ system: [], messages, contextWindowTokens: 1_000, effectiveContextWindowPercent: 1 })
+    expectNoOrphanTools(out.messages as any)
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 1_000, effectiveContextWindowPercent: 1 })
   })
 })

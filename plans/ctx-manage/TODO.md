@@ -69,8 +69,8 @@
   - [x] 仍超限时的“最小保留集”正确
 
 **DoD**
-- [ ] 大输出不再把 prompt 撑爆
-- [ ] trimming 后 messages 满足 tool 成对不变量
+- [x] 大输出不再把 prompt 撑爆
+- [x] trimming 后 messages 满足 tool 成对不变量
 
 ## P4 — 手动 `/compact`（可见压缩 prompt，UI 不丢）
 
