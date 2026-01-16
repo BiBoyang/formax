@@ -1,6 +1,7 @@
 import type { PromptBlock } from '../../prompts'
 import { consumedCommandResult, type CommandResult, type UiEffect } from './contracts'
 import type { LocalCommandRecord, SlashCommandEffect } from './registry'
+import { buildLocalCommandInjectedBlocks } from '../repl/injectedBlocks'
 
 export type SlashCommandResultData =
   | {
@@ -12,10 +13,6 @@ export type SlashCommandResultData =
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
-    }
-  | {
-      kind: 'local'
-      recordForNextTurn?: LocalCommandRecord
     }
 
 export type SlashCommandCommandResult = Extract<CommandResult, { consumed: true; data?: unknown }> & {
@@ -36,7 +33,9 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
     case 'local':
       return consumedCommandResult({
         ui: [appendAssistantMessage(effect.stdout)],
-        data: { kind: 'local', recordForNextTurn: effect.recordForNextTurn },
+        model: effect.recordForNextTurn
+          ? [{ type: 'injectNextTurn', blocks: buildLocalCommandInjectedBlocks(effect.recordForNextTurn) }]
+          : undefined,
       })
 
     case 'unimplemented':
@@ -58,5 +57,5 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
 export function isSlashCommandResultData(data: unknown): data is SlashCommandResultData {
   if (!data || typeof data !== 'object') return false
   const d = data as { kind?: unknown }
-  return d.kind === 'llm' || d.kind === 'local_async' || d.kind === 'local'
+  return d.kind === 'llm' || d.kind === 'local_async'
 }

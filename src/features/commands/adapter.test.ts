@@ -6,7 +6,7 @@ describe('slashEffectToCommandResult', () => {
     expect(slashEffectToCommandResult(null)).toEqual({ consumed: false })
   })
 
-  it('maps local effect to appendMessages + local data', () => {
+  it('maps local effect to appendMessages + injectNextTurn', () => {
     const result = slashEffectToCommandResult({
       kind: 'local',
       stdout: 'hello',
@@ -16,7 +16,7 @@ describe('slashEffectToCommandResult', () => {
     expect(result.consumed).toBe(true)
     expect(result).toMatchObject({
       ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', content: 'hello' }] }],
-      data: { kind: 'local' },
+      model: [{ type: 'injectNextTurn' }],
     })
   })
 

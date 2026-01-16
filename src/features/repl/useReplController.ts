@@ -814,9 +814,6 @@ export function useReplController(deps: {
         }
 
         const data = isSlashCommandResultData(slashResult.data) ? slashResult.data : null
-        if (data?.kind === 'local' && data.recordForNextTurn) {
-          pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(data.recordForNextTurn))
-        }
         if (data?.kind !== 'llm') {
           setMessages((prev) => [...prev, userMsg, ...appended])
         }
