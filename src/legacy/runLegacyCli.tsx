@@ -1,4 +1,3 @@
-import os from 'node:os'
 import path from 'node:path'
 import React from 'react'
 import { render } from 'ink'
@@ -147,18 +146,13 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
   const userAgentsDir = path.join(configPaths.globalConfigDir, 'agents')
 
-  // Backward-compatibility: some users may still have sub-agents under `.claude/agents`
-  // (Claude Code convention). Prefer `.formax/agents` but load both if present.
-  const legacyUserAgentsDir = path.join(os.homedir(), '.claude', 'agents')
-  const legacyProjectAgentsDir = path.join(process.cwd(), '.claude', 'agents')
-
-  const uniqueDirs = Array.from(
-    new Set([legacyUserAgentsDir, userAgentsDir, legacyProjectAgentsDir, cfg.paths.subagentsDir]),
-  )
-  await subAgentRegistry.loadFromDirectories(uniqueDirs)
+  // Formax loads sub-agents from .formax only (global + project).
+  // Order matters: later directories override earlier ones.
+  const agentDirs = Array.from(new Set([userAgentsDir, cfg.paths.subagentsDir]))
+  await subAgentRegistry.loadFromDirectories(agentDirs)
   const allowedSubagents = subAgentRegistry.list()
   const reloadSubagents = async () => {
-    await subAgentRegistry.loadFromDirectories(uniqueDirs)
+    await subAgentRegistry.loadFromDirectories(agentDirs)
     return subAgentRegistry.list()
   }
 

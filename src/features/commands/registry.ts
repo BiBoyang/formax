@@ -30,6 +30,9 @@ export type SlashCommandEffect =
       recordForNextTurn?: LocalCommandRecord
     }
   | {
+      kind: 'open_agents_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -138,6 +141,15 @@ export function createSlashCommandRegistry(deps: {
           stdout,
         },
       }
+    },
+  })
+
+  byCommand.set('/agents', {
+    spec: byCommand.get('/agents')!.spec,
+    dispatch: (invocation) => {
+      const rawArgs = (invocation.args || '').trim()
+      if (rawArgs) return { kind: 'local', stdout: 'Usage: /agents' }
+      return { kind: 'open_agents_dialog' }
     },
   })
 

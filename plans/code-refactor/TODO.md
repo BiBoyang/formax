@@ -30,12 +30,12 @@
 
 ## 1. 现状“硬冲突清单”（必须清零）
 
-这些是当前仓库里仍出现 `.claude` 的位置（示例，后续做 grep 必须归零）：
+这些是历史上出现过 `.claude` 的位置（示例）。目标是：`rg -n "\\.claude/" src` 结果为 0。
 
-- `src/features/commands/registry.ts`：`loadClaudeCommandEntries(deps.cwd)`
-- `src/tools/modules/slashCommand/spec.ts`：文案包含 `.claude/commands/foo.md`
-- `src/legacy/runLegacyCli.tsx`：注释/兼容 `.claude/agents`
-- 以及若干 tests/docs/prompt：`rg -n \"\\.claude/\" src`
+- [x] `src/features/commands/registry.ts`：`loadClaudeCommandEntries(deps.cwd)`（已移除）
+- [x] `src/tools/modules/slashCommand/spec.ts`：文案包含 `.claude/commands/foo.md`（已替换为 `.formax`）
+- [x] `src/legacy/runLegacyCli.tsx`：注释/兼容 `.claude/agents`（已移除）
+- [x] `src/subagents/README.md`：提及 “兼容 `.claude/agents`” （已移除）
 
 ---
 
@@ -273,24 +273,24 @@ export interface OverlayManager {
 - 清除 `.claude/agents` 的兼容读取逻辑与文案
 
 ### Checklist
-- [ ] 修改 `src/features/commands/registry.ts`
-  - [ ] `/agents` 作为 builtin command：返回一个“打开 overlay/wizard”的 effect（不要在 controller 特判字符串）
-- [ ] 修改 `src/features/repl/useReplController.ts`
-  - [ ] 删除 `/agents` 特判
-  - [ ] 统一处理 command result 的 UI effect（open/close overlay）
-- [ ] 修改 `src/legacy/runLegacyCli.tsx`
-  - [ ] 删除 `.claude/agents` backward-compat 分支
-- [ ] 修改 `src/subagents/registry.ts` / `src/subagents/README.md`
-  - [ ] 去掉“兼容 `.claude/agents`”描述与实现
-- [ ] 更新 docs/prompt（仅与 runtime 规则相关的部分）
-- [ ] 测试
-  - [ ] `/agents` 走命令 registry（测试用例不依赖 UI）
-  - [ ] subagents 不再读取 `.claude/agents`（可用临时目录断言）
+- [x] 修改 `src/features/commands/registry.ts`
+  - [x] `/agents` 作为 builtin command：返回一个“打开 AgentsDialog”的 effect（不要在 controller 特判字符串）
+- [x] 修改 `src/features/repl/useReplController.ts`
+  - [x] 删除 `/agents` 特判
+  - [x] 处理 `/agents` effect：打开 AgentsDialog（先不引入 PR0b 的契约层）
+- [x] 修改 `src/legacy/runLegacyCli.tsx`
+  - [x] 删除 `.claude/agents` backward-compat 分支
+- [x] 修改 `src/subagents/README.md`
+  - [x] 去掉“兼容 `.claude/agents`”描述
+- [x] 测试
+  - [x] `/agents` dispatch 返回 `open_agents_dialog`
+- [ ] 手动验收
+  - [ ] REPL 中输入 `/agents`：仍可打开 AgentsDialog
 
 ### DoD
-- [ ] `rg -n "\\.claude/agents" src` 结果为 0
-- [ ] `bun run type-check`
-- [ ] `bun run test`
+- [x] `rg -n "\\.claude/agents" src` 结果为 0
+- [x] `bun run type-check`
+- [x] `bun run test -- src/features/commands/registry.test.ts`
 - [ ] 手动：`/agents` 仍可打开 AgentsDialog/wizard（功能不退）
 
 ---

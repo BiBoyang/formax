@@ -768,40 +768,18 @@ export function useReplController(deps: {
         return
       }
 
-      if (isExactSlashCommand(text, '/agents')) {
-        const args = text.replace(/^\/agents\b/i, '').trim()
-        if (args) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `user-${Date.now()}`,
-              role: 'user',
-              content: text,
-              timestamp: new Date(),
-            },
-            {
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: 'Usage: /agents',
-              timestamp: new Date(),
-            },
-          ])
-          return
+      const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
+      if (slashEffect?.kind === 'open_agents_dialog') {
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
         }
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `user-${Date.now()}`,
-            role: 'user',
-            content: text,
-            timestamp: new Date(),
-          },
-        ])
+        setMessages((prev) => [...prev, userMsg])
         setAgentsDialogOpen(true)
         return
       }
-
-      const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
       if (slashEffect?.kind === 'local_async') {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,

@@ -44,7 +44,7 @@ flowchart TD
 ```
 
 1. CLI 启动时调用 `registry.loadFromDirectories(...)`
-   - 当前实现会同时加载 user-level（`~/.formax/agents/`）与 project-level（`.formax/agents/`），并以 project 覆盖 user（也兼容 `.claude/agents/`）
+   - 当前实现会同时加载 user-level（`~/.formax/agents/`）与 project-level（`.formax/agents/`），并以 project 覆盖 user
 2. Task 工具 handler 调用 `registry.get(agentName)` 获取配置
 3. Runner 根据 `agent.tools` 过滤全量工具列表
 4. Runner 创建隔离 ChatEngine 并执行（agentDepth=1）

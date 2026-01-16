@@ -34,6 +34,20 @@ describe('SlashCommandRegistry', () => {
     expect(reg.dispatch('/compact')).toBe(null)
   })
 
+  it('dispatches /agents to open the agents dialog', () => {
+    const reg = createSlashCommandRegistry({ cwd: process.cwd() })
+    const effect = reg.dispatch('/agents')
+    expect(effect?.kind).toBe('open_agents_dialog')
+  })
+
+  it('dispatches /agents with args as usage output', () => {
+    const reg = createSlashCommandRegistry({ cwd: process.cwd() })
+    const effect = reg.dispatch('/agents extra')
+    expect(effect?.kind).toBe('local')
+    if (!effect || effect.kind !== 'local') return
+    expect(effect.stdout).toBe('Usage: /agents')
+  })
+
   it('loads .formax/commands/*.md as commands', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
     const dir = path.join(cwd, '.formax', 'commands')
