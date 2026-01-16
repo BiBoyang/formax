@@ -176,7 +176,7 @@
   - [x] 将 slash command 的处理流程改为：`dispatch()` → `CommandResult` → 统一 apply `UiEffect/ModelEffect`
   - [x] `appendMessages`：走统一入口（避免各分支重复拼 Msg）
   - [x] `openOverlay/closeOverlay`：走 OverlayManager
-  - [ ] 保留现有 streaming/tool loop 行为不动
+  - [x] 保留现有 streaming/tool loop 行为不动（已有相关测试覆盖：`src/chat/engine.test.ts`、`src/features/commands/registry.test.ts`）
 - [ ] 回归：`/agents` 仍可打开 AgentsDialog；`/todos` 输出仍进 messages；`/doctor` async 仍正常
 - [x] 自检：`bun run type-check` + 相关测试子集
 
