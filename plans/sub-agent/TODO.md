@@ -72,8 +72,12 @@
 ## P4 — Task UI 对齐（锦上添花）
 
 - [ ] Task 摘要行与展开提示（`ctrl+o` / `ctrl+b`）对齐 Claude Code
-- [ ] 多个 Explore 并发的展示（`3 Explore agents finished (ctrl+o to expand)`）
-- [ ] 文档沉淀：在 `docs/LEARNINGS/subagents/` 写一篇“抓包事实 → Formax 映射”
+  - [x] `ctrl+o`：展开/折叠最近的 `Task(...)`（显示 `nestedTools` 列表；与 “+N more tool uses (ctrl+o...)” 配套）
+  - [ ] `ctrl+b`：把 Task 放到后台运行（Claude Code 有 “ctrl+b to run in background”）
+  - [x] 摘要行更像 Claude Code：`Done (25 tool uses · 66.6k tokens · 1m 30s)`（tokens/耗时/工具次数）
+- [x] 多个 Explore 并发的展示（`3 Explore agents finished (ctrl+o to expand)`）
+  - [ ] 仍待增强：目前仅对“消息列表里连续出现的已完成 Explore Task”做聚合（避免遮住运行中/需要交互的 nested prompt）
+- [x] 文档沉淀：在 `docs/LEARNINGS/subagents/` 写一篇“抓包事实 → Formax 映射”
 
 ## 待确认（建议后续再抓包补齐）
 
