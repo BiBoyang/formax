@@ -20,6 +20,9 @@ import { pruneForPromptBudget } from '../../chat/context/prune'
 import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import { createAgentFromWizardAnswers, generateAgentDraftWithClaude } from '../../subagents/agentsWizard'
+import { slashEffectToCommandResult, isSlashCommandResultData } from '../commands/adapter'
+import { isConsumedCommandResult } from '../commands/contracts'
+import { createOverlayManager } from './overlays/OverlayManager'
 import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
@@ -90,9 +93,10 @@ export function useReplController(deps: {
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
   const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
-  const [agentsDialogOpen, setAgentsDialogOpen] = useState(
-    process.env.FORMAX_START_AGENTS_DIALOG === '1',
+  const overlayManagerRef = useRef(
+    createOverlayManager(process.env.FORMAX_START_AGENTS_DIALOG === '1' ? { kind: 'agents' } : null),
   )
+  const [overlay, setOverlay] = useState(overlayManagerRef.current.current())
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])
@@ -116,9 +120,12 @@ export function useReplController(deps: {
   const sendSeqRef = useRef(0)
   const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
+  const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
+
+  useEffect(() => overlayManagerRef.current.subscribe(setOverlay), [])
 
   const closeAgentsDialog = useCallback(({ createdAgents }: { createdAgents: string[] }) => {
-    setAgentsDialogOpen(false)
+    overlayManagerRef.current.close()
     const lines =
       createdAgents.length === 0
         ? ['Agents dialog dismissed']
@@ -769,105 +776,96 @@ export function useReplController(deps: {
       }
 
       const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
-      if (slashEffect?.kind === 'open_agents_dialog') {
+      const slashResult = slashEffectToCommandResult(slashEffect)
+      if (isConsumedCommandResult(slashResult)) {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,
           role: 'user',
           content: text,
           timestamp: new Date(),
         }
-        setMessages((prev) => [...prev, userMsg])
-        setAgentsDialogOpen(true)
-        return
-      }
-      if (slashEffect?.kind === 'local_async') {
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, userMsg])
 
-        setIsLoading(true)
-        setLoadingText(slashEffect.loadingText || 'Working')
-        thinkingBufferRef.current = ''
-        thinkingLastFlushAtRef.current = 0
-        setThinkingText('')
-        setError(null)
-        currentAssistantIdRef.current = null
-
-        try {
-          const out = await slashEffect.run()
-          const assistantMsg: Msg = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: out.stdout,
-            timestamp: new Date(),
-          }
-
-          if (out.recordForNextTurn) {
-            localCommandRef.current = out.recordForNextTurn
-          }
-
-          setMessages((prev) => [...prev, assistantMsg])
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : 'Command failed'
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `error-${Date.now()}`,
+        const appended: Msg[] = []
+        for (const eff of slashResult.ui ?? []) {
+          if (eff.type === 'appendMessages') {
+            for (const m of eff.messages) {
+              appended.push({
+                id: m.id ?? `assistant-${Date.now()}`,
+                role: 'assistant',
+                content: m.content,
+                timestamp: m.timestamp ?? new Date(),
+              })
+            }
+          } else if (eff.type === 'openOverlay') {
+            overlayManagerRef.current.open(eff.overlay)
+          } else if (eff.type === 'closeOverlay') {
+            overlayManagerRef.current.close()
+          } else if (eff.type === 'toast') {
+            appended.push({
+              id: `assistant-${Date.now()}`,
               role: 'assistant',
-              content: `Error: ${msg}`,
+              content: eff.message,
               timestamp: new Date(),
-            },
-          ])
-        } finally {
-          setIsLoading(false)
+            })
+          }
         }
 
-        return
-      }
-      if (slashEffect?.kind === 'local') {
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
+        for (const eff of slashResult.model ?? []) {
+          if (eff.type === 'injectNextTurn') pendingInjectedBlocksRef.current.push(...eff.blocks)
         }
 
-        const assistantMsg: Msg = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: slashEffect.stdout,
-          timestamp: new Date(),
+        const data = isSlashCommandResultData(slashResult.data) ? slashResult.data : null
+        if (data?.kind === 'local' && data.recordForNextTurn) {
+          localCommandRef.current = data.recordForNextTurn
+        }
+        if (data?.kind !== 'llm') {
+          setMessages((prev) => [...prev, userMsg, ...appended])
         }
 
-        if (slashEffect.recordForNextTurn) {
-          localCommandRef.current = slashEffect.recordForNextTurn
+        if (data?.kind === 'local_async') {
+          setIsLoading(true)
+          setLoadingText(data.loadingText || 'Working')
+          thinkingBufferRef.current = ''
+          thinkingLastFlushAtRef.current = 0
+          setThinkingText('')
+          setError(null)
+          currentAssistantIdRef.current = null
+
+          try {
+            const out = await data.run()
+            if (out.recordForNextTurn) localCommandRef.current = out.recordForNextTurn
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `assistant-${Date.now()}`,
+                role: 'assistant',
+                content: out.stdout,
+                timestamp: new Date(),
+              },
+            ])
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Command failed'
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `error-${Date.now()}`,
+                role: 'assistant',
+                content: `Error: ${msg}`,
+                timestamp: new Date(),
+              },
+            ])
+          } finally {
+            setIsLoading(false)
+          }
+
+          return
         }
 
-        setMessages((prev) => [...prev, userMsg, assistantMsg])
-        return
-      }
-
-      if (slashEffect?.kind === 'unimplemented') {
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
+        if (data?.kind === 'llm') {
+          // Continue into the LLM streaming path, using the provided blocks.
+        } else {
+          return
         }
-
-        const assistantMsg: Msg = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: slashEffect.message,
-          timestamp: new Date(),
-        }
-
-        setMessages((prev) => [...prev, userMsg, assistantMsg])
-        return
       }
 
       const userMsg: Msg = {
@@ -907,7 +905,9 @@ export function useReplController(deps: {
           ...buildModeInjectedBlocks(deps.mode, planPath),
           ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
           ...(localCommandRef.current ? buildLocalCommandInjectedBlocks(localCommandRef.current) : []),
+          ...pendingInjectedBlocksRef.current,
         ]
+        pendingInjectedBlocksRef.current = []
 
         const user =
           slashEffect?.kind === 'llm'
@@ -1155,7 +1155,7 @@ export function useReplController(deps: {
       thinkingText,
       error,
       allowedSubagents,
-      agentsDialogOpen,
+      agentsDialogOpen: overlay?.kind === 'agents',
       context,
     },
     actions: {

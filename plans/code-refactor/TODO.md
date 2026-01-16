@@ -160,7 +160,7 @@
 - [x] 新增 `src/features/repl/overlays/OverlayManager.ts`
   - [x] `open(spec)` / `close()` / `current()`
   - [ ] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
-- [ ] 在 `useReplController` 内接入 OverlayManager（但先不替换已有 booleans）
+- [x] 在 `useReplController` 内接入 OverlayManager（由 overlay 驱动 `agentsDialogOpen`）
 - [x] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
 - [x] 自检：`bun run test -- src/features/repl/overlays/OverlayManager.test.ts`
 
@@ -173,13 +173,12 @@
 
 #### PR0b-4：useReplController 统一解释 CommandResult（替换散乱特判的“第一刀”）
 - [ ] `useReplController`：
-  - [ ] 将 slash command 的处理流程改为：
-    - `dispatch()` → `CommandResult` → 统一 apply `UiEffect/ModelEffect`
-  - [ ] `appendMessages`：走统一入口（避免各分支重复拼 Msg）
-  - [ ] `openOverlay/closeOverlay`：走 OverlayManager
+  - [x] 将 slash command 的处理流程改为：`dispatch()` → `CommandResult` → 统一 apply `UiEffect/ModelEffect`
+  - [x] `appendMessages`：走统一入口（避免各分支重复拼 Msg）
+  - [x] `openOverlay/closeOverlay`：走 OverlayManager
   - [ ] 保留现有 streaming/tool loop 行为不动
 - [ ] 回归：`/agents` 仍可打开 AgentsDialog；`/todos` 输出仍进 messages；`/doctor` async 仍正常
-- [ ] 自检：`bun run type-check` + 相关测试子集
+- [x] 自检：`bun run type-check` + 相关测试子集
 
 #### PR0b-5：REPL 侧 overlay 渲染收口（可选，按现状决定）
 - [ ] 如目前 overlay 仍是多个 boolean（agentsDialogOpen 等），则改为从 OverlayManager 的 `current()` 映射渲染
