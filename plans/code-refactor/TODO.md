@@ -159,7 +159,7 @@
 #### PR0b-2：OverlayManager（不改行为）
 - [x] 新增 `src/features/repl/overlays/OverlayManager.ts`
   - [x] `open(spec)` / `close()` / `current()`
-  - [ ] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
+  - [x] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
 - [x] 在 `useReplController` 内接入 OverlayManager（由 overlay 驱动 `agentsDialogOpen`）
 - [x] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
 - [x] 自检：`bun run test -- src/features/repl/overlays/OverlayManager.test.ts`
@@ -181,12 +181,12 @@
 - [x] 自检：`bun run type-check` + 相关测试子集
 
 #### PR0b-5：REPL 侧 overlay 渲染收口（可选，按现状决定）
-- [ ] 如目前 overlay 仍是多个 boolean（agentsDialogOpen 等），则改为从 OverlayManager 的 `current()` 映射渲染
-- [ ] 保证：关闭 overlay 回到上一层（与 Claude Code /agents 行为一致）
+- [x] 如目前 overlay 仍是多个 boolean（agentsDialogOpen 等），则改为从 OverlayManager 的 `current()` 映射渲染
+- [x] 保证：关闭 overlay 回到上一层（与 Claude Code /agents 行为一致）
 
 #### PR0b-6：把“model 注入”也纳入契约（最小化）
 - [ ] `ModelEffect.injectNextTurn(blocks)` 先只用于：
-  - [ ] 把 local command stdout 记录（你们已有 `<local-command-stdout>` 的注入逻辑，可迁移为 effect）
+  - [x] 把 local command stdout 记录（你们已有 `<local-command-stdout>` 的注入逻辑，可迁移为 effect）
   - [ ] 其他注入暂不动（plan mode/system-reminder/todos 提醒等保持原路径）
 
 ### 验收（PR0b 总验收）
