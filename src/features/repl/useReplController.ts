@@ -55,6 +55,12 @@ export type ReplController = {
   }
 }
 
+type ExploreTaskBatch = {
+  toolUseIds: Set<string>
+  completedToolUseIds: Set<string>
+  lastSeenAtMs: number
+}
+
 function isAbortLikeError(err: unknown): boolean {
   if (!err) return false
   const e = err as { name?: unknown; message?: unknown }
@@ -99,6 +105,8 @@ export function useReplController(deps: {
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   >(new Map())
+  const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
+  const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
   const localCommandRef = useRef<LocalCommandRecord | null>(null)
   const modeRef = useRef<ReplMode>(deps.mode)
   const prevModeRef = useRef<ReplMode>(deps.mode)
@@ -313,6 +321,7 @@ export function useReplController(deps: {
         toolNameByIdRef.current.set(ev.id, ev.name)
         if (ev.name === 'Task') {
           taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: {} })
+          taskKindByToolUseIdRef.current.set(ev.id, 'other')
         }
         setLoadingText(ev.name === 'AskUserQuestion' ? 'Waiting' : 'Working')
 
@@ -337,6 +346,26 @@ export function useReplController(deps: {
 
       case 'tool_input': {
         const toolMsgId = `tool-${ev.id}`
+        const toolName = toolNameByIdRef.current.get(ev.id)
+
+        if (toolName === 'Task') {
+          const subagentType = (ev.input as any)?.subagent_type
+          const isExplore = String(subagentType || '') === 'Explore'
+          taskKindByToolUseIdRef.current.set(ev.id, isExplore ? 'explore' : 'other')
+
+          if (isExplore) {
+            const now = Date.now()
+            const prevBatch = exploreBatchRef.current
+            const withinWindow = prevBatch && now - prevBatch.lastSeenAtMs < 1500
+            const batch: ExploreTaskBatch =
+              withinWindow && prevBatch
+                ? prevBatch
+                : { toolUseIds: new Set(), completedToolUseIds: new Set(), lastSeenAtMs: now }
+            batch.toolUseIds.add(ev.id)
+            batch.lastSeenAtMs = now
+            exploreBatchRef.current = batch
+          }
+        }
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -348,6 +377,7 @@ export function useReplController(deps: {
 
       case 'tool_update': {
         const toolMsgId = `tool-${ev.id}`
+        const toolName = toolNameByIdRef.current.get(ev.id)
 
         if (typeof ev.toolUses === 'number') {
           const existing = taskStatsByToolUseIdRef.current.get(ev.id)
@@ -367,7 +397,12 @@ export function useReplController(deps: {
           }
         }
 
-        if (ev.middleLines || ev.nestedTools) {
+        if (
+          ev.middleLines ||
+          ev.nestedTools ||
+          ev.transcriptLines ||
+          (toolName === 'Task' && (typeof ev.toolUses === 'number' || ev.usage))
+        ) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === toolMsgId
@@ -376,7 +411,10 @@ export function useReplController(deps: {
                     toolInfo: {
                       ...m.toolInfo!,
                       ...(ev.middleLines ? { middleLines: ev.middleLines } : {}),
+                      ...(ev.transcriptLines ? { transcriptLines: ev.transcriptLines } : {}),
                       ...(ev.nestedTools ? { nestedTools: ev.nestedTools } : {}),
+                      ...(toolName === 'Task' && typeof ev.toolUses === 'number' ? { toolUses: ev.toolUses } : {}),
+                      ...(toolName === 'Task' && ev.usage ? { usage: ev.usage } : {}),
                     },
                   }
                 : m,
@@ -391,6 +429,8 @@ export function useReplController(deps: {
         const toolMsgId = `tool-${ev.id}`
         const toolNameFromStart = toolNameByIdRef.current.get(ev.id)
         toolNameByIdRef.current.delete(ev.id)
+        const taskKind = taskKindByToolUseIdRef.current.get(ev.id)
+        taskKindByToolUseIdRef.current.delete(ev.id)
 
         setMessages((prev) => {
           const toolMsg = prev.find((m) => m.id === toolMsgId)
@@ -405,15 +445,18 @@ export function useReplController(deps: {
           if (toolName === 'Task') {
             const stats = taskStatsByToolUseIdRef.current.get(ev.id)
             taskStatsByToolUseIdRef.current.delete(ev.id)
+            const startedAt = stats?.startedAt ?? Date.now()
+            const durationMs = Date.now() - startedAt
 
             const tokens = formatTokenTotal(stats?.usage)
             const backgroundTaskId = parseBackgroundTaskId(rawResult)
+            const parsedTranscript = parseTaskTranscript(rawResult)
             const doneText = ev.result.is_error
               ? displayResult || 'Error'
               : backgroundTaskId
                 ? `Started (task_id: ${backgroundTaskId})`
                 : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                    Date.now() - (stats?.startedAt ?? Date.now()),
+                    durationMs,
                   )})`
 
             return prev.map((m) =>
@@ -425,6 +468,8 @@ export function useReplController(deps: {
                       ...m.toolInfo!,
                       status: ev.result.is_error ? 'error' : 'completed',
                       result: rawResult,
+                      ...(parsedTranscript ? { transcriptLines: parsedTranscript } : {}),
+                      ...(stats ? { toolUses: stats.toolUses, usage: stats.usage, durationMs } : { durationMs }),
                     },
                   }
                 : m,
@@ -454,6 +499,28 @@ export function useReplController(deps: {
               : m,
           )
         })
+
+        if (toolNameFromStart === 'Task' && taskKind === 'explore') {
+          const batch = exploreBatchRef.current
+          if (batch && batch.toolUseIds.has(ev.id)) {
+            batch.completedToolUseIds.add(ev.id)
+            batch.lastSeenAtMs = Date.now()
+
+            if (batch.toolUseIds.size >= 2 && batch.completedToolUseIds.size === batch.toolUseIds.size) {
+              exploreBatchRef.current = null
+              const count = batch.toolUseIds.size
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `assistant-${Date.now()}`,
+                  role: 'assistant',
+                  content: `${count} Explore agents finished (ctrl+o to expand)`,
+                  timestamp: new Date(),
+                },
+              ])
+            }
+          }
+        }
 
         reminderServiceRef.current?.recordToolResult({
           toolName: toolNameFromStart || 'Tool',
@@ -1308,6 +1375,39 @@ function parseBackgroundTaskId(rawResult: string): string | null {
   }
 
   return null
+}
+
+function parseTaskTranscript(rawResult: string): string[] | null {
+  const text = stripTrailingSystemReminderBlock(String(rawResult || ''))
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    const transcript = (parsed as any)?.transcript
+    if (!Array.isArray(transcript)) return null
+    const lines = transcript.map((l: any) => String(l ?? ''))
+    return lines.length ? lines : null
+  } catch {
+    return null
+  }
+}
+
+function stripTrailingSystemReminderBlock(raw: string): string {
+  const s = String(raw || '')
+  const marker = '\n\n<system-reminder>'
+  const idx = s.lastIndexOf(marker)
+  if (idx < 0) return s
+
+  const tail = s.slice(idx + 2) // starts at "<system-reminder>"
+  const close = '</system-reminder>'
+  const closeIdx = tail.lastIndexOf(close)
+  if (closeIdx < 0) return s
+
+  const after = tail.slice(closeIdx + close.length)
+  if (after.trim().length !== 0) return s
+
+  return s.slice(0, idx).trimEnd()
 }
 
  

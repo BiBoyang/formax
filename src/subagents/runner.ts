@@ -69,11 +69,12 @@ export function createSubAgentRunner(deps: {
 
       const resumeSession = typeof resume === 'string' && resume.trim() ? sessions.get(resume.trim()) : null
       if (resume && !resumeSession) {
-        return { agentId, summary: '', success: false, error: `Unknown agent ID: ${resume}` }
+        return { agentId, response: '', summary: '', success: false, error: `Unknown agent ID: ${resume}` }
       }
       if (resumeSession && resumeSession.agentName !== agent.name) {
         return {
           agentId,
+          response: '',
           summary: '',
           success: false,
           error: `Agent ID ${resume} belongs to '${resumeSession.agentName}', not '${agent.name}'.`,
@@ -103,10 +104,11 @@ export function createSubAgentRunner(deps: {
       }
 
       let summary = ''
+      let response = ''
       const handleEvent: StreamSink = (ev: StreamEvent) => {
         onEvent?.(ev)
         if (ev.type === 'assistant_delta' && typeof ev.text === 'string') {
-          summary += ev.text
+          response += ev.text
         }
       }
 
@@ -132,17 +134,18 @@ export function createSubAgentRunner(deps: {
         })
         sessions.set(agentId, { agentName: agent.name, history: nextHistory })
 
-        const trimmed = summary.trim()
+        const trimmed = response.trim()
         const limited =
           trimmed.length > DEFAULT_SUMMARY_MAX_CHARS
             ? trimmed.slice(0, DEFAULT_SUMMARY_MAX_CHARS) + SUMMARY_TRUNCATION_SUFFIX
             : trimmed
 
-        return { agentId, summary: limited, success: true }
+        return { agentId, response: trimmed, summary: limited, success: true }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         return {
           agentId,
+          response: '',
           summary: '',
           success: false,
           error: msg,

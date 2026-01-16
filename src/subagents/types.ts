@@ -9,6 +9,8 @@ export type SubAgentConfig = {
 
 export type SubAgentResult = {
   agentId: string
+  /** Full text output from the sub-agent (assistant deltas), before truncation. */
+  response: string
   summary: string
   success: boolean
   artifacts?: string[]

@@ -19,6 +19,8 @@ export type StreamEvent =
       type: 'tool_update'
       id: string
       middleLines?: string[]
+      /** Optional tool-provided verbose transcript lines (e.g. Task detailed transcript). */
+      transcriptLines?: string[]
       toolUses?: number
       usage?: TokenUsage
       nestedTools?: Array<{

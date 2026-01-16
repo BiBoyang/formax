@@ -13,6 +13,7 @@ import { Box, Text } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
 import { PulsingDot } from '../ui/PulsingDot'
+import type { TokenUsage } from '../../streaming/types'
 
 /**
  * Tool information attached to a message
@@ -34,6 +35,8 @@ export interface ToolInfo {
   expandInfo?: string
   /** Middle lines for multi-line output (e.g., Bash) */
   middleLines?: string[]
+  /** Optional verbose transcript lines (e.g. Task ctrl+o detailed transcript). */
+  transcriptLines?: string[]
   /** Nested tool previews (used by Task to surface sub-agent tool activity) */
   nestedTools?: Array<{
     id: string
@@ -42,6 +45,12 @@ export interface ToolInfo {
     status: 'running' | 'completed' | 'error'
     summary?: string
   }>
+  /** Task-only stats (used for Claude-style summary and grouping UI). */
+  toolUses?: number
+  usage?: TokenUsage
+  durationMs?: number
+  /** UI-only: whether this tool message is expanded (e.g., ctrl+o) */
+  expanded?: boolean
 }
 
 /**

@@ -22,6 +22,7 @@ import { nextReplMode, type ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
+import { getTheme } from '../utils/theme'
 import { runDoctor } from '../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../core/diagnostics/format'
 import { createStatusSnapshot } from '../core/diagnostics/status'
@@ -32,6 +33,7 @@ import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/AgentsDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
+import type { TokenUsage } from '../streaming/types'
 
 type Props = {
   onExit?: () => void
@@ -62,6 +64,9 @@ export function REPL({
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
   const [showThinking, setShowThinking] = useState(false)
+  const [showDetailedTranscript, setShowDetailedTranscript] = useState(false)
+  const [detailedTranscriptTargetId, setDetailedTranscriptTargetId] = useState<string | null>(null)
+  const [showExploreAgentsPanel, setShowExploreAgentsPanel] = useState(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
   const ensurePlanPath = useCallback(
@@ -204,6 +209,11 @@ export function REPL({
     })
   }, [state.agentsDialogOpen, state.transientMessages, toolRegistry, userInput])
 
+  const allMessages = useMemo(
+    () => [...state.staticMessages, ...state.transientMessages],
+    [state.staticMessages, state.transientMessages],
+  )
+
   const slashSuggestions = useMemo(() => {
     if (isPromptMode) return []
     return commandRegistry.suggest(input).slice(0, 10)
@@ -223,9 +233,46 @@ export function REPL({
     }
 
     if (key.ctrl && inputKey === 'o') {
-      if (!state.isLoading) return
-      if (!state.thinkingText.trim()) return
-      setShowThinking((v) => !v)
+      if (state.agentsDialogOpen) return
+      if (isPromptMode) return
+
+      if (state.isLoading && state.thinkingText.trim()) {
+        setShowThinking((v) => !v)
+        return
+      }
+
+      if (showDetailedTranscript) {
+        setShowDetailedTranscript(false)
+        return
+      }
+
+      if (showExploreAgentsPanel) {
+        setShowExploreAgentsPanel(false)
+        return
+      }
+
+      const lastMsg = allMessages.length > 0 ? allMessages[allMessages.length - 1] : null
+      const wantsExplorePanel =
+        lastMsg?.role === 'assistant' && /^\d+\s+Explore agents\s+finished\b/.test(lastMsg.content || '')
+
+      if (wantsExplorePanel) {
+        const lastExploreGroup = findLastContiguousExploreTaskGroup(allMessages)
+        if (lastExploreGroup && lastExploreGroup.tasks.length >= 2) {
+          setShowExploreAgentsPanel(true)
+          return
+        }
+      }
+
+      const lastTaskWithTranscript = [...allMessages].reverse().find((m) => {
+        if (m.role !== 'tool') return false
+        if (m.toolInfo?.name !== 'Task') return false
+        return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
+      })
+
+      if (lastTaskWithTranscript) {
+        setDetailedTranscriptTargetId(lastTaskWithTranscript.id)
+        setShowDetailedTranscript(true)
+      }
       return
     }
 
@@ -313,6 +360,13 @@ export function REPL({
     [toolRegistry],
   )
 
+  const renderMessageItems = useCallback(
+    (messages: Msg[]) => {
+      return messages.map((message) => ({ key: message.id, jsx: renderMessage(message) }))
+    },
+    [renderMessage],
+  )
+
   const modelLabel = useMemo(() => {
     const model = cfg.llm.model || process.env.ANTHROPIC_MODEL || 'Model not set'
     return `Model: ${model}`
@@ -340,9 +394,9 @@ export function REPL({
         />
       ),
     }
-    const messages = state.staticMessages.map((m) => ({ key: m.id, jsx: renderMessage(m) }))
+    const messages = renderMessageItems(state.staticMessages)
     return [header, ...messages]
-  }, [modelLabel, renderMessage, state.staticMessages])
+  }, [modelLabel, renderMessageItems, state.staticMessages])
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
@@ -355,6 +409,19 @@ export function REPL({
     return true
   }, [isPromptMode, state.isLoading, state.transientMessages])
 
+  const detailedTranscriptTarget = useMemo(() => {
+    if (!showDetailedTranscript) return null
+    if (!detailedTranscriptTargetId) return null
+    return allMessages.find((m) => m.id === detailedTranscriptTargetId) ?? null
+  }, [allMessages, detailedTranscriptTargetId, showDetailedTranscript])
+
+  const lastExploreGroup = useMemo(() => {
+    if (!showExploreAgentsPanel) return null
+    const group = findLastContiguousExploreTaskGroup(allMessages)
+    if (!group || group.tasks.length < 2) return null
+    return group
+  }, [allMessages, showExploreAgentsPanel])
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -365,9 +432,20 @@ export function REPL({
               {(item) => <Box key={item.key}>{item.jsx}</Box>}
             </Static>
 
-            {state.transientMessages.map((msg) => (
-              <Box key={msg.id}>{renderMessage(msg)}</Box>
+            {renderMessageItems(state.transientMessages).map((item) => (
+              <Box key={item.key}>{item.jsx}</Box>
             ))}
+
+            {showExploreAgentsPanel && !isPromptMode && (
+              <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />
+            )}
+
+            {showDetailedTranscript && !isPromptMode && !showExploreAgentsPanel && (
+              <DetailedTranscriptPanel
+                title={detailedTranscriptTarget ? formatTaskPanelTitle(detailedTranscriptTarget) : null}
+                lines={detailedTranscriptTarget?.toolInfo?.transcriptLines ?? null}
+              />
+            )}
 
             {state.agentsDialogOpen && (
               <AgentsDialog
@@ -442,10 +520,220 @@ function clampPct(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)))
 }
 
+export type MessageItemDescriptor =
+  | { kind: 'message'; key: string; message: Msg }
+  | { kind: 'explore-group'; key: string; tasks: Msg[] }
+
+export function deriveMessageItemDescriptors(
+  messages: Msg[],
+  opts: { groupExploreTasks: boolean },
+): MessageItemDescriptor[] {
+  if (!opts.groupExploreTasks) {
+    return messages.map((message) => ({ kind: 'message', key: message.id, message }))
+  }
+
+  const items: MessageItemDescriptor[] = []
+
+  let i = 0
+  while (i < messages.length) {
+    const group = findContiguousExploreTaskGroupFrom(messages, i)
+    if (group && group.tasks.length >= 2) {
+      const groupId = exploreGroupId(group.tasks[0]!.id)
+      items.push({ kind: 'explore-group', key: groupId, tasks: group.tasks })
+      i = group.end + 1
+      continue
+    }
+
+    const message = messages[i]!
+    items.push({ kind: 'message', key: message.id, message })
+    i++
+  }
+
+  return items
+}
+
 function formatTokens(n: number): string {
   const v = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
   if (v < 1000) return String(v)
   if (v < 100000) return `${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`
   if (v < 1000000) return `${Math.round(v / 1000)}k`
   return `${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}m`
+}
+
+function exploreGroupId(firstTaskMsgId: string): string {
+  return `explore-group-${firstTaskMsgId}`
+}
+
+function isExploreTaskMessage(msg: Msg | undefined): msg is Msg {
+  if (!msg) return false
+  if (msg.role !== 'tool') return false
+  if (msg.toolInfo?.name !== 'Task') return false
+  if (msg.toolInfo?.status === 'running') return false
+  const subagentType = (msg.toolInfo?.input as any)?.subagent_type
+  return String(subagentType || '') === 'Explore'
+}
+
+function findContiguousExploreTaskGroupFrom(
+  messages: Msg[],
+  startIndex: number,
+): { tasks: Msg[]; start: number; end: number } | null {
+  if (!isExploreTaskMessage(messages[startIndex])) return null
+  let end = startIndex
+  while (end + 1 < messages.length && isExploreTaskMessage(messages[end + 1]!)) end++
+  return { tasks: messages.slice(startIndex, end + 1), start: startIndex, end }
+}
+
+function findLastContiguousExploreTaskGroup(messages: Msg[]): { tasks: Msg[]; start: number; end: number } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!isExploreTaskMessage(messages[i])) continue
+    let start = i
+    while (start - 1 >= 0 && isExploreTaskMessage(messages[start - 1]!)) start--
+    return { tasks: messages.slice(start, i + 1), start, end: i }
+  }
+  return null
+}
+
+function sumTokens(usage: TokenUsage | undefined): number {
+  const u = usage || {}
+  return (
+    (u.input_tokens ?? 0) +
+    (u.output_tokens ?? 0) +
+    (u.cache_read_input_tokens ?? 0) +
+    (u.cache_creation_input_tokens ?? 0)
+  )
+}
+
+function getTaskShortLabel(msg: Msg): string {
+  const input = (msg.toolInfo?.input || {}) as any
+  const description = typeof input?.description === 'string' ? input.description.trim() : ''
+  const prompt = typeof input?.prompt === 'string' ? input.prompt.trim() : ''
+  return description || prompt || 'Task'
+}
+
+function truncate(s: string, max: number): string {
+  const str = String(s || '')
+  if (str.length <= max) return str
+  return str.slice(0, max - 1) + '…'
+}
+
+function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.ReactNode {
+  const theme = getTheme()
+  const safeTasks = Array.isArray(tasks) ? tasks : []
+
+  if (safeTasks.length === 0) {
+    return (
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>No Explore details available</Text>
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Box flexDirection="column">
+        {safeTasks.map((t, idx) => {
+          const last = idx === safeTasks.length - 1
+          const branch = last ? '└─' : '├─'
+          const pipe = last ? ' ' : '│'
+
+          const toolUses = typeof t.toolInfo?.toolUses === 'number' ? t.toolInfo.toolUses : null
+          const tokens = formatTokens(sumTokens(t.toolInfo?.usage))
+
+          const statsParts: string[] = []
+          if (toolUses !== null) statsParts.push(`${toolUses} tool use${toolUses === 1 ? '' : 's'}`)
+          if (tokens !== '0') statsParts.push(`${tokens} tokens`)
+
+          const stats = statsParts.length ? ` · ${statsParts.join(' · ')}` : ''
+
+          const rawLabel = getTaskShortLabel(t)
+          const baseLabel = /^Explore\b/i.test(rawLabel) ? rawLabel : `Explore ${rawLabel}`
+          const label = truncate(baseLabel, 70)
+          const line = `${label}${stats}`
+
+          const doneWord =
+            t.toolInfo?.status === 'running' ? 'Working' : t.toolInfo?.status === 'error' ? 'Error' : 'Done'
+
+          return (
+            <Box key={t.id} flexDirection="column">
+              <Text>
+                <Text color={theme.secondaryText}>  {branch} </Text>
+                <Text>{line}</Text>
+              </Text>
+              <Text color={theme.secondaryText}>
+                {'  '}
+                {pipe}  ⎿  {doneWord}
+              </Text>
+            </Box>
+          )
+        })}
+      </Box>
+
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>Showing Explore agents · ctrl+o to toggle</Text>
+      </Box>
+    </Box>
+  )
+}
+
+function formatTaskPanelTitle(msg: Msg): string {
+  if (msg.role !== 'tool' || msg.toolInfo?.name !== 'Task') return 'Task'
+  const input = (msg.toolInfo.input || {}) as any
+  const subagentType = typeof input?.subagent_type === 'string' ? input.subagent_type.trim() : ''
+  const toolLabel = subagentType ? (subagentType === 'code-reviewer' ? 'Reviewer' : subagentType) : 'Task'
+  const description = typeof input?.description === 'string' ? input.description.trim() : ''
+  const prompt = typeof input?.prompt === 'string' ? input.prompt.trim() : ''
+  const params = truncate(description || prompt || '', 60)
+  return params ? `${toolLabel}(${params})` : toolLabel
+}
+
+function DetailedTranscriptPanel({
+  title,
+  lines,
+}: {
+  title: string | null
+  lines: string[] | null
+}): React.ReactNode {
+  const theme = getTheme()
+  const safeLines = Array.isArray(lines) ? lines : []
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {title ? (
+        <Box>
+          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text>{title}</Text>
+        </Box>
+      ) : null}
+
+      {safeLines.length > 0 ? (
+        <Box flexDirection="column">
+          {safeLines.map((line, idx) => {
+            if (line === '') {
+              return (
+                <Box key={idx}>
+                  <Text color={theme.secondaryText}>⎿  </Text>
+                  <Text> </Text>
+                </Box>
+              )
+            }
+            return (
+              <Box key={idx}>
+                <Text color={theme.secondaryText}>⎿  </Text>
+                <Text>{line}</Text>
+              </Box>
+            )
+          })}
+        </Box>
+      ) : (
+        <Box>
+          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text color={theme.secondaryText}>No detailed transcript available</Text>
+        </Box>
+      )}
+
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>Showing detailed transcript · ctrl+o to toggle</Text>
+      </Box>
+    </Box>
+  )
 }

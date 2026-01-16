@@ -205,6 +205,7 @@ describe('SubAgentRunner', () => {
 
     expect(result.success).toBe(true)
     expect(typeof result.agentId).toBe('string')
+    expect(result.response).toBe('ok')
     expect(result.summary).toBe('ok')
     expect(client.calls).toHaveLength(1)
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
@@ -232,6 +233,7 @@ describe('SubAgentRunner', () => {
 
     expect(result.success).toBe(true)
     expect(typeof result.agentId).toBe('string')
+    expect(result.response).toHaveLength(600)
     expect(result.summary).toHaveLength(501)
     expect(result.summary.endsWith('…')).toBe(true)
   })
@@ -257,6 +259,7 @@ describe('SubAgentRunner', () => {
 
     expect(result.success).toBe(true)
     expect(typeof result.agentId).toBe('string')
+    expect(result.response).toBe('done')
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Read'])
     expect(client.firstToolResult?.is_error).toBe(true)
@@ -292,6 +295,7 @@ describe('SubAgentRunner', () => {
 
     expect(result.success).toBe(true)
     expect(typeof result.agentId).toBe('string')
+    expect(result.response).toBe('done')
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
@@ -317,6 +321,7 @@ describe('SubAgentRunner', () => {
     })
 
     expect(resultExplore.success).toBe(true)
+    expect(resultExplore.response).toBe('ok')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Bash', 'Glob', 'Read'])
 
     const resultPlan = await runner.run({
@@ -330,6 +335,7 @@ describe('SubAgentRunner', () => {
     })
 
     expect(resultPlan.success).toBe(true)
+    expect(resultPlan.response).toBe('ok')
     expect(client.calls[1]!.tools.map((t) => t.name).sort()).toEqual(['Bash', 'Glob', 'Read'])
   })
 
@@ -353,6 +359,7 @@ describe('SubAgentRunner', () => {
     })
 
     expect(result.success).toBe(true)
+    expect(result.response).toBe('done')
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name)).toEqual(['Read'])
     expect(client.firstToolResult?.is_error).toBe(true)
@@ -392,6 +399,7 @@ describe('SubAgentRunner', () => {
     })
 
     expect(result.success).toBe(true)
+    expect(result.response).toBe('done')
     expect(result.summary).toBe('done')
     expect(seen).toEqual(['normal', 'acceptEdits'])
   })

@@ -58,6 +58,14 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       })
     : null
 
+  const nestedLines = useMemo(() => {
+    if (message.toolInfo?.middleLines?.length) return message.toolInfo.middleLines
+
+    const nested = message.toolInfo?.nestedTools
+    if (!Array.isArray(nested) || nested.length === 0) return []
+    return renderExpandedNestedLines(nested)
+  }, [message.toolInfo?.middleLines, message.toolInfo?.nestedTools])
+
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
@@ -70,9 +78,9 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         <Text color={theme.secondaryText}>)</Text>
       </Box>
 
-      {message.toolInfo.middleLines && message.toolInfo.middleLines.length > 0 ? (
+      {nestedLines.length > 0 ? (
         <Box flexDirection="column">
-          {message.toolInfo.middleLines.map((line, i) => (
+          {nestedLines.map((line, i) => (
             <Box key={i}>
               <Text>   {line}</Text>
             </Box>
@@ -137,4 +145,37 @@ function renderNestedPrompt(args: { id: string; name: string; input: Record<stri
       <Text>Waiting for input: {args.name}</Text>
     </Box>
   )
+}
+
+function renderExpandedNestedLines(
+  nested: Array<{
+    id: string
+    name: string
+    input: Record<string, any>
+    status: 'running' | 'completed' | 'error'
+    summary?: string
+  }>,
+): string[] {
+  const items = nested.slice(0, 50)
+  return items.map((e, idx) => {
+    const branch = idx === items.length - 1 ? '└' : '├'
+    const text =
+      e.status !== 'running' && e.summary
+        ? normalizeInlineText(e.summary)
+        : normalizeInlineText(formatNestedHeader(e.name, e.input))
+    return `${branch} ${truncate(text, 80)}`
+  })
+}
+
+function formatNestedHeader(name: string, input: Record<string, any>): string {
+  // Keep this lightweight; detailed formatting lives in the subagent handler.
+  const tool = String(name || '').trim() || 'Tool'
+  const args =
+    input && typeof input === 'object' && Object.keys(input).length > 0
+      ? Object.entries(input)
+          .slice(0, 3)
+          .map(([k, v]) => `${k}: ${String(v)}`)
+          .join(', ')
+      : ''
+  return args ? `${tool}(${args})` : `${tool}()`
 }

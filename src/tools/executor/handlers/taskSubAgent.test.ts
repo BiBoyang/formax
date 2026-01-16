@@ -20,7 +20,7 @@ describe('TaskSubAgentToolHandler', () => {
   it('returns error when required fields are missing', async () => {
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'a', summary: 'ok', success: true }
+        return { agentId: 'a', response: 'ok', summary: 'ok', success: true }
       },
     }
 
@@ -34,7 +34,7 @@ describe('TaskSubAgentToolHandler', () => {
   it('returns error when sub-agent is not found', async () => {
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'a', summary: 'ok', success: true }
+        return { agentId: 'a', response: 'ok', summary: 'ok', success: true }
       },
     }
 
@@ -70,7 +70,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'agent-1', summary: 'looks good', success: true }
+        return { agentId: 'agent-1', response: 'looks good', summary: 'looks good', success: true }
       },
     }
 
@@ -89,6 +89,11 @@ describe('TaskSubAgentToolHandler', () => {
     const parsed = JSON.parse(result.content)
     expect(parsed.status).toBe('completed')
     expect(parsed.summary).toBe('looks good')
+    expect(parsed.response).toBe('looks good')
+    expect(Array.isArray(parsed.transcript)).toBe(true)
+    expect(parsed.transcript.join('\n')).toContain('Prompt:')
+    expect(parsed.transcript.join('\n')).toContain('Response:')
+    expect(parsed.transcript.join('\n')).toContain('Done (')
     expect(parsed.agent_id).toBe('agent-1')
   })
 
@@ -113,7 +118,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'agent-1', summary: 'a'.repeat(600), success: true }
+        return { agentId: 'agent-1', response: 'a'.repeat(600), summary: 'a'.repeat(600), success: true }
       },
     }
 
@@ -155,7 +160,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'agent-1', summary: 'ok', success: true, artifacts: ['a.txt'] }
+        return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true, artifacts: ['a.txt'] }
       },
     }
 
@@ -199,7 +204,7 @@ describe('TaskSubAgentToolHandler', () => {
 
     const runner: SubAgentRunner = {
       async run() {
-        return { agentId: 'agent-1', summary: '', success: false, error: 'boom' }
+        return { agentId: 'agent-1', response: '', summary: '', success: false, error: 'boom' }
       },
     }
 
@@ -243,7 +248,12 @@ describe('TaskSubAgentToolHandler', () => {
     const runner: SubAgentRunner = {
       async run(args) {
         await new Promise((r) => setTimeout(r, 10))
-        return { agentId: typeof args.agentId === 'string' ? args.agentId : 'agent-1', summary: 'background', success: true }
+        return {
+          agentId: typeof args.agentId === 'string' ? args.agentId : 'agent-1',
+          response: 'background',
+          summary: 'background',
+          success: true,
+        }
       },
     }
 

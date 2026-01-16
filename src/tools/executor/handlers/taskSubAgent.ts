@@ -14,10 +14,14 @@ type NestedToolEntry = {
   status: 'running' | 'completed' | 'error'
   header: string
   summary?: string
+  rawResult?: string
 }
 
 const MAX_VISIBLE_TOOL_USES = 2
 const MAX_LINE_CHARS = 80
+const MAX_ENTRIES = 200
+const MAX_LISTED_PATHS = 25
+const MAX_RESPONSE_CHARS = 10_000
 
 export function createTaskSubAgentToolHandler(deps: {
   registry: SubAgentRegistry
@@ -76,6 +80,7 @@ export function createTaskSubAgentToolHandler(deps: {
         signal?: AbortSignal,
         opts?: { emitUi?: boolean; updateTask?: (result: ManagedTaskResult) => void; agentId?: string },
       ): Promise<{ agent_id: string; summary: string; json: string; is_error?: boolean }> => {
+        const startedAtMs = Date.now()
         const entries: NestedToolEntry[] = []
         let toolUses = 0
         const usageTotal: TokenUsage = {}
@@ -94,6 +99,11 @@ export function createTaskSubAgentToolHandler(deps: {
             type: 'tool_update',
             id: call.id,
             middleLines: renderNestedLines(entries, toolUses),
+            transcriptLines: renderTaskTranscriptLines({
+              taskPrompt: prompt,
+              entries,
+              responseText: '',
+            }),
             toolUses,
             usage: usageTotal,
             nestedTools: entries.map((e) => ({
@@ -163,6 +173,7 @@ export function createTaskSubAgentToolHandler(deps: {
                 ...entries[idx]!,
                 status: ev.result?.is_error ? 'error' : 'completed',
                 summary: formatted.summary,
+                rawResult: String(display || ''),
               }
               emitProgress()
             }
@@ -190,14 +201,30 @@ export function createTaskSubAgentToolHandler(deps: {
           onEvent: onSubEvent,
         })
         const summary = result.summary || ''
+        const response = result.response || ''
         const limited = summary.length > 500 ? summary.slice(0, 500) + '…' : summary
 
         scheduleTaskUpdate?.flush()
+
+        const durationMs = Date.now() - startedAtMs
+        const transcriptLines = renderTaskTranscriptLines({
+          taskPrompt: prompt,
+          entries,
+          responseText: response,
+          doneLine: renderDoneLine({
+            toolUses,
+            usage: usageTotal,
+            durationMs,
+            isError: !result.success,
+          }),
+        })
 
         const payload: Record<string, any> = {
           agent_id: result.agentId,
           status: result.success ? 'completed' : 'error',
           summary: limited || (result.success ? '(no output)' : ''),
+          ...(response.trim() ? { response: response.trim() } : {}),
+          ...(transcriptLines.length > 0 ? { transcript: transcriptLines } : {}),
           ...(result.artifacts && result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
           ...(!result.success && result.error ? { error: result.error } : {}),
           ...(toolUses ? { tool_uses: toolUses } : {}),
@@ -277,8 +304,8 @@ function renderNestedLines(entries: NestedToolEntry[], toolUses: number): string
 }
 
 function trimEntries(entries: NestedToolEntry[]): void {
-  if (entries.length <= 30) return
-  entries.splice(0, entries.length - 30)
+  if (entries.length <= MAX_ENTRIES) return
+  entries.splice(0, entries.length - MAX_ENTRIES)
 }
 
 function addUsage(total: TokenUsage, snapshot: TokenUsage): void {
@@ -394,4 +421,131 @@ function createThrottledUpdater(fn: () => void): (() => void) & { flush: () => v
   }
 
   return schedule
+}
+
+function renderTaskTranscriptLines(args: {
+  taskPrompt: string
+  entries: NestedToolEntry[]
+  responseText: string
+  doneLine?: string
+}): string[] {
+  const lines: string[] = []
+
+  const promptText = String(args.taskPrompt || '').trimEnd()
+  if (promptText) {
+    lines.push('Prompt:')
+    const promptLines = splitLines(promptText)
+    for (const l of promptLines) lines.push(`     ${l}`)
+    lines.push(`> ${promptLines[0] || ''}`.trimEnd())
+    for (const l of promptLines.slice(1)) lines.push(`  ${l}`)
+    lines.push('')
+  }
+
+  for (const entry of args.entries) {
+    const header = toSingleLine(entry.header).trim()
+    if (!header) continue
+
+    lines.push(header)
+
+    if (entry.status === 'running') continue
+
+    const block = renderNestedToolResultLines(entry)
+    if (block.length) {
+      lines.push('')
+      for (const l of block) lines.push(l)
+      lines.push('')
+    }
+  }
+
+  const responseText = String(args.responseText || '').trimEnd()
+  if (responseText) {
+    lines.push('Response:')
+    const { preview, truncated } = truncateTextByChars(responseText, MAX_RESPONSE_CHARS)
+    for (const l of splitLines(preview)) lines.push(`     ${l}`)
+    if (truncated) lines.push(`     …${truncated} chars truncated…`)
+    lines.push('')
+  }
+
+  if (args.doneLine) lines.push(args.doneLine)
+
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
+function renderNestedToolResultLines(entry: NestedToolEntry): string[] {
+  const raw = typeof entry.rawResult === 'string' ? entry.rawResult : ''
+  const isError = entry.status === 'error'
+  const formatted = formatToolResult(entry.name, raw, isError)
+
+  const out: string[] = []
+  if (formatted.summary) out.push(formatted.summary)
+
+  const rawLines = splitLines(raw).map((l) => l.trimEnd()).filter((l) => l.length > 0)
+
+  const tool = String(entry.name || '').trim()
+  const isSearchLike = tool === 'Glob' || tool === 'Search' || tool === 'Grep'
+  if (isSearchLike && rawLines.length > 0) {
+    // Claude Code shows file lists for Search/Glob; keep it bounded.
+    const listed = rawLines.slice(0, MAX_LISTED_PATHS)
+    for (const l of listed) out.push(`     ${l}`)
+    const remaining = rawLines.length - listed.length
+    if (remaining > 0) out.push(`     … +${remaining} more`)
+  }
+
+  if (formatted.middleLines && formatted.middleLines.length) {
+    for (const l of formatted.middleLines) out.push(`     ${l}`)
+  }
+  if (formatted.expandInfo) out.push(`     ${formatted.expandInfo}`)
+
+  return out
+}
+
+function renderDoneLine(args: { toolUses: number; usage: TokenUsage; durationMs: number; isError: boolean }): string {
+  if (args.isError) return 'Error'
+
+  const toolUses = args.toolUses
+  const toolUsesPart = `${toolUses} tool use${toolUses === 1 ? '' : 's'}`
+  const tokens = formatTokenCount(sumTokens(args.usage))
+  const tokensPart = tokens ? `${tokens} tokens` : ''
+  const duration = formatDuration(args.durationMs)
+
+  const parts = [toolUsesPart, tokensPart, duration].filter(Boolean).join(' · ')
+  return `Done (${parts})`
+}
+
+function splitLines(s: string): string[] {
+  return String(s || '').split(/\r?\n/)
+}
+
+function truncateTextByChars(text: string, maxChars: number): { preview: string; truncated: number } {
+  const s = String(text || '')
+  if (s.length <= maxChars) return { preview: s, truncated: 0 }
+  return { preview: s.slice(0, maxChars).trimEnd(), truncated: s.length - maxChars }
+}
+
+function sumTokens(usage: TokenUsage | undefined): number {
+  const u = usage || {}
+  return (
+    (u.input_tokens ?? 0) +
+    (u.output_tokens ?? 0) +
+    (u.cache_read_input_tokens ?? 0) +
+    (u.cache_creation_input_tokens ?? 0)
+  )
+}
+
+function formatTokenCount(n: number): string {
+  const v = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
+  if (v <= 0) return ''
+  if (v < 1000) return String(v)
+  if (v < 100000) return `${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`
+  if (v < 1000000) return `${Math.round(v / 1000)}k`
+  return `${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}m`
+}
+
+function formatDuration(ms: number): string {
+  const s = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return r === 0 ? `${m}m` : `${m}m ${r}s`
 }
