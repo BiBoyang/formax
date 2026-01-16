@@ -301,18 +301,18 @@ export interface OverlayManager {
 防止回潮：以后新增功能不会再悄悄把 `.claude/*` 引回来，commands/skills/agents 不会越界依赖 UI/tools/modules。
 
 ### Checklist
-- [ ] 新增脚本 `scripts/check-no-claude.ts`
-  - [ ] 扫描 `src/**`（只针对 runtime），发现 `.claude` 字符串直接失败
-  - [ ] 允许 docs 中提 Claude（可选：只扫描 src）
-- [ ] 把脚本挂进 `bun run type-check`（或 `core boundary checks` 的链路）
+- [x] 新增脚本 `scripts/check-no-claude.mjs`
+  - [x] 扫描 `src/**`（只针对 runtime），发现 “`.claude/`（配置目录路径）” 直接失败（允许 `code.claude.com` 域名）
+- [x] 把脚本挂进 `bun run type-check`（通过 `scripts/check-core-boundaries.mjs` 统一入口）
 - [ ] 增加 import 边界规则（按你们现有 boundary checks 方式）
-  - [ ] `src/commands/**` 禁止 import `src/ui/**`、`src/screens/**`
-  - [ ] `src/skills/**` 同上
-  - [ ] `src/commands/**` 禁止 import `src/tools/modules/**`
+  - [x] `src/commands/**` 禁止 import `src/ui/**`、`src/screens/**`
+  - [x] `src/skills/**` 同上
+  - [x] `src/commands/**` 禁止 import `src/tools/modules/**`
+  - [x] `src/skills/**` 禁止 import `src/tools/modules/**`
 
 ### DoD
-- [ ] `bun run type-check` 会阻止 `.claude` 回潮
-- [ ] 越界 import 能被自动检查拦截
+- [x] `bun run type-check` 会阻止 `.claude` 配置目录路径回潮
+- [x] 越界 import 能被自动检查拦截
 
 ---
 

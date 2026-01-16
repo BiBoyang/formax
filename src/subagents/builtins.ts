@@ -71,7 +71,7 @@ export function getBuiltinSubagents(): SubAgentConfig[] {
   const statuslinePrompt = loadPrompt(
     'agent-prompt-status-line-setup.md',
     commonVars,
-    'You are a statusline setup agent. Update ~/.claude/settings.json to configure the status line.',
+    'You are a statusline setup agent. Update the Formax config to configure the status line.',
   )
 
   const taskBase = loadPrompt(

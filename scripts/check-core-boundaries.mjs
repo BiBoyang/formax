@@ -1,10 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
 const CORE_ROOT = path.join(SRC_ROOT, 'core')
 const ADAPTERS_ROOT = path.join(SRC_ROOT, 'adapters')
+const COMMANDS_ROOT = path.join(SRC_ROOT, 'commands')
+const SKILLS_ROOT = path.join(SRC_ROOT, 'skills')
+const UI_ROOT = path.join(SRC_ROOT, 'ui')
+const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
+const TOOLS_MODULES_ROOT = path.join(SRC_ROOT, 'tools', 'modules')
 
 const FORBIDDEN_EXTERNAL_PACKAGES = new Set(['ink', '@inkjs/ui', '@anthropic-ai/sdk', 'openai'])
 const ALLOWED_EXTERNAL_PACKAGES = new Set(['zod'])
@@ -90,16 +96,65 @@ function checkCoreImports(file, specifier) {
   return null
 }
 
+function checkCommandsOrSkillsImports(file, specifier, opts) {
+  const raw = specifier.trim()
+  if (!raw) return null
+
+  if (raw.startsWith('/')) return 'Absolute-path imports are not allowed'
+
+  if (raw.startsWith('.') || raw.startsWith('..')) {
+    const resolved = path.normalize(path.resolve(path.dirname(file), raw))
+    if (isUnderDir(resolved, UI_ROOT)) return 'May not import from src/ui/**'
+    if (isUnderDir(resolved, SCREENS_ROOT)) return 'May not import from src/screens/**'
+    if (opts?.disallowToolsModules && isUnderDir(resolved, TOOLS_MODULES_ROOT)) {
+      return 'May not import from src/tools/modules/**'
+    }
+    return null
+  }
+
+  // Non-relative imports: enforce by path segment heuristic when importing within src
+  // (e.g. "src/ui/..." shouldn't appear with TS path mapping, but keep this guard).
+  if (raw.includes('src/ui/')) return 'May not import from src/ui/**'
+  if (raw.includes('src/screens/')) return 'May not import from src/screens/**'
+  if (opts?.disallowToolsModules && raw.includes('src/tools/modules/')) return 'May not import from src/tools/modules/**'
+
+  return null
+}
+
 function main() {
-  if (!fs.existsSync(CORE_ROOT)) return
+  runNoClaudeCheck({ repoRoot: REPO_ROOT })
 
   const violations = []
-  for (const file of listSourceFiles(CORE_ROOT)) {
-    const source = fs.readFileSync(file, 'utf8')
-    const imports = extractImportSpecifiers(source)
-    for (const specifier of imports) {
-      const reason = checkCoreImports(file, specifier)
-      if (reason) violations.push({ file, specifier, reason })
+  if (fs.existsSync(CORE_ROOT)) {
+    for (const file of listSourceFiles(CORE_ROOT)) {
+      const source = fs.readFileSync(file, 'utf8')
+      const imports = extractImportSpecifiers(source)
+      for (const specifier of imports) {
+        const reason = checkCoreImports(file, specifier)
+        if (reason) violations.push({ file, specifier, reason })
+      }
+    }
+  }
+
+  if (fs.existsSync(COMMANDS_ROOT)) {
+    for (const file of listSourceFiles(COMMANDS_ROOT)) {
+      const source = fs.readFileSync(file, 'utf8')
+      const imports = extractImportSpecifiers(source)
+      for (const specifier of imports) {
+        const reason = checkCommandsOrSkillsImports(file, specifier, { disallowToolsModules: true })
+        if (reason) violations.push({ file, specifier, reason })
+      }
+    }
+  }
+
+  if (fs.existsSync(SKILLS_ROOT)) {
+    for (const file of listSourceFiles(SKILLS_ROOT)) {
+      const source = fs.readFileSync(file, 'utf8')
+      const imports = extractImportSpecifiers(source)
+      for (const specifier of imports) {
+        const reason = checkCommandsOrSkillsImports(file, specifier, { disallowToolsModules: true })
+        if (reason) violations.push({ file, specifier, reason })
+      }
     }
   }
 
@@ -116,4 +171,3 @@ function main() {
 }
 
 main()
-
