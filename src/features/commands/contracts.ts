@@ -1,8 +1,10 @@
 import type { PromptBlock } from '../../prompts'
 
 export type UiMessage = {
+  id?: string
   role: 'assistant' | 'system'
   content: string
+  timestamp?: Date
 }
 
 export type OverlaySpec = { kind: 'agents' } | { kind: 'custom'; id: string; props?: Record<string, unknown> }
@@ -35,4 +37,3 @@ export function consumedCommandResult(args?: {
 }): Extract<CommandResult, { consumed: true }> {
   return { consumed: true, ...args }
 }
-

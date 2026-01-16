@@ -150,15 +150,15 @@
 
 #### PR0b-1：新增契约类型（不改行为）
 - [x] 新增 `src/features/commands/contracts.ts`
-  - [ ] `CommandResult` / `UiEffect` / `ModelEffect` / `OverlaySpec`
-  - [ ] `appendMessages` 的 message 结构与现有 `Msg` 对齐（尽量复用字段/不重复定义）
+  - [x] `CommandResult` / `UiEffect` / `ModelEffect` / `OverlaySpec`
+  - [x] `appendMessages` 的 message 结构与现有 `Msg` 对齐（先用 Msg 的子集：`{id?, role, content, timestamp?}`）
   - [x] 先实现最小集合（后续按需扩展）
 - [x] 单测：`src/features/commands/contracts.test.ts`
 - [x] 自检：`bun run type-check`
 
 #### PR0b-2：OverlayManager（不改行为）
 - [x] 新增 `src/features/repl/overlays/OverlayManager.ts`
-  - [ ] `open(spec)` / `close()` / `current()`
+  - [x] `open(spec)` / `close()` / `current()`
   - [ ] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
 - [ ] 在 `useReplController` 内接入 OverlayManager（但先不替换已有 booleans）
 - [x] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
