@@ -84,7 +84,9 @@ export function useReplController(deps: {
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
   const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
-  const [agentsDialogOpen, setAgentsDialogOpen] = useState(false)
+  const [agentsDialogOpen, setAgentsDialogOpen] = useState(
+    process.env.FORMAX_START_AGENTS_DIALOG === '1',
+  )
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])

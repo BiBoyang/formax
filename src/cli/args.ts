@@ -5,6 +5,7 @@ export type CliFlags = {
   noColor: boolean
   bundle: boolean
   bundleTar: boolean
+  agents: boolean
 }
 
 export type CliArgs = {
@@ -13,7 +14,15 @@ export type CliArgs = {
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
-  const flags: CliFlags = { json: false, help: false, version: false, noColor: false, bundle: false, bundleTar: false }
+  const flags: CliFlags = {
+    json: false,
+    help: false,
+    version: false,
+    noColor: false,
+    bundle: false,
+    bundleTar: false,
+    agents: false,
+  }
   const positionals: string[] = []
 
   for (const arg of argv) {
@@ -40,6 +49,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
     }
     if (arg === '--help' || arg === '-h') {
       flags.help = true
+      continue
+    }
+    if (arg === '--agents') {
+      flags.agents = true
       continue
     }
     positionals.push(arg)

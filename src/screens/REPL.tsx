@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import path from 'node:path'
 import { Box, Text, useInput, Static } from 'ink'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
@@ -30,6 +31,7 @@ import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/AgentsDialog'
+import { getConfigPaths } from '../adapters/fs/configPaths'
 
 type Props = {
   onExit?: () => void
@@ -66,6 +68,11 @@ export function REPL({
     () => planSession.getPlanPath() ?? planSession.startNewPlan(),
     [planSession],
   )
+  const userAgentsDir = useMemo(() => {
+    const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
+    const globalConfigDir = path.resolve(process.cwd(), configPaths.globalConfigDir)
+    return path.join(globalConfigDir, 'agents')
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -366,6 +373,8 @@ export function REPL({
               <AgentsDialog
                 agents={state.allowedSubagents}
                 toolNames={tools.map((t) => t.name)}
+                userAgentsDir={userAgentsDir}
+                projectAgentsDir={cfg.paths.subagentsDir}
                 onGenerateDraft={actions.generateAgentDraft}
                 onSaveAgent={actions.saveAgentFromDialog}
                 onExit={actions.closeAgentsDialog}
