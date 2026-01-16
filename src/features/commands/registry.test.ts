@@ -34,14 +34,31 @@ describe('SlashCommandRegistry', () => {
     expect(reg.dispatch('/compact')).toBe(null)
   })
 
-  it('loads .claude/commands/*.md as commands', async () => {
+  it('loads .formax/commands/*.md as commands', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
-    const dir = path.join(cwd, '.claude', 'commands')
+    const dir = path.join(cwd, '.formax', 'commands')
     await fsp.mkdir(dir, { recursive: true })
     await fsp.writeFile(path.join(dir, 'hello.md'), 'Say hello', 'utf8')
 
-    const reg = createSlashCommandRegistry({ cwd })
+    const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
     expect(reg.list().some((c) => c.command === '/hello')).toBe(true)
+  })
+
+  it('does not dispatch disable-model-invocation commands to the model', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
+    const dir = path.join(cwd, '.formax', 'commands')
+    await fsp.mkdir(dir, { recursive: true })
+    await fsp.writeFile(
+      path.join(dir, 'disabled.md'),
+      ['---', 'description: Disabled command', 'disable-model-invocation: true', '---', '', 'Do not run'].join('\n'),
+      'utf8',
+    )
+
+    const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+    const effect = reg.dispatch('/disabled')
+    expect(effect?.kind).toBe('local')
+    if (!effect || effect.kind !== 'local') return
+    expect(stripAnsi(effect.stdout)).toContain('disabled for model invocation')
   })
 
   it('dispatches /status as a local command when status is provided', () => {

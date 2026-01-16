@@ -35,10 +35,10 @@ describe('SlashCommandToolHandler', () => {
     }
   })
 
-  it('expands a .claude/commands/*.md command', async () => {
+  it('expands a .formax/commands/*.md command', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-slashcmd-expand-'))
     try {
-      const filePath = path.join(tmpDir, '.claude', 'commands', 'foo.md')
+      const filePath = path.join(tmpDir, '.formax', 'commands', 'foo.md')
       await writeFileEnsuringDir(
         filePath,
         `---\ndescription: Foo command\n---\n\nPrint today's date.\n`,
@@ -74,4 +74,3 @@ describe('SlashCommandToolHandler', () => {
     }
   })
 })
-

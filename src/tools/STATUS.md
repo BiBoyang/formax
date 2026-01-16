@@ -54,7 +54,7 @@
 - `NotebookEdit`
 - `TodoWrite`
 - `WebSearch`, `WebFetch`
-- `SlashCommand`（执行 `.claude/commands/*.md` 自定义命令）
+- `SlashCommand`（执行 `.formax/commands/*.md` 自定义命令）
 - `Task`（sub-agent）
 - `TaskOutput`
 - `AskUserQuestion`
@@ -74,7 +74,7 @@
 - 说明：
   - `/tasks`、`/plan`：本地命令（不走模型，不污染下一次请求）
   - `/init`：注册为 “LLM 命令”（会把命令 prompt blocks 注入本次请求）
-  - `.claude/commands/*.md`：自动加载为插件命令（`foo.md` → `/foo`），执行时会把 md 内容展开并注入本次请求
+  - `.formax/commands/*.md`：自动加载为插件命令（`foo.md` → `/foo`），执行时会把 md 内容展开并注入本次请求
 
 ### 4) Plan Mode（Enter/ExitPlanMode + Shift+Tab）
 
@@ -105,7 +105,7 @@
 ## 后续建议路线（按价值/依赖排序）
 
 1. **命令系统统一（SlashCommand + 本地命令）**
-   - ✅ 已把 `/tasks`、`/plan`、`/init` 收敛到“命令注册表”（并支持 `.claude/commands/*.md` 插件命令）
+   - ✅ 已把 `/tasks`、`/plan`、`/init` 收敛到“命令注册表”（并支持 `.formax/commands/*.md` 插件命令）
    - 本地实现 `/status`、`/doctor` 等（先做 stub 输出也行），避免落到模型乱跑
    - `SlashCommand` tool 先做最小闭环：列出可用命令/执行命令/返回说明（与 UI 下拉提示共用同一份命令源）
 

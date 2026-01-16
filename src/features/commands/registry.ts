@@ -6,6 +6,9 @@ import { formatStatusHuman } from '../../core/diagnostics/format.js'
 import type { StatusSnapshot } from '../../core/diagnostics/status.js'
 import type { TaskManager } from '../../tools/runtime/taskManager'
 import { readTodos } from '../../tools/runtime/todosFile'
+import { getConfigPaths } from '../../adapters/fs/configPaths'
+import { createCommandStore } from '../../commands/CommandStore'
+import { buildFileCommandContent } from '../../commands/render'
 
 export type SlashCommandSpec = {
   command: string
@@ -83,13 +86,17 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
 
 export function createSlashCommandRegistry(deps: {
   cwd: string
+  globalConfigDir?: string
   taskManager?: TaskManager
   plan?: { getPlanPath: () => string | null }
   promptProfile?: { get: () => PromptProfile; set: (next: PromptProfile) => void }
   status?: { get: () => StatusSnapshot }
   doctor?: { run: () => Promise<string> }
 }): SlashCommandRegistry {
-  const pluginEntries = loadClaudeCommandEntries(deps.cwd)
+  const globalConfigDir =
+    deps.globalConfigDir ?? getConfigPaths({ cwd: deps.cwd, env: process.env }).globalConfigDir
+  const commandStore = createCommandStore({ cwd: deps.cwd, globalConfigDir })
+  const pluginEntries = loadFormaxCommandEntries(commandStore)
 
   const byCommand = new Map<string, CommandEntry>()
   for (const spec of BUILTIN_SPECS) byCommand.set(spec.command, { spec })
@@ -244,7 +251,8 @@ export function createSlashCommandRegistry(deps: {
 
 export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {
   // Backwards-compatible helper for legacy call sites (no plugins, no dispatch).
-  return createSlashCommandRegistry({ cwd: process.cwd() }).suggest(input)
+  const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
+  return createSlashCommandRegistry({ cwd: process.cwd(), globalConfigDir: configPaths.globalConfigDir }).suggest(input)
 }
 
 export function parseSlashCommand(input: string): { command: string; args: string } | null {
@@ -285,90 +293,29 @@ function formatTodosCommandOutput(
   return lines.join('\n')
 }
 
-function loadClaudeCommandEntries(cwd: string): CommandEntry[] {
-  const dir = path.join(cwd, '.claude', 'commands')
-  try {
-    if (!fs.existsSync(dir)) return []
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => {
-        const filePath = path.join(dir, e.name)
-        const raw = fs.readFileSync(filePath, 'utf8')
-        const parsed = parseFrontmatter(raw)
-        const body = (parsed?.body ?? raw).trim()
+function loadFormaxCommandEntries(store: ReturnType<typeof createCommandStore>): CommandEntry[] {
+  return store.list().map((cmd) => {
+    if (cmd.disableModelInvocation) {
+      return {
+        spec: { command: cmd.id, description: `${cmd.description} (disabled)`, implemented: true },
+        dispatch: () => ({
+          kind: 'local',
+          stdout:
+            `Command ${cmd.id} is disabled for model invocation.\n` +
+            `Remove "disable-model-invocation: true" from its frontmatter to enable it.`,
+        }),
+      }
+    }
 
-        const baseName = path.basename(e.name, path.extname(e.name))
-        const cmd = `/${baseName}`
-        const description = (parsed?.attributes.description || extractFirstLine(body) || 'Custom command').trim()
-
-        const spec: SlashCommandSpec = {
-          command: cmd,
-          description,
-          implemented: true,
-        }
-
-        return {
-          spec,
-          dispatch: (invocation) => ({
-            kind: 'llm',
-            blocks: buildFileCommandContent({ command: cmd, args: invocation.args, body }),
-            loadingText: 'Thinking',
-          }),
-        }
-      })
-  } catch {
-    return []
-  }
-}
-
-function buildFileCommandContent(args: { command: string; args: string; body: string }): PromptBlock[] {
-  const cmdName = args.command.startsWith('/') ? args.command.slice(1) : args.command
-  const cmdArgs = args.args || ''
-  return [
-    {
-      type: 'text',
-      text:
-        `<command-message>${cmdName} is running…</command-message>\n` +
-        `<command-name>${args.command}</command-name>` +
-        (cmdArgs ? `\n<command-args>${cmdArgs}</command-args>` : ''),
-    },
-    {
-      type: 'text',
-      text: args.body,
-    },
-  ]
-}
-
-function extractFirstLine(body: string): string {
-  const lines = (body || '').split(/\r?\n/g)
-  const first = lines.find((l) => l.trim().length > 0)
-  if (!first) return ''
-  return first.replace(/^#+\s*/, '').trim().slice(0, 80)
-}
-
-function parseFrontmatter(text: string): { attributes: Record<string, string>; body: string } | null {
-  const raw = text || ''
-  if (!raw.startsWith('---')) return null
-
-  const end = raw.indexOf('\n---', 3)
-  if (end === -1) return null
-
-  const header = raw.slice(3, end).trim()
-  const body = raw.slice(end + '\n---'.length).replace(/^\s+/, '')
-  const attributes: Record<string, string> = {}
-
-  for (const line of header.split(/\r?\n/g)) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const idx = trimmed.indexOf(':')
-    if (idx === -1) continue
-    const key = trimmed.slice(0, idx).trim()
-    const value = trimmed.slice(idx + 1).trim().replace(/^"|"$/g, '')
-    if (key) attributes[key] = value
-  }
-
-  return { attributes, body }
+    return {
+      spec: { command: cmd.id, description: cmd.description, implemented: true },
+      dispatch: (invocation) => ({
+        kind: 'llm',
+        blocks: buildFileCommandContent({ command: cmd.id, args: invocation.args, body: cmd.body }),
+        loadingText: 'Thinking',
+      }),
+    }
+  })
 }
 
 function formatTasksOutput(tasks: Array<{ id: string; kind?: string; label?: string; status: string }>): string {
