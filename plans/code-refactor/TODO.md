@@ -225,11 +225,11 @@ export interface OverlayManager {
   - 如果你想放宽：也可用首行 fallback（但会扩大噪音）
 
 ### Checklist
-- [ ] 新增 `src/skills/SkillStore.ts`
-  - [ ] 扫描：
+- [x] 新增 `src/skills/SkillStore.ts`
+  - [x] 扫描：
     - project：`<cwd>/.formax/skills/**/SKILL.md`
     - user：`<globalConfigDir>/skills/**/SKILL.md`
-  - [ ] 命名规则：建议 `dir/skill/SKILL.md` → `dir:skill`（与 commands 命名空间一致）
+  - [x] 命名规则：`dir/skill/SKILL.md` → `dir:skill`（与 commands 命名空间一致）
 - [ ] 新增 `src/skills/SkillRegistry.ts`
   - [ ] project 覆盖 user
   - [ ] `list()` 输出排序稳定（scope + name）
@@ -237,26 +237,29 @@ export interface OverlayManager {
   - [ ] 合并 skills + commands，输出 `InvokableMeta[]`
   - [ ] 排除 built-ins（基于 `BUILTIN_SPECS`）
   - [ ] `disable-model-invocation` 过滤（skills 与 commands 都可支持）
-- [ ] 修改 `src/tools/modules/skill/index.ts`
-  - [ ] 运行时把 `<available_skills>` 注入 `spec.description`（仿照 SlashCommand module 的 dynamic spec）
-- [ ] 修改 `src/tools/modules/skill/spec.ts`
-  - [ ] 文案改为“programmatic invokables”（以 Claude Code 为对标），并包含 `<available_skills>`
-- [ ] 修改 `src/tools/modules/skill/handler.ts`
-  - [ ] 从 “not implemented” 改为真正 invoke
-  - [ ] handler 输入先保持 `{ skill: string }`，内部解析 `name + argsText`
-  - [ ] 分流：
-    - [ ] 以 `/` 开头 → 当作 file command（走 PR1 的 CommandStore + render）
-    - [ ] 否则 → 当作 skill（读取 SKILL.md body + 可选列目录文件清单）
-  - [ ] 禁用检查：`disable-model-invocation` → 给明确错误
-- [ ] 新增测试
-  - [ ] `<available_skills>` 合并/排序/预算裁剪 deterministic
-  - [ ] invoke command vs invoke skill 输出正确
+- [x] 修改 `src/tools/modules/skill/index.ts`
+  - [x] 运行时把 `<available_skills>` 注入 `spec.description`（skills-only；不含 commands）
+  - [x] budget：`FORMAX_SKILL_TOOL_CHAR_BUDGET`（默认 15000）
+- [x] 修改 `src/tools/modules/skill/spec.ts`
+  - [x] 保持与 `proxy/tools-copy.json` 一致（通过 parity tests 约束）
+- [x] 修改 `src/tools/modules/skill/handler.ts`
+  - [x] 从 “not implemented” 改为真正 invoke（skills-only）
+  - [x] handler 输入保持 `{ skill: string }`
+  - [x] 禁用检查：`disable-model-invocation` → 给明确错误
+  - [x] body budget：`FORMAX_SKILL_BODY_CHAR_BUDGET`（默认 60000）
+- [ ] （待补齐）Skill tool 里把 custom file commands 合并进 `<available_skills>`
+  - [ ] strict 规则：仅有 description frontmatter 的 command 才进入列表（推荐）
+  - [ ] invoke：以 `/` 开头 → 当作 file command（走 PR1 的 CommandStore + render）
+- [x] 新增测试
+  - [x] `SkillStore`：命名空间、覆盖规则、disable flag、description fallback
+  - [x] `SkillToolHandler`：unknown/disabled/成功加载
+  - [x] parity：忽略动态 `<available_skills>` 列表内容
 
 ### DoD
 - [ ] `Skill` tool 可用且 `<available_skills>` 非空（当目录存在时）
 - [ ] `<available_skills>` 预算裁剪稳定（同输入同输出）
-- [ ] `bun run type-check`
-- [ ] `bun run test`
+- [x] `bun run type-check`
+- [x] `bun run test`
 
 ---
 
