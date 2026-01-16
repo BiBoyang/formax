@@ -54,7 +54,7 @@ function buildTestRegistry(): ToolRegistry {
   const userInput = createUserInputManager()
   const registry = new ToolRegistry()
 
-  registerBuiltinToolModules(registry, { taskManager, userInput })
+  registerBuiltinToolModules(registry, { taskManager, userInput, cwd: process.cwd() })
   registry.register(createTaskOutputToolModule(taskManager))
   registry.register(createKillShellToolModule(taskManager))
   registry.register(createAskUserQuestionToolModule(userInput))

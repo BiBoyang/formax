@@ -17,14 +17,16 @@ function buildAvailableCommandsSection(cwd: string): string {
   return '\nAvailable Commands:\n' + commands.map((c) => `- ${c.cmd}: ${c.desc}`).join('\n') + '\n'
 }
 
-const spec: ToolDefinition = {
-  name: 'SlashCommand',
-  description: baseSpec.description + buildAvailableCommandsSection(process.cwd()),
-  input_schema: baseSpec.input_schema,
-}
+export function createSlashCommandToolModule(args: { cwd: string }): ToolModule {
+  const spec: ToolDefinition = {
+    name: 'SlashCommand',
+    description: baseSpec.description + buildAvailableCommandsSection(args.cwd),
+    input_schema: baseSpec.input_schema,
+  }
 
-export const slashCommandToolModule: ToolModule = {
-  name: 'SlashCommand',
-  handler: SlashCommandToolHandler,
-  spec,
+  return {
+    name: 'SlashCommand',
+    handler: SlashCommandToolHandler,
+    spec,
+  }
 }

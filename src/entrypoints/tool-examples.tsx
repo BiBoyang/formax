@@ -24,6 +24,7 @@ async function main() {
   registerBuiltinToolModules(toolRegistry, {
     taskManager: new TaskManager(),
     userInput: createUserInputManager(),
+    cwd: process.cwd(),
   })
 
   render(

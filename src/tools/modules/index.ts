@@ -8,7 +8,7 @@ import { grepToolModule } from './grep'
 import { createNotebookEditToolModule } from './notebookEdit'
 import { readToolModule } from './read'
 import { searchToolModule } from './search'
-import { slashCommandToolModule } from './slashCommand'
+import { createSlashCommandToolModule } from './slashCommand'
 import { skillToolModule } from './skill'
 import { todoWriteToolModule } from './todoWrite'
 import { webSearchToolModule } from './webSearch'
@@ -18,7 +18,7 @@ import { createExitPlanModeToolModule } from './exitPlanMode'
 
 export function registerBuiltinToolModules(
   registry: ToolRegistry,
-  deps: { taskManager: TaskManager; userInput: UserInputManager },
+  deps: { taskManager: TaskManager; userInput: UserInputManager; cwd: string },
 ): void {
   registry.register(createBashToolModule({ taskManager: deps.taskManager }))
   registry.register(createEditToolModule())
@@ -29,7 +29,7 @@ export function registerBuiltinToolModules(
   registry.register(createNotebookEditToolModule())
   registry.register(readToolModule)
   registry.register(searchToolModule)
-  registry.register(slashCommandToolModule)
+  registry.register(createSlashCommandToolModule({ cwd: deps.cwd }))
   registry.register(skillToolModule)
   registry.register(todoWriteToolModule)
   registry.register(webSearchToolModule)

@@ -103,7 +103,7 @@
   - [x] file command 的 dispatch 复用 `src/commands/render.ts`
 - [x] 修改 `src/tools/modules/slashCommand/index.ts`
   - [x] 运行时生成 “Available Commands” 列表改为使用 `CommandStore`
-  - [ ] 移除 `process.cwd()` 依赖：module factory 传入 `cwd`（与 tool execution ctx 对齐）
+  - [x] 移除 `process.cwd()` 依赖：module factory 传入 `cwd`（与 tool execution ctx 对齐）
 - [x] 修改 `src/tools/modules/slashCommand/handler.ts`
   - [x] 不再自己扫描/拼路径读文件；改为 `CommandStore.get()` + `render.ts`
 - [x] 全仓替换 `.claude/commands` → `.formax/commands`

@@ -129,7 +129,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const toolRegistry = new ToolRegistry()
   const taskManager = new TaskManager()
   const userInputManager = createUserInputManager()
-  registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager })
+  registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager, cwd: process.cwd() })
   toolRegistry.register(
     createWebFetchToolModule({
       client: webFetchClient,
