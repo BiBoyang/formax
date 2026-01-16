@@ -21,7 +21,6 @@ const MODEL_OPTIONS = [
 ]
 
 const COLOR_OPTIONS = [
-  { label: 'Automatic', description: 'Let Formax pick' },
   { label: 'Red', description: '' },
   { label: 'Blue', description: '' },
   { label: 'Green', description: '' },

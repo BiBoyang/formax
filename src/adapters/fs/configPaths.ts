@@ -20,8 +20,16 @@ export type ConfigPaths = {
   projectRulesPath: string
 }
 
+function expandLeadingTilde(inputPath: string, homedir: string): string {
+  const raw = String(inputPath || '').trim()
+  if (!raw) return raw
+  if (raw === '~') return homedir
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(homedir, raw.slice(2))
+  return raw
+}
+
 function getDefaultGlobalConfigDir(env: NodeJS.ProcessEnv, homedir: string): string {
-  if (env.FORMAX_CONFIG_DIR) return env.FORMAX_CONFIG_DIR
+  if (env.FORMAX_CONFIG_DIR) return expandLeadingTilde(env.FORMAX_CONFIG_DIR, homedir)
   return path.join(homedir, '.formax')
 }
 

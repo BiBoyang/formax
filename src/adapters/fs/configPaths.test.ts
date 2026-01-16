@@ -39,4 +39,15 @@ describe('getConfigPaths', () => {
     expect(paths.globalConfigPath).toBe('/tmp/formax-config/config.json')
     expect(paths.globalRulesPath).toBe('/tmp/formax-config/rules.json')
   })
+
+  it('expands ~ in FORMAX_CONFIG_DIR override', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: { FORMAX_CONFIG_DIR: '~/.formax' } as any,
+    })
+    expect(paths.globalConfigDir).toBe('/home/alice/.formax')
+    expect(paths.globalConfigPath).toBe('/home/alice/.formax/config.json')
+  })
 })

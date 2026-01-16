@@ -3,6 +3,7 @@ import path from 'node:path'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import TextInput from '../components/ui/TextInput'
+import { RotatingStar } from '../components/ui/RotatingStar'
 import { getTheme } from '../utils/theme'
 
 type AgentListItem = { name: string; description: string }
@@ -32,9 +33,7 @@ type AgentScope = 'user' | 'project' | 'builtin'
 type AgentMeta = AgentListItem & { scope: AgentScope; model: string }
 type DiskAgentInfo = { name: string; model: string; filePath: string }
 
-const BUSY_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const COLOR_MAP: Record<string, string> = {
-  automatic: '#b1b9f9',
   red: '#ff3b30',
   blue: '#0a84ff',
   green: '#34c759',
@@ -47,11 +46,43 @@ const COLOR_MAP: Record<string, string> = {
 const TOOLS_DIVIDER = '─'.repeat(32)
 const AGENTS_DIALOG_ACCENT = '#b1b9f9'
 
+const BUILTIN_AGENT_NAMES = new Set(
+  ['general-purpose', 'statusline-setup', 'explore', 'plan', 'claude-code-guide'].map((s) =>
+    s.toLowerCase(),
+  ),
+)
+
+const BUILTIN_MODEL_BY_NAME = new Map<string, string>([
+  ['general-purpose', 'sonnet'],
+  ['statusline-setup', 'sonnet'],
+  ['explore', 'haiku'],
+  ['plan', 'inherit'],
+  ['claude-code-guide', 'haiku'],
+])
+
+const METHOD_OPTIONS: Array<{ label: string; value: 'manual' | 'generate' }> = [
+  { label: 'Generate with Claude (recommended)', value: 'generate' },
+  { label: 'Manual configuration', value: 'manual' },
+]
+
+const MODEL_OPTIONS: Array<{ label: string; description: string }> = [
+  { label: 'Sonnet', description: 'Balanced performance - best for most agents' },
+  { label: 'Opus', description: 'Most capable for complex reasoning tasks' },
+  { label: 'Haiku', description: 'Fast and efficient for simple tasks' },
+  { label: 'Inherit', description: 'Use the same model as the main conversation' },
+]
+
+const COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Cyan']
+const SCOPE_OPTIONS: Array<{ label: string; value: 'project' | 'user' }> = [
+  { label: 'Project (.formax/agents/)', value: 'project' },
+  { label: 'Personal (~/.formax/agents/)', value: 'user' },
+]
+
 function Spacer({ height = 1 }: { height?: number }): React.ReactNode {
   return <Box height={height} />
 }
 
-function DialogFrame({
+const DialogFrame = React.memo(function DialogFrame({
   // keep for call-site simplicity; accent color is fixed for this dialog
   theme: _theme,
   children,
@@ -70,9 +101,9 @@ function DialogFrame({
       {children}
     </Box>
   )
-}
+})
 
-function CreateAgentHeader({
+const CreateAgentHeader = React.memo(function CreateAgentHeader({
   theme,
   subtitle,
   description,
@@ -88,15 +119,15 @@ function CreateAgentHeader({
       {description ? <Text color={theme.secondaryText}>{description}</Text> : null}
     </Box>
   )
-}
+})
 
-function Footer({ theme, text }: { theme: AgentsDialogTheme; text: string }): React.ReactNode {
+const Footer = React.memo(function Footer({ theme, text }: { theme: AgentsDialogTheme; text: string }): React.ReactNode {
   return (
     <Box marginTop={0} marginLeft={1}>
       <Text color={theme.secondaryText}>{text}</Text>
     </Box>
   )
-}
+})
 
 function CursorPrefix({ theme, active }: { theme: AgentsDialogTheme; active: boolean }): React.ReactNode {
   return <Text color={active ? AGENTS_DIALOG_ACCENT : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
@@ -138,6 +169,8 @@ function FramedRow({
   )
 }
 
+const SECTION_PREFIX = '  '
+
 function AgentsListView({
   theme,
   agentsCount,
@@ -153,21 +186,30 @@ function AgentsListView({
   userAgentsDir: string
   groups: { userAgents: AgentMeta[]; projectAgents: AgentMeta[]; builtins: AgentMeta[] }
 }): React.ReactNode {
-  const SECTION_PREFIX = '  '
   const userStart = 1
   const projectStart = userStart + groups.userAgents.length
   const builtinsStart = projectStart + groups.projectAgents.length
 
-  const rowStyle = (rowIndex: number) => {
-    const selected = cursor === rowIndex
+  const createStyle = React.useMemo(() => {
+    const selected = cursor === 0
     return {
       selected,
       prefix: selected ? '> ' : '  ',
       color: selected ? AGENTS_DIALOG_ACCENT : theme.secondaryText,
     }
-  }
+  }, [cursor, theme.secondaryText])
 
-  const createStyle = rowStyle(0)
+  const getRowStyle = React.useCallback(
+    (rowIndex: number) => {
+      const selected = cursor === rowIndex
+      return {
+        selected,
+        prefix: selected ? '> ' : '  ',
+        color: selected ? AGENTS_DIALOG_ACCENT : theme.secondaryText,
+      }
+    },
+    [cursor, theme.secondaryText],
+  )
 
   return (
     <DialogFrame theme={theme}>
@@ -196,7 +238,7 @@ function AgentsListView({
           </Text>
           {groups.userAgents.map((a, i) => {
             const rowIndex = userStart + i
-            const style = rowStyle(rowIndex)
+            const style = getRowStyle(rowIndex)
             return (
               <Text key={`user-${a.name}`} color={style.color}>
                 {style.prefix}
@@ -216,7 +258,7 @@ function AgentsListView({
             </Text>
             {groups.projectAgents.map((a, i) => {
               const rowIndex = projectStart + i
-              const style = rowStyle(rowIndex)
+              const style = getRowStyle(rowIndex)
               return (
                 <Text key={`project-${a.name}`} color={style.color}>
                   {style.prefix}
@@ -237,7 +279,7 @@ function AgentsListView({
 
         {groups.builtins.map((a, i) => {
           const rowIndex = builtinsStart + i
-          const style = rowStyle(rowIndex)
+          const style = getRowStyle(rowIndex)
           return (
             <Text key={`builtin-${a.name}`} color={style.color}>
               {style.prefix}
@@ -253,7 +295,7 @@ function AgentsListView({
   )
 }
 
-function SimpleChoiceView({
+const SimpleChoiceView = React.memo(function SimpleChoiceView({
   theme,
   title,
   subtitle,
@@ -281,16 +323,15 @@ function SimpleChoiceView({
       ))}
     </DialogFrame>
   )
-}
+})
 
-function GenerateDescriptionView({
+const GenerateDescriptionView = React.memo(function GenerateDescriptionView({
   theme,
   value,
 }: {
   theme: AgentsDialogTheme
   value: string
 }): React.ReactNode {
-  const trimmed = value
   return (
     <DialogFrame theme={theme}>
       <CreateAgentHeader
@@ -300,21 +341,21 @@ function GenerateDescriptionView({
       <Spacer />
 
       <Box>
-        {trimmed.length === 0 ? (
+        {value.length === 0 ? (
           <>
             <Text inverse> </Text>
             <Text color={theme.secondaryText}>e.g., Help me write unit tests for my code...</Text>
           </>
         ) : (
           <>
-            <Text>{trimmed}</Text>
+            <Text>{value}</Text>
             <Text inverse> </Text>
           </>
         )}
       </Box>
     </DialogFrame>
   )
-}
+})
 
 export function AgentsDialog({
   agents,
@@ -333,17 +374,7 @@ export function AgentsDialog({
   onSaveAgent: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   onExit: (args: { createdAgents: string[] }) => void
 }): React.ReactNode {
-  const theme = getTheme()
-
-  const builtinNames = useMemo(
-    () =>
-      new Set(
-        ['general-purpose', 'statusline-setup', 'explore', 'plan', 'claude-code-guide'].map((s) =>
-          s.toLowerCase(),
-        ),
-      ),
-    [],
-  )
+  const theme = useMemo(() => getTheme(), [])
 
   const [diskUserAgents, setDiskUserAgents] = useState<Record<string, DiskAgentInfo>>({})
   const [diskProjectAgents, setDiskProjectAgents] = useState<Record<string, DiskAgentInfo>>({})
@@ -361,18 +392,6 @@ export function AgentsDialog({
     void refreshDiskAgents()
   }, [refreshDiskAgents])
 
-  const builtinModelByName = useMemo(
-    () =>
-      new Map<string, string>([
-        ['general-purpose', 'sonnet'],
-        ['statusline-setup', 'sonnet'],
-        ['explore', 'haiku'],
-        ['plan', 'inherit'],
-        ['claude-code-guide', 'haiku'],
-      ]),
-    [],
-  )
-
   const groupedAgents = useMemo(() => {
     const userList: AgentMeta[] = []
     const projectList: AgentMeta[] = []
@@ -381,8 +400,8 @@ export function AgentsDialog({
     for (const agent of agents) {
       const key = agent.name.toLowerCase()
 
-      if (builtinNames.has(key)) {
-        const model = builtinModelByName.get(key) ?? 'inherit'
+      if (BUILTIN_AGENT_NAMES.has(key)) {
+        const model = BUILTIN_MODEL_BY_NAME.get(key) ?? 'inherit'
         builtins.push({ ...agent, scope: 'builtin', model })
         continue
       }
@@ -410,7 +429,7 @@ export function AgentsDialog({
     const filteredUser = userList.filter((a) => !projectNames.has(a.name.toLowerCase()))
 
     return { userAgents: filteredUser, projectAgents: projectList, builtins }
-  }, [agents, builtinNames, builtinModelByName, diskProjectAgents, diskUserAgents])
+  }, [agents, diskProjectAgents, diskUserAgents])
 
   const listRows = useMemo(() => {
     const rows: Array<{ type: 'create' } | { type: 'agent'; agent: AgentMeta }> = [{ type: 'create' }]
@@ -432,12 +451,13 @@ export function AgentsDialog({
     | { kind: 'create_model'; cursor: number }
     | { kind: 'create_color'; cursor: number }
     | { kind: 'confirm' }
-    | { kind: 'busy'; message: string; style?: 'generate_draft' | 'generic' }
+    | { kind: 'generating_draft'; message: string }
+    | { kind: 'saving_agent'; message: string }
     | { kind: 'error'; message: string }
 
   const [view, setView] = useState<View>({ kind: 'list', cursor: 0, banner: null })
   const [stack, setStack] = useState<View[]>([])
-  const viewRef = useRef<View>(view)
+  const viewRef = useRef<View>({ kind: 'list', cursor: 0, banner: null })
   useEffect(() => {
     viewRef.current = view
   }, [view])
@@ -448,81 +468,14 @@ export function AgentsDialog({
 
   const [draft, setDraft] = useState<AgentsDialogGenerateDraft | null>(null)
   const [scope, setScope] = useState<'project' | 'user'>('project')
-  const [method, setMethod] = useState<'manual' | 'generate'>('generate')
   const [agentDescriptionInput, setAgentDescriptionInput] = useState('')
   const [manualNameInput, setManualNameInput] = useState('')
   const [manualDescInput, setManualDescInput] = useState('')
 
   const [selectedModel, setSelectedModel] = useState('Sonnet')
-  const [selectedColor, setSelectedColor] = useState('Automatic')
+  const [selectedColor, setSelectedColor] = useState('Blue')
   const [showAdvancedTools, setShowAdvancedTools] = useState(false)
   const [selectedTools, setSelectedTools] = useState<string[]>([])
-  const [busyFrame, setBusyFrame] = useState(0)
-  const isGenerateDraftBusy = view.kind === 'busy' && view.style === 'generate_draft'
-
-  useEffect(() => {
-    if (!isGenerateDraftBusy) return
-    setBusyFrame(0)
-    const timer = setInterval(() => {
-      setBusyFrame((prev) => (prev + 1) % BUSY_FRAMES.length)
-    }, 80)
-    return () => clearInterval(timer)
-  }, [isGenerateDraftBusy])
-
-  const scopeOptions = useMemo(
-    () => [
-      {
-        label: 'Project (.formax/agents/)',
-        value: 'project' as const,
-      },
-      {
-        label: 'Personal (~/.formax/agents/)',
-        value: 'user' as const,
-      },
-    ],
-    [],
-  )
-
-  const methodOptions = useMemo(
-    () => [
-      {
-        label: 'Generate with Claude (recommended)',
-        value: 'generate' as const,
-      },
-      {
-        label: 'Manual configuration',
-        value: 'manual' as const,
-      },
-    ],
-    [],
-  )
-
-  const modelOptions = useMemo(
-    () => [
-      {
-        label: 'Sonnet',
-        description: 'Balanced performance - best for most agents',
-      },
-      {
-        label: 'Opus',
-        description: 'Most capable for complex reasoning tasks',
-      },
-      {
-        label: 'Haiku',
-        description: 'Fast and efficient for simple tasks',
-      },
-      {
-        label: 'Inherit',
-        description: 'Use the same model as the main conversation',
-      },
-    ],
-    [],
-  )
-
-  const colorOptions = useMemo(
-    () => ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Cyan'],
-    [],
-  )
 
   const allToolNames = useMemo(
     () => Array.from(new Set(toolNames)).sort((a, b) => a.localeCompare(b)),
@@ -572,12 +525,11 @@ export function AgentsDialog({
   const resetCreateState = useCallback(() => {
     setDraft(null)
     setScope('project')
-    setMethod('generate')
     setAgentDescriptionInput('')
     setManualNameInput('')
     setManualDescInput('')
     setSelectedModel('Sonnet')
-    setSelectedColor('Automatic')
+    setSelectedColor('Blue')
     setShowAdvancedTools(false)
     setSelectedTools(selectableToolNames)
   }, [selectableToolNames])
@@ -626,7 +578,7 @@ export function AgentsDialog({
     const opId = ++opSeqRef.current
     activeOpRef.current = opId
 
-    pushView({ kind: 'busy', message: 'Generating agent from description...', style: 'generate_draft' })
+    pushView({ kind: 'generating_draft', message: 'Generating agent from description...' })
     try {
       const generated = await onGenerateDraft(desc, abortController.signal)
       if (activeOpRef.current !== opId) return
@@ -665,7 +617,7 @@ export function AgentsDialog({
       if (!draft) return
       const opId = ++opSeqRef.current
       activeOpRef.current = opId
-      pushView({ kind: 'busy', message: 'Saving…', style: 'generic' })
+      pushView({ kind: 'saving_agent', message: 'Saving…' })
       try {
         const out = await onSaveAgent({
           scope,
@@ -704,14 +656,14 @@ export function AgentsDialog({
       return 'Enter to continue · Esc to go back'
     }
     if (view.kind === 'create_generate_desc') return 'Enter to submit · Esc to go back'
-    if (view.kind === 'busy') return 'Esc to cancel'
+    if (view.kind === 'generating_draft' || view.kind === 'saving_agent') return 'Esc to cancel'
     if (view.kind === 'create_scope') return '↑↓ to navigate · Enter to select · Esc to cancel'
     return 'Press ↑↓ to navigate · Enter to select · Esc to go back'
   }, [view.kind])
 
   const handleBusyKeys = useCallback(
     (_input: string, key: any): boolean => {
-      if (view.kind !== 'busy') return false
+      if (view.kind !== 'generating_draft' && view.kind !== 'saving_agent') return false
       if (key.escape) cancelBusy()
       return true
     },
@@ -836,21 +788,32 @@ export function AgentsDialog({
       if (key.downArrow) {
         setView((prev) => {
           if (prev.kind !== view.kind) return prev
-          const max =
-            prev.kind === 'create_scope'
-              ? scopeOptions.length - 1
-              : prev.kind === 'create_method'
-                ? methodOptions.length - 1
-                : prev.kind === 'create_tools'
-                  ? getToolsSelectableRows({
-                      toolGroupChecked,
-                      showAdvancedTools,
-                      selectableToolNames,
-                      selectedToolSet,
-                    }).length - 1
-                  : prev.kind === 'create_model'
-                    ? modelOptions.length - 1
-                    : colorOptions.length - 1
+          let max: number
+          switch (prev.kind) {
+            case 'create_scope':
+              max = SCOPE_OPTIONS.length - 1
+              break
+            case 'create_method':
+              max = METHOD_OPTIONS.length - 1
+              break
+            case 'create_tools':
+              max =
+                getToolsSelectableRows({
+                  toolGroupChecked,
+                  showAdvancedTools,
+                  selectableToolNames,
+                  selectedToolSet,
+                }).length - 1
+              break
+            case 'create_model':
+              max = MODEL_OPTIONS.length - 1
+              break
+            case 'create_color':
+              max = COLOR_OPTIONS.length - 1
+              break
+            default:
+              return prev
+          }
           return { ...prev, cursor: Math.min(prev.cursor + 1, max) } as View
         })
         return true
@@ -866,17 +829,7 @@ export function AgentsDialog({
 
       return false
     },
-    [
-      colorOptions.length,
-      methodOptions.length,
-      modelOptions.length,
-      scopeOptions.length,
-      selectableToolNames,
-      selectedToolSet,
-      showAdvancedTools,
-      toolGroupChecked,
-      view.kind,
-    ],
+    [selectableToolNames, selectedToolSet, showAdvancedTools, toolGroupChecked, view.kind],
   )
 
   const handleChoiceEnterKeys = useCallback((): boolean => {
@@ -885,15 +838,14 @@ export function AgentsDialog({
     }
 
     if (view.kind === 'create_scope') {
-      const nextScope = scopeOptions[view.cursor]?.value ?? 'project'
+      const nextScope = SCOPE_OPTIONS[view.cursor]?.value ?? 'project'
       setScope(nextScope)
       pushView({ kind: 'create_method', cursor: 0 })
       return true
     }
 
     if (view.kind === 'create_method') {
-      const nextMethod = methodOptions[view.cursor]?.value ?? 'generate'
-      setMethod(nextMethod)
+      const nextMethod = METHOD_OPTIONS[view.cursor]?.value ?? 'generate'
       if (nextMethod === 'generate') pushView({ kind: 'create_generate_desc' })
       else pushView({ kind: 'create_manual_name' })
       return true
@@ -941,24 +893,20 @@ export function AgentsDialog({
     }
 
     if (view.kind === 'create_model') {
-      setSelectedModel(modelOptions[view.cursor]?.label ?? 'Sonnet')
+      setSelectedModel(MODEL_OPTIONS[view.cursor]?.label ?? 'Sonnet')
       pushView({ kind: 'create_color', cursor: 0 })
       return true
     }
 
     if (view.kind === 'create_color') {
-      setSelectedColor(colorOptions[view.cursor] ?? 'Automatic')
+      setSelectedColor(COLOR_OPTIONS[view.cursor] ?? 'Blue')
       pushView({ kind: 'confirm' })
       return true
     }
 
     return false
   }, [
-    colorOptions,
-    methodOptions,
-    modelOptions,
     pushView,
-    scopeOptions,
     selectableToolNames,
     selectedToolSet,
     showAdvancedTools,
@@ -983,27 +931,31 @@ export function AgentsDialog({
     }
   })
 
-  if (view.kind === 'busy') {
-    const style = view.style ?? 'generic'
+  if (view.kind === 'generating_draft') {
     return (
       <Box flexDirection="column" marginTop={1}>
-        {style === 'generate_draft' ? (
-          <DialogFrame theme={theme}>
-            <CreateAgentHeader
-              theme={theme}
-              description="Describe what this agent should do and when it should be used (be comprehensive for best results)"
-            />
-            <Spacer />
-            <Text>
-              <Text color={AGENTS_DIALOG_ACCENT}>{BUSY_FRAMES[busyFrame]}</Text> Generating agent from description...
-            </Text>
-          </DialogFrame>
-        ) : (
-          <DialogFrame theme={theme}>
-            <CreateAgentHeader theme={theme} />
-            <Text color={theme.secondaryText}>{view.message}</Text>
-          </DialogFrame>
-        )}
+        <DialogFrame theme={theme}>
+          <CreateAgentHeader
+            theme={theme}
+            description="Describe what this agent should do and when it should be used (be comprehensive for best results)"
+          />
+          <Spacer />
+          <Text color={AGENTS_DIALOG_ACCENT}>
+            <RotatingStar color={AGENTS_DIALOG_ACCENT} /> {view.message}
+          </Text>
+        </DialogFrame>
+        <Footer theme={theme} text="Esc to cancel" />
+      </Box>
+    )
+  }
+
+  if (view.kind === 'saving_agent') {
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        <DialogFrame theme={theme}>
+          <CreateAgentHeader theme={theme} />
+          <Text color={theme.secondaryText}>{view.message}</Text>
+        </DialogFrame>
         <Footer theme={theme} text="Esc to cancel" />
       </Box>
     )
@@ -1041,17 +993,17 @@ export function AgentsDialog({
         return (
           <Box borderStyle="round" borderColor={theme.permission} flexDirection="column" paddingX={1} width="100%">
             <Text bold>Agent</Text>
-            <Text> </Text>
+            <Spacer />
             <Text color={theme.secondaryText}>{a.name}</Text>
-            <Text> </Text>
+            <Spacer />
             <Text color={theme.secondaryText}>Scope:</Text>
             <Text>  {a.scope}</Text>
             <Text color={theme.secondaryText}>Model:</Text>
             <Text>  {a.model}</Text>
-            <Text> </Text>
+            <Spacer />
             <Text color={theme.secondaryText}>Description:</Text>
             <Text>{indent(a.description || '', 2)}</Text>
-            <Text> </Text>
+            <Spacer />
           </Box>
         )
       }
@@ -1063,7 +1015,7 @@ export function AgentsDialog({
             title="Create new agent"
             subtitle="Choose location"
             cursor={view.cursor}
-            options={scopeOptions.map((o) => ({ key: o.value, label: o.label }))}
+            options={SCOPE_OPTIONS.map((o) => ({ key: o.value, label: o.label }))}
           />
         )
       }
@@ -1075,7 +1027,7 @@ export function AgentsDialog({
             title="Create new agent"
             subtitle="Creation method"
             cursor={view.cursor}
-            options={methodOptions.map((o) => ({ key: o.value, label: o.label }))}
+            options={METHOD_OPTIONS.map((o) => ({ key: o.value, label: o.label }))}
           />
         )
       }
@@ -1089,7 +1041,7 @@ export function AgentsDialog({
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} />
             <Text>Write manually</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>Agent name (used as subagent_type):</Text>
             <Box marginTop={1}>
               <TextInput
@@ -1108,7 +1060,7 @@ export function AgentsDialog({
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} />
             <Text>Write manually</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>Description (tells Formax when to use this agent):</Text>
             <Box marginTop={1}>
               <TextInput
@@ -1191,8 +1143,8 @@ export function AgentsDialog({
               subtitle="Select model"
               description="Model determines the agent's reasoning capabilities and speed."
             />
-            <Text> </Text>
-            {modelOptions.map((opt, idx) => {
+            <Spacer />
+            {MODEL_OPTIONS.map((opt, idx) => {
               const selected = selectedModel === opt.label
               const active = idx === view.cursor
               return (
@@ -1206,7 +1158,7 @@ export function AgentsDialog({
                 </Box>
               )
             })}
-            <Text> </Text>
+            <Spacer />
           </DialogFrame>
         )
       }
@@ -1217,10 +1169,8 @@ export function AgentsDialog({
         return (
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} subtitle="Choose background color" />
-            <Text> </Text>
-            <Text color={theme.secondaryText}>Automatic color</Text>
-            <Text> </Text>
-            {colorOptions.map((c, idx) => {
+            <Spacer />
+            {COLOR_OPTIONS.map((c, idx) => {
               const active = idx === view.cursor
               return (
                 <Box key={c}>
@@ -1232,14 +1182,14 @@ export function AgentsDialog({
                 </Box>
               )
             })}
-            <Text> </Text>
+            <Spacer />
             <Text color={theme.secondaryText}>Preview: </Text>
             <Text backgroundColor={previewBg} color="#000">
               {' '}
               {previewName}
               {' '}
             </Text>
-            <Text> </Text>
+            <Spacer />
           </DialogFrame>
         )
       }
@@ -1254,29 +1204,29 @@ export function AgentsDialog({
         return (
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} subtitle="Confirm and save" />
-            <Text> </Text>
+            <Spacer />
             <Text>Name: {name}</Text>
             <Text>Location: {location}</Text>
             <Text>Tools: {toolsAnswer || 'All tools'}</Text>
             <Text>Model: {selectedModel}</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>Description (tells Formax when to use this agent):</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>{indent(truncate(draft?.description || '', 140), 2)}</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>System prompt:</Text>
-            <Text> </Text>
+            <Spacer />
             <Text>{indent(truncate(draft?.systemPrompt || '', 180), 2)}</Text>
             {warnings.length ? (
               <>
-                <Text> </Text>
+                <Spacer />
                 <Text color={theme.warning}>Warnings:</Text>
                 {warnings.map((w) => (
                   <Text key={w}> • {w}</Text>
                 ))}
               </>
             ) : null}
-            <Text> </Text>
+            <Spacer />
             <Text color={theme.secondaryText}>Press s or Enter to save, e to save and edit</Text>
           </DialogFrame>
         )
@@ -1327,7 +1277,7 @@ function indent(s: string, spaces: number): string {
 
 function colorToHex(color: string): string {
   const c = String(color || '').trim().toLowerCase()
-  return COLOR_MAP[c] ?? COLOR_MAP.automatic
+  return COLOR_MAP[c] ?? AGENTS_DIALOG_ACCENT
 }
 
 const NON_SELECTABLE_TOOLS = new Set([

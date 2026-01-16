@@ -20,7 +20,6 @@ describe('createAgentFromWizardAnswers', () => {
           description: 'Review code for quality',
           tools: 'All tools',
           model: 'Sonnet',
-          color: 'Automatic',
           systemPrompt: 'You are a code reviewer.',
         },
       })
