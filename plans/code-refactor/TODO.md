@@ -131,6 +131,70 @@
 > 这是 `webgpt1.md` 的 PR0 核心：把“命令执行结果”从“字符串拼接/副作用散落”升级为可组合契约。
 > 这一步不要求立刻重排所有目录，但会显著降低后续 `/agents`、`/commands`、`/todos` 等的散乱特判。
 
+### ✅ PR0b（最小集合）落地范围（先做这个）
+目标：先把“命令执行的 UI/Model 副作用”收口成最小可用契约；**不引入 skills 强依赖**，也不预设 skills 的最终形态。
+
+只做最小集合：
+- `CommandResult`：`{ consumed: true/false }`
+- `UiEffect`：`appendMessages` / `openOverlay` / `closeOverlay` / `toast`
+- `ModelEffect`：`injectNextTurn`
+- `OverlaySpec`：先支持 `agents` / `custom`（必要时再加 `todos/help`）
+
+不在 PR0b 做：
+- skills 的“扫描/注入/提醒/预算截断”策略定稿（等抓包）
+- “allowed-tools enforcement”/policy 深改
+- 大范围目录迁移（先收口语义与边界）
+
+### 拆分建议（便于按 commit 循环）
+> 每个子 PR 都尽量做到：改动小、可回滚、单测可覆盖、手动验收点明确。
+
+#### PR0b-1：新增契约类型（不改行为）
+- [x] 新增 `src/features/commands/contracts.ts`
+  - [ ] `CommandResult` / `UiEffect` / `ModelEffect` / `OverlaySpec`
+  - [ ] `appendMessages` 的 message 结构与现有 `Msg` 对齐（尽量复用字段/不重复定义）
+  - [x] 先实现最小集合（后续按需扩展）
+- [x] 单测：`src/features/commands/contracts.test.ts`
+- [x] 自检：`bun run type-check`
+
+#### PR0b-2：OverlayManager（不改行为）
+- [ ] 新增 `src/features/repl/overlays/OverlayManager.ts`
+  - [ ] `open(spec)` / `close()` / `current()`
+  - [ ] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
+- [ ] 在 `useReplController` 内接入 OverlayManager（但先不替换已有 booleans）
+- [ ] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
+- [ ] 自检：`bun run test -- src/features/repl/overlays/OverlayManager.test.ts`
+
+#### PR0b-3：命令执行统一返回 CommandResult（先做适配层，避免大爆炸）
+- [ ] 新增 adapter：`src/features/commands/adapter.ts`
+  - [ ] `slashEffectToCommandResult(effect): CommandResult`
+  - [ ] 规则：local/local_async → `appendMessages`；`open_agents_dialog` → `openOverlay({kind:'agents'})`；unimplemented → `appendMessages`
+- [ ] `src/features/commands/registry.ts` 保持现状（先不改对外 interface），先让 controller 消费 CommandResult
+- [ ] 单测：`src/features/commands/adapter.test.ts`
+
+#### PR0b-4：useReplController 统一解释 CommandResult（替换散乱特判的“第一刀”）
+- [ ] `useReplController`：
+  - [ ] 将 slash command 的处理流程改为：
+    - `dispatch()` → `CommandResult` → 统一 apply `UiEffect/ModelEffect`
+  - [ ] `appendMessages`：走统一入口（避免各分支重复拼 Msg）
+  - [ ] `openOverlay/closeOverlay`：走 OverlayManager
+  - [ ] 保留现有 streaming/tool loop 行为不动
+- [ ] 回归：`/agents` 仍可打开 AgentsDialog；`/todos` 输出仍进 messages；`/doctor` async 仍正常
+- [ ] 自检：`bun run type-check` + 相关测试子集
+
+#### PR0b-5：REPL 侧 overlay 渲染收口（可选，按现状决定）
+- [ ] 如目前 overlay 仍是多个 boolean（agentsDialogOpen 等），则改为从 OverlayManager 的 `current()` 映射渲染
+- [ ] 保证：关闭 overlay 回到上一层（与 Claude Code /agents 行为一致）
+
+#### PR0b-6：把“model 注入”也纳入契约（最小化）
+- [ ] `ModelEffect.injectNextTurn(blocks)` 先只用于：
+  - [ ] 把 local command stdout 记录（你们已有 `<local-command-stdout>` 的注入逻辑，可迁移为 effect）
+  - [ ] 其他注入暂不动（plan mode/system-reminder/todos 提醒等保持原路径）
+
+### 验收（PR0b 总验收）
+- [ ] `bun run type-check`
+- [ ] `bun run test`
+- [ ] 手动：`/agents`、`/todos`、`/doctor`、普通对话与工具调用均不回归
+
 ### 目标
 - 所有命令（built-in + file command）执行后，都返回一个**结构化结果**，由 REPL/controller 统一解释并落入：
   - UI（是否追加到 messages、是否打开 overlay、是否 toast）
