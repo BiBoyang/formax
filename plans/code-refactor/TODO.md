@@ -157,12 +157,12 @@
 - [x] 自检：`bun run type-check`
 
 #### PR0b-2：OverlayManager（不改行为）
-- [ ] 新增 `src/features/repl/overlays/OverlayManager.ts`
+- [x] 新增 `src/features/repl/overlays/OverlayManager.ts`
   - [ ] `open(spec)` / `close()` / `current()`
   - [ ] 约束：overlay 只影响“上层面板渲染”，不触碰 Static append-only message 渲染
 - [ ] 在 `useReplController` 内接入 OverlayManager（但先不替换已有 booleans）
-- [ ] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
-- [ ] 自检：`bun run test -- src/features/repl/overlays/OverlayManager.test.ts`
+- [x] 单测：`src/features/repl/overlays/OverlayManager.test.ts`
+- [x] 自检：`bun run test -- src/features/repl/overlays/OverlayManager.test.ts`
 
 #### PR0b-3：命令执行统一返回 CommandResult（先做适配层，避免大爆炸）
 - [ ] 新增 adapter：`src/features/commands/adapter.ts`
