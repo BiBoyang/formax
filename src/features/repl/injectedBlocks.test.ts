@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { buildClaudeMdInjectedBlocks, buildTodoInjectedBlocks } from './injectedBlocks'
+import { buildClaudeMdInjectedBlocks, buildLocalCommandInjectedBlocks, buildTodoInjectedBlocks } from './injectedBlocks'
 import { resolveTodosPath } from '../../tools/runtime/todosFile'
 
 describe('repl injected blocks', () => {
@@ -75,5 +75,18 @@ describe('repl injected blocks', () => {
       else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it('builds local command injected blocks', () => {
+    const blocks = buildLocalCommandInjectedBlocks({
+      commandName: '/todos',
+      commandMessage: 'todos',
+      commandArgs: '',
+      stdout: 'hi',
+    })
+    expect(blocks).toHaveLength(3)
+    expect((blocks[0] as any).text).toContain('Caveat:')
+    expect((blocks[1] as any).text).toContain('<command-name>/todos</command-name>')
+    expect((blocks[2] as any).text).toContain('<local-command-stdout>hi</local-command-stdout>')
   })
 })
