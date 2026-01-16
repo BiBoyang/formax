@@ -11,10 +11,19 @@ Goal:
 - Only when you are truly done, print exactly: $PROMISE
 
 Rules:
-- Work in small steps, run the relevant checks after changes.
-- If a check fails, fix and re-run.
-- Do not claim completion until checks pass.
-- Raise the bar: after checks pass, do a quick quality pass (clarity, duplication, edge cases) and run `codex review --uncommitted`; fix all high/medium findings and any low-risk issues that are clearly correct and low-churn.
+- Work in small steps, but avoid “heavy” verification for tiny edits (formatting, copy changes, comments/docs only).
+- Use a 2-level verification loop:
+  - Inner loop (fast): after each change, run the minimal check(s) needed for confidence.
+    - Prefer targeted tests for the files you touched (e.g. `bun run test -- path/to/test`), not the full suite.
+    - Skip running tests for pure formatting/docs changes unless you suspect you broke behavior.
+  - Outer loop (gate): before claiming DONE (and before committing, if applicable), run the gates that make sense for the scope of change:
+    - If you touched TS/TSX logic: `bun run type-check`
+    - Run the most relevant tests (targeted first); run full `bun run test` only when changes are broad/cross-cutting or you are unsure.
+- If any check fails, fix and re-run only what’s relevant until green.
+- Raise the bar beyond “green checks”:
+  - Do a quick quality pass (clarity, duplication, edge cases, abort/cancel flows, UI interactions).
+  - Run `codex review --uncommitted` once near the end of the task; fix all high/medium findings and any low-risk issues that are clearly correct and low-churn.
+- Do not claim completion until the chosen gate checks pass and the quality pass is done.
 
 TASK:
 $TASK

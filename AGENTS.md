@@ -48,6 +48,10 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Commits follow Conventional Commit style in history: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:` with optional scope (`refactor(chat): ...`).
 - Avoid placeholder messages like `tmp`; keep summaries imperative and specific.
 - PRs should include a concise description, link relevant issues/plans, list tests run, and add terminal screenshots for Ink UI changes.
+- **Commit workflow (when user says “commit”)**: assume the user already ran `git add`. Do:
+  - `git status --short` and `git diff --cached` (or `git diff --cached --stat`)
+  - Generate a Conventional Commit message: `type(scope): summary` (≤72 chars, imperative)
+  - Run `git commit -m "<message>"`
 
 ## Documentation Hygiene
 - Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
