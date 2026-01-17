@@ -6,7 +6,6 @@ import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
-import { formatToolCallParts } from '../../../utils/toolFormatting'
 import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
 
 export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
@@ -15,8 +14,7 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
-  const { name, input, status } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { input, status } = message.toolInfo
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -30,10 +28,10 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
       <Box>
         <PulsingDot color={dotColor} pulse={status === 'running'} />
         <Text bold color={theme.text}>
-          {toolName}
+          Skill
         </Text>
         <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{params}</Text>
+        <Text color={theme.secondaryText}>{skillName || 'unknown'}</Text>
         <Text color={theme.secondaryText}>)</Text>
       </Box>
 
@@ -51,15 +49,14 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
         />
       ) : null}
 
-      {status !== 'running' && message.content ? (
+      {status === 'error' && message.content ? (
         <Box flexDirection="column">
           <Box>
             <Text color={theme.secondaryText}>⎿  </Text>
-            <Text>{message.content}</Text>
+            <Text color={theme.error}>{message.content}</Text>
           </Box>
         </Box>
       ) : null}
     </Box>
   )
 }
-

@@ -484,6 +484,22 @@ export function useReplController(deps: {
             )
           }
 
+          if (toolName === 'Skill' && !ev.result.is_error) {
+            return prev.map((m) =>
+              m.id === toolMsgId
+                ? {
+                    ...m,
+                    content: '',
+                    toolInfo: {
+                      ...m.toolInfo!,
+                      status: 'completed',
+                      result: rawResult,
+                    },
+                  }
+                : m,
+            )
+          }
+
           const { summary, middleLines, expandInfo, lines } = formatToolResult(
             toolName,
             displayResult,

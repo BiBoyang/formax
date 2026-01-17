@@ -107,10 +107,10 @@
 
 目标：把 Skill 的展示压缩为 Claude Code 风格的一行，减少“JSON 输入/冗长 baseDir”噪音。
 
-- [ ] 调整 Skill 的 UI 展示结构，尽量对齐：
+- [x] 调整 Skill 的 UI 展示结构，尽量对齐：
   - Claude Code：`⏺ Skill(frontend-design)`
-  - Formax（目标）：同样只显示一行 `Skill(<name>)`，其余信息用折叠/次级区展示或省略
-- [ ] 需要决定：`Base directory for this skill` 是否仍展示（Claude Code 是否展示取决于抓包/录像证据）
+  - Formax（实现）：同样只显示一行 `Skill(<name>)`；不再在 UI 中输出 tool_result 的 `Launching skill.../Base directory...` 等内容
+- [x] `Base directory for this skill`：不在 UI 中展示（依据 `plans/skills/4.txt` 的终端输出）
 
 ### 9. Markdown 渲染支持（可后置）
 
