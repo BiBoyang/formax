@@ -14,7 +14,7 @@ import { formatPolicyExplainLines } from './policyExplain.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
-import { buildFsWritePermissionKey, isFsWriteToolName } from '../../adapters/permissions/permissionKeys.js'
+import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
 
 export function createPolicyPreflight(args: {
   fileStore: FileStore
@@ -64,14 +64,6 @@ export function createPolicyPreflight(args: {
       effectiveDecision = 'allow'
     }
 
-    // Claude Code-style permissions allow-list can bypass prompts for certain tools.
-    // (We still respect deny rules and plan-mode hard limits above.)
-    if (effectiveDecision === 'prompt' && action.kind === 'fs.write' && isFsWriteToolName(call.name)) {
-      const allow = await loadProjectPermissionsAllowList({ fileStore: args.fileStore, cwd })
-      const key = buildFsWritePermissionKey({ toolName: call.name, filePath: action.path, cwd })
-      if (allow.has(key)) effectiveDecision = 'allow'
-    }
-
     // Bash: require approval for commands our classifier marks as confirm (unless an allow rule matched).
     if (call.name === 'Bash' && action.kind === 'bash.exec') {
       const input = call.input
@@ -90,7 +82,17 @@ export function createPolicyPreflight(args: {
 
       const allowByRule = Boolean(explained.matchedRule && explained.decision === 'allow')
       const shouldPrompt = (decision.risk === 'confirm' || dangerouslyDisableSandbox) && !allowByRule
-      if (shouldPrompt) effectiveDecision = 'prompt'
+      if (shouldPrompt && effectiveDecision !== 'deny') effectiveDecision = 'prompt'
+
+      // Repo-local permissions allow-list can bypass prompts (Claude Code style).
+      // IMPORTANT: explicit policy "ask/prompt" rules must still prompt (ask > allow).
+      const promptByRule = Boolean(explained.matchedRule && explained.decision === 'prompt')
+      if (effectiveDecision === 'prompt' && !promptByRule) {
+        const allow = await loadProjectPermissionsAllowList({ fileStore: args.fileStore, cwd })
+        if (allow.size > 0 && matchesBashAllowList({ allow, command })) {
+          effectiveDecision = 'allow'
+        }
+      }
     }
 
     if (args.audit) {
@@ -159,4 +161,31 @@ export function createPolicyPreflight(args: {
     if ('result' in approved) return approved.result
     return null
   }
+}
+
+function matchesBashAllowList(args: { allow: Set<string>; command: string }): boolean {
+  const command = String(args.command || '').trim()
+  if (!command) return false
+
+  // Exact match is the safe default.
+  if (args.allow.has(buildToolPermissionKey('Bash', command))) return true
+
+  // Prefix match: Bash(<prefix>:*) means allow any command starting with <prefix>.
+  // This mirrors Claude Code's documented behavior (operator-aware matching is handled
+  // by the Bash command classifier; we also keep deny rules as highest priority).
+  for (const raw of args.allow) {
+    const m = /^Bash\((.*)\)$/.exec(String(raw))
+    if (!m) continue
+    const inner = String(m[1] ?? '')
+    if (!inner.endsWith(':*')) continue
+    const prefix = inner.slice(0, -2).trim()
+    if (!prefix) continue
+    if (command === prefix) return true
+    if (command.startsWith(prefix)) {
+      const next = command.slice(prefix.length, prefix.length + 1)
+      if (!next || /\s/.test(next)) return true
+    }
+  }
+
+  return false
 }

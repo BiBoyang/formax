@@ -7,6 +7,10 @@
 - [x] **不做 pattern 匹配**（glob/prefix）：
   - `permissions.allow` 只支持精确 `Skill(<name>)`；
   - 不支持 `Skill(*)` / `Skill(frontend-*)` 等规则（复杂度收益比不划算）。
+- [x] **权限语义对齐 Claude Code（忽略历史遗留）**：
+  - `Write/Edit/NotebookEdit` 的 “remember/allow all edits” 仅对当前会话生效（切到 `acceptEdits`），不写入 `permissions.allow`
+  - `Bash` 的 “don’t ask again” 才会写入 `<projectRoot>/.formax/settings.local.json` 的 `permissions.allow`
+  - `Bash` 并不是“每条命令都要确认”：默认仍以策略引擎为准（`bash.exec` 默认 `allow`），仅当命令被判定为“可能产生副作用/需要二次确认”（例如重定向、`rm/mv/mkdir/...` 等）才会进入审批流程
 - [x] **Project root 解析规则**（对齐 Claude/OpenCode 的“在子目录运行仍能发现项目配置”体验）：
   1. 从 `cwd` 向上查找最近的 `.formax/`；若找到，则以该目录为 projectRoot；
   2. 否则若能找到 git root，则以 git root 为 projectRoot；
@@ -99,7 +103,8 @@
   - 保持“运行时热读取”：移除 allow 后无需重启也会重新提示
   - 代码位置：`src/adapters/permissions/permissionsStore.ts`
 - [ ] 把以下能力逐步迁移到统一权限/审批体系（按风险从高到低）：
-  - [ ] 执行命令（Bash / local command）
+  - [x] 执行命令（Bash）
+  - [ ] 执行命令（local command；需要抓包确认 Claude Code 的 key 形式再做）
   - [x] 写文件/编辑文件（Write/Edit/NotebookEdit）
   - [ ] 其它需要“允许/拒绝/手动审批”的工具行为
 

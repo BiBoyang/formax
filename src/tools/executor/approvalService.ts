@@ -14,7 +14,7 @@ import { nowIso } from '../../core/audit/schema.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import { persistProjectPermissionAllow } from '../../adapters/permissions/permissionsStore.js'
-import { buildFsWritePermissionKey, isFsWriteToolName } from '../../adapters/permissions/permissionKeys.js'
+import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
 
 type ApprovalAnswer = {
   decision?: string
@@ -185,6 +185,31 @@ export function createApprovalService(args: {
           scope,
         })
       }
+
+      // Claude Code semantics:
+      // - File edits are "remembered" by switching the session into accept-edits mode (no persistence).
+      // - Persistent allow-lists are reserved for other permission types (e.g. Bash, Skill).
+      if (args2.action.kind === 'fs.write') {
+        ctx.setReplMode?.('acceptEdits')
+        return { ok: true }
+      }
+
+      // Bash: remember by writing into repo-local permissions.allow.
+      if (args2.action.kind === 'bash.exec' && call.name === 'Bash') {
+        const cwd = ctx.cwd || process.cwd()
+        const key = buildToolPermissionKey('Bash', args2.action.command)
+        try {
+          await persistProjectPermissionAllow({ fileStore: args.fileStore, cwd, key })
+          return { ok: true }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return {
+            ok: false,
+            result: { tool_use_id: call.id, content: `Error: Failed to save settings.local.json: ${msg}`, is_error: true },
+          }
+        }
+      }
+
       if (scope === 'session') {
         // For session-only remembers, rely on existing REPL modes where applicable
         // (e.g. acceptEdits) and also keep a conservative policy allow for this action.
@@ -196,23 +221,6 @@ export function createApprovalService(args: {
           }),
         )
         return { ok: true }
-      }
-
-      // Claude Code-style permissions allow-list for write tools: store in repo settings.local.json.
-      // This keeps "don't ask again" decisions hot-reloadable without requiring a restart.
-      if (args2.action.kind === 'fs.write' && isFsWriteToolName(call.name)) {
-        const cwd = ctx.cwd || process.cwd()
-        const key = buildFsWritePermissionKey({ toolName: call.name, filePath: args2.action.path, cwd })
-        try {
-          await persistProjectPermissionAllow({ fileStore: args.fileStore, cwd, key })
-          return { ok: true }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          return {
-            ok: false,
-            result: { tool_use_id: call.id, content: `Error: Failed to save settings.local.json: ${msg}`, is_error: true },
-          }
-        }
       }
 
       const persisted = await persistAllowRule({

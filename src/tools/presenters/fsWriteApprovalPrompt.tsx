@@ -2,31 +2,47 @@ import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 
-export type BashApprovalDecision =
+export type FsWriteApprovalDecision =
   | { kind: 'approve' }
   | { kind: 'approve_remember' }
   | { kind: 'feedback'; feedback: string }
   | { kind: 'cancel' }
 
-export function BashApprovalPrompt({
+export function FsWriteApprovalPrompt({
   title,
-  command,
-  cwd,
   onDecision,
 }: {
   title: string
-  command: string
-  cwd: string
-  onDecision: (decision: BashApprovalDecision) => void
+  onDecision: (decision: FsWriteApprovalDecision) => void
 }): React.ReactNode {
   const theme = getTheme()
   const [cursor, setCursor] = useState(0) // 0..3
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
   const submittedRef = useRef(false)
+  const cursorRef = useRef(0)
+  const typingRef = useRef(false)
+  const typingValueRef = useRef('')
+
+  const setCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
+    const v = typeof next === 'function' ? next(cursorRef.current) : next
+    cursorRef.current = v
+    setCursor(v)
+  }, [])
+
+  const setTypingImmediate = useCallback((next: boolean) => {
+    typingRef.current = next
+    setTyping(next)
+  }, [])
+
+  const setTypingValueImmediate = useCallback((next: string | ((current: string) => string)) => {
+    const v = typeof next === 'function' ? next(typingValueRef.current) : next
+    typingValueRef.current = v
+    setTypingValue(v)
+  }, [])
 
   const submit = useCallback(
-    (d: BashApprovalDecision) => {
+    (d: FsWriteApprovalDecision) => {
       if (submittedRef.current) return
       submittedRef.current = true
       onDecision(d)
@@ -37,81 +53,83 @@ export function BashApprovalPrompt({
   useInput(
     (input, key) => {
       if (submittedRef.current) return
+      const currentCursor = cursorRef.current
+      const isTyping = typingRef.current
 
       if (key.escape) {
         submit({ kind: 'cancel' })
         return
       }
 
-      if (typing) {
+      if (isTyping) {
+        // Preserve the draft even if you navigate away while typing.
         if (key.upArrow) {
-          setTyping(false)
-          setCursor((c) => Math.max(0, c - 1))
+          setTypingImmediate(false)
+          setCursorImmediate((c) => Math.max(0, c - 1))
           return
         }
         if (key.downArrow) {
-          setTyping(false)
-          setCursor((c) => Math.min(3, c + 1))
+          setTypingImmediate(false)
+          setCursorImmediate((c) => Math.min(3, c + 1))
           return
         }
 
         if (key.return) {
-          submit({ kind: 'feedback', feedback: typingValue.trim() })
+          submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })
           return
         }
 
         if (key.backspace || key.delete) {
-          setTypingValue((v) => v.slice(0, -1))
+          setTypingValueImmediate((v) => v.slice(0, -1))
           return
         }
 
         if (input && !key.ctrl && !key.meta) {
-          setTypingValue((v) => v + input)
-          return
+          setTypingValueImmediate((v) => v + input)
         }
 
         return
       }
 
       if (key.upArrow) {
-        setCursor((c) => Math.max(0, c - 1))
+        setCursorImmediate((c) => Math.max(0, c - 1))
         return
       }
       if (key.downArrow) {
-        setCursor((c) => Math.min(3, c + 1))
+        setCursorImmediate((c) => Math.min(3, c + 1))
         return
       }
 
       if (key.return) {
-        if (cursor === 0) submit({ kind: 'approve' })
-        else if (cursor === 1) submit({ kind: 'approve_remember' })
-        else if (cursor === 2) setTyping(true)
+        if (currentCursor === 0) submit({ kind: 'approve' })
+        else if (currentCursor === 1) submit({ kind: 'approve_remember' })
+        else if (currentCursor === 2) setTypingImmediate(true)
         else submit({ kind: 'cancel' })
         return
       }
 
-      if (cursor === 2 && input && !key.ctrl && !key.meta) {
-        setTyping(true)
-        setTypingValue((v) => v + input)
+      // When the "custom message" row is selected, any character (including digits)
+      // should start editing instead of triggering numeric shortcuts.
+      if (currentCursor === 2 && input && !key.ctrl && !key.meta) {
+        setTypingImmediate(true)
+        setTypingValueImmediate((v) => v + input)
         return
       }
 
       if (input === '1') {
-        setCursor(0)
+        setCursorImmediate(0)
         return
       }
       if (input === '2') {
-        setCursor(1)
+        setCursorImmediate(1)
         return
       }
       if (input === '3') {
-        setCursor(2)
-        setTyping(true)
-        setTypingValue('')
+        setCursorImmediate(2)
         return
       }
       if (input === '4') {
-        setCursor(3)
+        setCursorImmediate(3)
         return
       }
     },
@@ -124,28 +142,29 @@ export function BashApprovalPrompt({
         <Text bold>{title}</Text>
       </Box>
 
-      <Box marginBottom={1} flexDirection="column">
-        <Text color={theme.secondaryText}>Command:</Text>
-        <Text>{command || '(empty)'}</Text>
-        <Text color={theme.secondaryText}>Cwd:</Text>
-        <Text color={theme.secondaryText}>{cwd}</Text>
-      </Box>
-
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes" />
-        <MenuRow cursor={cursor === 1} label="2. Yes, don't ask again for this command in this repo" />
+        <MenuRow cursor={cursor === 1} label="2. Yes, allow all edits during this session (shift+tab)" />
         <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
         <MenuRow cursor={cursor === 3} label="4. Cancel" dim />
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Esc to cancel</Text>
+        <Text color={theme.secondaryText}>Esc to interrupt</Text>
       </Box>
     </Box>
   )
 }
 
-function MenuRow({ cursor, label, dim }: { cursor: boolean; label: string; dim?: boolean }): React.ReactNode {
+function MenuRow({
+  cursor,
+  label,
+  dim,
+}: {
+  cursor: boolean
+  label: string
+  dim?: boolean
+}): React.ReactNode {
   const theme = getTheme()
   const color = cursor ? theme.text : theme.secondaryText
   return (
@@ -171,16 +190,18 @@ function FeedbackRow({
   const showPlaceholder = !typing && !hasValue
 
   const color = cursor ? theme.text : theme.secondaryText
+  const placeholderColor = theme.secondaryText
 
   return (
     <Box>
       <Text>{cursor ? '❯ ' : '  '}</Text>
       <Text color={color}>3. </Text>
       {showPlaceholder ? (
-        <Text color={theme.secondaryText}>Type here to tell Claude what to do differently</Text>
+        <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
       ) : (
         <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
       )}
     </Box>
   )
 }
+

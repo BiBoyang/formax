@@ -4,7 +4,7 @@ import { ToolMessage } from '../../../components/tool/ToolMessage'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
+import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 export const NotebookEditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
@@ -20,13 +20,12 @@ export const NotebookEditToolPresenter: ToolPresenter = ({ message }: { message:
 
   if (status === 'running' && userInput?.isPending(toolUseId)) {
     return (
-      <EditApprovalPrompt
+      <FsWriteApprovalPrompt
         title={`Do you want to edit ${notebookName}?`}
         onDecision={(d) => {
           if (!userInput) return
           if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-          else if (d.kind === 'approve_remember')
-            userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
+          else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
           else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
           else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
         }}

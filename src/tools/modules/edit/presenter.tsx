@@ -9,7 +9,7 @@ import { usePlanSession } from '../../../features/repl/planContext'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
+import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 const MAX_PREVIEW_LINES = 12
@@ -79,13 +79,12 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         </Box>
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
-        <EditApprovalPrompt
+        <FsWriteApprovalPrompt
           title={`Do you want to edit ${fileName}?`}
           onDecision={(d) => {
             if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_remember')
-              userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
+            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
             else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
             else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
           }}

@@ -6,7 +6,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
+import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
@@ -94,15 +94,13 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
             ) : null}
           </Box>
 
-          <EditApprovalPrompt
+          <FsWriteApprovalPrompt
             title={`Do you want to create ${fileName}?`}
             onDecision={(d) => {
               if (!userInput) return
               if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-              else if (d.kind === 'approve_remember')
-                userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
-              else if (d.kind === 'feedback')
-                userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+              else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+              else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
               else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
             }}
           />

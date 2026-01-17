@@ -6,7 +6,6 @@ import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { createApprovalService, type ApprovalService } from './approvalService.js'
 import { createPolicyPreflight } from './policyPreflight.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
-import { buildFsWritePermissionKey } from '../../adapters/permissions/permissionKeys.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -200,7 +199,7 @@ describe('createPolicyPreflight', () => {
     }
   })
 
-  it('persists allow rules when approval is remembered for project scope', async () => {
+  it('stores Bash remembers in permissions.allow and bypasses prompts when allowed', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-remember-'))
     try {
       const store = createNodeFileStore()
@@ -208,6 +207,7 @@ describe('createPolicyPreflight', () => {
       const projectDir = path.join(dir, 'repo')
       await fs.mkdir(globalConfigDir, { recursive: true })
       await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
 
       const approval = createApprovalService({
         fileStore: store,
@@ -237,15 +237,8 @@ describe('createPolicyPreflight', () => {
       )
       expect(res).toBeNull()
 
-      const rulesPath = path.join(projectDir, '.formax', 'rules.json')
-      const json = JSON.parse(await fs.readFile(rulesPath, 'utf8'))
-      expect(json.version).toBe(1)
-      expect(Array.isArray(json.rules)).toBe(true)
-      expect(json.rules.length).toBe(1)
-      expect(json.rules[0].scope).toBe('project')
-      expect(json.rules[0].decision).toBe('allow')
-      expect(json.rules[0].match.kind).toBe('bash.exec')
-      expect(json.rules[0].match.commandPrefix).toBe(command)
+      const allow = await loadProjectPermissionsAllowList({ fileStore: store, cwd: projectDir })
+      expect(allow.has(`Bash(${command})`)).toBe(true)
 
       const withoutApproval = createPolicyPreflight({
         fileStore: store,
@@ -258,6 +251,54 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
       )
       expect(res2).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not bypass an explicit prompt rule even if Bash is in permissions.allow', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-ask-overrides-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'ask-mkdir',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'bash.exec', commandPrefix: 'mkdir' },
+          },
+        ],
+      })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: { allow: ['Bash(mkdir foo)'] },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'mkdir foo' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Policy requires approval for bash.exec')
+      expect(res?.content).toContain('PolicyDecision: prompt')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -415,7 +456,7 @@ describe('createPolicyPreflight', () => {
     }
   })
 
-  it('stores fs.write remembers in permissions.allow and bypasses prompts when allowed', async () => {
+  it('treats fs.write remembers as accept-edits mode (no permissions.allow persistence)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-write-permissions-'))
     try {
       const store = createNodeFileStore()
@@ -425,10 +466,10 @@ describe('createPolicyPreflight', () => {
       await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
 
       const filePath = path.join(projectDir, 'a.txt')
-      const key = buildFsWritePermissionKey({ toolName: 'Write', filePath, cwd: projectDir })
 
+      let mode: any = 'normal'
       const userInput = {
-        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+        requestAnswers: async () => ({ decision: 'approve_remember' }),
         submitAnswers: () => true,
         reject: () => true,
         isPending: () => true,
@@ -445,18 +486,36 @@ describe('createPolicyPreflight', () => {
 
       const first = await preflight(
         { id: 't1', name: 'Write', input: { file_path: filePath, content: 'hi' } },
-        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: true },
+        {
+          cwd: projectDir,
+          agentDepth: 0,
+          replMode: 'normal',
+          getReplMode: () => mode,
+          setReplMode: (m) => {
+            mode = m
+          },
+          interactive: true,
+        },
       )
       expect(first).toBeNull()
 
       const allow = await loadProjectPermissionsAllowList({ fileStore: store, cwd: projectDir })
-      expect(allow.has(key)).toBe(true)
+      expect(Array.from(allow)).toEqual([])
 
       // Once remembered, a non-interactive context should still be able to proceed
-      // because the prompt can be bypassed.
+      // because accept-edits mode no longer prompts for fs.write.
       const second = await preflight(
         { id: 't2', name: 'Write', input: { file_path: filePath, content: 'hi again' } },
-        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+        {
+          cwd: projectDir,
+          agentDepth: 0,
+          replMode: 'normal',
+          getReplMode: () => mode,
+          setReplMode: (m) => {
+            mode = m
+          },
+          interactive: false,
+        },
       )
       expect(second).toBeNull()
     } finally {
