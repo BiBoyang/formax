@@ -27,11 +27,14 @@
 Formax 只对齐机制与行为，目录以 `.formax` 为准（不读取 `.claude`）。
 
 - skills 扫描/元数据：`src/skills/SkillStore.ts`
+  - projectRoot 解析：`src/adapters/fs/projectRoot.ts`
+  - 扫描目录：`<projectRoot>/.formax/skills`（project 覆盖 user）
+  - 进程内缓存：per-projectRoot TTL（`FORMAX_SKILL_STORE_CACHE_TTL_MS`，默认 5s；无 `/skills reload`）
 - `Skill` tool spec（含 `<available_skills>`）：`src/tools/modules/skill/spec.ts`
 - 每轮按 cwd 动态注入 `<available_skills>`：`src/tools/modules/skill/index.ts` + `src/features/repl/useReplController.ts`
 - `Skill` tool handler（tool_result 注入文本）：`src/tools/modules/skill/handler.ts`
 - repo 级 allowList（落盘）：`src/adapters/permissions/skillAllowList.ts`
-  - 文件路径：`<repoRoot>/.formax/settings.local.json`
+  - 文件路径：`<projectRoot>/.formax/settings.local.json`（projectRoot 规则见 `src/adapters/fs/projectRoot.ts`）
   - 记录格式：`permissions.allow` 包含 `Skill(frontend-design)` 这样的字符串
 - Skill 调用前的本地确认（preflight + UI）：  
   - preflight：`src/tools/executor/skillPreflight.ts`
@@ -55,4 +58,3 @@ Formax 只对齐机制与行为，目录以 `.formax` 为准（不读取 `.claud
 5. 手动编辑 `<repo>/.formax/settings.local.json` 删除 `Skill(frontend-design)` 后再触发：应重新弹确认
 
 以上流程用来验证“落盘 + 热更新”是否对齐 Claude Code 的行为。
-

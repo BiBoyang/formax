@@ -2,6 +2,16 @@
 
 基于 `plans/skills/PRD.md`（P0 必须做）拆分；默认只做 `.formax`。
 
+## 决策（已确认）
+
+- [x] **不做 pattern 匹配**（glob/prefix）：
+  - `permissions.allow` 只支持精确 `Skill(<name>)`；
+  - 不支持 `Skill(*)` / `Skill(frontend-*)` 等规则（复杂度收益比不划算）。
+- [x] **Project root 解析规则**（对齐 Claude/OpenCode 的“在子目录运行仍能发现项目配置”体验）：
+  1. 从 `cwd` 向上查找最近的 `.formax/`；若找到，则以该目录为 projectRoot；
+  2. 否则若能找到 git root，则以 git root 为 projectRoot；
+  3. 否则退回 `cwd`。
+
 ## 0. 基线（现状盘点）
 
 - [x] 已有 Skill 文件扫描：`src/skills/SkillStore.ts`（user + project，project 覆盖 user）
@@ -14,7 +24,7 @@
 
 ## 1. 权限存储（repo 级 settings.local.json）
 
-- [x] 定义 repo settings 文件位置：`<repoRoot>/.formax/settings.local.json`（`src/adapters/permissions/skillAllowList.ts`）
+- [x] 定义 repo settings 文件位置：`<projectRoot>/.formax/settings.local.json`（按“Project root 解析规则”得到的 projectRoot）
 - [x] 定义最小 schema：
   - `version: 1`
   - `permissions.allow: string[]`（含 `Skill(frontend-design)`）
@@ -26,17 +36,17 @@
 ## 2. Skill spec 的 `<available_skills>` 动态注入
 
 - [x] 调整生成逻辑：由“模块初始化时 `process.cwd()`”改为“每次构建 tools spec 时按当前会话 cwd/repoRoot”
-- [ ] `<available_skills>` 产出格式对齐（最小可用）：
+- [x] `<available_skills>` 产出格式对齐（最小可用）：
   - `name` + `description`
   - 不默认暴露绝对路径（除非你确认 Claude Code 在 tool desc 中也包含 path）
-- [ ] 单测：同进程切换 cwd（或模拟不同 repoRoot）时，`<available_skills>` 会变化（暂缺）
+- [x] 单测：同进程切换 cwd（或模拟不同 repoRoot）时，`<available_skills>` 会变化
 
 ## 3. Skill tool handler 的输出对齐
 
 - [x] tool_result 第一行：`Launching skill: <name>`
 - [x] 追加：`Base directory for this skill: <dir>`
 - [x] 追加：完整 instructions（按 char budget 截断）
-- [ ] Unknown skill：错误信息包含 available list（只列 name）
+- [x] Unknown skill：错误信息包含 available list（只列 name）
 - [x] 单测：基础路径 + 输出对齐（`src/tools/modules/skill/handler.test.ts`）
 
 ## 4. UI gating（Skill 调用时确认 + 记住选择）
@@ -68,7 +78,13 @@
 
 ---
 
-## 未决/不做（暂缓）
+## 下一步（P0 续作，建议尽快落地）
+
+- [x] Progressive disclosure：SkillStore 扫描阶段只读 frontmatter，不读取/缓存全文 body（只在 Skill 执行时读 body）
+- [x] Skill 索引缓存（Codex 风格）：对 `<available_skills>` 的索引结果做 per-projectRoot 的进程内缓存（带 TTL；先不做 `/skills reload`）
+- [x] 将技能发现的 project 目录从 `cwd/.formax/skills` 改为 `<projectRoot>/.formax/skills`（按“Project root 解析规则”）
+
+## 未决/不做（暂缓/需再确认）
 
 - [ ] 全局 `~/.formax/settings.json`（对标 Claude 的 `~/.claude/settings.json`）——等你确认是否要引入
 - [ ] 多 skill + tool 自动选择精细策略（需要更多抓包）

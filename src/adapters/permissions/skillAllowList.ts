@@ -1,5 +1,6 @@
 import path from 'node:path'
 import type { FileStore } from '../fs/fileStore.js'
+import { resolveFormaxProjectRoot } from '../fs/projectRoot.js'
 
 export type SkillAllowList = {
   version: 1
@@ -14,7 +15,8 @@ export function buildSkillPermissionKey(skillName: string): string {
 }
 
 export function getProjectSettingsLocalPath(cwd: string): string {
-  return path.join(cwd || process.cwd(), '.formax', 'settings.local.json')
+  const projectRoot = resolveFormaxProjectRoot(cwd || process.cwd())
+  return path.join(projectRoot, '.formax', 'settings.local.json')
 }
 
 function parseAllowListJson(raw: string): string[] {
@@ -93,4 +95,3 @@ export async function persistProjectSkillAllow(args: {
 
   await args.fileStore.writeJsonAtomic(filePath, next, { pretty: true, trailingNewline: true })
 }
-

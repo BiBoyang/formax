@@ -5,6 +5,8 @@ import { getConfigPaths } from '../../../adapters/fs/configPaths'
 import { createSkillStore } from '../../../skills/SkillStore'
 import { truncateByCharBudget } from '../../../invokables/charBudget'
 import path from 'node:path'
+import fsp from 'node:fs/promises'
+import { parseMarkdownFrontmatter } from '../../../shared/frontmatter'
 
 const DEFAULT_SKILL_BODY_CHAR_BUDGET = 60000
 
@@ -52,7 +54,12 @@ export const SkillToolHandler: ToolHandler = {
         }
       }
 
-      const { kept, truncated } = truncateByCharBudget(meta.body.split(/\r?\n/g), getSkillBodyCharBudget())
+      const rawSkill = await fsp.readFile(meta.filePath, 'utf8')
+      const parsed = parseMarkdownFrontmatter(rawSkill)
+      const fullBody = (parsed?.body ?? rawSkill).trim()
+      if (!fullBody) throw new Error(`Empty skill file: ${meta.name}`)
+
+      const { kept, truncated } = truncateByCharBudget(fullBody.split(/\r?\n/g), getSkillBodyCharBudget())
       const body = kept.join('\n')
 
       return {

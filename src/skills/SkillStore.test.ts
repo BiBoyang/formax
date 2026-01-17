@@ -26,6 +26,22 @@ describe('SkillStore', () => {
     expect(meta?.scope).toBe('project')
   })
 
+  it('finds project skills when running from a subdirectory', async () => {
+    const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-root-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
+
+    await writeFileEnsuringDir(
+      path.join(projectRoot, '.formax', 'skills', 'build', 'SKILL.md'),
+      ['---', 'description: Build skill', '---', '', 'Build things'].join('\n'),
+    )
+
+    const nestedCwd = path.join(projectRoot, 'src', 'nested')
+    await fsp.mkdir(nestedCwd, { recursive: true })
+
+    const store = createSkillStore({ cwd: nestedCwd, globalConfigDir })
+    expect(store.get('build')?.scope).toBe('project')
+  })
+
   it('prefers project skill over user skill for same name', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-'))
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
