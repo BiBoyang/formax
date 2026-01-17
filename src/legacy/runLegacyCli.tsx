@@ -10,6 +10,8 @@ import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { createToolExecutor } from '../tools/executor/index.js'
 import { createApprovalService } from '../tools/executor/approvalService.js'
 import { createPolicyPreflight } from '../tools/executor/policyPreflight.js'
+import { createSkillPreflight } from '../tools/executor/skillPreflight.js'
+import type { ToolPreflight } from '../tools/executor/index.js'
 import { createNodeAuditLog } from '../adapters/audit/nodeAuditLog.js'
 import { createSubAgentRegistry } from '../subagents/registry.js'
 import { createSubAgentRunner } from '../subagents/runner.js'
@@ -170,7 +172,10 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     : null
   const audit = createNodeAuditLog({ logsDir: cfg.paths.logsDir })
   const approval = createApprovalService({ fileStore, userInput: userInputManager, audit })
-  const preflight = createPolicyPreflight({ fileStore, approval, audit })
+  const policyPreflight = createPolicyPreflight({ fileStore, approval, audit })
+  const skillPreflight = createSkillPreflight({ fileStore, userInput: userInputManager })
+  const preflight: ToolPreflight = async (call, ctx) =>
+    (await skillPreflight(call, ctx)) ?? policyPreflight(call, ctx)
   const localExecutor = createToolExecutor(toolRegistry.getHandlers(), { preflight, audit })
   const subAgentRunner = createSubAgentRunner({
     client,

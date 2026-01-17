@@ -4,6 +4,7 @@ import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
 import { createSkillStore } from '../../../skills/SkillStore'
 import { truncateByCharBudget } from '../../../invokables/charBudget'
+import path from 'node:path'
 
 const DEFAULT_SKILL_BODY_CHAR_BUDGET = 60000
 
@@ -56,7 +57,12 @@ export const SkillToolHandler: ToolHandler = {
 
       return {
         tool_use_id: call.id,
-        content: buildSkillLoadedText({ name: meta.name, description: meta.description, filePath: meta.filePath, body, truncated }),
+        content: buildSkillLoadedText({
+          name: meta.name,
+          baseDir: path.dirname(meta.filePath),
+          body,
+          truncated,
+        }),
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -67,21 +73,15 @@ export const SkillToolHandler: ToolHandler = {
 
 function buildSkillLoadedText(args: {
   name: string
-  description: string
-  filePath: string
+  baseDir: string
   body: string
   truncated: boolean
 }): string {
   const lines: string[] = []
-  lines.push('<skill>')
-  lines.push(`name: ${args.name}`)
-  lines.push(`description: ${args.description}`)
-  lines.push(`file: ${args.filePath}`)
-  lines.push('</skill>')
+  lines.push(`Launching skill: ${args.name}`)
+  lines.push(`Base directory for this skill: ${args.baseDir}`)
   lines.push('')
-  lines.push('<skill_instructions>')
   lines.push(args.body)
-  if (args.truncated) lines.push('… (truncated)')
-  lines.push('</skill_instructions>')
+  if (args.truncated) lines.push('\n… (truncated)')
   return lines.join('\n')
 }

@@ -194,81 +194,15 @@
 - [x] `bun run test`
 - [ ] 手动：`/agents`、`/todos`、`/doctor`、普通对话与工具调用均不回归
 
-### 目标
-- 所有命令（built-in + file command）执行后，都返回一个**结构化结果**，由 REPL/controller 统一解释并落入：
-  - UI（是否追加到 messages、是否打开 overlay、是否 toast）
-  - Model（是否注入下一轮 system blocks / tool specs 等）
-- Controller 不再靠“命令名特判 + UI 直写”来驱动复杂交互。
+---
 
-### 核心类型（建议先落在 `src/features/commands/contracts.ts`）
-> 先按最小可用落地；后续再对齐 Claude Code 时再扩充字段。
+## PR0b 之后的收口说明（避免 TODO “重复/漂移”）
 
-```ts
-export type CommandResult =
-  | { consumed: false }
-  | {
-      consumed: true
-      ui?: UiEffect[]
-      model?: ModelEffect[]
-      data?: unknown
-    }
+上面 `PR0b-1..6` 已经把 webgpt1.md 里“契约层 + overlay + controller 解释”的**最小可用集合**落地了，
+因此下面不再重复列出那套“从 0 重新定义 contracts/registry/execute”的 checklist（容易造成“看起来没做完”的错觉）。
 
-export type UiEffect =
-  | { type: 'appendMessages'; messages: Array<{ role: 'assistant' | 'system'; content: string }> }
-  | { type: 'openOverlay'; overlay: OverlaySpec }
-  | { type: 'closeOverlay' }
-  | { type: 'toast'; kind: 'info' | 'warning' | 'error'; message: string }
-
-export type ModelEffect = { type: 'injectNextTurn'; blocks: Array<{ type: 'text'; text: string }> }
-
-export type OverlaySpec =
-  | { kind: 'agents' }
-  | { kind: 'todos' }
-  | { kind: 'help' }
-  | { kind: 'custom'; id: string; props?: Record<string, unknown> }
-```
-
-### 关键接口签名（草案，先用于收口依赖）
-
-```ts
-export type CommandMatch = { id: string; argsText: string }
-
-export interface CommandRegistry {
-  refresh(): Promise<void>
-  list(): Array<{ id: string; description: string; scope: 'project' | 'user' | 'builtin' }>
-  match(input: string): CommandMatch | null
-  execute(match: CommandMatch, ctx: CommandContext): Promise<CommandResult>
-}
-
-export interface OverlayManager {
-  open(spec: OverlaySpec): void
-  close(): void
-  current(): OverlaySpec | null
-}
-```
-
-### Checklist
-- [ ] 新增 `src/features/commands/contracts.ts`（上面的类型）
-- [ ] 新增 `src/features/repl/overlays/OverlayManager.ts`
-  - [ ] `open(spec)` / `close()` / `current`
-  - [ ] 作为 `useReplController` 的单一 overlay 状态来源
-- [ ] 定义 `CommandContext`（建议 `src/features/commands/types.ts`）
-  - [ ] `cwd` / `globalConfigDir` / `config`（最小）
-  - [ ] `replUi` / `toolRegistry`（可选，按需要注入）
-- [ ] `src/features/commands/registry.ts`：把 execute 返回值升级为 `CommandResult`
-  - [ ] built-in：`/help` `/agents` `/todos` `/compact`（先挑最需要“非消息输出”的命令）
-  - [ ] file command：默认走 `appendMessages`
-- [ ] `src/features/repl/useReplController.ts`：统一解释 `CommandResult.ui/model`
-  - [ ] `appendMessages` → 进入 messages/staticItems 的统一入口（避免重复逻辑）
-  - [ ] `openOverlay/closeOverlay` → 走 `OverlayManager`
-- [ ] 最小测试
-  - [ ] 命令返回 `openOverlay(agents)` 时，controller 不再字符串特判
-  - [ ] `appendMessages` 的 message 进入正确列表（static vs streaming 规则不变）
-
-### DoD
-- [ ] `/agents` 不再依赖 controller 特判（仅通过 `openOverlay`）
-- [ ] `bun run type-check`
-- [ ] `bun run test`（至少覆盖 commands + controller 的最小 happy path）
+如果后续要把 `registry.ts` 从 `SlashCommandEffect` 完全升级为 `CommandResult`（并把 `/help` `/compact` 等也纳入统一管线），
+会单独开一个新 PR（例如 `PR0c`），届时再重新列 checklist。
 
 ---
 
@@ -381,7 +315,6 @@ export interface OverlayManager {
 
 ## 3. 需要你决策的点（不决策就先按推荐做）
 
-- [ ] command 命名空间语法：严格 `/dir:cmd`（推荐）还是支持别名 `/cmd`（需要消歧策略）
 - [ ] `<available_skills>` 是否只包含 “有 description frontmatter 的命令”（推荐严格）还是允许首行 fallback
 - [ ] Skill tool input schema：继续 `{ skill: string }`（先稳）还是升级 `{ name, args }`（更清晰但要改更多 plumbing）
 

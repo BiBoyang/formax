@@ -29,6 +29,7 @@ import type {
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
 } from '../../ui/AgentsDialog'
+import { buildSkillToolSpecForCwd } from '../../tools/modules/skill'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -1058,11 +1059,12 @@ export function useReplController(deps: {
           getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
         }
         const historyLen = prunedHistory.length
+        const toolsForTurn = patchToolsForTurn(deps.tools, cwd)
         const nextHistory = await deps.engine.runTurn({
           history: prunedHistory,
           user: prunedUser,
           system,
-          tools: deps.tools,
+          tools: toolsForTurn,
           onEvent: handleEvent,
           cwd,
           signal: abortController.signal,
@@ -1175,6 +1177,12 @@ function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): Promp
       cache_control: { type: 'ephemeral' },
     },
   ]
+}
+
+function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
+  // Some tools (e.g. Skill) depend on the current workspace state and should be
+  // regenerated per turn so the model sees up-to-date info.
+  return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
 }
 
 function buildExitPlanInjectedBlocks(planPath: string | null): PromptBlock[] {

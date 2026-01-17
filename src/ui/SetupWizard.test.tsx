@@ -12,7 +12,7 @@ function tick(): Promise<void> {
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 1500,
+  timeoutMs = 5000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {

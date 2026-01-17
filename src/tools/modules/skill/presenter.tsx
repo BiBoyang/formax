@@ -1,0 +1,65 @@
+import React from 'react'
+import { Box, Text } from 'ink'
+import { getTheme } from '../../../utils/theme'
+import type { ToolPresenter } from '../../presenters/types'
+import { FallbackToolPresenter } from '../../presenters/fallback'
+import type { Msg } from '../../../components/tool/ToolMessage'
+import { useUserInputManager } from '../../runtime/userInputContext'
+import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
+
+export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+  const theme = getTheme()
+  const userInput = useUserInputManager()
+
+  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
+
+  const { name, input, status } = message.toolInfo
+  const { toolName, params } = formatToolCallParts(name, input)
+  const toolUseId =
+    message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+
+  const skillName = String((input as any)?.skill || '').trim()
+
+  const dotColor =
+    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
+
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={0}>
+      <Box>
+        <PulsingDot color={dotColor} pulse={status === 'running'} />
+        <Text bold color={theme.text}>
+          {toolName}
+        </Text>
+        <Text color={theme.secondaryText}>(</Text>
+        <Text color={theme.secondaryText}>{params}</Text>
+        <Text color={theme.secondaryText}>)</Text>
+      </Box>
+
+      {status === 'running' && userInput?.isPending(toolUseId) ? (
+        <SkillApprovalPrompt
+          title={`Use skill ${skillName || 'Skill'}?`}
+          rememberLabel={`Yes, and don't ask again for ${skillName || 'this skill'} in this repo`}
+          onDecision={(d) => {
+            if (!userInput) return
+            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+          }}
+        />
+      ) : null}
+
+      {status !== 'running' && message.content ? (
+        <Box flexDirection="column">
+          <Box>
+            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text>{message.content}</Text>
+          </Box>
+        </Box>
+      ) : null}
+    </Box>
+  )
+}
+

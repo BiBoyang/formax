@@ -1,6 +1,7 @@
 import type { ToolModule } from '../../registry'
 import type { ToolDefinition } from '../../types'
 import { SkillToolHandler } from './handler'
+import { SkillToolPresenter } from './presenter'
 import { baseSpec } from './spec'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
 import { createSkillStore } from '../../../skills/SkillStore'
@@ -21,7 +22,7 @@ function buildAvailableSkillsSection(cwd: string): string {
   const lines = store
     .list()
     .filter((s) => !s.disableModelInvocation)
-    .map((s) => `- ${s.name}: ${s.description} (file: ${s.filePath})`)
+    .map((s) => `- ${s.name}: ${s.description}`)
 
   if (lines.length === 0) return ''
 
@@ -38,14 +39,19 @@ function injectAvailableSkills(desc: string, skillsSection: string): string {
   return desc.replace(marker, `<available_skills>\n${skillsSection}</available_skills>`)
 }
 
-const spec: ToolDefinition = {
-  name: 'Skill',
-  description: injectAvailableSkills(baseSpec.description, buildAvailableSkillsSection(process.cwd())),
-  input_schema: baseSpec.input_schema,
+export function buildSkillToolSpecForCwd(cwd: string): ToolDefinition {
+  return {
+    name: 'Skill',
+    description: injectAvailableSkills(baseSpec.description, buildAvailableSkillsSection(cwd)),
+    input_schema: baseSpec.input_schema,
+  }
 }
+
+const spec: ToolDefinition = buildSkillToolSpecForCwd(process.cwd())
 
 export const skillToolModule: ToolModule = {
   name: 'Skill',
   handler: SkillToolHandler,
+  presenter: SkillToolPresenter,
   spec,
 }
