@@ -454,5 +454,7 @@ function formatHelpOutput(specs: SlashCommandSpec[]): string {
 }
 
 function sourceRank(source: SlashCommandSpec['source']): number {
-  return source === 'builtin' ? 0 : source === 'user' ? 1 : 2
+  // Keep suggestion ordering consistent with default dispatch precedence:
+  // builtin → project → user.
+  return source === 'builtin' ? 0 : source === 'project' ? 1 : 2
 }

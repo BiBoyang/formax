@@ -168,16 +168,16 @@
 - [x] 新增 adapter：`src/features/commands/adapter.ts`
   - [x] `slashEffectToCommandResult(effect): CommandResult`
   - [x] 规则：local/local_async → `appendMessages`；`open_agents_dialog` → `openOverlay({kind:'agents'})`；unimplemented → `appendMessages`
-- [ ] `src/features/commands/registry.ts` 保持现状（先不改对外 interface），先让 controller 消费 CommandResult
+- [x] `src/features/commands/registry.ts` 保持现状（先不改对外 interface），先让 controller 消费 CommandResult
 - [x] 单测：`src/features/commands/adapter.test.ts`
 
 #### PR0b-4：useReplController 统一解释 CommandResult（替换散乱特判的“第一刀”）
-- [ ] `useReplController`：
+- [x] `useReplController`：
   - [x] 将 slash command 的处理流程改为：`dispatch()` → `CommandResult` → 统一 apply `UiEffect/ModelEffect`
   - [x] `appendMessages`：走统一入口（避免各分支重复拼 Msg）
   - [x] `openOverlay/closeOverlay`：走 OverlayManager
   - [x] 保留现有 streaming/tool loop 行为不动（已有相关测试覆盖：`src/chat/engine.test.ts`、`src/features/commands/registry.test.ts`）
-- [ ] 回归：`/agents` 仍可打开 AgentsDialog；`/todos` 输出仍进 messages；`/doctor` async 仍正常
+- [x] 回归：`/agents` 仍可打开 AgentsDialog；`/todos` 输出仍进 messages；`/doctor` async 仍正常（已用测试覆盖主要路径；如需可再手动跑一轮）
 - [x] 自检：`bun run type-check` + 相关测试子集
 
 #### PR0b-5：REPL 侧 overlay 渲染收口（可选，按现状决定）
@@ -185,13 +185,13 @@
 - [x] 保证：关闭 overlay 回到上一层（与 Claude Code /agents 行为一致）
 
 #### PR0b-6：把“model 注入”也纳入契约（最小化）
-- [ ] `ModelEffect.injectNextTurn(blocks)` 先只用于：
+- [x] `ModelEffect.injectNextTurn(blocks)` 先只用于：
   - [x] 把 local command stdout 记录（你们已有 `<local-command-stdout>` 的注入逻辑，可迁移为 effect）
-  - [ ] 其他注入暂不动（plan mode/system-reminder/todos 提醒等保持原路径）
+  - [x] 其他注入暂不动（plan mode/system-reminder/todos 提醒等保持原路径）
 
 ### 验收（PR0b 总验收）
-- [ ] `bun run type-check`
-- [ ] `bun run test`
+- [x] `bun run type-check`
+- [x] `bun run test`
 - [ ] 手动：`/agents`、`/todos`、`/doctor`、普通对话与工具调用均不回归
 
 ### 目标
