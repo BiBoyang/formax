@@ -51,7 +51,7 @@ export type ReplControllerState = {
 export type ReplController = {
   state: ReplControllerState
   actions: {
-    send: (text: string) => Promise<void>
+    send: (text: string, opts?: { preferredSlashSpecId?: string }) => Promise<void>
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
@@ -608,7 +608,7 @@ export function useReplController(deps: {
   }, [])
 
   const send = useCallback(
-    async (value: string) => {
+    async (value: string, opts?: { preferredSlashSpecId?: string }) => {
       const text = value.trim()
       if (!text || isLoading) return
 
@@ -774,7 +774,9 @@ export function useReplController(deps: {
         return
       }
 
-      const slashEffect = text.startsWith('/') ? deps.commandRegistry?.dispatch(text) : null
+      const slashEffect = text.startsWith('/')
+        ? deps.commandRegistry?.dispatch(text, { preferredSpecId: opts?.preferredSlashSpecId })
+        : null
       const slashResult = slashEffectToCommandResult(slashEffect)
       if (isConsumedCommandResult(slashResult)) {
         const userMsg: Msg = {

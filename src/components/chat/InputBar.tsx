@@ -10,6 +10,7 @@ type Props = {
   placeholder?: string
   disabled?: boolean
   suggestions?: Array<{
+    id: string
     command: string
     description: string
     selected?: boolean
@@ -56,7 +57,7 @@ function InputBarImpl({
             const descColor = s.selected ? theme.secondaryText : theme.secondaryText
 
             return (
-              <Box key={s.command}>
+              <Box key={s.id}>
                 <Text color={cmdColor} bold={Boolean(s.selected)}>
                   {s.command.padEnd(cmdWidth)}
                 </Text>

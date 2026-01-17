@@ -17,6 +17,7 @@ export type CommandMeta = {
 
 export type CommandStore = {
   list: () => CommandMeta[]
+  listAll: () => CommandMeta[]
   get: (id: string) => CommandMeta | undefined
 }
 
@@ -24,19 +25,31 @@ export function createCommandStore(args: { cwd: string; globalConfigDir: string 
   const projectDir = path.join(args.cwd, '.formax', 'commands')
   const userDir = path.join(args.globalConfigDir, 'commands')
 
-  const commandsById = new Map<string, CommandMeta>()
+  const userCommands = scanDir(userDir, 'user')
+  const projectCommands = scanDir(projectDir, 'project')
 
   // Lower precedence first (user), then project overrides.
-  for (const meta of scanDir(userDir, 'user')) commandsById.set(meta.id, meta)
-  for (const meta of scanDir(projectDir, 'project')) commandsById.set(meta.id, meta)
+  const effectiveById = new Map<string, CommandMeta>()
+  for (const meta of userCommands) effectiveById.set(meta.id, meta)
+  for (const meta of projectCommands) effectiveById.set(meta.id, meta)
 
   const list = () =>
-    Array.from(commandsById.values()).sort((a, b) => a.id.localeCompare(b.id))
+    Array.from(effectiveById.values()).sort((a, b) => a.id.localeCompare(b.id))
+
+  const listAll = () =>
+    [...userCommands, ...projectCommands].sort(
+      (a, b) => a.id.localeCompare(b.id) || scopeRank(a.scope) - scopeRank(b.scope),
+    )
 
   return {
     list,
-    get: (id: string) => commandsById.get(normalizeCommandId(id)),
+    listAll,
+    get: (id: string) => effectiveById.get(normalizeCommandId(id)),
   }
+}
+
+function scopeRank(scope: CommandScope): number {
+  return scope === 'user' ? 0 : 1
 }
 
 function scanDir(dir: string, scope: CommandScope): CommandMeta[] {
@@ -142,4 +155,3 @@ function normalizeCommandId(id: string): string {
   if (!raw.startsWith('/')) return '/' + raw
   return raw
 }
-

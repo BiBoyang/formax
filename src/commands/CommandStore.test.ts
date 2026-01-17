@@ -40,6 +40,8 @@ describe('CommandStore', () => {
 
       const store = createCommandStore({ cwd, globalConfigDir: cwd })
       expect(store.get('/hello')?.body).toContain('Project says hello')
+      const all = store.listAll().filter((c) => c.id === '/hello')
+      expect(all.map((c) => c.scope).sort()).toEqual(['project', 'user'])
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }
@@ -61,4 +63,3 @@ describe('CommandStore', () => {
     }
   })
 })
-

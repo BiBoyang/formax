@@ -59,6 +59,7 @@ export function REPL({
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
+  const [slashSelectionTouched, setSlashSelectionTouched] = useState(false)
   const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
   const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
@@ -219,11 +220,12 @@ export function REPL({
     return commandRegistry.suggest(input).slice(0, 10)
   }, [commandRegistry, input, isPromptMode])
 
-  const selectedSlash = slashSuggestions[slashIndex]?.command
+  const selectedSlash = slashSuggestions[slashIndex] ?? null
 
   const handleInputChange = useCallback((v: string) => {
     setInput(v)
     setSlashIndex(0)
+    setSlashSelectionTouched(false)
   }, [])
 
   useInput((inputKey, key) => {
@@ -295,11 +297,13 @@ export function REPL({
 
     if (slashSuggestions.length > 0) {
       if (key.downArrow) {
+        setSlashSelectionTouched(true)
         setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
       } else if (key.upArrow) {
+        setSlashSelectionTouched(true)
         setSlashIndex((i) => Math.max(i - 1, 0))
-      } else if (key.tab && selectedSlash) {
-        setInput(selectedSlash)
+      } else if (key.tab && selectedSlash?.command) {
+        setInput(selectedSlash.command)
         setSlashIndex(0)
       }
     }
@@ -310,10 +314,10 @@ export function REPL({
       const text = value.trim()
       if (!text) return
 
-      if (slashSuggestions.length > 0 && selectedSlash) {
+      if (slashSuggestions.length > 0 && selectedSlash?.command) {
         const normalized = text.replace(/\s+$/, '')
-        if (normalized !== selectedSlash && !normalized.startsWith(selectedSlash + ' ')) {
-          setInput(selectedSlash)
+        if (normalized !== selectedSlash.command && !normalized.startsWith(selectedSlash.command + ' ')) {
+          setInput(selectedSlash.command)
           setSlashIndex(0)
           return
         }
@@ -321,9 +325,14 @@ export function REPL({
 
       setInput('')
       if (state.isLoading) return
-      await actions.send(text)
+      await actions.send(
+        text,
+        text.startsWith('/') && slashSelectionTouched && selectedSlash?.id
+          ? { preferredSlashSpecId: selectedSlash.id }
+          : undefined,
+      )
     },
-    [actions, selectedSlash, slashSuggestions.length, state.isLoading],
+    [actions, selectedSlash, slashSelectionTouched, slashSuggestions.length, state.isLoading],
   )
 
   const renderMessage = useCallback(
@@ -493,6 +502,7 @@ export function REPL({
                 placeholder={`Try \"fix typecheck errors\"`}
                 disabled={state.isLoading}
                 suggestions={slashSuggestions.map((s, i) => ({
+                  id: s.id,
                   command: s.command,
                   description: s.description,
                   selected: i === slashIndex,
