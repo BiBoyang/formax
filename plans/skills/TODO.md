@@ -72,9 +72,11 @@
 
 ## 6. 手动验收脚本（给抓包用）
 
-- [ ] 在空目录/新 repo 做 2 组验证：
-  - A：第一次触发 skill → 弹框 → 选 2 → 写入 settings.local.json → 再触发不弹
-  - B：删除 allow → 不重启 → 再触发应重新弹
+- [ ] A（已手动验证，未抓包确认）：第一次触发 skill → 弹框 → 选 2 → 写入 settings.local.json → 再触发不弹
+- [ ] B（已手动验证，未抓包确认）：删除 allow → 不重启 → 再触发应重新弹
+- [ ] C（待抓包确认，最终结论以抓包为准）：
+  - 抓包确认“Skill 被允许后”的后续请求里是否出现任何可观测差异（例如 tool list / system 注入 / 额外标记）
+  - 抓包确认“移除 allow 后”的下一次请求里是否回到“需要确认”的路径（注意：确认 UI 本身不在抓包里）
 
 ---
 
@@ -83,6 +85,37 @@
 - [x] Progressive disclosure：SkillStore 扫描阶段只读 frontmatter，不读取/缓存全文 body（只在 Skill 执行时读 body）
 - [x] Skill 索引缓存（Codex 风格）：对 `<available_skills>` 的索引结果做 per-projectRoot 的进程内缓存（带 TTL；先不做 `/skills reload`）
 - [x] 将技能发现的 project 目录从 `cwd/.formax/skills` 改为 `<projectRoot>/.formax/skills`（按“Project root 解析规则”）
+
+---
+
+## 后续增强（对齐 Claude Code，分阶段做）
+
+### 7. Permissions 统一机制（跨工具复用）
+
+目标：把“允许/拒绝/记住选择/反馈”的逻辑沉淀成统一框架，覆盖更多需要审批的能力，避免每个工具各写一套。
+
+- [x] 抽象通用 PermissionsStore（沿用 `.formax/settings.local.json` 的 `permissions.allow`）：
+  - 统一 key 命名：`Skill(frontend-design)` 已有；后续扩展 `Bash(...)` / `Write(...)` / `Edit(...)` 等
+  - 保持“运行时热读取”：移除 allow 后无需重启也会重新提示
+  - 代码位置：`src/adapters/permissions/permissionsStore.ts`
+- [ ] 把以下能力逐步迁移到统一权限/审批体系（按风险从高到低）：
+  - [ ] 执行命令（Bash / local command）
+  - [ ] 写文件/编辑文件（Write/Edit/NotebookEdit）
+  - [ ] 其它需要“允许/拒绝/手动审批”的工具行为
+
+### 8. Skill UI 对齐 Claude Code（噪音压缩）
+
+目标：把 Skill 的展示压缩为 Claude Code 风格的一行，减少“JSON 输入/冗长 baseDir”噪音。
+
+- [ ] 调整 Skill 的 UI 展示结构，尽量对齐：
+  - Claude Code：`⏺ Skill(frontend-design)`
+  - Formax（目标）：同样只显示一行 `Skill(<name>)`，其余信息用折叠/次级区展示或省略
+- [ ] 需要决定：`Base directory for this skill` 是否仍展示（Claude Code 是否展示取决于抓包/录像证据）
+
+### 9. Markdown 渲染支持（可后置）
+
+- [ ] 支持基础 Markdown 渲染（标题/列表/代码块/强调），避免原样纯文本输出
+- [ ] 明确范围：只用于 assistant 文本 / tool 输出 / 两者都支持
 
 ## 未决/不做（暂缓/需再确认）
 

@@ -33,7 +33,7 @@ Formax 只对齐机制与行为，目录以 `.formax` 为准（不读取 `.claud
 - `Skill` tool spec（含 `<available_skills>`）：`src/tools/modules/skill/spec.ts`
 - 每轮按 cwd 动态注入 `<available_skills>`：`src/tools/modules/skill/index.ts` + `src/features/repl/useReplController.ts`
 - `Skill` tool handler（tool_result 注入文本）：`src/tools/modules/skill/handler.ts`
-- repo 级 allowList（落盘）：`src/adapters/permissions/skillAllowList.ts`
+- repo 级 allowList（落盘）：`src/adapters/permissions/permissionsStore.ts`（通用）+ `src/adapters/permissions/skillAllowList.ts`（Skill wrapper）
   - 文件路径：`<projectRoot>/.formax/settings.local.json`（projectRoot 规则见 `src/adapters/fs/projectRoot.ts`）
   - 记录格式：`permissions.allow` 包含 `Skill(frontend-design)` 这样的字符串
 - Skill 调用前的本地确认（preflight + UI）：  
