@@ -100,7 +100,7 @@
   - 代码位置：`src/adapters/permissions/permissionsStore.ts`
 - [ ] 把以下能力逐步迁移到统一权限/审批体系（按风险从高到低）：
   - [ ] 执行命令（Bash / local command）
-  - [ ] 写文件/编辑文件（Write/Edit/NotebookEdit）
+  - [x] 写文件/编辑文件（Write/Edit/NotebookEdit）
   - [ ] 其它需要“允许/拒绝/手动审批”的工具行为
 
 ### 8. Skill UI 对齐 Claude Code（噪音压缩）

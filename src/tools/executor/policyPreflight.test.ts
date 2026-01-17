@@ -5,6 +5,8 @@ import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { createApprovalService, type ApprovalService } from './approvalService.js'
 import { createPolicyPreflight } from './policyPreflight.js'
+import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
+import { buildFsWritePermissionKey } from '../../adapters/permissions/permissionKeys.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -228,9 +230,9 @@ describe('createPolicyPreflight', () => {
         homedir: dir,
       })
 
-      const targetPath = path.join(projectDir, 'remember.txt')
+      const command = 'mkdir foo'
       const res = await withApproval(
-        { id: 't1', name: 'Write', input: { file_path: targetPath, content: 'hi' } },
+        { id: 't1', name: 'Bash', input: { command } },
         { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
       )
       expect(res).toBeNull()
@@ -242,8 +244,8 @@ describe('createPolicyPreflight', () => {
       expect(json.rules.length).toBe(1)
       expect(json.rules[0].scope).toBe('project')
       expect(json.rules[0].decision).toBe('allow')
-      expect(json.rules[0].match.kind).toBe('fs.write')
-      expect(json.rules[0].match.path).toBe(targetPath)
+      expect(json.rules[0].match.kind).toBe('bash.exec')
+      expect(json.rules[0].match.commandPrefix).toBe(command)
 
       const withoutApproval = createPolicyPreflight({
         fileStore: store,
@@ -252,7 +254,7 @@ describe('createPolicyPreflight', () => {
         homedir: dir,
       })
       const res2 = await withoutApproval(
-        { id: 't2', name: 'Write', input: { file_path: targetPath, content: 'hi' } },
+        { id: 't2', name: 'Bash', input: { command } },
         { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
       )
       expect(res2).toBeNull()
@@ -408,6 +410,55 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('stores fs.write remembers in permissions.allow and bypasses prompts when allowed', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-write-permissions-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      const filePath = path.join(projectDir, 'a.txt')
+      const key = buildFsWritePermissionKey({ toolName: 'Write', filePath, cwd: projectDir })
+
+      const userInput = {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+        submitAnswers: () => true,
+        reject: () => true,
+        isPending: () => true,
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput: userInput as any })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const first = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: filePath, content: 'hi' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: true },
+      )
+      expect(first).toBeNull()
+
+      const allow = await loadProjectPermissionsAllowList({ fileStore: store, cwd: projectDir })
+      expect(allow.has(key)).toBe(true)
+
+      // Once remembered, a non-interactive context should still be able to proceed
+      // because the prompt can be bypassed.
+      const second = await preflight(
+        { id: 't2', name: 'Write', input: { file_path: filePath, content: 'hi again' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+      expect(second).toBeNull()
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

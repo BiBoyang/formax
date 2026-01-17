@@ -13,6 +13,8 @@ import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
+import { persistProjectPermissionAllow } from '../../adapters/permissions/permissionsStore.js'
+import { buildFsWritePermissionKey, isFsWriteToolName } from '../../adapters/permissions/permissionKeys.js'
 
 type ApprovalAnswer = {
   decision?: string
@@ -194,6 +196,23 @@ export function createApprovalService(args: {
           }),
         )
         return { ok: true }
+      }
+
+      // Claude Code-style permissions allow-list for write tools: store in repo settings.local.json.
+      // This keeps "don't ask again" decisions hot-reloadable without requiring a restart.
+      if (args2.action.kind === 'fs.write' && isFsWriteToolName(call.name)) {
+        const cwd = ctx.cwd || process.cwd()
+        const key = buildFsWritePermissionKey({ toolName: call.name, filePath: args2.action.path, cwd })
+        try {
+          await persistProjectPermissionAllow({ fileStore: args.fileStore, cwd, key })
+          return { ok: true }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return {
+            ok: false,
+            result: { tool_use_id: call.id, content: `Error: Failed to save settings.local.json: ${msg}`, is_error: true },
+          }
+        }
       }
 
       const persisted = await persistAllowRule({

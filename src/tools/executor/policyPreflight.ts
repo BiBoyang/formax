@@ -13,6 +13,8 @@ import { ErrorCode } from '../../core/errors/codes.js'
 import { formatPolicyExplainLines } from './policyExplain.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
+import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
+import { buildFsWritePermissionKey, isFsWriteToolName } from '../../adapters/permissions/permissionKeys.js'
 
 export function createPolicyPreflight(args: {
   fileStore: FileStore
@@ -60,6 +62,14 @@ export function createPolicyPreflight(args: {
     // acceptEdits mode: treat prompts as implicitly approved (still respects deny rules).
     if (action.kind === 'fs.write' && replMode === 'acceptEdits' && effectiveDecision === 'prompt') {
       effectiveDecision = 'allow'
+    }
+
+    // Claude Code-style permissions allow-list can bypass prompts for certain tools.
+    // (We still respect deny rules and plan-mode hard limits above.)
+    if (effectiveDecision === 'prompt' && action.kind === 'fs.write' && isFsWriteToolName(call.name)) {
+      const allow = await loadProjectPermissionsAllowList({ fileStore: args.fileStore, cwd })
+      const key = buildFsWritePermissionKey({ toolName: call.name, filePath: action.path, cwd })
+      if (allow.has(key)) effectiveDecision = 'allow'
     }
 
     // Bash: require approval for commands our classifier marks as confirm (unless an allow rule matched).
