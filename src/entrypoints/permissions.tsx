@@ -114,9 +114,9 @@ const PermissionsApp = () => {
 
   // Constants
   const SAVE_OPTIONS = [
-    { label: 'Project settings (local)', detail: 'Saved in .claude/settings.local.json' },
-    { label: 'Project settings', detail: 'Checked in at .claude/settings.json' },
-    { label: 'User settings', detail: 'Saved in at ~/.claude/settings.json' },
+    { label: 'Project settings (local)', detail: 'Saved in .formax/settings.local.json' },
+    { label: 'Project settings', detail: 'Checked in at .formax/settings.json' },
+    { label: 'User settings', detail: 'Saved in at ~/.formax/settings.json' },
   ];
 
 

@@ -19,11 +19,11 @@
 
 ### A. 底座（不动 UI）
 
-- [ ] A1 清理半迁移（让 repo 回到“单一路径”）：`src/tools/executor/policyPreflight.ts`
-- [ ] A2 matcher 最小闭环（deny>ask>allow + ToolName/ToolName(spec)）：`src/adapters/permissions/matcher.ts` + 测试
-- [ ] A3 permissionsStore 最小闭环（projectLocal > project > user + 读写保留其他字段 + 热更新读）：`src/adapters/permissions/permissionsStore.ts` + 测试
-- [ ] A4 Skill 迁移到统一 permissions（替代旧 allowList 路径）：`src/tools/executor/skillPreflight.ts` + `src/tools/modules/skill/*`
-- [ ] A5 Bash 接入统一 permissions（不做 local command key；保留现有 bash 风险分类）：`src/tools/executor/policyPreflight.ts` + `src/tools/modules/bash/policy.ts`
+- [x] A1 清理半迁移（让 repo 回到“单一路径”）：`src/tools/executor/policyPreflight.ts`
+- [x] A2 matcher 最小闭环（deny>ask>allow + ToolName/ToolName(spec)）：`src/adapters/permissions/matcher.ts` + 测试
+- [x] A3 permissionsStore 最小闭环（projectLocal > project > user + 读写保留其他字段 + 热更新读）：`src/adapters/permissions/permissionsStore.ts` + 测试
+- [x] A4 Skill 迁移到统一 permissions（替代旧 allowList 路径）：`src/tools/executor/skillPreflight.ts` + `src/tools/modules/skill/*`
+- [x] A5 Bash 接入统一 permissions（不做 local command key；保留现有 bash 风险分类）：`src/tools/executor/policyPreflight.ts` + `src/tools/modules/bash/policy.ts`
 - [ ] A6 WebFetch/WebSearch 接入统一 permissions（先做 tool-only rule）：`src/tools/executor/policyPreflight.ts`
 - [ ] A7 Workspace roots：先约束只读（Read/Glob/Grep）：（边界检查所在模块）+ 测试
 - [ ] A8 Workspace roots：再约束写入（Edit/Write/NotebookEdit）：（边界检查所在模块）+ 测试
