@@ -3,7 +3,9 @@ import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ToolPreflight, ExecutionContext } from './index.js'
 import { assertNoExtraKeys, requirePlainObject } from '../utils/strictInput.js'
-import { buildSkillPermissionKey, loadProjectSkillAllowList, persistProjectSkillAllow } from '../../adapters/permissions/skillAllowList.js'
+import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapters/permissions/skillAllowList.js'
+import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
+import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 
 type SkillApprovalAnswer = {
   decision?: string
@@ -51,8 +53,13 @@ export function createSkillPreflight(args: {
 
     const cwd = ctx.cwd || process.cwd()
     const key = buildSkillPermissionKey(skill)
-    const allow = await loadProjectSkillAllowList({ fileStore: args.fileStore, cwd })
-    if (allow.has(key)) return null
+    const permissions = await loadMergedPermissions({ fileStore: args.fileStore, cwd })
+    const perm = decideToolPermission({ permissions, toolName: 'Skill', toolSpec: skill })
+
+    if (perm.decision === 'deny') {
+      return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
+    }
+    if (perm.decision === 'allow') return null
 
     if (!args.userInput || ctx.interactive === false) {
       return {

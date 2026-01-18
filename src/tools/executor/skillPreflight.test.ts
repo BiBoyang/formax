@@ -63,7 +63,7 @@ describe('createSkillPreflight', () => {
 
       const key = buildSkillPermissionKey('frontend-design')
       const filePath = getProjectSettingsLocalPath(projectDir)
-      await store.writeJsonAtomic(filePath, { version: 1, permissions: { allow: [key] } })
+      await store.writeJsonAtomic(filePath, { version: 1, permissions: { allow: [key], ask: [], deny: [], workspace: { additionalDirectories: [] } } })
 
       const preflight = createSkillPreflight({ fileStore: store, userInput: null })
       const res = await preflight(
@@ -71,6 +71,37 @@ describe('createSkillPreflight', () => {
         { cwd: projectDir, agentDepth: 0 },
       )
       expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies Skill when it is on the repo deny-list (no prompting)', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const key = buildSkillPermissionKey('frontend-design')
+      const filePath = getProjectSettingsLocalPath(projectDir)
+      await store.writeJsonAtomic(filePath, { version: 1, permissions: { allow: [], ask: [], deny: [key], workspace: { additionalDirectories: [] } } })
+
+      const requestAnswers = vi.fn(async () => ({ decision: 'approve' }))
+      const userInput: UserInputManager = {
+        requestAnswers,
+        submitAnswers: () => true,
+        reject: () => true,
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const res = await preflight(
+        { id: 't1', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(requestAnswers).toHaveBeenCalledTimes(0)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

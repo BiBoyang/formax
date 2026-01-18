@@ -105,7 +105,9 @@
 - [ ] 把以下能力逐步迁移到统一权限/审批体系（按风险从高到低）：
   - [x] 执行命令（Bash）
   - [ ] 执行命令（local command；需要抓包确认 Claude Code 的 key 形式再做）
-  - [x] 写文件/编辑文件（Write/Edit/NotebookEdit）
+  - [ ] 写文件/编辑文件（Write/Edit/NotebookEdit）：
+    - 仍走 `acceptEdits` 会话模式（remember 仅会话内，不落盘 `permissions.allow`）
+    - 仅做运行时硬限制（如未来引入 deny/ask，必须能硬拦截）
   - [ ] 其它需要“允许/拒绝/手动审批”的工具行为
 
 ### 8. Skill UI 对齐 Claude Code（噪音压缩）
