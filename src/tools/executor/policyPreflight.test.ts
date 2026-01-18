@@ -182,6 +182,119 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('blocks fs.read outside workspace roots', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-read-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'Read',
+          input: { file_path: path.join(outsideDir, 'a.txt') },
+        },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('outside the workspace')
+      expect(res?.content).toContain('FS_PERMISSION')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows fs.read within additional workspace directories', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: [],
+          deny: [],
+          workspace: { additionalDirectories: [outsideDir] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'Read',
+          input: { file_path: path.join(outsideDir, 'a.txt') },
+        },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks fs.write outside workspace roots before approval', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-write-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'Write',
+          input: { file_path: path.join(outsideDir, 'a.txt'), content: 'hi' },
+        },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('outside the workspace')
+      expect(res?.content).toContain('FS_PERMISSION')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('requires an approval service for default fs.write prompts', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-write-'))
     try {

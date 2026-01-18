@@ -25,8 +25,8 @@
 - [x] A4 Skill 迁移到统一 permissions（替代旧 allowList 路径）：`src/tools/executor/skillPreflight.ts` + `src/tools/modules/skill/*`
 - [x] A5 Bash 接入统一 permissions（不做 local command key；保留现有 bash 风险分类）：`src/tools/executor/policyPreflight.ts` + `src/tools/modules/bash/policy.ts`
 - [x] A6 WebFetch/WebSearch 接入统一 permissions（先做 tool-only rule）：`src/tools/executor/policyPreflight.ts`
-- [ ] A7 Workspace roots：先约束只读（Read/Glob/Grep）：（边界检查所在模块）+ 测试
-- [ ] A8 Workspace roots：再约束写入（Edit/Write/NotebookEdit）：（边界检查所在模块）+ 测试
+- [x] A7 Workspace roots：先约束只读（Read/Glob/Grep）：（边界检查所在模块）+ 测试
+- [x] A8 Workspace roots：再约束写入（Edit/Write/NotebookEdit）：（边界检查所在模块）+ 测试
 
 ### B. UI（最后做，严格不改样式）
 

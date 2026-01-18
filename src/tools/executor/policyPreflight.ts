@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { Platform } from '../../adapters/fs/configPaths.js'
 import { loadPolicyRules } from '../../core/policy/store.js'
@@ -15,6 +16,26 @@ import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
+import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
+import { formatPathForDisplay, normalizePathForCompare } from '../../utils/paths.js'
+
+function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
+  const normalized = normalizePathForCompare(rawPath, cwd)
+  if (!normalized) return null
+  return path.resolve(normalized)
+}
+
+function isPathWithinRoot(target: string, root: string): boolean {
+  if (target === root) return true
+  const rel = path.relative(root, target)
+  if (!rel || rel === '.') return true
+  if (rel === '..') return false
+  return !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)
+}
+
+function isPathWithinRoots(target: string, roots: string[]): boolean {
+  return roots.some((root) => isPathWithinRoot(target, root))
+}
 
 export function createPolicyPreflight(args: {
   fileStore: FileStore
@@ -31,6 +52,20 @@ export function createPolicyPreflight(args: {
 
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
+    let mergedPermissions: Awaited<ReturnType<typeof loadMergedPermissions>> | null = null
+
+    const getMergedPermissions = async () => {
+      if (!mergedPermissions) {
+        mergedPermissions = await loadMergedPermissions({
+          fileStore: args.fileStore,
+          cwd,
+          env,
+          platform: args.platform,
+          homedir: args.homedir,
+        })
+      }
+      return mergedPermissions
+    }
 
     // Plan mode: only allow editing the plan file itself (no approvals for non-plan paths).
     if (action.kind === 'fs.write' && replMode === 'plan') {
@@ -45,6 +80,36 @@ export function createPolicyPreflight(args: {
       }
       // Plan file edits should not prompt.
       return null
+    }
+
+    if (action.kind === 'fs.read' || action.kind === 'fs.write') {
+      const rootsResult = await detectWorkspaceRoots({ fileStore: args.fileStore, cwd })
+      const permissions = await getMergedPermissions()
+      const rootCandidates = [
+        ...rootsResult.workspaceRoots,
+        ...permissions.workspace.additionalDirectories.map((entry) => entry.dir),
+      ]
+      const normalizedRoots = Array.from(
+        new Set(
+          rootCandidates
+            .map((root) => normalizeWorkspacePath(root, cwd))
+            .filter((root): root is string => Boolean(root)),
+        ),
+      )
+      const targetPath = normalizeWorkspacePath(action.path, cwd)
+
+      if (targetPath && normalizedRoots.length && !isPathWithinRoots(targetPath, normalizedRoots)) {
+        const lines: string[] = []
+        lines.push('Error: Path is outside the workspace')
+        lines.push(`ErrorCode: ${ErrorCode.FsPermission}`)
+        lines.push(`Path: ${formatPathForDisplay(targetPath)}`)
+        lines.push('Workspace roots:')
+        for (const root of normalizedRoots) {
+          lines.push(`- ${formatPathForDisplay(root)}`)
+        }
+        lines.push('Hint: Use /permissions to add a directory to the workspace')
+        return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      }
     }
 
     const loaded = await loadPolicyRules({
@@ -89,13 +154,7 @@ export function createPolicyPreflight(args: {
       // - Explicit policy "prompt" rules must still prompt (ask > allow).
       // - permissions "ask" can also force prompts even if policy would allow.
       const promptByRule = Boolean(explained.matchedRule && explained.decision === 'prompt')
-      const permissions = await loadMergedPermissions({
-        fileStore: args.fileStore,
-        cwd,
-        env,
-        platform: args.platform,
-        homedir: args.homedir,
-      })
+      const permissions = await getMergedPermissions()
       const perm = decideToolPermission({ permissions, toolName: 'Bash', toolSpec: command })
 
       if (perm.decision === 'deny') {
@@ -110,13 +169,7 @@ export function createPolicyPreflight(args: {
     if (call.name === 'WebFetch' || call.name === 'WebSearch') {
       const promptByRule = Boolean(explained.matchedRule && explained.decision === 'prompt')
       const denyByRule = Boolean(explained.matchedRule && explained.decision === 'deny')
-      const permissions = await loadMergedPermissions({
-        fileStore: args.fileStore,
-        cwd,
-        env,
-        platform: args.platform,
-        homedir: args.homedir,
-      })
+      const permissions = await getMergedPermissions()
       const perm = decideToolPermission({ permissions, toolName: call.name })
 
       if (perm.decision === 'deny') {
