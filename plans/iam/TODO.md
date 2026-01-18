@@ -33,7 +33,7 @@
 - [x] B1 `/permissions` UI 接真数据（只读展示）：`src/entrypoints/permissions.tsx`
 - [x] B2 Add rule（Allow：默认写 project local）：`src/entrypoints/permissions.tsx` + store
 - [x] B3 Add rule（Ask/Deny：进入“保存位置选择”）：`src/entrypoints/permissions.tsx` + store
-- [ ] B4 Delete rule / Add directory / Delete directory / dismissed 行：`src/entrypoints/permissions.tsx` + store（已接 Delete rule + Add directory；Delete directory 与 dismissed 行待补）
+- [ ] B4 Delete rule / Add directory / Delete directory / dismissed 行：`src/entrypoints/permissions.tsx` + store（已接 Delete rule + Add directory + Delete directory；dismissed 行待补）
 
 ### C. 暂缓（必须抓包确认）
 
