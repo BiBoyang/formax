@@ -9,6 +9,38 @@
 
 ---
 
+## 执行顺序（更细拆解：每步可独立提交；UI 放最后）
+
+> 目标：把大任务拆成“小步快跑”，避免一次改太多文件导致返工成本爆炸。
+>
+> 约束：
+> - **先底座、后 UI**：先保证执行链路与判定一致，再把 UI 接真数据。
+> - **不猜测 local command**：local command 的 permission key 形式需要抓包确认，未确认前不实现。
+
+### A. 底座（不动 UI）
+
+- [ ] A1 清理半迁移（让 repo 回到“单一路径”）：`src/tools/executor/policyPreflight.ts`
+- [ ] A2 matcher 最小闭环（deny>ask>allow + ToolName/ToolName(spec)）：`src/adapters/permissions/matcher.ts` + 测试
+- [ ] A3 permissionsStore 最小闭环（projectLocal > project > user + 读写保留其他字段 + 热更新读）：`src/adapters/permissions/permissionsStore.ts` + 测试
+- [ ] A4 Skill 迁移到统一 permissions（替代旧 allowList 路径）：`src/tools/executor/skillPreflight.ts` + `src/tools/modules/skill/*`
+- [ ] A5 Bash 接入统一 permissions（不做 local command key；保留现有 bash 风险分类）：`src/tools/executor/policyPreflight.ts` + `src/tools/modules/bash/policy.ts`
+- [ ] A6 WebFetch/WebSearch 接入统一 permissions（先做 tool-only rule）：`src/tools/executor/policyPreflight.ts`
+- [ ] A7 Workspace roots：先约束只读（Read/Glob/Grep）：（边界检查所在模块）+ 测试
+- [ ] A8 Workspace roots：再约束写入（Edit/Write/NotebookEdit）：（边界检查所在模块）+ 测试
+
+### B. UI（最后做，严格不改样式）
+
+- [ ] B1 `/permissions` UI 接真数据（只读展示）：`src/entrypoints/permissions.tsx`
+- [ ] B2 Add rule（Allow：默认写 project local）：`src/entrypoints/permissions.tsx` + store
+- [ ] B3 Add rule（Ask/Deny：进入“保存位置选择”）：`src/entrypoints/permissions.tsx` + store
+- [ ] B4 Delete rule / Add directory / Delete directory / dismissed 行：`src/entrypoints/permissions.tsx` + store
+
+### C. 暂缓（必须抓包确认）
+
+- [ ] C1 local command 的 permission key 形式（等抓包确认后再实现）：`plans/iam/index.md` + 抓包记录
+
+---
+
 ## 0. 范围与命名（先定死，避免反复改）
 
 - [ ] 仅实现 `.formax`（不兼容 `.claude` 目录）。

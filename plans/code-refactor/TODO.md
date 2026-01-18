@@ -288,7 +288,7 @@
 - [x] `rg -n "\\.claude/agents" src` 结果为 0
 - [x] `bun run type-check`
 - [x] `bun run test -- src/features/commands/registry.test.ts`
-- [ ] 手动：`/agents` 仍可打开 AgentsDialog/wizard（功能不退）
+- [x] 手动：`/agents` 仍可打开 AgentsDialog/wizard（功能不退）
 
 ---
 

@@ -31,6 +31,15 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
 - Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
 
+## Permissions / Approvals (Claude Code-style)
+- Permissions store (read/merge/write settings): `src/adapters/permissions/permissionsStore.ts`
+- Rule matcher (deny/ask/allow priority + ToolName(spec) matching): `src/adapters/permissions/matcher.ts`
+- Permission key helpers: `src/adapters/permissions/permissionKeys.ts`
+- Skill allowlist (legacy, being migrated): `src/adapters/permissions/skillAllowList.ts`
+- Tool preflight hook (central enforcement before tool execution): `src/tools/executor/policyPreflight.ts`
+- Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
+- `/permissions` UI (visual baseline; wire to real store): `src/entrypoints/permissions.tsx`
+
 ## Prompts
 - System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
 - Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`
