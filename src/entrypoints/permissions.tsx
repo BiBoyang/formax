@@ -1,35 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { render, Box, Text, useInput, useApp } from 'ink';
+import React, { useEffect, useState } from 'react'
+import { Box, Text, render, useApp, useInput } from 'ink'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
+import { normalizePathForCompare } from '../utils/paths.js'
+import {
+  loadMergedPermissions,
+  persistPermissionRule,
+  deletePermissionRule,
+  persistWorkspaceDirectory,
+  type LoadedPermissions,
+  type PermissionScope,
+  type PermissionListKind,
+  type PermissionRuleEntry,
+} from '../adapters/permissions/permissionsStore.js'
 
-// Mock Data
-// Mock Data
-type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace';
-const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace'];
-const MAIN_COLOR = '#b1b9f9';
-const DELETE_COLOR = '#ff6b80';
-const GRAY_COLOR = '#999999';
+type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace'
+const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace']
+const MAIN_COLOR = '#b1b9f9'
+const DELETE_COLOR = '#ff6b80'
+const GRAY_COLOR = '#999999'
 
-const MOCK_ALLOWED_RULES = [
-  'Bash(cd:*)',
-  'Bash(claude tasks:*)',
-  'Bash(curl:*)',
-  'Bash(find:*)',
-  'Bash(git mv:*)',
-  'Bash(ls:*)',
-  'Bash(node:*)',
-  'Bash(npm run build:*)',
-  'Bash(npm run dev:*)',
-  'Bash(python:*)',
-  'Bash(vim:*)',
-  'Bash(cat:*)',
-  'Bash(grep:*)',
-  'Bash(rm:*)',
-  'Bash(mkdir:*)',
-];
-
-const MOCK_ASK_RULES: string[] = [];
-const MOCK_DENY_RULES: string[] = [];
-const MOCK_DIRECTORIES = ['/Users/david/Documents/github/formax (Original working directory)'];
+const fileStore = createNodeFileStore()
 
 // Components
 
@@ -85,22 +75,12 @@ const ListItem = ({ index, text, isSelected, showIndex = true, scrollIndicator }
   );
 };
 
-const TextInput = ({ value, onChange, placeholder = '...' }: { value: string, onChange: (v: string) => void, placeholder?: string }) => {
-    // Simple text input capture relying on parent useInput for now, simulating partial focus
-    // In a real app we'd use a robust input component or state management
-    // For this purely visual mock, we just display the value
-    return (
-        <Box borderStyle="round" borderColor="gray" paddingX={1}>
-             <Text>{value || <Text color={GRAY_COLOR}>{placeholder}</Text>}</Text>
-        </Box>
-    );
-};
-
-
 type ViewState = 'MAIN' | 'ADD_RULE' | 'ADD_DIRECTORY' | 'DELETE_CONFIRM' | 'SAVE_RULE_LOCATION';
 
 const PermissionsApp = () => {
   const { exit } = useApp();
+  const cwd = process.cwd()
+  const [permissions, setPermissions] = useState<LoadedPermissions | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('Allow');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
@@ -118,6 +98,63 @@ const PermissionsApp = () => {
     { label: 'Project settings', detail: 'Checked in at .formax/settings.json' },
     { label: 'User settings', detail: 'Saved in at ~/.formax/settings.json' },
   ];
+
+  const refreshPermissions = async (): Promise<void> => {
+    const merged = await loadMergedPermissions({ fileStore, cwd, env: process.env })
+    setPermissions(merged)
+  }
+
+  useEffect(() => {
+    void refreshPermissions()
+  }, [])
+
+  function getListKindForTab(tab: Tab): PermissionListKind | null {
+    if (tab === 'Allow') return 'allow'
+    if (tab === 'Ask') return 'ask'
+    if (tab === 'Deny') return 'deny'
+    return null
+  }
+
+  function getScopeLabel(scope: PermissionScope): string {
+    if (scope === 'projectLocal') return 'project local settings'
+    if (scope === 'project') return 'project settings'
+    return 'user settings'
+  }
+
+  function parseRule(rule: string): { toolName: string; spec: string } {
+    const raw = String(rule || '').trim()
+    const m = /^([A-Za-z0-9_:-]+)\((.*)\)$/.exec(raw)
+    if (!m) return { toolName: raw, spec: '' }
+    return { toolName: String(m[1] || '').trim(), spec: String(m[2] || '').trim() }
+  }
+
+  function describeRule(rule: string): string {
+    const { toolName, spec } = parseRule(rule)
+    if (!toolName) return 'Any tool use'
+
+    if (toolName === 'Bash') {
+      const normalized = spec.trim()
+      if (!normalized) return 'Any Bash command'
+      if (normalized.endsWith(':*')) return `Any Bash command starting with ${normalized.slice(0, -2)}`
+      return `Any Bash command matching ${normalized}`
+    }
+
+    if (!spec) return `Any use of the ${toolName} tool`
+    return `Any use of the ${toolName} tool (${spec})`
+  }
+
+  function getRuleListForTab(tab: Tab): PermissionRuleEntry[] {
+    if (!permissions) return []
+    if (tab === 'Allow') return permissions.allow
+    if (tab === 'Ask') return permissions.ask
+    if (tab === 'Deny') return permissions.deny
+    return []
+  }
+
+  function getSelectedRuleEntry(rule: string): PermissionRuleEntry | null {
+    const list = getRuleListForTab(activeTab)
+    return list.find((e) => e.rule === rule) ?? null
+  }
 
 
   
@@ -139,23 +176,35 @@ const PermissionsApp = () => {
   // The path has a `-`, not a number.
   
   const getDisplayItems = () => {
+      const allow = permissions?.allow?.map((e) => e.rule) ?? []
+      const ask = permissions?.ask?.map((e) => e.rule) ?? []
+      const deny = permissions?.deny?.map((e) => e.rule) ?? []
+      const dirs = permissions?.workspace?.additionalDirectories?.map((e) => e.dir) ?? []
+
       if (activeTab === 'Workspace') {
           return {
-              staticItems: MOCK_DIRECTORIES,
+              staticItems: [`${cwd} (Original working directory)`, ...dirs],
               interactiveItems: ['Add directory…']
           };
       }
       return {
           staticItems: [],
           interactiveItems: ['Add a new rule…', ...(
-              activeTab === 'Allow' ? MOCK_ALLOWED_RULES :
-              activeTab === 'Ask' ? MOCK_ASK_RULES :
-              activeTab === 'Deny' ? MOCK_DENY_RULES : []
+              activeTab === 'Allow' ? allow :
+              activeTab === 'Ask' ? ask :
+              activeTab === 'Deny' ? deny : []
           )]
       };
   };
 
   const { staticItems, interactiveItems } = getDisplayItems();
+  const interactiveCount = interactiveItems.length
+
+  useEffect(() => {
+    if (interactiveCount <= 0) return
+    setSelectedIndex((i) => Math.max(0, Math.min(i, interactiveCount - 1)))
+    setScrollTop((t) => Math.max(0, Math.min(t, Math.max(0, interactiveCount - VISIBLE_ROWS))))
+  }, [interactiveCount, activeTab])
 
   useInput((input, key) => {
     if (view === 'MAIN') {
@@ -209,29 +258,46 @@ const PermissionsApp = () => {
         }
         if (key.return) {
             const cleanInput = inputText.trim();
-            setInputText(prev => prev.trim());
+            setInputText(cleanInput);
 
             if (view === 'ADD_RULE') {
                 if (activeTab === 'Ask' || activeTab === 'Deny') {
                     setView('SAVE_RULE_LOCATION');
                     setSaveLocationIndex(0);
                 } else {
-                    // Allow rules might just save to default or have different logic?
-                    // Assuming they go straight to submit for now based on current flow,
-                    // or if they need the same dialog we can enable it.
-                    // The prompt specifically mentioned Ask/Deny for this dialog.
-                    // Let's assume 'Allow' works as simple add for now or follows same pattern.
-                    // If 'Allow' needs it too, remove the check.
-                    // For now, prompt said "Ask and Deny".
-                    setView('MAIN');
+                    const kind = getListKindForTab(activeTab)
+                    if (kind && cleanInput) {
+                      void persistPermissionRule({
+                        fileStore,
+                        cwd,
+                        scope: 'projectLocal',
+                        kind,
+                        rule: cleanInput,
+                        env: process.env,
+                      }).then(refreshPermissions)
+                    }
+                    setView('MAIN')
                 }
-            } else {
-                // ADD_DIRECTORY validation
-                 if (cleanInput.includes('123')) {
-                     setDirectoryError(`Path ${cleanInput} was not found.`);
-                 } else {
-                     setView('MAIN');
-                 }
+	            } else {
+	                // ADD_DIRECTORY validation
+	                 if (!cleanInput) return
+	                 const absoluteDir = normalizePathForCompare(cleanInput, cwd)
+	                 void fileStore.exists(absoluteDir).then((exists) => {
+	                   if (!exists) {
+	                     setDirectoryError(`Path ${cleanInput} was not found.`)
+	                     return
+	                   }
+	                   return persistWorkspaceDirectory({
+	                     fileStore,
+	                     cwd,
+	                     scope: 'projectLocal',
+	                     dir: absoluteDir,
+	                     env: process.env,
+	                   }).then(refreshPermissions).then(() => {
+	                     setDirectoryError(null)
+	                     setView('MAIN')
+	                   })
+                 })
             }
             return;
         }
@@ -253,8 +319,20 @@ const PermissionsApp = () => {
             setSaveLocationIndex(Math.min(SAVE_OPTIONS.length - 1, saveLocationIndex + 1));
         }
         if (key.return) {
-            // Confirm save
-            setView('MAIN');
+            const kind = getListKindForTab(activeTab)
+            const option = SAVE_OPTIONS[saveLocationIndex]
+            const scope = (saveLocationIndex === 2 ? 'user' : saveLocationIndex === 1 ? 'project' : 'projectLocal') as PermissionScope
+            if (kind && inputText.trim()) {
+              void persistPermissionRule({
+                fileStore,
+                cwd,
+                scope,
+                kind,
+                rule: inputText.trim(),
+                env: process.env,
+              }).then(refreshPermissions)
+            }
+            setView('MAIN')
         }
     } else if (view === 'DELETE_CONFIRM') {
          if (key.escape) setView('MAIN');
@@ -265,8 +343,19 @@ const PermissionsApp = () => {
 
          if (key.return) {
              if (deleteChoice === 0) {
-                 // Yes
-                 // Implement delete logic here if needed
+                 const kind = getListKindForTab(activeTab)
+                 const rule = interactiveItems[selectedIndex]
+                 const entry = kind ? getSelectedRuleEntry(rule) : null
+                 if (kind && entry) {
+                   void deletePermissionRule({
+                     fileStore,
+                     cwd,
+                     scope: entry.scope,
+                     kind,
+                     rule: entry.rule,
+                     env: process.env,
+                   }).then(refreshPermissions)
+                 }
              }
              setView('MAIN');
          }
@@ -412,6 +501,8 @@ const PermissionsApp = () => {
   const renderDeleteConfirm = () => {
     // Current selected item details mock
     const item = interactiveItems[selectedIndex]; 
+    const entry = getSelectedRuleEntry(item)
+    const scopeLabel = entry ? getScopeLabel(entry.scope) : 'project local settings'
     return (
      <Box flexDirection="column">
          <Box marginBottom={1}>
@@ -421,8 +512,8 @@ const PermissionsApp = () => {
              <Text bold color={DELETE_COLOR}>Delete allowed tool?</Text>
              <Text> </Text>
              <Text bold color="white">  {item}</Text>
-             <Text color={GRAY_COLOR}>  Any Bash command starting with <Text bold color="white">cd</Text></Text>
-             <Text color={GRAY_COLOR}>  From project local settings</Text>
+             <Text color={GRAY_COLOR}>  {describeRule(item)}</Text>
+             <Text color={GRAY_COLOR}>  From {scopeLabel}</Text>
              <Text> </Text>
              <Text color={GRAY_COLOR}> Are you sure you want to delete this permission rule?</Text>
              <Text> </Text>
