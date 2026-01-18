@@ -107,6 +107,29 @@ export function createPolicyPreflight(args: {
       }
     }
 
+    if (call.name === 'WebFetch' || call.name === 'WebSearch') {
+      const promptByRule = Boolean(explained.matchedRule && explained.decision === 'prompt')
+      const denyByRule = Boolean(explained.matchedRule && explained.decision === 'deny')
+      const permissions = await loadMergedPermissions({
+        fileStore: args.fileStore,
+        cwd,
+        env,
+        platform: args.platform,
+        homedir: args.homedir,
+      })
+      const perm = decideToolPermission({ permissions, toolName: call.name })
+
+      if (perm.decision === 'deny') {
+        effectiveDecision = 'deny'
+      } else if (perm.decision === 'ask') {
+        if (effectiveDecision === 'allow') effectiveDecision = 'prompt'
+      } else if (perm.decision === 'allow') {
+        if (!denyByRule && (effectiveDecision === 'prompt' ? !promptByRule : true)) {
+          effectiveDecision = 'allow'
+        }
+      }
+    }
+
     if (args.audit) {
       void args.audit.append({
         schemaVersion: 1,

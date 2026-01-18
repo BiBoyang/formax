@@ -84,6 +84,104 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('allows WebFetch when permissions allow the tool', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-perm-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: ['WebFetch'],
+          ask: [],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'WebFetch',
+          input: { url: 'https://example.com', prompt: 'summarize' },
+        },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies WebFetch when permissions deny the tool', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-perm-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-net',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'net.fetch', urlPrefix: 'https://' },
+          },
+        ],
+      })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: [],
+          deny: ['WebFetch'],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'WebFetch',
+          input: { url: 'https://example.com', prompt: 'summarize' },
+        },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Policy denied net.fetch')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('requires an approval service for default fs.write prompts', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-write-'))
     try {
