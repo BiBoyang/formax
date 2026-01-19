@@ -9,6 +9,8 @@ type TextInputProps = {
   placeholder?: string
   mask?: string
   focus?: boolean
+  cursorStyle?: 'block' | 'bar'
+  cursorChar?: string
 }
 
 export default function TextInput({
@@ -18,6 +20,8 @@ export default function TextInput({
   placeholder = '',
   mask,
   focus = true,
+  cursorStyle = 'block',
+  cursorChar = '▏',
 }: TextInputProps) {
   const theme = getTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
@@ -94,7 +98,8 @@ export default function TextInput({
       ) : (
         <>
           {beforeCursor}
-          {focus && <Text inverse> </Text>}
+          {focus && cursorStyle === 'block' ? <Text inverse> </Text> : null}
+          {focus && cursorStyle === 'bar' ? <Text color={theme.text}>{cursorChar}</Text> : null}
           {afterCursor}
         </>
       )}

@@ -50,4 +50,32 @@ describe('BashApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'abc' })
   })
+
+  it('supports left/right cursor editing while typing', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <ReplUiProvider abort={() => {}}>
+        <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+      </ReplUiProvider>,
+    )
+
+    await tick()
+    stdin.write('3')
+    await tick()
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('X')
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'aXb' })
+  })
 })

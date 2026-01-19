@@ -35,6 +35,36 @@ describe('EditApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: '123' })
   })
 
+  it('supports left/right cursor editing while typing', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <ReplUiProvider abort={() => {}}>
+        <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
+      </ReplUiProvider>,
+    )
+
+    await tick()
+    stdin.write('3')
+    await tick()
+
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    // Move cursor left and insert in the middle.
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('X')
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'aXb' })
+  })
+
   it('preserves the draft when navigating while typing', async () => {
     const onDecision = vi.fn()
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
+import TextInput from '../../components/ui/TextInput.js'
 
 export type EditApprovalDecision =
   | { kind: 'approve' }
@@ -58,6 +59,7 @@ export function EditApprovalPrompt({
       const isTyping = typingRef.current
 
       if (key.shift && key.tab) {
+        if (isTyping) setTypingImmediate(false)
         setRememberScope((s) => (s === 'session' ? 'project' : s === 'project' ? 'global' : 'session'))
         setCursorImmediate(1)
         return
@@ -80,21 +82,7 @@ export function EditApprovalPrompt({
           setCursorImmediate((c) => Math.min(2, c + 1))
           return
         }
-
-        if (key.return) {
-          submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })
-          return
-        }
-
-        if (key.backspace || key.delete) {
-          setTypingValueImmediate((v) => v.slice(0, -1))
-          return
-        }
-
-        if (input && !key.ctrl && !key.meta) {
-          setTypingValueImmediate((v) => v + input)
-        }
-
+        // Let `TextInput` handle editing + Enter submission.
         return
       }
 
@@ -147,7 +135,13 @@ export function EditApprovalPrompt({
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes" />
         <MenuRow cursor={cursor === 1} label={`2. Yes, remember for ${rememberScope} (shift+tab to cycle)`} />
-        <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
+        <FeedbackRow
+          cursor={cursor === 2}
+          typing={typing}
+          value={typingValue}
+          onChange={setTypingValueImmediate}
+          onSubmit={() => submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })}
+        />
       </Box>
 
       <Box marginTop={1}>
@@ -172,10 +166,14 @@ function FeedbackRow({
   cursor,
   typing,
   value,
+  onChange,
+  onSubmit,
 }: {
   cursor: boolean
   typing: boolean
   value: string
+  onChange: (next: string | ((current: string) => string)) => void
+  onSubmit: () => void
 }): React.ReactNode {
   const theme = getTheme()
 
@@ -192,7 +190,20 @@ function FeedbackRow({
       {showPlaceholder ? (
         <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
       ) : (
-        <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
+        <>
+          {typing ? (
+            <TextInput
+              value={value}
+              onChange={(next) => onChange(next)}
+              onSubmit={() => onSubmit()}
+              cursorStyle="bar"
+              cursorChar="▏"
+              focus={cursor}
+            />
+          ) : (
+            <Text color={color}>{value || ''}</Text>
+          )}
+        </>
       )}
     </Box>
   )

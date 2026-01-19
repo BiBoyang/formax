@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
+import TextInput from '../../components/ui/TextInput.js'
 
 export type BashApprovalDecision =
   | { kind: 'approve' }
@@ -54,22 +55,7 @@ export function BashApprovalPrompt({
           setCursor((c) => Math.min(3, c + 1))
           return
         }
-
-        if (key.return) {
-          submit({ kind: 'feedback', feedback: typingValue.trim() })
-          return
-        }
-
-        if (key.backspace || key.delete) {
-          setTypingValue((v) => v.slice(0, -1))
-          return
-        }
-
-        if (input && !key.ctrl && !key.meta) {
-          setTypingValue((v) => v + input)
-          return
-        }
-
+        // Let `TextInput` handle editing + Enter submission.
         return
       }
 
@@ -134,7 +120,13 @@ export function BashApprovalPrompt({
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes" />
         <MenuRow cursor={cursor === 1} label="2. Yes, don't ask again for this command in this repo" />
-        <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
+        <FeedbackRow
+          cursor={cursor === 2}
+          typing={typing}
+          value={typingValue}
+          onChange={setTypingValue}
+          onSubmit={() => submit({ kind: 'feedback', feedback: typingValue.trim() })}
+        />
         <MenuRow cursor={cursor === 3} label="4. Cancel" dim />
       </Box>
 
@@ -160,10 +152,14 @@ function FeedbackRow({
   cursor,
   typing,
   value,
+  onChange,
+  onSubmit,
 }: {
   cursor: boolean
   typing: boolean
   value: string
+  onChange: (next: string) => void
+  onSubmit: () => void
 }): React.ReactNode {
   const theme = getTheme()
 
@@ -179,7 +175,20 @@ function FeedbackRow({
       {showPlaceholder ? (
         <Text color={theme.secondaryText}>Type here to tell Claude what to do differently</Text>
       ) : (
-        <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
+        <>
+          {typing ? (
+            <TextInput
+              value={value}
+              onChange={onChange}
+              onSubmit={onSubmit}
+              cursorStyle="bar"
+              cursorChar="▏"
+              focus={cursor}
+            />
+          ) : (
+            <Text color={color}>{value || ''}</Text>
+          )}
+        </>
       )}
     </Box>
   )

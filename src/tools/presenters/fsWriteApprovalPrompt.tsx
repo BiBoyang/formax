@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
+import TextInput from '../../components/ui/TextInput.js'
 
 export type FsWriteApprovalDecision =
   | { kind: 'approve' }
@@ -73,21 +74,7 @@ export function FsWriteApprovalPrompt({
           setCursorImmediate((c) => Math.min(3, c + 1))
           return
         }
-
-        if (key.return) {
-          submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })
-          return
-        }
-
-        if (key.backspace || key.delete) {
-          setTypingValueImmediate((v) => v.slice(0, -1))
-          return
-        }
-
-        if (input && !key.ctrl && !key.meta) {
-          setTypingValueImmediate((v) => v + input)
-        }
-
+        // Let `TextInput` handle editing + Enter submission.
         return
       }
 
@@ -145,7 +132,13 @@ export function FsWriteApprovalPrompt({
       <Box flexDirection="column">
         <MenuRow cursor={cursor === 0} label="1. Yes" />
         <MenuRow cursor={cursor === 1} label="2. Yes, allow all edits during this session (shift+tab)" />
-        <FeedbackRow cursor={cursor === 2} typing={typing} value={typingValue} />
+        <FeedbackRow
+          cursor={cursor === 2}
+          typing={typing}
+          value={typingValue}
+          onChange={setTypingValueImmediate}
+          onSubmit={() => submit({ kind: 'feedback', feedback: typingValueRef.current.trim() })}
+        />
         <MenuRow cursor={cursor === 3} label="4. Cancel" dim />
       </Box>
 
@@ -179,10 +172,14 @@ function FeedbackRow({
   cursor,
   typing,
   value,
+  onChange,
+  onSubmit,
 }: {
   cursor: boolean
   typing: boolean
   value: string
+  onChange: (next: string | ((current: string) => string)) => void
+  onSubmit: () => void
 }): React.ReactNode {
   const theme = getTheme()
 
@@ -199,9 +196,21 @@ function FeedbackRow({
       {showPlaceholder ? (
         <Text color={placeholderColor}>Type here to tell Claude what to do differently</Text>
       ) : (
-        <Text color={color}>{typing ? `${value || ''}▏` : value || ''}</Text>
+        <>
+          {typing ? (
+            <TextInput
+              value={value}
+              onChange={(next) => onChange(next)}
+              onSubmit={() => onSubmit()}
+              cursorStyle="bar"
+              cursorChar="▏"
+              focus={cursor}
+            />
+          ) : (
+            <Text color={color}>{value || ''}</Text>
+          )}
+        </>
       )}
     </Box>
   )
 }
-
