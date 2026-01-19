@@ -293,6 +293,8 @@ describe('formatToolResult', () => {
           const output = formatToolResult(name, result, true)
           if (result.startsWith('Tool use rejected')) {
             expect(output.summary).toBe(result.slice(0, 100))
+          } else if (name === 'Read') {
+            expect(output.summary).toBe('Error reading file')
           } else {
             expect(output.summary.startsWith('Error:')).toBe(true)
           }
@@ -474,12 +476,24 @@ describe('formatToolResult', () => {
       })
     })
 
-    it('should format error result correctly', () => {
-      const result = formatToolResult('Read', 'File not found', true)
-      expect(result).toEqual({ summary: 'Error: File not found' })
-    })
-  })
-})
+	    it('should format error result correctly', () => {
+	      const result = formatToolResult('Read', 'File not found', true)
+	      expect(result).toEqual({ summary: 'Error reading file' })
+	    })
+
+	    it('should format Bash error result correctly', () => {
+	      const result = formatToolResult(
+	        'Bash',
+	        'Exit code 1\nstderr:\ncat: ~/.codex/auth copy.json: No such file or directory\nstdout:\n',
+	        true,
+	      )
+	      expect(result).toEqual({
+	        summary: 'Error: Exit code 1',
+	        middleLines: ['cat: ~/.codex/auth copy.json: No such file or directory'],
+	      })
+	    })
+	  })
+	})
 
 
 /**
@@ -583,11 +597,11 @@ describe('edge cases', () => {
       expect(result.summary).toBe('total 0')
     })
 
-    it('should handle very long error message', () => {
-      const longError = 'Error: ' + 'a'.repeat(1000)
-      const result = formatToolResult('Read', longError, true)
-      expect(result.summary.length).toBeLessThanOrEqual(107) // "Error: " + 100 chars
-    })
+	    it('should handle very long error message', () => {
+	      const longError = 'Error: ' + 'a'.repeat(1000)
+	      const result = formatToolResult('Read', longError, true)
+	      expect(result).toEqual({ summary: 'Error reading file' })
+	    })
 
     it('should handle Glob with empty lines', () => {
       const result = formatToolResult('Glob', 'file1.ts\n\nfile2.ts\n', false)

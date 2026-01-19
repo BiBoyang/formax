@@ -47,7 +47,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
   const bg = parseBackgroundBashResult(rawResult)
   const fileExtract =
-    status !== 'running' && !bg
+    status !== 'running' && status !== 'error' && !bg
       ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
       : null
   const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
@@ -87,7 +87,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
           {!bg && middleLines && middleLines.map((line, i) => (
             <Box key={i}>
-              <Text>   {line}</Text>
+              <Text color={status === 'error' ? theme.error : undefined}>   {line}</Text>
             </Box>
           ))}
 

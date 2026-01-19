@@ -9,6 +9,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import path from 'node:path'
+import { formatPathForDisplay } from '../../../utils/paths'
 
 export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -16,8 +17,9 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
-  const { name, input, status } = message.toolInfo
+  const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
+  const displayParams = formatPathForDisplay(params)
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -35,7 +37,7 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             {toolName}
           </Text>
           <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{params}</Text>
+          <Text color={theme.secondaryText}>{displayParams}</Text>
           <Text color={theme.secondaryText}>)</Text>
         </Box>
 
@@ -59,6 +61,16 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             <Text color={theme.secondaryText}>⎿  </Text>
             {renderReadSummary({ theme, summary: message.content, status })}
           </Box>
+          {middleLines && middleLines.map((line, i) => (
+            <Box key={i}>
+              <Text>   {line}</Text>
+            </Box>
+          ))}
+          {expandInfo && (
+            <Box>
+              <Text color={theme.secondaryText}>   {expandInfo}</Text>
+            </Box>
+          )}
         </Box>
       )}
     </Box>
@@ -69,10 +81,12 @@ function renderReadSummary(args: {
   theme: ReturnType<typeof getTheme>
   summary: string
   status: 'running' | 'completed' | 'error'
-}): React.ReactNode {
+  }): React.ReactNode {
   const summary = args.summary || ''
 
-  if (args.status === 'error') return <Text color={args.theme.error}>{summary}</Text>
+  if (args.status === 'error') {
+    return <Text color={args.theme.error}>{summary}</Text>
+  }
 
   const m = /^Read\s+(\d+)\s+lines$/.exec(summary.trim())
   if (!m) return <Text>{summary}</Text>

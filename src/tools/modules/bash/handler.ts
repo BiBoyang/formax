@@ -107,8 +107,10 @@ async function runForeground(args: {
       (err, stdout, stderr) => {
         const content = formatShellOutput(appendLimited('', stdout), appendLimited('', stderr))
         if (err) {
+          const exitCode = (err as any)?.code
           const msg = err instanceof Error ? err.message : String(err)
-          resolve({ content: content ? `Error: ${msg}\n${content}` : `Error: ${msg}`, isError: true })
+          const headline = typeof exitCode === 'number' ? `Exit code ${exitCode}` : msg
+          resolve({ content: content ? `Error: ${headline}\n${content}` : `Error: ${headline}`, isError: true })
         } else {
           resolve({ content, isError: false })
         }

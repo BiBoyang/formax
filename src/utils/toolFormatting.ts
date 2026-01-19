@@ -181,7 +181,7 @@ function jsonQuote(value: string): string {
  * @example
  * // Error result
  * formatToolResult('Read', 'File not found: /path/to/file', true)
- * // => { summary: 'Error: File not found: /path/to/file' }
+ * // => { summary: 'Error reading file' }
  */
 export function formatToolResult(
   name: string,
@@ -201,7 +201,27 @@ export function formatToolResult(
     if (/^Tool use rejected\b/.test(cleaned)) {
       return { summary: cleaned.slice(0, 100) }
     }
-    return { summary: `Error: ${cleaned.slice(0, 100)}` }
+    if (name === 'Read') {
+      return { summary: 'Error reading file' }
+    }
+    if (name === 'Bash') {
+      return formatBashErrorResult(cleaned)
+    }
+    const lines = cleaned.split('\n')
+    const firstLine = lines.shift() || ''
+    if (lines.length === 0) {
+      return { summary: `Error: ${firstLine.slice(0, 100)}` }
+    }
+    const remaining = lines.length - 8
+    if (lines.length <= 8) {
+      return { summary: `Error: ${firstLine}`, middleLines: lines, lines: lines.length + 1 }
+    }
+    return {
+      summary: `Error: ${firstLine}`,
+      middleLines: lines.slice(0, 8),
+      expandInfo: `… +${remaining} lines (ctrl+o to expand)`,
+      lines: lines.length + 1,
+    }
   }
   
   const allLines = cleaned.split('\n')
@@ -295,6 +315,44 @@ export function formatToolResult(
     default:
       return { summary: cleaned.slice(0, 100), lines: lineCount }
   }
+}
+
+function formatBashErrorResult(raw: string): ToolResultFormat {
+  const lines = String(raw || '').split(/\r?\n/).map((l) => l.trimEnd())
+  const nonEmpty = lines.map((l) => l.trim()).filter(Boolean)
+  if (nonEmpty.length === 0) return { summary: 'Error: (no output)' }
+
+  const headRaw = nonEmpty[0]!
+  const head = headRaw.startsWith('Error: ') ? headRaw.slice('Error: '.length) : headRaw
+
+  const mExit = /^Exit code\s+(\d+)\b/i.exec(head)
+  const summary = mExit ? `Error: Exit code ${mExit[1]}` : `Error: ${head}`
+
+  const stderrIndex = lines.findIndex((l) => l.trim().toLowerCase() === 'stderr:')
+  let detail: string | undefined
+  if (stderrIndex >= 0) {
+    for (let i = stderrIndex + 1; i < lines.length; i++) {
+      const line = lines[i] ?? ''
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (trimmed.toLowerCase() === 'stdout:') break
+      detail = line
+      break
+    }
+  }
+
+  if (!detail) {
+    for (const line of nonEmpty.slice(1)) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      const lower = trimmed.toLowerCase()
+      if (lower === 'stderr:' || lower === 'stdout:') continue
+      detail = line
+      break
+    }
+  }
+
+  return detail ? { summary, middleLines: [detail] } : { summary }
 }
 
 function formatTaskToolResult(raw: string, isError: boolean): ToolResultFormat {
