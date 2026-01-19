@@ -96,6 +96,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   const VISIBLE_ROWS = 10;
   const [view, setView] = useState<ViewState>('MAIN');
   const [inputText, setInputText] = useState('');
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
 	  const [deleteChoice, setDeleteChoice] = useState<0 | 1>(0);
 	  const [saveLocationIndex, setSaveLocationIndex] = useState(0);
@@ -215,13 +217,22 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   };
 
   const { staticItems, interactiveItems } = getDisplayItems();
-  const interactiveCount = interactiveItems.length
+  const filteredInteractiveItems = useMemo(() => {
+    const q = (searchQuery || '').trim().toLowerCase()
+    if (!q) return interactiveItems
+
+    const head = interactiveItems[0]
+    const tail = interactiveItems.slice(1).filter((item) => item.toLowerCase().includes(q))
+    return head ? [head, ...tail] : tail
+  }, [interactiveItems, searchQuery])
+
+  const interactiveCount = filteredInteractiveItems.length
 
   useEffect(() => {
     if (interactiveCount <= 0) return
     setSelectedIndex((i) => Math.max(0, Math.min(i, interactiveCount - 1)))
     setScrollTop((t) => Math.max(0, Math.min(t, Math.max(0, interactiveCount - VISIBLE_ROWS))))
-  }, [interactiveCount, activeTab])
+  }, [interactiveCount, activeTab, isSearching])
 
   useInput((input, key) => {
     if (view === 'MAIN') {
@@ -231,6 +242,26 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              exit();
              return;
         }
+        if (input === '/' && !key.ctrl && !key.meta) {
+            setIsSearching((prev) => {
+              const next = !prev
+              if (!next) setSearchQuery('')
+              return next
+            })
+            setSelectedIndex(0)
+            setScrollTop(0)
+            return
+        }
+        if (isSearching) {
+            if (key.backspace || key.delete) {
+                setSearchQuery((prev) => prev.slice(0, -1))
+                return
+            }
+            if (!key.ctrl && !key.meta && input && !key.tab && !key.return) {
+                setSearchQuery((prev) => prev + input)
+                return
+            }
+        }
         if (key.tab) {
             // Cycle tabs
             const currentIndex = TABS.indexOf(activeTab);
@@ -238,6 +269,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             setActiveTab(TABS[nextIndex]);
             setSelectedIndex(0);
             setScrollTop(0);
+            setIsSearching(false)
+            setSearchQuery('')
             return;
         }
         if (key.upArrow) {
@@ -248,14 +281,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             }
         }
         if (key.downArrow) {
-            const newIndex = Math.min(interactiveItems.length - 1, selectedIndex + 1);
+            const newIndex = Math.min(filteredInteractiveItems.length - 1, selectedIndex + 1);
             setSelectedIndex(newIndex);
             if (newIndex >= scrollTop + VISIBLE_ROWS) {
                  setScrollTop(newIndex - VISIBLE_ROWS + 1);
             }
         }
 	        if (key.return) {
-	            const selectedItem = interactiveItems[selectedIndex];
+	            const selectedItem = filteredInteractiveItems[selectedIndex];
 	            if (selectedItem.startsWith('Add ')) {
 	                if (activeTab === 'Workspace') {
 	                     setView('ADD_DIRECTORY');
@@ -366,7 +399,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	         if (key.return) {
 	             if (deleteChoice === 0) {
 	                 const kind = getListKindForTab(activeTab)
-	                 const rule = interactiveItems[selectedIndex]
+	                 const rule = filteredInteractiveItems[selectedIndex]
 	                 const entry = kind ? getSelectedRuleEntry(rule) : null
 	                 if (kind && entry) {
 	                   void deletePermissionRule({
@@ -462,12 +495,12 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                    <Text>   -  {item}</Text>
                </Box>
           ))}
-          {interactiveItems.slice(scrollTop, scrollTop + VISIBLE_ROWS).map((item, i) => {
+          {filteredInteractiveItems.slice(scrollTop, scrollTop + VISIBLE_ROWS).map((item, i) => {
              const actualIndex = i + scrollTop;
              // Determine scroll indicator
              let scrollIndicator: 'up' | 'down' | null = null;
              // Show down arrow on the last visible item if there are more items
-             if (i === VISIBLE_ROWS - 1 && actualIndex < interactiveItems.length - 1) {
+             if (i === VISIBLE_ROWS - 1 && actualIndex < filteredInteractiveItems.length - 1) {
                  scrollIndicator = 'down';
              }
              if (i === 0 && actualIndex > 0) {
@@ -488,6 +521,13 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              );
           })}
       </Box>
+
+      {isSearching ? (
+        <Box marginTop={1}>
+          <Text color={GRAY_COLOR}>Search: </Text>
+          <Text>{searchQuery}{'▏'}</Text>
+        </Box>
+      ) : null}
 
       <Box marginTop={2}>
         <Text color={GRAY_COLOR}>Press ↑↓ to navigate · Enter to select · / to search · Esc to cancel</Text>
