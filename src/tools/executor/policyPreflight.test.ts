@@ -176,7 +176,9 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('Policy denied net.fetch')
+      expect(res?.content).toContain('Permission denied WebFetch')
+      expect(res?.content).toContain('PermissionDecision: deny')
+      expect(res?.content).toContain('PermissionRule: WebFetch')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

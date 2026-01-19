@@ -75,9 +75,9 @@
   - [x] `Skill(name)`：精确匹配 name
   - [x] `Bash(prefix:*)`：基于 **规范化后的命令前缀** 匹配（复用现有 bash 规范化）
   - [x] 其他 `ToolName(spec)`：先做“全文字符串相等”匹配（后续再扩展）
-- [ ] `explainPermissionDecision()`：
-  - [ ] 输出：命中 rule、来源（user/project）、决策、原因、建议
-  - [ ] 用途：非交互模式报错 / UI 展示 / future doctor bundle
+- [x] `explainPermissionDecision()`：
+  - [x] 输出：命中 rule、来源（user/project）、决策、原因、建议（`src/adapters/permissions/explain.ts`）
+  - [x] 用途：非交互模式报错 / UI 展示 / future doctor bundle
 
 > TODO（待抓包确认）：local command 的 permission key 形式（先不做；等抓包明确它到底是 `Bash(...)` 还是独立 ToolName）。
 
@@ -108,7 +108,7 @@
 ### 3.1 Bash / Skill：落盘到 permissions
 
 - [ ] Bash：
-  - [ ] 命中 `deny`：直接拒绝并给出 explain（待补 explain 结构）
+  - [x] 命中 `deny`：直接拒绝并给出 explain（`src/adapters/permissions/explain.ts` + `src/tools/executor/policyPreflight.ts`）
   - [x] 命中 `ask`：永远弹确认（不受“session allow”影响）
   - [x] 命中 `allow`：直接执行
   - [x] 默认：仍走现有 Bash policy（不是每条 Bash 都要确认）

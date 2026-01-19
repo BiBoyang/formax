@@ -16,6 +16,7 @@ import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
+import { explainPermissionDecision, formatPermissionExplainLines } from '../../adapters/permissions/explain.js'
 import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
 import { formatPathForDisplay, normalizePathForCompare } from '../../utils/paths.js'
 
@@ -123,6 +124,7 @@ export function createPolicyPreflight(args: {
     const sessionRules = args.approval?.getSessionRules() ?? []
     const explained = explainPolicy({ action, rules: [...sessionRules, ...loaded.mergedRules] })
     let effectiveDecision = explained.decision
+    let permissionDenyExplain: string[] | null = null
 
     // acceptEdits mode: treat prompts as implicitly approved (still respects deny rules).
     if (action.kind === 'fs.write' && replMode === 'acceptEdits' && effectiveDecision === 'prompt') {
@@ -159,6 +161,11 @@ export function createPolicyPreflight(args: {
 
       if (perm.decision === 'deny') {
         effectiveDecision = 'deny'
+        if (explained.decision !== 'deny') {
+          permissionDenyExplain = formatPermissionExplainLines(
+            explainPermissionDecision({ permissions, toolName: 'Bash', toolSpec: command }),
+          )
+        }
       } else if (perm.decision === 'ask') {
         if (effectiveDecision === 'allow') effectiveDecision = 'prompt'
       } else if (perm.decision === 'allow') {
@@ -174,6 +181,11 @@ export function createPolicyPreflight(args: {
 
       if (perm.decision === 'deny') {
         effectiveDecision = 'deny'
+        if (explained.decision !== 'deny') {
+          permissionDenyExplain = formatPermissionExplainLines(
+            explainPermissionDecision({ permissions, toolName: call.name }),
+          )
+        }
       } else if (perm.decision === 'ask') {
         if (effectiveDecision === 'allow') effectiveDecision = 'prompt'
       } else if (perm.decision === 'allow') {
@@ -204,6 +216,14 @@ export function createPolicyPreflight(args: {
     if (effectiveDecision === 'allow') return null
 
     if (effectiveDecision === 'deny') {
+      if (permissionDenyExplain) {
+        const lines: string[] = []
+        lines.push(`Error: Permission denied ${call.name}`)
+        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
+        lines.push(...permissionDenyExplain)
+        return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      }
+
       const lines: string[] = []
       lines.push(`Error: Policy denied ${action.kind}`)
       lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
