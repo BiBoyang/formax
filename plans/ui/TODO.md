@@ -37,6 +37,7 @@
   - [x] 搜索输入支持左右方向键（自带光标；可在中间插入/删除）
 - [ ] Setup flow：`src/ui/SetupWizard.tsx`
   - [x] 接入 `useScopedInput('wizard:setup')`，避免按键被别处抢走
+  - [x] 光标更明显（disabled 选项也能看出移动）
   - [ ] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”
 - [ ] Agents flow：`src/ui/AgentsDialog.tsx`
   - [x] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏

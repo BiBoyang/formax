@@ -45,12 +45,13 @@ function ChoiceListView({
         const focused = i === focusedIndex
         const selected = selectedValue === opt.value
         const prefix = focused ? '❯ ' : '  '
+        const prefixColor = focused ? theme.permission : theme.secondaryText
         const labelColor = opt.disabled ? theme.secondaryText : focused ? theme.text : selected ? theme.success : theme.text
 
         return (
           <Box key={opt.value} flexDirection="column" marginBottom={opt.description ? 1 : 0}>
             <Text>
-              <Text color={theme.secondaryText}>{prefix}</Text>
+              <Text color={prefixColor}>{prefix}</Text>
               <Text color={labelColor} bold={focused || selected}>
                 {opt.label}
               </Text>
