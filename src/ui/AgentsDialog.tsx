@@ -48,7 +48,6 @@ const COLOR_MAP: Record<string, string> = {
   cyan: '#64d2ff',
 }
 const TOOLS_DIVIDER = '─'.repeat(32)
-const AGENTS_DIALOG_ACCENT = getTheme().permission
 
 const BUILTIN_AGENT_NAMES = new Set(
   ['general-purpose', 'statusline-setup', 'explore', 'plan', 'claude-code-guide'].map((s) =>
@@ -87,8 +86,7 @@ function Spacer({ height = 1 }: { height?: number }): React.ReactNode {
 }
 
 const DialogFrame = React.memo(function DialogFrame({
-  // keep for call-site simplicity; accent color is fixed for this dialog
-  theme: _theme,
+  theme,
   children,
 }: {
   theme: AgentsDialogTheme
@@ -97,7 +95,7 @@ const DialogFrame = React.memo(function DialogFrame({
   return (
     <OverlayFrame
       borderStyle="round"
-      borderColor={AGENTS_DIALOG_ACCENT}
+      borderColor={theme.permission}
       flexDirection="column"
       paddingX={1}
       width="100%"
@@ -130,7 +128,7 @@ const Footer = React.memo(function Footer({ theme, text }: { theme: AgentsDialog
 })
 
 function CursorPrefix({ theme, active }: { theme: AgentsDialogTheme; active: boolean }): React.ReactNode {
-  return <Text color={active ? AGENTS_DIALOG_ACCENT : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
+  return <Text color={active ? theme.permission : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
 }
 
 function CheckboxPrefix({
@@ -162,7 +160,7 @@ function FramedRow({
     <Box>
       <CursorPrefix theme={theme} active={active} />
       {typeof checked === 'boolean' ? <CheckboxPrefix theme={theme} checked={checked} /> : null}
-      <Text bold={active} color={active ? AGENTS_DIALOG_ACCENT : undefined}>
+      <Text bold={active} color={active ? theme.permission : undefined}>
         {label}
       </Text>
     </Box>
@@ -195,9 +193,9 @@ function AgentsListView({
     return {
       selected,
       prefix: selected ? '> ' : '  ',
-      color: selected ? AGENTS_DIALOG_ACCENT : theme.secondaryText,
+      color: selected ? theme.permission : theme.secondaryText,
     }
-  }, [cursor, theme.secondaryText])
+  }, [cursor, theme.permission, theme.secondaryText])
 
   const getRowStyle = React.useCallback(
     (rowIndex: number) => {
@@ -205,10 +203,10 @@ function AgentsListView({
       return {
         selected,
         prefix: selected ? '> ' : '  ',
-        color: selected ? AGENTS_DIALOG_ACCENT : theme.secondaryText,
+        color: selected ? theme.permission : theme.secondaryText,
       }
     },
-    [cursor, theme.secondaryText],
+    [cursor, theme.permission, theme.secondaryText],
   )
 
   return (
@@ -318,7 +316,7 @@ const SimpleChoiceView = React.memo(function SimpleChoiceView({
       <SelectList
         items={options.map((opt) => ({ key: opt.key, label: opt.label }))}
         cursor={cursor}
-        accentColor={AGENTS_DIALOG_ACCENT}
+        accentColor={theme.permission}
         mutedColor={theme.secondaryText}
         activePrefix="> "
         inactivePrefix="  "
@@ -944,8 +942,8 @@ export function AgentsDialog({
             description="Describe what this agent should do and when it should be used (be comprehensive for best results)"
           />
           <Spacer />
-          <Text color={AGENTS_DIALOG_ACCENT}>
-            <RotatingStar color={AGENTS_DIALOG_ACCENT} /> {view.message}
+          <Text color={theme.permission}>
+            <RotatingStar color={theme.permission} /> {view.message}
           </Text>
         </DialogFrame>
         <Footer theme={theme} text="Esc to cancel" />
@@ -1153,7 +1151,7 @@ export function AgentsDialog({
               const active = idx === view.cursor
               return (
                 <Box key={opt.label}>
-                  <Text color={active ? AGENTS_DIALOG_ACCENT : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
+                  <Text color={active ? theme.permission : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
                   <Text bold={active}>
                     <Text color={selected ? theme.success : undefined}>{idx + 1}. {opt.label}</Text>
                     <Text color={theme.secondaryText}>  {opt.description}</Text>
@@ -1169,7 +1167,7 @@ export function AgentsDialog({
 
       case 'create_color': {
         const previewName = draft?.name || normalizeAgentName(manualNameInput) || 'agent'
-        const previewBg = colorToHex(selectedColor)
+        const previewBg = colorToHex(selectedColor, theme.permission)
         return (
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} subtitle="Choose background color" />
@@ -1178,9 +1176,9 @@ export function AgentsDialog({
               const active = idx === view.cursor
               return (
                 <Box key={c}>
-                  <Text color={active ? AGENTS_DIALOG_ACCENT : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
-                  <Text color={colorToHex(c)}>█ </Text>
-                  <Text bold={active} color={active ? AGENTS_DIALOG_ACCENT : undefined}>
+                  <Text color={active ? theme.permission : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
+                  <Text color={colorToHex(c, theme.permission)}>█ </Text>
+                  <Text bold={active} color={active ? theme.permission : undefined}>
                     {c}
                   </Text>
                 </Box>
@@ -1279,9 +1277,9 @@ function indent(s: string, spaces: number): string {
     .join('\n')
 }
 
-function colorToHex(color: string): string {
+function colorToHex(color: string, fallback: string): string {
   const c = String(color || '').trim().toLowerCase()
-  return COLOR_MAP[c] ?? AGENTS_DIALOG_ACCENT
+  return COLOR_MAP[c] ?? fallback
 }
 
 const NON_SELECTABLE_TOOLS = new Set([

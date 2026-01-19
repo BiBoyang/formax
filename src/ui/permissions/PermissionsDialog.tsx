@@ -22,33 +22,29 @@ import {
 
 type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace'
 const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace']
-const THEME = getTheme()
-const MAIN_COLOR = THEME.permission
-const DELETE_COLOR = THEME.error
-const GRAY_COLOR = THEME.secondaryText
 
 const fileStore = createNodeFileStore()
 
 // Components
 
-const Separator = () => (
+const Separator = ({ color }: { color: string }) => (
   <Box width="100%">
-    <Text color={GRAY_COLOR}>────────────────────────────────────────────────────────────────────────────────────────────────────────────────</Text>
+    <Text color={color}>────────────────────────────────────────────────────────────────────────────────────────────────────────────────</Text>
   </Box>
 );
 
-const TabHeader = ({ activeTab }: { activeTab: Tab }) => {
+const TabHeader = ({ activeTab, mainColor, mutedColor }: { activeTab: Tab; mainColor: string; mutedColor: string }) => {
   return (
     <Box flexDirection="column">
       <Text>
         <Text bold>Permissions: </Text>
         {TABS.map((tab, index) => (
             <Text key={tab}>
-                {activeTab === tab ? <Text backgroundColor={MAIN_COLOR} color="black"> {tab} </Text> : <Text> {tab} </Text>}
+                {activeTab === tab ? <Text backgroundColor={mainColor} color="black"> {tab} </Text> : <Text> {tab} </Text>}
                 {index < TABS.length - 1 ? ' ' : ''}
             </Text>
         ))}
-        &nbsp;<Text color={GRAY_COLOR}>(tab to cycle)</Text>
+        &nbsp;<Text color={mutedColor}>(tab to cycle)</Text>
       </Text>
     </Box>
   );
@@ -67,16 +63,32 @@ const TabDescription = ({ activeTab }: { activeTab: Tab }) => {
     }
 };
 
-const ListItem = ({ index, text, isSelected, showIndex = true, scrollIndicator }: { index: number, text: string, isSelected: boolean, showIndex?: boolean, scrollIndicator?: 'up' | 'down' | null }) => {
+const ListItem = ({
+  index,
+  text,
+  isSelected,
+  mainColor,
+  mutedColor,
+  showIndex = true,
+  scrollIndicator,
+}: {
+  index: number
+  text: string
+  isSelected: boolean
+  mainColor: string
+  mutedColor: string
+  showIndex?: boolean
+  scrollIndicator?: 'up' | 'down' | null
+}) => {
   return (
     <Box>
       <Box width={3}>
-        <Text color={isSelected || scrollIndicator ? MAIN_COLOR : GRAY_COLOR}>
+        <Text color={isSelected || scrollIndicator ? mainColor : mutedColor}>
             {isSelected ? '❯ ' : (scrollIndicator === 'down' ? '↓ ' : (scrollIndicator === 'up' ? '↑ ' : '  '))}
         </Text>
       </Box>
       <Box width={4}>
-         <Text color={isSelected ? MAIN_COLOR : GRAY_COLOR}>{showIndex ? `${index + 1}.` : ''}</Text>
+         <Text color={isSelected ? mainColor : mutedColor}>{showIndex ? `${index + 1}.` : ''}</Text>
       </Box>
       <Text>{text}</Text>
     </Box>
@@ -96,6 +108,10 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   useScopeActivation('overlay:permissions')
   const app = useApp()
   const exit = useMemo(() => onExit ?? app.exit, [app.exit, onExit])
+  const theme = getTheme()
+  const mainColor = theme.permission
+  const deleteColor = theme.error
+  const grayColor = theme.secondaryText
   const cwd = process.cwd()
   const [permissions, setPermissions] = useState<LoadedPermissions | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('Allow');
@@ -484,9 +500,9 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         <Text dimColor>&gt; /permissions</Text>
       </Box>
 
-      <Separator />
+      <Separator color={grayColor} />
       
-      <TabHeader activeTab={activeTab} />
+      <TabHeader activeTab={activeTab} mainColor={mainColor} mutedColor={grayColor} />
       <Box marginBottom={1}>
         <TabDescription activeTab={activeTab} />
       </Box>
@@ -518,6 +534,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                 index={actualIndex} 
                 text={item} 
                 isSelected={selectedIndex === actualIndex} 
+                mainColor={mainColor}
+                mutedColor={grayColor}
                 scrollIndicator={scrollIndicator}
              />
              );
@@ -526,7 +544,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 
       {isSearching ? (
         <Box marginTop={1}>
-          <Text color={GRAY_COLOR}>Search: </Text>
+          <Text color={grayColor}>Search: </Text>
           <TextInput
             value={searchQuery}
             onChange={setSearchQuery}
@@ -540,7 +558,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 
       <KeyHintBar
         text="Press ↑↓ to navigate · Enter to select · / to search · Esc to cancel"
-        color={GRAY_COLOR}
+        color={grayColor}
         marginLeft={0}
         marginTop={2}
       />
@@ -554,8 +572,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         <Box marginBottom={1}>
              <Text dimColor>&gt; /permissions</Text>
         </Box>
-        <OverlayFrame borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
-            <Text bold color={MAIN_COLOR}>Add {activeTab !== 'Workspace' ? activeTab.toLowerCase() : ''} permission rule</Text>
+        <OverlayFrame borderStyle="single" borderColor={mainColor} flexDirection="column" paddingX={1}>
+            <Text bold color={mainColor}>Add {activeTab !== 'Workspace' ? activeTab.toLowerCase() : ''} permission rule</Text>
             <Text> </Text>
             <Text>Permission rules are a tool name, optionally followed by a specifier in parentheses.</Text>
             <Text>e.g., <Text color="white" bold>WebFetch</Text> or <Text color="white" bold>Bash(ls:*)</Text></Text>
@@ -572,24 +590,24 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             </Box>
              <Text> </Text>
         </OverlayFrame>
-        <KeyHintBar text="   Enter to submit · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
+        <KeyHintBar text="   Enter to submit · Esc to cancel" color={grayColor} marginLeft={0} />
       </Box>
   );
 
   const renderSaveRuleLocation = () => (
       <Box flexDirection="column">
          <Box marginBottom={1}>
-             <Text color={GRAY_COLOR}>&gt; /permissions</Text>
+             <Text color={grayColor}>&gt; /permissions</Text>
          </Box>
 
-         <Separator />
+         <Separator color={grayColor} />
          
          <Box flexDirection="column" marginTop={1}>
-             <Text bold color={MAIN_COLOR}>Add {activeTab.toLowerCase()} permission rule</Text> 
+             <Text bold color={mainColor}>Add {activeTab.toLowerCase()} permission rule</Text> 
              <Text> </Text>
              <Box flexDirection="column" paddingLeft={3}>
                 <Text bold color="white">{inputText}</Text>
-                <Text color={GRAY_COLOR}>Any use of the <Text bold color="white">{inputText}</Text> tool</Text>
+                <Text color={grayColor}>Any use of the <Text bold color="white">{inputText}</Text> tool</Text>
              </Box>
              <Text> </Text>
              <Text> </Text>
@@ -597,16 +615,16 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              {SAVE_OPTIONS.map((option, i) => (
                  <Box key={i}>
                      <Box width={38}>
-                        <Text color={saveLocationIndex === i ? MAIN_COLOR : GRAY_COLOR}>
+                        <Text color={saveLocationIndex === i ? mainColor : grayColor}>
                             {saveLocationIndex === i ? ' ❯ ' : '   '}{i + 1}. {option.label}
                         </Text>
                      </Box>
-                     <Text color={GRAY_COLOR}>{option.detail}</Text>
+                     <Text color={grayColor}>{option.detail}</Text>
                  </Box>
              ))}
              <Text> </Text>
              <Text> </Text>
-             <Text color={GRAY_COLOR}>   Enter to confirm · Esc to cancel</Text>
+             <Text color={grayColor}>   Enter to confirm · Esc to cancel</Text>
         </Box>
       </Box>
   );
@@ -614,16 +632,16 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   const renderAddDirectory = () => (
      <Box flexDirection="column">
          <Box marginBottom={1}>
-             <Text color={GRAY_COLOR}>&gt; /permissions</Text>
+             <Text color={grayColor}>&gt; /permissions</Text>
         </Box>
-        <OverlayFrame borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
-             <Text bold color={MAIN_COLOR}>Add directory to workspace</Text>
+        <OverlayFrame borderStyle="single" borderColor={mainColor} flexDirection="column" paddingX={1}>
+             <Text bold color={mainColor}>Add directory to workspace</Text>
              <Text> </Text>
              <Text>  Claude Code will be able to read files in this directory and make edits when auto-accept edits is on.</Text>
              <Text> </Text>
              <Text>  Enter the path to the directory:</Text>
              <Text> </Text>
-            <Box borderStyle="round" borderColor={directoryError ? DELETE_COLOR : 'gray'} paddingX={1}>
+            <Box borderStyle="round" borderColor={directoryError ? deleteColor : 'gray'} paddingX={1}>
                  <TextInput
                    value={inputText}
                    onChange={(value) => {
@@ -639,11 +657,11 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              <Text> </Text>
              {directoryError && (
                  <Box marginBottom={1}>
-                     <Text color={DELETE_COLOR}>{directoryError}</Text>
+                     <Text color={deleteColor}>{directoryError}</Text>
                  </Box>
              )}
         </OverlayFrame>
-        <KeyHintBar text="   Enter to add · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
+        <KeyHintBar text="   Enter to add · Esc to cancel" color={grayColor} marginLeft={0} />
 
      </Box>
   );
@@ -656,16 +674,16 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
     return (
      <Box flexDirection="column">
          <Box marginBottom={1}>
-             <Text color={GRAY_COLOR}>&gt; /permissions</Text>
+             <Text color={grayColor}>&gt; /permissions</Text>
         </Box>
-         <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
-             <Text bold color={DELETE_COLOR}>Delete allowed tool?</Text>
+         <OverlayFrame borderStyle="single" borderColor={deleteColor} flexDirection="column" paddingX={1}>
+             <Text bold color={deleteColor}>Delete allowed tool?</Text>
              <Text> </Text>
              <Text bold color="white">  {item}</Text>
-             <Text color={GRAY_COLOR}>  {describeRule(item)}</Text>
-             <Text color={GRAY_COLOR}>  From {scopeLabel}</Text>
+             <Text color={grayColor}>  {describeRule(item)}</Text>
+             <Text color={grayColor}>  From {scopeLabel}</Text>
              <Text> </Text>
-             <Text color={GRAY_COLOR}> Are you sure you want to delete this permission rule?</Text>
+             <Text color={grayColor}> Are you sure you want to delete this permission rule?</Text>
              <Text> </Text>
              <SelectList
                items={[
@@ -673,14 +691,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                  { key: 'no', label: 'No' },
                ]}
                cursor={deleteChoice}
-               accentColor={MAIN_COLOR}
-               mutedColor={GRAY_COLOR}
+               accentColor={mainColor}
+               mutedColor={grayColor}
                activePrefix=" ❯ "
                inactivePrefix="   "
                showNumbers
              />
         </OverlayFrame>
-        <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
+        <KeyHintBar text="   Esc to cancel" color={grayColor} marginLeft={0} />
 
      </Box>
     );
@@ -693,10 +711,10 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	    return (
 	      <Box flexDirection="column">
 	        <Box marginBottom={1}>
-	          <Text color={GRAY_COLOR}>&gt; /permissions</Text>
+	          <Text color={grayColor}>&gt; /permissions</Text>
 	        </Box>
-	        <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
-	          <Text bold color={DELETE_COLOR}>Delete workspace directory?</Text>
+	        <OverlayFrame borderStyle="single" borderColor={deleteColor} flexDirection="column" paddingX={1}>
+	          <Text bold color={deleteColor}>Delete workspace directory?</Text>
 	          <Text> </Text>
 	          {dirs.slice(directorySelectScrollTop, directorySelectScrollTop + visible).map((dir, i) => {
 	            const actualIndex = i + directorySelectScrollTop
@@ -706,13 +724,15 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	                index={actualIndex}
 	                text={dir}
 	                isSelected={directorySelectIndex === actualIndex}
+                  mainColor={mainColor}
+                  mutedColor={grayColor}
 	                scrollIndicator={null}
 	              />
 	            )
 	          })}
-	          {count === 0 ? <Text color={GRAY_COLOR}>No additional directories.</Text> : null}
+	          {count === 0 ? <Text color={grayColor}>No additional directories.</Text> : null}
 	        </OverlayFrame>
-	        <KeyHintBar text="   Enter to select · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
+	        <KeyHintBar text="   Enter to select · Esc to cancel" color={grayColor} marginLeft={0} />
 	      </Box>
 	    )
 	  }
@@ -724,15 +744,15 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	    return (
 	      <Box flexDirection="column">
 	        <Box marginBottom={1}>
-	          <Text color={GRAY_COLOR}>&gt; /permissions</Text>
+	          <Text color={grayColor}>&gt; /permissions</Text>
 	        </Box>
-	        <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
-	          <Text bold color={DELETE_COLOR}>Delete workspace directory?</Text>
+	        <OverlayFrame borderStyle="single" borderColor={deleteColor} flexDirection="column" paddingX={1}>
+	          <Text bold color={deleteColor}>Delete workspace directory?</Text>
 	          <Text> </Text>
 	          <Text bold color="white">  {dir}</Text>
-	          <Text color={GRAY_COLOR}>  From {scopeLabel}</Text>
+	          <Text color={grayColor}>  From {scopeLabel}</Text>
 	          <Text> </Text>
-	          <Text color={GRAY_COLOR}> Are you sure you want to delete this directory?</Text>
+	          <Text color={grayColor}> Are you sure you want to delete this directory?</Text>
 	          <Text> </Text>
 	          <SelectList
 	            items={[
@@ -740,14 +760,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	              { key: 'no', label: 'No' },
 	            ]}
 	            cursor={deleteChoice}
-	            accentColor={MAIN_COLOR}
-	            mutedColor={GRAY_COLOR}
+	            accentColor={mainColor}
+	            mutedColor={grayColor}
 	            activePrefix=" ❯ "
 	            inactivePrefix="   "
 	            showNumbers
 	          />
 	        </OverlayFrame>
-	        <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
+	        <KeyHintBar text="   Esc to cancel" color={grayColor} marginLeft={0} />
 	      </Box>
 	    )
 	  }

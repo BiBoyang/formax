@@ -50,9 +50,9 @@
 
 目的：解决“颜色硬编码 + 组件风格不一致”。
 
-- [ ] 统一从 `getTheme()` 取语义色（primary/secondaryText/warn/error/success）
-- [ ] 统一边框与选中高亮色（当前对齐目标：`#B1B9F9`）
-- [ ] 清理 UI 内散落的颜色常量（或集中到单处）
+- [x] 统一从 `getTheme()` 取语义色（primary/secondaryText/warn/error/success）
+- [x] 统一边框与选中高亮色（当前对齐目标：`#B1B9F9`）
+- [x] 清理 UI 内散落的颜色常量（或集中到单处）
 
 ## 5. P4 — 回归与防回归
 
