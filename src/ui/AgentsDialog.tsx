@@ -3,6 +3,8 @@ import path from 'node:path'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import TextInput from '../components/ui/TextInput'
+import { KeyHintBar } from '../components/ui/KeyHintBar'
+import { OverlayFrame } from '../components/ui/OverlayFrame'
 import { RotatingStar } from '../components/ui/RotatingStar'
 import { getTheme } from '../utils/theme'
 import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext'
@@ -92,7 +94,7 @@ const DialogFrame = React.memo(function DialogFrame({
   children: React.ReactNode
 }): React.ReactNode {
   return (
-    <Box
+    <OverlayFrame
       borderStyle="round"
       borderColor={AGENTS_DIALOG_ACCENT}
       flexDirection="column"
@@ -100,7 +102,7 @@ const DialogFrame = React.memo(function DialogFrame({
       width="100%"
     >
       {children}
-    </Box>
+    </OverlayFrame>
   )
 })
 
@@ -123,11 +125,7 @@ const CreateAgentHeader = React.memo(function CreateAgentHeader({
 })
 
 const Footer = React.memo(function Footer({ theme, text }: { theme: AgentsDialogTheme; text: string }): React.ReactNode {
-  return (
-    <Box marginTop={0} marginLeft={1}>
-      <Text color={theme.secondaryText}>{text}</Text>
-    </Box>
-  )
+  return <KeyHintBar text={text} color={theme.secondaryText} marginLeft={1} marginTop={0} />
 })
 
 function CursorPrefix({ theme, active }: { theme: AgentsDialogTheme; active: boolean }): React.ReactNode {

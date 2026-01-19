@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, useApp } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
+import { KeyHintBar } from '../../components/ui/KeyHintBar.js'
+import { OverlayFrame } from '../../components/ui/OverlayFrame.js'
 import TextInput from '../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import {
@@ -534,9 +536,12 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         </Box>
       ) : null}
 
-      <Box marginTop={2}>
-        <Text color={GRAY_COLOR}>Press ↑↓ to navigate · Enter to select · / to search · Esc to cancel</Text>
-      </Box>
+      <KeyHintBar
+        text="Press ↑↓ to navigate · Enter to select · / to search · Esc to cancel"
+        color={GRAY_COLOR}
+        marginLeft={0}
+        marginTop={2}
+      />
       
 
     </Box>
@@ -547,7 +552,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         <Box marginBottom={1}>
              <Text dimColor>&gt; /permissions</Text>
         </Box>
-        <Box borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
+        <OverlayFrame borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
             <Text bold color={MAIN_COLOR}>Add {activeTab !== 'Workspace' ? activeTab.toLowerCase() : ''} permission rule</Text>
             <Text> </Text>
             <Text>Permission rules are a tool name, optionally followed by a specifier in parentheses.</Text>
@@ -563,8 +568,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                  />
             </Box>
              <Text> </Text>
-        </Box>
-        <Text color={GRAY_COLOR}>   Enter to submit · Esc to cancel</Text>
+        </OverlayFrame>
+        <KeyHintBar text="   Enter to submit · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
       </Box>
   );
 
@@ -608,7 +613,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
          <Box marginBottom={1}>
              <Text color={GRAY_COLOR}>&gt; /permissions</Text>
         </Box>
-        <Box borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
+        <OverlayFrame borderStyle="single" borderColor={MAIN_COLOR} flexDirection="column" paddingX={1}>
              <Text bold color={MAIN_COLOR}>Add directory to workspace</Text>
              <Text> </Text>
              <Text>  Claude Code will be able to read files in this directory and make edits when auto-accept edits is on.</Text>
@@ -633,8 +638,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                      <Text color={DELETE_COLOR}>{directoryError}</Text>
                  </Box>
              )}
-        </Box>
-        <Text color={GRAY_COLOR}>   Enter to add · Esc to cancel</Text>
+        </OverlayFrame>
+        <KeyHintBar text="   Enter to add · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 
      </Box>
   );
@@ -649,7 +654,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
          <Box marginBottom={1}>
              <Text color={GRAY_COLOR}>&gt; /permissions</Text>
         </Box>
-         <Box borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
+         <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
              <Text bold color={DELETE_COLOR}>Delete allowed tool?</Text>
              <Text> </Text>
              <Text bold color="white">  {item}</Text>
@@ -660,8 +665,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              <Text> </Text>
              <Text color={deleteChoice === 0 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 0 ? ' ❯ ' : '   '}1. Yes</Text>
              <Text color={deleteChoice === 1 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 1 ? ' ❯ ' : '   '}2. No</Text>
-        </Box>
-        <Text color={GRAY_COLOR}>   Esc to cancel</Text>
+        </OverlayFrame>
+        <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 
      </Box>
     );
@@ -676,7 +681,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	        <Box marginBottom={1}>
 	          <Text color={GRAY_COLOR}>&gt; /permissions</Text>
 	        </Box>
-	        <Box borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
+	        <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
 	          <Text bold color={DELETE_COLOR}>Delete workspace directory?</Text>
 	          <Text> </Text>
 	          {dirs.slice(directorySelectScrollTop, directorySelectScrollTop + visible).map((dir, i) => {
@@ -692,8 +697,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	            )
 	          })}
 	          {count === 0 ? <Text color={GRAY_COLOR}>No additional directories.</Text> : null}
-	        </Box>
-	        <Text color={GRAY_COLOR}>   Enter to select · Esc to cancel</Text>
+	        </OverlayFrame>
+	        <KeyHintBar text="   Enter to select · Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 	      </Box>
 	    )
 	  }
@@ -707,7 +712,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	        <Box marginBottom={1}>
 	          <Text color={GRAY_COLOR}>&gt; /permissions</Text>
 	        </Box>
-	        <Box borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
+	        <OverlayFrame borderStyle="single" borderColor={DELETE_COLOR} flexDirection="column" paddingX={1}>
 	          <Text bold color={DELETE_COLOR}>Delete workspace directory?</Text>
 	          <Text> </Text>
 	          <Text bold color="white">  {dir}</Text>
@@ -717,8 +722,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	          <Text> </Text>
 	          <Text color={deleteChoice === 0 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 0 ? ' ❯ ' : '   '}1. Yes</Text>
 	          <Text color={deleteChoice === 1 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 1 ? ' ❯ ' : '   '}2. No</Text>
-	        </Box>
-	        <Text color={GRAY_COLOR}>   Esc to cancel</Text>
+	        </OverlayFrame>
+	        <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 	      </Box>
 	    )
 	  }

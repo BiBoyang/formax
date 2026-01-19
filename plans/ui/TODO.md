@@ -18,14 +18,15 @@
 目的：把“列表选择 / 确认菜单 / 键位提示条 / overlay 框”做成复用件，减少每处手写交互。
 
 - [ ] `OverlayFrame`：统一边框/标题/副标题/留白（对齐 Claude Code 风格）
-- [ ] `KeyHintBar`：统一底部提示文案（`↑↓`、`Enter`、`Esc`、`Tab` 等）
+- [x] `OverlayFrame`：统一边框/标题/副标题/留白（对齐 Claude Code 风格）
+- [x] `KeyHintBar`：统一底部提示文案（`↑↓`、`Enter`、`Esc`、`Tab` 等）
 - [ ] `SelectList`：统一“上下/回车/ESC/数字快捷键/滚动”行为（可配置是否支持数字）
 - [ ] `ConfirmMenu`：统一确认/取消/记忆选项（避免每个 ApprovalPrompt 各写一套）
 - [ ] `InlineTextEditorRow`：统一“列表里可编辑项”的输入与导航（减少 `typing + refs` 私货）
 
 **DoD**
 - [ ] 至少 2 处页面复用 `SelectList`
-- [ ] 至少 2 处页面复用 `OverlayFrame + KeyHintBar`
+- [x] 至少 2 处页面复用 `OverlayFrame + KeyHintBar`（AgentsDialog/PermissionsDialog）
 
 ## 3. P2 — 对齐现有 flows（按收益顺序逐个改）
 
