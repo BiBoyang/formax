@@ -39,7 +39,7 @@
   - [x] 接入 `useScopedInput('wizard:setup')`，避免按键被别处抢走
   - [x] TextInput 绑定 `scope="wizard:setup"`（避免未来与 overlay/REPL 抢键）
   - [x] 光标更明显（disabled 选项也能看出移动）
-  - [ ] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”
+  - [x] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”
 - [x] Agents flow：`src/ui/AgentsDialog.tsx`
   - [x] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏
 - [x] Tool approval prompts：`src/tools/presenters/*ApprovalPrompt.tsx`

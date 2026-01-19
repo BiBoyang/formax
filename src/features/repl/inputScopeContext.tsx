@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useInput } from 'ink'
 
 export type InputScopeId = 'repl' | `overlay:${string}` | `wizard:${string}` | `prompt:${string}`
@@ -61,7 +61,7 @@ export function useInputScope(): InputScopeController {
 
 export function useScopeActivation(scope: InputScopeId, enabled = true): void {
   const { push, pop } = useInputScope()
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return
     push(scope)
     return () => pop(scope)

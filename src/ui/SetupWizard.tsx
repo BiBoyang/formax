@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../utils/theme.js'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine.js'
+import { SelectList } from '../components/ui/SelectList.js'
 import TextInput from '../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext.js'
 import { createSetupSession } from '../core/setup/session.js'
@@ -39,34 +40,28 @@ function ChoiceListView({
 }): React.ReactNode {
   const theme = getTheme()
 
-  return (
-    <Box flexDirection="column">
-      {options.map((opt, i) => {
-        const focused = i === focusedIndex
-        const selected = selectedValue === opt.value
-        const prefix = focused ? '❯ ' : '  '
-        const prefixColor = focused ? theme.permission : theme.secondaryText
-        const labelColor = opt.disabled ? theme.secondaryText : focused ? theme.text : selected ? theme.success : theme.text
+  const items = options.map((opt) => {
+    const selected = selectedValue === opt.value
+    const suffix = opt.disabled ? 'coming soon' : opt.description
+    const right = selected ? (suffix ? `✓ ${suffix}` : '✓') : suffix
+    return { key: opt.value, label: opt.label, right, disabled: opt.disabled }
+  })
 
-        return (
-          <Box key={opt.value} flexDirection="column" marginBottom={opt.description ? 1 : 0}>
-            <Text>
-              <Text color={prefixColor}>{prefix}</Text>
-              <Text color={labelColor} bold={focused || selected}>
-                {opt.label}
-              </Text>
-              {selected ? <Text color={theme.success}> ✓</Text> : null}
-              {opt.disabled ? <Text color={theme.secondaryText}> (coming soon)</Text> : null}
-            </Text>
-            {opt.description ? (
-              <Box marginLeft={4}>
-                <Text color={theme.secondaryText}>{opt.description}</Text>
-              </Box>
-            ) : null}
-          </Box>
-        )
-      })}
-    </Box>
+  const cursor = Math.max(0, Math.min(focusedIndex, Math.max(0, items.length - 1)))
+
+  return (
+    <SelectList
+      items={items}
+      cursor={cursor}
+      accentColor={theme.permission}
+      mutedColor={theme.text}
+      disabledColor={theme.secondaryText}
+      activePrefix="❯ "
+      inactivePrefix="  "
+      showNumbers={false}
+      leftWidth={24}
+      rightColor={theme.secondaryText}
+    />
   )
 }
 

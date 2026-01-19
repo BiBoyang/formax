@@ -5,6 +5,7 @@ export type SelectListItem = {
   key: string
   label: string
   right?: string
+  disabled?: boolean
 }
 
 export function SelectList({
@@ -12,6 +13,7 @@ export function SelectList({
   cursor,
   accentColor,
   mutedColor,
+  disabledColor,
   activePrefix = '> ',
   inactivePrefix = '  ',
   showNumbers = true,
@@ -22,6 +24,7 @@ export function SelectList({
   cursor: number
   accentColor: string
   mutedColor: string
+  disabledColor?: string
   activePrefix?: string
   inactivePrefix?: string
   showNumbers?: boolean
@@ -33,7 +36,7 @@ export function SelectList({
       {items.map((item, idx) => {
         const active = idx === cursor
         const prefix = active ? activePrefix : inactivePrefix
-        const color = active ? accentColor : mutedColor
+        const color = item.disabled ? (disabledColor ?? mutedColor) : active ? accentColor : mutedColor
         const label = `${prefix}${showNumbers ? `${idx + 1}. ` : ''}${item.label}`
 
         if (!item.right) {
@@ -56,4 +59,3 @@ export function SelectList({
     </Box>
   )
 }
-
