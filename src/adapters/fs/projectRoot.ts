@@ -4,17 +4,25 @@ import path from 'node:path'
 export function resolveFormaxProjectRoot(cwd: string): string {
   const startDir = path.resolve(cwd || process.cwd())
 
+  const gitRoot = findGitRoot(startDir)
+
+  // If we're in a git repo, `.formax` should only be considered inside that repo.
+  // Otherwise the user's global `~/.formax` would "steal" the project root for any
+  // repo nested under home.
+  if (gitRoot) {
+    const nearestFormaxRootInRepo = findNearestFormaxRoot(startDir, { stopAt: gitRoot })
+    return nearestFormaxRootInRepo ?? gitRoot
+  }
+
   const nearestFormaxRoot = findNearestFormaxRoot(startDir)
   if (nearestFormaxRoot) return nearestFormaxRoot
-
-  const gitRoot = findGitRoot(startDir)
-  if (gitRoot) return gitRoot
 
   return startDir
 }
 
-function findNearestFormaxRoot(startDir: string): string | null {
+function findNearestFormaxRoot(startDir: string, opts?: { stopAt?: string }): string | null {
   let current = startDir
+  const stopAt = opts?.stopAt ? path.resolve(opts.stopAt) : null
   for (;;) {
     const formaxDir = path.join(current, '.formax')
     try {
@@ -22,6 +30,8 @@ function findNearestFormaxRoot(startDir: string): string | null {
     } catch {
       // ignore fs errors and keep searching
     }
+
+    if (stopAt && path.resolve(current) === stopAt) return null
 
     const parent = path.dirname(current)
     if (parent === current) return null
@@ -44,4 +54,3 @@ function findGitRoot(startDir: string): string | null {
     current = parent
   }
 }
-

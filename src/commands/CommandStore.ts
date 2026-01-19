@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { extractFirstMeaningfulLine, parseMarkdownFrontmatter } from '../shared/frontmatter'
+import { resolveFormaxProjectRoot } from '../adapters/fs/projectRoot.js'
 
 export type CommandScope = 'project' | 'user'
 
@@ -22,7 +23,8 @@ export type CommandStore = {
 }
 
 export function createCommandStore(args: { cwd: string; globalConfigDir: string }): CommandStore {
-  const projectDir = path.join(args.cwd, '.formax', 'commands')
+  const projectRoot = resolveFormaxProjectRoot(args.cwd)
+  const projectDir = path.join(projectRoot, '.formax', 'commands')
   const userDir = path.join(args.globalConfigDir, 'commands')
 
   const userCommands = scanDir(userDir, 'user')

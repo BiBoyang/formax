@@ -20,6 +20,24 @@ describe('resolveFormaxProjectRoot', () => {
     }
   })
 
+  it('does not treat global ~/.formax as the project root for git repos', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-project-root-global-'))
+    try {
+      const home = path.join(dir, 'home')
+      await fsp.mkdir(path.join(home, '.formax'), { recursive: true })
+
+      const projectRoot = path.join(home, 'repo')
+      await fsp.mkdir(path.join(projectRoot, '.git'), { recursive: true })
+
+      const nested = path.join(projectRoot, 'src', 'a')
+      await fsp.mkdir(nested, { recursive: true })
+
+      expect(resolveFormaxProjectRoot(nested)).toBe(projectRoot)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('falls back to git root when .formax is missing', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-project-root-git-'))
     try {
@@ -47,4 +65,3 @@ describe('resolveFormaxProjectRoot', () => {
     }
   })
 })
-
