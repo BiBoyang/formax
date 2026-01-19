@@ -28,6 +28,14 @@ describe('slashEffectToCommandResult', () => {
     })
   })
 
+  it('maps open_permissions_dialog effect to openOverlay', () => {
+    const result = slashEffectToCommandResult({ kind: 'open_permissions_dialog' })
+    expect(result).toEqual({
+      consumed: true,
+      ui: [{ type: 'openOverlay', overlay: { kind: 'permissions' } }],
+    })
+  })
+
   it('maps unimplemented effect to appendMessages', () => {
     const result = slashEffectToCommandResult({ kind: 'unimplemented', message: 'Nope' })
     expect(result).toEqual({

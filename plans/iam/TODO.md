@@ -30,10 +30,12 @@
 
 ### B. UI（最后做，严格不改样式）
 
-- [x] B1 `/permissions` UI 接真数据（只读展示）：`src/entrypoints/permissions.tsx`
-- [x] B2 Add rule（Allow：默认写 project local）：`src/entrypoints/permissions.tsx` + store
-- [x] B3 Add rule（Ask/Deny：进入“保存位置选择”）：`src/entrypoints/permissions.tsx` + store
-- [ ] B4 Delete rule / Add directory / Delete directory / dismissed 行：`src/entrypoints/permissions.tsx` + store（已接 Delete rule + Add directory + Delete directory；dismissed 行待补）
+- [x] B1 `/permissions` UI 接真数据（只读展示）：`src/ui/permissions/PermissionsDialog.tsx`
+- [x] B2 Add rule（Allow：默认写 project local）：`src/ui/permissions/PermissionsDialog.tsx` + store
+- [x] B3 Add rule（Ask/Deny：进入“保存位置选择”）：`src/ui/permissions/PermissionsDialog.tsx` + store
+- [x] B4 Delete rule / Add directory / Delete directory / dismissed 行：`src/ui/permissions/PermissionsDialog.tsx` + store + REPL overlay
+  - [x] `/permissions` 打开 overlay：`src/features/commands/registry.ts` + `src/features/commands/adapter.ts` + `src/screens/REPL.tsx`
+  - [x] Esc 关闭时追加：`⎿  Permissions dialog dismissed`：`src/features/repl/useReplController.ts`
 
 ### C. 暂缓（必须抓包确认）
 

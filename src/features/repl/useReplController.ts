@@ -41,6 +41,7 @@ export type ReplControllerState = {
   error: string | null
   allowedSubagents: Array<{ name: string; description: string }>
   agentsDialogOpen: boolean
+  permissionsDialogOpen: boolean
   context: null | {
     usedTokens: number
     limitTokens: number
@@ -55,6 +56,7 @@ export type ReplController = {
     send: (text: string, opts?: { preferredSlashSpecId?: string }) => Promise<void>
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
+    closePermissionsDialog: () => void
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }
@@ -137,6 +139,19 @@ export function useReplController(deps: {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: lines.map((l) => `  ⎿  ${l}`).join('\n'),
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
+  const closePermissionsDialog = useCallback(() => {
+    overlayManagerRef.current.close()
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: '  ⎿  Permissions dialog dismissed',
         timestamp: new Date(),
       },
     ])
@@ -1172,12 +1187,14 @@ export function useReplController(deps: {
       error,
       allowedSubagents,
       agentsDialogOpen: overlay?.kind === 'agents',
+      permissionsDialogOpen: overlay?.kind === 'permissions',
       context,
     },
     actions: {
       send,
       abort,
       closeAgentsDialog,
+      closePermissionsDialog,
       generateAgentDraft,
       saveAgentFromDialog,
     },

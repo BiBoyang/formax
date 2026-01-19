@@ -7,7 +7,10 @@ export type UiMessage = {
   timestamp?: Date
 }
 
-export type OverlaySpec = { kind: 'agents' } | { kind: 'custom'; id: string; props?: Record<string, unknown> }
+export type OverlaySpec =
+  | { kind: 'agents' }
+  | { kind: 'permissions' }
+  | { kind: 'custom'; id: string; props?: Record<string, unknown> }
 
 export type UiEffect =
   | { type: 'appendMessages'; messages: UiMessage[] }

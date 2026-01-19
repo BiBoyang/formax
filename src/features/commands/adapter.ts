@@ -30,6 +30,9 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
     case 'open_agents_dialog':
       return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'agents' } }] })
 
+    case 'open_permissions_dialog':
+      return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'permissions' } }] })
+
     case 'local':
       return consumedCommandResult({
         ui: [appendAssistantMessage(effect.stdout)],

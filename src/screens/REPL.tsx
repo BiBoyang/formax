@@ -32,6 +32,7 @@ import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/AgentsDialog'
+import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 
@@ -197,6 +198,7 @@ export function REPL({
 
   const isPromptMode = useMemo(() => {
     if (state.agentsDialogOpen) return true
+    if (state.permissionsDialogOpen) return true
     if (!userInput) return false
     const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
     return state.transientMessages.some((m) => {
@@ -208,7 +210,7 @@ export function REPL({
       }
       return interactive || userInput.isPending(toolUseId)
     })
-  }, [state.agentsDialogOpen, state.transientMessages, toolRegistry, userInput])
+  }, [state.agentsDialogOpen, state.permissionsDialogOpen, state.transientMessages, toolRegistry, userInput])
 
   const allMessages = useMemo(
     () => [...state.staticMessages, ...state.transientMessages],
@@ -236,6 +238,7 @@ export function REPL({
 
     if (key.ctrl && inputKey === 'o') {
       if (state.agentsDialogOpen) return
+      if (state.permissionsDialogOpen) return
       if (isPromptMode) return
 
       if (state.isLoading && state.thinkingText.trim()) {
@@ -280,6 +283,7 @@ export function REPL({
 
     if (key.escape) {
       if (state.agentsDialogOpen) return
+      if (state.permissionsDialogOpen) return
       actions.abort()
       return
     }
@@ -467,6 +471,8 @@ export function REPL({
                 onExit={actions.closeAgentsDialog}
               />
             )}
+
+            {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

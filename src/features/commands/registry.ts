@@ -35,6 +35,9 @@ export type SlashCommandEffect =
       kind: 'open_agents_dialog'
     }
   | {
+      kind: 'open_permissions_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -67,6 +70,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/tasks', source: 'builtin', command: '/tasks', description: 'List and manage background tasks', implemented: true },
   { id: 'builtin:/todos', source: 'builtin', command: '/todos', description: 'List current todos', implemented: true },
   { id: 'builtin:/agents', source: 'builtin', command: '/agents', description: 'Create and manage custom sub-agents', implemented: true },
+  { id: 'builtin:/permissions', source: 'builtin', command: '/permissions', description: 'Manage tool permissions and workspace access', implemented: true },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -161,6 +165,12 @@ export function createSlashCommandRegistry(deps: {
       const rawArgs = (invocation.args || '').trim()
       if (rawArgs) return { kind: 'local', stdout: 'Usage: /agents' }
       return { kind: 'open_agents_dialog' }
+  })
+
+  setBuiltinDispatcher('/permissions', (invocation) => {
+      const rawArgs = (invocation.args || '').trim()
+      if (rawArgs) return { kind: 'local', stdout: 'Usage: /permissions' }
+      return { kind: 'open_permissions_dialog' }
   })
 
   setBuiltinDispatcher('/plan', () => {

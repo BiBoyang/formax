@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, useApp, useInput } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
@@ -85,8 +85,9 @@ type ViewState =
   | 'DELETE_DIRECTORY_SELECT'
   | 'DELETE_DIRECTORY_CONFIRM';
 
-export const PermissionsDialog = () => {
-  const { exit } = useApp();
+export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
+  const app = useApp()
+  const exit = useMemo(() => onExit ?? app.exit, [app.exit, onExit])
   const cwd = process.cwd()
   const [permissions, setPermissions] = useState<LoadedPermissions | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('Allow');
