@@ -4,11 +4,12 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/ui/TODO.md`：UI 稳定基座（键盘路由/焦点/复用组件）
+- `plans/stability/TODO.md`：稳定性/可预测性基座（输出契约/abort/plan snippet 等）
 - `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（优先做基座，UI 后接线）
 
 ## 并行参考（不作为主线推进）
 
+- `plans/ui/TODO.md`：UI 稳定基座（已完成，可作为组件/测试参考）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
 
 ## 暂停（等 IAM 稳定后再继续）
