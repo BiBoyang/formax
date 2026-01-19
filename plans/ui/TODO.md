@@ -33,7 +33,7 @@
 
 - [ ] Permissions flow：`src/ui/permissions/PermissionsDialog.tsx`
   - [ ] 使用 `useScopedInput` + `SelectList` + `OverlayFrame`（不改业务逻辑）
-  - [ ] 修复左右方向键无效的问题（来自统一 input 处理）
+  - [x] 搜索输入支持左右方向键（自带光标；可在中间插入/删除）
 - [ ] Setup flow：`src/ui/SetupWizard.tsx`
   - [x] 接入 `useScopedInput('wizard:setup')`，避免按键被别处抢走
   - [ ] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”

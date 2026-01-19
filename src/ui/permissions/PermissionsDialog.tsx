@@ -104,6 +104,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   const [inputText, setInputText] = useState('');
   const [isSearching, setIsSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchCursor, setSearchCursor] = useState(0)
 
 	  const [deleteChoice, setDeleteChoice] = useState<0 | 1>(0);
 	  const [saveLocationIndex, setSaveLocationIndex] = useState(0);
@@ -224,13 +225,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 
   const { staticItems, interactiveItems } = getDisplayItems();
   const filteredInteractiveItems = useMemo(() => {
+    if (!isSearching) return interactiveItems
     const q = (searchQuery || '').trim().toLowerCase()
     if (!q) return interactiveItems
 
     const head = interactiveItems[0]
     const tail = interactiveItems.slice(1).filter((item) => item.toLowerCase().includes(q))
     return head ? [head, ...tail] : tail
-  }, [interactiveItems, searchQuery])
+  }, [interactiveItems, isSearching, searchQuery])
 
   const interactiveCount = filteredInteractiveItems.length
 
@@ -302,24 +304,41 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	             return;
 	        }
 	        if ((input === '/' || seq === '/') && !key.ctrl && !key.meta) {
-	            setIsSearching((prev) => {
-	              const next = !prev
-	              if (!next) setSearchQuery('')
-              return next
-            })
-            setSelectedIndex(0)
-            setScrollTop(0)
-            return
+	          if (isSearching) {
+	            setIsSearching(false)
+	            setSearchQuery('')
+	            setSearchCursor(0)
+	          } else {
+	            setIsSearching(true)
+	            setSearchCursor(searchQuery.length)
+	          }
+	          setSelectedIndex(0)
+	          setScrollTop(0)
+	          return
         }
 	        if (isSearching) {
-	            if (key.backspace || key.delete) {
-	                setSearchQuery((prev) => prev.slice(0, -1))
-	                return
+	          if (key.backspace || key.delete) {
+	            if (searchCursor > 0) {
+	              const next = searchQuery.slice(0, searchCursor - 1) + searchQuery.slice(searchCursor)
+	              setSearchQuery(next)
+	              setSearchCursor(Math.max(0, searchCursor - 1))
 	            }
-	            if (!key.ctrl && !key.meta && input && !key.tab && !isReturn) {
-	                setSearchQuery((prev) => prev + input)
-	                return
-	            }
+	            return
+	          }
+	          if (key.leftArrow) {
+	            setSearchCursor((c) => Math.max(0, c - 1))
+	            return
+	          }
+	          if (key.rightArrow) {
+	            setSearchCursor((c) => Math.min(searchQuery.length, c + 1))
+	            return
+	          }
+	          if (!key.ctrl && !key.meta && input && !key.tab && !isReturn) {
+	            const next = searchQuery.slice(0, searchCursor) + input + searchQuery.slice(searchCursor)
+	            setSearchQuery(next)
+	            setSearchCursor(searchCursor + input.length)
+	            return
+	          }
 	        }
 	        if (key.tab) {
             // Cycle tabs
@@ -330,6 +349,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             setScrollTop(0);
             setIsSearching(false)
             setSearchQuery('')
+            setSearchCursor(0)
             return;
         }
         if (key.upArrow) {
@@ -533,7 +553,11 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
       {isSearching ? (
         <Box marginTop={1}>
           <Text color={GRAY_COLOR}>Search: </Text>
-          <Text>{searchQuery}{'▏'}</Text>
+          <Text>
+            {searchQuery.slice(0, searchCursor)}
+            <Text color="white">{'▏'}</Text>
+            {searchQuery.slice(searchCursor)}
+          </Text>
         </Box>
       ) : null}
 
