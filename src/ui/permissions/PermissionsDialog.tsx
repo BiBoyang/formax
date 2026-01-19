@@ -242,7 +242,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              exit();
              return;
         }
-        if (input === '/' && !key.ctrl && !key.meta) {
+        const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+        if ((input === '/' || seq === '/') && !key.ctrl && !key.meta) {
             setIsSearching((prev) => {
               const next = !prev
               if (!next) setSearchQuery('')

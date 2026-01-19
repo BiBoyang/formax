@@ -119,7 +119,7 @@
 
 ### 3.2 Write/Edit/NotebookEdit：不落盘 permissions（走 accept edits mode）
 
-- [ ] 保持现有约束（对齐 Claude）：
+- [x] 保持现有约束（对齐 Claude）：
   - [x] “remember/allow all edits” 仅会话生效（accept edits mode）
   - [x] 不写入 `permissions.allow`
 - [x] `deny/ask` **必须能硬拦截**（即使 accept edits on 也要尊重 deny/ask）
@@ -188,7 +188,7 @@
 - [x] 单测：PermissionsStore（读写/保留字段/坏 JSON/合并优先级）
 - [x] 单测：Permission matcher（deny>ask>allow、Bash(prefix) 匹配、Skill(name)）
 - [x] 单测：Workspace 边界（允许/拒绝，提示信息）
-- [ ] Ink 测试：`/permissions` UI 的基础交互（tab/上下/enter/esc）
+- [x] Ink 测试：`/permissions` UI 的基础交互（tab/上下/enter/esc）
 
 ---
 
