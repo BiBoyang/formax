@@ -20,8 +20,8 @@
 
 ## S2 — Plan snippet（`→` 行号前缀）与 Edit 匹配逻辑对齐
 
-- [ ] `src/tools/modules/edit/handler.ts`：`stripCatNPrefixes()` 同时支持 `cat -n`（`\\t`）与 plan snippet（`→`）
-- [ ] 测试：`src/tools/modules/edit/handler.test.ts` 增加“`→` 前缀也能 edit 成功”
+- [x] `src/tools/modules/edit/handler.ts`：`stripCatNPrefixes()` 同时支持 `cat -n`（`\\t`）与 plan snippet（`→`）
+- [x] 测试：`src/tools/modules/edit/handler.test.ts` 增加“`→` 前缀也能 edit 成功”
 
 ## S3 — Abort / Esc 取消要完整清理 pending 输入与 running 工具状态
 

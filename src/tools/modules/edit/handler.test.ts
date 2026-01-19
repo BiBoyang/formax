@@ -111,6 +111,34 @@ describe('EditToolHandler', () => {
     await fsp.unlink(tmpFile)
   })
 
+  it('accepts plan snippet arrow prefixed old/new strings', async () => {
+    const tmpFile = path.join(os.tmpdir(), `formax-edit-arrow-${Date.now()}.txt`)
+    await fsp.writeFile(tmpFile, 'hello world\n', 'utf8')
+    await ReadToolHandler.execute(
+      { id: 'r4', name: 'Read', input: { file_path: tmpFile } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    const handler = createEditToolHandler()
+
+    const result = await handler.execute(
+      {
+        id: 'arrow1',
+        name: 'Edit',
+        input: {
+          file_path: tmpFile,
+          old_string: '     1→hello world',
+          new_string: '     1→hello plan',
+        },
+      },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(await fsp.readFile(tmpFile, 'utf8')).toBe('hello plan\n')
+    await fsp.unlink(tmpFile)
+  })
+
   it('fails when old_string is not unique unless replace_all is true', async () => {
     const tmpFile = path.join(os.tmpdir(), `formax-edit-nonunique-${Date.now()}.txt`)
     await fsp.writeFile(tmpFile, 'foo\nfoo\n', 'utf8')

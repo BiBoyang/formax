@@ -98,7 +98,8 @@ function stripCatNPrefixes(text: string): string {
   const raw = String(text ?? '')
   return raw
     .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*\d+\t/, ''))
+    // Support both `cat -n` style (`1<TAB>...`) and our plan snippet style (`1→...`).
+    .map((line) => line.replace(/^\s*\d+(?:\t|→)/, ''))
     .join('\n')
 }
 
