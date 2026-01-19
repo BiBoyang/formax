@@ -6,6 +6,7 @@ import { assertNoExtraKeys, requirePlainObject } from '../utils/strictInput.js'
 import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapters/permissions/skillAllowList.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
+import { explainPermissionDecision, formatPermissionExplainLines } from '../../adapters/permissions/explain.js'
 
 type SkillApprovalAnswer = {
   decision?: string
@@ -57,7 +58,10 @@ export function createSkillPreflight(args: {
     const perm = decideToolPermission({ permissions, toolName: 'Skill', toolSpec: skill })
 
     if (perm.decision === 'deny') {
-      return { tool_use_id: call.id, content: 'Tool use rejected by user.', is_error: true }
+      const lines: string[] = []
+      lines.push(`Error: Permission denied Skill(${skill})`)
+      lines.push(...formatPermissionExplainLines(explainPermissionDecision({ permissions, toolName: 'Skill', toolSpec: skill })))
+      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
     if (perm.decision === 'allow') return null
 

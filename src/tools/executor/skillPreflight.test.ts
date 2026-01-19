@@ -101,6 +101,8 @@ describe('createSkillPreflight', () => {
         { cwd: projectDir, agentDepth: 0 },
       )
       expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Permission denied Skill(frontend-design)')
+      expect(res?.content).toContain('PermissionDecision: deny')
       expect(requestAnswers).toHaveBeenCalledTimes(0)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
