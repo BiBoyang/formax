@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import { getTheme } from '../utils/theme.js'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine.js'
 import TextInput from '../components/ui/TextInput.js'
+import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext.js'
 import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
 import { getConnectionTestHint } from '../core/setup/hints.js'
@@ -77,6 +78,8 @@ export type SetupWizardProps = {
 }
 
 export function SetupWizard({ providers, testConnection, onWrite, onDone, onCancel }: SetupWizardProps): React.ReactNode {
+  useScopeActivation('wizard:setup')
+
   const sessionRef = useRef<SetupSession | null>(null)
   if (!sessionRef.current) {
     sessionRef.current = createSetupSession({ providers, testConnection })
@@ -262,7 +265,8 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     [goBack],
   )
 
-  useInput(
+  useScopedInput(
+    'wizard:setup',
     (input, key) => {
       if (key.escape) {
         onCancel()
@@ -303,7 +307,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         handleConfirmInput(input, key)
       }
     },
-    { isActive: true },
   )
 
   useEffect(() => {

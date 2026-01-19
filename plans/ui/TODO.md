@@ -17,7 +17,6 @@
 
 目的：把“列表选择 / 确认菜单 / 键位提示条 / overlay 框”做成复用件，减少每处手写交互。
 
-- [ ] `OverlayFrame`：统一边框/标题/副标题/留白（对齐 Claude Code 风格）
 - [x] `OverlayFrame`：统一边框/标题/副标题/留白（对齐 Claude Code 风格）
 - [x] `KeyHintBar`：统一底部提示文案（`↑↓`、`Enter`、`Esc`、`Tab` 等）
 - [x] `SelectList`：统一“上下/回车/ESC/数字快捷键/滚动”行为（可配置是否支持数字）
@@ -36,6 +35,7 @@
   - [ ] 使用 `useScopedInput` + `SelectList` + `OverlayFrame`（不改业务逻辑）
   - [ ] 修复左右方向键无效的问题（来自统一 input 处理）
 - [ ] Setup flow：`src/ui/SetupWizard.tsx`
+  - [x] 接入 `useScopedInput('wizard:setup')`，避免按键被别处抢走
   - [ ] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”
 - [ ] Agents flow：`src/ui/AgentsDialog.tsx`
   - [ ] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏

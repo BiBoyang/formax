@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library'
 import { SetupWizard } from './SetupWizard'
 import type { SetupProviderOption } from '../core/setup/types.js'
 import { ErrorCode } from '../core/errors/codes.js'
+import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -29,32 +30,31 @@ const PROVIDERS: SetupProviderOption[] = [
   { id: 'gemini', label: 'Gemini', disabled: true },
 ]
 
-describe('SetupWizard', () => {
-  it('renders the welcome step', () => {
-    const { lastFrame } = render(
+function renderSetupWizard(props?: Partial<React.ComponentProps<typeof SetupWizard>>) {
+  return render(
+    <InputScopeProvider initialScope="wizard:setup">
       <SetupWizard
         providers={PROVIDERS}
         testConnection={async () => ({ ok: true, models: ['m1'] })}
         onWrite={async () => {}}
         onDone={() => {}}
         onCancel={() => {}}
-      />,
-    )
+        {...props}
+      />
+    </InputScopeProvider>,
+  )
+}
+
+describe('SetupWizard', () => {
+  it('renders the welcome step', () => {
+    const { lastFrame } = renderSetupWizard()
     expect(lastFrame()).toContain('Formax Setup')
   })
 
   it('calls onCancel on Esc', async () => {
     const onCancel = vi.fn()
 
-    const { stdin } = render(
-      <SetupWizard
-        providers={PROVIDERS}
-        testConnection={async () => ({ ok: true, models: ['m1'] })}
-        onWrite={async () => {}}
-        onDone={() => {}}
-        onCancel={onCancel}
-      />,
-    )
+    const { stdin } = renderSetupWizard({ onCancel })
 
     await tick()
     stdin.write('\u001b')
@@ -68,15 +68,7 @@ describe('SetupWizard', () => {
       throw new Error('permission denied')
     })
 
-    const { lastFrame, stdin } = render(
-      <SetupWizard
-        providers={PROVIDERS}
-        testConnection={async () => ({ ok: true, models: ['m1'] })}
-        onWrite={onWrite}
-        onDone={() => {}}
-        onCancel={() => {}}
-      />,
-    )
+    const { lastFrame, stdin } = renderSetupWizard({ onWrite })
 
     // Attach input listeners.
     await tick()
@@ -114,15 +106,7 @@ describe('SetupWizard', () => {
   })
 
   it('allows moving focus onto disabled provider options', async () => {
-    const { lastFrame, stdin } = render(
-      <SetupWizard
-        providers={PROVIDERS}
-        testConnection={async () => ({ ok: true, models: ['m1'] })}
-        onWrite={async () => {}}
-        onDone={() => {}}
-        onCancel={() => {}}
-      />,
-    )
+    const { lastFrame, stdin } = renderSetupWizard()
 
     // Attach input listeners.
     await tick()
@@ -152,15 +136,9 @@ describe('SetupWizard', () => {
     [ErrorCode.Timeout, 'Verify the base URL is reachable'],
     [ErrorCode.NetworkError, 'Verify the base URL is correct and reachable'],
   ])('shows helpful hints for %s connection errors', async (code, expectedHint) => {
-    const { lastFrame, stdin } = render(
-      <SetupWizard
-        providers={PROVIDERS}
-        testConnection={async () => ({ ok: false, code, message: 'boom' })}
-        onWrite={async () => {}}
-        onDone={() => {}}
-        onCancel={() => {}}
-      />,
-    )
+    const { lastFrame, stdin } = renderSetupWizard({
+      testConnection: async () => ({ ok: false, code, message: 'boom' }),
+    })
 
     // Attach input listeners.
     await tick()
