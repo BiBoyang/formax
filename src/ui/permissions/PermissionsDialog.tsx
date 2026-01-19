@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, useApp } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
+import { getTheme } from '../../utils/theme.js'
 import { KeyHintBar } from '../../components/ui/KeyHintBar.js'
 import { OverlayFrame } from '../../components/ui/OverlayFrame.js'
 import { SelectList } from '../../components/ui/SelectList.js'
@@ -21,9 +22,10 @@ import {
 
 type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace'
 const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace']
-const MAIN_COLOR = '#b1b9f9'
-const DELETE_COLOR = '#ff6b80'
-const GRAY_COLOR = '#999999'
+const THEME = getTheme()
+const MAIN_COLOR = THEME.permission
+const DELETE_COLOR = THEME.error
+const GRAY_COLOR = THEME.secondaryText
 
 const fileStore = createNodeFileStore()
 

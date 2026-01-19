@@ -48,7 +48,7 @@ const COLOR_MAP: Record<string, string> = {
   cyan: '#64d2ff',
 }
 const TOOLS_DIVIDER = '─'.repeat(32)
-const AGENTS_DIALOG_ACCENT = '#b1b9f9'
+const AGENTS_DIALOG_ACCENT = getTheme().permission
 
 const BUILTIN_AGENT_NAMES = new Set(
   ['general-purpose', 'statusline-setup', 'explore', 'plan', 'claude-code-guide'].map((s) =>

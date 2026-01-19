@@ -35,7 +35,7 @@
 - [x] Permissions flow：`src/ui/permissions/PermissionsDialog.tsx`
   - [x] 使用 `useScopedInput` + `SelectList` + `OverlayFrame`（不改业务逻辑）
   - [x] 搜索输入支持左右方向键（自带光标；可在中间插入/删除）
-- [ ] Setup flow：`src/ui/SetupWizard.tsx`
+- [x] Setup flow：`src/ui/SetupWizard.tsx`
   - [x] 接入 `useScopedInput('wizard:setup')`，避免按键被别处抢走
   - [x] TextInput 绑定 `scope="wizard:setup"`（避免未来与 overlay/REPL 抢键）
   - [x] 光标更明显（disabled 选项也能看出移动）
