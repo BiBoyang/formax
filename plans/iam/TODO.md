@@ -107,7 +107,7 @@
 
 ### 3.1 Bash / Skill：落盘到 permissions
 
-- [ ] Bash：
+- [x] Bash：
   - [x] 命中 `deny`：直接拒绝并给出 explain（`src/adapters/permissions/explain.ts` + `src/tools/executor/policyPreflight.ts`）
   - [x] 命中 `ask`：永远弹确认（不受“session allow”影响）
   - [x] 命中 `allow`：直接执行
