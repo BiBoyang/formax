@@ -87,6 +87,7 @@ export function createChatEngine(deps: {
         let nonTodoToolUsesSinceLastTodoWrite = shouldInjectTodoReminders
           ? countNonTodoToolUsesSinceLastTodoWrite(history)
           : 0
+        let shouldIncludeTodoStaleReminder = false
 
         let iteration = 0
         while (true) {
@@ -107,10 +108,25 @@ export function createChatEngine(deps: {
             loopMessages.push(...prunedLoopMessages)
           }
 
+          const todoStaleReminder =
+            shouldInjectTodoReminders && shouldIncludeTodoStaleReminder ? buildTodoStaleReminder(cwd) : null
+
+          const systemForThisCall =
+            todoStaleReminder
+              ? [
+                  ...system,
+                  {
+                    type: 'text',
+                    text: todoStaleReminder,
+                    cache_control: { type: 'ephemeral' },
+                  },
+                ]
+              : system
+
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
               messages: loopMessages.slice(),
-              system,
+              system: systemForThisCall,
               tools,
               onEvent,
               executeTool,
@@ -125,33 +141,26 @@ export function createChatEngine(deps: {
             break
           }
 
-          const toolNameById = shouldInjectTodoReminders ? new Map(toolUseBlocks.map((b) => [b.id, b.name])) : null
-          const todoStaleReminder = shouldInjectTodoReminders ? buildTodoStaleReminder(cwd) : null
+          if (shouldInjectTodoReminders) {
+            const toolNameById = new Map(toolUseBlocks.map((b) => [b.id, b.name]))
+            for (const r of toolResults) {
+              const toolName = toolNameById.get(r.tool_use_id)
+              if (!toolName) continue
 
-          const amendedToolResults = toolResults.map((r) => {
-            const toolName = toolNameById?.get(r.tool_use_id)
-            const ok = !r.is_error
-
-            if (toolName === 'TodoWrite') {
-              if (ok) nonTodoToolUsesSinceLastTodoWrite = 0
-              return r
-            }
-
-            if (shouldInjectTodoReminders) {
-              nonTodoToolUsesSinceLastTodoWrite++
-              if (todoStaleReminder && nonTodoToolUsesSinceLastTodoWrite >= todoStaleThreshold) {
-                return {
-                  ...r,
-                  content: appendReminderToToolResultContent(r.content, todoStaleReminder),
-                }
+              const ok = !r.is_error
+              if (toolName === 'TodoWrite') {
+                if (ok) nonTodoToolUsesSinceLastTodoWrite = 0
+                continue
               }
+
+              nonTodoToolUsesSinceLastTodoWrite++
             }
 
-            return r
-          })
+            shouldIncludeTodoStaleReminder = nonTodoToolUsesSinceLastTodoWrite >= todoStaleThreshold
+          }
 
           loopMessages.push(
-            ...amendedToolResults.map((r) => ({
+            ...toolResults.map((r) => ({
               role: 'user' as const,
               content: [
                 {
@@ -187,11 +196,6 @@ function buildTodoStaleReminder(cwd: string): string | null {
   const body = buildTodoStaleReminderBody(todos)
   if (!body) return null
   return `<system-reminder>\n${body}\n</system-reminder>`
-}
-
-function appendReminderToToolResultContent(base: unknown, reminder: string): string {
-  const text = typeof base === 'string' ? base : String(base ?? '')
-  return text.trim() ? `${text}\n\n${reminder}` : reminder
 }
 
 function countNonTodoToolUsesSinceLastTodoWrite(history: ChatHistory): number {

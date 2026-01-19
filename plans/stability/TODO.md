@@ -11,12 +11,12 @@
 
 ## S1 — Todo reminder 注入不要污染 tool_result（也不要破坏 JSON 工具输出）
 
-- [ ] 不再把 `<system-reminder>` 拼进任何 `tool_result.content`
-- [ ] 改为“仅对下一次模型调用注入一次性提醒”（例如作为 `system` 的 ephemeral block）
-- [ ] 触发阈值与“TodoWrite 重置计数”行为保持不变
-- [ ] 测试：`src/chat/engine.test.ts` 更新为验证
-  - [ ] 第二次 `streamOnce` 的 `system` 包含 reminder
-  - [ ] `tool_result.content` 不包含 reminder（避免 JSON 变脏）
+- [x] 不再把 `<system-reminder>` 拼进任何 `tool_result.content`
+- [x] 改为“仅对下一次模型调用注入一次性提醒”（作为 `system` 的 `cache_control: { type: 'ephemeral' }` block）
+- [x] 触发阈值与“TodoWrite 重置计数”行为保持不变
+- [x] 测试：`src/chat/engine.test.ts` 更新为验证
+  - [x] 第二次 `streamOnce` 的 `system` 包含 reminder
+  - [x] `tool_result.content` 不包含 reminder（避免 JSON 变脏）
 
 ## S2 — Plan snippet（`→` 行号前缀）与 Edit 匹配逻辑对齐
 
@@ -51,4 +51,3 @@
 - [ ] 统一错误输出格式（ErrorCode/Hint/结构化字段）到所有 preflight/handler（范围大）
 - [ ] Plan mode 限制逻辑多处重复（policyPreflight + handler）统一（可能牵扯面大）
 - [ ] streaming/tool_update setState 频繁导致闪烁：需要基准与更明确复现
-

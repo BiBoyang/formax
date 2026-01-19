@@ -104,7 +104,7 @@ describe('ChatEngine', () => {
     expect(JSON.stringify(secondCallMessages)).not.toContain(tailMark)
   })
 
-  it('appends todo_stale reminder to the last tool_result block after threshold', async () => {
+  it('injects todo_stale reminder as an ephemeral system block after threshold', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-engine-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
@@ -134,6 +134,7 @@ describe('ChatEngine', () => {
 
       let callCount = 0
       let secondCallMessages: PromptMessage[] | null = null
+      let secondCallSystem: any[] | null = null
 
       const client: LlmStreamClient = {
         async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
@@ -158,6 +159,7 @@ describe('ChatEngine', () => {
           }
 
           secondCallMessages = args.messages
+          secondCallSystem = args.system
           return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
         },
       }
@@ -178,15 +180,20 @@ describe('ChatEngine', () => {
 
       expect(callCount).toBe(2)
       expect(secondCallMessages).not.toBeNull()
+      expect(secondCallSystem).not.toBeNull()
 
       const last = secondCallMessages![secondCallMessages!.length - 1]!
       expect(last.role).toBe('user')
       const tr = Array.isArray(last.content) ? (last.content[0] as any) : null
       expect(tr?.type).toBe('tool_result')
-      expect(String(tr?.content || '')).toContain('<system-reminder>')
-      expect(String(tr?.content || '')).toContain("The TodoWrite tool hasn't been used recently")
-      expect(String(tr?.content || '')).toContain('Here are the existing contents of your todo list:')
-      expect(String(tr?.content || '')).toContain('[1. [completed] Task A')
+      expect(String(tr?.content || '')).not.toContain('<system-reminder>')
+
+      const reminder = secondCallSystem!.find((b: any) => b?.type === 'text' && String(b?.text || '').includes('<system-reminder>'))
+      expect(reminder).toBeTruthy()
+      expect(reminder.cache_control).toEqual({ type: 'ephemeral' })
+      expect(String(reminder.text || '')).toContain("The TodoWrite tool hasn't been used recently")
+      expect(String(reminder.text || '')).toContain('Here are the existing contents of your todo list:')
+      expect(String(reminder.text || '')).toContain('[1. [completed] Task A')
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath
