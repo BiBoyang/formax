@@ -56,6 +56,7 @@
 目的：让 UI 交互的稳定性可持续，而不是靠“人肉记忆”。
 
 - [ ] 增加最小交互测试（ink-testing-library）
+  - [x] `InputBar`：非 `repl` scope 时不接收输入（避免 overlay/prompt 抢键）
   - [ ] overlay 打开时 REPL 不响应方向键/Tab/数字键
   - [ ] Permissions/Agents/SetupWizard 的基本导航不回归
 - [ ] 补一份手动回归清单（只列关键路径）
