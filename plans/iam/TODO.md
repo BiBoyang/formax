@@ -113,9 +113,10 @@
   - [x] 命中 `allow`：直接执行
   - [x] 默认：仍走现有 Bash policy（不是每条 Bash 都要确认）
   - [x] “don’t ask again” 时写入 `permissions.allow`（默认 project local）
-- [ ] Skill：
+- [x] Skill：
+  - [x] 命中 `deny`：直接拒绝并给出 explain（`src/adapters/permissions/explain.ts` + `src/tools/executor/skillPreflight.ts`）
   - [x] “don’t ask again” 写入 `permissions.allow`（project local）
-  - [ ] UI 输出压缩为一行：`⏺ Skill(frontend-design)`（在 Skill TODO 里对齐）
+  - 注：Skill 的 UI 输出对齐在 `plans/skills/TODO.md`
 
 ### 3.2 Write/Edit/NotebookEdit：不落盘 permissions（走 accept edits mode）
 
