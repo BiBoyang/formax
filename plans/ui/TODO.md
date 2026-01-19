@@ -63,4 +63,4 @@
   - [x] `InputBar`：scope 变化时能正确暂停/恢复输入（overlay 打开/关闭）
   - [x] overlay 打开时 REPL 不响应方向键/Tab/数字键（由 `InputScopeProvider` 路由测试覆盖）
   - [x] Permissions/Agents/SetupWizard 的基本导航不回归（`SetupWizard.test.tsx` + `PermissionsDialog.test.tsx` + `AgentsDialog.test.tsx`）
-- [ ] 补一份手动回归清单（只列关键路径）
+- [x] 补一份手动回归清单（只列关键路径）：`plans/ui/REGRESSION.md`
