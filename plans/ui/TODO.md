@@ -12,6 +12,7 @@
 ## 1. 已完成（最近）
 
 - P0 键盘路由基座：`InputScopeProvider` + `useScopedInput` 已接入 REPL/AgentsDialog/PermissionsDialog（含 `src/entrypoints/permissions.tsx`），并补了最小测试覆盖。
+- [x] `InputBar` 的 `TextInput` 绑定 `scope="repl"`：overlay/prompt 打开时不再抢按键
 
 ## 2. P1 — 通用交互组件抽离（减少重复与 bug 漂移）
 

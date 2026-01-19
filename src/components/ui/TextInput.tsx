@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
+import type { InputScopeId } from '../../features/repl/inputScopeContext'
+import { useScopedInput } from '../../features/repl/inputScopeContext'
 
 type TextInputProps = {
   value: string
@@ -11,6 +13,7 @@ type TextInputProps = {
   focus?: boolean
   cursorStyle?: 'block' | 'bar'
   cursorChar?: string
+  scope?: InputScopeId
 }
 
 export default function TextInput({
@@ -22,6 +25,7 @@ export default function TextInput({
   focus = true,
   cursorStyle = 'block',
   cursorChar = '▏',
+  scope,
 }: TextInputProps) {
   const theme = getTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
@@ -31,48 +35,46 @@ export default function TextInput({
     setCursorOffset(Math.min(cursorOffset, value.length))
   }, [value.length, cursorOffset])
 
-  useInput(
-    (input, key) => {
-      if (!focus) return
+  const handler = (input: string, key: any) => {
+    if (!focus) return
 
-      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-      const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+    const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
 
-      if (key.backspace || key.delete) {
-        if (value.length > 0 && cursorOffset > 0) {
-          const newValue =
-            value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
-          onChange(newValue)
-          setCursorOffset(Math.max(0, cursorOffset - 1))
-        }
-        return
-      }
-
-      if (key.leftArrow && cursorOffset > 0) {
-        setCursorOffset(cursorOffset - 1)
-        return
-      }
-
-      if (key.rightArrow && cursorOffset < value.length) {
-        setCursorOffset(cursorOffset + 1)
-        return
-      }
-
-      if (isReturn) {
-        if (onSubmit) onSubmit(value)
-        return
-      }
-
-      // Insert character at cursor position
-      if (input && !key.ctrl && !key.meta) {
-        const newValue =
-          value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
+    if (key.backspace || key.delete) {
+      if (value.length > 0 && cursorOffset > 0) {
+        const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
         onChange(newValue)
-        setCursorOffset(cursorOffset + input.length)
+        setCursorOffset(Math.max(0, cursorOffset - 1))
       }
-    },
-    { isActive: focus },
-  )
+      return
+    }
+
+    if (key.leftArrow && cursorOffset > 0) {
+      setCursorOffset(cursorOffset - 1)
+      return
+    }
+
+    if (key.rightArrow && cursorOffset < value.length) {
+      setCursorOffset(cursorOffset + 1)
+      return
+    }
+
+    if (isReturn) {
+      if (onSubmit) onSubmit(value)
+      return
+    }
+
+    // Insert character at cursor position
+    if (input && !key.ctrl && !key.meta) {
+      const newValue = value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
+      onChange(newValue)
+      setCursorOffset(cursorOffset + input.length)
+    }
+  }
+
+  useScopedInput(scope ?? 'repl', handler, { enabled: Boolean(scope) && focus })
+  useInput(handler, { isActive: Boolean(focus) && !scope })
 
   const displayValue = mask ? value.replace(/./g, mask) : value
   const showPlaceholder = value.length === 0 && placeholder

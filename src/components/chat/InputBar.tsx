@@ -46,6 +46,7 @@ function InputBarImpl({
             onSubmit={onSubmit}
             placeholder={placeholder}
             focus={!disabled}
+            scope="repl"
           />
         </Box>
       </Box>
