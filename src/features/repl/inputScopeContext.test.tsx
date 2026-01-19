@@ -44,7 +44,9 @@ function ScopeReporter({ onScope }: { onScope: (s: string) => void }): React.Rea
   const { activeScope } = useInputScope()
   const onScopeRef = React.useRef(onScope)
   onScopeRef.current = onScope
-  React.useEffect(() => onScopeRef.current(activeScope), [activeScope])
+  React.useEffect(() => {
+    onScopeRef.current(activeScope)
+  }, [activeScope])
   return null
 }
 
@@ -133,5 +135,121 @@ describe('InputScopeProvider', () => {
     stdin.write('c')
     await tick()
     expect(onRepl).toHaveBeenCalledWith('c')
+  })
+
+  it('routes navigation keys only to the active scope', async () => {
+    const replEvents: string[] = []
+    const overlayEvents: string[] = []
+    const scopes: string[] = []
+
+    function NavProbe({
+      onReplEvent,
+      onOverlayEvent,
+    }: {
+      onReplEvent: (s: string) => void
+      onOverlayEvent: (s: string) => void
+    }): React.ReactNode {
+      useScopedInput('repl', (input, key) => {
+        if (key.upArrow) onReplEvent('up')
+        if (key.downArrow) onReplEvent('down')
+        if (key.tab || input === '\t') onReplEvent('tab')
+        if (input === '1') onReplEvent('1')
+        if (key.escape) onReplEvent('esc')
+      })
+      useScopedInput('overlay:test', (input, key) => {
+        if (key.upArrow) onOverlayEvent('up')
+        if (key.downArrow) onOverlayEvent('down')
+        if (key.tab || input === '\t') onOverlayEvent('tab')
+        if (input === '1') onOverlayEvent('1')
+        if (key.escape) onOverlayEvent('esc')
+      })
+      return null
+    }
+
+    function NavHarnessInner({
+      showOverlay,
+      setShowOverlay,
+      onReplEvent,
+      onOverlayEvent,
+      onScope,
+    }: {
+      showOverlay: boolean
+      setShowOverlay: (next: boolean) => void
+      onReplEvent: (s: string) => void
+      onOverlayEvent: (s: string) => void
+      onScope: (s: string) => void
+    }): React.ReactNode {
+      useScopedInput('repl', (input) => {
+        if (input === 'O') setShowOverlay(true)
+      })
+      useScopedInput('overlay:test', (input) => {
+        if (input === 'C') setShowOverlay(false)
+      })
+
+      return (
+        <>
+          <ScopeReporter onScope={onScope} />
+          {showOverlay ? <Overlay /> : null}
+          <NavProbe onReplEvent={onReplEvent} onOverlayEvent={onOverlayEvent} />
+        </>
+      )
+    }
+
+    function NavHarness({ onScope }: { onScope: (s: string) => void }): React.ReactNode {
+      const [showOverlay, setShowOverlay] = useState(false)
+      return (
+        <InputScopeProvider initialScope="repl">
+          <NavHarnessInner
+            showOverlay={showOverlay}
+            setShowOverlay={setShowOverlay}
+            onReplEvent={(s) => replEvents.push(s)}
+            onOverlayEvent={(s) => overlayEvents.push(s)}
+            onScope={onScope}
+          />
+        </InputScopeProvider>
+      )
+    }
+
+    const { stdin } = render(<NavHarness onScope={(s) => scopes.push(s)} />)
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    // In repl scope: navigation keys should hit repl only.
+    stdin.write('\u001b[A') // up
+    await tick()
+    stdin.write('\t') // tab
+    await tick()
+    stdin.write('1')
+    await tick()
+
+    expect(replEvents).toEqual(expect.arrayContaining(['up', 'tab', '1']))
+    expect(overlayEvents).toEqual([])
+
+    // Switch to overlay scope.
+    stdin.write('O')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:test')
+
+    const replCountBeforeOverlayNav = replEvents.length
+    stdin.write('\u001b[B') // down
+    await tick()
+    stdin.write('\t') // tab
+    await tick()
+    stdin.write('1')
+    await tick()
+
+    expect(overlayEvents).toEqual(expect.arrayContaining(['down', 'tab', '1']))
+    expect(replEvents).toHaveLength(replCountBeforeOverlayNav)
+
+    // Return to repl scope.
+    stdin.write('C')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    const overlayCountBeforeReplNav = overlayEvents.length
+    stdin.write('\u001b[B') // down
+    await tick()
+    expect(replEvents).toEqual(expect.arrayContaining(['down']))
+    expect(overlayEvents).toHaveLength(overlayCountBeforeReplNav)
   })
 })
