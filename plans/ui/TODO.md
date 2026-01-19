@@ -20,7 +20,7 @@
 - [x] `OverlayFrame`：统一边框/标题/副标题/留白（对齐 Claude Code 风格）
 - [x] `KeyHintBar`：统一底部提示文案（`↑↓`、`Enter`、`Esc`、`Tab` 等）
 - [x] `SelectList`：统一“上下/回车/ESC/数字快捷键/滚动”行为（可配置是否支持数字）
-- [ ] `ConfirmMenu`：统一确认/取消/记忆选项（避免每个 ApprovalPrompt 各写一套）
+- [x] `ConfirmMenu`：统一确认/取消/记忆选项（避免每个 ApprovalPrompt 各写一套）
 - [ ] `InlineTextEditorRow`：统一“列表里可编辑项”的输入与导航（减少 `typing + refs` 私货）
 
 **DoD**
@@ -40,7 +40,7 @@
 - [ ] Agents flow：`src/ui/AgentsDialog.tsx`
   - [ ] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏
 - [ ] Tool approval prompts：`src/tools/presenters/*ApprovalPrompt.tsx`
-  - [ ] 逐个替换为 `ConfirmMenu`/`SelectList`（减少重复 `useInput`）
+  - [x] 逐个替换为 `ConfirmMenu`/`SelectList`（减少重复 `useInput`）
 
 ## 4. P3 — Theme/颜色/间距统一（后置，但要做）
 
