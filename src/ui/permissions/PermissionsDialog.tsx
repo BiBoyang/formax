@@ -4,6 +4,7 @@ import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
 import { KeyHintBar } from '../../components/ui/KeyHintBar.js'
 import { OverlayFrame } from '../../components/ui/OverlayFrame.js'
+import { SelectList } from '../../components/ui/SelectList.js'
 import TextInput from '../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import {
@@ -663,8 +664,18 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              <Text> </Text>
              <Text color={GRAY_COLOR}> Are you sure you want to delete this permission rule?</Text>
              <Text> </Text>
-             <Text color={deleteChoice === 0 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 0 ? ' ❯ ' : '   '}1. Yes</Text>
-             <Text color={deleteChoice === 1 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 1 ? ' ❯ ' : '   '}2. No</Text>
+             <SelectList
+               items={[
+                 { key: 'yes', label: 'Yes' },
+                 { key: 'no', label: 'No' },
+               ]}
+               cursor={deleteChoice}
+               accentColor={MAIN_COLOR}
+               mutedColor={GRAY_COLOR}
+               activePrefix=" ❯ "
+               inactivePrefix="   "
+               showNumbers
+             />
         </OverlayFrame>
         <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 
@@ -720,8 +731,18 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	          <Text> </Text>
 	          <Text color={GRAY_COLOR}> Are you sure you want to delete this directory?</Text>
 	          <Text> </Text>
-	          <Text color={deleteChoice === 0 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 0 ? ' ❯ ' : '   '}1. Yes</Text>
-	          <Text color={deleteChoice === 1 ? MAIN_COLOR : GRAY_COLOR}>{deleteChoice === 1 ? ' ❯ ' : '   '}2. No</Text>
+	          <SelectList
+	            items={[
+	              { key: 'yes', label: 'Yes' },
+	              { key: 'no', label: 'No' },
+	            ]}
+	            cursor={deleteChoice}
+	            accentColor={MAIN_COLOR}
+	            mutedColor={GRAY_COLOR}
+	            activePrefix=" ❯ "
+	            inactivePrefix="   "
+	            showNumbers
+	          />
 	        </OverlayFrame>
 	        <KeyHintBar text="   Esc to cancel" color={GRAY_COLOR} marginLeft={0} />
 	      </Box>

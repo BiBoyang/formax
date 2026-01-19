@@ -5,6 +5,7 @@ import { Box, Text } from 'ink'
 import TextInput from '../components/ui/TextInput'
 import { KeyHintBar } from '../components/ui/KeyHintBar'
 import { OverlayFrame } from '../components/ui/OverlayFrame'
+import { SelectList } from '../components/ui/SelectList'
 import { RotatingStar } from '../components/ui/RotatingStar'
 import { getTheme } from '../utils/theme'
 import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext'
@@ -314,12 +315,15 @@ const SimpleChoiceView = React.memo(function SimpleChoiceView({
         <Text color={theme.secondaryText}>{subtitle}</Text>
       </Box>
       <Spacer />
-      {options.map((opt, idx) => (
-        <Text key={opt.key} color={idx === cursor ? AGENTS_DIALOG_ACCENT : theme.secondaryText}>
-          {idx === cursor ? '> ' : '  '}
-          {idx + 1}. {opt.label}
-        </Text>
-      ))}
+      <SelectList
+        items={options.map((opt) => ({ key: opt.key, label: opt.label }))}
+        cursor={cursor}
+        accentColor={AGENTS_DIALOG_ACCENT}
+        mutedColor={theme.secondaryText}
+        activePrefix="> "
+        inactivePrefix="  "
+        showNumbers
+      />
     </DialogFrame>
   )
 })
