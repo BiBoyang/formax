@@ -35,8 +35,8 @@
 
 ## S4 — `<system-reminder>` strip 逻辑去重（单一事实来源）
 
-- [ ] 只保留一份 `stripTrailingSystemReminderBlock()` 实现（建议放 `src/utils/toolFormatting.ts` 并导出）
-- [ ] `src/features/repl/useReplController.ts` 使用同一实现（移除重复代码）
+- [x] 只保留一份 `stripTrailingSystemReminderBlock()` 实现（放 `src/utils/toolFormatting.ts` 并导出）
+- [x] `src/features/repl/useReplController.ts` 使用同一实现（移除重复代码）
 
 ## S5 — JSON 工具“成功 JSON / 失败纯文本”契约对齐（先从 TaskOutput 做起）
 

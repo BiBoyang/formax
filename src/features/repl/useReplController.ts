@@ -6,6 +6,7 @@ import type { RuntimeConfig } from '../../env/config'
 import type { StreamEvent, TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import { formatToolResult } from '../../utils/toolFormatting'
+import { stripTrailingSystemReminderBlock } from '../../utils/toolFormatting'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
@@ -1403,22 +1404,4 @@ function parseTaskTranscript(rawResult: string): string[] | null {
     return null
   }
 }
-
-function stripTrailingSystemReminderBlock(raw: string): string {
-  const s = String(raw || '')
-  const marker = '\n\n<system-reminder>'
-  const idx = s.lastIndexOf(marker)
-  if (idx < 0) return s
-
-  const tail = s.slice(idx + 2) // starts at "<system-reminder>"
-  const close = '</system-reminder>'
-  const closeIdx = tail.lastIndexOf(close)
-  if (closeIdx < 0) return s
-
-  const after = tail.slice(closeIdx + close.length)
-  if (after.trim().length !== 0) return s
-
-  return s.slice(0, idx).trimEnd()
-}
-
  

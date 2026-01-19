@@ -386,7 +386,7 @@ function shortId(id: string): string {
   return s.slice(0, 8) + '…'
 }
 
-function stripTrailingSystemReminderBlock(raw: string): string {
+export function stripTrailingSystemReminderBlock(raw: string): string {
   const s = String(raw || '')
   const marker = '\n\n<system-reminder>'
   const idx = s.lastIndexOf(marker)
