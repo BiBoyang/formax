@@ -9,6 +9,7 @@ import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
+import TextInput from '../../../components/ui/TextInput.js'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -150,25 +151,21 @@ function ExitPlanModePrompt({
       if (submittedRef.current) return
 
       if (typing) {
+        if (key.upArrow) {
+          setTyping(false)
+          setCursor((c) => Math.max(0, c - 1))
+          return
+        }
+        if (key.downArrow) {
+          setTyping(false)
+          setCursor((c) => Math.min(2, c + 1))
+          return
+        }
         if (key.escape) {
           setTyping(false)
           return
         }
-
-        if (key.return) {
-          submit('feedback', typingValue.trim())
-          return
-        }
-
-        if (key.backspace || key.delete) {
-          setTypingValue((v) => v.slice(0, -1))
-          return
-        }
-
-        if (input && !key.ctrl && !key.meta) {
-          setTypingValue((v) => v + input)
-        }
-
+        // Let `TextInput` handle editing + Enter submission.
         return
       }
 
@@ -177,6 +174,14 @@ function ExitPlanModePrompt({
 
       if (key.escape) {
         submit('cancel')
+        return
+      }
+
+      // When the "custom message" row is selected, any character (including digits)
+      // should start editing instead of triggering numeric shortcuts.
+      if (cursor === 2 && input && !key.ctrl && !key.meta) {
+        setTyping(true)
+        setTypingValue((v) => v + input)
         return
       }
 
@@ -193,7 +198,7 @@ function ExitPlanModePrompt({
     { isActive: true },
   )
 
-  const feedbackLine = typing ? `${typingValue}▏` : typingValue.trim() ? typingValue.trim() : 'Type here to tell Claude what to change'
+  const feedbackLine = typingValue.trim() ? typingValue.trim() : ''
   const planBody = useMemo(() => {
     const raw = (planText || '').trimEnd()
     if (!raw) return '(empty plan)'
@@ -230,7 +235,24 @@ function ExitPlanModePrompt({
       <Box flexDirection="column" marginLeft={1}>
         <MenuRow cursor={cursor === 0} label="1. Yes, and auto-accept edits" />
         <MenuRow cursor={cursor === 1} label="2. Yes, and manually approve edits" />
-        <MenuRow cursor={cursor === 2} label={`3. ${feedbackLine}`} dim={typing} />
+        <Box>
+          <Text>{cursor === 2 ? '❯ ' : '  '}</Text>
+          <Text color={cursor === 2 ? theme.text : theme.secondaryText}>3. </Text>
+          {typing ? (
+            <TextInput
+              value={typingValue}
+              onChange={setTypingValue}
+              onSubmit={(next) => submit('feedback', next.trim())}
+              cursorStyle="bar"
+              cursorChar="▏"
+              focus={cursor === 2}
+            />
+          ) : feedbackLine ? (
+            <Text color={cursor === 2 ? theme.text : theme.secondaryText}>{feedbackLine}</Text>
+          ) : (
+            <Text color={theme.secondaryText}>Type here to tell Claude what to change</Text>
+          )}
+        </Box>
       </Box>
 
       <Box marginTop={1}>

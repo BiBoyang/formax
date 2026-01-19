@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest'
+import React, { useState } from 'react'
+import { render } from 'ink-testing-library'
+import { ReplUiProvider } from '../../features/repl/replUiContext'
+import TextInput from './TextInput'
+
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function Wrapper(): React.ReactNode {
+  const [value, setValue] = useState('')
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput value={value} onChange={setValue} cursorStyle="bar" cursorChar="▏" />
+    </ReplUiProvider>
+  )
+}
+
+describe('TextInput', () => {
+  it('supports left cursor movement and insertion in bar mode', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+
+    await tick()
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('X')
+    await tick()
+
+    expect(lastFrame()).toContain('aX')
+    expect(lastFrame()).toContain('b')
+  })
+})
+
