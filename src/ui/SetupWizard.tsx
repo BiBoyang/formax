@@ -469,7 +469,14 @@ function BaseUrlStep({
       </Box>
       <Box marginTop={1}>
         <Text color={theme.secondaryText}>› </Text>
-        <TextInput value={value} onChange={onChange} onSubmit={onSubmit} placeholder="https://api.anthropic.com/v1" focus />
+        <TextInput
+          value={value}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          placeholder="https://api.anthropic.com/v1"
+          focus
+          scope="wizard:setup"
+        />
       </Box>
       {error ? (
         <Box marginTop={1}>
@@ -509,7 +516,15 @@ function ApiKeyStep({
       </Box>
       <Box marginTop={1}>
         <Text color={theme.secondaryText}>› </Text>
-        <TextInput value={value} onChange={onChange} onSubmit={onSubmit} placeholder="sk-…" mask="•" focus />
+        <TextInput
+          value={value}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          placeholder="sk-…"
+          mask="•"
+          focus
+          scope="wizard:setup"
+        />
       </Box>
       {error ? (
         <Box marginTop={1}>
