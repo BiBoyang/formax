@@ -23,13 +23,7 @@
 ### PR9a — ChatEngine 解耦 Anthropic-only 类型（零行为改动）
 **目的**：把 `src/chat/engine.ts` 从 `AnthropicStreamClient + ContentBlock` 中解耦，改为依赖 provider-agnostic `LlmStreamClient` + `StreamTurnResult`。
 
-- [x] 定义 `LlmStreamClient` 与 `StreamTurnResult`（`src/streaming/types.ts`）。
-- [x] 修改 `src/chat/engine.ts`：依赖 `LlmStreamClient.streamOnce()` 的返回 `{ assistantBlocks, stopReason, toolResults, usage? }`，而不再直接消费 Anthropic 的 `ContentBlock`。
-- [x] 适配 `src/streaming/anthropic/StreamClient.ts`：实现 `LlmStreamClient` 接口，对外返回 `assistantBlocks`（内部 SSE 解析尽量不动）。
-
-**DoD**
-- [x] `bun run type-check` + `bun run test` 通过（Anthropic 行为保持不变的最小回归保障）。
-- [ ] Anthropic 手动 smoke：跑一轮 tool loop，确认 UI 事件序列与之前一致（可选，但建议做一次）。
+已完成（见 git history）。为保持 plans 目录“纯 pending”，本文件不再保留已完成 checklist。
 
 **验收**
 - `bun run type-check`

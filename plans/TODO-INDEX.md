@@ -21,4 +21,5 @@
 
 ## 归档/Backlog（不作为执行清单）
 
-- `plans/_archive/common-refactor-OUTDATED-NOTES.md`：旧文档审计笔记（Done/Pending/Outdated），仅供回看
+- `plans/_archive/**`：历史抓包/研究/旧计划归档（不作为执行清单，仅供回看）
+- `plans/_archive/common-refactor/OUTDATED-NOTES.md`：旧文档审计笔记（Done/Pending/Outdated），仅供回看
