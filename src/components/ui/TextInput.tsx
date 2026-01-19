@@ -88,12 +88,9 @@ export default function TextInput({
     <Text>
       {showPlaceholder ? (
         <>
-          {focus ? (
-            <Text inverse>{placeholder.slice(0, 1) || ' '}</Text>
-          ) : (
-            <Text color={theme.secondaryText}>{placeholder.slice(0, 1) || ' '}</Text>
-          )}
-          <Text color={theme.secondaryText}>{placeholder.slice(1)}</Text>
+          {focus && cursorStyle === 'block' ? <Text inverse> </Text> : null}
+          {focus && cursorStyle === 'bar' ? <Text color={theme.text}>{cursorChar}</Text> : null}
+          <Text color={theme.secondaryText}>{placeholder}</Text>
         </>
       ) : (
         <>
