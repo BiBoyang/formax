@@ -44,6 +44,7 @@
   - [x] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏
 - [ ] Tool approval prompts：`src/tools/presenters/*ApprovalPrompt.tsx`
   - [x] 逐个替换为 `ConfirmMenu`/`SelectList`（减少重复 `useInput`）
+  - [x] `ConfirmMenu` 使用 `prompt:*` scope（prompt 打开时 REPL 不抢键）
 
 ## 4. P3 — Theme/颜色/间距统一（后置，但要做）
 

@@ -1,7 +1,9 @@
 import React, { useCallback, useRef, useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import TextInput from './TextInput.js'
+import type { InputScopeId } from '../../features/repl/inputScopeContext'
+import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 
 export type ConfirmMenuOption =
   | { kind: 'choice'; key: string; label: string; dim?: boolean }
@@ -19,6 +21,7 @@ export function ConfirmMenu({
   onShiftTab,
   shiftTabCursor = 1,
   footer,
+  scope = 'prompt:confirm',
 }: {
   options: ConfirmMenuOption[]
   initialCursor?: number
@@ -26,17 +29,21 @@ export function ConfirmMenu({
   onShiftTab?: () => void
   shiftTabCursor?: number
   footer?: React.ReactNode
+  scope?: InputScopeId
 }): React.ReactNode {
   const theme = getTheme()
   const [cursor, setCursor] = useState(initialCursor)
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
+  const [isActive, setIsActive] = useState(true)
   const submittedRef = useRef(false)
   const cursorRef = useRef(initialCursor)
   const typingRef = useRef(false)
   const typingValueRef = useRef('')
 
   const feedbackIndex = options.findIndex((o) => o.kind === 'feedback')
+
+  useScopeActivation(scope, isActive)
 
   const setCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
     const v = typeof next === 'function' ? next(cursorRef.current) : next
@@ -59,13 +66,16 @@ export function ConfirmMenu({
     (decision: ConfirmMenuDecision) => {
       if (submittedRef.current) return
       submittedRef.current = true
+      setIsActive(false)
       onDecision(decision)
     },
     [onDecision],
   )
 
-  useInput(
+  useScopedInput(
+    scope,
     (input, key) => {
+      if (!isActive) return
       if (submittedRef.current) return
       const currentCursor = cursorRef.current
       const isTyping = typingRef.current
@@ -130,7 +140,7 @@ export function ConfirmMenu({
         return
       }
     },
-    { isActive: true },
+    { enabled: isActive },
   )
 
   return (
@@ -171,6 +181,7 @@ export function ConfirmMenu({
                   cursorStyle="bar"
                   cursorChar="▏"
                   focus={active}
+                  scope={scope}
                 />
               ) : (
                 <Text color={color}>{typingValue || ''}</Text>
