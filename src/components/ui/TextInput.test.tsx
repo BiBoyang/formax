@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { render } from 'ink-testing-library'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
@@ -35,5 +35,19 @@ describe('TextInput', () => {
     expect(lastFrame()).toContain('aX')
     expect(lastFrame()).toContain('b')
   })
-})
 
+  it('ignores Tab key presses', async () => {
+    const onChange = vi.fn()
+    const { stdin } = render(
+      <ReplUiProvider abort={() => {}}>
+        <TextInput value="" onChange={onChange} cursorStyle="bar" cursorChar="▏" />
+      </ReplUiProvider>,
+    )
+
+    await tick()
+    stdin.write('\t')
+    await tick()
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})

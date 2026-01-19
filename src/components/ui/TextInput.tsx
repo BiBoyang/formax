@@ -41,6 +41,9 @@ export default function TextInput({
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
     const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
 
+    // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
+    if (key.tab || input === '\t') return
+
     if (key.backspace || key.delete) {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
