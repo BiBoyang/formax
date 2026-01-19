@@ -22,7 +22,7 @@
 - [x] `KeyHintBar`：统一底部提示文案（`↑↓`、`Enter`、`Esc`、`Tab` 等）
 - [x] `SelectList`：统一“上下/回车/ESC/数字快捷键/滚动”行为（可配置是否支持数字）
 - [x] `ConfirmMenu`：统一确认/取消/记忆选项（避免每个 ApprovalPrompt 各写一套）
-- [ ] `InlineTextEditorRow`：统一“列表里可编辑项”的输入与导航（减少 `typing + refs` 私货）
+- [x] `InlineTextEditorRow`：统一“列表里可编辑项”的输入与导航（先用于 `ConfirmMenu`）
 
 **DoD**
 - [x] 至少 2 处页面复用 `SelectList`（AgentsDialog/PermissionsDialog）

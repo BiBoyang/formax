@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import TextInput from './TextInput.js'
+import { InlineTextEditorRow } from './InlineTextEditorRow.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 
@@ -162,31 +162,22 @@ export function ConfirmMenu({
             )
           }
 
-          const hasValue = Boolean((typingValue || '').trim())
-          const showPlaceholder = !typing && !hasValue
           const labelPrefix = opt.label ? `${idx + 1}. ${opt.label} ` : `${idx + 1}. `
           return (
-            <Box key={opt.key}>
-              <Text>{prefix}</Text>
-              <Text color={color}>{labelPrefix}</Text>
-              {showPlaceholder ? (
-                <Text color={theme.secondaryText}>{opt.placeholder}</Text>
-              ) : typing ? (
-                <TextInput
-                  value={typingValue}
-                  onChange={(next) => setTypingValueImmediate(next)}
-                  onSubmit={() =>
-                    submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })
-                  }
-                  cursorStyle="bar"
-                  cursorChar="▏"
-                  focus={active}
-                  scope={scope}
-                />
-              ) : (
-                <Text color={color}>{typingValue || ''}</Text>
-              )}
-            </Box>
+            <InlineTextEditorRow
+              key={opt.key}
+              prefix={prefix}
+              labelPrefix={labelPrefix}
+              placeholder={opt.placeholder}
+              value={typingValue}
+              typing={typing}
+              active={active}
+              color={color}
+              placeholderColor={theme.secondaryText}
+              onChange={(next) => setTypingValueImmediate(next)}
+              onSubmit={() => submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })}
+              scope={scope}
+            />
           )
         })}
       </Box>
