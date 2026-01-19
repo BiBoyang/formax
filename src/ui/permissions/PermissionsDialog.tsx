@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Box, Text, useApp, useInput } from 'ink'
+import { Box, Text, useApp } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
 import TextInput from '../../components/ui/TextInput.js'
+import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import {
   loadMergedPermissions,
   persistPermissionRule,
@@ -87,6 +88,7 @@ type ViewState =
   | 'DELETE_DIRECTORY_CONFIRM';
 
 export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
+  useScopeActivation('overlay:permissions')
   const app = useApp()
   const exit = useMemo(() => onExit ?? app.exit, [app.exit, onExit])
   const cwd = process.cwd()
@@ -285,7 +287,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
     })
   }
 
-  useInput((input, key) => {
+  useScopedInput('overlay:permissions', (input, key) => {
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
     const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
 

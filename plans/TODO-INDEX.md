@@ -4,7 +4,8 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（UI 最后接线）
+- `plans/ui/TODO.md`：UI 稳定基座（键盘路由/焦点/复用组件）
+- `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（优先做基座，UI 后接线）
 
 ## 并行参考（不作为主线推进）
 

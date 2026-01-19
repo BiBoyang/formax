@@ -1,10 +1,11 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import TextInput from '../components/ui/TextInput'
 import { RotatingStar } from '../components/ui/RotatingStar'
 import { getTheme } from '../utils/theme'
+import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext'
 
 type AgentListItem = { name: string; description: string }
 
@@ -375,6 +376,7 @@ export function AgentsDialog({
   onExit: (args: { createdAgents: string[] }) => void
 }): React.ReactNode {
   const theme = useMemo(() => getTheme(), [])
+  useScopeActivation('overlay:agents')
 
   const [diskUserAgents, setDiskUserAgents] = useState<Record<string, DiskAgentInfo>>({})
   const [diskProjectAgents, setDiskProjectAgents] = useState<Record<string, DiskAgentInfo>>({})
@@ -915,7 +917,7 @@ export function AgentsDialog({
     view,
   ])
 
-  useInput((input, key) => {
+  useScopedInput('overlay:agents', (input, key) => {
     if (handleBusyKeys(input, key)) return
     if (handleErrorKeys(input, key)) return
     if (handleManualTextKeys(input, key)) return

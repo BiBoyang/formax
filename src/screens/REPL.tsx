@@ -34,6 +34,7 @@ import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
+import { useScopedInput } from '../features/repl/inputScopeContext'
 import type { TokenUsage } from '../streaming/types'
 
 type Props = {
@@ -230,12 +231,18 @@ export function REPL({
     setSlashSelectionTouched(false)
   }, [])
 
-  useInput((inputKey, key) => {
-    if (key.ctrl && inputKey === 'c') {
-      actions.abort()
-      onExit ? onExit() : process.exit(0)
-    }
+  useInput(
+    (inputKey, key) => {
+      if (key.ctrl && inputKey === 'c') {
+        actions.abort()
+        onExit ? onExit() : process.exit(0)
+        return
+      }
+    },
+    { isActive: true },
+  )
 
+  useScopedInput('repl', (inputKey, key) => {
     if (key.ctrl && inputKey === 'o') {
       if (state.agentsDialogOpen) return
       if (state.permissionsDialogOpen) return

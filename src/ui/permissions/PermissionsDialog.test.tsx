@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PermissionsDialog } from './PermissionsDialog'
+import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -89,7 +90,11 @@ describe('PermissionsDialog', () => {
 
     try {
       const onExit = vi.fn()
-      const { lastFrame, stdin } = render(<PermissionsDialog onExit={onExit} />)
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="overlay:permissions">
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
 
       await waitForText(lastFrame, 'Add a new rule')
 
@@ -163,7 +168,11 @@ describe('PermissionsDialog', () => {
 
     try {
       const onExit = vi.fn()
-      const { lastFrame, stdin } = render(<PermissionsDialog onExit={onExit} />)
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="overlay:permissions">
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
 
       await tick()
       await waitForText(lastFrame, 'Add a new rule')

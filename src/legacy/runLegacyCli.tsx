@@ -30,6 +30,7 @@ import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
 import { UserInputProvider } from '../tools/runtime/userInputContext.js'
+import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 import type { App } from '../core/app/createApp.js'
 import { SetupWizard } from '../ui/SetupWizard.js'
 import { testSetupConnection } from '../adapters/setup/connectionTest.js'
@@ -74,30 +75,32 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     try {
       await new Promise<void>((resolve, reject) => {
         const instance = render(
-          <SetupWizard
-            providers={providerOptions}
-            testConnection={testSetupConnection}
-            onWrite={async (draft) => {
-              if (!draft.provider) throw new Error('Missing provider')
-              await writeSetupFiles({
-                fileStore,
-                cwd: process.cwd(),
-                env: process.env,
-                provider: draft.provider,
-                baseUrl: draft.baseUrl,
-                apiKey: draft.apiKey,
-                model: draft.model,
-              })
-            }}
-            onDone={() => {
-              instance.unmount()
-              resolve()
-            }}
-            onCancel={() => {
-              instance.unmount()
-              reject(new Error('Setup canceled'))
-            }}
-          />,
+          <InputScopeProvider initialScope="wizard:setup">
+            <SetupWizard
+              providers={providerOptions}
+              testConnection={testSetupConnection}
+              onWrite={async (draft) => {
+                if (!draft.provider) throw new Error('Missing provider')
+                await writeSetupFiles({
+                  fileStore,
+                  cwd: process.cwd(),
+                  env: process.env,
+                  provider: draft.provider,
+                  baseUrl: draft.baseUrl,
+                  apiKey: draft.apiKey,
+                  model: draft.model,
+                })
+              }}
+              onDone={() => {
+                instance.unmount()
+                resolve()
+              }}
+              onCancel={() => {
+                instance.unmount()
+                reject(new Error('Setup canceled'))
+              }}
+            />
+          </InputScopeProvider>,
           { exitOnCtrlC: false },
         )
       })
@@ -201,21 +204,23 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const engine = createChatEngine({ client, executor })
 
   render(
-    <UserInputProvider userInput={userInputManager}>
-      <REPL
-        engine={engine}
-        tools={tools}
-        cfg={cfg}
-        allowedSubagents={allowedSubagents}
-        reloadSubagents={reloadSubagents}
-        toolRegistry={toolRegistry}
-        taskManager={taskManager}
-        onExit={() => {
-          // stopConsoleLogger()
-          process.exit(0)
-        }}
-      />
-    </UserInputProvider>,
+    <InputScopeProvider initialScope="repl">
+      <UserInputProvider userInput={userInputManager}>
+        <REPL
+          engine={engine}
+          tools={tools}
+          cfg={cfg}
+          allowedSubagents={allowedSubagents}
+          reloadSubagents={reloadSubagents}
+          toolRegistry={toolRegistry}
+          taskManager={taskManager}
+          onExit={() => {
+            // stopConsoleLogger()
+            process.exit(0)
+          }}
+        />
+      </UserInputProvider>
+    </InputScopeProvider>,
     {
       exitOnCtrlC: false,
     },
