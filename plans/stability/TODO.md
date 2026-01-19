@@ -40,9 +40,9 @@
 
 ## S5 — JSON 工具“成功 JSON / 失败纯文本”契约对齐（先从 TaskOutput 做起）
 
-- [ ] `src/tools/modules/taskOutput/handler.ts`：错误分支也返回 JSON（保持可解析）
-  - [ ] missing task_id / task not found / timeout 非法等
-- [ ] 测试：`src/tools/modules/taskOutput/handler.test.ts` 更新断言为 JSON 结构（不再仅 string contains）
+- [x] `src/tools/modules/taskOutput/handler.ts`：错误分支也返回 JSON（保持可解析）
+  - [x] missing task_id / task not found / timeout 非法等
+- [x] 测试：`src/tools/modules/taskOutput/handler.test.ts` 更新断言为 JSON 结构（不再仅 string contains）
 
 ---
 

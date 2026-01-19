@@ -67,6 +67,39 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
     expect(res.is_error).toBe(true)
-    expect(res.content).toContain("Task 'missing' not found")
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.task_id).toBe('missing')
+    expect(parsed.output).toContain("Task 'missing' not found")
+  })
+
+  it('returns JSON error when task_id is missing', async () => {
+    const handler = createTaskOutputToolHandler(new TaskManager())
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: '' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.output).toContain('Missing required field task_id')
+  })
+
+  it('returns JSON error when timeout is invalid', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({ kind: 'other', run: async () => ({ content: 'ok' }) })
+    const handler = createTaskOutputToolHandler(manager)
+
+    // timeout must be a number
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, timeout: 'nope' } as any },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.task_id).toBe(taskId)
+    expect(parsed.output).toContain('timeout must be a number')
   })
 })

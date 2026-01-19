@@ -13,6 +13,12 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
     },
 
     async execute(call: ToolCall, ctx: ExecutionContext): Promise<ToolResult> {
+      const rawTaskId = (() => {
+        const input = call.input
+        const obj = input && typeof input === 'object' && !Array.isArray(input) ? (input as any) : null
+        return typeof obj?.task_id === 'string' ? obj.task_id : ''
+      })()
+
       try {
         const input = requirePlainObject(call.input || {}, 'TaskOutput.input')
         assertNoExtraKeys(input, ['task_id', 'block', 'timeout'], 'TaskOutput.input')
@@ -23,7 +29,7 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
         if (typeof taskId !== 'string' || !taskId.trim()) {
           return {
             tool_use_id: call.id,
-            content: 'Error: Missing required field task_id.',
+            content: buildErrorResult({ taskId: rawTaskId, error: 'Missing required field task_id.' }),
             is_error: true,
           }
         }
@@ -32,7 +38,7 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
         if (!snapshot) {
           return {
             tool_use_id: call.id,
-            content: `Error: Task '${taskId}' not found.`,
+            content: buildErrorResult({ taskId, error: `Task '${taskId}' not found.` }),
             is_error: true,
           }
         }
@@ -102,10 +108,23 @@ export function createTaskOutputToolHandler(taskManager: TaskManager): ToolHandl
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
+        return { tool_use_id: call.id, content: buildErrorResult({ taskId: rawTaskId, error: msg }), is_error: true }
       }
     },
   }
+}
+
+function buildErrorResult(args: { taskId?: string; error: string }): string {
+  const taskId = String(args.taskId || '').trim()
+  return JSON.stringify(
+    {
+      ...(taskId ? { task_id: taskId } : {}),
+      status: 'error',
+      output: `Error: ${args.error}`,
+    },
+    null,
+    2,
+  )
 }
 
 function parseTimeout(value: unknown): number {
