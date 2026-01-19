@@ -40,5 +40,32 @@ describe('UserInputManager', () => {
     ac.abort()
     await expect(p).rejects.toThrow('Request aborted')
   })
-})
 
+  it('rejects all pending requests', async () => {
+    const mgr = createUserInputManager()
+
+    const p1 = mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+
+    const n = mgr.rejectAllPending(new Error('Canceled'))
+    expect(n).toBe(2)
+
+    await expect(p1).rejects.toThrow('Canceled')
+    await expect(p2).rejects.toThrow('Canceled')
+    expect(mgr.isPending('a')).toBe(false)
+    expect(mgr.isPending('b')).toBe(false)
+  })
+
+  it('clears buffered answers', async () => {
+    const mgr = createUserInputManager()
+
+    mgr.submitAnswers('early', { X: 'Y' })
+    mgr.clearBufferedAnswers()
+
+    const p = mgr.requestAnswers({ toolUseId: 'early', questions: [] })
+    expect(mgr.isPending('early')).toBe(true)
+
+    mgr.reject('early', new Error('Request aborted'))
+    await expect(p).rejects.toThrow('Request aborted')
+  })
+})

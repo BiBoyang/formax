@@ -606,6 +606,9 @@ export function useReplController(deps: {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
 
+    userInput?.clearBufferedAnswers()
+    userInput?.rejectAllPending(new Error('Request aborted'))
+
     assistantBufferRef.current = ''
     thinkingBufferRef.current = ''
     thinkingLastFlushAtRef.current = 0
@@ -620,15 +623,31 @@ export function useReplController(deps: {
     }
 
     setMessages((prev) => {
+      const abortedAt = Date.now()
+      const abortResult = 'Error: Request aborted'
+
+      const markAborted = (m: Msg): Msg => {
+        if (m.role !== 'tool' || !m.toolInfo || m.toolInfo.status !== 'running') return m
+        return {
+          ...m,
+          content: abortResult,
+          toolInfo: {
+            ...m.toolInfo,
+            status: 'error',
+            result: abortResult,
+          },
+        }
+      }
+
       const isAskRunning = (m: Msg) =>
         m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running'
 
       const hadAsk = prev.some(isAskRunning)
-      const next = prev.filter((m) => !isAskRunning(m))
+      const next = prev.map(markAborted)
 
       if (hadAsk) {
         next.push({
-          id: `assistant-${Date.now()}`,
+          id: `assistant-${abortedAt}`,
           role: 'assistant',
           content: 'User declined to answer questions',
           timestamp: new Date(),
@@ -637,7 +656,7 @@ export function useReplController(deps: {
 
       return next
     })
-  }, [])
+  }, [userInput])
 
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {

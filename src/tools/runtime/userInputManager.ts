@@ -20,7 +20,9 @@ export type UserInputManager = {
   }) => Promise<AskUserAnswers>
   submitAnswers: (toolUseId: string, answers: AskUserAnswers) => boolean
   reject: (toolUseId: string, error: Error) => boolean
+  rejectAllPending: (error: Error) => number
   isPending: (toolUseId: string) => boolean
+  clearBufferedAnswers: () => void
 }
 
 type PendingRequest = {
@@ -102,6 +104,18 @@ export function createUserInputManager(): UserInputManager {
     return true
   }
 
+  function rejectAllPending(error: Error): number {
+    const ids = Array.from(pending.keys())
+    for (const id of ids) {
+      rejectRequest(id, error)
+    }
+    return ids.length
+  }
+
+  function clearBufferedAnswers(): void {
+    bufferedAnswers.clear()
+  }
+
   function isPending(toolUseId: string): boolean {
     return pending.has(toolUseId)
   }
@@ -110,6 +124,8 @@ export function createUserInputManager(): UserInputManager {
     requestAnswers,
     submitAnswers,
     reject: rejectRequest,
+    rejectAllPending,
     isPending,
+    clearBufferedAnswers,
   }
 }

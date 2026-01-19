@@ -25,13 +25,13 @@
 
 ## S3 — Abort / Esc 取消要完整清理 pending 输入与 running 工具状态
 
-- [ ] `src/tools/runtime/userInputManager.ts`
-  - [ ] 增加 `rejectAllPending(error)`：一次 reject 所有 pending，并移除 abort listener
-  - [ ] 增加 `clearBufferedAnswers()`：清空 buffered（可选：加 TTL 防止增长）
-- [ ] `src/features/repl/useReplController.ts`
-  - [ ] `abort()` 调用上述清理（避免“卡在 loading / prompt 还在”）
-  - [ ] 将所有 `toolInfo.status === 'running'` 的 tool message 标记为 aborted/error（避免 UI 悬挂）
-- [ ] 测试：`src/tools/runtime/userInputManager.test.ts` 覆盖 rejectAll/clearBuffered
+- [x] `src/tools/runtime/userInputManager.ts`
+  - [x] 增加 `rejectAllPending(error)`：一次 reject 所有 pending，并移除 abort listener
+  - [x] 增加 `clearBufferedAnswers()`：清空 buffered（可选：加 TTL 防止增长）
+- [x] `src/features/repl/useReplController.ts`
+  - [x] `abort()` 调用上述清理（避免“卡在 loading / prompt 还在”）
+  - [x] 将所有 `toolInfo.status === 'running'` 的 tool message 标记为 aborted/error（避免 UI 悬挂）
+- [x] 测试：`src/tools/runtime/userInputManager.test.ts` 覆盖 rejectAll/clearBuffered
 
 ## S4 — `<system-reminder>` strip 逻辑去重（单一事实来源）
 
