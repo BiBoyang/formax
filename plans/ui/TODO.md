@@ -32,7 +32,7 @@
 
 目的：把最容易出 bug 的 flows 迁移到统一基座与组件上。
 
-- [ ] Permissions flow：`src/ui/permissions/PermissionsDialog.tsx`
+- [x] Permissions flow：`src/ui/permissions/PermissionsDialog.tsx`
   - [x] 使用 `useScopedInput` + `SelectList` + `OverlayFrame`（不改业务逻辑）
   - [x] 搜索输入支持左右方向键（自带光标；可在中间插入/删除）
 - [ ] Setup flow：`src/ui/SetupWizard.tsx`
@@ -40,9 +40,9 @@
   - [x] TextInput 绑定 `scope="wizard:setup"`（避免未来与 overlay/REPL 抢键）
   - [x] 光标更明显（disabled 选项也能看出移动）
   - [ ] 用统一 `SelectList`/focus 机制，避免“上下键无效/数字键失灵”
-- [ ] Agents flow：`src/ui/AgentsDialog.tsx`
+- [x] Agents flow：`src/ui/AgentsDialog.tsx`
   - [x] 用统一 `SelectList` + scope，避免 REPL 抢键 & 闪屏
-- [ ] Tool approval prompts：`src/tools/presenters/*ApprovalPrompt.tsx`
+- [x] Tool approval prompts：`src/tools/presenters/*ApprovalPrompt.tsx`
   - [x] 逐个替换为 `ConfirmMenu`/`SelectList`（减少重复 `useInput`）
   - [x] `ConfirmMenu` 使用 `prompt:*` scope（prompt 打开时 REPL 不抢键）
 
@@ -58,7 +58,7 @@
 
 目的：让 UI 交互的稳定性可持续，而不是靠“人肉记忆”。
 
-- [ ] 增加最小交互测试（ink-testing-library）
+- [x] 增加最小交互测试（ink-testing-library）
   - [x] `InputBar`：非 `repl` scope 时不接收输入（避免 overlay/prompt 抢键）
   - [x] `InputBar`：scope 变化时能正确暂停/恢复输入（overlay 打开/关闭）
   - [x] overlay 打开时 REPL 不响应方向键/Tab/数字键（由 `InputScopeProvider` 路由测试覆盖）
