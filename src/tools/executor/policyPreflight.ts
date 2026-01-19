@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { Platform } from '../../adapters/fs/configPaths.js'
@@ -24,6 +25,40 @@ function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
   const normalized = normalizePathForCompare(rawPath, cwd)
   if (!normalized) return null
   return path.resolve(normalized)
+}
+
+async function tryRealpath(p: string): Promise<string | null> {
+  try {
+    return await fs.realpath(p)
+  } catch {
+    return null
+  }
+}
+
+async function canonicalizeForWorkspaceCheck(args: {
+  fileStore: FileStore
+  rawPath: string
+  cwd: string
+}): Promise<string | null> {
+  const normalized = normalizeWorkspacePath(args.rawPath, args.cwd)
+  if (!normalized) return null
+
+  const exists = await args.fileStore.exists(normalized)
+  if (exists) return (await tryRealpath(normalized)) ?? normalized
+
+  let current = path.dirname(normalized)
+  let last = ''
+  for (let i = 0; i < 50 && current !== last; i++) {
+    if (await args.fileStore.exists(current)) {
+      const canonicalParent = (await tryRealpath(current)) ?? current
+      const rel = path.relative(current, normalized)
+      return path.join(canonicalParent, rel)
+    }
+    last = current
+    current = path.dirname(current)
+  }
+
+  return normalized
 }
 
 function isPathWithinRoot(target: string, root: string): boolean {
@@ -97,16 +132,34 @@ export function createPolicyPreflight(args: {
             .filter((root): root is string => Boolean(root)),
         ),
       )
-      const targetPath = normalizeWorkspacePath(action.path, cwd)
+      const canonicalRoots = Array.from(
+        new Set(
+          (await Promise.all(
+            normalizedRoots.map((root) =>
+              canonicalizeForWorkspaceCheck({ fileStore: args.fileStore, rawPath: root, cwd }),
+            ),
+          ))
+            .filter((root): root is string => Boolean(root))
+            .map((root) => path.resolve(root)),
+        ),
+      )
+      const canonicalTargetPath = await canonicalizeForWorkspaceCheck({
+        fileStore: args.fileStore,
+        rawPath: action.path,
+        cwd,
+      })
 
-      if (targetPath && normalizedRoots.length && !isPathWithinRoots(targetPath, normalizedRoots)) {
+      if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
         const lines: string[] = []
         lines.push('Error: Path is outside the workspace')
         lines.push(`ErrorCode: ${ErrorCode.FsPermission}`)
-        lines.push(`Path: ${formatPathForDisplay(targetPath)}`)
+        lines.push(`Path: ${formatPathForDisplay(canonicalTargetPath)}`)
+        lines.push('Path (absolute):')
+        lines.push(`  ${canonicalTargetPath}`)
         lines.push('Workspace roots:')
-        for (const root of normalizedRoots) {
+        for (const root of canonicalRoots) {
           lines.push(`- ${formatPathForDisplay(root)}`)
+          lines.push(`  ${root}`)
         }
         lines.push('Hint: Use /permissions to add a directory to the workspace')
         return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
