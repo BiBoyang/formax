@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, useApp, useInput } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
+import TextInput from '../../components/ui/TextInput.js'
 import {
   loadMergedPermissions,
   persistPermissionRule,
@@ -234,36 +235,88 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
     setScrollTop((t) => Math.max(0, Math.min(t, Math.max(0, interactiveCount - VISIBLE_ROWS))))
   }, [interactiveCount, activeTab, isSearching])
 
+  const submitAddRule = (rawValue: string): void => {
+    const cleanInput = rawValue.trim()
+    setInputText(cleanInput)
+
+    if (activeTab === 'Ask' || activeTab === 'Deny') {
+      setView('SAVE_RULE_LOCATION')
+      setSaveLocationIndex(0)
+      return
+    }
+
+    const kind = getListKindForTab(activeTab)
+    if (kind && cleanInput) {
+      void persistPermissionRule({
+        fileStore,
+        cwd,
+        scope: 'projectLocal',
+        kind,
+        rule: cleanInput,
+        env: process.env,
+      }).then(refreshPermissions)
+    }
+    setView('MAIN')
+  }
+
+  const submitAddDirectory = (rawValue: string): void => {
+    const cleanInput = rawValue.trim()
+    setInputText(cleanInput)
+    if (!cleanInput) return
+
+    const absoluteDir = normalizePathForCompare(cleanInput, cwd)
+    void fileStore.exists(absoluteDir).then((exists) => {
+      if (!exists) {
+        setDirectoryError(`Path ${cleanInput} was not found.`)
+        return
+      }
+      return persistWorkspaceDirectory({
+        fileStore,
+        cwd,
+        scope: 'projectLocal',
+        dir: absoluteDir,
+        env: process.env,
+      })
+        .then(refreshPermissions)
+        .then(() => {
+          setDirectoryError(null)
+          setView('MAIN')
+        })
+    })
+  }
+
   useInput((input, key) => {
+    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+    const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+
     if (view === 'MAIN') {
-        if (key.escape) {
-            // Dismiss
-            // In a real app this would clear screen or exit
-             exit();
-             return;
-        }
-        const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-        if ((input === '/' || seq === '/') && !key.ctrl && !key.meta) {
-            setIsSearching((prev) => {
-              const next = !prev
-              if (!next) setSearchQuery('')
+	        if (key.escape) {
+	            // Dismiss
+	            // In a real app this would clear screen or exit
+	             exit();
+	             return;
+	        }
+	        if ((input === '/' || seq === '/') && !key.ctrl && !key.meta) {
+	            setIsSearching((prev) => {
+	              const next = !prev
+	              if (!next) setSearchQuery('')
               return next
             })
             setSelectedIndex(0)
             setScrollTop(0)
             return
         }
-        if (isSearching) {
-            if (key.backspace || key.delete) {
-                setSearchQuery((prev) => prev.slice(0, -1))
-                return
-            }
-            if (!key.ctrl && !key.meta && input && !key.tab && !key.return) {
-                setSearchQuery((prev) => prev + input)
-                return
-            }
-        }
-        if (key.tab) {
+	        if (isSearching) {
+	            if (key.backspace || key.delete) {
+	                setSearchQuery((prev) => prev.slice(0, -1))
+	                return
+	            }
+	            if (!key.ctrl && !key.meta && input && !key.tab && !isReturn) {
+	                setSearchQuery((prev) => prev + input)
+	                return
+	            }
+	        }
+	        if (key.tab) {
             // Cycle tabs
             const currentIndex = TABS.indexOf(activeTab);
             const nextIndex = (currentIndex + 1) % TABS.length;
@@ -286,14 +339,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             setSelectedIndex(newIndex);
             if (newIndex >= scrollTop + VISIBLE_ROWS) {
                  setScrollTop(newIndex - VISIBLE_ROWS + 1);
-            }
-        }
-	        if (key.return) {
-	            const selectedItem = filteredInteractiveItems[selectedIndex];
-	            if (selectedItem.startsWith('Add ')) {
-	                if (activeTab === 'Workspace') {
-	                     setView('ADD_DIRECTORY');
-	                     setDirectoryError(null);
+	            }
+	        }
+		        if (isReturn) {
+		            const selectedItem = filteredInteractiveItems[selectedIndex];
+		            if (selectedItem.startsWith('Add ')) {
+		                if (activeTab === 'Workspace') {
+		                     setView('ADD_DIRECTORY');
+		                     setDirectoryError(null);
 	                }
 	                else setView('ADD_RULE');
 	                setInputText('');
@@ -304,81 +357,30 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	                 setView('DELETE_DIRECTORY_SELECT');
 	            } else {
 	                // Clicking an existing item -> Delete confirmation?
-	                 setView('DELETE_CONFIRM');
-	                 setDeleteChoice(0);
-	            }
+		                 setView('DELETE_CONFIRM');
+		                 setDeleteChoice(0);
+		            }
+		        }
+	    } else if (view === 'ADD_RULE' || view === 'ADD_DIRECTORY') {
+	        if (key.escape) {
+	            setView('MAIN');
+	            return
 	        }
-    } else if (view === 'ADD_RULE' || view === 'ADD_DIRECTORY') {
-        if (key.escape) {
-            setView('MAIN');
-        }
-        if (key.return) {
-            const cleanInput = inputText.trim();
-            setInputText(cleanInput);
-
-            if (view === 'ADD_RULE') {
-                if (activeTab === 'Ask' || activeTab === 'Deny') {
-                    setView('SAVE_RULE_LOCATION');
-                    setSaveLocationIndex(0);
-                } else {
-                    const kind = getListKindForTab(activeTab)
-                    if (kind && cleanInput) {
-                      void persistPermissionRule({
-                        fileStore,
-                        cwd,
-                        scope: 'projectLocal',
-                        kind,
-                        rule: cleanInput,
-                        env: process.env,
-                      }).then(refreshPermissions)
-                    }
-                    setView('MAIN')
-                }
-	            } else {
-	                // ADD_DIRECTORY validation
-	                 if (!cleanInput) return
-	                 const absoluteDir = normalizePathForCompare(cleanInput, cwd)
-	                 void fileStore.exists(absoluteDir).then((exists) => {
-	                   if (!exists) {
-	                     setDirectoryError(`Path ${cleanInput} was not found.`)
-	                     return
-	                   }
-	                   return persistWorkspaceDirectory({
-	                     fileStore,
-	                     cwd,
-	                     scope: 'projectLocal',
-	                     dir: absoluteDir,
-	                     env: process.env,
-	                   }).then(refreshPermissions).then(() => {
-	                     setDirectoryError(null)
-	                     setView('MAIN')
-	                   })
-                 })
-            }
-            return;
-        }
-        // Mock typing
-        if (key.backspace || key.delete) {
-            setInputText(prev => prev.slice(0, -1));
-            if (view === 'ADD_DIRECTORY') setDirectoryError(null);
-        } else if (!key.ctrl && !key.meta && input) {
-             setInputText(prev => prev + input);
-             if (view === 'ADD_DIRECTORY') setDirectoryError(null);
-        }
-    } else if (view === 'SAVE_RULE_LOCATION') {
-        if (key.escape) setView('ADD_RULE'); // Go back to editing rule
+	        // `TextInput` handles Enter/Return submission for these views.
+	    } else if (view === 'SAVE_RULE_LOCATION') {
+	        if (key.escape) setView('ADD_RULE'); // Go back to editing rule
         
         if (key.upArrow) {
             setSaveLocationIndex(Math.max(0, saveLocationIndex - 1));
         }
-        if (key.downArrow) {
-            setSaveLocationIndex(Math.min(SAVE_OPTIONS.length - 1, saveLocationIndex + 1));
-        }
-        if (key.return) {
-            const kind = getListKindForTab(activeTab)
-            const option = SAVE_OPTIONS[saveLocationIndex]
-            const scope = (saveLocationIndex === 2 ? 'user' : saveLocationIndex === 1 ? 'project' : 'projectLocal') as PermissionScope
-            if (kind && inputText.trim()) {
+	        if (key.downArrow) {
+	            setSaveLocationIndex(Math.min(SAVE_OPTIONS.length - 1, saveLocationIndex + 1));
+	        }
+	        if (isReturn) {
+	            const kind = getListKindForTab(activeTab)
+	            const option = SAVE_OPTIONS[saveLocationIndex]
+	            const scope = (saveLocationIndex === 2 ? 'user' : saveLocationIndex === 1 ? 'project' : 'projectLocal') as PermissionScope
+	            if (kind && inputText.trim()) {
               void persistPermissionRule({
                 fileStore,
                 cwd,
@@ -393,15 +395,15 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	    } else if (view === 'DELETE_CONFIRM') {
 	         if (key.escape) setView('MAIN');
 	         
-	         if (key.upArrow || key.downArrow) {
-	             setDeleteChoice(prev => prev === 0 ? 1 : 0);
-	         }
+		         if (key.upArrow || key.downArrow) {
+		             setDeleteChoice(prev => prev === 0 ? 1 : 0);
+		         }
 
-	         if (key.return) {
-	             if (deleteChoice === 0) {
-	                 const kind = getListKindForTab(activeTab)
-	                 const rule = filteredInteractiveItems[selectedIndex]
-	                 const entry = kind ? getSelectedRuleEntry(rule) : null
+		         if (isReturn) {
+		             if (deleteChoice === 0) {
+		                 const kind = getListKindForTab(activeTab)
+		                 const rule = filteredInteractiveItems[selectedIndex]
+		                 const entry = kind ? getSelectedRuleEntry(rule) : null
 	                 if (kind && entry) {
 	                   void deletePermissionRule({
 	                     fileStore,
@@ -440,14 +442,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	            const next = Math.min(count - 1, directorySelectIndex + 1);
 	            setDirectorySelectIndex(next);
 	            if (next >= directorySelectScrollTop + visible) {
-	                setDirectorySelectScrollTop(next - visible + 1);
-	            }
-	        }
-	        if (key.return) {
-	            const dir = dirs[directorySelectIndex]
-	            setDirectoryToDelete(dir ?? null)
-	            setDeleteChoice(0)
-	            setView('DELETE_DIRECTORY_CONFIRM')
+		                setDirectorySelectScrollTop(next - visible + 1);
+		            }
+		        }
+		        if (isReturn) {
+		            const dir = dirs[directorySelectIndex]
+		            setDirectoryToDelete(dir ?? null)
+		            setDeleteChoice(0)
+		            setView('DELETE_DIRECTORY_CONFIRM')
 	        }
 	    } else if (view === 'DELETE_DIRECTORY_CONFIRM') {
 	        if (key.escape) {
@@ -455,15 +457,15 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	            return
 	        }
 
-	        if (key.upArrow || key.downArrow) {
-	            setDeleteChoice(prev => prev === 0 ? 1 : 0);
-	        }
+		        if (key.upArrow || key.downArrow) {
+		            setDeleteChoice(prev => prev === 0 ? 1 : 0);
+		        }
 
-	        if (key.return) {
-	            if (deleteChoice === 0 && directoryToDelete) {
-	                const entry = getSelectedWorkspaceDirEntry(directoryToDelete)
-	                if (entry) {
-	                    void deleteWorkspaceDirectory({
+		        if (isReturn) {
+		            if (deleteChoice === 0 && directoryToDelete) {
+		                const entry = getSelectedWorkspaceDirEntry(directoryToDelete)
+		                if (entry) {
+		                    void deleteWorkspaceDirectory({
 	                        fileStore,
 	                        cwd,
 	                        scope: entry.scope,
@@ -550,7 +552,13 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             <Text>e.g., <Text color="white" bold>WebFetch</Text> or <Text color="white" bold>Bash(ls:*)</Text></Text>
             <Text> </Text>
             <Box borderStyle="round" borderColor="gray" paddingX={1}>
-                 <Text>{inputText || <Text color={GRAY_COLOR}>Enter permission rule…</Text>}</Text>
+                 <TextInput
+                   value={inputText}
+                   onChange={setInputText}
+                   onSubmit={submitAddRule}
+                   placeholder="Enter permission rule…"
+                   focus
+                 />
             </Box>
              <Text> </Text>
         </Box>
@@ -606,7 +614,16 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
              <Text>  Enter the path to the directory:</Text>
              <Text> </Text>
             <Box borderStyle="round" borderColor={directoryError ? DELETE_COLOR : 'gray'} paddingX={1}>
-                 <Text>{inputText || <Text color={GRAY_COLOR}>Directory path…</Text>}</Text>
+                 <TextInput
+                   value={inputText}
+                   onChange={(value) => {
+                     setInputText(value)
+                     setDirectoryError(null)
+                   }}
+                   onSubmit={submitAddDirectory}
+                   placeholder="Directory path…"
+                   focus
+                 />
             </Box>
              <Text> </Text>
              {directoryError && (

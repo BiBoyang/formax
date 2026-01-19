@@ -31,6 +31,9 @@ export default function TextInput({
     (input, key) => {
       if (!focus) return
 
+      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+      const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+
       if (key.backspace || key.delete) {
         if (value.length > 0 && cursorOffset > 0) {
           const newValue =
@@ -51,8 +54,8 @@ export default function TextInput({
         return
       }
 
-      if (key.return && onSubmit) {
-        onSubmit(value)
+      if (isReturn) {
+        if (onSubmit) onSubmit(value)
         return
       }
 
