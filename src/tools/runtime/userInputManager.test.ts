@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createUserInputManager } from './userInputManager'
 
 describe('UserInputManager', () => {
@@ -25,6 +25,49 @@ describe('UserInputManager', () => {
     })
 
     await expect(p).resolves.toEqual({ X: 'Y' })
+  })
+
+  it('evicts the oldest buffered answers when exceeding the cap', async () => {
+    const mgr = createUserInputManager()
+
+    for (let i = 0; i < 51; i += 1) {
+      mgr.submitAnswers(`id${i}`, { i })
+    }
+
+    const kept = mgr.requestAnswers({
+      toolUseId: 'id50',
+      questions: [],
+    })
+    await expect(kept).resolves.toEqual({ i: 50 })
+
+    const evicted = mgr.requestAnswers({
+      toolUseId: 'id0',
+      questions: [],
+    })
+    expect(mgr.isPending('id0')).toBe(true)
+    mgr.reject('id0', new Error('Request aborted'))
+    await expect(evicted).rejects.toThrow('Request aborted')
+  })
+
+  it('drops buffered answers after TTL', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2000-01-01T00:00:00.000Z'))
+
+    const mgr = createUserInputManager()
+    mgr.submitAnswers('ttl', { X: 'Y' })
+
+    vi.setSystemTime(new Date('2000-01-01T00:02:00.000Z'))
+
+    const p = mgr.requestAnswers({
+      toolUseId: 'ttl',
+      questions: [],
+    })
+
+    expect(mgr.isPending('ttl')).toBe(true)
+    mgr.reject('ttl', new Error('Request aborted'))
+    await expect(p).rejects.toThrow('Request aborted')
+
+    vi.useRealTimers()
   })
 
   it('rejects when aborted', async () => {

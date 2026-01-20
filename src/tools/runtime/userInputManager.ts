@@ -34,20 +34,38 @@ type PendingRequest = {
 
 export function createUserInputManager(): UserInputManager {
   const pending = new Map<string, PendingRequest>()
-  const bufferedAnswers = new Map<string, AskUserAnswers>()
+  type BufferedEntry = { answers: AskUserAnswers; ts: number }
+  const bufferedAnswers = new Map<string, BufferedEntry>()
+  const MAX_BUFFERED = 50
+  const BUFFER_TTL_MS = 60_000
+
+  function pruneBuffered(now = Date.now()): void {
+    for (const [id, entry] of bufferedAnswers) {
+      if (now - entry.ts > BUFFER_TTL_MS) bufferedAnswers.delete(id)
+    }
+
+    if (bufferedAnswers.size <= MAX_BUFFERED) return
+    let toDelete = bufferedAnswers.size - MAX_BUFFERED
+    for (const id of bufferedAnswers.keys()) {
+      bufferedAnswers.delete(id)
+      toDelete -= 1
+      if (toDelete <= 0) break
+    }
+  }
 
   function requestAnswers(args: {
     toolUseId: string
     questions: AskUserQuestion[]
     signal?: AbortSignal
   }): Promise<AskUserAnswers> {
+    pruneBuffered()
     const existing = pending.get(args.toolUseId)
     if (existing) return existing.promise
 
     const buffered = bufferedAnswers.get(args.toolUseId)
     if (buffered) {
       bufferedAnswers.delete(args.toolUseId)
-      return Promise.resolve(buffered)
+      return Promise.resolve(buffered.answers)
     }
 
     if (args.signal?.aborted) {
@@ -84,9 +102,11 @@ export function createUserInputManager(): UserInputManager {
   }
 
   function submitAnswers(toolUseId: string, answers: AskUserAnswers): boolean {
+    pruneBuffered()
     const req = pending.get(toolUseId)
     if (!req) {
-      bufferedAnswers.set(toolUseId, answers)
+      bufferedAnswers.set(toolUseId, { answers, ts: Date.now() })
+      pruneBuffered()
       return true
     }
     pending.delete(toolUseId)
