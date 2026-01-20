@@ -145,6 +145,86 @@ describe('createSkillPreflight', () => {
     }
   })
 
+  it('applies persisted allow immediately (no restart needed)', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-immediate-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const requestAnswers = vi.fn(async () => ({ decision: 'approve_remember' }))
+      const userInput: UserInputManager = {
+        requestAnswers,
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const first = await preflight(
+        { id: 't1', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(first).toBeNull()
+      expect(requestAnswers).toHaveBeenCalledTimes(1)
+
+      const second = await preflight(
+        { id: 't2', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(second).toBeNull()
+      expect(requestAnswers).toHaveBeenCalledTimes(1)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('re-prompts immediately after removing allow entry', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-remove-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const key = buildSkillPermissionKey('frontend-design')
+      const filePath = getProjectSettingsLocalPath(projectDir)
+      await store.writeJsonAtomic(filePath, { version: 1, permissions: { allow: [key], ask: [], deny: [], workspace: { additionalDirectories: [] } } })
+
+      const requestAnswers = vi.fn(async () => ({ decision: 'approve' }))
+      const userInput: UserInputManager = {
+        requestAnswers,
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const allowed = await preflight(
+        { id: 't1', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(allowed).toBeNull()
+      expect(requestAnswers).toHaveBeenCalledTimes(0)
+
+      const parsed = JSON.parse(await store.readText(filePath))
+      parsed.permissions.allow = []
+      await store.writeJsonAtomic(filePath, parsed)
+
+      const afterRemove = await preflight(
+        { id: 't2', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(afterRemove).toBeNull()
+      expect(requestAnswers).toHaveBeenCalledTimes(1)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('returns error tool_result when user provides feedback', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-feedback-'))
     try {
