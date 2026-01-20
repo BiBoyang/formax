@@ -17,9 +17,36 @@ function Wrapper(): React.ReactNode {
   )
 }
 
+function BlockWrapper(): React.ReactNode {
+  const [value, setValue] = useState('')
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput value={value} onChange={setValue} cursorStyle="block" />
+    </ReplUiProvider>
+  )
+}
+
 describe('TextInput', () => {
   it('supports left cursor movement and insertion in bar mode', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
+
+    await tick()
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('X')
+    await tick()
+
+    expect(lastFrame()).toContain('aX')
+    expect(lastFrame()).toContain('b')
+  })
+
+  it('supports left cursor movement and insertion in block mode', async () => {
+    const { stdin, lastFrame } = render(<BlockWrapper />)
 
     await tick()
     stdin.write('a')

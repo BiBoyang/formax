@@ -44,11 +44,19 @@ export default function TextInput({
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return
 
-    if (key.backspace || key.delete) {
+    if (key.backspace) {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
         onChange(newValue)
         setCursorOffset(Math.max(0, cursorOffset - 1))
+      }
+      return
+    }
+
+    if (key.delete) {
+      if (value.length > 0 && cursorOffset < value.length) {
+        const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
+        onChange(newValue)
       }
       return
     }
@@ -85,9 +93,8 @@ export default function TextInput({
   // Ensure cursor offset is within bounds
   const safeCursorOffset = Math.max(0, Math.min(cursorOffset, displayValue.length))
 
-  // 计算光标前后的文本
   const beforeCursor = displayValue.slice(0, safeCursorOffset)
-  const afterCursor = displayValue.slice(safeCursorOffset)
+  const afterCursorBar = displayValue.slice(safeCursorOffset)
 
   return (
     <Text>
@@ -99,10 +106,25 @@ export default function TextInput({
         </>
       ) : (
         <>
-          {beforeCursor}
-          {focus && cursorStyle === 'block' ? <Text inverse> </Text> : null}
-          {focus && cursorStyle === 'bar' ? <Text color={theme.text}>{cursorChar}</Text> : null}
-          {afterCursor}
+          {cursorStyle === 'block' ? (
+            <>
+              {beforeCursor}
+              {focus ? (
+                <Text inverse>{displayValue[safeCursorOffset] ?? ' '}</Text>
+              ) : safeCursorOffset < displayValue.length ? (
+                displayValue[safeCursorOffset]
+              ) : (
+                ''
+              )}
+              {safeCursorOffset + 1 <= displayValue.length ? displayValue.slice(safeCursorOffset + 1) : ''}
+            </>
+          ) : (
+            <>
+              {beforeCursor}
+              {focus ? <Text color={theme.text}>{cursorChar}</Text> : null}
+              {afterCursorBar}
+            </>
+          )}
         </>
       )}
     </Text>
