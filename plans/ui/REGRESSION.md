@@ -23,6 +23,9 @@
 ## 3) /permissions（Workspace roots）
 
 - 打开权限页后，主菜单 `↑/↓/Enter/Esc` 正常。
+- `/` 进入搜索后：
+  - 可输入/删除；`←/→` 可移动光标并在中间插入字符。
+  - `Tab` 切换 tab 后仍可继续操作；`Esc` 退出后 REPL 输入恢复正常。
 - Add directory：
   - 输入路径时 `←/→` 可移动光标并在中间插入字符。
   - `Enter` 提交；成功后立即影响 workspace roots（不用重启）。

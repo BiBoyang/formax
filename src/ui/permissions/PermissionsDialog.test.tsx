@@ -132,6 +132,81 @@ describe('PermissionsDialog', () => {
     }
   }, 15000)
 
+  it('supports cursor movement and deletion in / search input', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-search-cursor-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: ['WebFetch', 'Bash(ls:*)'],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="overlay:permissions">
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Add a new rule')
+
+      await waitForText(lastFrame, 'WebFetch')
+
+      stdin.write('/')
+      await waitForText(lastFrame, 'Search:')
+      await tick()
+
+      for (const ch of 'abcde') {
+        stdin.write(ch)
+        await tick()
+      }
+
+      stdin.write('\u001B[D')
+      await tick()
+      stdin.write('\u001B[D')
+      await tick()
+
+      expect(lastFrame()).toContain('abc▏de')
+
+      stdin.write('\x7f')
+      await tick()
+      expect(lastFrame()).toContain('ab▏de')
+
+      stdin.write('X')
+      await tick()
+      expect(lastFrame()).toContain('abX▏de')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 15000)
+
   it('supports cursor movement when editing rule input', async () => {
     const originalCwd = process.cwd()
     const originalConfigDir = process.env.FORMAX_CONFIG_DIR

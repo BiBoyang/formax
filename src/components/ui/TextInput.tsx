@@ -106,11 +106,13 @@ export default function TextInput({
       return
     }
 
-    // Insert character at cursor position
-    if (input && !key.ctrl && !key.meta) {
-      const newValue = value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
+    // Insert text at cursor position.
+    // Prefer `raw` (sequence) because in some terminals Ink may surface the printable character via
+    // `key.sequence` with an empty `input` string.
+    if (raw && !raw.startsWith('\u001b') && !key.ctrl && !key.meta) {
+      const newValue = value.slice(0, cursorOffset) + raw + value.slice(cursorOffset)
       onChange(newValue)
-      setCursorOffset(cursorOffset + input.length)
+      setCursorOffset(cursorOffset + raw.length)
     }
   }
 
