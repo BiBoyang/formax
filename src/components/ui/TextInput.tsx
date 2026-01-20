@@ -17,6 +17,32 @@ type TextInputProps = {
   scope?: InputScopeId
 }
 
+export function classifyDeletionKey({
+  keyName,
+  raw,
+  key,
+}: {
+  keyName: string
+  raw: string
+  key: any
+}): 'backspace' | 'forwardDelete' | null {
+  const isForwardDelete = raw === '\u001B[3~'
+  if (isForwardDelete) return 'forwardDelete'
+
+  const isBackspace =
+    keyName === 'backspace' ||
+    Boolean(key?.backspace) ||
+    raw === '\b' ||
+    raw === '\x7f' ||
+    // Ink often reports the Backspace key as "delete" with no printable sequence, especially on macOS.
+    // Treat that case as backspace (delete previous char), not forward-delete.
+    keyName === 'delete' ||
+    (Boolean(key?.delete) && raw === '')
+  if (isBackspace) return 'backspace'
+
+  return null
+}
+
 export default function TextInput({
   value,
   onChange,
@@ -59,15 +85,8 @@ export default function TextInput({
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return
 
-    const isForwardDelete = keyName === 'delete' || raw === '\u001B[3~'
-    const isBackspace =
-      keyName === 'backspace' ||
-      Boolean(key.backspace) ||
-      raw === '\b' ||
-      raw === '\x7f' ||
-      // On macOS terminals the Backspace key is often reported as "delete" with no sequence.
-      (Boolean(key.delete) && !isForwardDelete && raw === '')
-    if (isBackspace) {
+    const deletion = classifyDeletionKey({ keyName, raw, key })
+    if (deletion === 'backspace') {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
         onChange(newValue)
@@ -76,7 +95,7 @@ export default function TextInput({
       return
     }
 
-    if (isForwardDelete) {
+    if (deletion === 'forwardDelete') {
       if (value.length > 0 && cursorOffset < value.length) {
         const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
         onChange(newValue)

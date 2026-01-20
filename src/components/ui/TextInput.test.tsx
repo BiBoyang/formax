@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { render } from 'ink-testing-library'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
-import TextInput from './TextInput'
+import TextInput, { classifyDeletionKey } from './TextInput'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -193,5 +193,10 @@ describe('TextInput', () => {
     await tick()
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('treats macOS Backspace reported as delete as backspace', () => {
+    expect(classifyDeletionKey({ keyName: 'delete', raw: '', key: { delete: true } })).toBe('backspace')
+    expect(classifyDeletionKey({ keyName: 'delete', raw: '\u001B[3~', key: { delete: true } })).toBe('forwardDelete')
   })
 })
