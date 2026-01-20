@@ -241,10 +241,10 @@ export function createSlashCommandRegistry(deps: {
   }
 
   const suggest = (input: string): SlashCommandSpec[] => {
-    const raw = (input || '').trimStart()
-    if (!raw.startsWith('/')) return []
+    const parsed = parseSlashCommand(input)
+    if (!parsed) return []
 
-    const query = raw.slice(1).toLowerCase()
+    const query = parsed.command.slice(1).toLowerCase()
     if (!query) return list()
 
     const scored = list()

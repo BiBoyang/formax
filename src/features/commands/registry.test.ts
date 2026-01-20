@@ -41,8 +41,9 @@ describe('SlashCommandRegistry', () => {
       await fsp.writeFile(path.join(dir, 'status.md'), 'Git status', 'utf8')
 
       const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
-      const res = reg.suggest('/st')
-      expect(res.some((c) => c.command === '/git:status')).toBe(true)
+      expect(reg.suggest('/st').some((c) => c.command === '/git:status')).toBe(true)
+      expect(reg.suggest('/st ').some((c) => c.command === '/git:status')).toBe(true)
+      expect(reg.suggest('/st extra-args').some((c) => c.command === '/git:status')).toBe(true)
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }
