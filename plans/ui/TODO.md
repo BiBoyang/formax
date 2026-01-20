@@ -2,12 +2,12 @@
 
 目标：暂停“加新功能”，先把 UI 交互的**稳定性/可预测性**做起来，减少“按键互抢、输入失灵、风格不一致”的返工成本。
 
-## 0. 约束（必须遵守）
+## 0. 约束（长期规则）
 
-- [ ] **行为优先**：先保证交互稳定与可预测，再考虑目录搬迁与大重构
-- [ ] **不做大搬家**：在键盘路由稳定之前，不大规模移动 `src/screens/ src/ui/ src/components/`（减少 churn）
-- [ ] **焦点优先级明确**：Overlay/Prompt 打开时，REPL 不得抢按键（方向键/Tab/数字键/ESC 等）
-- [ ] **尽量复用现有**：优先复用 `src/components/ui/TextInput.tsx` + `getTheme()`，避免重写输入逻辑
+- **行为优先**：先保证交互稳定与可预测，再考虑目录搬迁与大重构
+- **不做大搬家**：在键盘路由稳定之前，不大规模移动 `src/screens/ src/ui/ src/components/`（减少 churn）
+- **焦点优先级明确**：Overlay/Prompt 打开时，REPL 不得抢按键（方向键/Tab/数字键/ESC 等）
+- **尽量复用现有**：优先复用 `src/components/ui/TextInput.tsx` + `getTheme()`，避免重写输入逻辑
 
 ## 1. 已完成（最近）
 
