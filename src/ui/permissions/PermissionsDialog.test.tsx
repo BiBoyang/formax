@@ -208,4 +208,94 @@ describe('PermissionsDialog', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 15000)
+
+  it('supports cursor movement when editing directory input', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-dir-cursor-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await mkdir(path.join(projectRoot, 'abXc'), { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const expectedDir = path.join(process.cwd(), 'abXc')
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="overlay:permissions">
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      await waitForText(lastFrame, 'Add a new rule')
+
+      // Switch to Workspace tab (Allow -> Ask -> Deny -> Workspace)
+      stdin.write('\t')
+      await tick()
+      stdin.write('\t')
+      await tick()
+      stdin.write('\t')
+      await tick()
+
+      // Enter Add Directory view
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add directory to workspace')
+      await tick()
+
+      // Type: abc, move cursor left once, insert X -> abXc
+      stdin.write('a')
+      await tick()
+      stdin.write('b')
+      await tick()
+      stdin.write('c')
+      await tick()
+      stdin.write('\u001B[D')
+      await tick()
+      stdin.write('X')
+      await tick()
+
+      // Submit
+      stdin.write('\r')
+      await waitForNoText(lastFrame, 'Add directory to workspace')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const dirs = parsed?.permissions?.workspace?.additionalDirectories
+        return Array.isArray(dirs) && dirs.some((d: any) => String(d ?? '').endsWith('/abXc'))
+      })
+
+      const persisted = JSON.parse(await readFile(settingsPath, 'utf8'))
+      expect(persisted.permissions.workspace.additionalDirectories).toContain(expectedDir)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 15000)
 })

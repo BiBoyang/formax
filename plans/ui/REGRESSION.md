@@ -36,11 +36,11 @@
 
 ## 5) Tool error output（可解释 + 可解析）
 
-目的：确认“关键错误”不会丢字段、不会丢关键行、不会被普通灰字掩盖。
+目的：确认“关键错误”足够短（1–2 行为主）且包含关键信息，不出现重试指引/术语泄漏（sub-agent 等）。
 
 - Workspace 越界（Read/Glob/Grep 任一）：
   - 触发：`Read(~/.codex/copy.json)`（或其它 workspace 外路径）
-  - 期望：输出包含 `ErrorCode: FS_PERMISSION` 与 `Hint:`，并同时展示 `Path:`（~）与 `Path (absolute):`（绝对路径）。
+  - 期望：输出包含 `Error: Path is outside the workspace`，并至少包含 `Path: ~/.codex/copy.json`（不需要 Hint/roots 等长解释）。
 - Bash deny：
   - 触发：`Bash(sudo ls)`
-  - 期望：输出包含 `ErrorCode: POLICY_DENIED`，并包含拒绝原因（至少一行可读原因）。
+  - 期望：输出包含 `Error: Bash command denied`，并包含拒绝原因（至少一行可读原因）。

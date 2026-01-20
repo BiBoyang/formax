@@ -24,6 +24,7 @@ type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace'
 const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace']
 
 const fileStore = createNodeFileStore()
+const PERMISSIONS_TEXT_INPUT_SCOPE = 'prompt:permissions-input' as const
 
 // Components
 
@@ -129,6 +130,9 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	  const [directorySelectIndex, setDirectorySelectIndex] = useState(0);
 	  const [directorySelectScrollTop, setDirectorySelectScrollTop] = useState(0);
 	  const [directoryToDelete, setDirectoryToDelete] = useState<string | null>(null);
+
+  const isTextInputView = view === 'ADD_RULE' || view === 'ADD_DIRECTORY'
+  useScopeActivation(PERMISSIONS_TEXT_INPUT_SCOPE, isTextInputView)
 
   // Constants
   const SAVE_OPTIONS = [
@@ -308,6 +312,15 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         })
     })
   }
+
+  useScopedInput(
+    PERMISSIONS_TEXT_INPUT_SCOPE,
+    (_input, key) => {
+      if (!key.escape) return
+      setView('MAIN')
+    },
+    { enabled: isTextInputView },
+  )
 
   useScopedInput('overlay:permissions', (input, key) => {
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
@@ -585,7 +598,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                    onSubmit={submitAddRule}
                    placeholder="Enter permission rule…"
                    focus
-                   scope="overlay:permissions"
+                   scope={PERMISSIONS_TEXT_INPUT_SCOPE}
                  />
             </Box>
              <Text> </Text>
@@ -651,7 +664,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                    onSubmit={submitAddDirectory}
                    placeholder="Directory path…"
                    focus
-                   scope="overlay:permissions"
+                   scope={PERMISSIONS_TEXT_INPUT_SCOPE}
                  />
             </Box>
              <Text> </Text>
