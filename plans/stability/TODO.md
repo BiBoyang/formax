@@ -12,11 +12,26 @@
 
 目标：错误必须“可解释 + 可解析”，但不强行把所有错误都做成 JSON（先只统一字段与呈现）。
 
-- [ ] S7-1：列出“拒绝类错误”入口与现状（只做注释/备忘，不改行为）
-  - [ ] workspace 拒绝：Read/Glob/Grep/Edit/Write/NotebookEdit
-  - [ ] policy 拒绝：Bash deny、plan mode 写入拒绝、其他 deny
-  - [ ] 输出路径：tool_result（主路径） vs 纯文本（少数 handler）
-  - **DoD**：补充到本文件的小清单（包含文件路径与分支条件）
+- [x] S7-1：列出“拒绝类错误”入口与现状（只做注释/备忘，不改行为）
+  - workspace 拒绝（`FS_PERMISSION`）
+    - 入口：`src/tools/executor/policyPreflight.ts`（`action.kind === 'fs.read' | 'fs.write'`）
+    - 触发：`canonicalTargetPath` 不在 `canonicalRoots` 内
+    - 输出：`Error: Path is outside the workspace` + `ErrorCode: FS_PERMISSION` + `Path/Path (absolute)/Workspace roots/Hint`
+  - plan mode 写入拒绝（`POLICY_DENIED`）
+    - 入口：`src/tools/executor/policyPreflight.ts`（`replMode === 'plan' && action.kind === 'fs.write'`）
+    - 触发：写入的不是 plan file
+    - 输出：`Error: Plan mode is active...` + `ErrorCode: POLICY_DENIED` + `Hint: Exit plan mode...`
+  - Bash classifier deny（`POLICY_DENIED`）
+    - 入口 1：`src/tools/executor/policyPreflight.ts`（preflight 阶段直接拒绝）
+    - 入口 2：`src/tools/modules/bash/handler.ts`（少数绕过 preflight 的执行路径）
+    - 触发：`classifyBashCommand(...).risk === 'deny'`（例如 `sudo ...` / destructive patterns）
+  - permissions deny（`POLICY_DENIED`）
+    - 入口：`src/tools/executor/policyPreflight.ts`（tool permission 计算后强制 deny）
+    - 触发：`decideToolPermission(...).decision === 'deny'`
+    - 输出：`Error: Permission denied <Tool>` + `ErrorCode: POLICY_DENIED` + explain lines
+  - policy deny（`POLICY_DENIED`）
+    - 入口：`src/tools/executor/policyPreflight.ts`（`effectiveDecision === 'deny'`）
+    - 输出：`Error: Policy denied <action.kind>` + `ErrorCode: POLICY_DENIED` + explain lines
 - [x] S7-2：统一 `policyPreflight` 的拒绝类输出格式（不改拒绝条件）
   - [ ] 保留第一行主错误：`Error: ...`
   - [ ] 追加固定字段（逐行输出，便于人读/机器 grep）：
