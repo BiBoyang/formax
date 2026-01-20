@@ -26,6 +26,22 @@ function BlockWrapper(): React.ReactNode {
   )
 }
 
+function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): React.ReactNode {
+  const [value, setValue] = useState('')
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput
+        value={value}
+        onChange={setValue}
+        onSubmit={onSubmit}
+        cursorStyle="bar"
+        cursorChar="▏"
+        multiline
+      />
+    </ReplUiProvider>
+  )
+}
+
 describe('TextInput', () => {
   it('supports left cursor movement and insertion in bar mode', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
@@ -43,6 +59,42 @@ describe('TextInput', () => {
 
     expect(lastFrame()).toContain('aX')
     expect(lastFrame()).toContain('b')
+  })
+
+  it('supports delete key removal at cursor', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+
+    await tick()
+    stdin.write('a')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[3~')
+    await tick()
+
+    expect(lastFrame()).toContain('a')
+    expect(lastFrame()).not.toContain('b')
+  })
+
+  it('inserts a newline on LF when multiline is enabled', async () => {
+    const onSubmit = vi.fn()
+    const { stdin, lastFrame } = render(<MultilineWrapper onSubmit={onSubmit} />)
+
+    await tick()
+    stdin.write('a')
+    await tick()
+    stdin.write('\n')
+    await tick()
+    stdin.write('b')
+    await tick()
+
+    expect(lastFrame()).toContain('a')
+    expect(lastFrame()).toContain('b')
+    expect(lastFrame()).not.toContain('ab')
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('supports left cursor movement and insertion in block mode', async () => {

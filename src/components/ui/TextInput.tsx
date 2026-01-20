@@ -11,6 +11,7 @@ type TextInputProps = {
   placeholder?: string
   mask?: string
   focus?: boolean
+  multiline?: boolean
   cursorStyle?: 'block' | 'bar'
   cursorChar?: string
   scope?: InputScopeId
@@ -23,6 +24,7 @@ export default function TextInput({
   placeholder = '',
   mask,
   focus = true,
+  multiline = false,
   cursorStyle = 'block',
   cursorChar = '▏',
   scope,
@@ -39,12 +41,15 @@ export default function TextInput({
     if (!focus) return
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+    const isSubmit = key.return || input === '\r' || seq === '\r'
+    const isNewline = input === '\n' || seq === '\n'
+    const wantsNewline = multiline && (isNewline || (isSubmit && Boolean(key.shift)))
 
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return
 
-    if (key.backspace) {
+    const isBackspace = Boolean(key.backspace) || seq === '\b' || seq === '\x7f' || input === '\b' || input === '\x7f'
+    if (isBackspace) {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
         onChange(newValue)
@@ -53,7 +58,8 @@ export default function TextInput({
       return
     }
 
-    if (key.delete) {
+    const isDelete = Boolean(key.delete) || seq === '\u001B[3~' || input === '\u001B[3~'
+    if (isDelete) {
       if (value.length > 0 && cursorOffset < value.length) {
         const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
         onChange(newValue)
@@ -71,7 +77,14 @@ export default function TextInput({
       return
     }
 
-    if (isReturn) {
+    if (wantsNewline) {
+      const newValue = value.slice(0, cursorOffset) + '\n' + value.slice(cursorOffset)
+      onChange(newValue)
+      setCursorOffset(cursorOffset + 1)
+      return
+    }
+
+    if (isSubmit || isNewline) {
       if (onSubmit) onSubmit(value)
       return
     }

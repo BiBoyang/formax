@@ -47,6 +47,7 @@ function InputBarImpl({
             placeholder={placeholder}
             focus={!disabled}
             scope="repl"
+            multiline
           />
         </Box>
       </Box>
