@@ -130,6 +130,68 @@ describe('SetupWizard', () => {
     expect(lastFrame()).not.toContain('Base URL')
   })
 
+  it('supports cursor movement and insertion in Base URL input', async () => {
+    const { lastFrame, stdin } = renderSetupWizard()
+
+    await tick()
+
+    // welcome -> provider
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select a provider')
+
+    // provider select anthropic -> baseUrl
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Base URL')
+
+    // Type: abcde, move cursor left twice, insert X -> abcXde
+    stdin.write('abcde')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('X')
+    await tick()
+
+    expect(lastFrame()).toContain('abcXde')
+  })
+
+  it('supports cursor movement in masked API Key input', async () => {
+    const { lastFrame, stdin } = renderSetupWizard()
+
+    await tick()
+
+    // welcome -> provider
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select a provider')
+
+    // provider select anthropic -> baseUrl
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Base URL')
+
+    // baseUrl -> apiKey
+    stdin.write('\r')
+    await waitForText(lastFrame, 'API Key')
+
+    stdin.write('sk-test')
+    await tick()
+
+    const countBullets = () => (lastFrame() || '').split('•').length - 1
+    expect(countBullets()).toBeGreaterThan(0)
+
+    // Move cursor left in the input to ensure key events are handled (even though display is masked).
+    stdin.write('\u001B[D')
+    await tick()
+
+    // The raw key should not be shown.
+    expect(lastFrame()).not.toContain('sk-test')
+
+    const before = countBullets()
+    stdin.write('\x7f')
+    await tick()
+    expect(countBullets()).toBe(before - 1)
+  })
+
   it.each([
     [ErrorCode.Unauthorized, 'Verify the API key you pasted is correct'],
     [ErrorCode.Forbidden, 'provider denied access'],
