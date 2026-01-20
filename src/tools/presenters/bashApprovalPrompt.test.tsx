@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
 import { BashApprovalPrompt } from './bashApprovalPrompt'
 
@@ -13,9 +14,11 @@ describe('BashApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -30,9 +33,11 @@ describe('BashApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -55,9 +60,11 @@ describe('BashApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -77,5 +84,25 @@ describe('BashApprovalPrompt', () => {
 
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'aXb' })
+  })
+
+  it('does not select a stale option when moving and pressing enter quickly', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\u001B[B') // down
+    stdin.write('\r') // enter (same tick)
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve_remember' })
   })
 })

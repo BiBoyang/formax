@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
 import { EditApprovalPrompt } from './editApprovalPrompt'
 
@@ -13,9 +14,11 @@ describe('EditApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -39,9 +42,11 @@ describe('EditApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -69,9 +74,11 @@ describe('EditApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <EditApprovalPrompt title="Do you want to edit foo.ts?" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Do you want to edit foo.ts?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
@@ -105,9 +112,11 @@ describe('EditApprovalPrompt', () => {
     const onDecision = vi.fn()
 
     const { stdin } = render(
-      <ReplUiProvider abort={() => {}}>
-        <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
-      </ReplUiProvider>,
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
     )
 
     await tick()
