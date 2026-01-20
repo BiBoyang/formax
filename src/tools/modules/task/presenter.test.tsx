@@ -33,7 +33,7 @@ describe('TaskToolPresenter', () => {
     const message: Msg = {
       id: 'tool-2',
       role: 'tool',
-      content: 'Sub-agent failed',
+      content: 'Agent failed',
       timestamp: new Date(),
       toolInfo: {
         name: 'Task',
@@ -44,7 +44,7 @@ describe('TaskToolPresenter', () => {
 
     const { lastFrame } = render(<TaskToolPresenter message={message} />)
     const frame = lastFrame()
-    expect(frame).toContain('Sub-agent failed')
+    expect(frame).toContain('Agent failed')
     expect(frame).not.toContain('Error:')
   })
 

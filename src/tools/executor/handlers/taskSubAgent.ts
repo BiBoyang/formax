@@ -71,7 +71,7 @@ export function createTaskSubAgentToolHandler(deps: {
       if (!agent) {
         return {
           tool_use_id: call.id,
-          content: `Error: Sub-agent type '${subagentType}' not found.`,
+          content: `Error: Agent type '${subagentType}' not found.`,
           is_error: true,
         }
       }
@@ -235,7 +235,7 @@ export function createTaskSubAgentToolHandler(deps: {
           agent_id: result.agentId,
           summary:
             limited ||
-            (result.success ? '(no output)' : `Error: ${result.error || 'Sub-agent failed'}`),
+            (result.success ? '(no output)' : `Error: ${result.error || 'Agent failed'}`),
           json: JSON.stringify(payload, null, 2),
           is_error: !result.success,
         }

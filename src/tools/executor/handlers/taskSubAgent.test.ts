@@ -46,7 +46,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
-    expect(result.content).toContain("Sub-agent type 'missing' not found")
+    expect(result.content).toContain("Agent type 'missing' not found")
   })
 
   it('returns summary on success', async () => {

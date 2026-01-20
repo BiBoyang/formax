@@ -103,18 +103,18 @@ export function createApprovalService(args: {
     const { call, ctx } = args2
 
     if (!args.userInput) {
+      const ruleId =
+        typeof args2.explained?.matchedRule?.ruleId === 'string' ? args2.explained.matchedRule.ruleId.trim() : ''
+      const scope =
+        typeof args2.explained?.matchedRule?.scope === 'string' ? args2.explained.matchedRule.scope.trim() : ''
+      const ruleLine = ruleId ? `Rule: ${scope ? `${ruleId} (${scope})` : ruleId}` : ''
       return {
         ok: false,
         result: {
           tool_use_id: call.id,
           content: [
-            `Error: Policy requires approval for ${args2.action.kind}, but no interactive UI is available`,
-            `ErrorCode: ${ErrorCode.ApprovalRequired}`,
-            ...formatPolicyExplainLines({
-              effectiveDecision: args2.effectiveDecision,
-              explained: args2.explained,
-              warnings: args2.loaded.warnings,
-            }),
+            `Error: Approval required for ${args2.action.kind} (${ErrorCode.ApprovalRequired})`,
+            ...(ruleLine ? [ruleLine] : []),
           ].join('\n'),
           is_error: true,
         },
@@ -122,7 +122,7 @@ export function createApprovalService(args: {
     }
 
     if (ctx.signal?.aborted) {
-      return { ok: false, result: { tool_use_id: call.id, content: 'Request aborted', is_error: true } }
+      return { ok: false, result: { tool_use_id: call.id, content: 'Error: Request aborted', is_error: true } }
     }
 
     if (args.audit) {

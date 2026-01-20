@@ -263,7 +263,7 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Read'])
     expect(client.firstToolResult?.is_error).toBe(true)
-    expect(client.firstToolResult?.content).toContain('not allowed inside a sub-agent')
+    expect(client.firstToolResult?.content).toContain('Tool not available')
   })
 
   it('supports wildcard allowlist ("*") for subagents', async () => {
@@ -363,7 +363,7 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('done')
     expect(client.calls[0]!.tools.map((t) => t.name)).toEqual(['Read'])
     expect(client.firstToolResult?.is_error).toBe(true)
-    expect(client.firstToolResult?.content).toContain('not allowed inside a sub-agent')
+    expect(client.firstToolResult?.content).toContain('Tool not available')
   })
 
   it('supports acceptEdits mode flips inside subagents', async () => {

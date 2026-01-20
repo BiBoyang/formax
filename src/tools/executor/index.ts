@@ -95,7 +95,7 @@ export function createToolExecutor(
     auditStart()
 
     if (ctx.signal?.aborted) {
-      const res = { tool_use_id: call.id, content: 'Request aborted', is_error: true }
+      const res = { tool_use_id: call.id, content: 'Error: Request aborted', is_error: true }
       auditEnd(true)
       return res
     }
@@ -103,7 +103,7 @@ export function createToolExecutor(
     if (ctx.agentDepth > 0 && SUBAGENT_DENY_TOOLS_SET.has(call.name)) {
       const res = {
         tool_use_id: call.id,
-        content: `Tool ${call.name} is not allowed inside a sub-agent`,
+        content: `Error: Tool not available: ${call.name}`,
         is_error: true,
       }
       auditEnd(true)
@@ -114,7 +114,7 @@ export function createToolExecutor(
     if (ctx.allowTools && !allowAll && !ctx.allowTools.includes(call.name)) {
       const res = {
         tool_use_id: call.id,
-        content: `Tool ${call.name} is not in allow-list`,
+        content: `Error: Tool not allowed: ${call.name}`,
         is_error: true,
       }
       auditEnd(true)
@@ -124,7 +124,7 @@ export function createToolExecutor(
     if (ctx.denyTools && ctx.denyTools.includes(call.name)) {
       const res = {
         tool_use_id: call.id,
-        content: `Tool ${call.name} is in deny-list`,
+        content: `Error: Tool not allowed: ${call.name}`,
         is_error: true,
       }
       auditEnd(true)
@@ -135,7 +135,7 @@ export function createToolExecutor(
     if (!handler) {
       const res = {
         tool_use_id: call.id,
-        content: `Tool ${call.name} not implemented`,
+        content: `Error: Tool not implemented: ${call.name}`,
         is_error: true,
       }
       auditEnd(true)

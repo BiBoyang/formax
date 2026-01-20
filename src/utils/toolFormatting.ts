@@ -207,21 +207,7 @@ export function formatToolResult(
     if (name === 'Bash') {
       return formatBashErrorResult(cleaned)
     }
-    const lines = cleaned.split('\n')
-    const firstLine = lines.shift() || ''
-    if (lines.length === 0) {
-      return { summary: `Error: ${firstLine.slice(0, 100)}` }
-    }
-    const remaining = lines.length - 8
-    if (lines.length <= 8) {
-      return { summary: `Error: ${firstLine}`, middleLines: lines, lines: lines.length + 1 }
-    }
-    return {
-      summary: `Error: ${firstLine}`,
-      middleLines: lines.slice(0, 8),
-      expandInfo: `… +${remaining} lines (ctrl+o to expand)`,
-      lines: lines.length + 1,
-    }
+    return formatDefaultErrorResult(cleaned)
   }
   
   const allLines = cleaned.split('\n')
@@ -352,6 +338,29 @@ function formatBashErrorResult(raw: string): ToolResultFormat {
     }
   }
 
+  return detail ? { summary, middleLines: [detail] } : { summary }
+}
+
+function formatDefaultErrorResult(raw: string): ToolResultFormat {
+  const lines = String(raw || '').split(/\r?\n/).map((l) => l.trimEnd())
+  const nonEmpty = lines.map((l) => l.trim()).filter(Boolean)
+  if (nonEmpty.length === 0) return { summary: 'Error: (no output)' }
+
+  const head = nonEmpty[0]!
+  const summary = head.startsWith('Error:') ? head : `Error: ${head}`
+
+  const detail = nonEmpty
+    .slice(1)
+    .find(
+      (l) =>
+        l.trim().length > 0 &&
+        !/^ErrorCode:\b/i.test(l) &&
+        !/^Workspace roots:\b/i.test(l) &&
+        !/^Workspace roots\b/i.test(l),
+    )
+
+  // Claude Code generally keeps errors compact (1-2 lines) and avoids
+  // adding guidance or expansion hints in the error block.
   return detail ? { summary, middleLines: [detail] } : { summary }
 }
 
