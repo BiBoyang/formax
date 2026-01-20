@@ -12,12 +12,10 @@ import { isSameFilePath } from '../../utils/planMode.js'
 import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
 import { ErrorCode } from '../../core/errors/codes.js'
-import { formatPolicyExplainLines } from './policyExplain.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
-import { explainPermissionDecision, formatPermissionExplainLines } from '../../adapters/permissions/explain.js'
 import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
 import { formatPathForDisplay, normalizePathForCompare } from '../../utils/paths.js'
 
@@ -111,9 +109,8 @@ export function createPolicyPreflight(args: {
       const isPlanFile = Boolean(planPath && isSameFilePath(action.path, planPath, cwd))
       if (!isPlanFile) {
         const lines: string[] = []
-        lines.push('Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.')
-        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
-        lines.push('Hint: Exit plan mode to edit other files')
+        lines.push(`Error: Plan mode is active (${ErrorCode.PolicyDenied})`)
+        lines.push('Only the plan file may be edited until you exit plan mode.')
         return {
           tool_use_id: call.id,
           content: lines.join('\n'),
@@ -174,7 +171,7 @@ export function createPolicyPreflight(args: {
     const sessionRules = args.approval?.getSessionRules() ?? []
     const explained = explainPolicy({ action, rules: [...sessionRules, ...loaded.mergedRules] })
     let effectiveDecision = explained.decision
-    let permissionDenyExplain: string[] | null = null
+    let deniedByPermission = false
 
     // acceptEdits mode: treat prompts as implicitly approved (still respects deny rules).
     if (action.kind === 'fs.write' && replMode === 'acceptEdits' && effectiveDecision === 'prompt') {
@@ -214,11 +211,7 @@ export function createPolicyPreflight(args: {
 
       if (perm.decision === 'deny') {
         effectiveDecision = 'deny'
-        if (explained.decision !== 'deny') {
-          permissionDenyExplain = formatPermissionExplainLines(
-            explainPermissionDecision({ permissions, toolName: 'Bash', toolSpec: command }),
-          )
-        }
+        deniedByPermission = true
       } else if (perm.decision === 'ask') {
         if (effectiveDecision === 'allow') effectiveDecision = 'prompt'
       } else if (perm.decision === 'allow') {
@@ -234,11 +227,7 @@ export function createPolicyPreflight(args: {
 
       if (perm.decision === 'deny') {
         effectiveDecision = 'deny'
-        if (explained.decision !== 'deny') {
-          permissionDenyExplain = formatPermissionExplainLines(
-            explainPermissionDecision({ permissions, toolName: call.name }),
-          )
-        }
+        deniedByPermission = true
       } else if (perm.decision === 'ask') {
         if (effectiveDecision === 'allow') effectiveDecision = 'prompt'
       } else if (perm.decision === 'allow') {
@@ -269,20 +258,14 @@ export function createPolicyPreflight(args: {
     if (effectiveDecision === 'allow') return null
 
     if (effectiveDecision === 'deny') {
-      if (permissionDenyExplain) {
-        const lines: string[] = []
-        lines.push(`Error: Permission denied ${call.name}`)
-        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
-        lines.push(...permissionDenyExplain)
+      const lines: string[] = []
+      if (deniedByPermission) {
+        lines.push(`Error: Permission denied ${call.name} (${ErrorCode.PolicyDenied})`)
         return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
       }
-
-      const lines: string[] = []
-      lines.push(`Error: Policy denied ${action.kind}`)
-      lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
-      lines.push(
-        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
-      )
+      lines.push(`Error: Policy denied ${action.kind} (${ErrorCode.PolicyDenied})`)
+      const reason = explained.matchedRule?.reason?.trim()
+      if (reason) lines.push(`Reason: ${reason}`)
 
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
@@ -299,23 +282,19 @@ export function createPolicyPreflight(args: {
     // In those cases, do not hang waiting for user input; return a stable error instead.
     if (ctx.interactive === false) {
       const lines: string[] = []
-      lines.push(
-        `Error: Policy requires approval for ${action.kind}, but interactive prompts are disabled in this context`,
-      )
-      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
-      lines.push(
-        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
-      )
+      lines.push(`Error: Approval required for ${action.kind} (${ErrorCode.ApprovalRequired})`)
+      if (explained.matchedRule?.ruleId) {
+        lines.push(`Rule: ${explained.matchedRule.ruleId} (${explained.matchedRule.scope})`)
+      }
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 
     if (!args.approval) {
       const lines: string[] = []
-      lines.push(`Error: Policy requires approval for ${action.kind}, but no approval service is configured`)
-      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
-      lines.push(
-        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
-      )
+      lines.push(`Error: Approval required for ${action.kind} (${ErrorCode.ApprovalRequired})`)
+      if (explained.matchedRule?.ruleId) {
+        lines.push(`Rule: ${explained.matchedRule.ruleId} (${explained.matchedRule.scope})`)
+      }
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 

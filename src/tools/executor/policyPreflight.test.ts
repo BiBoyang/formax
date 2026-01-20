@@ -177,8 +177,7 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Permission denied WebFetch')
-      expect(res?.content).toContain('PermissionDecision: deny')
-      expect(res?.content).toContain('PermissionRule: WebFetch')
+      expect(res?.content).toContain('POLICY_DENIED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -325,8 +324,7 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Plan mode is active')
-      expect(res?.content).toContain('ErrorCode: POLICY_DENIED')
-      expect(res?.content).toContain('Hint:')
+      expect(res?.content).toContain('POLICY_DENIED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -459,10 +457,8 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('Policy requires approval for fs.write')
+      expect(res?.content).toContain('Approval required for fs.write')
       expect(res?.content).toContain('APPROVAL_REQUIRED')
-      expect(res?.content).toContain('EffectiveDecision: prompt')
-      expect(res?.content).toContain('PolicyDecision: prompt')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -523,8 +519,9 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 0 },
       )
       expect(res1?.is_error).toBe(true)
-      expect(res1?.content).toContain('Policy requires approval for fs.read')
-      expect(res1?.content).toContain('MatchedRule: prompt-read (global)')
+      expect(res1?.content).toContain('Approval required for fs.read')
+      expect(res1?.content).toContain('APPROVAL_REQUIRED')
+      expect(res1?.content).toContain('Rule: prompt-read (global)')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -698,8 +695,8 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('Policy requires approval for bash.exec')
-      expect(res?.content).toContain('PolicyDecision: prompt')
+      expect(res?.content).toContain('Approval required for bash.exec')
+      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -758,7 +755,8 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('Policy requires approval for bash.exec')
+      expect(res?.content).toContain('Approval required for bash.exec')
+      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -818,7 +816,7 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('interactive prompts are disabled')
+      expect(res?.content).toContain('Approval required for fs.write')
       expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
