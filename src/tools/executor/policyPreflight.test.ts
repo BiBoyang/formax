@@ -501,6 +501,8 @@ describe('createPolicyPreflight', () => {
           requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
           submitAnswers: () => true,
           reject: () => true,
+          rejectAllPending: () => 0,
+          clearBufferedAnswers: () => {},
           isPending: () => false,
         },
         env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
@@ -758,6 +760,8 @@ describe('createPolicyPreflight', () => {
         requestAnswers: async () => ({ decision: 'approve_remember' }),
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => true,
       }
 

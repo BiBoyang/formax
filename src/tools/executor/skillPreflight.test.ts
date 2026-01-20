@@ -38,6 +38,8 @@ describe('createSkillPreflight', () => {
         requestAnswers: async () => ({}),
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => false,
       }
 
@@ -92,6 +94,8 @@ describe('createSkillPreflight', () => {
         requestAnswers,
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => false,
       }
 
@@ -121,6 +125,8 @@ describe('createSkillPreflight', () => {
         requestAnswers,
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => false,
       }
 
@@ -151,6 +157,8 @@ describe('createSkillPreflight', () => {
         requestAnswers: async () => ({ decision: 'feedback', feedback: 'no skill' }),
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => false,
       }
 
@@ -177,6 +185,8 @@ describe('createSkillPreflight', () => {
         requestAnswers: async () => ({ decision: 'cancel' }),
         submitAnswers: () => true,
         reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
         isPending: () => false,
       }
 

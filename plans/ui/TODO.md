@@ -69,10 +69,10 @@
 
 目的：把所有键盘事件入口都纳入 scope 机制（或显式 isActive），避免未来新增 UI 时“又回到互抢”。
 
-- [ ] 盘点：维护 `plans/ui/useInput-audit.md`（每个 callsite 标注：归属、scope、是否显式 isActive、风险）
-- [ ] 收敛：除 demo/示例屏幕外，所有交互页面/工具 prompt 统一改为 `useScopedInput`
-  - [ ] AskUserQuestion presenter 改为 `useScopedInput('prompt:askUserQuestion', …)`（或复用现有 prompt scope）
-  - [ ] EnterPlanMode presenter 改为 `useScopedInput('prompt:enterPlanMode', …)`
-  - [ ] ExitPlanMode presenter 改为 `useScopedInput('prompt:exitPlanMode', …)`
-- [ ] 约束：新增防回退检查（测试或脚本均可）
-  - [ ] 失败条件：在 `src/` 内新增 `useInput(` 调用但未显式标注 `isActive` 或未使用 `useScopedInput`
+- [x] 盘点：维护 `plans/ui/useInput-audit.md`（每个 callsite 标注：归属、scope、是否显式 isActive、风险）
+- [x] 收敛：除 demo/示例屏幕外，所有交互页面/工具 prompt 统一改为 `useScopedInput`
+  - [x] AskUserQuestion presenter 改为 `useScopedInput('prompt:askUserQuestion', …)`（或复用现有 prompt scope）
+  - [x] EnterPlanMode presenter 改为 `useScopedInput('prompt:enterPlanMode', …)`
+  - [x] ExitPlanMode presenter 改为 `useScopedInput('prompt:exitPlanMode', …)`
+- [x] 约束：新增防回退检查（测试或脚本均可）
+  - [x] `src/features/repl/useInputAudit.test.ts`：在 `src/` 内新增 `useInput(` 会直接 fail（仅允许 5 处白名单）

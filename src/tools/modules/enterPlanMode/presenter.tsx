@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 
 export const EnterPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -57,6 +58,8 @@ export const EnterPlanModeToolPresenter: ToolPresenter = ({ message }: { message
 
 function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
   const theme = getTheme()
+  const scope = 'prompt:enterPlanMode'
+  useScopeActivation(scope)
   const { stdout } = useStdout()
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
@@ -75,7 +78,8 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
     [onEnter, onSkip],
   )
 
-  useInput(
+  useScopedInput(
+    scope,
     (input, key) => {
       if (submittedRef.current) return
 
@@ -94,7 +98,6 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
         submit(cursor === 0 ? 'enter' : 'skip')
       }
     },
-    { isActive: true },
   )
 
   return (

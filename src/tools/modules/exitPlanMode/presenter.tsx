@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -10,6 +10,7 @@ import { usePlanSession } from '../../../features/repl/planContext'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
 import TextInput from '../../../components/ui/TextInput.js'
+import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -119,6 +120,8 @@ function ExitPlanModePrompt({
   onCancel: () => void
 }): React.ReactNode {
   const theme = getTheme()
+  const scope = 'prompt:exitPlanMode'
+  useScopeActivation(scope)
   const { stdout } = useStdout()
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
@@ -146,7 +149,8 @@ function ExitPlanModePrompt({
     [onAuto, onCancel, onFeedback, onManual],
   )
 
-  useInput(
+  useScopedInput(
+    scope,
     (input, key) => {
       if (submittedRef.current) return
 
@@ -195,7 +199,6 @@ function ExitPlanModePrompt({
         else setTyping(true)
       }
     },
-    { isActive: true },
   )
 
   const feedbackLine = typingValue.trim() ? typingValue.trim() : ''
@@ -246,6 +249,7 @@ function ExitPlanModePrompt({
               cursorStyle="bar"
               cursorChar="▏"
               focus={cursor === 2}
+              scope={scope}
             />
           ) : feedbackLine ? (
             <Text color={cursor === 2 ? theme.text : theme.secondaryText}>{feedbackLine}</Text>

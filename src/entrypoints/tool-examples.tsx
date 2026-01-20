@@ -11,6 +11,7 @@ import React from 'react'
 import { render } from 'ink'
 import { clearTerminal } from '../utils/terminal.js'
 import { ToolExamplesScreen } from '../screens/ToolExamplesScreen.js'
+import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { registerBuiltinToolModules } from '../tools/modules/index.js'
 import { TaskManager } from '../tools/runtime/taskManager.js'
@@ -28,12 +29,14 @@ async function main() {
   })
 
   render(
-    <ToolExamplesScreen
-      toolRegistry={toolRegistry}
-      onExit={() => {
-        process.exit(0)
-      }}
-    />,
+    <InputScopeProvider>
+      <ToolExamplesScreen
+        toolRegistry={toolRegistry}
+        onExit={() => {
+          process.exit(0)
+        }}
+      />
+    </InputScopeProvider>,
     {
       exitOnCtrlC: false,
     },

@@ -5,6 +5,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import type { UserInputManager } from '../../runtime/userInputManager'
 import { ReplUiProvider } from '../../../features/repl/replUiContext'
+import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { AskUserQuestionToolPresenter } from './presenter'
 
 function tick(): Promise<void> {
@@ -45,16 +46,20 @@ describe('AskUserQuestionToolPresenter', () => {
       requestAnswers: async () => ({}),
       submitAnswers,
       reject: () => true,
+      rejectAllPending: () => 0,
+      clearBufferedAnswers: () => {},
       isPending: () => true,
     }
 
     const message = createRunningAskMessage()
     const { stdin } = render(
-      <UserInputProvider userInput={userInput}>
-        <ReplUiProvider abort={() => {}}>
-          <AskUserQuestionToolPresenter message={message} />
-        </ReplUiProvider>
-      </UserInputProvider>,
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <ReplUiProvider abort={() => {}}>
+            <AskUserQuestionToolPresenter message={message} />
+          </ReplUiProvider>
+        </UserInputProvider>
+      </InputScopeProvider>,
     )
 
     // Let Ink/React effects attach input listeners.
@@ -91,16 +96,20 @@ describe('AskUserQuestionToolPresenter', () => {
       requestAnswers: async () => ({}),
       submitAnswers,
       reject: () => true,
+      rejectAllPending: () => 0,
+      clearBufferedAnswers: () => {},
       isPending: () => true,
     }
 
     const message = createRunningAskMessage()
     const { stdin } = render(
-      <UserInputProvider userInput={userInput}>
-        <ReplUiProvider abort={() => {}}>
-          <AskUserQuestionToolPresenter message={message} />
-        </ReplUiProvider>
-      </UserInputProvider>,
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <ReplUiProvider abort={() => {}}>
+            <AskUserQuestionToolPresenter message={message} />
+          </ReplUiProvider>
+        </UserInputProvider>
+      </InputScopeProvider>,
     )
 
     // Let Ink/React effects attach input listeners.

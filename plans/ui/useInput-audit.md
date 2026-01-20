@@ -19,9 +19,11 @@
 - `src/screens/ToolExamplesScreen.tsx:263`：示例/演示
 - `src/screens/LoadingExampleScreen.tsx:43`：示例/演示
 
-### 需要收敛为 `useScopedInput`（交互页 / prompt）
+### 已收敛为 `useScopedInput`（交互页 / prompt）
 
-- `src/tools/modules/askUserQuestion/presenter.tsx:162`：交互问答（应迁到 `useScopedInput('prompt:askUserQuestion', ...)`）
-- `src/tools/modules/enterPlanMode/presenter.tsx:78`：进入 plan mode 的确认 prompt（应迁到 `useScopedInput('prompt:enterPlanMode', ...)`）
-- `src/tools/modules/exitPlanMode/presenter.tsx:149`：退出 plan mode 的确认 prompt（应迁到 `useScopedInput('prompt:exitPlanMode', ...)`）
+- `src/tools/modules/askUserQuestion/presenter.tsx`：交互问答（`prompt:askUserQuestion`）
+- `src/tools/modules/enterPlanMode/presenter.tsx`：进入 plan mode 的确认 prompt（`prompt:enterPlanMode`）
+- `src/tools/modules/exitPlanMode/presenter.tsx`：退出 plan mode 的确认 prompt（`prompt:exitPlanMode`）
 
+备注：
+- 这些 prompt 依赖 `InputScopeProvider` 才能激活对应 scope；`src/entrypoints/tool-examples.tsx` 已包一层 provider，避免示例屏幕里 prompt 变成“按键无效”。

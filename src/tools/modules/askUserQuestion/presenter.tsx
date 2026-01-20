@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
@@ -7,6 +7,7 @@ import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useReplUi } from '../../../features/repl/replUiContext'
+import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 
 export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -112,6 +113,8 @@ function InteractiveAsk({
   onAbort: () => void
 }): React.ReactNode {
   const theme = getTheme()
+  const scope = 'prompt:askUserQuestion'
+  useScopeActivation(scope)
 
   const [activeTab, setActiveTab] = useState(0) // 0..questions.length (submit tab)
   const [reviewCursor, setReviewCursor] = useState(0) // 0 submit / 1 cancel
@@ -159,7 +162,8 @@ function InteractiveAsk({
     onSubmit(out)
   }, [onSubmit, questions, state])
 
-  useInput(
+  useScopedInput(
+    scope,
     (input, key) => {
       if (!key) return
 
@@ -331,7 +335,6 @@ function InteractiveAsk({
         return
       }
     },
-    { isActive: true },
   )
 
   const chipLine = (
