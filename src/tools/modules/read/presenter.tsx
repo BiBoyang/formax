@@ -59,18 +59,22 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         <Box flexDirection="column">
           <Box>
             <Text color={theme.secondaryText}>⎿  </Text>
-            {renderReadSummary({ theme, summary: message.content, status })}
+            {status === 'error' ? <Text color={theme.error}>Error reading file</Text> : renderReadSummary({ theme, summary: message.content, status })}
           </Box>
-          {middleLines && middleLines.map((line, i) => (
-            <Box key={i}>
-              <Text color={status === 'error' ? theme.error : undefined}>   {line}</Text>
-            </Box>
-          ))}
-          {expandInfo && (
-            <Box>
-              <Text color={status === 'error' ? theme.error : theme.secondaryText}>   {expandInfo}</Text>
-            </Box>
-          )}
+          {status !== 'error' ? (
+            <>
+              {middleLines && middleLines.map((line, i) => (
+                <Box key={i}>
+                  <Text>   {line}</Text>
+                </Box>
+              ))}
+              {expandInfo && (
+                <Box>
+                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                </Box>
+              )}
+            </>
+          ) : null}
         </Box>
       )}
     </Box>

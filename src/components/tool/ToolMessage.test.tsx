@@ -165,6 +165,24 @@ describe('ToolMessage', () => {
       expect(lastFrame()).toContain('Read')
       expect(lastFrame()).toContain('⎿')
     })
+
+    it('should keep error details compact', () => {
+      const msg = createMsg({
+        content: 'Error: Something failed',
+        toolInfo: createToolInfo({
+          status: 'error',
+          middleLines: ['ErrorCode: INTERNAL', 'detail line'],
+          expandInfo: 'Workspace roots: ~/Documents/github/formax',
+        }),
+      })
+
+      const { lastFrame } = render(<ToolMessage message={msg} />)
+      const frame = lastFrame()
+      expect(frame).toContain('Error: Something failed')
+      expect(frame).toContain('detail line')
+      expect(frame).not.toContain('Workspace roots:')
+      expect(frame).not.toContain('ErrorCode:')
+    })
   })
 
   // Unit tests for tool types

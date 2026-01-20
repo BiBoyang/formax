@@ -9,6 +9,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalPrompt } from '../../presenters/bashApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 
 export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -51,6 +52,8 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
       : null
   const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
+  const compactErrorDetail =
+    status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -85,16 +88,26 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             </Box>
           ) : null}
 
-          {!bg && middleLines && middleLines.map((line, i) => (
-            <Box key={i}>
-              <Text color={status === 'error' ? theme.error : undefined}>   {line}</Text>
-            </Box>
-          ))}
+          {!bg && status === 'error' ? (
+            compactErrorDetail ? (
+              <Box>
+                <Text color={theme.error}>   {compactErrorDetail}</Text>
+              </Box>
+            ) : null
+          ) : (
+            <>
+              {!bg && middleLines && middleLines.map((line, i) => (
+                <Box key={i}>
+                  <Text>   {line}</Text>
+                </Box>
+              ))}
 
-          {!bg && expandInfo && (
-            <Box>
-              <Text color={status === 'error' ? theme.error : theme.secondaryText}>   {expandInfo}</Text>
-            </Box>
+              {!bg && expandInfo && (
+                <Box>
+                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                </Box>
+              )}
+            </>
           )}
         </Box>
       )}

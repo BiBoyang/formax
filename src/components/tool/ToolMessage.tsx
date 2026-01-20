@@ -14,6 +14,7 @@ import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
 import { PulsingDot } from '../ui/PulsingDot'
 import type { TokenUsage } from '../../streaming/types'
+import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 
 /**
  * Tool information attached to a message
@@ -123,6 +124,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
 
   const { name, input, status, expandInfo, middleLines } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
+  const compactErrorDetail =
+    status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
   
   // Determine dot color based on status
   // Only the dot changes color, tool name is always white
@@ -151,18 +154,28 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
             {renderToolSummary({ theme, toolName, summary: message.content, status })}
           </Box>
           
-          {/* Middle lines with 3-space indent (for Bash output) */}
-          {middleLines && middleLines.map((line, i) => (
-            <Box key={i}>
-              <Text>   {line}</Text>
-            </Box>
-          ))}
-          
-          {/* Expand info (3-space indent to align with middle lines, gray color) */}
-          {expandInfo && (
-            <Box>
-              <Text color={theme.secondaryText}>   {expandInfo}</Text>
-            </Box>
+          {status === 'error' ? (
+            compactErrorDetail ? (
+              <Box>
+                <Text color={theme.error}>   {compactErrorDetail}</Text>
+              </Box>
+            ) : null
+          ) : (
+            <>
+              {/* Middle lines with 3-space indent (for Bash output) */}
+              {middleLines && middleLines.map((line, i) => (
+                <Box key={i}>
+                  <Text>   {line}</Text>
+                </Box>
+              ))}
+
+              {/* Expand info (3-space indent to align with middle lines, gray color) */}
+              {expandInfo && (
+                <Box>
+                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                </Box>
+              )}
+            </>
           )}
         </Box>
       )}

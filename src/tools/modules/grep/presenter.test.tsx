@@ -5,7 +5,7 @@ import { GrepToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 
 describe('GrepToolPresenter', () => {
-  it('renders error details (middleLines/expandInfo)', () => {
+  it('keeps grep errors compact', () => {
     const message: Msg = {
       id: 'tool-1',
       role: 'tool',
@@ -26,6 +26,7 @@ describe('GrepToolPresenter', () => {
     const { lastFrame } = render(<GrepToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Search(')
-    expect(frame).toContain('Workspace roots:')
+    expect(frame).toContain('Error: Path is outside the workspace')
+    expect(frame).not.toContain('Workspace roots:')
   })
 })

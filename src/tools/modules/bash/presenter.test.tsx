@@ -5,7 +5,7 @@ import { BashToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 
 describe('BashToolPresenter', () => {
-  it('renders policy deny details (middleLines/expandInfo)', () => {
+  it('keeps bash errors compact', () => {
     const message: Msg = {
       id: 'tool-1',
       role: 'tool',
@@ -25,6 +25,9 @@ describe('BashToolPresenter', () => {
     const { lastFrame } = render(<BashToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Bash(')
-    expect(frame).toContain('See docs:')
+    expect(frame).toContain('Error: Bash command denied')
+    expect(frame).not.toContain('ErrorCode:')
+    expect(frame).not.toContain('Hint:')
+    expect(frame).not.toContain('See docs:')
   })
 })

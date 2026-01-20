@@ -5,7 +5,7 @@ import { ReadToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 
 describe('ReadToolPresenter', () => {
-  it('renders workspace denial details (middleLines/expandInfo)', () => {
+  it('keeps read errors compact', () => {
     const message: Msg = {
       id: 'tool-1',
       role: 'tool',
@@ -28,7 +28,8 @@ describe('ReadToolPresenter', () => {
     const { lastFrame } = render(<ReadToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Read(')
-    expect(frame).toContain('Path (absolute):')
-    expect(frame).toContain('Workspace roots:')
+    expect(frame).toContain('Error reading file')
+    expect(frame).not.toContain('Workspace roots:')
+    expect(frame).not.toContain('Path (absolute):')
   })
 })
