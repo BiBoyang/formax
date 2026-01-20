@@ -34,3 +34,13 @@
   - 可直接输入（包括数字）；`↑/↓` 可跳出输入并保留草稿。
   - 回到该行后可继续编辑；`Enter` 提交 feedback。
 
+## 5) Tool error output（可解释 + 可解析）
+
+目的：确认“关键错误”不会丢字段、不会丢关键行、不会被普通灰字掩盖。
+
+- Workspace 越界（Read/Glob/Grep 任一）：
+  - 触发：`Read(~/.codex/copy.json)`（或其它 workspace 外路径）
+  - 期望：输出包含 `ErrorCode: FS_PERMISSION` 与 `Hint:`，并同时展示 `Path:`（~）与 `Path (absolute):`（绝对路径）。
+- Bash deny：
+  - 触发：`Bash(sudo ls)`
+  - 期望：输出包含 `ErrorCode: POLICY_DENIED`，并包含拒绝原因（至少一行可读原因）。
