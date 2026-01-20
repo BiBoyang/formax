@@ -349,6 +349,7 @@ const GenerateDescriptionView = React.memo(function GenerateDescriptionView({
         onChange={onChange}
         onSubmit={() => onSubmit()}
         placeholder="e.g., Help me write unit tests for my code..."
+        scope="overlay:agents"
       />
     </DialogFrame>
   )
@@ -1024,6 +1025,7 @@ export function AgentsDialog({
                 onChange={setManualNameInput}
                 onSubmit={() => pushView({ kind: 'create_manual_desc' })}
                 placeholder="e.g. code-reviewer"
+                scope="overlay:agents"
               />
             </Box>
           </DialogFrame>
@@ -1043,6 +1045,7 @@ export function AgentsDialog({
                 onChange={setManualDescInput}
                 onSubmit={commitManualDraft}
                 placeholder="When should this agent be used?"
+                scope="overlay:agents"
               />
             </Box>
           </DialogFrame>
