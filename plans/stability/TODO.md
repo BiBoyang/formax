@@ -46,7 +46,7 @@
     - policy deny（`POLICY_DENIED`）
 - [ ] S7-3：补齐 handler 侧“绕过 preflight 的拒绝输出”（不改拒绝条件）
   - [x] `src/tools/modules/bash/handler.ts`：Bash deny 输出补齐 `ErrorCode`
-  - [ ] plan mode 相关 handler（如果存在直接拒绝分支）补齐 `ErrorCode` + `Hint`
+  - [x] plan mode 相关 handler（如果存在直接拒绝分支）补齐 `ErrorCode` + `Hint`
   - **DoD**：grep 一次，确认同类错误输出不再出现“只有一行 Error: ...”
 - [x] S7-4：presenter 统一 error 语义色（避免“红点 + 灰字”）
   - [x] Read/Glob/Grep/Bash 的 presenter：错误段落使用 `theme.error`

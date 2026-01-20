@@ -6,6 +6,7 @@ import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/plan
 import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { ErrorCode } from '../../../core/errors/codes.js'
 
 export function createWriteToolHandler(): ToolHandler {
   return {
@@ -35,9 +36,13 @@ export function createWriteToolHandler(): ToolHandler {
         const isPlanFile = Boolean(planPath && isSameFilePath(filePath, planPath, cwd))
 
         if (mode === 'plan' && !isPlanFile) {
+          const lines: string[] = []
+          lines.push('Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.')
+          lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
+          lines.push('Hint: Exit plan mode to edit other files')
           return {
             tool_use_id: call.id,
-            content: 'Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.',
+            content: lines.join('\n'),
             is_error: true,
           }
         }
