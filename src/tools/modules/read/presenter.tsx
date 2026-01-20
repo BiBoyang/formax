@@ -10,6 +10,7 @@ import { useUserInputManager } from '../../runtime/userInputContext'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import path from 'node:path'
 import { formatPathForDisplay } from '../../../utils/paths'
+import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 
 export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -20,6 +21,8 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
   const displayParams = formatPathForDisplay(params)
+  const compactErrorDetail =
+    status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -59,9 +62,15 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         <Box flexDirection="column">
           <Box>
             <Text color={theme.secondaryText}>⎿  </Text>
-            {status === 'error' ? <Text color={theme.error}>Error reading file</Text> : renderReadSummary({ theme, summary: message.content, status })}
+            {renderReadSummary({ theme, summary: message.content, status })}
           </Box>
-          {status !== 'error' ? (
+          {status === 'error' ? (
+            compactErrorDetail ? (
+              <Box>
+                <Text color={theme.error}>   {compactErrorDetail}</Text>
+              </Box>
+            ) : null
+          ) : (
             <>
               {middleLines && middleLines.map((line, i) => (
                 <Box key={i}>
@@ -74,7 +83,7 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
                 </Box>
               )}
             </>
-          ) : null}
+          )}
         </Box>
       )}
     </Box>
