@@ -63,12 +63,12 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           </Box>
           {middleLines && middleLines.map((line, i) => (
             <Box key={i}>
-              <Text>   {line}</Text>
+              <Text color={status === 'error' ? theme.error : undefined}>   {line}</Text>
             </Box>
           ))}
           {expandInfo && (
             <Box>
-              <Text color={theme.secondaryText}>   {expandInfo}</Text>
+              <Text color={status === 'error' ? theme.error : theme.secondaryText}>   {expandInfo}</Text>
             </Box>
           )}
         </Box>

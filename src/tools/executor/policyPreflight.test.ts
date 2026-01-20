@@ -213,7 +213,9 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
+      expect(res?.content).toContain('ErrorCode: FS_PERMISSION')
+      expect(res?.content).toContain('Workspace roots:')
+      expect(res?.content).toContain('Hint:')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -291,7 +293,69 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
+      expect(res?.content).toContain('ErrorCode: FS_PERMISSION')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks non-plan file writes during plan mode with a stable error code', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-plan-mode-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'Write',
+          input: { file_path: path.join(projectDir, 'other.md'), content: 'hi' },
+        },
+        { cwd: projectDir, agentDepth: 0, replMode: 'plan', planPath: path.join(projectDir, 'PLAN.md') },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Plan mode is active')
+      expect(res?.content).toContain('ErrorCode: POLICY_DENIED')
+      expect(res?.content).toContain('Hint:')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies disallowed Bash commands with a stable error code', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-empty-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'sudo ls' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('ErrorCode: POLICY_DENIED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

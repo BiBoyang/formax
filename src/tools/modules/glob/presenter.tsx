@@ -15,7 +15,7 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
-  const { name, input, status } = message.toolInfo
+  const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input)
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
@@ -70,6 +70,16 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             <Text color={theme.secondaryText}>⎿  </Text>
             {renderGlobSummary({ theme, summary: message.content, status })}
           </Box>
+          {middleLines && middleLines.map((line, i) => (
+            <Box key={i}>
+              <Text color={status === 'error' ? theme.error : undefined}>   {line}</Text>
+            </Box>
+          ))}
+          {expandInfo && (
+            <Box>
+              <Text color={status === 'error' ? theme.error : theme.secondaryText}>   {expandInfo}</Text>
+            </Box>
+          )}
         </Box>
       )}
     </Box>

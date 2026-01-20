@@ -4,6 +4,7 @@ import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../../runtime/taskManager'
 import { classifyBashCommand } from './policy'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { ErrorCode } from '../../../core/errors/codes.js'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const MAX_TIMEOUT_MS = 600000
@@ -55,9 +56,12 @@ export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolH
         }
 
         if (decision.risk === 'deny') {
+          const lines: string[] = []
+          lines.push(`Error: Bash command denied (${decision.prefix}): ${decision.reason}`)
+          lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
           return {
             tool_use_id: call.id,
-            content: `Error: Bash command denied (${decision.prefix}): ${decision.reason}`,
+            content: lines.join('\n'),
             is_error: true,
           }
         }

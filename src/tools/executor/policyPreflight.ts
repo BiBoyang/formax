@@ -108,9 +108,13 @@ export function createPolicyPreflight(args: {
       const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
       const isPlanFile = Boolean(planPath && isSameFilePath(action.path, planPath, cwd))
       if (!isPlanFile) {
+        const lines: string[] = []
+        lines.push('Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.')
+        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
+        lines.push('Hint: Exit plan mode to edit other files')
         return {
           tool_use_id: call.id,
-          content: 'Error: Plan mode is active. Only the plan file may be edited until you exit plan mode.',
+          content: lines.join('\n'),
           is_error: true,
         }
       }
@@ -193,9 +197,12 @@ export function createPolicyPreflight(args: {
 
       const decision = classifyBashCommand({ command, mode: replMode, agentDepth: ctx.agentDepth })
       if (decision.risk === 'deny') {
+        const lines: string[] = []
+        lines.push(`Error: Bash command denied (${decision.prefix}): ${decision.reason}`)
+        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
         return {
           tool_use_id: call.id,
-          content: `Error: Bash command denied (${decision.prefix}): ${decision.reason}`,
+          content: lines.join('\n'),
           is_error: true,
         }
       }
