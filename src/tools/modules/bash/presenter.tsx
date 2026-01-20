@@ -93,7 +93,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
           {!bg && expandInfo && (
             <Box>
-              <Text color={theme.secondaryText}>   {expandInfo}</Text>
+              <Text color={status === 'error' ? theme.error : theme.secondaryText}>   {expandInfo}</Text>
             </Box>
           )}
         </Box>
