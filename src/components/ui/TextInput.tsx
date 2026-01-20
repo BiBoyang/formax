@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
@@ -31,16 +31,30 @@ export default function TextInput({
 }: TextInputProps) {
   const theme = getTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
+  const lastChangeFromInputRef = useRef(false)
+  const lastValueRef = useRef(value)
 
-  // Update cursor offset when value changes externally
+  // Keep cursor in-bounds without forcing it to the end.
+  // If the value changes externally and the cursor was at the end, keep it at the end.
   useEffect(() => {
-    setCursorOffset(Math.min(cursorOffset, value.length))
-  }, [value.length, cursorOffset])
+    setCursorOffset((prev) => {
+      const prevValue = lastValueRef.current
+      const prevAtEnd = prev === prevValue.length
+      const clamped = Math.min(prev, value.length)
+      if (lastChangeFromInputRef.current) return clamped
+      if (prevAtEnd) return value.length
+      return clamped
+    })
+    lastValueRef.current = value
+    lastChangeFromInputRef.current = false
+  }, [value])
 
   const handler = (input: string, key: any) => {
     if (!focus) return
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+    const raw = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+    const keyName = typeof key?.name === 'string' ? (key.name as string) : ''
     const isSubmit = key.return || input === '\r' || seq === '\r'
     const isNewline = input === '\n' || seq === '\n'
     const wantsNewline = multiline && (isNewline || (isSubmit && Boolean(key.shift)))
@@ -48,20 +62,28 @@ export default function TextInput({
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return
 
-    const isBackspace = Boolean(key.backspace) || seq === '\b' || seq === '\x7f' || input === '\b' || input === '\x7f'
+    const isForwardDelete = keyName === 'delete' || raw === '\u001B[3~'
+    const isBackspace =
+      keyName === 'backspace' ||
+      Boolean(key.backspace) ||
+      raw === '\b' ||
+      raw === '\x7f' ||
+      // On macOS terminals the Backspace key is often reported as "delete" with no sequence.
+      (Boolean(key.delete) && !isForwardDelete && raw === '')
     if (isBackspace) {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
+        lastChangeFromInputRef.current = true
         onChange(newValue)
         setCursorOffset(Math.max(0, cursorOffset - 1))
       }
       return
     }
 
-    const isDelete = Boolean(key.delete) || seq === '\u001B[3~' || input === '\u001B[3~'
-    if (isDelete) {
+    if (isForwardDelete) {
       if (value.length > 0 && cursorOffset < value.length) {
         const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
+        lastChangeFromInputRef.current = true
         onChange(newValue)
       }
       return
@@ -79,6 +101,7 @@ export default function TextInput({
 
     if (wantsNewline) {
       const newValue = value.slice(0, cursorOffset) + '\n' + value.slice(cursorOffset)
+      lastChangeFromInputRef.current = true
       onChange(newValue)
       setCursorOffset(cursorOffset + 1)
       return
@@ -92,6 +115,7 @@ export default function TextInput({
     // Insert character at cursor position
     if (input && !key.ctrl && !key.meta) {
       const newValue = value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
+      lastChangeFromInputRef.current = true
       onChange(newValue)
       setCursorOffset(cursorOffset + input.length)
     }

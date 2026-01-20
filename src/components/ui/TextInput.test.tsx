@@ -45,6 +45,7 @@ function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): Rea
 describe('TextInput', () => {
   it('supports left cursor movement and insertion in bar mode', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
 
     await tick()
     stdin.write('a')
@@ -57,12 +58,13 @@ describe('TextInput', () => {
     stdin.write('X')
     await tick()
 
-    expect(lastFrame()).toContain('aX')
-    expect(lastFrame()).toContain('b')
+    expect(frameText()).toContain('aX')
+    expect(frameText()).toContain('b')
   })
 
-  it('supports delete key removal at cursor', async () => {
+  it('supports delete/backspace removal near cursor', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
 
     await tick()
     stdin.write('a')
@@ -75,8 +77,51 @@ describe('TextInput', () => {
     stdin.write('\u001B[3~')
     await tick()
 
-    expect(lastFrame()).toContain('a')
-    expect(lastFrame()).not.toContain('b')
+    expect(frameText()).toContain('b')
+    expect(frameText()).not.toContain('a')
+  })
+
+  it('supports backspace removal at end of line', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
+
+    await tick()
+    stdin.write('1')
+    await tick()
+    stdin.write('2')
+    await tick()
+    stdin.write('3')
+    await tick()
+    stdin.write('4')
+    await tick()
+    stdin.write('5')
+    await tick()
+
+    stdin.write('\x7f')
+    await tick()
+
+    expect(frameText()).toContain('1234')
+    expect(frameText()).not.toContain('5')
+  })
+
+  it('supports backspace removal near cursor after left movement', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
+
+    await tick()
+    stdin.write('12345')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+
+    stdin.write('\x7f')
+    await tick()
+
+    expect(frameText()).toContain('1245')
+    expect(frameText()).not.toContain('12345')
   })
 
   it('inserts a newline on LF when multiline is enabled', async () => {
