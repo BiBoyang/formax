@@ -31,22 +31,19 @@ export default function TextInput({
 }: TextInputProps) {
   const theme = getTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
-  const lastChangeFromInputRef = useRef(false)
   const lastValueRef = useRef(value)
 
   // Keep cursor in-bounds without forcing it to the end.
-  // If the value changes externally and the cursor was at the end, keep it at the end.
+  // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
   useEffect(() => {
     setCursorOffset((prev) => {
       const prevValue = lastValueRef.current
+      const clamped = Math.max(0, Math.min(prev, value.length))
       const prevAtEnd = prev === prevValue.length
-      const clamped = Math.min(prev, value.length)
-      if (lastChangeFromInputRef.current) return clamped
-      if (prevAtEnd) return value.length
+      if (prevAtEnd && value.length > prevValue.length) return value.length
       return clamped
     })
     lastValueRef.current = value
-    lastChangeFromInputRef.current = false
   }, [value])
 
   const handler = (input: string, key: any) => {
@@ -73,7 +70,6 @@ export default function TextInput({
     if (isBackspace) {
       if (value.length > 0 && cursorOffset > 0) {
         const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
-        lastChangeFromInputRef.current = true
         onChange(newValue)
         setCursorOffset(Math.max(0, cursorOffset - 1))
       }
@@ -83,7 +79,6 @@ export default function TextInput({
     if (isForwardDelete) {
       if (value.length > 0 && cursorOffset < value.length) {
         const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
-        lastChangeFromInputRef.current = true
         onChange(newValue)
       }
       return
@@ -101,7 +96,6 @@ export default function TextInput({
 
     if (wantsNewline) {
       const newValue = value.slice(0, cursorOffset) + '\n' + value.slice(cursorOffset)
-      lastChangeFromInputRef.current = true
       onChange(newValue)
       setCursorOffset(cursorOffset + 1)
       return
@@ -115,7 +109,6 @@ export default function TextInput({
     // Insert character at cursor position
     if (input && !key.ctrl && !key.meta) {
       const newValue = value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
-      lastChangeFromInputRef.current = true
       onChange(newValue)
       setCursorOffset(cursorOffset + input.length)
     }

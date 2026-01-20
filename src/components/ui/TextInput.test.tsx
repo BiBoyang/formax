@@ -124,6 +124,26 @@ describe('TextInput', () => {
     expect(frameText()).not.toContain('12345')
   })
 
+  it('keeps cursor stable when deleting in the middle', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+
+    await tick()
+    stdin.write('12345')
+    await tick()
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+
+    expect(lastFrame()).toContain('123▏45')
+
+    stdin.write('\x7f')
+    await tick()
+
+    expect(lastFrame()).toContain('12▏45')
+  })
+
   it('inserts a newline on LF when multiline is enabled', async () => {
     const onSubmit = vi.fn()
     const { stdin, lastFrame } = render(<MultilineWrapper onSubmit={onSubmit} />)
