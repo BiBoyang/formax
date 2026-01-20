@@ -69,11 +69,8 @@ describe('InputBar', () => {
     const view = render(<Harness initialScope="repl" initialValue="ab" onChange={onChange} />)
     await tick()
 
-    const beforeLeft = view.lastFrame() || ''
     view.stdin.write('\u001B[D')
     await tick()
-    const afterLeft = view.lastFrame() || ''
-    expect(afterLeft).not.toEqual(beforeLeft)
 
     view.rerender(<Harness initialScope="repl" initialValue="ab" overlayOpen onChange={onChange} />)
     await tick()

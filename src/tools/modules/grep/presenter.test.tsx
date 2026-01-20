@@ -18,7 +18,7 @@ describe('GrepToolPresenter', () => {
           pattern: 'foo',
           path: '.',
         },
-        middleLines: ['ErrorCode: FS_PERMISSION', 'Hint: Use /permissions to add a directory'],
+        middleLines: [],
         expandInfo: 'Workspace roots: ~/Documents/github/formax',
       },
     }
@@ -26,8 +26,6 @@ describe('GrepToolPresenter', () => {
     const { lastFrame } = render(<GrepToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Search(')
-    expect(frame).toContain('ErrorCode: FS_PERMISSION')
-    expect(frame).toContain('Hint:')
     expect(frame).toContain('Workspace roots:')
   })
 })

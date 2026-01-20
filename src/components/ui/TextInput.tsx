@@ -110,7 +110,7 @@ export default function TextInput({
             <>
               {beforeCursor}
               {focus ? (
-                <Text inverse>{displayValue[safeCursorOffset] ?? ' '}</Text>
+                <Text inverse>{displayValue[safeCursorOffset] ?? '\u00A0'}</Text>
               ) : safeCursorOffset < displayValue.length ? (
                 displayValue[safeCursorOffset]
               ) : (

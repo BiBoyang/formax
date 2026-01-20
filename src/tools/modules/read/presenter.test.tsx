@@ -18,10 +18,8 @@ describe('ReadToolPresenter', () => {
           file_path: '/Users/david/.codex/copy.json',
         },
         middleLines: [
-          'ErrorCode: FS_PERMISSION',
           'Path: ~/.codex/copy.json',
           'Path (absolute): /Users/david/.codex/copy.json',
-          'Hint: Use /permissions to add a directory',
         ],
         expandInfo: 'Workspace roots: ~/Documents/github/formax',
       },
@@ -30,10 +28,7 @@ describe('ReadToolPresenter', () => {
     const { lastFrame } = render(<ReadToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Read(')
-    expect(frame).toContain('ErrorCode: FS_PERMISSION')
     expect(frame).toContain('Path (absolute):')
-    expect(frame).toContain('Hint:')
     expect(frame).toContain('Workspace roots:')
   })
 })
-

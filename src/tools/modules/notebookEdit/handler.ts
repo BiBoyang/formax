@@ -3,7 +3,6 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
-import { ErrorCode } from '../../../core/errors/codes.js'
 
 type EditMode = 'replace' | 'insert' | 'delete'
 type CellType = 'code' | 'markdown'
@@ -18,13 +17,9 @@ export function createNotebookEditToolHandler(): ToolHandler {
       try {
         const mode = ctx.getReplMode?.() ?? ctx.replMode
         if (mode === 'plan') {
-          const lines: string[] = []
-          lines.push('Error: Plan mode is active. Use ExitPlanMode after the user approves your plan.')
-          lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
-          lines.push('Hint: Use ExitPlanMode after writing your plan to the plan file')
           return {
             tool_use_id: call.id,
-            content: lines.join('\n'),
+            content: 'Error: Plan mode is active. NotebookEdit is not available.',
             is_error: true,
           }
         }

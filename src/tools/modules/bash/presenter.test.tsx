@@ -25,9 +25,6 @@ describe('BashToolPresenter', () => {
     const { lastFrame } = render(<BashToolPresenter message={message} />)
     const frame = lastFrame()
     expect(frame).toContain('Bash(')
-    expect(frame).toContain('ErrorCode: POLICY_DENIED')
-    expect(frame).toContain('Hint:')
     expect(frame).toContain('See docs:')
   })
 })
-

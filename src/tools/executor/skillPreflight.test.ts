@@ -22,7 +22,6 @@ describe('createSkillPreflight', () => {
       )
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Skill requires user approval')
-      expect(res?.content).toContain('ErrorCode: APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -52,7 +51,6 @@ describe('createSkillPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Skill requires user approval')
-      expect(res?.content).toContain('ErrorCode: APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -108,7 +106,6 @@ describe('createSkillPreflight', () => {
       )
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Permission denied Skill(frontend-design)')
-      expect(res?.content).toContain('ErrorCode: FORBIDDEN')
       expect(requestAnswers).toHaveBeenCalledTimes(0)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })

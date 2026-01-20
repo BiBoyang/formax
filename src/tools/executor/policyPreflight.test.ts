@@ -177,7 +177,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Permission denied WebFetch')
-      expect(res?.content).toContain('POLICY_DENIED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -212,7 +211,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
       expect(res?.content).toContain('Path:')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
@@ -291,7 +289,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -324,7 +321,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Plan mode is active')
-      expect(res?.content).toContain('POLICY_DENIED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -352,7 +348,7 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('ErrorCode: POLICY_DENIED')
+      expect(res?.content).toContain('Bash command denied')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -389,7 +385,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -425,7 +420,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('FS_PERMISSION')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -458,7 +452,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Approval required for fs.write')
-      expect(res?.content).toContain('APPROVAL_REQUIRED')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -520,8 +513,6 @@ describe('createPolicyPreflight', () => {
       )
       expect(res1?.is_error).toBe(true)
       expect(res1?.content).toContain('Approval required for fs.read')
-      expect(res1?.content).toContain('APPROVAL_REQUIRED')
-      expect(res1?.content).toContain('Rule: prompt-read (global)')
 
       const approval: ApprovalService = {
         getSessionRules: () => [],
@@ -696,7 +687,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Approval required for bash.exec')
-      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -756,7 +746,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Approval required for bash.exec')
-      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -817,7 +806,6 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Approval required for fs.write')
-      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -850,7 +838,7 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('APPROVAL_REQUIRED')
+      expect(res?.content).toContain('Approval required')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

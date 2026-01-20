@@ -108,12 +108,9 @@ export function createPolicyPreflight(args: {
       const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
       const isPlanFile = Boolean(planPath && isSameFilePath(action.path, planPath, cwd))
       if (!isPlanFile) {
-        const lines: string[] = []
-        lines.push(`Error: Plan mode is active (${ErrorCode.PolicyDenied})`)
-        lines.push('Only the plan file may be edited until you exit plan mode.')
         return {
           tool_use_id: call.id,
-          content: lines.join('\n'),
+          content: 'Error: Plan mode is active. Only the plan file may be edited.',
           is_error: true,
         }
       }
@@ -153,10 +150,11 @@ export function createPolicyPreflight(args: {
       })
 
       if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
-        const lines: string[] = []
-        lines.push(`Error: Path is outside the workspace (${ErrorCode.FsPermission})`)
-        lines.push(`Path: ${formatPathForDisplay(canonicalTargetPath)}`)
-        return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+        return {
+          tool_use_id: call.id,
+          content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(canonicalTargetPath)}`,
+          is_error: true,
+        }
       }
     }
 
@@ -187,12 +185,9 @@ export function createPolicyPreflight(args: {
 
       const decision = classifyBashCommand({ command, mode: replMode, agentDepth: ctx.agentDepth })
       if (decision.risk === 'deny') {
-        const lines: string[] = []
-        lines.push(`Error: Bash command denied (${decision.prefix}): ${decision.reason}`)
-        lines.push(`ErrorCode: ${ErrorCode.PolicyDenied}`)
         return {
           tool_use_id: call.id,
-          content: lines.join('\n'),
+          content: `Error: Bash command denied (${decision.prefix}): ${decision.reason}`,
           is_error: true,
         }
       }
@@ -258,44 +253,30 @@ export function createPolicyPreflight(args: {
     if (effectiveDecision === 'allow') return null
 
     if (effectiveDecision === 'deny') {
-      const lines: string[] = []
       if (deniedByPermission) {
-        lines.push(`Error: Permission denied ${call.name} (${ErrorCode.PolicyDenied})`)
-        return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+        return { tool_use_id: call.id, content: `Error: Permission denied ${call.name}`, is_error: true }
       }
-      lines.push(`Error: Policy denied ${action.kind} (${ErrorCode.PolicyDenied})`)
       const reason = explained.matchedRule?.reason?.trim()
-      if (reason) lines.push(`Reason: ${reason}`)
+      if (reason) {
+        return { tool_use_id: call.id, content: `Error: Policy denied ${action.kind}\nReason: ${reason}`, is_error: true }
+      }
 
-      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      return { tool_use_id: call.id, content: `Error: Policy denied ${action.kind}`, is_error: true }
     }
 
     // Sub-agents must not prompt (they cannot reliably coordinate approvals/UI input).
     if (ctx.agentDepth > 0) {
-      const lines: string[] = []
-      lines.push('Error: Approval required')
-      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
-      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      return { tool_use_id: call.id, content: 'Error: Approval required', is_error: true }
     }
 
     // Some contexts (e.g. background tasks) deliberately disable interactive prompts.
     // In those cases, do not hang waiting for user input; return a stable error instead.
     if (ctx.interactive === false) {
-      const lines: string[] = []
-      lines.push(`Error: Approval required for ${action.kind} (${ErrorCode.ApprovalRequired})`)
-      if (explained.matchedRule?.ruleId) {
-        lines.push(`Rule: ${explained.matchedRule.ruleId} (${explained.matchedRule.scope})`)
-      }
-      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      return { tool_use_id: call.id, content: `Error: Approval required for ${action.kind}`, is_error: true }
     }
 
     if (!args.approval) {
-      const lines: string[] = []
-      lines.push(`Error: Approval required for ${action.kind} (${ErrorCode.ApprovalRequired})`)
-      if (explained.matchedRule?.ruleId) {
-        lines.push(`Rule: ${explained.matchedRule.ruleId} (${explained.matchedRule.scope})`)
-      }
-      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+      return { tool_use_id: call.id, content: `Error: Approval required for ${action.kind}`, is_error: true }
     }
 
     const approved = await args.approval.ensureApproved({
