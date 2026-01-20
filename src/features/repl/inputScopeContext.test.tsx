@@ -137,6 +137,74 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
+  it('removes non-top scopes when they unmount', async () => {
+    const scopes: string[] = []
+
+    function ScopeA({ open }: { open: boolean }): React.ReactNode {
+      useScopeActivation('overlay:a', open)
+      return null
+    }
+
+    function ScopeB({ open }: { open: boolean }): React.ReactNode {
+      useScopeActivation('overlay:b', open)
+      return null
+    }
+
+    function OutOfOrderHarness(): React.ReactNode {
+      const [aOpen, setAOpen] = useState(false)
+      const [bOpen, setBOpen] = useState(false)
+
+      useScopedInput('repl', (input) => {
+        if (input === 'A') setAOpen(true)
+      })
+
+      useScopedInput('overlay:a', (input) => {
+        if (input === 'B') setBOpen(true)
+      })
+
+      useScopedInput('overlay:b', (input) => {
+        if (input === 'a') setAOpen(false)
+        if (input === 'b') setBOpen(false)
+      })
+
+      return (
+        <>
+          <ScopeReporter onScope={(s) => scopes.push(s)} />
+          <ScopeA open={aOpen} />
+          <ScopeB open={bOpen} />
+        </>
+      )
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <OutOfOrderHarness />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    // Open A then B so B is on top.
+    stdin.write('A')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:a')
+
+    stdin.write('B')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:b')
+
+    // Close A while B is still active (out-of-order).
+    stdin.write('a')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:b')
+
+    // Close B; should return to repl, not a stale A scope.
+    stdin.write('b')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+  })
+
   it('routes navigation keys only to the active scope', async () => {
     const replEvents: string[] = []
     const overlayEvents: string[] = []

@@ -41,9 +41,10 @@ export function InputScopeProvider({
     setStack((prev) => {
       if (prev.length <= 1) return prev
       if (!scope) return prev.slice(0, -1)
-      const top = prev[prev.length - 1]
-      if (top === scope) return prev.slice(0, -1)
-      return prev
+      const idx = prev.lastIndexOf(scope)
+      if (idx < 0) return prev
+      if (idx === prev.length - 1) return prev.slice(0, -1)
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)]
     })
   }, [])
 
