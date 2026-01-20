@@ -64,3 +64,15 @@
   - [x] overlay 打开时 REPL 不响应方向键/Tab/数字键（由 `InputScopeProvider` 路由测试覆盖）
   - [x] Permissions/Agents/SetupWizard 的基本导航不回归（`SetupWizard.test.tsx` + `PermissionsDialog.test.tsx` + `AgentsDialog.test.tsx`）
 - [x] 补一份手动回归清单（只列关键路径）：`plans/ui/REGRESSION.md`
+
+## 6. P5 — 全仓 `useInput` 收敛（避免按键互抢回归）
+
+目的：把所有键盘事件入口都纳入 scope 机制（或显式 isActive），避免未来新增 UI 时“又回到互抢”。
+
+- [ ] 盘点：维护 `plans/ui/useInput-audit.md`（每个 callsite 标注：归属、scope、是否显式 isActive、风险）
+- [ ] 收敛：除 demo/示例屏幕外，所有交互页面/工具 prompt 统一改为 `useScopedInput`
+  - [ ] AskUserQuestion presenter 改为 `useScopedInput('prompt:askUserQuestion', …)`（或复用现有 prompt scope）
+  - [ ] EnterPlanMode presenter 改为 `useScopedInput('prompt:enterPlanMode', …)`
+  - [ ] ExitPlanMode presenter 改为 `useScopedInput('prompt:exitPlanMode', …)`
+- [ ] 约束：新增防回退检查（测试或脚本均可）
+  - [ ] 失败条件：在 `src/` 内新增 `useInput(` 调用但未显式标注 `isActive` 或未使用 `useScopedInput`
