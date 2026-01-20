@@ -58,10 +58,13 @@ export default function TextInput({
   const theme = getTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
   const lastValueRef = useRef(value)
+  const valueRef = useRef(value)
+  const cursorOffsetRef = useRef(cursorOffset)
 
   // Keep cursor in-bounds without forcing it to the end.
   // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
   useEffect(() => {
+    valueRef.current = value
     setCursorOffset((prev) => {
       const prevValue = lastValueRef.current
       const clamped = Math.max(0, Math.min(prev, value.length))
@@ -72,12 +75,18 @@ export default function TextInput({
     lastValueRef.current = value
   }, [value])
 
+  useEffect(() => {
+    cursorOffsetRef.current = cursorOffset
+  }, [cursorOffset])
+
   const handler = (input: string, key: any) => {
     if (!focus) return
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
     const raw = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
     const keyName = typeof key?.name === 'string' ? (key.name as string) : ''
+    const currentValue = valueRef.current
+    const currentCursorOffset = cursorOffsetRef.current
     const isSubmit = key.return || input === '\r' || seq === '\r'
     const isNewline = input === '\n' || seq === '\n'
     const wantsNewline = multiline && (isNewline || (isSubmit && Boolean(key.shift)))
@@ -87,41 +96,52 @@ export default function TextInput({
 
     const deletion = classifyDeletionKey({ keyName, raw, key })
     if (deletion === 'backspace') {
-      if (value.length > 0 && cursorOffset > 0) {
-        const newValue = value.slice(0, cursorOffset - 1) + value.slice(cursorOffset)
+      if (currentValue.length > 0 && currentCursorOffset > 0) {
+        const newValue = currentValue.slice(0, currentCursorOffset - 1) + currentValue.slice(currentCursorOffset)
         onChange(newValue)
-        setCursorOffset(Math.max(0, cursorOffset - 1))
+        valueRef.current = newValue
+        const nextCursorOffset = Math.max(0, currentCursorOffset - 1)
+        cursorOffsetRef.current = nextCursorOffset
+        setCursorOffset(nextCursorOffset)
       }
       return
     }
 
     if (deletion === 'forwardDelete') {
-      if (value.length > 0 && cursorOffset < value.length) {
-        const newValue = value.slice(0, cursorOffset) + value.slice(cursorOffset + 1)
+      if (currentValue.length > 0 && currentCursorOffset < currentValue.length) {
+        const newValue = currentValue.slice(0, currentCursorOffset) + currentValue.slice(currentCursorOffset + 1)
         onChange(newValue)
+        valueRef.current = newValue
       }
       return
     }
 
-    if (key.leftArrow && cursorOffset > 0) {
-      setCursorOffset(cursorOffset - 1)
+    if (key.leftArrow && currentCursorOffset > 0) {
+      const nextCursorOffset = currentCursorOffset - 1
+      cursorOffsetRef.current = nextCursorOffset
+      setCursorOffset(nextCursorOffset)
       return
     }
 
-    if (key.rightArrow && cursorOffset < value.length) {
-      setCursorOffset(cursorOffset + 1)
+    if (key.rightArrow && currentCursorOffset < currentValue.length) {
+      const nextCursorOffset = currentCursorOffset + 1
+      cursorOffsetRef.current = nextCursorOffset
+      setCursorOffset(nextCursorOffset)
       return
     }
 
     if (wantsNewline) {
-      const newValue = value.slice(0, cursorOffset) + '\n' + value.slice(cursorOffset)
+      const newValue = currentValue.slice(0, currentCursorOffset) + '\n' + currentValue.slice(currentCursorOffset)
       onChange(newValue)
-      setCursorOffset(cursorOffset + 1)
+      valueRef.current = newValue
+      const nextCursorOffset = currentCursorOffset + 1
+      cursorOffsetRef.current = nextCursorOffset
+      setCursorOffset(nextCursorOffset)
       return
     }
 
     if (isSubmit || isNewline) {
-      if (onSubmit) onSubmit(value)
+      if (onSubmit) onSubmit(currentValue)
       return
     }
 
@@ -129,9 +149,12 @@ export default function TextInput({
     // Prefer `raw` (sequence) because in some terminals Ink may surface the printable character via
     // `key.sequence` with an empty `input` string.
     if (raw && !raw.startsWith('\u001b') && !key.ctrl && !key.meta) {
-      const newValue = value.slice(0, cursorOffset) + raw + value.slice(cursorOffset)
+      const newValue = currentValue.slice(0, currentCursorOffset) + raw + currentValue.slice(currentCursorOffset)
       onChange(newValue)
-      setCursorOffset(cursorOffset + raw.length)
+      valueRef.current = newValue
+      const nextCursorOffset = currentCursorOffset + raw.length
+      cursorOffsetRef.current = nextCursorOffset
+      setCursorOffset(nextCursorOffset)
     }
   }
 

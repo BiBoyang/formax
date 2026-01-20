@@ -74,4 +74,3 @@ describe('ConfirmMenu', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', key: 'feedback', feedback: 'a1' })
   })
 })
-

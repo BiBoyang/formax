@@ -161,9 +161,15 @@ describe('AgentsDialog', () => {
     stdin.write('\u001B[D')
     await tick()
 
+    // Backspace should delete the character to the left of the cursor
+    stdin.write('\x7f')
+    await tick()
+    expect(lastFrame()).toContain('abde')
+
+    // Insert should happen at the cursor position (not append-only)
     stdin.write('X')
     await tick()
-    expect(lastFrame()).toContain('abcXde')
+    expect(lastFrame()).toContain('abXde')
 
     unmount()
   })
