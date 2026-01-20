@@ -157,17 +157,8 @@ export function createPolicyPreflight(args: {
 
       if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
         const lines: string[] = []
-        lines.push('Error: Path is outside the workspace')
-        lines.push(`ErrorCode: ${ErrorCode.FsPermission}`)
+        lines.push(`Error: Path is outside the workspace (${ErrorCode.FsPermission})`)
         lines.push(`Path: ${formatPathForDisplay(canonicalTargetPath)}`)
-        lines.push('Path (absolute):')
-        lines.push(`  ${canonicalTargetPath}`)
-        lines.push('Workspace roots:')
-        for (const root of canonicalRoots) {
-          lines.push(`- ${formatPathForDisplay(root)}`)
-          lines.push(`  ${root}`)
-        }
-        lines.push('Hint: Use /permissions to add a directory to the workspace')
         return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
       }
     }

@@ -213,9 +213,8 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('ErrorCode: FS_PERMISSION')
-      expect(res?.content).toContain('Workspace roots:')
-      expect(res?.content).toContain('Hint:')
+      expect(res?.content).toContain('FS_PERMISSION')
+      expect(res?.content).toContain('Path:')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -293,7 +292,7 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
-      expect(res?.content).toContain('ErrorCode: FS_PERMISSION')
+      expect(res?.content).toContain('FS_PERMISSION')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
