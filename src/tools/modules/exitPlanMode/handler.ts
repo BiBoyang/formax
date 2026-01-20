@@ -27,7 +27,7 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
         if ((ctx.agentDepth ?? 0) > 0) {
           return {
             tool_use_id: call.id,
-            content: 'Error: ExitPlanMode is interactive and cannot be used inside a sub-agent.',
+            content: 'Error: ExitPlanMode is interactive and cannot be used in this context.',
             is_error: true,
           }
         }
