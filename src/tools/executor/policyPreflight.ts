@@ -299,11 +299,8 @@ export function createPolicyPreflight(args: {
     // Sub-agents must not prompt (they cannot reliably coordinate approvals/UI input).
     if (ctx.agentDepth > 0) {
       const lines: string[] = []
-      lines.push(`Error: Policy requires approval for ${action.kind}. Sub-agents cannot request approvals.`)
+      lines.push('Error: Approval required')
       lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
-      lines.push(
-        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
-      )
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 

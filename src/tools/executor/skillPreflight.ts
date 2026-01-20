@@ -2,11 +2,11 @@ import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ToolPreflight, ExecutionContext } from './index.js'
+import { ErrorCode } from '../../core/errors/codes.js'
 import { assertNoExtraKeys, requirePlainObject } from '../utils/strictInput.js'
 import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapters/permissions/skillAllowList.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
-import { explainPermissionDecision, formatPermissionExplainLines } from '../../adapters/permissions/explain.js'
 
 type SkillApprovalAnswer = {
   decision?: string
@@ -35,9 +35,12 @@ export function createSkillPreflight(args: {
 
     // Sub-agents must not prompt (and cannot reliably coordinate approvals).
     if (ctx.agentDepth > 0) {
+      const lines: string[] = []
+      lines.push('Error: Skill requires user approval.')
+      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
       return {
         tool_use_id: call.id,
-        content: 'Error: Skill requires user approval. Sub-agents cannot request approvals.',
+        content: lines.join('\n'),
         is_error: true,
       }
     }
@@ -60,15 +63,18 @@ export function createSkillPreflight(args: {
     if (perm.decision === 'deny') {
       const lines: string[] = []
       lines.push(`Error: Permission denied Skill(${skill})`)
-      lines.push(...formatPermissionExplainLines(explainPermissionDecision({ permissions, toolName: 'Skill', toolSpec: skill })))
+      lines.push(`ErrorCode: ${ErrorCode.Forbidden}`)
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
     if (perm.decision === 'allow') return null
 
     if (!args.userInput || ctx.interactive === false) {
+      const lines: string[] = []
+      lines.push('Error: Skill requires user approval.')
+      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
       return {
         tool_use_id: call.id,
-        content: 'Error: Skill requires user approval, but interactive prompts are disabled in this context.',
+        content: lines.join('\n'),
         is_error: true,
       }
     }

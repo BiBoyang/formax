@@ -853,7 +853,6 @@ describe('createPolicyPreflight', () => {
       )
 
       expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('Sub-agents cannot request approvals')
       expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
