@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { render } from 'ink-testing-library'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
-import TextInput, { classifyDeletionKey } from './TextInput'
+import TextInput, { classifyDeletionKey, computeNextCursorOffsetForControlledValue } from './TextInput'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -41,6 +41,38 @@ function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): Rea
     </ReplUiProvider>
   )
 }
+
+describe('computeNextCursorOffsetForControlledValue', () => {
+  it('keeps cursor position when editing in the middle', () => {
+    expect(
+      computeNextCursorOffsetForControlledValue({
+        prevValue: 'hello world',
+        prevCursorOffset: 5,
+        nextValue: 'hello, world',
+      }),
+    ).toBe(5)
+  })
+
+  it('keeps cursor at end when previously at end and text grows', () => {
+    expect(
+      computeNextCursorOffsetForControlledValue({
+        prevValue: 'hi',
+        prevCursorOffset: 2,
+        nextValue: 'hi!',
+      }),
+    ).toBe(3)
+  })
+
+  it('clamps cursor when next value shrinks', () => {
+    expect(
+      computeNextCursorOffsetForControlledValue({
+        prevValue: 'abcdef',
+        prevCursorOffset: 6,
+        nextValue: 'abc',
+      }),
+    ).toBe(3)
+  })
+})
 
 describe('TextInput', () => {
   it('supports left cursor movement and insertion in bar mode', async () => {

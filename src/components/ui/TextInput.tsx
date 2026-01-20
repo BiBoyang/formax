@@ -43,6 +43,21 @@ export function classifyDeletionKey({
   return null
 }
 
+export function computeNextCursorOffsetForControlledValue({
+  prevValue,
+  prevCursorOffset,
+  nextValue,
+}: {
+  prevValue: string
+  prevCursorOffset: number
+  nextValue: string
+}): number {
+  const clamped = Math.max(0, Math.min(prevCursorOffset, nextValue.length))
+  const prevAtEnd = prevCursorOffset === prevValue.length
+  if (prevAtEnd && nextValue.length > prevValue.length) return nextValue.length
+  return clamped
+}
+
 export default function TextInput({
   value,
   onChange,
@@ -65,11 +80,11 @@ export default function TextInput({
   // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
   useEffect(() => {
     valueRef.current = value
-    const prevValue = lastValueRef.current
-    const prevCursorOffset = cursorOffsetRef.current
-    const clamped = Math.max(0, Math.min(prevCursorOffset, value.length))
-    const prevAtEnd = prevCursorOffset === prevValue.length
-    const nextCursorOffset = prevAtEnd && value.length > prevValue.length ? value.length : clamped
+    const nextCursorOffset = computeNextCursorOffsetForControlledValue({
+      prevValue: lastValueRef.current,
+      prevCursorOffset: cursorOffsetRef.current,
+      nextValue: value,
+    })
     cursorOffsetRef.current = nextCursorOffset
     setCursorOffset(nextCursorOffset)
     lastValueRef.current = value
