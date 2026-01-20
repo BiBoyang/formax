@@ -7,7 +7,6 @@ import type { PolicyExplainResult } from '../../core/policy/engine.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ExecutionContext } from './index.js'
 import { createAllowRuleFromAction } from '../../core/approval/rules.js'
-import { ErrorCode } from '../../core/errors/codes.js'
 import { formatPolicyExplainLines } from './policyExplain.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
@@ -103,19 +102,11 @@ export function createApprovalService(args: {
     const { call, ctx } = args2
 
     if (!args.userInput) {
-      const ruleId =
-        typeof args2.explained?.matchedRule?.ruleId === 'string' ? args2.explained.matchedRule.ruleId.trim() : ''
-      const scope =
-        typeof args2.explained?.matchedRule?.scope === 'string' ? args2.explained.matchedRule.scope.trim() : ''
-      const ruleLine = ruleId ? `Rule: ${scope ? `${ruleId} (${scope})` : ruleId}` : ''
       return {
         ok: false,
         result: {
           tool_use_id: call.id,
-          content: [
-            `Error: Approval required for ${args2.action.kind} (${ErrorCode.ApprovalRequired})`,
-            ...(ruleLine ? [ruleLine] : []),
-          ].join('\n'),
+          content: `Error: Approval required for ${args2.action.kind}`,
           is_error: true,
         },
       }
