@@ -16,7 +16,7 @@ describe('ApprovalService', () => {
     })
 
     expect(res.ok).toBe(false)
-    if (res.ok) throw new Error('Expected ok=false')
+    if (res.ok !== false) throw new Error('Expected ok=false')
     expect(res.result.is_error).toBe(true)
     expect(res.result.content).toBe('Error: Approval required for bash.exec')
   })

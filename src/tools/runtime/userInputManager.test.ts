@@ -31,14 +31,14 @@ describe('UserInputManager', () => {
     const mgr = createUserInputManager()
 
     for (let i = 0; i < 51; i += 1) {
-      mgr.submitAnswers(`id${i}`, { i })
+      mgr.submitAnswers(`id${i}`, { i: String(i) })
     }
 
     const kept = mgr.requestAnswers({
       toolUseId: 'id50',
       questions: [],
     })
-    await expect(kept).resolves.toEqual({ i: 50 })
+    await expect(kept).resolves.toEqual({ i: '50' })
 
     const evicted = mgr.requestAnswers({
       toolUseId: 'id0',
