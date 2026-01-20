@@ -65,13 +65,13 @@ export default function TextInput({
   // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
   useEffect(() => {
     valueRef.current = value
-    setCursorOffset((prev) => {
-      const prevValue = lastValueRef.current
-      const clamped = Math.max(0, Math.min(prev, value.length))
-      const prevAtEnd = prev === prevValue.length
-      if (prevAtEnd && value.length > prevValue.length) return value.length
-      return clamped
-    })
+    const prevValue = lastValueRef.current
+    const prevCursorOffset = cursorOffsetRef.current
+    const clamped = Math.max(0, Math.min(prevCursorOffset, value.length))
+    const prevAtEnd = prevCursorOffset === prevValue.length
+    const nextCursorOffset = prevAtEnd && value.length > prevValue.length ? value.length : clamped
+    cursorOffsetRef.current = nextCursorOffset
+    setCursorOffset(nextCursorOffset)
     lastValueRef.current = value
   }, [value])
 
