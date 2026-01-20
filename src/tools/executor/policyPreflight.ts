@@ -89,8 +89,10 @@ export function createPolicyPreflight(args: {
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
     let mergedPermissions: Awaited<ReturnType<typeof loadMergedPermissions>> | null = null
-
     const getMergedPermissions = async () => {
+      // Important: permissions must take effect immediately after they are persisted
+      // (e.g. approve_remember writes into settings.local.json). We therefore avoid
+      // caching across tool calls; only memoize within the current preflight call.
       if (!mergedPermissions) {
         mergedPermissions = await loadMergedPermissions({
           fileStore: args.fileStore,
@@ -291,6 +293,17 @@ export function createPolicyPreflight(args: {
         ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
       )
 
+      return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
+    }
+
+    // Sub-agents must not prompt (they cannot reliably coordinate approvals/UI input).
+    if (ctx.agentDepth > 0) {
+      const lines: string[] = []
+      lines.push(`Error: Policy requires approval for ${action.kind}. Sub-agents cannot request approvals.`)
+      lines.push(`ErrorCode: ${ErrorCode.ApprovalRequired}`)
+      lines.push(
+        ...formatPolicyExplainLines({ effectiveDecision, explained, warnings: loaded.warnings }),
+      )
       return { tool_use_id: call.id, content: lines.join('\n'), is_error: true }
     }
 

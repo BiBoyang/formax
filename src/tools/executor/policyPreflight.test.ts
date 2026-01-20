@@ -608,6 +608,56 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('applies Bash permission changes immediately within the same session', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-immediate-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      const approval = createApprovalService({
+        fileStore: store,
+        userInput: {
+          requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+          submitAnswers: () => true,
+          reject: () => true,
+          rejectAllPending: () => 0,
+          clearBufferedAnswers: () => {},
+          isPending: () => false,
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const command = 'mkdir foo'
+      const res1 = await preflight(
+        { id: 't1', name: 'Bash', input: { command } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
+      )
+      expect(res1).toBeNull()
+
+      const res2 = await preflight(
+        { id: 't2', name: 'Bash', input: { command } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+      expect(res2).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('does not bypass an explicit prompt rule even if Bash is in permissions.allow', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-ask-overrides-allow-'))
     try {
@@ -765,7 +815,7 @@ describe('createPolicyPreflight', () => {
 
       const res = await preflight(
         { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'hi' } },
-        { cwd: projectDir, agentDepth: 1, replMode: 'normal', interactive: false },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
       )
 
       expect(res?.is_error).toBe(true)
@@ -776,7 +826,7 @@ describe('createPolicyPreflight', () => {
     }
   })
 
-  it('allows sub-agents to request approvals when interactive', async () => {
+  it('denies prompts in sub-agents even when interactive', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-subagent-approve-'))
     try {
       const store = createNodeFileStore()
@@ -802,7 +852,9 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 1, replMode: 'normal', interactive: true },
       )
 
-      expect(res).toBeNull()
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Sub-agents cannot request approvals')
+      expect(res?.content).toContain('APPROVAL_REQUIRED')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
