@@ -110,5 +110,61 @@ describe('AgentsDialog', () => {
     expect(onExit).toHaveBeenCalledTimes(1)
     unmount()
   })
-})
 
+  it('supports left/right editing in "Generate with Claude" description input', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Describe what this agent should do')
+
+    stdin.write('abcde')
+    await tick()
+    expect(lastFrame()).toContain('abcde')
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+
+    stdin.write('X')
+    await tick()
+    expect(lastFrame()).toContain('abcXde')
+
+    unmount()
+  })
+})

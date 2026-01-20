@@ -329,9 +329,13 @@ const SimpleChoiceView = React.memo(function SimpleChoiceView({
 const GenerateDescriptionView = React.memo(function GenerateDescriptionView({
   theme,
   value,
+  onChange,
+  onSubmit,
 }: {
   theme: AgentsDialogTheme
   value: string
+  onChange: (next: string) => void
+  onSubmit: () => void
 }): React.ReactNode {
   return (
     <DialogFrame theme={theme}>
@@ -340,20 +344,12 @@ const GenerateDescriptionView = React.memo(function GenerateDescriptionView({
         description="Describe what this agent should do and when it should be used (be comprehensive for best results)"
       />
       <Spacer />
-
-      <Box>
-        {value.length === 0 ? (
-          <>
-            <Text inverse> </Text>
-            <Text color={theme.secondaryText}>e.g., Help me write unit tests for my code...</Text>
-          </>
-        ) : (
-          <>
-            <Text>{value}</Text>
-            <Text inverse> </Text>
-          </>
-        )}
-      </Box>
+      <TextInput
+        value={value}
+        onChange={onChange}
+        onSubmit={() => onSubmit()}
+        placeholder="e.g., Help me write unit tests for my code..."
+      />
     </DialogFrame>
   )
 })
@@ -690,35 +686,6 @@ export function AgentsDialog({
     [popView, view.kind],
   )
 
-  const handleGenerateDescKeys = useCallback(
-    (input: string, key: any): boolean => {
-      if (view.kind !== 'create_generate_desc') return false
-
-      if (key.escape) {
-        popView()
-        return true
-      }
-
-      if (key.return) {
-        void startGenerateDraft()
-        return true
-      }
-
-      if (key.backspace || key.delete) {
-        setAgentDescriptionInput((prev) => prev.slice(0, -1))
-        return true
-      }
-
-      if (input && !key.ctrl && !key.meta) {
-        setAgentDescriptionInput((prev) => prev + input)
-        return true
-      }
-
-      return true
-    },
-    [popView, startGenerateDraft, view.kind],
-  )
-
   const handleEscapeKeys = useCallback(
     (_input: string, key: any): boolean => {
       if (!key.escape) return false
@@ -921,7 +888,6 @@ export function AgentsDialog({
     if (handleBusyKeys(input, key)) return
     if (handleErrorKeys(input, key)) return
     if (handleManualTextKeys(input, key)) return
-    if (handleGenerateDescKeys(input, key)) return
 
     if (handleEscapeKeys(input, key)) return
     if (handleConfirmKeys(input, key)) return
@@ -1035,7 +1001,14 @@ export function AgentsDialog({
       }
 
       case 'create_generate_desc': {
-        return <GenerateDescriptionView theme={theme} value={agentDescriptionInput} />
+        return (
+          <GenerateDescriptionView
+            theme={theme}
+            value={agentDescriptionInput}
+            onChange={setAgentDescriptionInput}
+            onSubmit={() => void startGenerateDraft()}
+          />
+        )
       }
 
       case 'create_manual_name': {
