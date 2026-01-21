@@ -3,6 +3,7 @@ import type { StreamSink } from '../../streaming/types'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { SUBAGENT_DENY_TOOLS_SET } from './subagentDenyTools'
+import type { HooksRuntime } from '../../hooks/runtime.js'
 
 export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 
@@ -30,6 +31,9 @@ export type ExecutionContext = {
   // Optional allow/deny lists for executor-level enforcement
   allowTools?: string[]
   denyTools?: string[]
+
+  // Optional hooks runtime (Claude Code-style hooks)
+  hooks?: HooksRuntime
 }
 
 export interface ToolHandler {
@@ -57,6 +61,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     planPath: ctx.planPath,
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
+    hooks: ctx.hooks,
   }
 }
 
@@ -143,6 +148,22 @@ export function createToolExecutor(
     }
 
     try {
+      if (ctx.hooks) {
+        const pre = await ctx.hooks.runPreToolUse({
+          toolName: call.name,
+          toolInput: call.input ?? {},
+          cwd: ctx.cwd,
+          signal: ctx.signal,
+        })
+        if (pre.blocked) {
+          const stderr = pre.blockedBy?.stderr?.trim()
+          const content = stderr ? `Error: Tool blocked by PreToolUse hook\n${stderr}` : 'Error: Tool blocked by PreToolUse hook'
+          const res = { tool_use_id: call.id, content, is_error: true }
+          auditEnd(true)
+          return res
+        }
+      }
+
       if (opts.preflight) {
         const res = await opts.preflight(call, ctx)
         if (res) {

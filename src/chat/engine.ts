@@ -6,6 +6,7 @@ import { readTodos } from '../tools/runtime/todosFile'
 import { buildTodoStaleReminderBody } from '../prompts/reminders/todos'
 import type { ContextBudgetConfig } from './context/budget'
 import { pruneForPromptBudget } from './context/prune'
+import type { HooksRuntime } from '../hooks/runtime'
 
 export type ChatHistory = PromptMessage[]
 
@@ -47,6 +48,7 @@ function isToolUseBlock(
 export function createChatEngine(deps: {
   client: LlmStreamClient
   executor: ToolExecutor
+  hooks?: HooksRuntime
 }): ChatEngine {
   return {
     async runTurn({
@@ -61,6 +63,7 @@ export function createChatEngine(deps: {
       exec,
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
+      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
 
       const executorCtxBase: ExecutionContext = {
         cwd,
@@ -75,10 +78,49 @@ export function createChatEngine(deps: {
         planPath: exec?.planPath,
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,
+        hooks: deps.hooks,
       }
 
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
-        return deps.executor(call, executorCtxBase)
+        const res = await deps.executor(call, executorCtxBase)
+
+        if (deps.hooks) {
+          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
+          const post = await deps.hooks.runPostToolUse({
+            toolUseId: call.id,
+            toolName: call.name,
+            toolInput: call.input ?? {},
+            toolResult: res,
+            cwd,
+            signal,
+          })
+
+          const lines: string[] = []
+
+          if (post.blockingErrors.length > 0) {
+            onEvent({ type: 'tool_update', id: call.id, middleLines: [`PostToolUse:${call.name} hook returned blocking error`] })
+            for (const b of post.blockingErrors) {
+              const stderr = b.stderr.trim()
+              if (!stderr) continue
+              lines.push(
+                `<system-reminder>\nPostToolUse:${call.name} hook blocking error from command: "${b.command}":\n${stderr}\n</system-reminder>`,
+              )
+            }
+          }
+
+          if (post.additionalContext.length > 0) {
+            const combined = post.additionalContext.join('\n\n')
+            lines.push(
+              `<system-reminder>\nPostToolUse:${call.name} hook additional context:\n${combined}\n</system-reminder>`,
+            )
+          }
+
+          if (lines.length > 0) {
+            pendingPostToolUseTextByToolUseId.set(call.id, lines)
+          }
+        }
+
+        return res
       }
 
       try {
@@ -91,23 +133,6 @@ export function createChatEngine(deps: {
 
         let iteration = 0
         while (true) {
-          const prunedLoopMessages =
-            promptBudget?.contextWindowTokens
-              ? pruneForPromptBudget({
-                  system,
-                  messages: loopMessages,
-                  contextWindowTokens: promptBudget.contextWindowTokens,
-                  effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
-                  autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
-                  baselineTokens: promptBudget.baselineTokens,
-                }).messages
-              : loopMessages
-
-          if (prunedLoopMessages !== loopMessages) {
-            loopMessages.length = 0
-            loopMessages.push(...prunedLoopMessages)
-          }
-
           const todoStaleReminder =
             shouldInjectTodoReminders && shouldIncludeTodoStaleReminder ? buildTodoStaleReminder(cwd) : null
 
@@ -123,9 +148,42 @@ export function createChatEngine(deps: {
                 ]
               : system
 
+          // IMPORTANT:
+          // - PostToolUse.additionalContext should affect the *next* model call.
+          // - It should NOT be persisted into long-term chat history (to avoid context pollution).
+          // We therefore patch the messages we send to the model, but we keep `loopMessages` intact.
+          if (promptBudget?.contextWindowTokens) {
+            const prunedBase = pruneForPromptBudget({
+              system: systemForThisCall,
+              messages: loopMessages,
+              contextWindowTokens: promptBudget.contextWindowTokens,
+              effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
+              autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
+              baselineTokens: promptBudget.baselineTokens,
+            }).messages
+
+            if (prunedBase !== loopMessages) {
+              loopMessages.length = 0
+              loopMessages.push(...prunedBase)
+            }
+          }
+
+          const injectedMessages = buildMessagesWithPostToolUseText(loopMessages, pendingPostToolUseTextByToolUseId)
+          const messagesForCall =
+            promptBudget?.contextWindowTokens
+              ? pruneForPromptBudget({
+                  system: systemForThisCall,
+                  messages: injectedMessages,
+                  contextWindowTokens: promptBudget.contextWindowTokens,
+                  effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
+                  autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
+                  baselineTokens: promptBudget.baselineTokens,
+                }).messages
+              : injectedMessages
+
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
-              messages: loopMessages.slice(),
+              messages: messagesForCall.slice(),
               system: systemForThisCall,
               tools,
               onEvent,
@@ -188,6 +246,45 @@ export function createChatEngine(deps: {
       }
     },
   }
+}
+
+function buildMessagesWithPostToolUseText(
+  messages: ChatHistory,
+  pendingByToolUseId: Map<string, string[]>,
+): ChatHistory {
+  if (pendingByToolUseId.size === 0) return messages
+
+  const used = new Set<string>()
+
+  const patched = messages.map((m) => {
+    if (m.role !== 'user' || !Array.isArray(m.content)) return m
+
+    let changed = false
+    const nextBlocks: PromptBlock[] = []
+
+    for (const block of m.content) {
+      nextBlocks.push(block)
+
+      const toolUseId = (block as any)?.type === 'tool_result' ? String((block as any)?.tool_use_id ?? '') : ''
+      if (!toolUseId) continue
+
+      const extra = pendingByToolUseId.get(toolUseId)
+      if (!extra || extra.length === 0) continue
+
+      for (const text of extra) {
+        nextBlocks.push({ type: 'text', text })
+      }
+
+      used.add(toolUseId)
+      changed = true
+    }
+
+    if (!changed) return m
+    return { ...m, content: nextBlocks }
+  })
+
+  for (const id of used) pendingByToolUseId.delete(id)
+  return patched
 }
 
 function buildTodoStaleReminder(cwd: string): string | null {

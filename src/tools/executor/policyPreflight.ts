@@ -279,6 +279,20 @@ export function createPolicyPreflight(args: {
       return { tool_use_id: call.id, content: `Error: Approval required for ${action.kind}`, is_error: true }
     }
 
+    if (ctx.hooks) {
+      const permHook = await ctx.hooks.runPermissionRequest({
+        toolName: call.name,
+        toolInput: call.input ?? {},
+        cwd,
+        signal: ctx.signal,
+      })
+      if (permHook.blocked) {
+        const stderr = permHook.blockedBy?.stderr?.trim()
+        const content = stderr ? `Error: Permission denied ${call.name}\n${stderr}` : `Error: Permission denied ${call.name}`
+        return { tool_use_id: call.id, content, is_error: true }
+      }
+    }
+
     const approved = await args.approval.ensureApproved({
       call,
       ctx,

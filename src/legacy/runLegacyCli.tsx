@@ -18,6 +18,7 @@ import { createSubAgentRunner } from '../subagents/runner.js'
 import { createTaskSubAgentToolHandler } from '../tools/executor/handlers/taskSubAgent.js'
 import { AnthropicStreamClient } from '../streaming/anthropic/StreamClient.js'
 import { createChatEngine } from '../chat/engine.js'
+import { createHooksRuntime } from '../hooks/runtime.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { patchTaskToolForSubagents } from '../tools/patches/taskSubagent.js'
@@ -201,7 +202,8 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   }
   const tools = await toolRegistry.listSpecs()
   const executor = createToolExecutor(toolRegistry.getHandlers(), { preflight, audit })
-  const engine = createChatEngine({ client, executor })
+  const hooks = createHooksRuntime({ fileStore, env: process.env })
+  const engine = createChatEngine({ client, executor, hooks })
 
   render(
     <InputScopeProvider initialScope="repl">
