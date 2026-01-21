@@ -120,6 +120,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   const VISIBLE_ROWS = 10;
   const [view, setView] = useState<ViewState>('MAIN');
   const viewRef = useRef<ViewState>('MAIN')
+  const ignoreNextSaveLocationEnterRef = useRef(false)
   const [inputText, setInputText] = useState('');
   const [isSearching, setIsSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -274,6 +275,11 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
     setInputText(cleanInput)
 
     if (activeTab === 'Allow' || activeTab === 'Ask' || activeTab === 'Deny') {
+      // Opening SAVE_RULE_LOCATION is triggered by Enter in the TextInput. Since the dialog also
+      // listens on the same input scope, the same keypress can be observed after we switch views
+      // (depending on hook registration order) and auto-confirm the default selection before the
+      // UI renders. Guard against that by ignoring the first Enter in SAVE_RULE_LOCATION.
+      ignoreNextSaveLocationEnterRef.current = true
       setViewSafe('SAVE_RULE_LOCATION')
       setSaveLocationIndex(0)
       return
@@ -332,21 +338,29 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	        const isDown = key.downArrow || seq === '\u001B[B' || input === '\u001B[B'
 
 	        if (key.escape) {
+            ignoreNextSaveLocationEnterRef.current = false
 	          setViewSafe('ADD_RULE')
 	          return
 	        }
 
         if (isUp) {
+          ignoreNextSaveLocationEnterRef.current = false
           setSaveLocationIndex((prev) => Math.max(0, prev - 1))
           return
         }
 
         if (isDown) {
+          ignoreNextSaveLocationEnterRef.current = false
           setSaveLocationIndex((prev) => Math.min(SAVE_OPTIONS.length - 1, prev + 1))
           return
         }
 
         if (!isReturn) return
+
+        if (ignoreNextSaveLocationEnterRef.current) {
+          ignoreNextSaveLocationEnterRef.current = false
+          return
+        }
 
         const kind = getListKindForTab(activeTab)
         const scope = (saveLocationIndex === 2
@@ -364,6 +378,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
             env: process.env,
 	          }).then(refreshPermissions)
 	        }
+          ignoreNextSaveLocationEnterRef.current = false
 	        setViewSafe('MAIN')
 	        return
 	      }
