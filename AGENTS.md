@@ -39,6 +39,17 @@
 - Property-based tests use `fast-check` where appropriate.
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
 
+## Refactor Guardrails (Important)
+- **Refactor != rewrite**: refactors must preserve existing functionality and user-visible behavior; do not add/remove features as a side-effect.
+- **Tests are not the spec**: before refactoring, first check whether missing/weak tests can be added to lock current behavior; use those tests to validate the refactor.
+- **UI parity**: UI refactors must keep layout/spacing/keys/interaction the same unless the user explicitly requests a UI change; do not “improve” UI by default.
+- **When uncertain**: if behavior/UI expectations are unclear, ask the user before changing it.
+- **UI refactor workflow (mandatory)**:
+  - Before refactor: write/extend `ink-testing-library` tests that lock the current UI text + key paths (Enter/Esc/Tab/↑↓/←→/Backspace).
+  - During refactor: do not change copy/spacing/colors unless explicitly requested; treat “simplifying UI” as a behavior change.
+  - After refactor: run the targeted UI test file(s) + do a quick manual spot-check in `bun run dev` for the overlay(s) you touched.
+- **No “test-only” refactors**: a passing test suite is not sufficient if manual UI behavior regresses; prioritize user-visible parity over internal cleanup.
+
 ## Tool Contract Checks
 If you modify tool specs/contracts or tool module coverage, consider running:
 - `bun run tools:parity` (or `npm run tools:parity`)
