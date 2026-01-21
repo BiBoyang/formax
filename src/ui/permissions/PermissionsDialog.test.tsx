@@ -513,4 +513,79 @@ describe('PermissionsDialog', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 15000)
+
+
+  it('switches tabs with Tab key', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-tabs-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Add a new rule')
+
+      // Should be on Allow tab
+      expect(lastFrame()).toContain('Allow')
+
+      // Switch to Ask tab
+      stdin.write('\t')
+      await tick()
+      await waitForText(lastFrame, 'Ask')
+
+      // Switch to Deny tab
+      stdin.write('\t')
+      await tick()
+      await waitForText(lastFrame, 'Deny')
+
+      // Switch to Workspace tab
+      stdin.write('\t')
+      await tick()
+      await waitForText(lastFrame, 'Workspace')
+
+      // Switch back to Allow tab (cyclic)
+      stdin.write('\t')
+      await tick()
+      await waitForText(lastFrame, 'Allow')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 15000)
+
+
 })
