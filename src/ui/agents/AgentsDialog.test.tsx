@@ -1,0 +1,549 @@
+import { describe, expect, it, vi } from 'vitest'
+import React from 'react'
+import { render } from 'ink-testing-library'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
+import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
+import { AgentsDialog } from './AgentsDialog.js'
+
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const frame = lastFrame() || ''
+    if (frame.includes(text)) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for UI to contain: ${text}`)
+}
+
+async function makeTempDir(prefix: string): Promise<string> {
+  return await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
+}
+
+describe('AgentsDialog', () => {
+  it('navigates list rows and opens an agent view', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    expect(lastFrame()).toContain('> Create new agent')
+
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame()).toContain('> design-planner')
+    expect(lastFrame()).not.toContain('> Create new agent')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Agent')
+    expect(lastFrame()).toContain('design-planner')
+
+    stdin.write('\u001b')
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    expect(onExit).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('exits on Esc from the list view', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    stdin.write('\u001b')
+    await tick()
+
+    expect(onExit).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('supports left/right editing in "Generate with Claude" description input', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Describe what this agent should do')
+
+    stdin.write('abcde')
+    await tick()
+    expect(lastFrame()).toContain('abcde')
+
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+
+    // Backspace should delete the character to the left of the cursor
+    stdin.write('\x7f')
+    await tick()
+    expect(lastFrame()).toContain('abde')
+
+    // Insert should happen at the cursor position (not append-only)
+    stdin.write('X')
+    await tick()
+    expect(lastFrame()).toContain('abXde')
+
+    unmount()
+  })
+
+  it('supports manual agent creation flow', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Start create flow
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    // Navigate to manual option
+    stdin.write('\u001B[B')
+    await tick()
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Agent name')
+
+    // Type agent name
+    stdin.write('test-agent')
+    await tick()
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Description')
+
+    // Type description
+    stdin.write('A test agent for testing')
+    await tick()
+    expect(lastFrame()).toContain('A test agent for testing')
+
+    unmount()
+  })
+
+  it('supports cancel operation with Esc key', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Enter create flow
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    // Cancel with Esc
+    stdin.write('\u001b')
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Should be back at list view
+    expect(lastFrame()).toContain('Create new agent')
+
+    unmount()
+  })
+
+  it('selects user scope in creation flow', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Enter create flow
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    // Navigate to user option
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame()).toContain('Personal (~/.formax/agents/)')
+
+    // Select user
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    unmount()
+  })
+
+  it('selects manual creation method', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Enter create flow
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    stdin.write('\r') // Select project
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    // Navigate to manual option
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame()).toContain('Manual configuration')
+
+    // Select manual
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Agent name')
+
+    unmount()
+  })
+
+  it('navigates between agents in list view', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'agent-1', description: 'First agent' },
+            { name: 'agent-2', description: 'Second agent' },
+            { name: 'agent-3', description: 'Third agent' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Should show "Create new agent" first
+    expect(lastFrame()).toContain('> Create new agent')
+
+    // Navigate down through agents
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame()).toContain('> agent-1')
+
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame()).toContain('> agent-2')
+
+    // Navigate back up
+    stdin.write('\u001B[A')
+    await tick()
+    expect(lastFrame()).toContain('> agent-1')
+
+    // Navigate to top
+    stdin.write('\u001B[A')
+    await tick()
+    expect(lastFrame()).toContain('> Create new agent')
+
+    unmount()
+  })
+
+  it('proceeds with empty name during manual creation', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Navigate to manual creation
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Creation method')
+
+    stdin.write('\u001B[B')
+    await tick()
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Agent name')
+
+    // Empty name submission proceeds to next step (no validation)
+    stdin.write('\r')
+    await tick()
+    // Should move to description input
+    await waitForText(lastFrame, 'Description')
+
+    unmount()
+  })
+
+  it('supports navigating between multiple views with Esc', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Open first agent
+    stdin.write('\u001B[B')
+    await tick()
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'design-planner')
+
+    // Go back to list
+    stdin.write('\u001b')
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Navigate back to "Create new agent" (cursor is still on design-planner)
+    stdin.write('\u001B[A')
+    await tick()
+    expect(lastFrame()).toContain('> Create new agent')
+
+    // Enter create flow
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Choose location')
+
+    // Cancel create flow
+    stdin.write('\u001b')
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+
+    // Should still be at list, verify state is clean
+    expect(lastFrame()).toContain('> Create new agent')
+
+    unmount()
+  })
+})

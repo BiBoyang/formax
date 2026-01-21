@@ -1,359 +1,49 @@
-import fsp from 'node:fs/promises'
-import path from 'node:path'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, useReducer } from 'react'
 import { Box, Text } from 'ink'
-import TextInput from '../components/ui/TextInput'
-import { KeyHintBar } from '../components/ui/KeyHintBar'
-import { OverlayFrame } from '../components/ui/OverlayFrame'
-import { SelectList } from '../components/ui/SelectList'
-import { RotatingStar } from '../components/ui/RotatingStar'
-import { getTheme } from '../utils/theme'
-import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext'
+import TextInput from '../../components/ui/TextInput'
+import { RotatingStar } from '../../components/ui/RotatingStar'
+import { getTheme } from '../../utils/theme'
+import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
+import {
+  Spacer,
+  DialogFrame,
+  CreateAgentHeader,
+  Footer,
+  FramedRow,
+  FrameDivider,
+  AgentsListView,
+  SimpleChoiceView,
+  GenerateDescriptionView,
+} from './ui.js'
+import {
+  type AgentListItem,
+  type AgentsDialogGenerateDraft,
+  type AgentsDialogSaveArgs,
+  type AgentsDialogSaveResult,
+  type AgentMeta,
+  type DiskAgentInfo,
+  BUILTIN_AGENT_NAMES,
+  BUILTIN_MODEL_BY_NAME,
+  METHOD_OPTIONS,
+  MODEL_OPTIONS,
+  COLOR_OPTIONS,
+  SCOPE_OPTIONS,
+  NON_SELECTABLE_TOOLS,
+  type View,
+} from './constants.js'
+import {
+  normalizeAgentName,
+  buildManualSystemPrompt,
+  truncate,
+  indent,
+  colorToHex,
+  getToolsSelectableRows,
+  readAgentDir,
+} from './utils.js'
+import { dialogReducer, initialDialogState } from './reducer.js'
 
-type AgentListItem = { name: string; description: string }
-
-type AgentsDialogTheme = ReturnType<typeof getTheme>
-
-export type AgentsDialogGenerateDraft = {
-  name: string
-  description: string
-  systemPrompt: string
-}
-
-export type AgentsDialogSaveArgs = {
-  scope: 'project' | 'user'
-  name: string
-  description: string
-  systemPrompt: string
-  tools: string
-  model: string
-  color: string
-  openInEditor: boolean
-}
-
-export type AgentsDialogSaveResult = { name: string; filePath: string }
-
-type AgentScope = 'user' | 'project' | 'builtin'
-type AgentMeta = AgentListItem & { scope: AgentScope; model: string }
-type DiskAgentInfo = { name: string; model: string; filePath: string }
-
-const COLOR_MAP: Record<string, string> = {
-  red: '#ff3b30',
-  blue: '#0a84ff',
-  green: '#34c759',
-  yellow: '#ffd60a',
-  purple: '#bf5af2',
-  orange: '#ff9f0a',
-  pink: '#ff2d55',
-  cyan: '#64d2ff',
-}
-const TOOLS_DIVIDER = '─'.repeat(32)
-
-const BUILTIN_AGENT_NAMES = new Set(
-  ['general-purpose', 'statusline-setup', 'explore', 'plan', 'claude-code-guide'].map((s) =>
-    s.toLowerCase(),
-  ),
-)
-
-const BUILTIN_MODEL_BY_NAME = new Map<string, string>([
-  ['general-purpose', 'sonnet'],
-  ['statusline-setup', 'sonnet'],
-  ['explore', 'haiku'],
-  ['plan', 'inherit'],
-  ['claude-code-guide', 'haiku'],
-])
-
-const METHOD_OPTIONS: Array<{ label: string; value: 'manual' | 'generate' }> = [
-  { label: 'Generate with Claude (recommended)', value: 'generate' },
-  { label: 'Manual configuration', value: 'manual' },
-]
-
-const MODEL_OPTIONS: Array<{ label: string; description: string }> = [
-  { label: 'Sonnet', description: 'Balanced performance - best for most agents' },
-  { label: 'Opus', description: 'Most capable for complex reasoning tasks' },
-  { label: 'Haiku', description: 'Fast and efficient for simple tasks' },
-  { label: 'Inherit', description: 'Use the same model as the main conversation' },
-]
-
-const COLOR_OPTIONS = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Cyan']
-const SCOPE_OPTIONS: Array<{ label: string; value: 'project' | 'user' }> = [
-  { label: 'Project (.formax/agents/)', value: 'project' },
-  { label: 'Personal (~/.formax/agents/)', value: 'user' },
-]
-
-function Spacer({ height = 1 }: { height?: number }): React.ReactNode {
-  return <Box height={height} />
-}
-
-const DialogFrame = React.memo(function DialogFrame({
-  theme,
-  children,
-}: {
-  theme: AgentsDialogTheme
-  children: React.ReactNode
-}): React.ReactNode {
-  return (
-    <OverlayFrame
-      borderStyle="round"
-      borderColor={theme.permission}
-      flexDirection="column"
-      paddingX={1}
-      width="100%"
-    >
-      {children}
-    </OverlayFrame>
-  )
-})
-
-const CreateAgentHeader = React.memo(function CreateAgentHeader({
-  theme,
-  subtitle,
-  description,
-}: {
-  theme: AgentsDialogTheme
-  subtitle?: string
-  description?: string
-}): React.ReactNode {
-  return (
-    <Box marginTop={0} flexDirection="column">
-      <Text bold>Create new agent</Text>
-      {subtitle ? <Text color={theme.secondaryText}>{subtitle}</Text> : null}
-      {description ? <Text color={theme.secondaryText}>{description}</Text> : null}
-    </Box>
-  )
-})
-
-const Footer = React.memo(function Footer({ theme, text }: { theme: AgentsDialogTheme; text: string }): React.ReactNode {
-  return <KeyHintBar text={text} color={theme.secondaryText} marginLeft={1} marginTop={0} />
-})
-
-function CursorPrefix({ theme, active }: { theme: AgentsDialogTheme; active: boolean }): React.ReactNode {
-  return <Text color={active ? theme.permission : theme.secondaryText}>{active ? '❯ ' : '  '}</Text>
-}
-
-function CheckboxPrefix({
-  theme,
-  checked,
-}: {
-  theme: AgentsDialogTheme
-  checked: boolean
-}): React.ReactNode {
-  return <Text color={theme.secondaryText}>{checked ? '☒ ' : '☐ '}</Text>
-}
-
-function FrameDivider({ theme }: { theme: AgentsDialogTheme }): React.ReactNode {
-  return <Text color={theme.secondaryText}>{TOOLS_DIVIDER}</Text>
-}
-
-function FramedRow({
-  theme,
-  active,
-  checked,
-  label,
-}: {
-  theme: AgentsDialogTheme
-  active: boolean
-  checked?: boolean
-  label: string
-}): React.ReactNode {
-  return (
-    <Box>
-      <CursorPrefix theme={theme} active={active} />
-      {typeof checked === 'boolean' ? <CheckboxPrefix theme={theme} checked={checked} /> : null}
-      <Text bold={active} color={active ? theme.permission : undefined}>
-        {label}
-      </Text>
-    </Box>
-  )
-}
-
-const SECTION_PREFIX = '  '
-
-function AgentsListView({
-  theme,
-  agentsCount,
-  banner,
-  cursor,
-  userAgentsDir,
-  groups,
-}: {
-  theme: AgentsDialogTheme
-  agentsCount: number
-  banner: string | null
-  cursor: number
-  userAgentsDir: string
-  groups: { userAgents: AgentMeta[]; projectAgents: AgentMeta[]; builtins: AgentMeta[] }
-}): React.ReactNode {
-  const userStart = 1
-  const projectStart = userStart + groups.userAgents.length
-  const builtinsStart = projectStart + groups.projectAgents.length
-
-  const createStyle = React.useMemo(() => {
-    const selected = cursor === 0
-    return {
-      selected,
-      prefix: selected ? '> ' : '  ',
-      color: selected ? theme.permission : theme.secondaryText,
-    }
-  }, [cursor, theme.permission, theme.secondaryText])
-
-  const getRowStyle = React.useCallback(
-    (rowIndex: number) => {
-      const selected = cursor === rowIndex
-      return {
-        selected,
-        prefix: selected ? '> ' : '  ',
-        color: selected ? theme.permission : theme.secondaryText,
-      }
-    },
-    [cursor, theme.permission, theme.secondaryText],
-  )
-
-  return (
-    <DialogFrame theme={theme}>
-      <Box marginTop={0} flexDirection="column">
-        <Text bold>Agents</Text>
-        <Text color={theme.secondaryText}>{agentsCount} agents</Text>
-        <Spacer />
-        {banner ? (
-          <>
-            <Text color={theme.secondaryText}>{banner}</Text>
-            <Spacer />
-          </>
-        ) : null}
-      </Box>
-
-      <Text color={createStyle.color}>
-        {createStyle.prefix}Create new agent
-      </Text>
-
-      <Spacer />
-
-      {groups.userAgents.length ? (
-        <Box flexDirection="column">
-          <Text bold color={theme.secondaryText}>
-            {SECTION_PREFIX}User agents ({userAgentsDir})
-          </Text>
-          {groups.userAgents.map((a, i) => {
-            const rowIndex = userStart + i
-            const style = getRowStyle(rowIndex)
-            return (
-              <Text key={`user-${a.name}`} color={style.color}>
-                {style.prefix}
-                {a.name} · {a.model}
-              </Text>
-            )
-          })}
-        </Box>
-      ) : null}
-
-      {groups.projectAgents.length ? (
-        <>
-          <Spacer />
-          <Box flexDirection="column">
-            <Text bold color={theme.secondaryText}>
-              {SECTION_PREFIX}Project agents
-            </Text>
-            {groups.projectAgents.map((a, i) => {
-              const rowIndex = projectStart + i
-              const style = getRowStyle(rowIndex)
-              return (
-                <Text key={`project-${a.name}`} color={style.color}>
-                  {style.prefix}
-                  {a.name} · {a.model}
-                </Text>
-              )
-            })}
-          </Box>
-        </>
-      ) : null}
-
-      <Spacer />
-
-      <Box flexDirection="column">
-        <Text bold color={theme.secondaryText}>
-          {SECTION_PREFIX}Built-in agents (always available)
-        </Text>
-
-        {groups.builtins.map((a, i) => {
-          const rowIndex = builtinsStart + i
-          const style = getRowStyle(rowIndex)
-          return (
-            <Text key={`builtin-${a.name}`} color={style.color}>
-              {style.prefix}
-              {a.name} · {a.model}
-            </Text>
-          )
-        })}
-      </Box>
-
-      <Spacer />
-      
-    </DialogFrame>
-  )
-}
-
-const SimpleChoiceView = React.memo(function SimpleChoiceView({
-  theme,
-  title,
-  subtitle,
-  cursor,
-  options,
-}: {
-  theme: AgentsDialogTheme
-  title: string
-  subtitle: string
-  cursor: number
-  options: Array<{ key: string; label: string }>
-}): React.ReactNode {
-  return (
-    <DialogFrame theme={theme}>
-      <Box marginTop={0} flexDirection="column">
-        <Text bold>{title}</Text>
-        <Text color={theme.secondaryText}>{subtitle}</Text>
-      </Box>
-      <Spacer />
-      <SelectList
-        items={options.map((opt) => ({ key: opt.key, label: opt.label }))}
-        cursor={cursor}
-        accentColor={theme.permission}
-        mutedColor={theme.secondaryText}
-        activePrefix="> "
-        inactivePrefix="  "
-        showNumbers
-      />
-    </DialogFrame>
-  )
-})
-
-const GenerateDescriptionView = React.memo(function GenerateDescriptionView({
-  theme,
-  value,
-  onChange,
-  onSubmit,
-}: {
-  theme: AgentsDialogTheme
-  value: string
-  onChange: (next: string) => void
-  onSubmit: () => void
-}): React.ReactNode {
-  return (
-    <DialogFrame theme={theme}>
-      <CreateAgentHeader
-        theme={theme}
-        description="Describe what this agent should do and when it should be used (be comprehensive for best results)"
-      />
-      <Spacer />
-      <TextInput
-        value={value}
-        onChange={onChange}
-        onSubmit={() => onSubmit()}
-        placeholder="e.g., Help me write unit tests for my code..."
-        scope="overlay:agents"
-      />
-    </DialogFrame>
-  )
-})
+// Re-export public types for backward compatibility
+export type { AgentsDialogGenerateDraft, AgentsDialogSaveArgs, AgentsDialogSaveResult }
 
 export function AgentsDialog({
   agents,
@@ -438,24 +128,9 @@ export function AgentsDialog({
     return rows
   }, [groupedAgents.builtins, groupedAgents.projectAgents, groupedAgents.userAgents])
 
-  type View =
-    | { kind: 'list'; cursor: number; banner?: string | null }
-    | { kind: 'view_agent'; agent: AgentMeta }
-    | { kind: 'create_scope'; cursor: number }
-    | { kind: 'create_method'; cursor: number }
-    | { kind: 'create_generate_desc' }
-    | { kind: 'create_manual_name' }
-    | { kind: 'create_manual_desc' }
-    | { kind: 'create_tools'; cursor: number }
-    | { kind: 'create_model'; cursor: number }
-    | { kind: 'create_color'; cursor: number }
-    | { kind: 'confirm' }
-    | { kind: 'generating_draft'; message: string }
-    | { kind: 'saving_agent'; message: string }
-    | { kind: 'error'; message: string }
+  const [state, dispatch] = useReducer(dialogReducer, initialDialogState())
+  const { view, stack, draft, scope, agentDescriptionInput, manualNameInput, manualDescInput, selectedModel, selectedColor, showAdvancedTools, selectedTools } = state
 
-  const [view, setView] = useState<View>({ kind: 'list', cursor: 0, banner: null })
-  const [stack, setStack] = useState<View[]>([])
   const viewRef = useRef<View>({ kind: 'list', cursor: 0, banner: null })
   useEffect(() => {
     viewRef.current = view
@@ -464,17 +139,6 @@ export function AgentsDialog({
   const opSeqRef = useRef(0)
   const activeOpRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-
-  const [draft, setDraft] = useState<AgentsDialogGenerateDraft | null>(null)
-  const [scope, setScope] = useState<'project' | 'user'>('project')
-  const [agentDescriptionInput, setAgentDescriptionInput] = useState('')
-  const [manualNameInput, setManualNameInput] = useState('')
-  const [manualDescInput, setManualDescInput] = useState('')
-
-  const [selectedModel, setSelectedModel] = useState('Sonnet')
-  const [selectedColor, setSelectedColor] = useState('Blue')
-  const [showAdvancedTools, setShowAdvancedTools] = useState(false)
-  const [selectedTools, setSelectedTools] = useState<string[]>([])
 
   const allToolNames = useMemo(
     () => Array.from(new Set(toolNames)).sort((a, b) => a.localeCompare(b)),
@@ -522,30 +186,15 @@ export function AgentsDialog({
   }, [selectableToolNames, selectedToolSet, toolGroups.edit, toolGroups.execution, toolGroups.readOnly])
 
   const resetCreateState = useCallback(() => {
-    setDraft(null)
-    setScope('project')
-    setAgentDescriptionInput('')
-    setManualNameInput('')
-    setManualDescInput('')
-    setSelectedModel('Sonnet')
-    setSelectedColor('Blue')
-    setShowAdvancedTools(false)
-    setSelectedTools(selectableToolNames)
+    dispatch({ type: 'RESET_CREATE_STATE', selectableToolNames })
   }, [selectableToolNames])
 
   const pushView = useCallback((next: View) => {
-    setStack((prev) => [...prev, viewRef.current])
-    setView(next)
+    dispatch({ type: 'PUSH_VIEW', view: next })
   }, [])
 
   const popView = useCallback(() => {
-    setStack((prev) => {
-      if (prev.length === 0) return prev
-      const next = prev.slice(0, -1)
-      const last = prev[prev.length - 1]
-      if (last) setView(last)
-      return next
-    })
+    dispatch({ type: 'POP_VIEW' })
   }, [])
 
   const cancelBusy = useCallback(() => {
@@ -581,13 +230,13 @@ export function AgentsDialog({
     try {
       const generated = await onGenerateDraft(desc, abortController.signal)
       if (activeOpRef.current !== opId) return
-      setDraft(generated)
-      setView({ kind: 'create_tools', cursor: 0 })
+      dispatch({ type: 'SET_DRAFT', draft: generated })
+      dispatch({ type: 'SET_VIEW', view: { kind: 'create_tools', cursor: 0 } })
     } catch (e) {
       if (activeOpRef.current !== opId) return
       if (abortController.signal.aborted) return
       const msg = e instanceof Error ? e.message : String(e)
-      setView({ kind: 'error', message: msg || 'Generate failed' })
+      dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: msg || 'Generate failed' } })
     } finally {
       if (abortRef.current === abortController) abortRef.current = null
       if (activeOpRef.current === opId) activeOpRef.current = null
@@ -607,7 +256,7 @@ export function AgentsDialog({
     }
 
     const systemPrompt = buildManualSystemPrompt({ name, description: desc })
-    setDraft({ name, description: desc, systemPrompt })
+    dispatch({ type: 'SET_DRAFT', draft: { name, description: desc, systemPrompt } })
     pushView({ kind: 'create_tools', cursor: 0 })
   }, [manualDescInput, manualNameInput, pushView])
 
@@ -630,13 +279,12 @@ export function AgentsDialog({
         })
 
         if (activeOpRef.current !== opId) return
-        setCreatedAgents((prev) => [...prev, out.name])
-        setView({ kind: 'list', cursor: 0, banner: `Created agent: ${out.name}` })
-        setStack([])
+        setCreatedAgents((prev: string[]) => [...prev, out.name])
+        dispatch({ type: 'RESET_TO_LIST', banner: `Created agent: ${out.name}` })
       } catch (e) {
         if (activeOpRef.current !== opId) return
         const msg = e instanceof Error ? e.message : String(e)
-        setView({ kind: 'error', message: msg || 'Save failed' })
+        dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: msg || 'Save failed' } })
       } finally {
         if (activeOpRef.current === opId) activeOpRef.current = null
       }
@@ -714,21 +362,17 @@ export function AgentsDialog({
       if (view.kind !== 'list') return false
 
       if (key.downArrow) {
-        setView((prev) => {
-          if (prev.kind !== 'list') return prev
-          const nextCursor = Math.min(prev.cursor + 1, Math.max(0, listRows.length - 1))
-          if (nextCursor === prev.cursor) return prev
-          return { ...prev, cursor: nextCursor }
-        })
+        const prev = view
+        const nextCursor = Math.min(prev.cursor + 1, Math.max(0, listRows.length - 1))
+        if (nextCursor === prev.cursor) return true
+        dispatch({ type: 'MOVE_CURSOR', cursor: nextCursor })
         return true
       }
       if (key.upArrow) {
-        setView((prev) => {
-          if (prev.kind !== 'list') return prev
-          const nextCursor = Math.max(prev.cursor - 1, 0)
-          if (nextCursor === prev.cursor) return prev
-          return { ...prev, cursor: nextCursor }
-        })
+        const prev = view
+        const nextCursor = Math.max(prev.cursor - 1, 0)
+        if (nextCursor === prev.cursor) return true
+        dispatch({ type: 'MOVE_CURSOR', cursor: nextCursor })
         return true
       }
       if (key.return) {
@@ -740,7 +384,7 @@ export function AgentsDialog({
 
       return false
     },
-    [listCursor, listRows, pushView, startCreate, view.kind],
+    [listCursor, listRows, pushView, startCreate, view],
   )
 
   const handleChoiceCursorKeys = useCallback(
@@ -756,50 +400,46 @@ export function AgentsDialog({
       }
 
       if (key.downArrow) {
-        setView((prev) => {
-          if (prev.kind !== view.kind) return prev
-          let max: number
-          switch (prev.kind) {
-            case 'create_scope':
-              max = SCOPE_OPTIONS.length - 1
-              break
-            case 'create_method':
-              max = METHOD_OPTIONS.length - 1
-              break
-            case 'create_tools':
-              max =
-                getToolsSelectableRows({
-                  toolGroupChecked,
-                  showAdvancedTools,
-                  selectableToolNames,
-                  selectedToolSet,
-                }).length - 1
-              break
-            case 'create_model':
-              max = MODEL_OPTIONS.length - 1
-              break
-            case 'create_color':
-              max = COLOR_OPTIONS.length - 1
-              break
-            default:
-              return prev
-          }
-          return { ...prev, cursor: Math.min(prev.cursor + 1, max) } as View
-        })
+        const prev = view
+        let max: number
+        switch (prev.kind) {
+          case 'create_scope':
+            max = SCOPE_OPTIONS.length - 1
+            break
+          case 'create_method':
+            max = METHOD_OPTIONS.length - 1
+            break
+          case 'create_tools':
+            max =
+              getToolsSelectableRows({
+                toolGroupChecked,
+                showAdvancedTools,
+                selectableToolNames,
+                selectedToolSet,
+              }).length - 1
+            break
+          case 'create_model':
+            max = MODEL_OPTIONS.length - 1
+            break
+          case 'create_color':
+            max = COLOR_OPTIONS.length - 1
+            break
+          default:
+            return false
+        }
+        dispatch({ type: 'MOVE_CURSOR', cursor: Math.min(prev.cursor + 1, max) })
         return true
       }
 
       if (key.upArrow) {
-        setView((prev) => {
-          if (prev.kind !== view.kind) return prev
-          return { ...prev, cursor: Math.max(prev.cursor - 1, 0) } as View
-        })
+        const prev = view
+        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(prev.cursor - 1, 0) })
         return true
       }
 
       return false
     },
-    [selectableToolNames, selectedToolSet, showAdvancedTools, toolGroupChecked, view.kind],
+    [selectableToolNames, selectedToolSet, showAdvancedTools, toolGroupChecked, view],
   )
 
   const handleChoiceEnterKeys = useCallback((): boolean => {
@@ -809,7 +449,7 @@ export function AgentsDialog({
 
     if (view.kind === 'create_scope') {
       const nextScope = SCOPE_OPTIONS[view.cursor]?.value ?? 'project'
-      setScope(nextScope)
+      dispatch({ type: 'SET_SCOPE', scope: nextScope })
       pushView({ kind: 'create_method', cursor: 0 })
       return true
     }
@@ -836,40 +476,37 @@ export function AgentsDialog({
       }
 
       if (row.type === 'advanced') {
-        setShowAdvancedTools((v) => !v)
+        dispatch({ type: 'SET_ADVANCED_TOOLS', show: !showAdvancedTools })
         return true
       }
 
       if (row.type === 'group') {
-        toggleToolGroupSelection({
+        dispatch({
+          type: 'TOGGLE_TOOL_GROUP',
           group: row.group,
           toolGroups,
-          selectedToolSet,
-          onChange: setSelectedTools,
         })
         return true
       }
 
       if (row.type === 'tool') {
-        setSelectedTools((prev) => {
-          const next = new Set(prev)
-          if (next.has(row.tool)) next.delete(row.tool)
-          else next.add(row.tool)
-          return Array.from(next)
-        })
+        const next = new Set(selectedTools)
+        if (next.has(row.tool)) next.delete(row.tool)
+        else next.add(row.tool)
+        dispatch({ type: 'SET_TOOLS', tools: Array.from(next) })
         return true
       }
       return true
     }
 
     if (view.kind === 'create_model') {
-      setSelectedModel(MODEL_OPTIONS[view.cursor]?.label ?? 'Sonnet')
+      dispatch({ type: 'SET_MODEL', model: MODEL_OPTIONS[view.cursor]?.label ?? 'Sonnet' })
       pushView({ kind: 'create_color', cursor: 0 })
       return true
     }
 
     if (view.kind === 'create_color') {
-      setSelectedColor(COLOR_OPTIONS[view.cursor] ?? 'Blue')
+      dispatch({ type: 'SET_COLOR', color: COLOR_OPTIONS[view.cursor] ?? 'Blue' })
       pushView({ kind: 'confirm' })
       return true
     }
@@ -882,6 +519,7 @@ export function AgentsDialog({
     showAdvancedTools,
     toolGroupChecked,
     toolGroups,
+    selectedTools,
     view,
   ])
 
@@ -1006,7 +644,7 @@ export function AgentsDialog({
           <GenerateDescriptionView
             theme={theme}
             value={agentDescriptionInput}
-            onChange={setAgentDescriptionInput}
+            onChange={(value) => dispatch({ type: 'SET_DESCRIPTION_INPUT', value })}
             onSubmit={() => void startGenerateDraft()}
           />
         )
@@ -1022,7 +660,7 @@ export function AgentsDialog({
             <Box marginTop={1}>
               <TextInput
                 value={manualNameInput}
-                onChange={setManualNameInput}
+                onChange={(value) => dispatch({ type: 'SET_MANUAL_NAME_INPUT', value })}
                 onSubmit={() => pushView({ kind: 'create_manual_desc' })}
                 placeholder="e.g. code-reviewer"
                 scope="overlay:agents"
@@ -1042,7 +680,7 @@ export function AgentsDialog({
             <Box marginTop={1}>
               <TextInput
                 value={manualDescInput}
-                onChange={setManualDescInput}
+                onChange={(value) => dispatch({ type: 'SET_MANUAL_DESC_INPUT', value })}
                 onSubmit={commitManualDraft}
                 placeholder="When should this agent be used?"
                 scope="overlay:agents"
@@ -1218,234 +856,4 @@ export function AgentsDialog({
       <Footer theme={theme} text={hint} />
     </Box>
   )
-}
-
-function normalizeAgentName(raw: string): string {
-  const s = String(raw || '').trim().toLowerCase()
-  return s
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^[-_]+/, '')
-    .replace(/[-_]+$/, '')
-}
-
-function buildManualSystemPrompt(args: { name: string; description: string }): string {
-  return [
-    `You are the ${args.name} agent.`,
-    '',
-    `When to use: ${args.description}`,
-    '',
-    'Be concise and helpful.',
-  ].join('\n')
-}
-
-function truncate(s: string, max: number): string {
-  const str = String(s || '')
-  if (str.length <= max) return str
-  return str.slice(0, Math.max(0, max - 1)) + '…'
-}
-
-function indent(s: string, spaces: number): string {
-  const pad = ' '.repeat(Math.max(0, spaces))
-  return s
-    .split(/\r?\n/)
-    .map((line) => (line ? pad + line : line))
-    .join('\n')
-}
-
-function colorToHex(color: string, fallback: string): string {
-  const c = String(color || '').trim().toLowerCase()
-  return COLOR_MAP[c] ?? fallback
-}
-
-const NON_SELECTABLE_TOOLS = new Set([
-  'Task',
-  'TaskOutput',
-  'AskUserQuestion',
-  'EnterPlanMode',
-  'ExitPlanMode',
-  'KillShell',
-])
-
-type ToolsSelectableRow =
-  | { type: 'continue'; key: string; cursor: number }
-  | { type: 'group'; key: string; cursor: number; group: 'all' | 'readOnly' | 'edit' | 'execution' | 'other'; label: string; checked: boolean }
-  | { type: 'advanced'; key: string; cursor: number; label: string }
-  | { type: 'tool'; key: string; cursor: number; tool: string; checked: boolean }
-
-function getToolsSelectableRows(args: {
-  toolGroupChecked: {
-    all: boolean
-    readOnly: boolean
-    edit: boolean
-    execution: boolean
-    other: boolean
-  }
-  showAdvancedTools: boolean
-  selectableToolNames: string[]
-  selectedToolSet: Set<string>
-}): ToolsSelectableRow[] {
-  const rows: ToolsSelectableRow[] = []
-  let cursor = 0
-
-  rows.push({ type: 'continue', key: 'continue', cursor })
-  cursor++
-
-  rows.push({
-    type: 'group',
-    key: 'group-all',
-    cursor,
-    group: 'all',
-    label: 'All tools',
-    checked: args.toolGroupChecked.all,
-  })
-  cursor++
-
-  rows.push({
-    type: 'group',
-    key: 'group-readonly',
-    cursor,
-    group: 'readOnly',
-    label: 'Read-only tools',
-    checked: args.toolGroupChecked.readOnly,
-  })
-  cursor++
-
-  rows.push({
-    type: 'group',
-    key: 'group-edit',
-    cursor,
-    group: 'edit',
-    label: 'Edit tools',
-    checked: args.toolGroupChecked.edit,
-  })
-  cursor++
-
-  rows.push({
-    type: 'group',
-    key: 'group-exec',
-    cursor,
-    group: 'execution',
-    label: 'Execution tools',
-    checked: args.toolGroupChecked.execution,
-  })
-  cursor++
-
-  rows.push({
-    type: 'group',
-    key: 'group-other',
-    cursor,
-    group: 'other',
-    label: 'Other tools',
-    checked: args.toolGroupChecked.other,
-  })
-  cursor++
-
-  rows.push({
-    type: 'advanced',
-    key: 'advanced',
-    cursor,
-    label: args.showAdvancedTools ? '[ Hide advanced options ]' : '[ Show advanced options ]',
-  })
-  cursor++
-
-  if (args.showAdvancedTools) {
-    for (const tool of args.selectableToolNames) {
-      rows.push({
-        type: 'tool',
-        key: `tool-${tool}`,
-        cursor,
-        tool,
-        checked: args.selectedToolSet.has(tool),
-      })
-      cursor++
-    }
-  }
-
-  return rows
-}
-
-function toggleToolGroupSelection(args: {
-  group: 'all' | 'readOnly' | 'edit' | 'execution' | 'other'
-  toolGroups: {
-    all: Set<string>
-    readOnly: Set<string>
-    edit: Set<string>
-    execution: Set<string>
-    other: Set<string>
-  }
-  selectedToolSet: Set<string>
-  onChange: (next: string[]) => void
-}): void {
-  const groupSet = args.toolGroups[args.group]
-  const isOn = groupSet.size > 0 && Array.from(groupSet).every((t) => args.selectedToolSet.has(t))
-
-  if (args.group === 'all') {
-    args.onChange(isOn ? [] : Array.from(groupSet))
-    return
-  }
-
-  const next = new Set(args.selectedToolSet)
-  if (isOn) {
-    for (const t of groupSet) next.delete(t)
-  } else {
-    for (const t of groupSet) next.add(t)
-  }
-  args.onChange(Array.from(next))
-}
-
-async function readAgentDir(dir: string): Promise<Record<string, { name: string; model: string; filePath: string }>> {
-  const out: Record<string, { name: string; model: string; filePath: string }> = {}
-  if (!dir) return out
-
-  let entries: string[] = []
-  try {
-    entries = await fsp.readdir(dir)
-  } catch {
-    return out
-  }
-
-  await Promise.all(
-    entries
-      .filter((f) => f.toLowerCase().endsWith('.md'))
-      .map(async (fileName) => {
-        const filePath = path.join(dir, fileName)
-        let raw = ''
-        try {
-          raw = await fsp.readFile(filePath, 'utf8')
-        } catch {
-          return
-        }
-        const fm = parseFrontmatter(raw)
-        const name = String(fm.name || path.basename(fileName, '.md')).trim()
-        const modelRaw = String(fm.model || '').trim()
-        const model = modelRaw ? modelRaw.toLowerCase() : 'inherit'
-        out[name.toLowerCase()] = { name, model, filePath }
-      }),
-  )
-
-  return out
-}
-
-function parseFrontmatter(raw: string): Record<string, string> {
-  const text = String(raw || '').trim()
-  if (!text) return {}
-  const lines = text.split(/\r?\n/)
-  if (lines[0] !== '---') return {}
-  const out: Record<string, string> = {}
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (line === '---') break
-    if (!line) continue
-    const idx = line.indexOf(':')
-    if (idx <= 0) continue
-    const k = line.slice(0, idx).trim()
-    if (!k) continue
-    let v = line.slice(idx + 1).trim()
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-      v = v.slice(1, -1)
-    }
-    out[k] = v
-  }
-  return out
 }

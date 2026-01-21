@@ -29,7 +29,7 @@ import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
-} from '../../ui/AgentsDialog'
+} from '../../ui/agents/AgentsDialog.js'
 import { buildSkillToolSpecForCwd } from '../../tools/modules/skill'
 
 export type ReplControllerState = {
