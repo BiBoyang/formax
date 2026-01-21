@@ -6,26 +6,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun install` or `npm install` - Install dependencies
 - `bun run dev` or `npm run dev` - Run the CLI REPL interface
 - `bun run toole` or `npm run toole` - Run tool examples entrypoint
-- `npm run type-check` - Run TypeScript type checks (no emit)
+- `bun run loade` or `npm run loade` - Run loading examples entrypoint
+- `bun run build` or `npm run build` - Bundle CLI to `dist/cli.js` (requires Bun)
+- `npm run type-check` - Run TypeScript type checks (no emit) plus core boundaries check
+- `npm run core:boundaries` - Run core module boundary checks (enforces no reverse dependencies from core to adapters/ui/cli)
 - `npm test` - Run all tests (Vitest)
 - `npm run test:watch` - Run tests in watch mode
 - `npm test -- <path>` - Run a specific test file (e.g., `npm test -- src/tools/registry.test.ts`)
 - `npm run test:watch -- -t "<test-name>"` - Run tests matching a pattern
+- `npm run tools:coverage` - Check tool implementation coverage vs reference specs
+- `npm run tools:parity` - Compare tool specs and schemas with reference file (default: `proxy/tools-copy.json`)
 
 ## High-Level Architecture
 
 Formax is a terminal-based AI chat interface built with React + Ink, featuring a sophisticated tool execution system and streaming Anthropic client.
 
+### Layered Architecture
+
+The codebase follows a layered architecture with strict dependency boundaries (enforced by `npm run core:boundaries`):
+
+1. **Core Layer** (`src/core/`) - Business logic and configuration, no dependencies on outer layers
+2. **Adapters Layer** (`src/adapters/`) - I/O implementations (fs, permissions, audit) that implement core interfaces
+3. **Application Layer** (`src/legacy/`, `src/cli/`, `src/features/`) - CLI wiring, command dispatch, feature modules
+4. **UI Layer** (`src/ui/`, `src/screens/`, `src/components/`) - Ink-based terminal UI
+5. **Infrastructure** (`src/tools/`, `src/streaming/`, `src/subagents/`) - Cross-cutting concerns
+
+**Key invariant**: `src/core/` must NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This prevents circular dependencies and keeps core testable.
+
 ### Core Components
 
 **Entry Points**
-- `src/entrypoints/cli.tsx` - Main CLI entry, initializes all services and renders REPL screen
+- `src/entrypoints/cli.tsx` - Main CLI entry, parses args and dispatches to commands or REPL
 - `src/entrypoints/tool-examples.tsx` - Tool testing/demo entry point
+
+**CLI Layer**
+- `src/cli/args.ts` - CLI argument parsing
+- `src/cli/main.ts` - Command dispatch (handles `formax doctor`, `formax auth`, etc.)
+- `src/legacy/runLegacyCli.tsx` - Legacy REPL initialization flow
+
+**Core Layer** (productized configuration, auth, policy)
+- `src/core/config/` - Multi-source config merging (default → global → project → env → flags)
+- `src/core/auth/` - API key storage and retrieval (auth.json)
+- `src/core/setup/` - First-run setup wizard state machine
+- `src/core/diagnostics/` - `formax doctor` health checks
+- `src/core/policy/` - Permission rule matching engine (fs.read/write/bash.exec/net.fetch)
+- `src/core/app/` - Application factory and event bus
+
+**Adapters Layer** (I/O implementations)
+- `src/adapters/fs/` - File system operations (config paths, file store, project/workspace roots)
+- `src/adapters/permissions/` - Permission policy storage and matching
+- `src/adapters/audit/` - Audit logging for tool execution
+- `src/adapters/setup/` - Setup wizard I/O (connection tests, file writes)
+- `src/adapters/diagnostics/` - Diagnostics check implementations
 
 **Screens & UI**
 - `src/screens/REPL.tsx` - Main chat REPL interface with command input, streaming output, and tool execution visualization
 - `src/screens/ToolExamplesScreen.tsx` - Interactive tool testing UI
+- `src/ui/SetupWizard.tsx` - First-run setup wizard UI
+- `src/ui/agents/` - Agent management UI components
+- `src/ui/permissions/` - Permission management UI components
 - `src/components/` - Reusable Ink components (forms, inputs, status displays)
+
+**Feature Modules**
+- `src/features/repl/` - REPL-specific state and logic
+- `src/features/commands/` - CLI command implementations
 
 **Chat Engine**
 - `src/chat/engine.ts` - Orchestrates conversation turns, managing the message loop between user and LLM with tool execution
@@ -92,16 +136,55 @@ Tools receive:
 
 ### Configuration
 
-Runtime config from environment variables:
+Formax uses a layered configuration system (merges in order of precedence):
+1. Default config (built-in)
+2. Global config (`~/.formax/config.json`)
+3. Project config (`.formax/config.json`)
+4. Environment variables
+5. CLI flags
+
+**Config files** (`~/.formax/config.json` and `.formax/config.json`):
+```json
+{
+  "llm": {
+    "provider": "anthropic",
+    "baseUrl": "https://api.anthropic.com",
+    "model": "claude-sonnet-4-5-20250929",
+    "timeoutMs": 600000,
+    "authRef": "default"  // References auth.json entry
+  },
+  "context": {
+    "effectiveContextWindowPercent": 90,
+    "autoCompactTokenLimitPercent": 95,
+    "baselineTokens": 3000
+  }
+}
+```
+
+**Auth file** (`~/.formax/auth.json`):
+```json
+{
+  "profiles": {
+    "default": {
+      "apiKey": "sk-ant-..."
+    }
+  }
+}
+```
+
+**Environment variables** (override config files):
 - `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`
 - `FORMAX_WEBFETCH_MODEL`, `FORMAX_WEBFETCH_MAX_TOKENS`, `FORMAX_WEBFETCH_MAX_INPUT_CHARS`
 - `FORMAX_PATCH_TASK_TOOL` - Enable Task tool sub-agent patching (default: true)
 - `CONSOLE_LOGGER_PORT`, `ENABLE_CONSOLE_LOGGER` - Debug logging server
+- `FORMAX_FORCE_SETUP` - Force setup wizard to run on startup
 
-Path overrides:
+**Path overrides**:
+- `FORMAX_CONFIG_DIR` - Global config directory (default: `~/.formax/`)
 - `FORMAX_TOOLS_JSON_PATH` - Tool spec JSON (default: `proxy/tools.json`)
 - `FORMAX_LOGS_DIR` - Traffic logs directory (default: `proxy/logs`)
 - `FORMAX_SUBAGENTS_DIR` - Project sub-agent definitions directory (default: `.formax/agents`)
+- `FORMAX_PLAN_DIR` - Plan mode directory (default: `.formax/plans/`)
 
 ### Testing
 
@@ -110,6 +193,31 @@ Path overrides:
 - Ink UI tests use `ink-testing-library`
 - Property-based tests use `fast-check` where applicable
 - Tool handlers tested with mocked dependencies and context fixtures
+
+### Refactor Guardrails (Important)
+
+When refactoring code:
+- **Refactor ≠ rewrite**: Refactors must preserve existing functionality and user-visible behavior. Do not add/remove features as a side-effect.
+- **Tests are not the spec**: Before refactoring, first check whether missing/weak tests can be added to lock current behavior; use those tests to validate the refactor.
+- **UI parity**: UI refactors must keep layout/spacing/keys/interaction the same unless the user explicitly requests a UI change. Do not "improve" UI by default.
+- **When uncertain**: If behavior/UI expectations are unclear, ask the user before changing it.
+
+**UI refactor workflow (mandatory)**:
+1. Before refactor: Write/extend `ink-testing-library` tests that lock the current UI text + key paths (Enter/Esc/Tab/↑↓/←→/Backspace)
+2. During refactor: Do not change copy/spacing/colors unless explicitly requested; treat "simplifying UI" as a behavior change
+3. After refactor: Run the targeted UI test file(s) + do a quick manual spot-check in `bun run dev` for the overlay(s) you touched
+4. **No "test-only" refactors**: A passing test suite is not sufficient if manual UI behavior regresses
+
+### Commit Guidelines
+
+When the user asks you to create a commit:
+- Assume the user already ran `git add`
+- Run `git status --short` and `git diff --cached` (or `git diff --cached --stat`) to understand changes
+- Generate a Conventional Commit message: `type(scope): summary` (≤72 chars, imperative mood)
+- Run `git commit -m "<message>"`
+
+Common types: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
+Example: `refactor(tools): extract handler execution into separate module`
 
 ### Coding Style
 
@@ -122,8 +230,31 @@ Path overrides:
 ## Pitfalls & Gotchas (Keep Updated)
 When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `AGENTS.md` so future agents can avoid re-discovering it.
 
+- **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This is enforced by `npm run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
+
+## Module Documentation
+
+Many modules have detailed README files with architecture documentation:
+- `src/core/README.md` - Config, auth, setup, diagnostics, policy architecture
+- `src/tools/README.md` - Tool system architecture and patterns
+- `src/subagents/README.md` - Sub-agent system architecture
+- `src/streaming/README.md` - Streaming client architecture
+
+When working in these modules, read their READMEs first to understand patterns and invariants.
+
+## Documentation Hygiene
+
+- Keep module READMEs in sync when changing boundaries, control-flow, invariants, or extension points
+- Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn
+- `CODEMAP.md` is the "where to change what" index; update it when key entrypoints or ownership move
+
+## Security Tips
+
+- Do not commit secrets. Local config uses `.env` (e.g., `ANTHROPIC_API_KEY2`); keep `.env` and traffic logs out of git
+- When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting
+- Auth files (`~/.formax/auth.json`) should have mode 0o600 (enforced by the codebase)
 
 ## Codex local project path
 - /Users/david/Documents/github/codex
