@@ -18,30 +18,31 @@ export function decideToolPermission(args: {
   const toolName = String(args.toolName || '').trim()
   const toolSpec = String(args.toolSpec || '').trim()
 
-  const deny = findMatch({ list: args.permissions.deny, toolName, toolSpec })
+  const deny = findMatch({ kind: 'deny', list: args.permissions.deny, toolName, toolSpec })
   if (deny) return { decision: 'deny', match: { kind: 'deny', entry: deny } }
 
-  const ask = findMatch({ list: args.permissions.ask, toolName, toolSpec })
+  const ask = findMatch({ kind: 'ask', list: args.permissions.ask, toolName, toolSpec })
   if (ask) return { decision: 'ask', match: { kind: 'ask', entry: ask } }
 
-  const allow = findMatch({ list: args.permissions.allow, toolName, toolSpec })
+  const allow = findMatch({ kind: 'allow', list: args.permissions.allow, toolName, toolSpec })
   if (allow) return { decision: 'allow', match: { kind: 'allow', entry: allow } }
 
   return { decision: 'none', match: null }
 }
 
 function findMatch(args: {
+  kind: PermissionListKind
   list: PermissionRuleEntry[]
   toolName: string
   toolSpec: string
 }): PermissionRuleEntry | null {
   for (const entry of args.list) {
-    if (matchesRule({ rule: entry.rule, toolName: args.toolName, toolSpec: args.toolSpec })) return entry
+    if (matchesRule({ kind: args.kind, rule: entry.rule, toolName: args.toolName, toolSpec: args.toolSpec })) return entry
   }
   return null
 }
 
-function matchesRule(args: { rule: string; toolName: string; toolSpec: string }): boolean {
+function matchesRule(args: { kind: PermissionListKind; rule: string; toolName: string; toolSpec: string }): boolean {
   const rule = String(args.rule || '').trim()
   if (!rule) return false
 
@@ -59,14 +60,14 @@ function matchesRule(args: { rule: string; toolName: string; toolSpec: string })
   if (ruleTool !== toolName) return false
 
   if (toolName === 'Bash') {
-    return matchesBashRule({ ruleSpec, command: args.toolSpec })
+    return matchesBashRule({ kind: args.kind, ruleSpec, command: args.toolSpec })
   }
 
   if (!ruleSpec) return true
   return ruleSpec === args.toolSpec
 }
 
-function matchesBashRule(args: { ruleSpec: string; command: string }): boolean {
+function matchesBashRule(args: { kind: PermissionListKind; ruleSpec: string; command: string }): boolean {
   const command = String(args.command || '').trim()
   if (!command) return false
 
@@ -74,7 +75,17 @@ function matchesBashRule(args: { ruleSpec: string; command: string }): boolean {
   if (!spec) return true
 
   if (!spec.endsWith(':*')) {
-    return spec === command
+    if (!spec.includes('*')) return spec === command
+
+    // Claude Code docs distinguish between:
+    // - `Bash` (tool-only) to match all commands, and
+    // - `Bash(<pattern>)` for fine-grained rules.
+    // They explicitly warn that `Bash(*)` is not "match all", so we keep this as a
+    // non-matching pattern rather than treating it as a catch-all wildcard.
+    if (spec === '*') return false
+
+    const re = globToRegExp(spec)
+    return re.test(command)
   }
 
   const prefix = spec.slice(0, -2).trim()
@@ -85,3 +96,12 @@ function matchesBashRule(args: { ruleSpec: string; command: string }): boolean {
   return !next || /\s/.test(next)
 }
 
+function globToRegExp(pattern: string): RegExp {
+  const raw = String(pattern || '')
+  const parts = raw.split('*').map(escapeRegExp)
+  return new RegExp(`^${parts.join('.*')}$`)
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}

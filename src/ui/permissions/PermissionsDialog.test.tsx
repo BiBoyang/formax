@@ -37,7 +37,8 @@ async function waitForNoText(
     if (!frame.includes(text)) return
     await tick()
   }
-  throw new Error(`Timed out waiting for UI to NOT contain: ${text}`)
+  const finalFrame = lastFrame() || ''
+  throw new Error(`Timed out waiting for UI to NOT contain: ${text}\n\nLast frame:\n${finalFrame}`)
 }
 
 async function waitForJsonContains(
@@ -92,7 +93,7 @@ describe('PermissionsDialog', () => {
     try {
       const onExit = vi.fn()
       const { lastFrame, stdin } = render(
-        <InputScopeProvider initialScope="overlay:permissions">
+        <InputScopeProvider>
           <PermissionsDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -168,11 +169,11 @@ describe('PermissionsDialog', () => {
 
     try {
       const onExit = vi.fn()
-      const { lastFrame, stdin } = render(
-        <InputScopeProvider initialScope="overlay:permissions">
-          <PermissionsDialog onExit={onExit} />
-        </InputScopeProvider>,
-      )
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <PermissionsDialog onExit={onExit} />
+      </InputScopeProvider>,
+    )
 
       await waitForText(lastFrame, 'Add a new rule')
 
@@ -245,7 +246,7 @@ describe('PermissionsDialog', () => {
     try {
       const onExit = vi.fn()
       const { lastFrame, stdin } = render(
-        <InputScopeProvider initialScope="overlay:permissions">
+        <InputScopeProvider>
           <PermissionsDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -273,6 +274,19 @@ describe('PermissionsDialog', () => {
       // Submit (handled by dialog, not TextInput)
       stdin.write('\r')
       await waitForNoText(lastFrame, 'Enter permission rule')
+
+      // Allow now also asks where to save.
+      await waitForText(lastFrame, 'Where should this rule be saved?')
+      // Sanity: arrow navigation works on this view.
+      stdin.write('\u001B[B')
+      await tick()
+      await waitForText(lastFrame, '❯ 2.')
+      // Move back to the default option (project local) before confirming.
+      stdin.write('\u001B[A')
+      await tick()
+      await waitForText(lastFrame, '❯ 1.')
+      stdin.write('\r') // accept default (project local)
+      await waitForNoText(lastFrame, 'Where should this rule be saved?')
 
       await waitForJsonContains(settingsPath, (parsed) => Array.isArray(parsed?.permissions?.allow) && parsed.permissions.allow.length > 0)
 
@@ -325,7 +339,7 @@ describe('PermissionsDialog', () => {
       await mkdir(expectedDir, { recursive: true })
       const onExit = vi.fn()
       const { lastFrame, stdin } = render(
-        <InputScopeProvider initialScope="overlay:permissions">
+        <InputScopeProvider>
           <PermissionsDialog onExit={onExit} />
         </InputScopeProvider>,
       )

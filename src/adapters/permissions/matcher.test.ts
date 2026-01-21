@@ -53,5 +53,18 @@ describe('decideToolPermission', () => {
     expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'ls -la' }).decision).toBe('allow')
     expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'ls' }).decision).toBe('none')
   })
-})
 
+  it('matches bash glob rules', () => {
+    const p = permissions({ allow: ['Bash(ls*)'] })
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'ls -la' }).decision).toBe('allow')
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'lsof -i' }).decision).toBe('allow')
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'lsfoo' }).decision).toBe('allow')
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'cat a.txt' }).decision).toBe('none')
+  })
+
+  it('does not treat Bash(*) as match-all', () => {
+    const p = permissions({ allow: ['Bash(*)'] })
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'ls -la' }).decision).toBe('none')
+    expect(decideToolPermission({ permissions: p, toolName: 'Bash', toolSpec: 'cat a.txt' }).decision).toBe('none')
+  })
+})

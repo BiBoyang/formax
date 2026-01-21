@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useApp } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { normalizePathForCompare } from '../../utils/paths.js'
@@ -24,7 +24,6 @@ type Tab = 'Allow' | 'Ask' | 'Deny' | 'Workspace'
 const TABS: Tab[] = ['Allow', 'Ask', 'Deny', 'Workspace']
 
 const fileStore = createNodeFileStore()
-const PERMISSIONS_TEXT_INPUT_SCOPE = 'prompt:permissions-input' as const
 
 // Components
 
@@ -120,9 +119,19 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
   const [scrollTop, setScrollTop] = useState(0);
   const VISIBLE_ROWS = 10;
   const [view, setView] = useState<ViewState>('MAIN');
+  const viewRef = useRef<ViewState>('MAIN')
   const [inputText, setInputText] = useState('');
   const [isSearching, setIsSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    viewRef.current = view
+  }, [view])
+
+  const setViewSafe = (next: ViewState): void => {
+    viewRef.current = next
+    setView(next)
+  }
 
 	  const [deleteChoice, setDeleteChoice] = useState<0 | 1>(0);
 	  const [saveLocationIndex, setSaveLocationIndex] = useState(0);
@@ -130,9 +139,6 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	  const [directorySelectIndex, setDirectorySelectIndex] = useState(0);
 	  const [directorySelectScrollTop, setDirectorySelectScrollTop] = useState(0);
 	  const [directoryToDelete, setDirectoryToDelete] = useState<string | null>(null);
-
-  const isTextInputView = view === 'ADD_RULE' || view === 'ADD_DIRECTORY'
-  useScopeActivation(PERMISSIONS_TEXT_INPUT_SCOPE, isTextInputView)
 
   // Constants
   const SAVE_OPTIONS = [
@@ -267,8 +273,8 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
     const cleanInput = rawValue.trim()
     setInputText(cleanInput)
 
-    if (activeTab === 'Ask' || activeTab === 'Deny') {
-      setView('SAVE_RULE_LOCATION')
+    if (activeTab === 'Allow' || activeTab === 'Ask' || activeTab === 'Deny') {
+      setViewSafe('SAVE_RULE_LOCATION')
       setSaveLocationIndex(0)
       return
     }
@@ -284,7 +290,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         env: process.env,
       }).then(refreshPermissions)
     }
-    setView('MAIN')
+    setViewSafe('MAIN')
   }
 
   const submitAddDirectory = (rawValue: string): void => {
@@ -308,28 +314,64 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
         .then(refreshPermissions)
         .then(() => {
           setDirectoryError(null)
-          setView('MAIN')
+          setViewSafe('MAIN')
         })
     })
   }
 
   useScopedInput(
-    PERMISSIONS_TEXT_INPUT_SCOPE,
-    (_input, key) => {
-      if (!key.escape) return
-      setView('MAIN')
-    },
-    { enabled: isTextInputView },
-  )
+	    'overlay:permissions',
+	    (input, key) => {
+	      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+	      const isReturn =
+	        key.return || (key as any)?.enter || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+	      const currentView = viewRef.current
 
-  useScopedInput('overlay:permissions', (input, key) => {
-    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const isReturn = key.return || input === '\r' || input === '\n' || seq === '\r' || seq === '\n'
+	      if (currentView === 'SAVE_RULE_LOCATION') {
+	        const isUp = key.upArrow || seq === '\u001B[A' || input === '\u001B[A'
+	        const isDown = key.downArrow || seq === '\u001B[B' || input === '\u001B[B'
 
-    if (view === 'MAIN') {
 	        if (key.escape) {
-	            // Dismiss
-	            // In a real app this would clear screen or exit
+	          setViewSafe('ADD_RULE')
+	          return
+	        }
+
+        if (isUp) {
+          setSaveLocationIndex((prev) => Math.max(0, prev - 1))
+          return
+        }
+
+        if (isDown) {
+          setSaveLocationIndex((prev) => Math.min(SAVE_OPTIONS.length - 1, prev + 1))
+          return
+        }
+
+        if (!isReturn) return
+
+        const kind = getListKindForTab(activeTab)
+        const scope = (saveLocationIndex === 2
+          ? 'user'
+          : saveLocationIndex === 1
+            ? 'project'
+            : 'projectLocal') as PermissionScope
+        if (kind && inputText.trim()) {
+          void persistPermissionRule({
+            fileStore,
+            cwd,
+            scope,
+            kind,
+            rule: inputText.trim(),
+            env: process.env,
+	          }).then(refreshPermissions)
+	        }
+	        setViewSafe('MAIN')
+	        return
+	      }
+
+	    if (currentView === 'MAIN') {
+		        if (key.escape) {
+		            // Dismiss
+		            // In a real app this would clear screen or exit
 	             exit();
 	             return;
 	        }
@@ -369,63 +411,38 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                  setScrollTop(newIndex - VISIBLE_ROWS + 1);
 	            }
 	        }
-		        if (isReturn) {
-		            const selectedItem = filteredInteractiveItems[selectedIndex];
-		            if (selectedItem.startsWith('Add ')) {
-		                if (activeTab === 'Workspace') {
-		                     setView('ADD_DIRECTORY');
-		                     setDirectoryError(null);
-	                }
-	                else setView('ADD_RULE');
-	                setInputText('');
-	            } else if (selectedItem === 'Delete directory…') {
-	                 setDirectorySelectIndex(0);
-	                 setDirectorySelectScrollTop(0);
-	                 setDirectoryToDelete(null);
-	                 setView('DELETE_DIRECTORY_SELECT');
-	            } else {
-	                // Clicking an existing item -> Delete confirmation?
-		                 setView('DELETE_CONFIRM');
-		                 setDeleteChoice(0);
-		            }
+			        if (isReturn) {
+			            const selectedItem = filteredInteractiveItems[selectedIndex];
+			            if (selectedItem.startsWith('Add ')) {
+			                if (activeTab === 'Workspace') {
+			                     setViewSafe('ADD_DIRECTORY');
+			                     setDirectoryError(null);
+		                }
+		                else setViewSafe('ADD_RULE');
+		                setInputText('');
+		            } else if (selectedItem === 'Delete directory…') {
+		                 setDirectorySelectIndex(0);
+		                 setDirectorySelectScrollTop(0);
+		                 setDirectoryToDelete(null);
+		                 setViewSafe('DELETE_DIRECTORY_SELECT');
+		            } else {
+		                // Clicking an existing item -> Delete confirmation?
+			                 setViewSafe('DELETE_CONFIRM');
+			                 setDeleteChoice(0);
+			            }
+			        }
+		    } else if (currentView === 'ADD_RULE' || currentView === 'ADD_DIRECTORY') {
+		        if (key.escape) {
+		            setViewSafe('MAIN');
+		            return
 		        }
-	    } else if (view === 'ADD_RULE' || view === 'ADD_DIRECTORY') {
-	        if (key.escape) {
-	            setView('MAIN');
-	            return
-	        }
-	        // `TextInput` handles Enter/Return submission for these views.
-	    } else if (view === 'SAVE_RULE_LOCATION') {
-	        if (key.escape) setView('ADD_RULE'); // Go back to editing rule
-        
-        if (key.upArrow) {
-            setSaveLocationIndex(Math.max(0, saveLocationIndex - 1));
-        }
-	        if (key.downArrow) {
-	            setSaveLocationIndex(Math.min(SAVE_OPTIONS.length - 1, saveLocationIndex + 1));
-	        }
-	        if (isReturn) {
-	            const kind = getListKindForTab(activeTab)
-	            const option = SAVE_OPTIONS[saveLocationIndex]
-	            const scope = (saveLocationIndex === 2 ? 'user' : saveLocationIndex === 1 ? 'project' : 'projectLocal') as PermissionScope
-	            if (kind && inputText.trim()) {
-              void persistPermissionRule({
-                fileStore,
-                cwd,
-                scope,
-                kind,
-                rule: inputText.trim(),
-                env: process.env,
-              }).then(refreshPermissions)
-            }
-            setView('MAIN')
-        }
-	    } else if (view === 'DELETE_CONFIRM') {
-	         if (key.escape) setView('MAIN');
-	         
-		         if (key.upArrow || key.downArrow) {
-		             setDeleteChoice(prev => prev === 0 ? 1 : 0);
-		         }
+		        // `TextInput` handles Enter/Return submission for these views.
+			    } else if (currentView === 'DELETE_CONFIRM') {
+		         if (key.escape) setViewSafe('MAIN');
+		         
+			         if (key.upArrow || key.downArrow) {
+			             setDeleteChoice(prev => prev === 0 ? 1 : 0);
+			         }
 
 		         if (isReturn) {
 		             if (deleteChoice === 0) {
@@ -440,24 +457,24 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	                     kind,
 	                     rule: entry.rule,
 	                     env: process.env,
-	                   }).then(refreshPermissions)
-	                 }
-	             }
-	             setView('MAIN');
-	         }
-	    } else if (view === 'DELETE_DIRECTORY_SELECT') {
-	        if (key.escape) {
-	            setView('MAIN');
-	            return;
-	        }
+		                   }).then(refreshPermissions)
+		                 }
+		             }
+		             setViewSafe('MAIN');
+		         }
+		    } else if (currentView === 'DELETE_DIRECTORY_SELECT') {
+		        if (key.escape) {
+		            setViewSafe('MAIN');
+		            return;
+		        }
 
 	        const dirs = permissions?.workspace?.additionalDirectories?.map((e) => e.dir) ?? []
 	        const visible = 8
-	        const count = dirs.length
-	        if (count <= 0) {
-	            setView('MAIN');
-	            return;
-	        }
+		        const count = dirs.length
+		        if (count <= 0) {
+		            setViewSafe('MAIN');
+		            return;
+		        }
 
 	        if (key.upArrow) {
 	            const next = Math.max(0, directorySelectIndex - 1);
@@ -473,17 +490,17 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 		                setDirectorySelectScrollTop(next - visible + 1);
 		            }
 		        }
-		        if (isReturn) {
-		            const dir = dirs[directorySelectIndex]
-		            setDirectoryToDelete(dir ?? null)
-		            setDeleteChoice(0)
-		            setView('DELETE_DIRECTORY_CONFIRM')
-	        }
-	    } else if (view === 'DELETE_DIRECTORY_CONFIRM') {
-	        if (key.escape) {
-	            setView('DELETE_DIRECTORY_SELECT')
-	            return
-	        }
+			        if (isReturn) {
+			            const dir = dirs[directorySelectIndex]
+			            setDirectoryToDelete(dir ?? null)
+			            setDeleteChoice(0)
+			            setViewSafe('DELETE_DIRECTORY_CONFIRM')
+		        }
+		    } else if (currentView === 'DELETE_DIRECTORY_CONFIRM') {
+		        if (key.escape) {
+		            setViewSafe('DELETE_DIRECTORY_SELECT')
+		            return
+		        }
 
 		        if (key.upArrow || key.downArrow) {
 		            setDeleteChoice(prev => prev === 0 ? 1 : 0);
@@ -499,13 +516,14 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
 	                        scope: entry.scope,
 	                        dir: entry.dir,
 	                        env: process.env,
-	                    }).then(refreshPermissions)
-	                }
-	            }
-	            setView('MAIN')
-	        }
-	    }
-	  });
+		                    }).then(refreshPermissions)
+		                }
+		            }
+		            setViewSafe('MAIN')
+		        }
+			    }
+			  },
+  )
 
   const renderMain = () => (
     <Box flexDirection="column">
@@ -598,7 +616,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                    onSubmit={submitAddRule}
                    placeholder="Enter permission rule…"
                    focus
-                   scope={PERMISSIONS_TEXT_INPUT_SCOPE}
+                   scope="overlay:permissions"
                  />
             </Box>
              <Text> </Text>
@@ -664,7 +682,7 @@ export const PermissionsDialog = ({ onExit }: { onExit?: () => void }) => {
                    onSubmit={submitAddDirectory}
                    placeholder="Directory path…"
                    focus
-                   scope={PERMISSIONS_TEXT_INPUT_SCOPE}
+                   scope="overlay:permissions"
                  />
             </Box>
              <Text> </Text>
