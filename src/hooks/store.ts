@@ -15,13 +15,6 @@ function tryParseJsonRecord(raw: string): Record<string, unknown> | null {
   }
 }
 
-function parseHookEventName(raw: unknown): HookEventName | null {
-  if (raw === 'PreToolUse') return 'PreToolUse'
-  if (raw === 'PermissionRequest') return 'PermissionRequest'
-  if (raw === 'PostToolUse') return 'PostToolUse'
-  return null
-}
-
 function toTimeoutMs(h: any): number | null {
   const ms = typeof h?.timeoutMs === 'number' ? h.timeoutMs : null
   if (ms !== null && Number.isFinite(ms) && ms > 0) return Math.floor(ms)
