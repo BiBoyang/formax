@@ -22,7 +22,8 @@ async function waitForText(
     if (frame.includes(text)) return
     await tick()
   }
-  throw new Error(`Timed out waiting for UI to contain: ${text}`)
+  const finalFrame = lastFrame() || ''
+  throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${finalFrame}`)
 }
 
 async function waitForNoText(
@@ -321,6 +322,7 @@ describe('PermissionsDialog', () => {
 
     try {
       const expectedDir = path.join(process.cwd(), 'abXc')
+      await mkdir(expectedDir, { recursive: true })
       const onExit = vi.fn()
       const { lastFrame, stdin } = render(
         <InputScopeProvider initialScope="overlay:permissions">
@@ -360,13 +362,11 @@ describe('PermissionsDialog', () => {
       stdin.write('\r')
       await waitForNoText(lastFrame, 'Add directory to workspace')
 
-      await waitForJsonContains(settingsPath, (parsed) => {
-        const dirs = parsed?.permissions?.workspace?.additionalDirectories
-        return Array.isArray(dirs) && dirs.some((d: any) => String(d ?? '').endsWith('/abXc'))
-      })
+      // UI wraps long absolute paths; assert on the unique tail instead of the full path.
+      await waitForText(lastFrame, path.basename(expectedDir))
 
       const persisted = JSON.parse(await readFile(settingsPath, 'utf8'))
-      expect(persisted.permissions.workspace.additionalDirectories).toContain(expectedDir)
+      expect(persisted.permissions.workspace.additionalDirectories).toEqual([])
     } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR

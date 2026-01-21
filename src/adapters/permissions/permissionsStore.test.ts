@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../fs/nodeFileStore.js'
+import { resetWorkspaceSessionForTests } from './workspaceSession.js'
 import {
   deletePermissionRule,
   deleteWorkspaceDirectory,
@@ -171,7 +172,7 @@ describe('permissions store (merged user/project settings)', () => {
       expect(merged.ask.map((e) => e.rule)).toEqual(['Skill(frontend-design)'])
       expect(merged.deny.map((e) => e.rule)).toEqual(['WebFetch'])
 
-      expect(merged.workspace.additionalDirectories.map((e) => e.dir)).toEqual(['/tmp/project', '/tmp/user'])
+      expect(merged.workspace.additionalDirectories.map((e) => e.dir)).toEqual([])
       expect(merged.warnings).toEqual([])
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
@@ -226,12 +227,14 @@ describe('permissions store (merged user/project settings)', () => {
     }
   })
 
-  it('persists and deletes workspace additional directories at projectLocal scope', async () => {
+  it('adds and deletes workspace directories in-session (not persisted)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-permissions-workspace-'))
     try {
       const store = createNodeFileStore()
       const projectRoot = path.join(dir, 'repo')
       await fs.mkdir(path.join(projectRoot, '.formax'), { recursive: true })
+
+      resetWorkspaceSessionForTests()
 
       await persistWorkspaceDirectory({
         fileStore: store,
@@ -247,8 +250,7 @@ describe('permissions store (merged user/project settings)', () => {
       })
 
       const filePath = getProjectSettingsLocalPath(projectRoot)
-      const parsed = JSON.parse(await store.readText(filePath))
-      expect(parsed.permissions.workspace.additionalDirectories).toEqual(['/tmp/a', '/tmp/b'])
+      expect(await store.exists(filePath)).toBe(false)
 
       await deleteWorkspaceDirectory({
         fileStore: store,
@@ -257,9 +259,10 @@ describe('permissions store (merged user/project settings)', () => {
         dir: '/tmp/a',
       })
 
-      const parsedAfterDelete = JSON.parse(await store.readText(filePath))
-      expect(parsedAfterDelete.permissions.workspace.additionalDirectories).toEqual(['/tmp/b'])
+      const merged = await loadMergedPermissions({ fileStore: store, cwd: projectRoot, env: {}, homedir: dir })
+      expect(merged.workspace.additionalDirectories.map((e) => e.dir).sort()).toEqual(['/tmp/b'])
     } finally {
+      resetWorkspaceSessionForTests()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })

@@ -2,6 +2,7 @@ import path from 'node:path'
 import type { FileStore } from '../fs/fileStore.js'
 import { getConfigPaths, type Platform } from '../fs/configPaths.js'
 import { resolveFormaxProjectRoot } from '../fs/projectRoot.js'
+import { addWorkspaceSessionDirectory, deleteWorkspaceSessionDirectory, listWorkspaceSessionDirectories } from './workspaceSession.js'
 
 export type PermissionsAllowList = {
   version: 1
@@ -173,6 +174,7 @@ export async function loadMergedPermissions(args: {
   homedir?: string
 }): Promise<LoadedPermissions> {
   const cwd = args.cwd || process.cwd()
+  const projectRoot = resolveFormaxProjectRoot(cwd)
   const filePaths = {
     projectLocal: getProjectSettingsLocalPath(cwd),
     project: getProjectSettingsPath(cwd),
@@ -218,7 +220,25 @@ export async function loadMergedPermissions(args: {
     (e) => e.dir,
   )
 
-  return { allow, ask, deny, workspace: { additionalDirectories: workspaceAdditionalDirectories }, warnings }
+  // Workspace directories are session-only (not persisted). Claude Code appears to
+  // treat workspace additions as ephemeral to the current session by default.
+  //
+  // We still parse the on-disk `permissions.workspace.additionalDirectories` field,
+  // but do not include it in the effective workspace roots. This keeps the
+  // permissions schema forward-compatible while aligning runtime behavior.
+  //
+  // NOTE: If we later add an explicit "persist workspace" choice, we can re-enable
+  // `workspaceAdditionalDirectories` here behind that option.
+  void workspaceAdditionalDirectories
+
+  const sessionDirs = listWorkspaceSessionDirectories(projectRoot)
+  const sessionEntries: WorkspaceDirectoryEntry[] = sessionDirs.map((e) => ({
+    dir: e.dir,
+    scope: 'projectLocal',
+    filePath: '(session)',
+  }))
+
+  return { allow, ask, deny, workspace: { additionalDirectories: sessionEntries }, warnings }
 }
 
 async function loadSettingsRecord(args: { fileStore: FileStore; filePath: string }): Promise<Record<string, unknown> | null> {
@@ -334,21 +354,10 @@ export async function persistWorkspaceDirectory(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const cwd = args.cwd || process.cwd()
-  const filePath = getSettingsPathForScope({ scope: args.scope, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
   const dir = String(args.dir || '').trim()
   if (!dir) return
-
-  const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
-  const permissions = getOrInitPermissions(existingSettings)
-
-  const existingDirs = readWorkspaceDirsFromPermissions(permissions)
-  if (existingDirs.includes(dir)) return
-  const nextDirs = [...existingDirs, dir]
-  permissions.workspace = { additionalDirectories: nextDirs }
-
-  const out = writePermissionsSettings({ existingSettings, permissions })
-  await args.fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
+  const projectRoot = resolveFormaxProjectRoot(args.cwd || process.cwd())
+  addWorkspaceSessionDirectory(projectRoot, dir)
 }
 
 export async function deleteWorkspaceDirectory(args: {
@@ -360,20 +369,10 @@ export async function deleteWorkspaceDirectory(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const cwd = args.cwd || process.cwd()
-  const filePath = getSettingsPathForScope({ scope: args.scope, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
   const dir = String(args.dir || '').trim()
   if (!dir) return
-
-  const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
-  if (!existingSettings) return
-  const permissions = getOrInitPermissions(existingSettings)
-  const existingDirs = readWorkspaceDirsFromPermissions(permissions)
-  const nextDirs = existingDirs.filter((d) => d !== dir)
-  if (nextDirs.length === existingDirs.length) return
-  permissions.workspace = { additionalDirectories: nextDirs }
-  const out = writePermissionsSettings({ existingSettings, permissions })
-  await args.fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
+  const projectRoot = resolveFormaxProjectRoot(args.cwd || process.cwd())
+  deleteWorkspaceSessionDirectory(projectRoot, dir)
 }
 
 export async function loadProjectPermissionsAllowList(args: {

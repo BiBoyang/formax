@@ -6,6 +6,7 @@ import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { createApprovalService, type ApprovalService } from './approvalService.js'
 import { createPolicyPreflight } from './policyPreflight.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
+import { addWorkspaceSessionDirectory, resetWorkspaceSessionForTests } from '../../adapters/permissions/workspaceSession.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -225,18 +226,11 @@ describe('createPolicyPreflight', () => {
       const projectDir = path.join(dir, 'repo')
       const outsideDir = path.join(dir, 'outside')
       await fs.mkdir(globalConfigDir, { recursive: true })
-      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
       await fs.mkdir(outsideDir, { recursive: true })
 
-      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
-        version: 1,
-        permissions: {
-          allow: [],
-          ask: [],
-          deny: [],
-          workspace: { additionalDirectories: [outsideDir] },
-        },
-      })
+      resetWorkspaceSessionForTests()
+      addWorkspaceSessionDirectory(projectDir, outsideDir)
 
       const preflight = createPolicyPreflight({
         fileStore: store,
@@ -256,6 +250,7 @@ describe('createPolicyPreflight', () => {
 
       expect(res).toBeNull()
     } finally {
+      resetWorkspaceSessionForTests()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
