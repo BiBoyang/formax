@@ -7,6 +7,7 @@ import { createApprovalService, type ApprovalService } from './approvalService.j
 import { createPolicyPreflight } from './policyPreflight.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
 import { addWorkspaceSessionDirectory, resetWorkspaceSessionForTests } from '../../adapters/permissions/workspaceSession.js'
+import type { HooksRuntime } from '../../hooks/runtime.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -468,6 +469,69 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 0 },
       )
       expect(allowed).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks a prompt via PermissionRequest hooks before showing approval UI', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-permission-hook-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      let approvals = 0
+      const approval: ApprovalService = {
+        getSessionRules: () => [],
+        ensureApproved: async () => {
+          approvals++
+          return { ok: true }
+        },
+      }
+
+      const hooks: HooksRuntime = {
+        runPreToolUse: async () => ({ runs: [], blocked: false }),
+        runPermissionRequest: async () => ({
+          runs: [],
+          blocked: true,
+          blockedBy: {
+            command: 'echo deny',
+            exitCode: 2,
+            signal: null,
+            stdout: '',
+            stderr: 'blocked by hook',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: null,
+          },
+        }),
+        runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+      }
+
+      const withApproval = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await withApproval(
+        {
+          id: 't1',
+          name: 'Write',
+          input: { file_path: path.join(projectDir, 'a.txt'), content: 'hi' },
+        },
+        { cwd: projectDir, agentDepth: 0, hooks },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Permission denied Write')
+      expect(res?.content).toContain('blocked by hook')
+      expect(approvals).toBe(0)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createToolExecutor, type ToolHandler } from './index'
 import type { ToolCall, ToolResult } from '../types'
+import type { HooksRuntime } from '../../hooks/runtime.js'
 
 describe('createToolExecutor', () => {
   it('runs preflight and short-circuits when it returns a result', async () => {
@@ -42,5 +43,44 @@ describe('createToolExecutor', () => {
     expect(res.content).toBe('handler')
     expect(res.is_error).toBeUndefined()
   })
-})
 
+  it('runs PreToolUse hooks before preflight', async () => {
+    let preflightCalls = 0
+    let handlerCalls = 0
+
+    const handler: ToolHandler = {
+      canHandle: (name) => name === 'Any',
+      execute: async (): Promise<ToolResult> => {
+        handlerCalls++
+        return { tool_use_id: 't3', content: 'handler' }
+      },
+    }
+
+    const preflight = async (): Promise<ToolResult | null> => {
+      preflightCalls++
+      return null
+    }
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({
+        runs: [],
+        blocked: true,
+        blockedBy: { command: 'echo nope', exitCode: 2, signal: null, stdout: '', stderr: 'blocked', durationMs: 1, timedOut: false, parsedJson: null },
+      }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const exec = createToolExecutor([handler], { preflight })
+    const res = await exec(
+      { id: 't3', name: 'Any', input: {} } as ToolCall,
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(String(res.content)).toContain('Error: Tool blocked by PreToolUse hook')
+    expect(String(res.content)).toContain('blocked')
+    expect(res.is_error).toBe(true)
+    expect(preflightCalls).toBe(0)
+    expect(handlerCalls).toBe(0)
+  })
+})

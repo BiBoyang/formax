@@ -7,6 +7,7 @@ import type { PromptMessage } from '../prompts'
 import type { ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamEvent, StreamTurnResult } from '../streaming/types'
 import { resolveTodosPath } from '../tools/runtime/todosFile'
+import type { HooksRuntime } from '../hooks/runtime'
 
 describe('ChatEngine', () => {
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
@@ -203,5 +204,165 @@ describe('ChatEngine', () => {
       else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
       await fsp.rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it('injects PostToolUse.additionalContext as a text block after tool_result (and does not persist it)', async () => {
+    let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runPostToolUse: async () => ({
+        runs: [],
+        additionalContext: ['CTX_FROM_HOOK'],
+        blockingErrors: [],
+      }),
+    }
+
+    const executor: ToolExecutor = async (call) => {
+      return { tool_use_id: call.id, content: 'ok' }
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount++
+        if (callCount === 1) {
+          const call = { id: 't1', name: 'Bash', input: { command: 'echo ok' } }
+          const toolResult = await args.executeTool(call as any)
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo ok' } }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+
+        secondCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(callCount).toBe(2)
+    expect(secondCallMessages).not.toBeNull()
+
+    const injectedUserMsg = secondCallMessages!.find(
+      (m) =>
+        m.role === 'user' &&
+        Array.isArray(m.content) &&
+        (m.content as any[]).some((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1'),
+    )
+    expect(injectedUserMsg).toBeTruthy()
+
+    const blocks = (injectedUserMsg as any).content as any[]
+    const idx = blocks.findIndex((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
+    expect(idx).toBeGreaterThanOrEqual(0)
+    expect(blocks[idx + 1]?.type).toBe('text')
+    expect(String(blocks[idx + 1]?.text || '')).toContain('<system-reminder>')
+    expect(String(blocks[idx + 1]?.text || '')).toContain('PostToolUse:Bash hook additional context:')
+    expect(String(blocks[idx + 1]?.text || '')).toContain('CTX_FROM_HOOK')
+
+    const outJson = JSON.stringify(out)
+    expect(outJson).not.toContain('PostToolUse:Bash hook additional context:')
+    expect(outJson).not.toContain('CTX_FROM_HOOK')
+  })
+
+  it('injects PostToolUse blocking errors as a system-reminder text block after tool_result', async () => {
+    let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runPostToolUse: async () => ({
+        runs: [],
+        additionalContext: [],
+        blockingErrors: [
+          {
+            command: 'echo bad',
+            exitCode: 2,
+            signal: null,
+            stdout: '',
+            stderr: 'HOOK_BLOCKED',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: null,
+          },
+        ],
+      }),
+    }
+
+    const executor: ToolExecutor = async (call) => {
+      return { tool_use_id: call.id, content: 'ok' }
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount++
+        if (callCount === 1) {
+          const call = { id: 't1', name: 'Bash', input: { command: 'echo ok' } }
+          const toolResult = await args.executeTool(call as any)
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo ok' } }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+
+        secondCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(callCount).toBe(2)
+    expect(secondCallMessages).not.toBeNull()
+
+    const injectedUserMsg = secondCallMessages!.find(
+      (m) =>
+        m.role === 'user' &&
+        Array.isArray(m.content) &&
+        (m.content as any[]).some((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1'),
+    )
+    expect(injectedUserMsg).toBeTruthy()
+
+    const blocks = (injectedUserMsg as any).content as any[]
+    const idx = blocks.findIndex((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
+    expect(idx).toBeGreaterThanOrEqual(0)
+    expect(blocks[idx + 1]?.type).toBe('text')
+    const injected = String(blocks[idx + 1]?.text || '')
+    expect(injected).toContain('<system-reminder>')
+    expect(injected).toContain('PostToolUse:Bash hook blocking error from command:')
+    expect(injected).toContain('echo bad')
+    expect(injected).toContain('HOOK_BLOCKED')
+
+    const outJson = JSON.stringify(out)
+    expect(outJson).not.toContain('HOOK_BLOCKED')
   })
 })

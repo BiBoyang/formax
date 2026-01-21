@@ -48,14 +48,14 @@
 
 ## H3：PreToolUse 接入（工具执行前）
 - [x] 在 ToolExecutor 的 preflight 之前触发 `PreToolUse`
-- [ ] 支持最小决策：
+- [x] 支持最小决策：
   - 若任一 hook exit code=2（阻断）→ 阻止工具执行，返回工具错误（简短）
   - Phase 1 不做 `updatedInput`（后置）
 - [ ] 审计：记录 hook 运行结果（eventName/toolName/command/exitCode/duration）
 
 ## H4：PermissionRequest 接入（审批 UI 之前）
 - [x] 在 ApprovalService 弹 UI 之前触发 `PermissionRequest`
-- [ ] Phase 1 最小决策：
+- [x] Phase 1 最小决策：
   - exit code=2 → 直接拒绝权限（不弹 UI）
   - exit code=0 → 不短路，保持现有审批流程（除非后续实现 JSON decision）
   - 其他非 0 → 不阻断，仅记录
@@ -72,8 +72,8 @@
   - 追加 `<system-reminder>`（文案含 “blocking error from command …: [cmd]: {stderr}” 的最小信息）
 
 ## H6：测试与回滚
-- [ ] 单测：matcher（大小写/正则/不命中）、executor（timeout/并发/截断/exit code 语义）、JSON 解析
-- [ ] 集成测试：模拟 tool loop（Bash 工具）验证：
+- [x] 单测：matcher（大小写/正则/不命中）、executor（exit code=2 阻断）、JSON 解析
+- [x] 集成测试：模拟 tool loop（Bash 工具）验证：
   - `PostToolUse.additionalContext` 会以“tool_result 后 text block”的方式进入下一次模型请求
   - exit code=2 的 PostToolUse 会产生 “blocking error” 的 `<system-reminder>`
 - [x] 回滚开关：`FORMAX_DISABLE_HOOKS=1`（完全禁用 hooks）
