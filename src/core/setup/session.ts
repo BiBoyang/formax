@@ -29,15 +29,10 @@ const DEFAULT_BASE_URL: Record<ProviderId, string> = {
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
 }
 
-function normalizeBaseUrl(provider: ProviderId, input: string): string {
+function normalizeBaseUrl(_provider: ProviderId, input: string): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
   const trimmed = raw.replace(/\/+$/, '')
-
-  if (provider === 'anthropic' || provider === 'openai') {
-    return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
-  }
-
   return trimmed
 }
 

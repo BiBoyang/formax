@@ -14,6 +14,23 @@ const ok = (models: string[]): ConnectionTestResult => ({ ok: true, models })
 const err = (code: ErrorCodeValue, message: string): ConnectionTestResult => ({ ok: false, code, message })
 
 describe('createSetupSession', () => {
+  it('does not force a /v1 suffix in baseUrl input', async () => {
+    const testConnection = vi.fn(async () => ok(['model-a']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+
+    s.setBaseUrl('https://api.anthropic.com')
+    expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com')
+
+    s.setBaseUrl('https://api.anthropic.com/v1')
+    expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com/v1')
+
+    s.setBaseUrl('https://api.anthropic.com/v1/')
+    expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com/v1')
+  })
+
   it('walks through the happy path', async () => {
     const testConnection = vi.fn(async () => ok(['model-a', 'model-b']))
     const s = createSetupSession({ providers: PROVIDERS, testConnection })
