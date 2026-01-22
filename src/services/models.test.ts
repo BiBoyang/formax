@@ -168,4 +168,59 @@ describe('fetchAnthropicModels', () => {
     expect(models.some((m) => m.model.includes('claude'))).toBe(true)
     expect(anthropicMessagesCreate).toHaveBeenCalledTimes(1)
   })
+
+  it('maps SDK 401/authentication errors to an invalid-key message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network')
+    }) as any
+
+    anthropicMessagesCreate.mockRejectedValueOnce(new Error('401 authentication'))
+
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Invalid API key/i)
+  })
+
+  it('maps SDK 403 errors to a permission message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network')
+    }) as any
+
+    anthropicMessagesCreate.mockRejectedValueOnce(new Error('403'))
+
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/permission/i)
+  })
+
+  it('maps network-like SDK errors to a connection message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network')
+    }) as any
+
+    anthropicMessagesCreate.mockRejectedValueOnce(new Error('fetch failed'))
+
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Unable to connect/i)
+  })
+
+  it('wraps other SDK errors as API error messages', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network')
+    }) as any
+
+    anthropicMessagesCreate.mockRejectedValueOnce(new Error('boom'))
+
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/API error: boom/)
+  })
+
+  it('uses a generic error when the SDK throws a non-Error value', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('network')
+    }) as any
+
+    anthropicMessagesCreate.mockRejectedValueOnce('nope' as any)
+
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Failed to fetch Anthropic models/)
+  })
 })

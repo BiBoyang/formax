@@ -113,7 +113,7 @@
   - [ ] fetch 失败/非 ok：SDK `messages.create` 成功 → 返回 common models（fallback 覆盖；是否锁语义见“需要确认 #2”）
 - Done when：同上（无真实 SDK 请求）
 
-### [ ] W2-07：`services/models.ts` `fetchAnthropicModels` 错误映射（401/403/network/others）
+### [x] W2-07：`services/models.ts` `fetchAnthropicModels` 错误映射（401/403/network/others）
 - Target：`src/services/models.ts`（SDK 错误映射）
 - Tests：扩展 `src/services/models.test.ts`
 - Mock/依赖：fetch 强制 throw；Anthropic mock `messages.create` 分别 reject 不同错误
