@@ -8,6 +8,7 @@ import type { ChatEngine } from '../../chat/engine'
 import type { RuntimeConfig } from '../../env/config'
 import type { ToolDefinition } from '../../tools/types'
 import type { StreamEvent } from '../../streaming/types'
+import type { SlashCommandRegistry } from '../commands/registry'
 
 function tick(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -56,6 +57,7 @@ function Harness(args: {
   engine: ChatEngine
   tools?: ToolDefinition[]
   cfg?: RuntimeConfig
+  commandRegistry?: SlashCommandRegistry
   onController: (c: ReturnType<typeof useReplController>) => void
 }): React.ReactNode {
   const controller = useReplController({
@@ -63,6 +65,7 @@ function Harness(args: {
     tools: args.tools ?? [],
     cfg: args.cfg ?? createCfg(),
     mode: 'normal',
+    commandRegistry: args.commandRegistry,
   })
 
   useEffect(() => {
@@ -351,5 +354,150 @@ describe('useReplController tool lifecycle', () => {
     expect(msg?.toolInfo?.status).toBe('completed')
     expect(msg?.content).toBe('')
     expect(msg?.toolInfo?.result).toContain('summary')
+  })
+})
+
+describe('useReplController abort', () => {
+  it('is safe to call abort() when idle', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, user }) {
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const before = controller.state
+    controller.actions.abort()
+    await tick()
+
+    expect(controller.state.isLoading).toBe(false)
+    expect(controller.state.error).toBeNull()
+    expect(controller.state.messages).toEqual(before.messages)
+  })
+
+  it('marks running tools as error and appends a declined message for AskUserQuestion', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user, signal }) {
+        onEvent({ type: 'tool_start', id: 't-ask', name: 'AskUserQuestion' } as StreamEvent)
+        await new Promise<void>((_resolve, reject) => {
+          if (signal?.aborted) return reject(Object.assign(new Error('AbortError'), { name: 'AbortError' }))
+          signal?.addEventListener(
+            'abort',
+            () => reject(Object.assign(new Error('AbortError'), { name: 'AbortError' })),
+            { once: true },
+          )
+        })
+        return [...history, user]
+      },
+    }
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('hello')
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask'))
+
+    controller.actions.abort()
+    await sendPromise
+    await tick()
+
+    const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
+    expect(toolMsg?.toolInfo?.status).toBe('error')
+    expect(toolMsg?.content).toContain('Request aborted')
+
+    const declined = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content),
+    )
+    expect(declined).toHaveLength(1)
+
+    const assistantErrors = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && /^Error:\s*/.test(m.content),
+    )
+    expect(assistantErrors).toHaveLength(0)
+
+    controller.actions.abort()
+    await tick()
+    const declinedAfterSecondAbort = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content),
+    )
+    expect(declinedAfterSecondAbort).toHaveLength(1)
+  })
+})
+
+describe('useReplController consumed slash commands', () => {
+  it('opens agents/permissions overlays without calling the engine', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/agents') return { kind: 'open_agents_dialog' }
+        if (input === '/permissions') return { kind: 'open_permissions_dialog' }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <Harness
+        engine={engine}
+        onController={(c) => (controller = c)}
+        commandRegistry={commandRegistry}
+      />,
+    )
+
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/agents')
+    await waitFor(() => controller.state.agentsDialogOpen === true)
+    expect(controller.state.permissionsDialogOpen).toBe(false)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+
+    await controller.actions.send('/permissions')
+    await waitFor(() => controller.state.permissionsDialogOpen === true)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
+  it('runs local_async commands and appends stdout without calling the engine', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const run = vi.fn(async () => ({ stdout: 'ok' }))
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/doctor') return { kind: 'local_async', loadingText: 'Diagnosing', run }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('/doctor')
+    await waitFor(() => controller.state.isLoading === true)
+    expect(controller.state.loadingText).toBe('Diagnosing')
+
+    await sendPromise
+    await waitFor(() => controller.state.isLoading === false)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+    expect(run).toHaveBeenCalledTimes(1)
+
+    const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
+    expect(assistantTexts.some((t) => t.includes('Diagnosing'))).toBe(true)
+    expect(assistantTexts.some((t) => t.trim() === 'ok')).toBe(true)
   })
 })

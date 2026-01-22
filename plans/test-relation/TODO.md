@@ -46,7 +46,7 @@
 
 ### [x] W2-02：`useReplController` tool lifecycle（tool_start/input/update/end）+ Task/Skill 特例
 - Target：`src/features/repl/useReplController.ts`（tool 事件分支）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：
   - engine stub 在一次 send 内发：`tool_start → tool_input → tool_update → tool_end`
   - 如 `formatToolResult` 断言太脆：只断言关键字段存在，或 mock `../../utils/toolFormatting.js` 固定输出
@@ -58,9 +58,9 @@
   - [ ] `tool_end` + `toolName==='Skill'` + result JSON 含 summary → toolResultSummary 设置，且“中间输出”被隐藏/压缩
 - Done when：同上（覆盖 generic/Task/Skill 三条路径）
 
-### [ ] W2-03：`useReplController` abort（竞态 + AskUserQuestion 特例）
+### [x] W2-03：`useReplController` abort（竞态 + AskUserQuestion 特例）
 - Target：`src/features/repl/useReplController.ts`（`abort()`）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：
   - `runTurn` 返回“直到 signal abort 才 reject AbortError”的 Promise
   - runTurn 开始先发 `tool_start(AskUserQuestion)` 造出 running tool
@@ -72,9 +72,9 @@
   - [ ] double abort：`abort(); abort()` 不应重复追加 declined（至少不无限增长）
 - Done when：同上（abort 分支覆盖到 AskUserQuestion）
 
-### [ ] W2-04：`useReplController` slash command “consumed” UI effects（overlay/toast/local_async）
+### [x] W2-04：`useReplController` slash command “consumed” UI effects（overlay/toast/local_async）
 - Target：`src/features/repl/useReplController.ts`（`send()` consumed 分支）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：
   - commandRegistry.dispatch mock 返回不同 effect
   - toast mock：`vi.fn()`
@@ -200,7 +200,7 @@
 
 ### [ ] W2-13：`useReplController` `/compact` 命令路径（锁定“压缩历史”契约）
 - Target：`src/features/repl/useReplController.ts`（`/compact` 分支）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Test cases：
   - [ ] `'/compact because …'`：先追加 `Compacting conversation...`；compact runTurn 时 `tools: []`
   - [ ] nextHistory 含 assistant summary：成功消息 + history 收敛（只锁“变短/summary 被采用”）
@@ -210,7 +210,7 @@
 
 ### [ ] W2-14：`useReplController` auto-compact 触发条件 + “只触发一次”保护
 - Target：`src/features/repl/useReplController.ts`（auto-compact 逻辑）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：建议 mock `estimatePromptTokens` 直接返回超阈值，避免构造超长 history
 - Test cases：
   - [ ] enableAutoCompact=true 且估算超阈值 → `engine.runTurn` 调用两次（先 compact 后正常 turn），第二次使用 compact 后 history
@@ -220,7 +220,7 @@
 
 ### [ ] W2-15：`useReplController` slash command `inject_next_turn` 注入 + strip 合约
 - Target：`src/features/repl/useReplController.ts`（pendingInjectedBlocksRef）
-- Tests：扩展 `src/features/repl/useReplController.test.ts`
+- Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Notes：
   - [ ] 建议 `promptProfile='lite'`，减少其它 injected blocks 干扰
 - Test cases：
