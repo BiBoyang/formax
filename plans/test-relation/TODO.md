@@ -151,7 +151,7 @@
   - [ ] 模块级 `loggerInstance` 可能跨用例残留：每个用例后调用 `stopConsoleLogger()` 或 `vi.resetModules()`
 - Done when：`bun run test -- src/utils/consoleLogger.test.ts`
 
-### [ ] W2-10：`exitPlanMode/presenter.tsx` 最少 1 个 Ink 交互测试（数字选择 + Enter + ESC）
+### [x] W2-10：`exitPlanMode/presenter.tsx` 最少 1 个 Ink 交互测试（数字选择 + Enter + ESC）
 - Target：`src/tools/modules/exitPlanMode/presenter.tsx`（`ExitPlanModePrompt` 键盘路径）
 - Tests：新增 `src/tools/modules/exitPlanMode/presenter.test.tsx`
 - Mock/依赖：
