@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { render } from 'ink-testing-library'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useReplController } from './useReplController'
 import { createUserInputManager } from '../../tools/runtime/userInputManager'
 import { UserInputProvider } from '../../tools/runtime/userInputContext'
@@ -80,6 +80,11 @@ function lastAssistantText(controller: ReturnType<typeof useReplController>): st
   }
   return ''
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('useReplController', () => {
   it('buffered mode: merges assistant_delta into a single assistant message on complete', async () => {
@@ -240,5 +245,111 @@ describe('useReplController', () => {
 
     release()
     await p1
+  })
+})
+
+describe('useReplController tool lifecycle', () => {
+  it('updates a tool message via tool_input/tool_update and completes it on tool_end', async () => {
+    let releaseEnd!: () => void
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 't1', name: 'Read' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 't1', input: { file_path: '/tmp/x' } } as StreamEvent)
+        onEvent({ type: 'tool_update', id: 't1', middleLines: ['Working…'] } as StreamEvent)
+        await endGate
+        onEvent({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: 'ok' } } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('hello')
+
+    await waitFor(() => controller.state.loadingText === 'Working')
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1'))
+    await waitFor(() => {
+      const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
+      return (
+        msg?.toolInfo?.status === 'running' &&
+        (msg.toolInfo as any)?.input?.file_path === '/tmp/x' &&
+        Array.isArray(msg.toolInfo?.middleLines) &&
+        msg.toolInfo?.middleLines?.[0] === 'Working…'
+      )
+    })
+
+    releaseEnd()
+    await sendPromise
+
+    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
+    expect(msg?.toolInfo?.status).toBe('completed')
+    expect(msg?.toolInfo?.result).toBe('ok')
+    expect(msg?.content).toBeTruthy()
+  })
+
+  it('formats Task completion as Done(...tool uses · tokens · duration)', async () => {
+    let releaseEnd!: () => void
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 't-task', name: 'Task' } as StreamEvent)
+        onEvent({ type: 'tool_update', id: 't-task', toolUses: 2, usage: { input_tokens: 10, output_tokens: 5 } } as StreamEvent)
+        await endGate
+        onEvent({ type: 'tool_end', id: 't-task', result: { tool_use_id: 't-task', content: 'ok' } } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('hello')
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task'))
+
+    releaseEnd()
+    await sendPromise
+
+    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task')
+    expect(msg?.toolInfo?.status).toBe('completed')
+    expect(msg?.toolInfo?.toolUses).toBe(2)
+    expect(msg?.content).toContain('Done (')
+    expect(msg?.content).toContain('2 tool uses')
+    expect(msg?.content).toContain('15 tokens')
+    expect(msg?.content).toMatch(/\d+s\)$/)
+  })
+
+  it('hides Skill summary content on success', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 't-skill', name: 'Skill' } as StreamEvent)
+        onEvent({ type: 'tool_end', id: 't-skill', result: { tool_use_id: 't-skill', content: JSON.stringify({ summary: 'ok' }) } } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('hello')
+    await tick()
+
+    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-skill')
+    expect(msg?.toolInfo?.status).toBe('completed')
+    expect(msg?.content).toBe('')
+    expect(msg?.toolInfo?.result).toContain('summary')
   })
 })

@@ -44,7 +44,7 @@
   - [ ] loading 重入：未结束时再次 `send()` → 第二次 no-op（`runTurn` 仍 1 次）
 - Done when：`bun run test -- src/features/repl/useReplController.test.tsx`
 
-### [ ] W2-02：`useReplController` tool lifecycle（tool_start/input/update/end）+ Task/Skill 特例
+### [x] W2-02：`useReplController` tool lifecycle（tool_start/input/update/end）+ Task/Skill 特例
 - Target：`src/features/repl/useReplController.ts`（tool 事件分支）
 - Tests：扩展 `src/features/repl/useReplController.test.ts`
 - Mock/依赖：
