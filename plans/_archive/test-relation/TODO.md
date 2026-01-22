@@ -1,4 +1,24 @@
-# Test Coverage TODO（基于 `webgpt-response-2.md` 汇总）
+# Test Coverage TODO（已完成）
+
+> **状态**：所有18个任务（W2-01到W2-18）已完成并落地。此文件已归档，仅供历史参考。
+
+这个 TODO 对应的测试覆盖已经完成并落地。
+
+**完成情况**：
+- ✅ useReplController 测试覆盖（W2-01到W2-04、W2-13到W2-15）
+- ✅ models.ts 测试覆盖（W2-05到W2-08）
+- ✅ consoleLogger.ts 测试覆盖（W2-09、W2-16）
+- ✅ exitPlanMode/presenter.tsx 测试覆盖（W2-10到W2-12）
+- ✅ permissions/ui.tsx 测试覆盖（W2-17）
+- ✅ prompts/system.ts 测试覆盖（W2-18）
+
+**后续如果测试回归**：
+- 先跑对应的测试文件验证
+- 参考此文件了解测试覆盖范围和测试用例要求
+
+---
+
+## 原始内容（基于 `webgpt-response-2.md` 汇总）
 
 来源：`plans/test-relation/webgpt-response-2.md`  
 目标：把 WebGPT 的建议整理成“可执行 TODO List”，按 P0→P2 推进；不输出大段补丁代码，以 TODO 为纲。
