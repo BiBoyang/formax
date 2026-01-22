@@ -225,7 +225,7 @@
   - [ ] 连续两次 inject：blocks 累积并在下一次 send 一次性消费
 - Done when：同上
 
-### [ ] W2-16：`consoleLogger.ts` start/stop 幂等与资源清理
+### [x] W2-16：`consoleLogger.ts` start/stop 幂等与资源清理
 - Target：`src/utils/consoleLogger.ts`（`startConsoleLogger` / `stopConsoleLogger`）
 - Tests：扩展 `src/utils/consoleLogger.test.ts`
 - Test cases：
