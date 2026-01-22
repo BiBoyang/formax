@@ -265,7 +265,7 @@
 
 ## 建议的执行顺序（来自 WebGPT D 节）
 
-1. W2-01..W2-04、W2-13..W2-15 → `bun run test -- src/features/repl/useReplController.test.ts`
+1. W2-01..W2-04、W2-13..W2-15 → `bun run test -- src/features/repl/useReplController.test.tsx`
 2. W2-05..W2-08 → `bun run test -- src/services/models.test.ts`
 3. W2-09、W2-16 → `bun run test -- src/utils/consoleLogger.test.ts`
 4. W2-10..W2-12 → `bun run test -- src/tools/modules/exitPlanMode/presenter.test.tsx`
