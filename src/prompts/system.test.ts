@@ -45,5 +45,22 @@ describe('buildSystemPrompt', () => {
     const text = blocks.map((b) => b.text).join('\n')
     expect(text).toContain('gitStatus: snapshot')
   })
-})
 
+  it('does not crash when injected deps throw', () => {
+    expect(() =>
+      buildSystemPrompt(
+        { profile: 'full', cwd: '/repo' },
+        {
+          getToday: () => '2020-01-01',
+          osType: () => 'TestOS',
+          osRelease: () => '1.2.3',
+          platform: 'test-platform',
+          isGitRepository: () => true,
+          buildGitSnapshot: () => {
+            throw new Error('boom')
+          },
+        },
+      ),
+    ).not.toThrow()
+  })
+})

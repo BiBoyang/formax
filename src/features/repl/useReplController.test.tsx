@@ -408,7 +408,10 @@ describe('useReplController /compact', () => {
     )
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('/compact because keep it short')
+    const compactPromise = controller.actions.send('/compact because keep it short')
+    await waitFor(() => controller.state.isLoading === true)
+    expect(controller.state.loadingText).toBe('Compacting')
+    await compactPromise
     await tick()
     expect(lastAssistantText(controller)).toContain('Conversation history compacted')
 
@@ -613,6 +616,88 @@ describe('useReplController injected blocks', () => {
     })
     expect(injectedInHistory).toBe(false)
   })
+
+  it('accumulates multiple injectNextTurn blocks and consumes them in the next send', async () => {
+    const runTurn = vi.fn(async (args: any) => {
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/record1') {
+          return {
+            kind: 'local',
+            stdout: 'recorded1',
+            recordForNextTurn: {
+              commandName: 'record1',
+              commandMessage: 'record for next turn',
+              commandArgs: '',
+              stdout: 'SENTINEL_ONE',
+            },
+          }
+        }
+        if (input === '/record2') {
+          return {
+            kind: 'local',
+            stdout: 'recorded2',
+            recordForNextTurn: {
+              commandName: 'record2',
+              commandMessage: 'record for next turn',
+              commandArgs: '',
+              stdout: 'SENTINEL_TWO',
+            },
+          }
+        }
+        return null
+      },
+    }
+
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: { ...base.llm, contextWindowTokens: 0 },
+      ui: { ...base.ui, showContextMeter: false },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness
+          engine={engine}
+          cfg={cfg}
+          commandRegistry={commandRegistry}
+          onController={(c) => (controller = c)}
+        />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/record1')
+    await controller.actions.send('/record2')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(0)
+
+    await controller.actions.send('hello')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+
+    const firstArgs = runTurn.mock.calls[0]?.[0] as any
+    const userText = JSON.stringify(firstArgs.user?.content ?? [])
+    expect(userText).toContain('SENTINEL_ONE')
+    expect(userText).toContain('SENTINEL_TWO')
+
+    await controller.actions.send('again')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(2)
+
+    const secondArgs = runTurn.mock.calls[1]?.[0] as any
+    const historyText = JSON.stringify(secondArgs.history ?? [])
+    expect(historyText).not.toContain('SENTINEL_ONE')
+    expect(historyText).not.toContain('SENTINEL_TWO')
+  })
 })
 
 describe('useReplController abort', () => {
@@ -757,5 +842,33 @@ describe('useReplController consumed slash commands', () => {
     const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
     expect(assistantTexts.some((t) => t.includes('Diagnosing'))).toBe(true)
     expect(assistantTexts.some((t) => t.trim() === 'ok')).toBe(true)
+  })
+
+  it('surfaces errors from local_async commands without calling the engine', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const run = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/doctor') return { kind: 'local_async', loadingText: 'Diagnosing', run }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/doctor')
+    await waitFor(() => controller.state.isLoading === false)
+
+    expect(runTurn).toHaveBeenCalledTimes(0)
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(lastAssistantText(controller)).toContain('Error: boom')
   })
 })

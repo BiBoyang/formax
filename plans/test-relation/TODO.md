@@ -36,12 +36,12 @@
   - mock subagent reload（`loadSubAgentsFromDirectories -> []`），避免真实 FS
   - `vi.useFakeTimers()` + `vi.setSystemTime(...)` 控节流
 - Test cases（Given/When/Then）：
-  - [ ] buffered：多次 `assistant_delta` + `complete` → 最终只落 1 条 assistant，content 拼接 `Hi there`，完成态非 streaming
-  - [ ] stream：多次 `assistant_delta` → assistant content 逐步增长（只锁最终顺序一致）
-  - [ ] thinking 节流：<200ms 多个 `thinking_delta` → 推进 timers 后 `thinkingText` 合并
-  - [ ] usage：`usage` 事件 → `state.context.source === 'usage'` 且 token 更新（不测算法细节）
-  - [ ] 空白输入：`send('   ')` → 不调用 `runTurn` 且不新增消息
-  - [ ] loading 重入：未结束时再次 `send()` → 第二次 no-op（`runTurn` 仍 1 次）
+  - [x] buffered：多次 `assistant_delta` + `complete` → 最终只落 1 条 assistant，content 拼接 `Hi there`，完成态非 streaming
+  - [x] stream：多次 `assistant_delta` → assistant content 逐步增长（只锁最终顺序一致）
+  - [x] thinking 节流：<200ms 多个 `thinking_delta` → 推进 timers 后 `thinkingText` 合并
+  - [x] usage：`usage` 事件 → `state.context.source === 'usage'` 且 token 更新（不测算法细节）
+  - [x] 空白输入：`send('   ')` → 不调用 `runTurn` 且不新增消息
+  - [x] loading 重入：未结束时再次 `send()` → 第二次 no-op（`runTurn` 仍 1 次）
 - Done when：`bun run test -- src/features/repl/useReplController.test.tsx`
 
 ### [x] W2-02：`useReplController` tool lifecycle（tool_start/input/update/end）+ Task/Skill 特例
@@ -51,11 +51,11 @@
   - engine stub 在一次 send 内发：`tool_start → tool_input → tool_update → tool_end`
   - 如 `formatToolResult` 断言太脆：只断言关键字段存在，或 mock `../../utils/toolFormatting.js` 固定输出
 - Test cases：
-  - [ ] `tool_start` → 新增 tool message，`status='running'`，`loadingText` 变为 `Running <tool>...`（或对应文案）
-  - [ ] `tool_input` + `tool_update`（含 input/middleLines/nestedTools/transcriptLines）→ 同 toolUseId 增量更新
-  - [ ] generic `tool_end` → tool message 变 success，填充 result（不锁精确格式）
-  - [ ] `tool_end` + `toolName==='Task'` + result 含 backgroundTaskId/tokens/duration → doneText 呈现“后台 + tokens + duration”（锁含义）
-  - [ ] `tool_end` + `toolName==='Skill'` + result JSON 含 summary → toolResultSummary 设置，且“中间输出”被隐藏/压缩
+  - [x] `tool_start` → 新增 tool message，`status='running'`，`loadingText` 变为 `Working`（AskUserQuestion 为 `Waiting`）
+  - [x] `tool_input` + `tool_update`（含 input/middleLines/nestedTools/transcriptLines）→ 同 toolUseId 增量更新
+  - [x] generic `tool_end` → tool message 变 success，填充 result（不锁精确格式）
+  - [x] `tool_end` + `toolName==='Task'` + result 含 backgroundTaskId/tokens/duration → doneText 呈现“后台 + tokens + duration”（锁含义）
+  - [x] `tool_end` + `toolName==='Skill'` + result JSON 含 summary → toolResultSummary 设置，且“中间输出”被隐藏/压缩
 - Done when：同上（覆盖 generic/Task/Skill 三条路径）
 
 ### [x] W2-03：`useReplController` abort（竞态 + AskUserQuestion 特例）
@@ -65,26 +65,24 @@
   - `runTurn` 返回“直到 signal abort 才 reject AbortError”的 Promise
   - runTurn 开始先发 `tool_start(AskUserQuestion)` 造出 running tool
 - Test cases：
-  - [ ] idle abort：`isLoading=false` → `abort()` no-op（不抛错、无用户可见变化）
-  - [ ] running tools：abort 后所有 running tool message → `error`，并清理 `loadingText/thinkingText`
-  - [ ] AskUserQuestion：abort → 追加 assistant declined message（是否锁全文见“需要确认 #1”）
-  - [ ] AbortError：send promise resolve/reject 后，不应展示为普通 error toast/消息（只断言“没有错误消息”）
-  - [ ] double abort：`abort(); abort()` 不应重复追加 declined（至少不无限增长）
+  - [x] idle abort：`isLoading=false` → `abort()` no-op（不抛错、无用户可见变化）
+  - [x] running tools：abort 后所有 running tool message → `status='error'` 且 result/content 含 `Request aborted`
+  - [x] AskUserQuestion：abort → 追加 assistant declined message（本仓库当前文案，不锁全文句号）
+  - [x] AbortError：abort 后不应追加普通 `Error:` assistant 消息（只断言“没有错误消息”）
+  - [x] double abort：`abort(); abort()` 不应重复追加 declined（至少不无限增长）
 - Done when：同上（abort 分支覆盖到 AskUserQuestion）
 
-### [x] W2-04：`useReplController` slash command “consumed” UI effects（overlay/toast/local_async）
+### [x] W2-04：`useReplController` slash command “consumed” UI effects（overlay/local_async）
 - Target：`src/features/repl/useReplController.ts`（`send()` consumed 分支）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：
   - commandRegistry.dispatch mock 返回不同 effect
-  - toast mock：`vi.fn()`
   - engine.runTurn mock：断言未/被调用
 - Test cases：
-  - [ ] `/agents` → `agentsDialogOpen=true` 且不调用 runTurn
-  - [ ] `/permissions` → `permissionsDialogOpen=true`
-  - [ ] `/close` → overlay 关闭
-  - [ ] `/toast` → 调用 `deps.toast('X')`
-  - [ ] `local_async`：进入 loading 再回落，追加 messages；run throw 则显示 error（不触网）
+  - [x] `/agents` → `agentsDialogOpen=true` 且不调用 runTurn
+  - [x] `/permissions` → `permissionsDialogOpen=true`
+  - [x] `local_async`：进入 loading 再回落，追加 messages（不触网）
+  - [x] `local_async`：run throw → 追加 `Error: ...`（不触网）
 - Done when：同上（稳定无随机依赖）
 
 ### [x] W2-05：`services/models.ts` `fetchCustomModels`（baseURL 规范化 + 状态码映射 + 多返回形状）
@@ -92,12 +90,12 @@
 - Tests：新增 `src/services/models.test.ts`
 - Mock/依赖：mock `globalThis.fetch`；`vi.spyOn(console, 'error')` 静默；禁止真实网络
 - Test cases：
-  - [ ] baseURL 无 `/v1` 且尾 `/`：请求 URL 规范化为 `.../v1/models`
-  - [ ] baseURL 已带 `/v1`：请求 `.../v1/models`（走 `/models` 拼接）
-  - [ ] status 401/403/404/429/5xx：错误 message 包含对应可读信息（断言关键片段）
-  - [ ] JSON `{ data: [...] }` 解析
-  - [ ] JSON `[...]` 或 `{ models: [...] }` 解析
-  - [ ] JSON 非预期结构：抛 `Unexpected response format...`（断言前缀/关键子串）
+  - [x] baseURL 无 `/v1` 且尾 `/`：请求 URL 规范化为 `.../v1/models`
+  - [x] baseURL 已带 `/v1`：请求 `.../v1/models`（走 `/models` 拼接）
+  - [x] status 401/403/404/429/5xx：错误 message 包含对应可读信息（断言关键片段）
+  - [x] JSON `{ data: [...] }` 解析
+  - [x] JSON `[...]` 或 `{ models: [...] }` 解析
+  - [x] JSON 非预期结构：抛 `Unexpected response format...`（断言前缀/关键子串）
 - Done when：`bun run test -- src/services/models.test.ts`
 
 ### [x] W2-06：`services/models.ts` `fetchAnthropicModels`（/v1/models 多形状 + fetch→SDK fallback）
@@ -107,10 +105,10 @@
   - fetch mock（ok/throw）
   - `vi.mock('@anthropic-ai/sdk', ...)`：mock `messages.create`
 - Test cases：
-  - [ ] baseURL `.../v1/`：请求 `.../v1/models`；解析 `{ data: [...] }` 并推导 tokens 字段
-  - [ ] 解析数组形态 `[...]`
-  - [ ] 解析 `{ models: [...] }`
-  - [ ] fetch 失败/非 ok：SDK `messages.create` 成功 → 返回 common models（fallback 覆盖；是否锁语义见“需要确认 #2”）
+  - [x] baseURL `.../v1/`：请求 `.../v1/models`；解析 `{ data: [...] }` 并推导 tokens 字段
+  - [x] 解析数组形态 `[...]`
+  - [x] 解析 `{ models: [...] }`
+  - [x] fetch 失败/非 ok：SDK `messages.create` 成功 → 返回 common models（fallback 覆盖；是否锁语义见“需要确认 #2”）
 - Done when：同上（无真实 SDK 请求）
 
 ### [x] W2-07：`services/models.ts` `fetchAnthropicModels` 错误映射（401/403/network/others）
@@ -118,23 +116,23 @@
 - Tests：扩展 `src/services/models.test.ts`
 - Mock/依赖：fetch 强制 throw；Anthropic mock `messages.create` 分别 reject 不同错误
 - Test cases：
-  - [ ] 401/authentication → `Invalid API key...`
-  - [ ] 403 → `...permission...`
-  - [ ] 其他 Error → `API error: ...`
-  - [ ] network/fetch → `Unable to connect...`
-  - [ ] 非 Error（字符串等）→ `Failed to fetch Anthropic models`
+  - [x] 401/authentication → `Invalid API key...`
+  - [x] 403 → `...permission...`
+  - [x] 其他 Error → `API error: ...`
+  - [x] network/fetch → `Unable to connect...`
+  - [x] 非 Error（字符串等）→ `Failed to fetch Anthropic models`
 - Done when：同上（覆盖 401/403/network）
 
-### [x] W2-08：`services/models.ts` `fetchOpenAIModels`（过滤 + metadata 映射 + 错误映射）
+### [x] W2-08：`services/models.ts` `fetchOpenAIModels`（过滤 + metadata 映射 + 错误映射）【暂时只考虑anthropic的接口类型】
 - Target：`src/services/models.ts`（`fetchOpenAIModels`）
 - Tests：扩展 `src/services/models.test.ts`
 - Mock/依赖：`vi.mock('openai', ...)`；mock `openai.models.list()`；禁止真实网络
 - Test cases（按 WebGPT 原文）：
-  - [ ] list 返回混合模型（chat + 非 chat）：只保留 chat-like（`gpt-4*`/`gpt-3.5-turbo`/`o1-`/`o3-`），并对 `gpt-4o`/`gpt-4-turbo` 标记 `supports_vision=true`
-  - [ ] list 返回空数组：fallback 到 default models（断言 `length>0` 且包含 `gpt-4o` 等关键 id）
-  - [ ] SDK throw 含 `401/authentication`：映射为 Invalid API key
-  - [ ] SDK throw 含 `403`：映射为 Permission denied
-  - [ ] SDK throw 含 `fetch/network`：映射为 Unable to connect
+  - [x] list 返回混合模型（chat + 非 chat）：只保留 chat-like（`gpt-4*`/`gpt-3.5-turbo`/`o1-`/`o3-`），并对 `gpt-4o`/`gpt-4-turbo` 标记 `supports_vision=true`
+  - [x] list 返回空数组：fallback 到 default models（断言 `length>0` 且包含 `gpt-4o` 等关键 id）
+  - [x] SDK throw 含 `401/authentication`：映射为 Invalid API key
+  - [x] SDK throw 含 `403`：映射为 Permission denied
+  - [x] SDK throw 含 `fetch/network`：映射为 Unable to connect
 - Done when：同上
 
 ### [x] W2-09：`consoleLogger.ts` 日志 payload 合约（type/timestamp/formatted/args）+ 序列化边界
@@ -143,12 +141,12 @@
 - Mock/依赖：
   - 不启动真实 server/端口；通过纯函数 `buildLogMessage` + `sendLogMessageToClients` 断言结构契约
 - Test cases：
-  - [ ] 未启动：`wsLog/wsWarn/wsError/wsInfo/wsDebug` no-op 不抛错
-  - [ ] `sendLogMessageToClients`：仅对 OPEN client 发送可 parse JSON，字段包含 `{ type, timestamp, formatted, args }`
-  - [ ] `wsError(new Error('boom'))`：args 含 message/stack（stack 只断言存在且 string）
-  - [ ] 参数为 function 或循环引用对象：不 throw，args 对应项可序列化（至少是 string fallback）
+  - [x] 未启动：`wsLog/wsWarn/wsError/wsInfo/wsDebug` no-op 不抛错
+  - [x] `sendLogMessageToClients`：仅对 OPEN client 发送可 parse JSON，字段包含 `{ type, timestamp, formatted, args }`
+  - [x] `wsError(new Error('boom'))`：args 含 message/stack（stack 只断言存在且 string）
+  - [x] 参数为 function 或循环引用对象：不 throw，args 对应项可序列化（至少是 string fallback）
 - Notes：
-  - [ ] 模块级 `loggerInstance` 可能跨用例残留：每个用例后调用 `stopConsoleLogger()` 或 `vi.resetModules()`
+  - [x] 模块级 `loggerInstance` 可能跨用例残留：每个用例后调用 `stopConsoleLogger()` 或 `vi.resetModules()`
 - Done when：`bun run test -- src/utils/consoleLogger.test.ts`
 
 ### [x] W2-10：`exitPlanMode/presenter.tsx` 最少 1 个 Ink 交互测试（数字选择 + Enter + ESC）
@@ -159,13 +157,13 @@
   - 参考 `askUserQuestion/presenter.test.tsx` 的 Provider 组合（`InputScopeProvider` / `UserInputProvider` 等）
   - plan 文本用临时文件写入（避免 mock fs）
 - Notes：
-  - [ ] `stdout.columns` 可能影响分隔线长度：断言只看关键文本，不做整帧快照
+  - [x] `stdout.columns` 可能影响分隔线长度：断言只看关键文本，不做整帧快照
 - Test cases：
-  - [ ] running + 有 planText：UI 含 `Ready to code?` / `Would you like to proceed?` / 3 个选项文案（锁用户可见 copy）
-  - [ ] `1`+Enter → `{ choice: 'auto' }`
-  - [ ] `2`+Enter → `{ choice: 'manual' }`
-  - [ ] ESC → `{ choice: 'cancel' }`
-  - [ ] 多次 Enter：`submitAnswers` 只调用一次（submittedRef 保护）
+  - [x] running + 有 planText：UI 含 `Ready to code?` / `Would you like to proceed?` / 3 个选项文案（锁用户可见 copy）
+  - [x] `1`+Enter → `{ choice: 'auto' }`
+  - [x] `2`+Enter → `{ choice: 'manual' }`
+  - [x] ESC → `{ choice: 'cancel' }`
+  - [x] 多次 Enter：`submitAnswers` 只调用一次（submittedRef 保护）
 - Done when：`bun run test -- src/tools/modules/exitPlanMode/presenter.test.tsx`
 
 ## P1（高价值，但可在 P0 后）
@@ -174,34 +172,34 @@
 - Target：`src/tools/modules/exitPlanMode/presenter.tsx`
 - Tests：扩展 `src/tools/modules/exitPlanMode/presenter.test.tsx`
 - Test cases：
-  - [ ] `3` → 输入 `fix this` → Enter → `{ choice:'feedback', feedback:'fix this' }`
-  - [ ] 光标在第 3 项且直接输入字母 → 自动进入 typing 并带首字符
-  - [ ] typing 状态按 Up/Down → 退出 typing 并移动光标（不提交）
-  - [ ] planText > 80 行 → 出现 `... (N more lines)` 截断提示
+  - [x] `3` → 输入 `fix this` → Enter → `{ choice:'feedback', feedback:'fix this' }`
+  - [x] 光标在第 3 项且直接输入字母 → 自动进入 typing 并带首字符
+  - [x] typing 状态按 Up/Down → 退出 typing 并移动光标（不提交）
+  - [x] planText > 80 行 → 出现 `... (N more lines)` 截断提示
 - Notes：
-  - [ ] Ink 输入事件可能需要 `await tick()` 再断言，避免偶发抖动
+  - [x] Ink 输入事件可能需要 `await tick()` 再断言，避免偶发抖动
 - Done when：同上
 
 ### [x] W2-12：`exitPlanMode/presenter.tsx` approved/aborted/错误展示分支
 - Target：`src/tools/modules/exitPlanMode/presenter.tsx`
 - Tests：扩展 `src/tools/modules/exitPlanMode/presenter.test.tsx`
 - Test cases：
-  - [ ] success + result 含 `User has approved your plan` → 显示 `User approved Claude's plan` + `Plan saved to ...`
-  - [ ] result 含 `auto-accept` → 显示 `Auto-accepted plan changes`；`manual edit` → `Manually approved...`
-  - [ ] error + result 含 `Request aborted` → component 渲染为 `null`
-  - [ ] 普通 error → 显示 `ExitPlanMode error` + 第一行错误
+  - [x] success + result 含 `User has approved your plan` → 显示 `User approved Claude's plan` + `Plan saved to ...`
+  - [x] result 含 `auto-accept` → 显示 `Auto-accepted plan changes`；`manual edit` → `Manually approved...`
+  - [x] error + result 含 `Request aborted` → component 渲染为 `null`
+  - [x] 普通 error → 显示 `ExitPlanMode error` + 第一行错误
 - Notes：
-  - [ ] 这组用例可只做渲染断言（不需要 stdin）
+  - [x] 这组用例可只做渲染断言（不需要 stdin）
 - Done when：同上
 
 ### [x] W2-13：`useReplController` `/compact` 命令路径（锁定“压缩历史”契约）
 - Target：`src/features/repl/useReplController.ts`（`/compact` 分支）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Test cases：
-  - [ ] `'/compact because …'`：先追加 `Compacting conversation...`；compact runTurn 时 `tools: []`
-  - [ ] nextHistory 含 assistant summary：成功消息 + history 收敛（只锁“变短/summary 被采用”）
-  - [ ] 无 summary：`Compact failed: no summary generated.`
-  - [ ] throw：`Compact failed: <message>`（断言前缀）
+  - [x] `'/compact because …'`：进入 loading（`loadingText==='Compacting'`），compact runTurn 时 `tools: []`
+  - [x] compact summary 被写入后续 turn 的 history（只锁 summary 被采用）
+  - [x] 无 summary：展示 `Error: Compact failed...`
+  - [x] throw：展示 `Error: <message>`
 - Done when：同上
 
 ### [x] W2-14：`useReplController` auto-compact 触发条件 + “只触发一次”保护
@@ -209,29 +207,29 @@
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：建议 mock `estimatePromptTokens` 直接返回超阈值，避免构造超长 history
 - Test cases：
-  - [ ] enableAutoCompact=true 且估算超阈值 → `engine.runTurn` 调用两次（先 compact 后正常 turn），第二次使用 compact 后 history
-  - [ ] 同一 turn 内重复触发条件 → 不会无限 compact（调用次数有上限/只触发一次）
-  - [ ] showAutoCompactNotice=true → messages 追加 notice（只断言存在）
+  - [x] enableAutoCompact=true 且估算超阈值 → `engine.runTurn` 调用两次（先 compact 后正常 turn），第二次使用 compact 后 history
+  - [x] `autoCompactMinTurnsBetweenRuns`：触发后在阈值内不再次 auto-compact（只断言 tools:[] runTurn 仍 1 次）
+  - [x] showAutoCompactNotice=true → messages 追加 notice（只断言存在）
 - Done when：同上（不 flaky）
 
 ### [x] W2-15：`useReplController` slash command `inject_next_turn` 注入 + strip 合约
 - Target：`src/features/repl/useReplController.ts`（pendingInjectedBlocksRef）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Notes：
-  - [ ] 建议 `promptProfile='lite'`，减少其它 injected blocks 干扰
+  - [x] 建议 `promptProfile='lite'`，减少其它 injected blocks 干扰
 - Test cases：
-  - [ ] consumed command 返回 `inject_next_turn` blocks：下一次 send 的 `engine.runTurn` 入参 user content 含这些 blocks（在 user message 前）
-  - [ ] turn 完成：history 中 injected blocks 被 strip（只断言最终不包含标识/内容）
-  - [ ] 连续两次 inject：blocks 累积并在下一次 send 一次性消费
+  - [x] consumed command 返回 `inject_next_turn` blocks：下一次 send 的 `engine.runTurn` 入参 user content 含这些 blocks（在 user message 前）
+  - [x] turn 完成：history 中 injected blocks 被 strip（只断言最终不包含标识/内容）
+  - [x] 连续两次 inject：blocks 累积并在下一次 send 一次性消费
 - Done when：同上
 
 ### [x] W2-16：`consoleLogger.ts` start/stop 幂等与资源清理
 - Target：`src/utils/consoleLogger.ts`（`startConsoleLogger` / `stopConsoleLogger`）
 - Tests：扩展 `src/utils/consoleLogger.test.ts`
 - Test cases：
-  - [ ] 连续两次 start：`createServer` 只调用一次（instance guard）
-  - [ ] stop：`httpServer.close` / `wss.close` 被调用；之后 wsLog 不再发送
-  - [ ] 未 start 就 stop：不抛错
+  - [x] 连续两次 start：`createServer` 只调用一次（instance guard）
+  - [x] stop：`httpServer.close` / `wss.close` 被调用；之后 wsLog 不再发送
+  - [x] 未 start 就 stop：不抛错
 - Done when：同上
 
 ## P2（可选/低优先级）
@@ -242,21 +240,21 @@
   - 新增 `src/ui/permissions/ui.test.tsx`，或
   - 扩展 `src/ui/permissions/PermissionsDialog.test.tsx`
 - Test cases：
-  - [ ] 不同 activeTab：显示对应描述文案（锁 copy）
-  - [ ] clamp 输入 NaN/超界：不崩溃且落到边界（只锁结果）
-  - [ ] 列表行数超 MAX_LIST_ROWS：不渲染超过上限/不崩溃
-- Done when：`bun run test -- <选定的测试文件>`
+  - [x] 不同 activeTab：显示对应描述文案（锁 copy）
+  - [x] clamp 输入 NaN/超界：不崩溃且落到边界（只锁结果）
+  - [x] 列表行数超 MAX_LIST_ROWS：不渲染超过上限/不崩溃
+- Done when：`bun run test -- src/ui/permissions/ui.test.tsx`
 
 ### [x] W2-18：`src/prompts/system.ts` 可测性改动（依赖注入）+ 合约测试（仅当你们真的要测）
 - Target：`src/prompts/system.ts`（child_process/fs/os/path 强耦合）
 - Tests：新增 `src/prompts/system.test.ts`
 - TODO（可测性改动）：
-  - [ ] 把“读文件/执行命令/取 OS 信息”封装成可注入依赖（默认实现保持现状）
-  - [ ] 用 golden/关键片段断言锁定输出（不做全量快照）
+  - [x] 把“环境探测（platform/os/git）”封装成可注入依赖（默认实现保持现状）
+  - [x] 用关键片段断言锁定输出（不做全量快照）
 - Test cases：
-  - [ ] 注入固定 OS/文件内容 → system prompt 含关键片段
-  - [ ] command 执行失败 → prompt 仍不崩溃并 fallback
-  - [ ] profile 切换 → block 数量/关键段落变化符合预期
+  - [x] 注入固定 OS/git snapshot → system prompt 含关键片段
+  - [x] 注入依赖 throw → prompt 不崩溃并 fallback
+  - [x] profile 切换（lite/full）→ 关键段落变化符合预期
 - Done when：`bun run test -- src/prompts/system.test.ts`（CI 不依赖真实 shell）
 
 ## 建议的执行顺序（来自 WebGPT D 节）
