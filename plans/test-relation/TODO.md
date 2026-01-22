@@ -100,7 +100,7 @@
   - [ ] JSON 非预期结构：抛 `Unexpected response format...`（断言前缀/关键子串）
 - Done when：`bun run test -- src/services/models.test.ts`
 
-### [ ] W2-06：`services/models.ts` `fetchAnthropicModels`（/v1/models 多形状 + fetch→SDK fallback）
+### [x] W2-06：`services/models.ts` `fetchAnthropicModels`（/v1/models 多形状 + fetch→SDK fallback）
 - Target：`src/services/models.ts`（`fetchAnthropicModels`）
 - Tests：扩展 `src/services/models.test.ts`
 - Mock/依赖：
