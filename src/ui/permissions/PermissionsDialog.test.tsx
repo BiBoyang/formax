@@ -57,6 +57,69 @@ async function waitForJsonContains(
 }
 
 describe('PermissionsDialog', () => {
+  it('limits long rule lists to 10 rows and shows scroll indicators', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-long-list-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const allow = Array.from({ length: 20 }, (_, i) => `Rule ${String(i + 1).padStart(2, '0')}`)
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow,
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Add a new rule')
+      await waitForText(lastFrame, 'Rule 01')
+
+      const initial = lastFrame() || ''
+      expect(initial).not.toContain('Rule 20')
+      expect(initial).toMatch(/\n│\s*↓\s+10\.\s/)
+
+      for (let i = 0; i < 12; i++) {
+        stdin.write('\u001B[B')
+        await tick()
+      }
+
+      const scrolled = lastFrame() || ''
+      expect(scrolled).toMatch(/\n│\s*↑\s+\d+\.\s/)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 15000)
+
   it('filters rules when using / search', async () => {
     const originalCwd = process.cwd()
     const originalConfigDir = process.env.FORMAX_CONFIG_DIR

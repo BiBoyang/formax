@@ -236,7 +236,7 @@
 
 ## P2（可选/低优先级）
 
-### [ ] W2-17：`src/ui/permissions/ui.tsx` 最小 UI/文案合约测试（不测 reducer 实现）
+### [x] W2-17：`src/ui/permissions/ui.tsx` 最小 UI/文案合约测试（不测 reducer 实现）
 - Target：`src/ui/permissions/ui.tsx`（TabsBar/描述文案/边界 clamp）
 - Tests（二选一）：
   - 新增 `src/ui/permissions/ui.test.tsx`，或
