@@ -13,7 +13,7 @@ export const SearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText

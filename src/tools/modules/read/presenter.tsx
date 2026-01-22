@@ -19,7 +19,7 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const displayParams = formatPathForDisplay(params)
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null

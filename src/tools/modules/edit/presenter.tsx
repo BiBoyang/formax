@@ -22,7 +22,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
 
   const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const filePathRaw = String((input as any).file_path || (input as any).path || '')

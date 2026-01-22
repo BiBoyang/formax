@@ -276,7 +276,7 @@ export function createTaskSubAgentToolHandler(deps: {
 
 function formatNestedHeader(name: string, input: Record<string, any>): string {
   const compactInput = compactInputForHeader(name, input)
-  const { toolName, params } = formatToolCallParts(name, compactInput)
+  const { toolName, params } = formatToolCallParts(name, compactInput, { preferRelativePaths: true })
   const normalized = toSingleLine(`${toolName}(${params})`).trim()
   return truncateLine(normalized, MAX_LINE_CHARS)
 }

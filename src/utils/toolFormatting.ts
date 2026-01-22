@@ -8,6 +8,8 @@
  * @module toolFormatting
  */
 
+import { formatPathForToolCallDisplay } from './paths'
+
 /**
  * Result of formatting tool call parts
  */
@@ -32,11 +34,17 @@ export interface ToolResultFormat {
   lines?: number
 }
 
+export interface FormatToolCallPartsOptions {
+  cwd?: string
+  preferRelativePaths?: boolean
+}
+
 /**
  * Formats tool call display parts (name and parameters) in Claude Code style.
  * 
  * @param name - Tool name (Read, Write, Bash, etc.)
  * @param input - Tool input parameters object
+ * @param opts - Display options
  * @returns Formatted tool name and parameters string
  * 
  * @example
@@ -56,23 +64,24 @@ export interface ToolResultFormat {
  */
 export function formatToolCallParts(
   name: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  opts?: FormatToolCallPartsOptions,
 ): ToolCallParts {
   let toolName = name
   let params = ''
   
   switch (name) {
     case 'Read':
-      params = input.file_path || input.path || ''
+      params = formatMaybeRelativePath(input.file_path || input.path || '', opts)
       break
     case 'Write':
-      params = input.file_path || input.path || ''
+      params = formatMaybeRelativePath(input.file_path || input.path || '', opts)
       break
     case 'Edit':
-      params = input.file_path || input.path || ''
+      params = formatMaybeRelativePath(input.file_path || input.path || '', opts)
       break
     case 'NotebookEdit':
-      params = input.notebook_path || ''
+      params = formatMaybeRelativePath(input.notebook_path || '', opts)
       break
     case 'Bash': {
       const cmd = input.command || ''
@@ -126,6 +135,12 @@ export function formatToolCallParts(
   }
   
   return { toolName, params }
+}
+
+function formatMaybeRelativePath(value: unknown, opts?: FormatToolCallPartsOptions): string {
+  const raw = typeof value === 'string' ? value : ''
+  if (!opts?.preferRelativePaths) return raw
+  return formatPathForToolCallDisplay({ rawPath: raw, cwd: opts.cwd })
 }
 
 function formatSearchParams(args: { pattern: unknown; path?: unknown; outputMode?: unknown }): string {

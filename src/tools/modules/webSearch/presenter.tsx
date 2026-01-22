@@ -17,7 +17,7 @@ export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Ms
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { name, input, status } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -57,4 +57,3 @@ export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Ms
 
   return <ToolMessage message={message} />
 }
-

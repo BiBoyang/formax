@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { formatToolCallParts, formatToolResult } from './toolFormatting';
+import { formatToolCallParts, formatToolResult } from './toolFormatting'
+import path from 'node:path'
 
 /**
  * Feature: tool-ui-refactor
@@ -85,6 +86,13 @@ describe('formatToolCallParts', () => {
       ),
       { numRuns: 100 }
     )
+  })
+
+  it('formats in-project absolute paths as relative when enabled', () => {
+    const cwd = path.join('/', 'repo')
+    const abs = path.join(cwd, 'README.md')
+    const result = formatToolCallParts('Read', { file_path: abs }, { cwd, preferRelativePaths: true })
+    expect(result.params).toBe('README.md')
   })
 
   // Property test: Bash tool truncates long commands

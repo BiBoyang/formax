@@ -3,6 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { ReadToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import path from 'node:path'
 
 describe('ReadToolPresenter', () => {
   it('keeps read errors compact', () => {
@@ -31,5 +32,24 @@ describe('ReadToolPresenter', () => {
     expect(frame).not.toContain('Workspace roots:')
     expect(frame).toContain('Path: ~/.codex/copy.json')
     expect(frame).not.toContain('Path (absolute):')
+  })
+
+  it('shows project-relative paths for in-project absolute file paths', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: 'Read 1 lines',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Read',
+        status: 'completed',
+        input: {
+          file_path: path.join(process.cwd(), 'README.md'),
+        },
+      },
+    }
+
+    const { lastFrame } = render(<ReadToolPresenter message={message} />)
+    expect(lastFrame()).toContain('Read(README.md)')
   })
 })

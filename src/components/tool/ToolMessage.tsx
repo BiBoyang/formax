@@ -123,7 +123,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   }
 
   const { name, input, status, expandInfo, middleLines } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input)
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
   

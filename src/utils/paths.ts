@@ -21,6 +21,32 @@ export function formatPathForDisplay(filePath: string): string {
   return raw
 }
 
+export function formatPathForToolCallDisplay(args: { rawPath: string; cwd?: string }): string {
+  const raw = String(args.rawPath || '').trim()
+  if (!raw) return raw
+
+  const cwd = String(args.cwd || process.cwd() || '').trim() || process.cwd()
+
+  const looksHomeRelative = raw === '~' || raw.startsWith('~/') || raw.startsWith('~\\')
+  const looksAbsolute = looksHomeRelative || path.isAbsolute(raw)
+  if (!looksAbsolute) return raw
+
+  const cwdAbs = normalizePathForCompare(cwd, process.cwd())
+  const abs = normalizePathForCompare(raw, cwdAbs)
+
+  const rel = path.relative(cwdAbs, abs)
+  const isInside =
+    rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel))
+
+  if (isInside) {
+    const out = rel === '' ? '.' : rel
+    // Keep tool-call paths consistent across platforms (Claude Code-style).
+    return out.split(path.sep).join('/')
+  }
+
+  return formatPathForDisplay(abs)
+}
+
 export function normalizePathForCompare(rawPath: string, cwd: string = process.cwd()): string {
   const raw = String(rawPath || '').trim()
   if (!raw) return ''
@@ -51,4 +77,3 @@ export function requireAbsolutePath(args: {
   const suggestion = path.resolve(args.cwd || process.cwd(), expanded)
   throw new Error(`${field} must be an absolute path. Received: ${raw}. Try: ${suggestion}`)
 }
-
