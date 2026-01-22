@@ -125,7 +125,7 @@
   - [ ] 非 Error（字符串等）→ `Failed to fetch Anthropic models`
 - Done when：同上（覆盖 401/403/network）
 
-### [ ] W2-08：`services/models.ts` `fetchOpenAIModels`（过滤 + metadata 映射 + 错误映射）
+### [x] W2-08：`services/models.ts` `fetchOpenAIModels`（过滤 + metadata 映射 + 错误映射）
 - Target：`src/services/models.ts`（`fetchOpenAIModels`）
 - Tests：扩展 `src/services/models.test.ts`
 - Mock/依赖：`vi.mock('openai', ...)`；mock `openai.models.list()`；禁止真实网络

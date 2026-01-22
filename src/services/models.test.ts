@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAnthropicModels, fetchCustomModels } from './models'
+import { fetchAnthropicModels, fetchCustomModels, fetchOpenAIModels } from './models'
 
-const { anthropicMessagesCreate } = vi.hoisted(() => ({
+const { anthropicMessagesCreate, openaiModelsList } = vi.hoisted(() => ({
   anthropicMessagesCreate: vi.fn(),
+  openaiModelsList: vi.fn(),
 }))
 
 vi.mock('@anthropic-ai/sdk', () => ({
@@ -11,11 +12,18 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }))
 
+vi.mock('openai', () => ({
+  default: class OpenAI {
+    models = { list: openaiModelsList }
+  },
+}))
+
 const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
   anthropicMessagesCreate.mockReset()
+  openaiModelsList.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -222,5 +230,66 @@ describe('fetchAnthropicModels', () => {
     anthropicMessagesCreate.mockRejectedValueOnce('nope' as any)
 
     await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Failed to fetch Anthropic models/)
+  })
+})
+
+describe('fetchOpenAIModels', () => {
+  it('filters to chat-like models and maps metadata', async () => {
+    openaiModelsList.mockResolvedValueOnce({
+      data: [
+        { id: 'gpt-4o' },
+        { id: 'gpt-4-turbo' },
+        { id: 'gpt-4' },
+        { id: 'gpt-3.5-turbo' },
+        { id: 'o1-mini' },
+        { id: 'o3-mini' },
+        { id: 'text-embedding-3-small' },
+      ],
+    })
+
+    const models = await fetchOpenAIModels('k')
+    const ids = models.map((m) => m.model)
+
+    expect(ids).toEqual([
+      'gpt-4o',
+      'gpt-4-turbo',
+      'gpt-4',
+      'gpt-3.5-turbo',
+      'o1-mini',
+      'o3-mini',
+    ])
+
+    const gpt4o = models.find((m) => m.model === 'gpt-4o')!
+    expect(gpt4o.max_tokens).toBe(16384)
+    expect(gpt4o.contextWindowTokens).toBe(128000)
+    expect(gpt4o.supports_vision).toBe(true)
+    expect(gpt4o.supports_reasoning_effort).toBe(false)
+    expect(gpt4o.supports_function_calling).toBe(true)
+
+    const o1mini = models.find((m) => m.model === 'o1-mini')!
+    expect(o1mini.supports_reasoning_effort).toBe(true)
+    expect(o1mini.supports_vision).toBe(false)
+  })
+
+  it('falls back to default models when the API list contains no chat-like models', async () => {
+    openaiModelsList.mockResolvedValueOnce({ data: [{ id: 'whisper-1' }] })
+
+    const models = await fetchOpenAIModels('k')
+    expect(models.length).toBeGreaterThan(0)
+    expect(models.some((m) => m.model === 'gpt-4o')).toBe(true)
+  })
+
+  it('maps SDK errors to user-friendly messages', async () => {
+    openaiModelsList.mockRejectedValueOnce(new Error('401 authentication'))
+    await expect(fetchOpenAIModels('k')).rejects.toThrow(/Invalid API key/i)
+
+    openaiModelsList.mockRejectedValueOnce(new Error('403'))
+    await expect(fetchOpenAIModels('k')).rejects.toThrow(/permission/i)
+
+    openaiModelsList.mockRejectedValueOnce(new Error('fetch failed'))
+    await expect(fetchOpenAIModels('k')).rejects.toThrow(/Unable to connect/i)
+
+    openaiModelsList.mockRejectedValueOnce(new Error('boom'))
+    await expect(fetchOpenAIModels('k')).rejects.toThrow(/API error: boom/)
   })
 })
