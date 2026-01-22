@@ -1,11 +1,66 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import { createServer } from 'http'
 
-interface LogMessage {
+export type LogMessage = {
   type: 'log' | 'info' | 'warn' | 'error' | 'debug'
   timestamp: string
   args: any[]
   formatted: string
+}
+
+export function buildLogMessage(
+  type: LogMessage['type'],
+  args: any[],
+  now: Date = new Date(),
+): LogMessage {
+  const timestamp = now.toISOString()
+  const formatted = args
+    .map((arg) => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2)
+        } catch {
+          return String(arg)
+        }
+      }
+      return String(arg)
+    })
+    .join(' ')
+
+  return {
+    type,
+    timestamp,
+    args: args.map((arg) => {
+      try {
+        return JSON.parse(
+          JSON.stringify(arg, (key, value) => {
+            if (typeof value === 'function') return '[Function]'
+            if (value instanceof Error) return { message: value.message, stack: value.stack }
+            return value
+          }),
+        )
+      } catch {
+        return String(arg)
+      }
+    }),
+    formatted,
+  }
+}
+
+export function sendLogMessageToClients(
+  clients: Iterable<Pick<WebSocket, 'readyState' | 'send'>>,
+  message: LogMessage,
+): void {
+  const data = JSON.stringify(message)
+  for (const client of clients) {
+    try {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data)
+      }
+    } catch {
+      // 发送失败时静默处理，避免影响主程序
+    }
+  }
 }
 
 // 导出一个简单的 wsLog 函数供外部使用
@@ -136,54 +191,10 @@ class ConsoleLoggerServer {
   }
 
   private sendToBrowserClients(type: LogMessage['type'], ...args: any[]): void {
-    // 准备消息并发送到浏览器
-    const timestamp = new Date().toISOString()
-    const formatted = args
-      .map(arg => {
-        if (typeof arg === 'object') {
-          try {
-            return JSON.stringify(arg, null, 2)
-          } catch {
-            return String(arg)
-          }
-        }
-        return String(arg)
-      })
-      .join(' ')
-
-    const message: LogMessage = {
-      type,
-      timestamp,
-      args: args.map(arg => {
-        // 序列化参数，但限制深度避免循环引用
-        try {
-          return JSON.parse(JSON.stringify(arg, (key, value) => {
-            if (typeof value === 'function') return '[Function]'
-            if (value instanceof Error) return { message: value.message, stack: value.stack }
-            return value
-          }))
-        } catch {
-          return String(arg)
-        }
-      }),
-      formatted,
-    }
-
-    const data = JSON.stringify(message)
+    const message = buildLogMessage(type, args)
     
     // 发送到所有已连接的客户端
-    if (this.clients.size > 0) {
-      this.clients.forEach(client => {
-        try {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(data)
-          }
-        } catch (error) {
-          // 发送失败时静默处理，避免影响主程序
-          // 不输出到终端，只在开发时可能需要调试
-        }
-      })
-    }
+    sendLogMessageToClients(this.clients, message)
   }
 
   stop(): void {

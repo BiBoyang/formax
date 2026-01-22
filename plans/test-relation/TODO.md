@@ -137,20 +137,16 @@
   - [ ] SDK throw 含 `fetch/network`：映射为 Unable to connect
 - Done when：同上
 
-### [ ] W2-09：`consoleLogger.ts` 日志 payload 合约（level/timestamp/formatted/args）+ 序列化边界
+### [x] W2-09：`consoleLogger.ts` 日志 payload 合约（type/timestamp/formatted/args）+ 序列化边界
 - Target：`src/utils/consoleLogger.ts`（`sendToBrowserClients` / wsLog 系列）
 - Tests：新增 `src/utils/consoleLogger.test.ts`
 - Mock/依赖：
-  - mock `http` / `ws`（不打开真实端口）
-  - stub `process.on` 避免真实 listener 泄漏
-  - `vi.useFakeTimers()` + `vi.setSystemTime(...)` 固定 timestamp
-  - 用“JSON 结构契约”断言，避免 brittle snapshot
+  - 不启动真实 server/端口；通过纯函数 `buildLogMessage` + `sendLogMessageToClients` 断言结构契约
 - Test cases：
-  - [ ] 未启动：`wsLog/wsWarn/wsError/wsClear` no-op 不抛错
-  - [ ] 启动且有 OPEN client：`wsLog('hello', {a:1})` → client.send 可 parse JSON，字段包含 `{ type, level, timestamp, formatted, args }`（字段严格程度见“需要确认 #4”）
+  - [ ] 未启动：`wsLog/wsWarn/wsError/wsInfo/wsDebug` no-op 不抛错
+  - [ ] `sendLogMessageToClients`：仅对 OPEN client 发送可 parse JSON，字段包含 `{ type, timestamp, formatted, args }`
   - [ ] `wsError(new Error('boom'))`：args 含 message/stack（stack 只断言存在且 string）
   - [ ] 参数为 function 或循环引用对象：不 throw，args 对应项可序列化（至少是 string fallback）
-  - [ ] `wsClear()`：`type === 'clear'` 且不带 formatted/args
 - Notes：
   - [ ] 模块级 `loggerInstance` 可能跨用例残留：每个用例后调用 `stopConsoleLogger()` 或 `vi.resetModules()`
 - Done when：`bun run test -- src/utils/consoleLogger.test.ts`
