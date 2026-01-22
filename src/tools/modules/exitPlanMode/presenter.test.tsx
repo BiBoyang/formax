@@ -151,6 +151,45 @@ describe('ExitPlanModeToolPresenter', () => {
     }
   })
 
+  it('only calls submitAnswers once even when Enter is pressed multiple times', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message = createRunningExitPlanModeMessage()
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={message} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('1')
+      await tick()
+      stdin.write('\r') // First Enter
+      await tick()
+      stdin.write('\r') // Second Enter (should be ignored)
+      await tick()
+      stdin.write('\r') // Third Enter (should be ignored)
+      await tick()
+
+      // Verify that submitAnswers was only called once despite multiple Enter presses
+      expect(submitAnswers).toHaveBeenCalledTimes(1)
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'auto' })
+    } finally {
+      cleanup()
+    }
+  })
+
   it('submits feedback when selecting 3, typing, then pressing Enter', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\n')
     try {

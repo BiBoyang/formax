@@ -285,6 +285,7 @@ describe('useReplController tool lifecycle', () => {
 
     const sendPromise = controller.actions.send('hello')
 
+    // Verify that generic tools set loadingText to 'Working' (AskUserQuestion uses 'Waiting')
     await waitFor(() => controller.state.loadingText === 'Working')
     await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1'))
     await waitFor(() => {
@@ -748,6 +749,8 @@ describe('useReplController abort', () => {
 
     const sendPromise = controller.actions.send('hello')
     await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask'))
+    // Verify that AskUserQuestion sets loadingText to 'Waiting' (not 'Working')
+    expect(controller.state.loadingText).toBe('Waiting')
 
     controller.actions.abort()
     await sendPromise
