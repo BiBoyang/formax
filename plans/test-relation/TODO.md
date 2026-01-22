@@ -19,12 +19,12 @@
 额外高优先级（未进 Top10，但缺口明显）：
 - `src/tools/modules/exitPlanMode/presenter.tsx`（~313 LOC，❌无测试，P0/P1）
 
-## 需要你确认（来自 WebGPT E 节）
+## 待你确认（不影响 TODO 完成度；不作为 checkbox 任务）
 
-- [ ] 1) `useReplController.abort()`：`AskUserQuestion` abort 时追加的文案 `'User declined to answer questions.'` 是否要当作稳定合约锁定？
-- [ ] 2) `fetchAnthropicModels`：`/v1/models` fetch 失败后走 SDK 校验并 fallback common models，这是明确的产品行为吗（要不要测试锁死）？
-- [ ] 3) `exitPlanMode/presenter.tsx`：ESC=cancel、数字键直选项、typing 模式“直接输入字母进入”，是否都要当作稳定交互合约锁定？
-- [ ] 4) `consoleLogger.ts`：payload 字段 `{ type, level, timestamp, formatted, args }`，测试要锁到“必须包含全部字段”，还是只锁 `type/level/args`（timestamp/formatted 更宽松）？
+1) `useReplController.abort()`：`AskUserQuestion` abort 时追加的文案 `'User declined to answer questions.'` 是否要当作稳定合约锁定？
+2) `fetchAnthropicModels`：`/v1/models` fetch 失败后走 SDK 校验并 fallback common models，这是明确的产品行为吗（要不要测试锁死）？
+3) `exitPlanMode/presenter.tsx`：ESC=cancel、数字键直选项、typing 模式“直接输入字母进入”，是否都要当作稳定交互合约锁定？
+4) `consoleLogger.ts`：payload 字段 `{ type, level, timestamp, formatted, args }`，测试要锁到“必须包含全部字段”，还是只锁 `type/level/args`（timestamp/formatted 更宽松）？
 
 ## P0（必须优先补）
 
