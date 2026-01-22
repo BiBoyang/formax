@@ -10,6 +10,14 @@ import type { ToolDefinition } from '../../tools/types'
 import type { StreamEvent } from '../../streaming/types'
 import type { SlashCommandRegistry } from '../commands/registry'
 
+const { estimatePromptTokensMock } = vi.hoisted(() => ({
+  estimatePromptTokensMock: vi.fn(() => 0),
+}))
+
+vi.mock('../../chat/context/estimate', () => ({
+  estimatePromptTokens: estimatePromptTokensMock,
+}))
+
 function tick(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -86,6 +94,7 @@ function lastAssistantText(controller: ReturnType<typeof useReplController>): st
 
 afterEach(() => {
   vi.useRealTimers()
+  estimatePromptTokensMock.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -354,6 +363,255 @@ describe('useReplController tool lifecycle', () => {
     expect(msg?.toolInfo?.status).toBe('completed')
     expect(msg?.content).toBe('')
     expect(msg?.toolInfo?.result).toContain('summary')
+  })
+})
+
+describe('useReplController /compact', () => {
+  it('runs a tools-free compact turn and uses the summary in the next turn history', async () => {
+    const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
+    const runTurn = vi.fn(async (args: any) => {
+      if (Array.isArray(args.tools) && args.tools.length === 0) {
+        expect(String(args.user?.role)).toBe('user')
+        const text = String(args.user?.content?.[0]?.text ?? '')
+        expect(text).toContain('Summarize the conversation so far')
+        expect(text).toContain('Additional user instructions:')
+        expect(text).toContain('because keep it short')
+        return [
+          ...args.history,
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'SUMMARY' }] },
+        ]
+      }
+
+      const hasSummaryInHistory = (args.history ?? []).some((m: any) => {
+        if (m?.role !== 'assistant' || !Array.isArray(m?.content)) return false
+        return m.content.some((b: any) => b?.type === 'text' && b?.text === 'SUMMARY')
+      })
+      expect(hasSummaryInHistory).toBe(true)
+
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
+    })
+
+    const engine: ChatEngine = { runTurn } as any
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: { ...base.llm, contextWindowTokens: 0 },
+      ui: { ...base.ui, showContextMeter: false },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} tools={tools} cfg={cfg} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/compact because keep it short')
+    await tick()
+    expect(lastAssistantText(controller)).toContain('Conversation history compacted')
+
+    await controller.actions.send('hello')
+    await tick()
+
+    expect(runTurn).toHaveBeenCalledTimes(2)
+    expect((runTurn.mock.calls[0]?.[0] as any)?.tools).toEqual([])
+  })
+
+  it('shows a user-facing error when the compact summary is empty', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, user }) {
+        return [...history, user]
+      },
+    }
+
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: { ...base.llm, contextWindowTokens: 0 },
+      ui: { ...base.ui, showContextMeter: false },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/compact')
+    await tick()
+
+    expect(controller.state.isLoading).toBe(false)
+    expect(controller.state.error).toContain('Compact failed')
+    expect(lastAssistantText(controller)).toContain('Error: Compact failed')
+  })
+
+  it('shows a user-facing error when the compact turn throws', async () => {
+    const engine: ChatEngine = {
+      async runTurn() {
+        throw new Error('boom')
+      },
+    }
+
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: { ...base.llm, contextWindowTokens: 0 },
+      ui: { ...base.ui, showContextMeter: false },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/compact')
+    await tick()
+
+    expect(controller.state.isLoading).toBe(false)
+    expect(controller.state.error).toBe('boom')
+    expect(lastAssistantText(controller)).toBe('Error: boom')
+  })
+})
+
+describe('useReplController auto-compact', () => {
+  it('runs an auto-compact turn once and shows the notice', async () => {
+    estimatePromptTokensMock.mockReturnValue(9000)
+
+    const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
+    const runTurn = vi.fn(async (args: any) => {
+      if (Array.isArray(args.tools) && args.tools.length === 0) {
+        return [
+          ...args.history,
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'AUTO_SUMMARY' }] },
+        ]
+      }
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    const base = createCfg()
+    const cfg = createCfg({
+      context: { ...base.context, enableAutoCompact: true },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} tools={tools} cfg={cfg} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    // Seed history with >= 2 non-tool user turns.
+    await controller.actions.send('first')
+    await waitFor(() => controller.state.isLoading === false)
+    await controller.actions.send('second')
+    await waitFor(() => controller.state.isLoading === false)
+
+    await controller.actions.send('third')
+    await waitFor(() =>
+      controller.state.messages.some(
+        (m) => m.role === 'assistant' && m.content.includes('Conversation history auto-compacted'),
+      ),
+    )
+    await waitFor(() => controller.state.isLoading === false)
+
+    // 1st: first, 2nd: second, 3rd: compact, 4th: third
+    expect(runTurn).toHaveBeenCalledTimes(4)
+    const toolsFreeCalls = runTurn.mock.calls.filter((c) => Array.isArray(c[0]?.tools) && c[0].tools.length === 0)
+    expect(toolsFreeCalls).toHaveLength(1)
+
+    await controller.actions.send('fourth')
+    await waitFor(() => controller.state.isLoading === false)
+    await tick()
+
+    // No additional compact due to minTurnsBetweenRuns.
+    expect(runTurn).toHaveBeenCalledTimes(5)
+    const toolsFreeCallsAfter = runTurn.mock.calls.filter((c) => Array.isArray(c[0]?.tools) && c[0].tools.length === 0)
+    expect(toolsFreeCallsAfter).toHaveLength(1)
+  })
+})
+
+describe('useReplController injected blocks', () => {
+  it('injects the next-turn blocks into the user message, then strips them from future history', async () => {
+    const runTurn = vi.fn(async (args: any) => {
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input.startsWith('/record')) {
+          return {
+            kind: 'local',
+            stdout: 'recorded',
+            recordForNextTurn: {
+              commandName: 'record',
+              commandMessage: 'record for next turn',
+              commandArgs: '',
+              stdout: 'SENTINEL_STDOUT',
+            },
+          }
+        }
+        return null
+      },
+    }
+
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: { ...base.llm, contextWindowTokens: 0 },
+      ui: { ...base.ui, showContextMeter: false },
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness
+          engine={engine}
+          cfg={cfg}
+          commandRegistry={commandRegistry}
+          onController={(c) => (controller = c)}
+        />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/record')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(0)
+
+    await controller.actions.send('hello')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+
+    const firstArgs = runTurn.mock.calls[0]?.[0] as any
+    const injectedInUser = (firstArgs.user?.content ?? []).some(
+      (b: any) => b?.type === 'text' && String(b?.text ?? '').includes('SENTINEL_STDOUT'),
+    )
+    expect(injectedInUser).toBe(true)
+
+    await controller.actions.send('again')
+    await tick()
+    expect(runTurn).toHaveBeenCalledTimes(2)
+
+    const secondArgs = runTurn.mock.calls[1]?.[0] as any
+    const injectedInHistory = (secondArgs.history ?? []).some((m: any) => {
+      if (m?.role !== 'user' || !Array.isArray(m?.content)) return false
+      return m.content.some((b: any) => b?.type === 'text' && String(b?.text ?? '').includes('SENTINEL_STDOUT'))
+    })
+    expect(injectedInHistory).toBe(false)
   })
 })
 

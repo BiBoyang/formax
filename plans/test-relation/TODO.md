@@ -194,7 +194,7 @@
   - [ ] 这组用例可只做渲染断言（不需要 stdin）
 - Done when：同上
 
-### [ ] W2-13：`useReplController` `/compact` 命令路径（锁定“压缩历史”契约）
+### [x] W2-13：`useReplController` `/compact` 命令路径（锁定“压缩历史”契约）
 - Target：`src/features/repl/useReplController.ts`（`/compact` 分支）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Test cases：
@@ -204,7 +204,7 @@
   - [ ] throw：`Compact failed: <message>`（断言前缀）
 - Done when：同上
 
-### [ ] W2-14：`useReplController` auto-compact 触发条件 + “只触发一次”保护
+### [x] W2-14：`useReplController` auto-compact 触发条件 + “只触发一次”保护
 - Target：`src/features/repl/useReplController.ts`（auto-compact 逻辑）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Mock/依赖：建议 mock `estimatePromptTokens` 直接返回超阈值，避免构造超长 history
@@ -214,7 +214,7 @@
   - [ ] showAutoCompactNotice=true → messages 追加 notice（只断言存在）
 - Done when：同上（不 flaky）
 
-### [ ] W2-15：`useReplController` slash command `inject_next_turn` 注入 + strip 合约
+### [x] W2-15：`useReplController` slash command `inject_next_turn` 注入 + strip 合约
 - Target：`src/features/repl/useReplController.ts`（pendingInjectedBlocksRef）
 - Tests：扩展 `src/features/repl/useReplController.test.tsx`
 - Notes：
