@@ -182,7 +182,7 @@
   - [ ] Ink 输入事件可能需要 `await tick()` 再断言，避免偶发抖动
 - Done when：同上
 
-### [ ] W2-12：`exitPlanMode/presenter.tsx` approved/aborted/错误展示分支
+### [x] W2-12：`exitPlanMode/presenter.tsx` approved/aborted/错误展示分支
 - Target：`src/tools/modules/exitPlanMode/presenter.tsx`
 - Tests：扩展 `src/tools/modules/exitPlanMode/presenter.test.tsx`
 - Test cases：

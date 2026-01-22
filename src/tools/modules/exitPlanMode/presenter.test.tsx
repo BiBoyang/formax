@@ -294,4 +294,146 @@ describe('ExitPlanModeToolPresenter', () => {
       cleanup()
     }
   })
+
+  it('renders an approved state with plan path and auto-accept mode label', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Do A\nDo B\n')
+    try {
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message: Msg = {
+        id: 'tool-1',
+        role: 'tool',
+        content: '',
+        timestamp: new Date(),
+        toolInfo: {
+          name: 'ExitPlanMode',
+          status: 'success',
+          input: {},
+          result: 'User has approved your plan (auto-accept)',
+        },
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <ExitPlanModeToolPresenter message={message} />
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      const frame = lastFrame()
+      expect(frame).toContain("User approved Claude's plan")
+      expect(frame).toContain('Plan saved to:')
+      expect(frame).toContain('mode: auto-accept edits')
+      expect(frame).toContain('/plan to edit')
+      expect(frame).toContain('Do A')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('renders an approved state with manual-approval mode label', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Do A\n')
+    try {
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message: Msg = {
+        id: 'tool-1',
+        role: 'tool',
+        content: '',
+        timestamp: new Date(),
+        toolInfo: {
+          name: 'ExitPlanMode',
+          status: 'success',
+          input: {},
+          result: 'User has approved your plan (manual edit)',
+        },
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <ExitPlanModeToolPresenter message={message} />
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('mode: manual approvals')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('renders null when the tool is aborted', async () => {
+    const planSession: PlanSessionManager = {
+      getPlanPath: () => null,
+      startNewPlan: () => '',
+    }
+
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'ExitPlanMode',
+        status: 'error',
+        input: {},
+        result: 'Request aborted',
+      },
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <PlanProvider planSession={planSession}>
+          <ExitPlanModeToolPresenter message={message} />
+        </PlanProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame().trim()).toBe('')
+  })
+
+  it('renders a headline and the first line of an error', async () => {
+    const planSession: PlanSessionManager = {
+      getPlanPath: () => null,
+      startNewPlan: () => '',
+    }
+
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'ExitPlanMode',
+        status: 'error',
+        input: {},
+        result: 'Boom\nSecond line',
+      },
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <PlanProvider planSession={planSession}>
+          <ExitPlanModeToolPresenter message={message} />
+        </PlanProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    const frame = lastFrame()
+    expect(frame).toContain('ExitPlanMode error')
+    expect(frame).toContain('Boom')
+    expect(frame).not.toContain('Second line')
+  })
 })
