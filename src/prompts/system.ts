@@ -6,6 +6,15 @@ import type { PromptBlock } from './types'
 
 export type SystemPromptProfile = 'lite' | 'full'
 
+export type SystemPromptRuntimeDeps = {
+  platform?: string
+  getToday?: () => string
+  osType?: () => string
+  osRelease?: () => string
+  isGitRepository?: (cwd: string) => boolean
+  buildGitSnapshot?: (cwd: string) => string
+}
+
 export function buildSystemPrompt(args?: {
   appName?: string
   version?: string
@@ -13,9 +22,9 @@ export function buildSystemPrompt(args?: {
   cwd?: string
   model?: string
   profile?: SystemPromptProfile
-}): PromptBlock[] {
+}, deps?: SystemPromptRuntimeDeps): PromptBlock[] {
   const profile: SystemPromptProfile = args?.profile ?? 'full'
-  return profile === 'lite' ? buildLiteSystemPrompt(args) : buildFullSystemPrompt(args)
+  return profile === 'lite' ? buildLiteSystemPrompt(args) : buildFullSystemPrompt(args, deps)
 }
 
 function buildLiteSystemPrompt(args?: {
@@ -65,7 +74,7 @@ function buildFullSystemPrompt(args?: {
   allowedSubagents?: Array<{ name: string; description: string }>
   cwd?: string
   model?: string
-}): PromptBlock[] {
+}, deps?: SystemPromptRuntimeDeps): PromptBlock[] {
   const appName = (args?.appName || '').trim() || 'Formax'
   const base = "You are Claude Code, Anthropic's official CLI for Claude."
   const cwd = args?.cwd?.trim()
@@ -75,7 +84,7 @@ function buildFullSystemPrompt(args?: {
     .map((a) => `- ${a.name}${a.description ? `: ${a.description}` : ''}`)
     .join('\n')
 
-  const envBlock = buildRichEnvSnapshotBlock({ cwd: cwd ?? undefined, model: args?.model })
+  const envBlock = buildRichEnvSnapshotBlock({ cwd: cwd ?? undefined, model: args?.model }, deps)
 
   const taskNotes =
     allowed.length > 0
@@ -169,23 +178,27 @@ type RichEnvSnapshotCache = {
 
 let richEnvSnapshotCache: RichEnvSnapshotCache | null = null
 
-function buildRichEnvSnapshotBlock(args: RichEnvSnapshotArgs): string {
+function buildRichEnvSnapshotBlock(args: RichEnvSnapshotArgs, deps?: SystemPromptRuntimeDeps): string {
   const cwd = (args.cwd || process.cwd()).trim() || process.cwd()
   const model = (args.model || '').trim()
   const key = `${cwd}::${model}`
 
-  if (richEnvSnapshotCache?.key === key) return richEnvSnapshotCache.block
+  // Only cache the default runtime implementation. Test/injected dependencies should be deterministic.
+  if (!deps && richEnvSnapshotCache?.key === key) return richEnvSnapshotCache.block
 
-  const today = new Date().toISOString().slice(0, 10)
-  const osVersion = `${os.type()} ${os.release()}`
-  const isGitRepo = isGitRepository(cwd)
+  const today = deps?.getToday ? safeCall(() => deps.getToday!(), '') : new Date().toISOString().slice(0, 10)
+  const osVersion = `${deps?.osType ? safeCall(() => deps.osType!(), os.type()) : os.type()} ${
+    deps?.osRelease ? safeCall(() => deps.osRelease!(), os.release()) : os.release()
+  }`
+  const platform = deps?.platform || process.platform
+  const isGitRepo = deps?.isGitRepository ? safeCall(() => deps.isGitRepository!(cwd), false) : isGitRepository(cwd)
 
   const lines: string[] = []
   lines.push('Here is useful information about the environment you are running in:')
   lines.push('<env>')
   lines.push(`Working directory: ${cwd}`)
   lines.push(`Is directory a git repo: ${isGitRepo ? 'Yes' : 'No'}`)
-  lines.push(`Platform: ${process.platform}`)
+  lines.push(`Platform: ${platform}`)
   lines.push(`OS Version: ${osVersion}`)
   lines.push(`Today's date: ${today}`)
   lines.push('</env>')
@@ -194,14 +207,18 @@ function buildRichEnvSnapshotBlock(args: RichEnvSnapshotArgs): string {
     lines.push(`Model ID: ${model}`)
   }
 
-  const gitSnapshot = isGitRepo ? buildGitSnapshot(cwd) : ''
+  const gitSnapshot = isGitRepo
+    ? deps?.buildGitSnapshot
+      ? safeCall(() => deps.buildGitSnapshot!(cwd), '')
+      : buildGitSnapshot(cwd)
+    : ''
   if (gitSnapshot) {
     lines.push('')
     lines.push(gitSnapshot)
   }
 
   const block = lines.join('\n')
-  richEnvSnapshotCache = { key, block }
+  if (!deps) richEnvSnapshotCache = { key, block }
   return block
 }
 
@@ -260,4 +277,12 @@ function runGit(cwd: string, args: string[]): string | null {
 function truncateLine(s: string, maxChars: number): string {
   if (s.length <= maxChars) return s
   return s.slice(0, Math.max(0, maxChars - 1)) + '…'
+}
+
+function safeCall<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn()
+  } catch {
+    return fallback
+  }
 }

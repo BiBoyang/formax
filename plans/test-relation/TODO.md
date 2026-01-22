@@ -247,7 +247,7 @@
   - [ ] 列表行数超 MAX_LIST_ROWS：不渲染超过上限/不崩溃
 - Done when：`bun run test -- <选定的测试文件>`
 
-### [ ] W2-18：`src/prompts/system.ts` 可测性改动（依赖注入）+ 合约测试（仅当你们真的要测）
+### [x] W2-18：`src/prompts/system.ts` 可测性改动（依赖注入）+ 合约测试（仅当你们真的要测）
 - Target：`src/prompts/system.ts`（child_process/fs/os/path 强耦合）
 - Tests：新增 `src/prompts/system.test.ts`
 - TODO（可测性改动）：
