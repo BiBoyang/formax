@@ -170,7 +170,7 @@
 
 ## P1（高价值，但可在 P0 后）
 
-### [ ] W2-11：`exitPlanMode/presenter.tsx` typing 模式 + 截断提示
+### [x] W2-11：`exitPlanMode/presenter.tsx` typing 模式 + 截断提示
 - Target：`src/tools/modules/exitPlanMode/presenter.tsx`
 - Tests：扩展 `src/tools/modules/exitPlanMode/presenter.test.tsx`
 - Test cases：
