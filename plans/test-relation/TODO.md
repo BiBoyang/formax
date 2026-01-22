@@ -87,10 +87,10 @@
   - [ ] `local_async`：进入 loading 再回落，追加 messages；run throw 则显示 error（不触网）
 - Done when：同上（稳定无随机依赖）
 
-### [ ] W2-05：`services/models.ts` `fetchCustomModels`（baseURL 规范化 + 状态码映射 + 多返回形状）
+### [x] W2-05：`services/models.ts` `fetchCustomModels`（baseURL 规范化 + 状态码映射 + 多返回形状）
 - Target：`src/services/models.ts`（`fetchCustomModels`）
 - Tests：新增 `src/services/models.test.ts`
-- Mock/依赖：`vi.stubGlobal('fetch', vi.fn())`；`vi.spyOn(console, 'error')` 静默；禁止真实网络
+- Mock/依赖：mock `globalThis.fetch`；`vi.spyOn(console, 'error')` 静默；禁止真实网络
 - Test cases：
   - [ ] baseURL 无 `/v1` 且尾 `/`：请求 URL 规范化为 `.../v1/models`
   - [ ] baseURL 已带 `/v1`：请求 `.../v1/models`（走 `/models` 拼接）
