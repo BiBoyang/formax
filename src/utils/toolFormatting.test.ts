@@ -402,7 +402,7 @@ describe('formatToolResult', () => {
   it('should have middleLines but no expandInfo for 2-3 line Bash output', () => {
     fc.assert(
       fc.property(
-        fc.array(fc.string().filter(s => !s.includes('\n')), { minLength: 2, maxLength: 3 }),
+        fc.array(fc.string({ minLength: 1 }).filter((s) => !s.includes('\n')), { minLength: 2, maxLength: 3 }),
         (lines) => {
           const result = lines.join('\n')
           const output = formatToolResult('Bash', result, false)
@@ -421,7 +421,7 @@ describe('formatToolResult', () => {
   it('should have middleLines and expandInfo for 4+ line Bash output', () => {
     fc.assert(
       fc.property(
-        fc.array(fc.string().filter(s => !s.includes('\n')), { minLength: 4, maxLength: 20 }),
+        fc.array(fc.string({ minLength: 1 }).filter((s) => !s.includes('\n')), { minLength: 4, maxLength: 20 }),
         (lines) => {
           const result = lines.join('\n')
           const output = formatToolResult('Bash', result, false)
@@ -472,6 +472,11 @@ describe('formatToolResult', () => {
     it('should format Bash single line correctly', () => {
       const result = formatToolResult('Bash', 'total 0', false)
       expect(result).toEqual({ summary: 'total 0', lines: 1 })
+    })
+
+    it('should not render a phantom blank line for trailing newline output', () => {
+      const result = formatToolResult('Bash', 'hello\n', false)
+      expect(result).toEqual({ summary: 'hello', lines: 1 })
     })
 
     it('should format Bash multi-line correctly', () => {
@@ -579,10 +584,10 @@ describe('edge cases', () => {
 
     it('should handle result with only newlines', () => {
       const result = formatToolResult('Bash', '\n\n\n', false)
-      expect(result.lines).toBe(4)
+      expect(result.lines).toBe(3)
       expect(result.summary).toBe('')
       expect(result.middleLines).toEqual(['', ''])
-      expect(result.expandInfo).toBe('… +1 lines (ctrl+o to expand)')
+      expect(result.expandInfo).toBeUndefined()
     })
 
     it('should handle very long single line', () => {

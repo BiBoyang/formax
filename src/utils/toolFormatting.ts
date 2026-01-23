@@ -225,7 +225,7 @@ export function formatToolResult(
     return formatDefaultErrorResult(cleaned)
   }
   
-  const allLines = cleaned.split('\n')
+  const allLines = splitToolResultLines(cleaned)
   const lineCount = allLines.length
   
   switch (name) {
@@ -316,6 +316,15 @@ export function formatToolResult(
     default:
       return { summary: cleaned.slice(0, 100), lines: lineCount }
   }
+}
+
+function splitToolResultLines(raw: string): string[] {
+  const s = String(raw ?? '')
+  const lines = s.split(/\r?\n/)
+  // If the output ends with a newline, `split()` produces a trailing empty
+  // element that does not represent a real extra line. Remove exactly one.
+  if (/\r?\n$/.test(s) && lines[lines.length - 1] === '') lines.pop()
+  return lines
 }
 
 function formatBashErrorResult(raw: string): ToolResultFormat {
