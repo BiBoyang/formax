@@ -90,7 +90,30 @@ export function createPolicyPreflight(args: {
     const auditHookRuns = (eventName: string, runs: HookRun[]) => {
       if (!args.audit) return
       if (runs.length === 0) return
+
+      const debugEnabled = (() => {
+        const raw = String(env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
+        return raw === '1' || raw === 'true' || raw === 'yes'
+      })()
+
+      const preview = (raw: unknown, limit = 2000): string | undefined => {
+        const s = String(raw ?? '').trimEnd()
+        if (!s) return undefined
+        return s.length <= limit ? s : s.slice(s.length - limit)
+      }
+
+      const statusFrom = (r: HookRun): 'ok' | 'blocked' | 'failed' | 'aborted' => {
+        if (r.exitCode === 0) return 'ok'
+        if (r.exitCode === 2) return 'blocked'
+        if (r.exitCode === null && String(r.stderr || '').trim().toLowerCase() === 'aborted') return 'aborted'
+        return 'failed'
+      }
+
       for (const r of runs) {
+        const status = statusFrom(r)
+        const stderrPreview = status === 'ok' ? undefined : preview(r.stderr, 2000)
+        const stdoutPreview = debugEnabled ? preview(r.stdout, 2000) : undefined
+
         void args.audit.append({
           schemaVersion: 1,
           ts: nowIso(),
@@ -99,11 +122,20 @@ export function createPolicyPreflight(args: {
           tool: { name: call.name, toolUseId: call.id },
           hook: {
             eventName,
+            ...(r.source ? { source: r.source } : {}),
+            ...(typeof r.matcher === 'string' ? { matcher: r.matcher } : {}),
             command: r.command,
+            ...(typeof r.timeoutMs === 'number' || r.timeoutMs === null ? { timeoutMs: r.timeoutMs } : {}),
             exitCode: r.exitCode,
             signal: r.signal,
             timedOut: r.timedOut,
             durationMs: r.durationMs,
+            status,
+            parsedJson: r.parsedJson !== null,
+            ...(stdoutPreview ? { stdoutPreview } : {}),
+            ...(stderrPreview ? { stderrPreview } : {}),
+            ...(typeof r.stdoutTruncated === 'boolean' ? { stdoutTruncated: r.stdoutTruncated } : {}),
+            ...(typeof r.stderrTruncated === 'boolean' ? { stderrTruncated: r.stderrTruncated } : {}),
           },
         })
       }

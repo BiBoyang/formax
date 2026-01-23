@@ -33,11 +33,16 @@ export type MergedHooks = {
 }
 
 export type HookExecResult = {
+  source?: HookSource
+  matcher?: string
+  timeoutMs?: number | null
   command: string
   exitCode: number | null
   signal: NodeJS.Signals | null
   stdout: string
   stderr: string
+  stdoutTruncated?: boolean
+  stderrTruncated?: boolean
   durationMs: number
   timedOut: boolean
 }
@@ -51,4 +56,3 @@ export type HookAdditionalContext = {
   toolName: string
   blocks: Array<{ type: 'text'; text: string }>
 }
-

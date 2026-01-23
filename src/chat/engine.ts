@@ -65,15 +65,19 @@ export function createChatEngine(deps: {
       signal,
       promptBudget,
       exec,
-    }): Promise<ChatHistory> {
-      const loopMessages: ChatHistory = [...history, user]
-      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
-      const audit = deps.audit
+	    }): Promise<ChatHistory> {
+	      const loopMessages: ChatHistory = [...history, user]
+	      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
+	      const audit = deps.audit
+	      const hooksDebugEnabled = (() => {
+	        const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
+	        return raw === '1' || raw === 'true' || raw === 'yes'
+	      })()
 
-      const executorCtxBase: ExecutionContext = {
-        cwd,
-        signal,
-        onEvent,
+	      const executorCtxBase: ExecutionContext = {
+	        cwd,
+	        signal,
+	        onEvent,
         agentDepth: exec?.agentDepth ?? 0,
         interactive: exec?.interactive,
         replMode: exec?.replMode,
@@ -87,40 +91,66 @@ export function createChatEngine(deps: {
       }
 
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
-        const res = await deps.executor(call, executorCtxBase)
+	        const res = await deps.executor(call, executorCtxBase)
 
-        if (deps.hooks) {
-          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
-          const post = await deps.hooks.runPostToolUse({
+	        if (deps.hooks) {
+	          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
+	          const post = await deps.hooks.runPostToolUse({
             toolUseId: call.id,
             toolName: call.name,
             toolInput: call.input ?? {},
             toolResult: res,
             cwd,
-            signal,
-          })
+	            signal,
+	          })
 
-          if (audit && post.runs.length > 0) {
-            for (const r of post.runs as HookRun[]) {
-              void audit.append({
-                schemaVersion: 1,
-                ts: nowIso(),
-                kind: 'hook.run',
-                agentDepth: exec?.agentDepth ?? 0,
-                tool: { name: call.name, toolUseId: call.id },
-                hook: {
-                  eventName: 'PostToolUse',
-                  command: r.command,
-                  exitCode: r.exitCode,
-                  signal: r.signal,
-                  timedOut: r.timedOut,
-                  durationMs: r.durationMs,
-                },
-              })
-            }
-          }
+	          if (audit && post.runs.length > 0) {
+	            const preview = (raw: unknown, limit = 2000): string | undefined => {
+	              const s = String(raw ?? '').trimEnd()
+	              if (!s) return undefined
+	              return s.length <= limit ? s : s.slice(s.length - limit)
+	            }
 
-          const lines: string[] = []
+	            const statusFrom = (r: HookRun): 'ok' | 'blocked' | 'failed' | 'aborted' => {
+	              if (r.exitCode === 0) return 'ok'
+	              if (r.exitCode === 2) return 'blocked'
+	              if (r.exitCode === null && String(r.stderr || '').trim().toLowerCase() === 'aborted') return 'aborted'
+	              return 'failed'
+	            }
+
+	            for (const r of post.runs as HookRun[]) {
+	              const status = statusFrom(r)
+	              const stderrPreview = status === 'ok' ? undefined : preview(r.stderr, 2000)
+	              const stdoutPreview = hooksDebugEnabled ? preview(r.stdout, 2000) : undefined
+
+	              void audit.append({
+	                schemaVersion: 1,
+	                ts: nowIso(),
+	                kind: 'hook.run',
+	                agentDepth: exec?.agentDepth ?? 0,
+	                tool: { name: call.name, toolUseId: call.id },
+	                hook: {
+	                  eventName: 'PostToolUse',
+	                  ...(r.source ? { source: r.source } : {}),
+	                  ...(typeof r.matcher === 'string' ? { matcher: r.matcher } : {}),
+	                  command: r.command,
+	                  ...(typeof r.timeoutMs === 'number' || r.timeoutMs === null ? { timeoutMs: r.timeoutMs } : {}),
+	                  exitCode: r.exitCode,
+	                  signal: r.signal,
+	                  timedOut: r.timedOut,
+	                  durationMs: r.durationMs,
+	                  status,
+	                  parsedJson: r.parsedJson !== null,
+	                  ...(stdoutPreview ? { stdoutPreview } : {}),
+	                  ...(stderrPreview ? { stderrPreview } : {}),
+	                  ...(typeof r.stdoutTruncated === 'boolean' ? { stdoutTruncated: r.stdoutTruncated } : {}),
+	                  ...(typeof r.stderrTruncated === 'boolean' ? { stderrTruncated: r.stderrTruncated } : {}),
+	                },
+	              })
+	            }
+	          }
+
+	          const lines: string[] = []
 
           if (post.blockingErrors.length > 0) {
             onEvent({ type: 'tool_update', id: call.id, middleLines: [`PostToolUse:${call.name} hook returned blocking error`] })

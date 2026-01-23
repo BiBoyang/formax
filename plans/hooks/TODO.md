@@ -76,6 +76,7 @@
 - [x] 集成测试：模拟 tool loop（Bash 工具）验证：
   - `PostToolUse.additionalContext` 会以“tool_result 后 text block”的方式进入下一次模型请求
   - exit code=2 的 PostToolUse 会产生 “blocking error” 的 `<system-reminder>`
+- [x] 审计字段增强：`hook.run` 记录 `source/matcher/timeoutMs/status/parsedJson` + 可选 preview（`FORMAX_HOOKS_DEBUG=1`）
 - [x] 回滚开关：`FORMAX_DISABLE_HOOKS=1`（完全禁用 hooks）
 
 ## 待后置（明确不做 / 未来再做）

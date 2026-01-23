@@ -547,6 +547,10 @@ describe('createPolicyPreflight', () => {
       expect(hookRuns).toHaveLength(1)
       expect(hookRuns[0].hook.eventName).toBe('PermissionRequest')
       expect(hookRuns[0].hook.command).toBe('echo deny')
+      expect(hookRuns[0].hook.status).toBe('blocked')
+      expect(hookRuns[0].hook.parsedJson).toBe(false)
+      expect(hookRuns[0].hook.stderrPreview).toBe('blocked by hook')
+      expect(hookRuns[0].hook.stdoutPreview).toBeUndefined()
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

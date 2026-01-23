@@ -305,6 +305,9 @@ describe('ChatEngine', () => {
     expect(hookRuns).toHaveLength(1)
     expect(hookRuns[0].hook.eventName).toBe('PostToolUse')
     expect(hookRuns[0].hook.command).toBe('echo hook')
+    expect(hookRuns[0].hook.status).toBe('ok')
+    expect(hookRuns[0].hook.parsedJson).toBe(true)
+    expect(hookRuns[0].hook.stdoutPreview).toBeUndefined()
   })
 
   it('injects PostToolUse blocking errors as a system-reminder text block after tool_result', async () => {

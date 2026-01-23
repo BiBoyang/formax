@@ -30,6 +30,8 @@ function tryParseJson(text: string): unknown | null {
 }
 
 async function runSingleCommandHook(args: {
+  source?: HookRuleEntry['source']
+  matcher?: HookRuleEntry['matcher']
   command: string
   payload: unknown
   cwd: string
@@ -64,11 +66,16 @@ async function runSingleCommandHook(args: {
   if (args.signal?.aborted) {
     kill()
     return {
+      source: args.source,
+      matcher: args.matcher,
+      timeoutMs: args.timeoutMs,
       command: args.command,
       exitCode: null,
       signal: null,
       stdout: '',
       stderr: 'aborted',
+      stdoutTruncated: false,
+      stderrTruncated: false,
       durationMs: 0,
       timedOut: false,
       parsedJson: null,
@@ -122,11 +129,16 @@ async function runSingleCommandHook(args: {
   const parsedJson = exitCode === 0 ? tryParseJson(normalizedStdout) : null
 
   return {
+    source: args.source,
+    matcher: args.matcher,
+    timeoutMs: args.timeoutMs,
     command: args.command,
     exitCode,
     signal: exitSignal,
     stdout: normalizedStdout,
     stderr: normalizedStderr,
+    stdoutTruncated,
+    stderrTruncated,
     durationMs,
     timedOut,
     parsedJson,
@@ -170,6 +182,8 @@ export async function runCommandHooks(args: {
   return await runWithConcurrency(args.hooks, concurrency, async (entry) => {
     const timeoutMs = entry.timeoutMs ?? defaultTimeoutMs
     return await runSingleCommandHook({
+      source: entry.source,
+      matcher: entry.matcher,
       command: entry.command,
       payload: args.payload,
       cwd: args.cwd,

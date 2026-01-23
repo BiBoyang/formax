@@ -55,11 +55,20 @@ export type HookRunEvent = AuditEventBase & {
   tool: { name: string; toolUseId: string }
   hook: {
     eventName: string
+    source?: string
+    matcher?: string
     command: string
+    timeoutMs?: number | null
     exitCode: number | null
     signal: string | null
     timedOut: boolean
     durationMs: number
+    status?: 'ok' | 'blocked' | 'failed' | 'aborted'
+    parsedJson?: boolean
+    stdoutPreview?: string
+    stderrPreview?: string
+    stdoutTruncated?: boolean
+    stderrTruncated?: boolean
   }
 }
 
