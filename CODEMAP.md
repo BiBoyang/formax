@@ -40,6 +40,25 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
 - `/permissions` UI (visual baseline; wire to real store): `src/entrypoints/permissions.tsx`
 
+## Hooks (Phase 1: PreToolUse / PermissionRequest / PostToolUse)
+- Hook config (repo-level): `.formax/settings.local.json` (see `hooks` field)
+- Hook scripts (repo-level): `.formax/hooks/*`
+- Store (load/parse + list active hooks): `src/hooks/store.ts`
+- Matcher (which hooks apply to which event/tool/action): `src/hooks/matcher.ts`
+- Runner (spawn scripts, timeout, stdout/stderr, exit code semantics): `src/hooks/runner.ts`
+- Runtime (event payload builder + per-event orchestration): `src/hooks/runtime.ts`
+- Wiring points (where hooks are called):
+  - PreToolUse: `src/tools/executor/index.ts`
+  - PermissionRequest: `src/tools/executor/policyPreflight.ts`
+  - PostToolUse (+ `additionalContext` injection before next LLM turn): `src/chat/engine.ts`
+- Audit/debug (observability, not UI):
+  - `hook.run` schema: `src/core/audit/schema.ts`
+  - Debug previews (stdout tail, etc): `FORMAX_HOOKS_DEBUG=1`
+- Tests:
+  - Runner/runtime: `src/hooks/runner.test.ts`, `src/hooks/runtime.test.ts`
+  - PermissionRequest wiring: `src/tools/executor/policyPreflight.test.ts`
+  - PostToolUse wiring: `src/chat/engine.test.ts`
+
 ## Prompts
 - System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
 - Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`
