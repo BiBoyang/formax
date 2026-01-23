@@ -36,13 +36,16 @@ function extractAdditionalContextFromRun(args: {
   const parsed = args.run.parsedJson
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
 
-  const hookSpecificOutput = (parsed as any).hookSpecificOutput
+  // Claude docs show camelCase (`hookSpecificOutput.additionalContext`), but we also
+  // accept snake_case for easier script migration.
+  const hookSpecificOutput = (parsed as any).hookSpecificOutput ?? (parsed as any).hook_specific_output
   if (!hookSpecificOutput || typeof hookSpecificOutput !== 'object' || Array.isArray(hookSpecificOutput)) return null
 
-  const hookEventName = (hookSpecificOutput as any).hookEventName
+  const hookEventName = (hookSpecificOutput as any).hookEventName ?? (hookSpecificOutput as any).hook_event_name
   if (hookEventName !== args.hookEventName) return null
 
-  const additionalContext = (hookSpecificOutput as any).additionalContext
+  const additionalContext =
+    (hookSpecificOutput as any).additionalContext ?? (hookSpecificOutput as any).additional_context
   if (typeof additionalContext !== 'string') return null
 
   const trimmed = additionalContext.trim()
@@ -171,4 +174,3 @@ export function createHooksRuntime(args: {
     },
   }
 }
-
