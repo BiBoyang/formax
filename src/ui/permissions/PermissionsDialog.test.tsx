@@ -6,6 +6,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PermissionsDialog } from './PermissionsDialog'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
+import {
+  addWorkspaceSessionDirectory,
+  listWorkspaceSessionDirectories,
+  resetWorkspaceSessionForTests,
+} from '../../adapters/permissions/workspaceSession.js'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -106,7 +111,19 @@ describe('PermissionsDialog', () => {
       expect(initial).not.toContain('Rule 20')
       expect(initial).toMatch(/\n│\s*↓\s+10\.\s/)
 
-      for (let i = 0; i < 12; i++) {
+      // Scroll far enough that the list window shifts from 1-10 to 2-11.
+      for (let i = 0; i < 10; i++) {
+        stdin.write('\u001B[B')
+        await tick()
+      }
+
+      const shifted = lastFrame() || ''
+      expect(shifted).not.toContain('Add a new rule...')
+      expect(shifted).toMatch(/↑\s+2\.\s+Rule 01/)
+      expect(shifted).toMatch(/\b11\.\s+Rule 10\b/)
+
+      // Continue scrolling to ensure we show "more above" indicator.
+      for (let i = 0; i < 2; i++) {
         stdin.write('\u001B[B')
         await tick()
       }
@@ -596,9 +613,9 @@ describe('PermissionsDialog', () => {
         {
           version: 1,
           permissions: {
-            allow: [],
-            ask: [],
-            deny: [],
+            allow: ['AllowOnly'],
+            ask: ['AskOnly'],
+            deny: ['DenyOnly'],
             workspace: { additionalDirectories: [] },
           },
         },
@@ -620,30 +637,123 @@ describe('PermissionsDialog', () => {
       )
 
       await waitForText(lastFrame, 'Add a new rule')
+      await waitForText(lastFrame, 'AllowOnly')
 
       // Should be on Allow tab
       expect(lastFrame()).toContain('Allow')
+      expect(lastFrame()).toContain("Claude Code won't ask before using allowed tools.")
 
       // Switch to Ask tab
       stdin.write('\t')
       await tick()
-      await waitForText(lastFrame, 'Ask')
+      await waitForText(lastFrame, 'AskOnly')
+      expect(lastFrame()).toContain('always ask')
 
       // Switch to Deny tab
       stdin.write('\t')
       await tick()
-      await waitForText(lastFrame, 'Deny')
+      await waitForText(lastFrame, 'DenyOnly')
+      expect(lastFrame()).toContain('always reject')
 
       // Switch to Workspace tab
       stdin.write('\t')
       await tick()
-      await waitForText(lastFrame, 'Workspace')
+      await waitForText(lastFrame, 'can read files in the workspace')
+      expect(lastFrame()).toContain('can read files in the workspace')
 
       // Switch back to Allow tab (cyclic)
       stdin.write('\t')
       await tick()
       await waitForText(lastFrame, 'Allow')
+      await waitForText(lastFrame, 'AllowOnly')
+      expect(lastFrame()).toContain("Claude Code won't ask before using allowed tools.")
     } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 15000)
+
+  it('supports deleting a workspace session directory via confirmation prompt', async () => {
+    resetWorkspaceSessionForTests()
+
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-workspace-delete-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    // On macOS, `/var` is a symlink to `/private/var`. `process.cwd()` will
+    // typically be the resolved path, so use it as the workspace session key.
+    const effectiveProjectRoot = process.cwd()
+
+    const sessionDir = path.join(effectiveProjectRoot, 'session-dir')
+    await mkdir(sessionDir, { recursive: true })
+    addWorkspaceSessionDirectory(effectiveProjectRoot, sessionDir)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      await waitForText(lastFrame, 'Add a new rule')
+
+      // Switch to Workspace tab (Allow -> Ask -> Deny -> Workspace)
+      stdin.write('\t')
+      await tick()
+      stdin.write('\t')
+      await tick()
+      stdin.write('\t')
+      await tick()
+
+      await waitForText(lastFrame, 'Add directory')
+      await waitForText(lastFrame, path.basename(sessionDir))
+
+      // Select the session directory and delete it.
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+
+      await waitForText(lastFrame, 'Delete workspace directory?')
+      await waitForText(lastFrame, 'Are you sure you want to remove this directory from the workspace?')
+
+      // Confirm "Yes" (default selection)
+      stdin.write('\r')
+
+      await waitForNoText(lastFrame, path.basename(sessionDir))
+      expect(listWorkspaceSessionDirectories(effectiveProjectRoot)).toHaveLength(0)
+    } finally {
+      resetWorkspaceSessionForTests()
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
