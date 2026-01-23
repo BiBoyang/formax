@@ -359,7 +359,7 @@ export function REPL({
       if (msg.role === 'assistant') {
         if (!msg.content) return null
         return (
-          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+          <Box flexDirection="column" marginTop={0} marginBottom={0}>
             <Box>
               <Text>⏺ </Text>
               <Text>{msg.content}</Text>
