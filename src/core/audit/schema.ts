@@ -50,14 +50,27 @@ export type ApprovalResultEvent = AuditEventBase & {
   scope?: string
 }
 
+export type HookRunEvent = AuditEventBase & {
+  kind: 'hook.run'
+  tool: { name: string; toolUseId: string }
+  hook: {
+    eventName: string
+    command: string
+    exitCode: number | null
+    signal: string | null
+    timedOut: boolean
+    durationMs: number
+  }
+}
+
 export type AuditEventV1 =
   | ToolStartEvent
   | ToolEndEvent
   | PolicyDecisionEvent
   | ApprovalPromptEvent
   | ApprovalResultEvent
+  | HookRunEvent
 
 export function nowIso(): string {
   return new Date().toISOString()
 }
-

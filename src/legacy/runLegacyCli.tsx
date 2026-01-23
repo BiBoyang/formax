@@ -203,7 +203,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const tools = await toolRegistry.listSpecs()
   const executor = createToolExecutor(toolRegistry.getHandlers(), { preflight, audit })
   const hooks = createHooksRuntime({ fileStore, env: process.env })
-  const engine = createChatEngine({ client, executor, hooks })
+  const engine = createChatEngine({ client, executor, hooks, audit })
 
   render(
     <InputScopeProvider initialScope="repl">

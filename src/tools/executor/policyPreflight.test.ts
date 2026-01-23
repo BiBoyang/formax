@@ -8,6 +8,7 @@ import { createPolicyPreflight } from './policyPreflight.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
 import { addWorkspaceSessionDirectory, resetWorkspaceSessionForTests } from '../../adapters/permissions/workspaceSession.js'
 import type { HooksRuntime } from '../../hooks/runtime.js'
+import type { AuditEventV1 } from '../../core/audit/schema.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -492,21 +493,25 @@ describe('createPolicyPreflight', () => {
         },
       }
 
+      const auditEvents: AuditEventV1[] = []
+
+      const blockedBy = {
+        command: 'echo deny',
+        exitCode: 2,
+        signal: null,
+        stdout: '',
+        stderr: 'blocked by hook',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      }
+
       const hooks: HooksRuntime = {
         runPreToolUse: async () => ({ runs: [], blocked: false }),
         runPermissionRequest: async () => ({
-          runs: [],
+          runs: [blockedBy],
           blocked: true,
-          blockedBy: {
-            command: 'echo deny',
-            exitCode: 2,
-            signal: null,
-            stdout: '',
-            stderr: 'blocked by hook',
-            durationMs: 1,
-            timedOut: false,
-            parsedJson: null,
-          },
+          blockedBy,
         }),
         runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
       }
@@ -514,6 +519,11 @@ describe('createPolicyPreflight', () => {
       const withApproval = createPolicyPreflight({
         fileStore: store,
         approval,
+        audit: {
+          append: async (e) => {
+            auditEvents.push(e)
+          },
+        },
         env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
         platform: 'linux',
         homedir: dir,
@@ -532,6 +542,11 @@ describe('createPolicyPreflight', () => {
       expect(res?.content).toContain('Permission denied Write')
       expect(res?.content).toContain('blocked by hook')
       expect(approvals).toBe(0)
+
+      const hookRuns = auditEvents.filter((e) => e.kind === 'hook.run') as any[]
+      expect(hookRuns).toHaveLength(1)
+      expect(hookRuns[0].hook.eventName).toBe('PermissionRequest')
+      expect(hookRuns[0].hook.command).toBe('echo deny')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

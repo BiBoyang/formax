@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createToolExecutor, type ToolHandler } from './index'
 import type { ToolCall, ToolResult } from '../types'
 import type { HooksRuntime } from '../../hooks/runtime.js'
+import type { AuditEventV1 } from '../../core/audit/schema.js'
 
 describe('createToolExecutor', () => {
   it('runs preflight and short-circuits when it returns a result', async () => {
@@ -47,6 +48,7 @@ describe('createToolExecutor', () => {
   it('runs PreToolUse hooks before preflight', async () => {
     let preflightCalls = 0
     let handlerCalls = 0
+    const auditEvents: AuditEventV1[] = []
 
     const handler: ToolHandler = {
       canHandle: (name) => name === 'Any',
@@ -61,17 +63,35 @@ describe('createToolExecutor', () => {
       return null
     }
 
+    const blockedBy = {
+      command: 'echo nope',
+      exitCode: 2,
+      signal: null,
+      stdout: '',
+      stderr: 'blocked',
+      durationMs: 1,
+      timedOut: false,
+      parsedJson: null,
+    }
+
     const hooks: HooksRuntime = {
       runPreToolUse: async () => ({
-        runs: [],
+        runs: [blockedBy],
         blocked: true,
-        blockedBy: { command: 'echo nope', exitCode: 2, signal: null, stdout: '', stderr: 'blocked', durationMs: 1, timedOut: false, parsedJson: null },
+        blockedBy,
       }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
     }
 
-    const exec = createToolExecutor([handler], { preflight })
+    const exec = createToolExecutor([handler], {
+      preflight,
+      audit: {
+        append: async (e) => {
+          auditEvents.push(e)
+        },
+      },
+    })
     const res = await exec(
       { id: 't3', name: 'Any', input: {} } as ToolCall,
       { cwd: process.cwd(), agentDepth: 0, hooks },
@@ -82,5 +102,10 @@ describe('createToolExecutor', () => {
     expect(res.is_error).toBe(true)
     expect(preflightCalls).toBe(0)
     expect(handlerCalls).toBe(0)
+
+    const hookRuns = auditEvents.filter((e) => e.kind === 'hook.run') as any[]
+    expect(hookRuns).toHaveLength(1)
+    expect(hookRuns[0].hook.eventName).toBe('PreToolUse')
+    expect(hookRuns[0].hook.command).toBe('echo nope')
   })
 })

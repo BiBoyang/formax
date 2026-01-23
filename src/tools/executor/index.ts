@@ -4,6 +4,7 @@ import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { SUBAGENT_DENY_TOOLS_SET } from './subagentDenyTools'
 import type { HooksRuntime } from '../../hooks/runtime.js'
+import type { HookRun } from '../../hooks/types.js'
 
 export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 
@@ -97,6 +98,28 @@ export function createToolExecutor(
       })
     }
 
+    const auditHookRuns = (eventName: string, runs: HookRun[]) => {
+      if (!audit) return
+      if (runs.length === 0) return
+      for (const r of runs) {
+        void audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'hook.run',
+          agentDepth: ctx.agentDepth,
+          tool: { name: call.name, toolUseId: call.id },
+          hook: {
+            eventName,
+            command: r.command,
+            exitCode: r.exitCode,
+            signal: r.signal,
+            timedOut: r.timedOut,
+            durationMs: r.durationMs,
+          },
+        })
+      }
+    }
+
     auditStart()
 
     if (ctx.signal?.aborted) {
@@ -155,6 +178,7 @@ export function createToolExecutor(
           cwd: ctx.cwd,
           signal: ctx.signal,
         })
+        auditHookRuns('PreToolUse', pre.runs)
         if (pre.blocked) {
           const stderr = pre.blockedBy?.stderr?.trim()
           const content = stderr ? `Error: Tool blocked by PreToolUse hook\n${stderr}` : 'Error: Tool blocked by PreToolUse hook'

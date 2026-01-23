@@ -5,7 +5,8 @@ describe('buildSystemPrompt', () => {
   it('includes cwd note in lite profile', () => {
     const blocks = buildSystemPrompt({ profile: 'lite', cwd: '/repo' })
     expect(blocks.length).toBeGreaterThan(0)
-    expect(blocks[0]?.text).toContain('Current working directory: /repo')
+    const firstText = blocks.find((b) => b.type === 'text') as any
+    expect(String(firstText?.text || '')).toContain('Current working directory: /repo')
   })
 
   it('includes a deterministic env snapshot in full profile when deps are provided', () => {
@@ -20,7 +21,10 @@ describe('buildSystemPrompt', () => {
       },
     )
 
-    const text = blocks.map((b) => b.text).join('\n')
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('\n')
     expect(text).toContain('Working directory: /repo')
     expect(text).toContain('Is directory a git repo: No')
     expect(text).toContain('Platform: test-platform')
@@ -42,7 +46,10 @@ describe('buildSystemPrompt', () => {
       },
     )
 
-    const text = blocks.map((b) => b.text).join('\n')
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('\n')
     expect(text).toContain('gitStatus: snapshot')
   })
 

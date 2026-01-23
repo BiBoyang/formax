@@ -51,7 +51,7 @@
 - [x] 支持最小决策：
   - 若任一 hook exit code=2（阻断）→ 阻止工具执行，返回工具错误（简短）
   - Phase 1 不做 `updatedInput`（后置）
-- [ ] 审计：记录 hook 运行结果（eventName/toolName/command/exitCode/duration）
+- [x] 审计：记录 hook 运行结果（eventName/toolName/command/exitCode/duration）
 
 ## H4：PermissionRequest 接入（审批 UI 之前）
 - [x] 在 ApprovalService 弹 UI 之前触发 `PermissionRequest`

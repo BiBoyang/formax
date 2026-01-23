@@ -349,7 +349,7 @@ describe('ExitPlanModeToolPresenter', () => {
         timestamp: new Date(),
         toolInfo: {
           name: 'ExitPlanMode',
-          status: 'success',
+          status: 'completed',
           input: {},
           result: 'User has approved your plan (auto-accept)',
         },
@@ -390,7 +390,7 @@ describe('ExitPlanModeToolPresenter', () => {
         timestamp: new Date(),
         toolInfo: {
           name: 'ExitPlanMode',
-          status: 'success',
+          status: 'completed',
           input: {},
           result: 'User has approved your plan (manual edit)',
         },

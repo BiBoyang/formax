@@ -8,6 +8,7 @@ import type { ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamEvent, StreamTurnResult } from '../streaming/types'
 import { resolveTodosPath } from '../tools/runtime/todosFile'
 import type { HooksRuntime } from '../hooks/runtime'
+import type { AuditEventV1 } from '../core/audit/schema.js'
 
 describe('ChatEngine', () => {
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
@@ -209,12 +210,24 @@ describe('ChatEngine', () => {
   it('injects PostToolUse.additionalContext as a text block after tool_result (and does not persist it)', async () => {
     let callCount = 0
     let secondCallMessages: PromptMessage[] | null = null
+    const auditEvents: AuditEventV1[] = []
 
     const hooks: HooksRuntime = {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runPostToolUse: async () => ({
-        runs: [],
+        runs: [
+          {
+            command: 'echo hook',
+            exitCode: 0,
+            signal: null,
+            stdout: '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"CTX_FROM_HOOK"}}',
+            stderr: '',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'CTX_FROM_HOOK' } },
+          },
+        ],
         additionalContext: ['CTX_FROM_HOOK'],
         blockingErrors: [],
       }),
@@ -246,7 +259,16 @@ describe('ChatEngine', () => {
       },
     }
 
-    const engine = createChatEngine({ client, executor, hooks })
+    const engine = createChatEngine({
+      client,
+      executor,
+      hooks,
+      audit: {
+        append: async (e) => {
+          auditEvents.push(e)
+        },
+      },
+    })
     const out = await engine.runTurn({
       history: [],
       user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
@@ -278,6 +300,11 @@ describe('ChatEngine', () => {
     const outJson = JSON.stringify(out)
     expect(outJson).not.toContain('PostToolUse:Bash hook additional context:')
     expect(outJson).not.toContain('CTX_FROM_HOOK')
+
+    const hookRuns = auditEvents.filter((e) => e.kind === 'hook.run') as any[]
+    expect(hookRuns).toHaveLength(1)
+    expect(hookRuns[0].hook.eventName).toBe('PostToolUse')
+    expect(hookRuns[0].hook.command).toBe('echo hook')
   })
 
   it('injects PostToolUse blocking errors as a system-reminder text block after tool_result', async () => {

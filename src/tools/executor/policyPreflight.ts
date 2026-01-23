@@ -18,6 +18,7 @@ import { loadMergedPermissions } from '../../adapters/permissions/permissionsSto
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
 import { formatPathForDisplay, normalizePathForCompare } from '../../utils/paths.js'
+import type { HookRun } from '../../hooks/types.js'
 
 function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
   const normalized = normalizePathForCompare(rawPath, cwd)
@@ -86,6 +87,27 @@ export function createPolicyPreflight(args: {
 
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
+    const auditHookRuns = (eventName: string, runs: HookRun[]) => {
+      if (!args.audit) return
+      if (runs.length === 0) return
+      for (const r of runs) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'hook.run',
+          agentDepth: ctx.agentDepth,
+          tool: { name: call.name, toolUseId: call.id },
+          hook: {
+            eventName,
+            command: r.command,
+            exitCode: r.exitCode,
+            signal: r.signal,
+            timedOut: r.timedOut,
+            durationMs: r.durationMs,
+          },
+        })
+      }
+    }
     let mergedPermissions: Awaited<ReturnType<typeof loadMergedPermissions>> | null = null
     const getMergedPermissions = async () => {
       // Important: permissions must take effect immediately after they are persisted
@@ -286,6 +308,7 @@ export function createPolicyPreflight(args: {
         cwd,
         signal: ctx.signal,
       })
+      auditHookRuns('PermissionRequest', permHook.runs)
       if (permHook.blocked) {
         const stderr = permHook.blockedBy?.stderr?.trim()
         const content = stderr ? `Error: Permission denied ${call.name}\n${stderr}` : `Error: Permission denied ${call.name}`

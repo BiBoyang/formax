@@ -7,6 +7,9 @@ import { buildTodoStaleReminderBody } from '../prompts/reminders/todos'
 import type { ContextBudgetConfig } from './context/budget'
 import { pruneForPromptBudget } from './context/prune'
 import type { HooksRuntime } from '../hooks/runtime'
+import type { AuditLog } from '../adapters/audit/auditLog.js'
+import { nowIso } from '../core/audit/schema.js'
+import type { HookRun } from '../hooks/types.js'
 
 export type ChatHistory = PromptMessage[]
 
@@ -49,6 +52,7 @@ export function createChatEngine(deps: {
   client: LlmStreamClient
   executor: ToolExecutor
   hooks?: HooksRuntime
+  audit?: AuditLog
 }): ChatEngine {
   return {
     async runTurn({
@@ -64,6 +68,7 @@ export function createChatEngine(deps: {
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
       const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
+      const audit = deps.audit
 
       const executorCtxBase: ExecutionContext = {
         cwd,
@@ -94,6 +99,26 @@ export function createChatEngine(deps: {
             cwd,
             signal,
           })
+
+          if (audit && post.runs.length > 0) {
+            for (const r of post.runs as HookRun[]) {
+              void audit.append({
+                schemaVersion: 1,
+                ts: nowIso(),
+                kind: 'hook.run',
+                agentDepth: exec?.agentDepth ?? 0,
+                tool: { name: call.name, toolUseId: call.id },
+                hook: {
+                  eventName: 'PostToolUse',
+                  command: r.command,
+                  exitCode: r.exitCode,
+                  signal: r.signal,
+                  timedOut: r.timedOut,
+                  durationMs: r.durationMs,
+                },
+              })
+            }
+          }
 
           const lines: string[] = []
 
