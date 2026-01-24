@@ -40,6 +40,7 @@
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
 - **Coverage mindset**: Prioritize adding/strengthening tests when behavior is user-visible or stability-critical (tools, permissions, hooks, REPL input, UI flows). Avoid “happy-path only” tests—cover edge cases and regressions you’ve already seen.
 - **Refactor safety**: Before refactoring, add/extend tests to lock current behavior. Do not rely on “tests pass” if manual behavior regresses.
+- **Pre-commit review**: For non-trivial changes, run `codex review --uncommitted` before committing; fix all high/medium findings (and low-risk issues that are clearly correct and low-churn).
 
 ## Refactor Guardrails (Important)
 - **Refactor != rewrite**: refactors must preserve existing functionality and user-visible behavior; do not add/remove features as a side-effect.
