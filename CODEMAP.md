@@ -4,6 +4,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Entry Points
 - CLI entrypoint (main): `src/entrypoints/cli.tsx`
+- CLI arg parsing + dispatch: `src/cli/args.ts`, `src/cli/main.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
 
@@ -13,6 +14,14 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Header: `src/components/chat/HeaderBanner.tsx`
 - Mode indicator: `src/components/chat/ModeIndicator.tsx`
 - Pulsing dot: `src/components/ui/PulsingDot.tsx`
+
+## Setup / Dialogs (Overlays)
+- First-run setup wizard (UI): `src/ui/SetupWizard.tsx`
+- Setup session + state machine: `src/core/setup/session.ts`
+- Setup persistence + connection checks: `src/adapters/setup/writeSetupFiles.ts`, `src/adapters/setup/connectionTest.ts`
+- Overlay manager (open/close dialogs): `src/features/repl/overlays/OverlayManager.ts`
+- Agents dialog (overlay UI): `src/ui/agents/AgentsDialog.tsx`
+- Permissions dialog (overlay UI): `src/ui/permissions/PermissionsDialog.tsx`
 
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
@@ -36,9 +45,15 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Rule matcher (deny/ask/allow priority + ToolName(spec) matching): `src/adapters/permissions/matcher.ts`
 - Permission key helpers: `src/adapters/permissions/permissionKeys.ts`
 - Skill allowlist (legacy, being migrated): `src/adapters/permissions/skillAllowList.ts`
+- Policy rules store + schema: `src/core/policy/store.ts`, `src/core/policy/schema.ts`
+- Policy evaluation + explain output: `src/core/policy/engine.ts`
 - Tool preflight hook (central enforcement before tool execution): `src/tools/executor/policyPreflight.ts`
+- ToolCall → PolicyAction mapping: `src/tools/executor/policyAction.ts`
+- Policy explain formatter (CLI/debug): `src/tools/executor/policyExplain.ts`
+- Approval service (user prompts, remember, auditable decision): `src/tools/executor/approvalService.ts`
 - Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
-- `/permissions` UI (visual baseline; wire to real store): `src/entrypoints/permissions.tsx`
+- `/permissions` wiring (slash command → open overlay): `src/features/commands/registry.ts`, `src/features/commands/adapter.ts`, `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
+- `/permissions` UI: `src/ui/permissions/PermissionsDialog.tsx`
 
 ## Hooks (Phase 1: PreToolUse / PermissionRequest / PostToolUse)
 - Hook config (repo-level): `.formax/settings.local.json` (see `hooks` field)
@@ -71,6 +86,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool definitions (ToolDefinition): `src/tools/types.ts`
 - Tool module registry: `src/tools/registry.ts`
 - Tool loader (collect modules into runtime tools list): `src/tools/loader.ts`
+- Built-in tool modules registration: `src/tools/modules/index.ts`
 
 ### Tool execution pipeline
 - Executor entry (enforces allow/deny lists, routes to handlers): `src/tools/executor/index.ts`
@@ -96,6 +112,14 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Glob: `src/tools/modules/glob/*`
 - Grep: `src/tools/modules/grep/*`
 - Bash (policy, filepath extraction, approval workflow): `src/tools/modules/bash/*`
+- AskUserQuestion (interactive prompts): `src/tools/modules/askUserQuestion/*`
+- KillShell (terminate running shell): `src/tools/modules/killShell/*`
+- NotebookEdit: `src/tools/modules/notebookEdit/*`
+- TodoWrite: `src/tools/modules/todoWrite/*`
+- WebFetch: `src/tools/modules/webFetch/*`
+- WebSearch: `src/tools/modules/webSearch/*`
+- Skill: `src/tools/modules/skill/*`
+- SlashCommand: `src/tools/modules/slashCommand/*`
 - Task (sub-agents + nested prompts UI): `src/tools/modules/task/*`
 - TaskOutput (background task UI): `src/tools/modules/taskOutput/*`
 - Search (high-level search): `src/tools/modules/search/*`
@@ -113,11 +137,14 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Built-in subagents registry (names, prompts, tool allowlist): `src/subagents/builtins.ts`
 - Subagent registry: `src/subagents/registry.ts`
 - Runner (spawning + tool allowlist enforcement): `src/subagents/runner.ts`
-- Validator: `src/subagents/validator.ts`
+- Agents creation wizard (generate with model / manual): `src/subagents/agentsWizard.ts`
 - Approval/“read-only” strategy notes (Claude Code vs Formax vs Kode): `docs/SUBAGENT-APPROVAL-STRATEGY.md`
 
 ## Slash Commands
-- Slash command registry + dispatch: `src/features/commands/registry.ts`
+- Slash command registry + suggest + dispatch: `src/features/commands/registry.ts`
+- Built-in command effects → command contract adapter: `src/features/commands/adapter.ts`, `src/features/commands/contracts.ts`
+- Custom commands store (scan `.formax/commands/**` and global overrides): `src/commands/CommandStore.ts`
+- Custom command rendering (markdown → injected prompt blocks): `src/commands/render.ts`
 - CLI wires suggestions/registry into REPL: `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
 
 ## Config / Auth / Paths
