@@ -10,6 +10,7 @@ export type UiMessage = {
 export type OverlaySpec =
   | { kind: 'agents' }
   | { kind: 'permissions' }
+  | { kind: 'hooks' }
   | { kind: 'custom'; id: string; props?: Record<string, unknown> }
 
 export type UiEffect =

@@ -33,6 +33,7 @@ import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
+import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import { useScopedInput } from '../features/repl/inputScopeContext'
 import type { TokenUsage } from '../streaming/types'
@@ -200,6 +201,7 @@ export function REPL({
   const isPromptMode = useMemo(() => {
     if (state.agentsDialogOpen) return true
     if (state.permissionsDialogOpen) return true
+    if (state.hooksDialogOpen) return true
     if (!userInput) return false
     const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
     return state.transientMessages.some((m) => {
@@ -480,6 +482,7 @@ export function REPL({
             )}
 
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
+            {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { hookMatcherMatchesToolName } from './matcher.js'
 
 describe('hookMatcherMatchesToolName', () => {
-  it('matches all tools for blank or * matcher', () => {
-    expect(hookMatcherMatchesToolName({ matcher: '', toolName: 'Bash' })).toBe(true)
+  it('matches all tools for * matcher', () => {
     expect(hookMatcherMatchesToolName({ matcher: '*', toolName: 'Read' })).toBe(true)
-    expect(hookMatcherMatchesToolName({ matcher: undefined, toolName: 'Write' })).toBe(true)
+  })
+
+  it('treats blank matcher as non-match (invalid)', () => {
+    expect(hookMatcherMatchesToolName({ matcher: '', toolName: 'Bash' })).toBe(false)
+    expect(hookMatcherMatchesToolName({ matcher: undefined, toolName: 'Write' })).toBe(false)
   })
 
   it('treats simple matchers as exact match', () => {
@@ -19,4 +22,3 @@ describe('hookMatcherMatchesToolName', () => {
     expect(hookMatcherMatchesToolName({ matcher: '([', toolName: 'Bash' })).toBe(false)
   })
 })
-

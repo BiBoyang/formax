@@ -27,6 +27,7 @@ function parseRulesForEvent(args: {
   settings: Record<string, unknown>
   eventName: HookEventName
   source: HookSource
+  warnings: string[]
 }): HookRuleEntry[] {
   const hooksRoot =
     args.settings.hooks && typeof args.settings.hooks === 'object' && !Array.isArray(args.settings.hooks)
@@ -42,6 +43,12 @@ function parseRulesForEvent(args: {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
     const matcherRaw = (rule as any).matcher
     const matcher = typeof matcherRaw === 'string' ? matcherRaw.trim() : ''
+    if (!matcher) {
+      args.warnings.push(
+        `Ignoring ${args.source} ${args.eventName} hook rule with empty matcher (use "*" to match all tools)`,
+      )
+      continue
+    }
     const hooks = (rule as any).hooks
     if (!Array.isArray(hooks)) continue
 
@@ -60,6 +67,47 @@ function parseRulesForEvent(args: {
   }
 
   return entries
+}
+
+export type HookMatcherSummary = {
+  source: HookSource
+  matcher: string
+  hooksCount: number
+}
+
+function parseMatchersForEvent(args: {
+  settings: Record<string, unknown>
+  eventName: HookEventName
+  source: HookSource
+}): HookMatcherSummary[] {
+  const hooksRoot =
+    args.settings.hooks && typeof args.settings.hooks === 'object' && !Array.isArray(args.settings.hooks)
+      ? (args.settings.hooks as Record<string, unknown>)
+      : null
+
+  const rawRules = hooksRoot?.[args.eventName]
+  if (!Array.isArray(rawRules)) return []
+
+  const out: HookMatcherSummary[] = []
+  const seen = new Set<string>()
+
+  for (const rule of rawRules) {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
+    const matcherRaw = (rule as any).matcher
+    const matcher = typeof matcherRaw === 'string' ? matcherRaw.trim() : ''
+    if (!matcher) continue
+    if (seen.has(matcher)) continue
+    seen.add(matcher)
+
+    const hooks = (rule as any).hooks
+    const hooksCount = Array.isArray(hooks)
+      ? hooks.filter((h: any) => h && typeof h === 'object' && !Array.isArray(h) && (h as any).type === 'command' && typeof (h as any).command === 'string' && String((h as any).command).trim()).length
+      : 0
+
+    out.push({ source: args.source, matcher, hooksCount })
+  }
+
+  return out
 }
 
 function dedupeByCommand(entries: HookRuleEntry[]): HookRuleEntry[] {
@@ -87,13 +135,21 @@ function dedupeByCommand(entries: HookRuleEntry[]): HookRuleEntry[] {
   return order.map((key) => byCommand.get(key)!).filter(Boolean)
 }
 
-export async function loadMergedHooks(args: {
+export type HooksBySource = {
+  projectLocal: Record<HookEventName, HookRuleEntry[]>
+  project: Record<HookEventName, HookRuleEntry[]>
+  user: Record<HookEventName, HookRuleEntry[]>
+  matchersBySource: Record<HookSource, Record<HookEventName, HookMatcherSummary[]>>
+  warnings: string[]
+}
+
+export async function loadHooksBySource(args: {
   fileStore: FileStore
   cwd: string
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
-}): Promise<MergedHooks> {
+}): Promise<HooksBySource> {
   const cwd = args.cwd || process.cwd()
   const filePaths = {
     projectLocal: getProjectSettingsLocalPath(cwd),
@@ -129,12 +185,67 @@ export async function loadMergedHooks(args: {
     }
   }
 
+  const buildFor = (source: HookSource, eventName: HookEventName): HookRuleEntry[] => {
+    const settings = settingsBySource[source]
+    if (!settings) return []
+    return parseRulesForEvent({ settings, eventName, source, warnings })
+  }
+
+  const buildMatchersFor = (source: HookSource, eventName: HookEventName): HookMatcherSummary[] => {
+    const settings = settingsBySource[source]
+    if (!settings) return []
+    return parseMatchersForEvent({ settings, eventName, source })
+  }
+
+  return {
+    projectLocal: {
+      PreToolUse: buildFor('projectLocal', 'PreToolUse'),
+      PermissionRequest: buildFor('projectLocal', 'PermissionRequest'),
+      PostToolUse: buildFor('projectLocal', 'PostToolUse'),
+    },
+    project: {
+      PreToolUse: buildFor('project', 'PreToolUse'),
+      PermissionRequest: buildFor('project', 'PermissionRequest'),
+      PostToolUse: buildFor('project', 'PostToolUse'),
+    },
+    user: {
+      PreToolUse: buildFor('user', 'PreToolUse'),
+      PermissionRequest: buildFor('user', 'PermissionRequest'),
+      PostToolUse: buildFor('user', 'PostToolUse'),
+    },
+    matchersBySource: {
+      projectLocal: {
+        PreToolUse: buildMatchersFor('projectLocal', 'PreToolUse'),
+        PermissionRequest: buildMatchersFor('projectLocal', 'PermissionRequest'),
+        PostToolUse: buildMatchersFor('projectLocal', 'PostToolUse'),
+      },
+      project: {
+        PreToolUse: buildMatchersFor('project', 'PreToolUse'),
+        PermissionRequest: buildMatchersFor('project', 'PermissionRequest'),
+        PostToolUse: buildMatchersFor('project', 'PostToolUse'),
+      },
+      user: {
+        PreToolUse: buildMatchersFor('user', 'PreToolUse'),
+        PermissionRequest: buildMatchersFor('user', 'PermissionRequest'),
+        PostToolUse: buildMatchersFor('user', 'PostToolUse'),
+      },
+    },
+    warnings,
+  }
+}
+
+export async function loadMergedHooks(args: {
+  fileStore: FileStore
+  cwd: string
+  env?: NodeJS.ProcessEnv
+  platform?: Platform
+  homedir?: string
+}): Promise<MergedHooks> {
+  const bySource = await loadHooksBySource(args)
+  const sources: HookSource[] = ['projectLocal', 'project', 'user']
+
   const buildForEvent = (eventName: HookEventName): HookRuleEntry[] => {
-    const flat = sources.flatMap(({ source }) => {
-      const settings = settingsBySource[source]
-      if (!settings) return []
-      return parseRulesForEvent({ settings, eventName, source })
-    })
+    const flat = sources.flatMap((source) => bySource[source][eventName])
     return dedupeByCommand(flat)
   }
 
@@ -142,6 +253,6 @@ export async function loadMergedHooks(args: {
     PreToolUse: buildForEvent('PreToolUse'),
     PermissionRequest: buildForEvent('PermissionRequest'),
     PostToolUse: buildForEvent('PostToolUse'),
-    warnings,
+    warnings: bySource.warnings,
   }
 }

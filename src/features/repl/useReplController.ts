@@ -43,6 +43,7 @@ export type ReplControllerState = {
   allowedSubagents: Array<{ name: string; description: string }>
   agentsDialogOpen: boolean
   permissionsDialogOpen: boolean
+  hooksDialogOpen: boolean
   context: null | {
     usedTokens: number
     limitTokens: number
@@ -58,6 +59,7 @@ export type ReplController = {
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
+    closeHooksDialog: () => void
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }
@@ -153,6 +155,19 @@ export function useReplController(deps: {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: '  ⎿  Permissions dialog dismissed',
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
+
+  const closeHooksDialog = useCallback(() => {
+    overlayManagerRef.current.close()
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: '  ⎿  Hooks dialog dismissed',
         timestamp: new Date(),
       },
     ])
@@ -1208,6 +1223,7 @@ export function useReplController(deps: {
       allowedSubagents,
       agentsDialogOpen: overlay?.kind === 'agents',
       permissionsDialogOpen: overlay?.kind === 'permissions',
+      hooksDialogOpen: overlay?.kind === 'hooks',
       context,
     },
     actions: {
@@ -1215,6 +1231,7 @@ export function useReplController(deps: {
       abort,
       closeAgentsDialog,
       closePermissionsDialog,
+      closeHooksDialog,
       generateAgentDraft,
       saveAgentFromDialog,
     },

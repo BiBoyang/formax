@@ -1,6 +1,6 @@
 function isBlankMatcher(raw: string | null | undefined): boolean {
   const s = String(raw ?? '').trim()
-  return !s || s === '*'
+  return s === '*'
 }
 
 function isSimpleExactMatcher(raw: string): boolean {
@@ -13,11 +13,11 @@ export function hookMatcherMatchesToolName(args: {
   matcher: string | null | undefined
   toolName: string
 }): boolean {
-  if (isBlankMatcher(args.matcher)) return true
-
   const matcher = String(args.matcher ?? '').trim()
+  if (isBlankMatcher(matcher)) return true
+  if (!matcher) return false
+
   const toolName = String(args.toolName ?? '')
-  if (!matcher) return true
 
   if (isSimpleExactMatcher(matcher)) return matcher === toolName
 
@@ -28,4 +28,3 @@ export function hookMatcherMatchesToolName(args: {
     return false
   }
 }
-

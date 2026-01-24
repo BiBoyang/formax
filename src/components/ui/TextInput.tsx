@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
@@ -75,6 +75,16 @@ export default function TextInput({
   const lastValueRef = useRef(value)
   const valueRef = useRef(value)
   const cursorOffsetRef = useRef(cursorOffset)
+  const onChangeRef = useRef(onChange)
+  const onSubmitRef = useRef(onSubmit)
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
+
+  useEffect(() => {
+    onSubmitRef.current = onSubmit
+  }, [onSubmit])
 
   // Keep cursor in-bounds without forcing it to the end.
   // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
@@ -94,7 +104,7 @@ export default function TextInput({
     cursorOffsetRef.current = cursorOffset
   }, [cursorOffset])
 
-  const handler = (input: string, key: any) => {
+  const handler = useCallback((input: string, key: any) => {
     if (!focus) return
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
@@ -113,7 +123,7 @@ export default function TextInput({
     if (deletion === 'backspace') {
       if (currentValue.length > 0 && currentCursorOffset > 0) {
         const newValue = currentValue.slice(0, currentCursorOffset - 1) + currentValue.slice(currentCursorOffset)
-        onChange(newValue)
+        onChangeRef.current(newValue)
         valueRef.current = newValue
         const nextCursorOffset = Math.max(0, currentCursorOffset - 1)
         cursorOffsetRef.current = nextCursorOffset
@@ -125,20 +135,22 @@ export default function TextInput({
     if (deletion === 'forwardDelete') {
       if (currentValue.length > 0 && currentCursorOffset < currentValue.length) {
         const newValue = currentValue.slice(0, currentCursorOffset) + currentValue.slice(currentCursorOffset + 1)
-        onChange(newValue)
+        onChangeRef.current(newValue)
         valueRef.current = newValue
       }
       return
     }
 
-    if (key.leftArrow && currentCursorOffset > 0) {
+    const isLeftArrowSeq = raw === '\u001B[D' || raw === '\u001BOD'
+    if ((key.leftArrow || isLeftArrowSeq) && currentCursorOffset > 0) {
       const nextCursorOffset = currentCursorOffset - 1
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
       return
     }
 
-    if (key.rightArrow && currentCursorOffset < currentValue.length) {
+    const isRightArrowSeq = raw === '\u001B[C' || raw === '\u001BOC'
+    if ((key.rightArrow || isRightArrowSeq) && currentCursorOffset < currentValue.length) {
       const nextCursorOffset = currentCursorOffset + 1
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
@@ -147,7 +159,7 @@ export default function TextInput({
 
     if (wantsNewline) {
       const newValue = currentValue.slice(0, currentCursorOffset) + '\n' + currentValue.slice(currentCursorOffset)
-      onChange(newValue)
+      onChangeRef.current(newValue)
       valueRef.current = newValue
       const nextCursorOffset = currentCursorOffset + 1
       cursorOffsetRef.current = nextCursorOffset
@@ -156,7 +168,7 @@ export default function TextInput({
     }
 
     if (isSubmit || isNewline) {
-      if (onSubmit) onSubmit(currentValue)
+      if (onSubmitRef.current) onSubmitRef.current(currentValue)
       return
     }
 
@@ -165,13 +177,13 @@ export default function TextInput({
     // `key.sequence` with an empty `input` string.
     if (raw && !raw.startsWith('\u001b') && !key.ctrl && !key.meta) {
       const newValue = currentValue.slice(0, currentCursorOffset) + raw + currentValue.slice(currentCursorOffset)
-      onChange(newValue)
+      onChangeRef.current(newValue)
       valueRef.current = newValue
       const nextCursorOffset = currentCursorOffset + raw.length
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
     }
-  }
+  }, [focus, multiline])
 
   useScopedInput(scope ?? 'repl', handler, { enabled: Boolean(scope) && focus })
   useInput(handler, { isActive: Boolean(focus) && !scope })

@@ -38,6 +38,9 @@ export type SlashCommandEffect =
       kind: 'open_permissions_dialog'
     }
   | {
+      kind: 'open_hooks_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -71,6 +74,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/todos', source: 'builtin', command: '/todos', description: 'List current todos', implemented: true },
   { id: 'builtin:/agents', source: 'builtin', command: '/agents', description: 'Create and manage custom sub-agents', implemented: true },
   { id: 'builtin:/permissions', source: 'builtin', command: '/permissions', description: 'Manage tool permissions and workspace access', implemented: true },
+  { id: 'builtin:/hooks', source: 'builtin', command: '/hooks', description: 'Configure hooks (PreToolUse / PermissionRequest / PostToolUse)', implemented: true },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -171,6 +175,12 @@ export function createSlashCommandRegistry(deps: {
       const rawArgs = (invocation.args || '').trim()
       if (rawArgs) return { kind: 'local', stdout: 'Usage: /permissions' }
       return { kind: 'open_permissions_dialog' }
+  })
+
+  setBuiltinDispatcher('/hooks', (invocation) => {
+      const rawArgs = (invocation.args || '').trim()
+      if (rawArgs) return { kind: 'local', stdout: 'Usage: /hooks' }
+      return { kind: 'open_hooks_dialog' }
   })
 
   setBuiltinDispatcher('/plan', () => {

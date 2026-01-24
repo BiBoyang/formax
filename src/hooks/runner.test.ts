@@ -29,7 +29,7 @@ describe('runCommandHooks', () => {
       hooks: [
         {
           source: 'projectLocal',
-          matcher: '',
+          matcher: '*',
           command: `node "${scriptPath}"`,
           timeoutMs: null,
         },
@@ -42,7 +42,7 @@ describe('runCommandHooks', () => {
     expect(runs).toHaveLength(1)
     expect(runs[0].exitCode).toBe(0)
     expect(runs[0].source).toBe('projectLocal')
-    expect(runs[0].matcher).toBe('')
+    expect(runs[0].matcher).toBe('*')
     expect(runs[0].parsedJson).toBeTruthy()
   })
 
@@ -58,7 +58,7 @@ describe('runCommandHooks', () => {
       hooks: [
         {
           source: 'projectLocal',
-          matcher: '',
+          matcher: '*',
           command: `node "${scriptPath}"`,
           timeoutMs: null,
         },
@@ -71,7 +71,7 @@ describe('runCommandHooks', () => {
     expect(runs).toHaveLength(1)
     expect(runs[0].exitCode).toBe(2)
     expect(runs[0].source).toBe('projectLocal')
-    expect(runs[0].matcher).toBe('')
+    expect(runs[0].matcher).toBe('*')
     expect(runs[0].stderr).toContain('blocked')
   })
 })

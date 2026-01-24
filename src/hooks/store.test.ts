@@ -74,5 +74,38 @@ describe('loadMergedHooks', () => {
     expect(timeoutByCommand.get('echo user-1')).toBe(1000)
     expect(timeoutByCommand.get('echo shared')).toBe(5000)
   })
-})
 
+  it('ignores hook rules with blank matcher and records a warning', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        PreToolUse: [
+          {
+            // Invalid: blank matcher should be ignored (use "*" explicitly).
+            matcher: '',
+            hooks: [{ type: 'command', command: 'echo should-not-load' }],
+          },
+          {
+            matcher: '*',
+            hooks: [{ type: 'command', command: 'echo ok' }],
+          },
+        ],
+      },
+    })
+
+    const fileStore = createNodeFileStore()
+    const merged = await loadMergedHooks({ fileStore, cwd, homedir: home, platform: 'darwin' })
+
+    expect(merged.PreToolUse.map((e) => e.command)).toEqual(['echo ok'])
+    expect(merged.warnings.join('\n')).toContain('empty matcher')
+  })
+})
