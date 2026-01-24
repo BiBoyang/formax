@@ -12,7 +12,7 @@ const UI_ROOT = path.join(SRC_ROOT, 'ui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const TOOLS_MODULES_ROOT = path.join(SRC_ROOT, 'tools', 'modules')
 
-const FORBIDDEN_EXTERNAL_PACKAGES = new Set(['ink', '@inkjs/ui', '@anthropic-ai/sdk', 'openai'])
+const FORBIDDEN_EXTERNAL_PACKAGES = new Set(['ink', '@anthropic-ai/sdk', 'openai'])
 const ALLOWED_EXTERNAL_PACKAGES = new Set(['zod'])
 
 const IMPORT_SPECIFIER_RE = /(?:^|\n)\s*(?:import|export)\s+(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]/g
