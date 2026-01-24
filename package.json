@@ -11,7 +11,8 @@
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
     "core:boundaries": "node ./scripts/check-core-boundaries.mjs",
-    "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs",
+    "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
+    "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

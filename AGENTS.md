@@ -24,7 +24,8 @@
 - `bun run toole` / `npm run toole` runs the tool examples entrypoint.
 - `bun run loade` / `npm run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
-- `bun run type-check` / `npm run type-check` runs TypeScript checks + core boundary checks.
+- `bun run type-check` / `npm run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
+- `bun run ui:boundaries` runs UI boundary checks (guards `src/ui/`, `src/screens/`, `src/components/` from importing forbidden layers).
 - `bun run test` / `npm test` runs `vitest run`; `bun run test:watch` / `npm run test:watch` runs Vitest watch.
 - Single test: `bun run test -- src/tools/registry.test.ts` (or `npm test -- src/tools/registry.test.ts`).
 
