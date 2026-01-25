@@ -2,6 +2,7 @@ export type ReminderSessionState = {
   lastTodoWriteAt: number | null
   nonTodoToolUsesSinceLastTodoWrite: number
   remindersSentAt: Record<string, number>
+  remindersSentText: Record<string, string>
   reminderCount: number
 }
 
@@ -15,6 +16,7 @@ const DEFAULT_STATE: ReminderSessionState = {
   lastTodoWriteAt: null,
   nonTodoToolUsesSinceLastTodoWrite: 0,
   remindersSentAt: {},
+  remindersSentText: {},
   reminderCount: 0,
 }
 
@@ -26,15 +28,24 @@ export class InMemoryReminderStateStore implements ReminderStateStore {
       ...DEFAULT_STATE,
       ...initial,
       remindersSentAt: { ...DEFAULT_STATE.remindersSentAt, ...(initial?.remindersSentAt ?? {}) },
+      remindersSentText: { ...DEFAULT_STATE.remindersSentText, ...(initial?.remindersSentText ?? {}) },
     }
   }
 
   get(): ReminderSessionState {
-    return { ...this.state, remindersSentAt: { ...this.state.remindersSentAt } }
+    return {
+      ...this.state,
+      remindersSentAt: { ...this.state.remindersSentAt },
+      remindersSentText: { ...this.state.remindersSentText },
+    }
   }
 
   set(next: ReminderSessionState): void {
-    this.state = { ...next, remindersSentAt: { ...next.remindersSentAt } }
+    this.state = {
+      ...next,
+      remindersSentAt: { ...next.remindersSentAt },
+      remindersSentText: { ...next.remindersSentText },
+    }
   }
 
   update(fn: (prev: ReminderSessionState) => ReminderSessionState): ReminderSessionState {
@@ -43,4 +54,3 @@ export class InMemoryReminderStateStore implements ReminderStateStore {
     return next
   }
 }
-

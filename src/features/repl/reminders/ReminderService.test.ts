@@ -90,7 +90,9 @@ describe('ReminderService', () => {
       process.env.FORMAX_CONFIG_DIR = dir
       process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
 
-      const service = new ReminderService({ config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY } })
+      const service = new ReminderService({
+        config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY, todoUnusedCooldownMs: 0, todoUnusedWithListCooldownMs: 0 },
+      })
 
       const todosPath = resolveTodosPath(dir)
       await fsp.mkdir(path.dirname(todosPath), { recursive: true })
@@ -107,8 +109,22 @@ describe('ReminderService', () => {
       service.recordToolResult({ toolName: 'Task', ok: true, now: 2 })
       service.recordToolResult({ toolName: 'Task', ok: true, now: 3 })
 
-      const stale = service.generateInjectedBlocks({ cwd: dir, now: 4 })
-      expect(stale).toHaveLength(0)
+      const unused = service.generateInjectedBlocks({ cwd: dir, now: 4 })
+      expect(unused).toHaveLength(1)
+      expect((unused[0] as any).text).toContain("The TodoWrite tool hasn't been used recently")
+      expect((unused[0] as any).text).not.toContain('Here are the existing contents of your todo list:')
+
+      const unusedWithList = service.generateInjectedBlocks({ cwd: dir, now: 5 })
+      expect(unusedWithList).toHaveLength(1)
+      expect((unusedWithList[0] as any).text).toContain("The TodoWrite tool hasn't been used recently")
+      expect((unusedWithList[0] as any).text).toContain('Here are the existing contents of your todo list:')
+
+      const deduped = service.generateInjectedBlocks({ cwd: dir, now: 6 })
+      expect(deduped).toHaveLength(0)
+
+      service.recordToolResult({ toolName: 'TodoWrite', ok: true, now: 7 })
+      const afterTodoWrite = service.generateInjectedBlocks({ cwd: dir, now: 8 })
+      expect(afterTodoWrite).toHaveLength(0)
     } finally {
       if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
       else process.env.FORMAX_TODOS_PATH = prevTodosPath

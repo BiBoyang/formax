@@ -1,6 +1,6 @@
 import type { PromptBlock } from '../../../prompts'
 import { readTodos } from '../../../tools/runtime/todosFile'
-import { TODO_EMPTY_REMINDER_BODY } from '../../../prompts/reminders/todos'
+import { TODO_EMPTY_REMINDER_BODY, buildTodoUnusedReminderBody, buildTodoUnusedWithListReminderBody } from '../../../prompts/reminders/todos'
 import { buildClaudeMdInjectedBlocks } from '../injectedBlocks'
 import { InMemoryReminderStateStore, type ReminderSessionState, type ReminderStateStore } from './ReminderStateStore'
 
@@ -8,19 +8,25 @@ export type ReminderServiceConfig = {
   maxRemindersPerTurn: number
   maxRemindersPerSession: number
   todoEmptyTtlMs: number
-  todoStaleTtlMs: number
-  todoStaleAfterToolUses: number
+  todoUnusedCooldownMs: number
+  todoUnusedWithListCooldownMs: number
+  todoUnusedAfterToolUses: number
+  todoUnusedWithListAfterReminders: number
 }
 
 const DEFAULT_CONFIG: ReminderServiceConfig = {
   maxRemindersPerTurn: 2,
   maxRemindersPerSession: 10,
   todoEmptyTtlMs: Number.POSITIVE_INFINITY,
-  todoStaleTtlMs: Number.POSITIVE_INFINITY,
-  todoStaleAfterToolUses: 3,
+  todoUnusedCooldownMs: 5 * 60 * 1000,
+  todoUnusedWithListCooldownMs: 5 * 60 * 1000,
+  todoUnusedAfterToolUses: 3,
+  todoUnusedWithListAfterReminders: 1,
 }
 
 const TODO_EMPTY_REMINDER = TODO_EMPTY_REMINDER_BODY
+const TODO_UNUSED_SHORT_PREFIX = 'todo_unused_short_'
+const TODO_UNUSED_LIST_PREFIX = 'todo_unused_list_'
 
 export class ReminderService {
   private readonly store: ReminderStateStore
@@ -39,8 +45,12 @@ export class ReminderService {
         if (!args.ok) return prev
 
         const remindersSentAt = { ...prev.remindersSentAt }
+        const remindersSentText = { ...prev.remindersSentText }
         for (const key of Object.keys(remindersSentAt)) {
-          if (key.startsWith('todo_stale_')) delete remindersSentAt[key]
+          if (key.startsWith(TODO_UNUSED_SHORT_PREFIX) || key.startsWith(TODO_UNUSED_LIST_PREFIX)) {
+            delete remindersSentAt[key]
+            delete remindersSentText[key]
+          }
         }
 
         return {
@@ -48,6 +58,7 @@ export class ReminderService {
           lastTodoWriteAt: now,
           nonTodoToolUsesSinceLastTodoWrite: 0,
           remindersSentAt,
+          remindersSentText,
         }
       }
 
@@ -84,7 +95,64 @@ export class ReminderService {
       return [makeSystemReminder(TODO_EMPTY_REMINDER)]
     }
 
-    return []
+    if (this.config.maxRemindersPerSession <= 0) return []
+    if (args.state.reminderCount >= this.config.maxRemindersPerSession) return []
+    if (args.state.nonTodoToolUsesSinceLastTodoWrite < this.config.todoUnusedAfterToolUses) return []
+
+    const shortCount = countReminderPrefix(args.state.remindersSentAt, TODO_UNUSED_SHORT_PREFIX)
+    const useList = shortCount >= this.config.todoUnusedWithListAfterReminders
+
+    if (!useList) {
+      const body = buildTodoUnusedReminderBody()
+      if (!this.tryRecordReminder({ now: args.now, prefix: TODO_UNUSED_SHORT_PREFIX, text: body })) return []
+      return [makeSystemReminder(body)]
+    }
+
+    const body = buildTodoUnusedWithListReminderBody(todos)
+    if (!body) return []
+    if (!this.tryRecordReminder({ now: args.now, prefix: TODO_UNUSED_LIST_PREFIX, text: body })) return []
+    return [makeSystemReminder(body)]
+  }
+
+  private tryRecordReminder(args: { now: number; prefix: string; text: string }): boolean {
+    const cooldownMs =
+      args.prefix === TODO_UNUSED_SHORT_PREFIX ? this.config.todoUnusedCooldownMs : this.config.todoUnusedWithListCooldownMs
+
+    const now = args.now
+    let okToSend = false
+
+    this.store.update((prev) => {
+      if (prev.reminderCount >= this.config.maxRemindersPerSession) {
+        okToSend = false
+        return prev
+      }
+
+      const last = findLatestReminder(prev.remindersSentAt, args.prefix)
+      if (last && now - last.at < cooldownMs) {
+        okToSend = false
+        return prev
+      }
+
+      if (last) {
+        const lastText = prev.remindersSentText[last.key]
+        if (typeof lastText === 'string' && lastText === args.text) {
+          okToSend = false
+          return prev
+        }
+      }
+
+      const nextKey = `${args.prefix}${countReminderPrefix(prev.remindersSentAt, args.prefix) + 1}`
+
+      okToSend = true
+      return {
+        ...prev,
+        reminderCount: prev.reminderCount + 1,
+        remindersSentAt: { ...prev.remindersSentAt, [nextKey]: now },
+        remindersSentText: { ...prev.remindersSentText, [nextKey]: args.text },
+      }
+    })
+
+    return okToSend
   }
 }
 
@@ -94,4 +162,24 @@ function makeSystemReminder(text: string): PromptBlock {
     text: `<system-reminder>\n${text}\n</system-reminder>`,
     cache_control: { type: 'ephemeral' },
   }
+}
+
+function countReminderPrefix(remindersSentAt: Record<string, number>, prefix: string): number {
+  let count = 0
+  for (const key of Object.keys(remindersSentAt)) {
+    if (key.startsWith(prefix)) count++
+  }
+  return count
+}
+
+function findLatestReminder(
+  remindersSentAt: Record<string, number>,
+  prefix: string,
+): { key: string; at: number } | null {
+  let latest: { key: string; at: number } | null = null
+  for (const [key, at] of Object.entries(remindersSentAt)) {
+    if (!key.startsWith(prefix)) continue
+    if (!latest || at > latest.at) latest = { key, at }
+  }
+  return latest
 }

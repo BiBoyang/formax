@@ -2,8 +2,6 @@ import type { PromptBlock, PromptMessage } from '../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
-import { readTodos } from '../tools/runtime/todosFile'
-import { buildTodoStaleReminderBody } from '../prompts/reminders/todos'
 import type { ContextBudgetConfig } from './context/budget'
 import { pruneForPromptBudget } from './context/prune'
 import type { HooksRuntime } from '../hooks/runtime'
@@ -179,29 +177,9 @@ export function createChatEngine(deps: {
       }
 
       try {
-        const todoStaleThreshold = 2
-        const shouldInjectTodoReminders = (exec?.agentDepth ?? 0) === 0
-        let nonTodoToolUsesSinceLastTodoWrite = shouldInjectTodoReminders
-          ? countNonTodoToolUsesSinceLastTodoWrite(history)
-          : 0
-        let shouldIncludeTodoStaleReminder = false
-
         let iteration = 0
         while (true) {
-          const todoStaleReminder =
-            shouldInjectTodoReminders && shouldIncludeTodoStaleReminder ? buildTodoStaleReminder(cwd) : null
-
-          const systemForThisCall =
-            todoStaleReminder
-              ? [
-                  ...system,
-                  {
-                    type: 'text',
-                    text: todoStaleReminder,
-                    cache_control: { type: 'ephemeral' },
-                  },
-                ]
-              : system
+          const systemForThisCall = system
 
           // IMPORTANT:
           // - PostToolUse.additionalContext should affect the *next* model call.
@@ -252,24 +230,6 @@ export function createChatEngine(deps: {
 
           if (toolUseBlocks.length === 0 || stopReason !== 'tool_use') {
             break
-          }
-
-          if (shouldInjectTodoReminders) {
-            const toolNameById = new Map(toolUseBlocks.map((b) => [b.id, b.name]))
-            for (const r of toolResults) {
-              const toolName = toolNameById.get(r.tool_use_id)
-              if (!toolName) continue
-
-              const ok = !r.is_error
-              if (toolName === 'TodoWrite') {
-                if (ok) nonTodoToolUsesSinceLastTodoWrite = 0
-                continue
-              }
-
-              nonTodoToolUsesSinceLastTodoWrite++
-            }
-
-            shouldIncludeTodoStaleReminder = nonTodoToolUsesSinceLastTodoWrite >= todoStaleThreshold
           }
 
           loopMessages.push(
@@ -340,46 +300,4 @@ function buildMessagesWithPostToolUseText(
 
   for (const id of used) pendingByToolUseId.delete(id)
   return patched
-}
-
-function buildTodoStaleReminder(cwd: string): string | null {
-  const { exists, todos } = readTodos(cwd)
-  if (!exists || todos === null || todos.length === 0) return null
-  const body = buildTodoStaleReminderBody(todos)
-  if (!body) return null
-  return `<system-reminder>\n${body}\n</system-reminder>`
-}
-
-function countNonTodoToolUsesSinceLastTodoWrite(history: ChatHistory): number {
-  const toolNameById = new Map<string, string>()
-  let count = 0
-
-  for (const msg of history) {
-    if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-      for (const block of msg.content) {
-        if (isToolUseBlock(block)) toolNameById.set(block.id, block.name)
-      }
-    }
-
-    if (msg.role === 'user' && Array.isArray(msg.content)) {
-      for (const block of msg.content) {
-        const tr = block as any
-        if (tr?.type !== 'tool_result') continue
-        if (typeof tr?.tool_use_id !== 'string') continue
-
-        const toolName = toolNameById.get(tr.tool_use_id)
-        if (!toolName) continue
-
-        const ok = !tr.is_error
-        if (toolName === 'TodoWrite') {
-          if (ok) count = 0
-          continue
-        }
-
-        count++
-      }
-    }
-  }
-
-  return count
 }
