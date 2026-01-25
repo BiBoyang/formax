@@ -19,12 +19,17 @@
 - Read/malware 安全提醒
 - 其它 tool 的 `<system-reminder>` 研究（后续另起）
 
-## 0.1 Hook 视角（本 TODO 的承载方式）
+## 0.1 承载方式（不走 hooks）
 
-我们会把 **TodoWrite reminder 的触发**承载到一个“用户发送消息时”的 hook 上（文档里常称 `UserPromptSubmitHook`）：
+TodoWrite reminder 的触发语义是“用户发送消息 / 发起下一轮 LLM 请求之前”：
 
 - **更契合语义**：todo 提醒是“会话/工作流提醒”，自然发生在用户发起下一步之前。
 - **更省 token**：不会在每次 tool loop 里都注入；触发频率更可控。
+
+实现说明（重要）：
+
+- 本功能 **不接入 hooks 系统**（不会新增/使用 `UserPromptSubmitHook` 之类的 hook 事件）。
+- 具体做法：在 `src/features/repl/useReplController.ts` 的“发送前”阶段，把 `<system-reminder>` 作为 **同一条 last-user message 的额外 `text` block** 注入到本轮请求中，并在写入 history 前剥离掉（不污染长期 history）。
 
 同时明确：
 
