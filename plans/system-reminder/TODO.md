@@ -136,7 +136,7 @@ bun run dev
 
 ### 7.1 Case A：TODO_EMPTY（空 todo）
 
-- [ ] **目标**：todo 为空时，每轮用户消息都会注入一个“todo list is currently empty”的 `<system-reminder>`。
+- [x] **目标**：todo 为空时，每轮用户消息都会注入一个“todo list is currently empty”的 `<system-reminder>`。
 
 步骤：
 1) 在 REPL 里发送一条普通消息，例如：`你好`
@@ -151,7 +151,7 @@ bun run dev
 
 ### 7.2 Case B：TODO_UNUSED → TODO_UNUSED_WITH_LIST（“没用 TodoWrite”升级）
 
-- [ ] **目标**：当 todo 存在但“近期没用 TodoWrite”到阈值时：
+- [x] **目标**：当 todo 存在但“近期没用 TodoWrite”到阈值时：
   - 先注入 `TODO_UNUSED`（短提醒，不带 list）
   - 再升级到 `TODO_UNUSED_WITH_LIST`（带裁剪后的 list）
 
@@ -172,7 +172,7 @@ bun run dev
 
 ### 7.3 Case C：TodoWrite 后重置窗口（清零 stale 计数）
 
-- [ ] **目标**：成功的 TodoWrite 会清空 `nonTodoToolUsesSinceLastTodoWrite`，并清理 UNUSED 系列的冷却/去重状态，使提醒窗口重新计算。
+- [x] **目标**：成功的 TodoWrite 会清空 `nonTodoToolUsesSinceLastTodoWrite`，并清理 UNUSED 系列的冷却/去重状态，使提醒窗口重新计算。
 
 步骤：
 1) 先复现 Case B 的“UNUSED / UNUSED_WITH_LIST”至少一次（建议抓包确认已出现）
@@ -188,3 +188,9 @@ bun run dev
 
 - [ ] Claude Code 的 `TODO_UNUSED_WITH_LIST` 升级阈值（是 step 计数还是时间）
 - [ ] Claude Code 对“用户明确拒绝维护 todo”的处理（我们可更产品化：用户拒绝时暂停注入或延长冷却）
+
+## 验证记录（Formax）
+
+- 对话记录：`plans/_archive/system-reminder/conv.txt`
+- 抓包：`proxy/traffic-formax-test/0001_...`（TODO_EMPTY），`proxy/traffic-formax-test/0011_...`（TODO_UNUSED），`proxy/traffic-formax-test/0026_...`（TODO_UNUSED_WITH_LIST），`proxy/traffic-formax-test/0013_...`/`proxy/traffic-formax-test/0027_...`（确认不粘连/不污染后续请求）
+- 备注：本轮手测未设置独立 `FORMAX_TODOS_PATH`，使用了默认 todo 路径；不影响“注入时机/形态/不落 history”的结论
