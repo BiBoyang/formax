@@ -236,6 +236,7 @@ export async function loadHooksBySource(args: {
       PostToolUse: buildFor('projectLocal', 'PostToolUse'),
       UserPromptSubmit: buildFor('projectLocal', 'UserPromptSubmit'),
       SessionStart: buildFor('projectLocal', 'SessionStart'),
+      Stop: buildFor('projectLocal', 'Stop'),
     },
     project: {
       PreToolUse: buildFor('project', 'PreToolUse'),
@@ -243,6 +244,7 @@ export async function loadHooksBySource(args: {
       PostToolUse: buildFor('project', 'PostToolUse'),
       UserPromptSubmit: buildFor('project', 'UserPromptSubmit'),
       SessionStart: buildFor('project', 'SessionStart'),
+      Stop: buildFor('project', 'Stop'),
     },
     user: {
       PreToolUse: buildFor('user', 'PreToolUse'),
@@ -250,6 +252,7 @@ export async function loadHooksBySource(args: {
       PostToolUse: buildFor('user', 'PostToolUse'),
       UserPromptSubmit: buildFor('user', 'UserPromptSubmit'),
       SessionStart: buildFor('user', 'SessionStart'),
+      Stop: buildFor('user', 'Stop'),
     },
     matchersBySource: {
       projectLocal: {
@@ -258,6 +261,7 @@ export async function loadHooksBySource(args: {
         PostToolUse: buildMatchersFor('projectLocal', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('projectLocal', 'UserPromptSubmit'),
         SessionStart: buildMatchersFor('projectLocal', 'SessionStart'),
+        Stop: buildMatchersFor('projectLocal', 'Stop'),
       },
       project: {
         PreToolUse: buildMatchersFor('project', 'PreToolUse'),
@@ -265,6 +269,7 @@ export async function loadHooksBySource(args: {
         PostToolUse: buildMatchersFor('project', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('project', 'UserPromptSubmit'),
         SessionStart: buildMatchersFor('project', 'SessionStart'),
+        Stop: buildMatchersFor('project', 'Stop'),
       },
       user: {
         PreToolUse: buildMatchersFor('user', 'PreToolUse'),
@@ -272,6 +277,7 @@ export async function loadHooksBySource(args: {
         PostToolUse: buildMatchersFor('user', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('user', 'UserPromptSubmit'),
         SessionStart: buildMatchersFor('user', 'SessionStart'),
+        Stop: buildMatchersFor('user', 'Stop'),
       },
     },
     warnings,
@@ -299,6 +305,7 @@ export async function loadMergedHooks(args: {
     PostToolUse: buildForEvent('PostToolUse'),
     UserPromptSubmit: buildForEvent('UserPromptSubmit'),
     SessionStart: buildForEvent('SessionStart'),
+    Stop: buildForEvent('Stop'),
     warnings: bySource.warnings,
   }
 }

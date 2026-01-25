@@ -13,7 +13,7 @@ export const HOOK_EVENTS: HooksEventListItem[] = [
   { id: 'UserPromptSubmit', label: 'UserPromptSubmit - When the user submits a prompt', enabled: true },
   { id: 'SessionStart', label: 'SessionStart - When a session starts/resumes', enabled: true },
   { id: 'Notification', label: 'Notification - When notifications are sent', enabled: false },
-  { id: 'Stop', label: 'Stop - When the main agent finishes a response', enabled: false },
+  { id: 'Stop', label: 'Stop - When the main agent finishes a response', enabled: true },
   { id: 'SubagentStop', label: 'SubagentStop - When a sub-agent finishes a task', enabled: false },
   { id: 'PreCompact', label: 'PreCompact - Before conversation compaction', enabled: false },
   { id: 'SessionEnd', label: 'SessionEnd - When a session ends', enabled: false },
@@ -25,7 +25,8 @@ export function isEnabledHookEventName(id: string): id is HookEventName {
     id === 'PermissionRequest' ||
     id === 'PostToolUse' ||
     id === 'UserPromptSubmit' ||
-    id === 'SessionStart'
+    id === 'SessionStart' ||
+    id === 'Stop'
   )
 }
 

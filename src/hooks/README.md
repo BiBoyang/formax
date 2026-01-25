@@ -13,6 +13,7 @@ Formax 的 Claude Code 风格 hooks 子系统：在“关键时机”运行本�
 - `PostToolUse`：tool 执行后（工具执行链路；支持 `additionalContext` 注入下一次模型请求）
 - `UserPromptSubmit`：用户提交消息后、当轮首次 LLM 请求前（ChatEngine；支持 `additionalContext` 一次性注入当轮首次请求；Phase 1 不允许 block）
 - `SessionStart`：会话启动/恢复时（ChatEngine；支持 `additionalContext` 一次性注入当轮首次请求；Phase 1 不允许 block）
+- `Stop`：主会话完成一轮回复后（ChatEngine；支持 `additionalContext` 注入下一轮首次请求；Phase 1 不允许 block）
 
 ### matcher-less 事件（重要）
 

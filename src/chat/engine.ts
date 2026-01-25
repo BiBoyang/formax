@@ -54,6 +54,7 @@ export function createChatEngine(deps: {
 }): ChatEngine {
   const sessionId = randomUUID()
   let pendingSessionStartText: string[] | null = null
+  let pendingStopText: string[] | null = null
   let didAttemptSessionStart = false
 
   return {
@@ -145,6 +146,26 @@ export function createChatEngine(deps: {
       await runSessionStart()
       await runUserPromptSubmit()
 
+      const runStop = async (): Promise<void> => {
+        if (!deps.hooks) return
+
+        const res = await deps.hooks.runStop({ sessionId, cwd, stopHookActive: false, signal })
+
+        appendHookRunAuditEvents({
+          audit,
+          hooksDebugEnabled,
+          tool: { name: 'Stop', toolUseId: 'stop' },
+          agentDepth: executorCtxBase.agentDepth,
+          eventName: 'Stop',
+          runs: res.runs,
+        })
+
+        if (res.additionalContext.length > 0) {
+          const combined = res.additionalContext.join('\n\n')
+          pendingStopText = [`<system-reminder>\nStop hook additional context:\n${combined}\n</system-reminder>`]
+        }
+      }
+
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
 	        const res = await deps.executor(call, executorCtxBase)
 
@@ -223,8 +244,9 @@ export function createChatEngine(deps: {
 
           const injectedMessages = buildMessagesWithPostToolUseText(loopMessages, pendingPostToolUseTextByToolUseId)
           const preCallExtra =
-            pendingSessionStartText || pendingUserPromptSubmitText
+            pendingStopText || pendingSessionStartText || pendingUserPromptSubmitText
               ? [
+                  ...(pendingStopText ?? []),
                   ...(pendingSessionStartText ?? []),
                   ...(pendingUserPromptSubmitText ?? []),
                 ]
@@ -232,6 +254,7 @@ export function createChatEngine(deps: {
           const injectedWithUserPromptSubmit = buildMessagesWithUserPromptSubmitText(injectedMessages, preCallExtra)
           pendingUserPromptSubmitText = null
           pendingSessionStartText = null
+          pendingStopText = null
 
           const messagesForCall =
             promptBudget?.contextWindowTokens
@@ -282,6 +305,8 @@ export function createChatEngine(deps: {
             throw new Error('Tool loop exceeded iteration limit')
           }
         }
+
+        await runStop()
 
         onEvent({ type: 'complete' })
         return loopMessages

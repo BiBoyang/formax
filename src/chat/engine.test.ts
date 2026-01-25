@@ -112,6 +112,7 @@ describe('ChatEngine', () => {
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [
           {
@@ -216,6 +217,7 @@ describe('ChatEngine', () => {
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [],
         additionalContext: [],
@@ -318,6 +320,7 @@ describe('ChatEngine', () => {
         blocked: false,
       }),
       runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
     }
 
@@ -384,6 +387,7 @@ describe('ChatEngine', () => {
         additionalContext: ['CTX_SESSION'],
         blocked: false,
       }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
     }
 
@@ -440,5 +444,87 @@ describe('ChatEngine', () => {
 
     expect(JSON.stringify(out1)).not.toContain('SessionStart hook additional context:')
     expect(JSON.stringify(out2)).not.toContain('SessionStart hook additional context:')
+  })
+
+  it('injects Stop additionalContext on the next turn (and does not persist it)', async () => {
+    const seenMessages: PromptMessage[][] = []
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({
+        runs: [
+          {
+            command: 'echo stop',
+            exitCode: 0,
+            signal: null,
+            stdout: '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"CTX_STOP"}}',
+            stderr: '',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: 'CTX_STOP' } },
+          },
+        ],
+        additionalContext: ['CTX_STOP'],
+        blocked: false,
+      }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        seenMessages.push(args.messages)
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+
+    const out1 = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go-1' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    const out2 = await engine.runTurn({
+      history: out1,
+      user: { role: 'user', content: [{ type: 'text', text: 'go-2' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(seenMessages).toHaveLength(2)
+
+    const firstLast = seenMessages[0]![seenMessages[0]!.length - 1]!
+    expect(firstLast.role).toBe('user')
+    expect(JSON.stringify(firstLast.content)).not.toContain('Stop hook additional context:')
+
+    const secondLast = seenMessages[1]![seenMessages[1]!.length - 1]!
+    expect(secondLast.role).toBe('user')
+    const secondBlocks = secondLast.content as any[]
+    expect(secondBlocks[0]?.type).toBe('text')
+    expect(secondBlocks[1]?.type).toBe('text')
+    expect(String(secondBlocks[1]?.text || '')).toContain('<system-reminder>')
+    expect(String(secondBlocks[1]?.text || '')).toContain('Stop hook additional context:')
+    expect(String(secondBlocks[1]?.text || '')).toContain('CTX_STOP')
+
+    const outJson = JSON.stringify(out2)
+    expect(outJson).not.toContain('Stop hook additional context:')
+    expect(outJson).not.toContain('CTX_STOP')
   })
 })

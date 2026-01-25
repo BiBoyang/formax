@@ -54,6 +54,20 @@ function buildSessionStartPayload(args: {
   }
 }
 
+function buildStopPayload(args: {
+  sessionId: string
+  cwd: string
+  stopHookActive: boolean
+}): Record<string, unknown> {
+  return {
+    session_id: args.sessionId,
+    hook_event_name: 'Stop',
+    stop_hook_active: args.stopHookActive,
+    cwd: args.cwd,
+    permission_mode: 'default',
+  }
+}
+
 function extractAdditionalContextFromRun(args: {
   hookEventName: HookEventName
   run: HookRun
@@ -100,6 +114,12 @@ export type HooksRuntime = {
     blockedBy?: HookRun
   }>
   runSessionStart: (args: { sessionId: string; cwd: string; signal?: AbortSignal }) => Promise<{
+    runs: HookRun[]
+    additionalContext: string[]
+    blocked: boolean
+    blockedBy?: HookRun
+  }>
+  runStop: (args: { sessionId: string; cwd: string; stopHookActive: boolean; signal?: AbortSignal }) => Promise<{
     runs: HookRun[]
     additionalContext: string[]
     blocked: boolean
@@ -250,6 +270,41 @@ export function createHooksRuntime(args: {
         .filter((v): v is string => Boolean(v))
 
       // Claude docs: for SessionStart, stdout is injected into context on success.
+      // We only do that when stdout is *not* JSON (to avoid injecting raw JSON blobs).
+      for (const r of runs) {
+        if (r.exitCode !== 0) continue
+        if (r.parsedJson !== null) continue
+        const text = String(r.stdout ?? '').trim()
+        if (!text) continue
+        additionalContext.push(text)
+      }
+
+      return { runs, additionalContext, blocked: false, blockedBy: undefined }
+    },
+
+    async runStop({ sessionId, cwd, stopHookActive, signal }) {
+      if (isDisabledByEnv(env)) return { runs: [], additionalContext: [], blocked: false }
+
+      const merged = await loadHooks(cwd)
+      const entries = merged.Stop
+      if (entries.length === 0) return { runs: [], additionalContext: [], blocked: false }
+
+      const runs = await runCommandHooks({
+        hooks: entries,
+        payload: buildStopPayload({ sessionId, cwd, stopHookActive }),
+        cwd,
+        env: buildExecEnv(cwd),
+        signal,
+      })
+
+      // Phase 1: execute and record exit codes, but do not block the app flow.
+      // We still surface exitCode=2 in `runs` for audit/debug.
+
+      const additionalContext = runs
+        .map((r) => extractAdditionalContextFromRun({ hookEventName: 'Stop', run: r }))
+        .filter((v): v is string => Boolean(v))
+
+      // Claude docs: for Stop, stdout is injected into context on success.
       // We only do that when stdout is *not* JSON (to avoid injecting raw JSON blobs).
       for (const r of runs) {
         if (r.exitCode !== 0) continue

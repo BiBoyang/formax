@@ -200,4 +200,35 @@ describe('loadMergedHooks', () => {
     const matchers = (bySource.matchersBySource.projectLocal.SessionStart ?? []).map((m) => m.matcher)
     expect(matchers).toEqual(['*'])
   })
+
+  it('treats missing matcher as "*" for matcher-less events (Stop)', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        Stop: [
+          {
+            hooks: [{ type: 'command', command: 'echo ok' }],
+          },
+        ],
+      },
+    })
+
+    const fileStore = createNodeFileStore()
+    const merged = await loadMergedHooks({ fileStore, cwd, homedir: home, platform: 'darwin' })
+
+    expect(merged.Stop.map((e) => e.command)).toEqual(['echo ok'])
+
+    const bySource = await loadHooksBySource({ fileStore, cwd, homedir: home, platform: 'darwin' })
+    const matchers = (bySource.matchersBySource.projectLocal.Stop ?? []).map((m) => m.matcher)
+    expect(matchers).toEqual(['*'])
+  })
 })

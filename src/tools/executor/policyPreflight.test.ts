@@ -515,6 +515,7 @@ describe('createPolicyPreflight', () => {
         }),
         runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
         runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
         runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
       }
 

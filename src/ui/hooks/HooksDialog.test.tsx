@@ -11,6 +11,27 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+function escapeRegExp(raw: string): string {
+  return raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+async function moveCursorToItem(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  itemText: string,
+  maxMoves = 100,
+): Promise<void> {
+  const re = new RegExp(`❯\\s*(?:\\d+\\.\\s*)?${escapeRegExp(itemText)}`)
+  for (let i = 0; i < maxMoves; i++) {
+    const frame = lastFrame() || ''
+    if (re.test(frame)) return
+    stdin.write('\u001B[B')
+    await tick()
+  }
+  const frame = lastFrame() || ''
+  throw new Error(`Failed to move cursor to item: ${itemText}\n\nLast frame:\n${frame}`)
+}
+
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
@@ -370,11 +391,7 @@ describe('HooksDialog', () => {
       await waitForText(lastFrame, 'UserPromptSubmit')
       await tick()
 
-      // Move cursor to UserPromptSubmit (4th enabled event)
-      stdin.write('\u001B[B')
-      stdin.write('\u001B[B')
-      stdin.write('\u001B[B')
-      await tick()
+      await moveCursorToItem(lastFrame, stdin, 'UserPromptSubmit')
       stdin.write('\r')
 
       // Should go straight to hook list (no matcher list)
@@ -419,6 +436,105 @@ describe('HooksDialog', () => {
 
       await waitForJsonContains(settingsPath, (parsed) => {
         const rules = parsed?.hooks?.UserPromptSubmit
+        if (!Array.isArray(rules)) return true
+        for (const r of rules) {
+          if (!r || typeof r !== 'object' || Array.isArray(r)) continue
+          const hooks = (r as any).hooks
+          if (!Array.isArray(hooks)) continue
+          if (hooks.some((h: any) => h?.type === 'command' && h?.command === cmd)) return false
+        }
+        return true
+      })
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('skips matcher screens for Stop and saves without matcher field', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-stop-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: {
+            Stop: [],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Hooks')
+      await tick()
+
+      await moveCursorToItem(lastFrame, stdin, 'Stop')
+      stdin.write('\r')
+
+      await waitForText(lastFrame, '+ Add new hook…')
+      expect(lastFrame() || '').not.toContain('Tool Matchers')
+
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      expect(lastFrame() || '').not.toContain('Matcher:')
+      await tick()
+
+      const cmd = 'python3 .formax/hooks/stop_probe.py'
+      stdin.write(cmd)
+      await tick()
+      stdin.write('\r')
+
+      await waitForText(lastFrame, 'Save hook configuration')
+      await waitForText(lastFrame, cmd)
+      expect(lastFrame() || '').not.toContain('Matcher:')
+
+      stdin.write('\r')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const rules = parsed?.hooks?.Stop
+        if (!Array.isArray(rules)) return false
+        const rule = rules.find((r: any) => r && typeof r === 'object' && !Array.isArray(r) && !('matcher' in r))
+        const hooks = rule?.hooks
+        return Array.isArray(hooks) && hooks.some((h: any) => h?.type === 'command' && h?.command === cmd)
+      })
+
+      await waitForText(lastFrame, cmd)
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Delete hook?')
+      await waitForText(lastFrame, `Event: Stop`)
+      expect(lastFrame() || '').not.toContain('Matcher:')
+      stdin.write('\r')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const rules = parsed?.hooks?.Stop
         if (!Array.isArray(rules)) return true
         for (const r of rules) {
           if (!r || typeof r !== 'object' || Array.isArray(r)) continue

@@ -17,7 +17,10 @@ import { runCommandHooks } from './runner.js'
 import { loadMergedHooks } from './store.js'
 
 function mergedHooksWithCommand(args: {
-  eventName: keyof Pick<MergedHooks, 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart'>
+  eventName: keyof Pick<
+    MergedHooks,
+    'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart' | 'Stop'
+  >
   matcher?: string
   command?: string
 }): MergedHooks {
@@ -34,6 +37,7 @@ function mergedHooksWithCommand(args: {
     PostToolUse: args.eventName === 'PostToolUse' ? [entry] : [],
     UserPromptSubmit: args.eventName === 'UserPromptSubmit' ? [entry] : [],
     SessionStart: args.eventName === 'SessionStart' ? [entry] : [],
+    Stop: args.eventName === 'Stop' ? [entry] : [],
     warnings: [],
   }
 }
@@ -52,6 +56,7 @@ function mergedHooksWithPostToolUseCommand(command = 'echo hook'): MergedHooks {
     ],
     UserPromptSubmit: [],
     SessionStart: [],
+    Stop: [],
     warnings: [],
   }
 }
@@ -350,6 +355,80 @@ describe('HooksRuntime', () => {
 
     const runtime = createHooksRuntime({ fileStore: {} as any })
     const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+
+    expect(res.blocked).toBe(false)
+    expect(res.additionalContext).toEqual([])
+    expect(res.runs).toHaveLength(1)
+    expect(res.runs[0].exitCode).toBe(2)
+  })
+
+  it('injects stdout as additionalContext for Stop (when stdout is not JSON)', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: 'CTX_STOP\n',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: false })
+
+    expect(res.additionalContext).toEqual(['CTX_STOP'])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('extracts Stop.additionalContext from stdout JSON', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"CTX_JSON"}}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'Stop', additionalContext: 'CTX_JSON' } },
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: false })
+
+    expect(res.additionalContext).toEqual(['CTX_JSON'])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('does not block Stop on exitCode=2', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo deny',
+        exitCode: 2,
+        signal: null,
+        stdout: '',
+        stderr: 'not applicable',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: false })
 
     expect(res.blocked).toBe(false)
     expect(res.additionalContext).toEqual([])

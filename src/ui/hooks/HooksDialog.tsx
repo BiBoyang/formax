@@ -25,13 +25,13 @@ type HookListItem =
 
 function emptyHooksBySource(): HooksBySource {
   return {
-    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
-    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
-    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
+    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
+    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
     matchersBySource: {
-      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
-      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
-      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
+      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
+      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [], Stop: [] },
     },
     warnings: [],
   }
