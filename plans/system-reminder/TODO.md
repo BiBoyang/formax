@@ -110,9 +110,79 @@
 
 ## 7. 手动验收剧本（不抓包也能验证）
 
-- [ ] Case A：没有 todos，聊天两轮，观察提醒出现频率与冷却
-- [ ] Case B：建 3 条 todo，但故意不再用 TodoWrite，连续触发 5 次非 TodoWrite tool，观察 reminder 从 UNUSED → UNUSED_WITH_LIST 的升级
-- [ ] Case C：触发一次 TodoWrite 更新，再触发 tool，观察 stale 计数清零
+> 说明：TodoWrite reminders 是“给模型看的 `<system-reminder>`”，UI 不会展示这个标签。
+>
+> - **最可靠验证**：用本地 proxy 抓包，在请求的 **last user message content** 中检索 `<system-reminder>`。
+> - **不抓包的验证**：只能做“黑盒启发式”（观察模型是否更倾向于使用 TodoWrite），不保证稳定复现。
+
+### 7.0 预备：让实验可重复（一次性）
+
+1) 启动 Formax 前设定环境（建议用独立 todo 文件，避免污染你的真实 todo）：
+
+```bash
+export FORMAX_PROMPT_PROFILE=full
+export FORMAX_TODOS_PATH=.formax/_manual/todos.json
+mkdir -p .formax/_manual
+rm -f .formax/_manual/todos.json
+```
+
+2) 运行：
+
+```bash
+bun run dev
+```
+
+3) （可选，但强烈推荐）确保本次对话的 LLM 请求会落到你在本地的抓包目录（例如 `proxy/traffic-logs-*`），否则只能做黑盒验证。
+
+### 7.1 Case A：TODO_EMPTY（空 todo）
+
+- [ ] **目标**：todo 为空时，每轮用户消息都会注入一个“todo list is currently empty”的 `<system-reminder>`。
+
+步骤：
+1) 在 REPL 里发送一条普通消息，例如：`你好`
+2) 继续再发一条普通消息，例如：`继续`
+
+抓包验收（推荐）：
+- 在对应的请求 JSON（`REQ__v1_messages*.json`）里，找到 **最后一个 `role:"user"`** 的 `content`：
+  - 应出现一个 `type:"text"` block，文本包含 `<system-reminder>` 且包含 `todo list is currently empty`。
+
+黑盒验收（不抓包）：
+- 模型更容易主动建议你使用 TodoWrite（但可能受模型随机性影响）。
+
+### 7.2 Case B：TODO_UNUSED → TODO_UNUSED_WITH_LIST（“没用 TodoWrite”升级）
+
+- [ ] **目标**：当 todo 存在但“近期没用 TodoWrite”到阈值时：
+  - 先注入 `TODO_UNUSED`（短提醒，不带 list）
+  - 再升级到 `TODO_UNUSED_WITH_LIST`（带裁剪后的 list）
+
+步骤：
+1) 先让 todo 列表非空：对模型说  
+   `请用 TodoWrite 创建 3 条 todo：['a','b','c']`
+2) 接下来 **不要再用 TodoWrite**，而是触发若干“非 TodoWrite tool”来累计 `nonTodoToolUsesSinceLastTodoWrite`。
+   - 最简单的方法：连续要求模型执行 3 次 Bash（例如 `echo 1` / `echo 2` / `echo 3`）
+3) 再发送一条普通消息，例如：`继续`
+
+抓包验收（推荐）：
+- 在“步骤 3”的请求里，last user message content 应出现 `<system-reminder>`，包含：
+  - `The TodoWrite tool hasn't been used recently`
+  - 若处于升级阶段，还应包含 `Here are the existing contents of your todo list:` + 被裁剪后的 `[...]` 列表
+
+黑盒验收（不抓包）：
+- 模型开始更倾向于“建议使用 TodoWrite”或“建议清理 todo”，但依旧不保证稳定复现。
+
+### 7.3 Case C：TodoWrite 后重置窗口（清零 stale 计数）
+
+- [ ] **目标**：成功的 TodoWrite 会清空 `nonTodoToolUsesSinceLastTodoWrite`，并清理 UNUSED 系列的冷却/去重状态，使提醒窗口重新计算。
+
+步骤：
+1) 先复现 Case B 的“UNUSED / UNUSED_WITH_LIST”至少一次（建议抓包确认已出现）
+2) 现在让模型执行一次 TodoWrite 更新，例如：  
+   `请用 TodoWrite 把第 1 条标记为 completed，其他不变`
+3) 再触发 1～2 次非 TodoWrite tool（例如 Bash `echo ok`）
+4) 再发送一条普通消息，例如：`继续`
+
+抓包验收（推荐）：
+- “步骤 4”的请求里 **不应该立刻**出现 `The TodoWrite tool hasn't been used recently`（除非你又触发到了阈值）。
 
 ## 8. 待抓包确认（不阻塞实现）
 
