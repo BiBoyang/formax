@@ -326,4 +326,112 @@ describe('HooksDialog', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 20000)
+
+  it('skips matcher screens for matcher-less events and saves without matcher field', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-matcherless-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: {
+            UserPromptSubmit: [],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Hooks')
+      await waitForText(lastFrame, 'UserPromptSubmit')
+      await tick()
+
+      // Move cursor to UserPromptSubmit (4th enabled event)
+      stdin.write('\u001B[B')
+      stdin.write('\u001B[B')
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+
+      // Should go straight to hook list (no matcher list)
+      await waitForText(lastFrame, '+ Add new hook…')
+      expect(lastFrame() || '').not.toContain('Tool Matchers')
+
+      // Add new hook
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      expect(lastFrame() || '').not.toContain('Matcher:')
+      await tick()
+
+      const cmd = 'python3 .formax/hooks/user_prompt_submit_probe.py'
+      stdin.write(cmd)
+      await tick()
+      stdin.write('\r')
+
+      await waitForText(lastFrame, 'Save hook configuration')
+      await waitForText(lastFrame, cmd)
+      expect(lastFrame() || '').not.toContain('Matcher:')
+
+      // Save to project local (default cursor 0)
+      stdin.write('\r')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const rules = parsed?.hooks?.UserPromptSubmit
+        if (!Array.isArray(rules)) return false
+        const rule = rules.find((r: any) => r && typeof r === 'object' && !Array.isArray(r) && !('matcher' in r))
+        const hooks = rule?.hooks
+        return Array.isArray(hooks) && hooks.some((h: any) => h?.type === 'command' && h?.command === cmd)
+      })
+
+      // Delete the hook we just added (move cursor to entry)
+      await waitForText(lastFrame, cmd)
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Delete hook?')
+      await waitForText(lastFrame, `Event: UserPromptSubmit`)
+      expect(lastFrame() || '').not.toContain('Matcher:')
+      stdin.write('\r')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const rules = parsed?.hooks?.UserPromptSubmit
+        if (!Array.isArray(rules)) return true
+        for (const r of rules) {
+          if (!r || typeof r !== 'object' || Array.isArray(r)) continue
+          const hooks = (r as any).hooks
+          if (!Array.isArray(hooks)) continue
+          if (hooks.some((h: any) => h?.type === 'command' && h?.command === cmd)) return false
+        }
+        return true
+      })
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
 })

@@ -2,6 +2,7 @@ import type { FileStore } from '../adapters/fs/fileStore.js'
 import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPath } from '../adapters/permissions/permissionsStore.js'
 import type { Platform } from '../adapters/fs/configPaths.js'
 import type { HookEventName, HookSource } from './types.js'
+import { eventUsesMatcher } from './store.js'
 
 function tryParseJsonRecord(raw: string): Record<string, unknown> | null {
   const text = String(raw || '').trim()
@@ -72,6 +73,20 @@ function writeSettingsRecord(args: {
   }
 }
 
+function getRuleMatcher(eventName: HookEventName, rule: unknown): string {
+  if (!eventUsesMatcher(eventName)) return '*'
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return ''
+  return normalizeMatcher((rule as any).matcher)
+}
+
+function buildRule(args: { eventName: HookEventName; base: any; matcher: string; hooks: any[] }): any {
+  const out: any = { ...(args.base ?? {}) }
+  if (eventUsesMatcher(args.eventName)) out.matcher = args.matcher
+  else delete out.matcher
+  out.hooks = args.hooks
+  return out
+}
+
 export async function persistHookCommand(args: {
   fileStore: FileStore
   cwd: string
@@ -86,7 +101,7 @@ export async function persistHookCommand(args: {
   const cwd = args.cwd || process.cwd()
   const filePath = getSettingsPathForSource({ source: args.source, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
 
-  const matcher = normalizeMatcher(args.matcher)
+  const matcher = eventUsesMatcher(args.eventName) ? normalizeMatcher(args.matcher) : '*'
   const command = normalizeCommand(args.command)
   if (!command) return
 
@@ -96,11 +111,11 @@ export async function persistHookCommand(args: {
 
   let ruleIndex = rules.findIndex((r) => {
     if (!r || typeof r !== 'object' || Array.isArray(r)) return false
-    return normalizeMatcher((r as any).matcher) === matcher
+    return getRuleMatcher(args.eventName, r) === matcher
   })
 
   if (ruleIndex === -1) {
-    rules.push({ matcher, hooks: [{ type: 'command', command }] })
+    rules.push(buildRule({ eventName: args.eventName, base: null, matcher, hooks: [{ type: 'command', command }] }))
     ruleIndex = rules.length - 1
   } else {
     const rule = rules[ruleIndex]
@@ -113,7 +128,7 @@ export async function persistHookCommand(args: {
     })
     if (exists) return
     nextHooks.push({ type: 'command', command })
-    rules[ruleIndex] = { ...(rule as any), matcher, hooks: nextHooks }
+    rules[ruleIndex] = buildRule({ eventName: args.eventName, base: rule, matcher, hooks: nextHooks })
   }
 
   hooksRoot[args.eventName] = rules
@@ -134,7 +149,7 @@ export async function deleteHookCommand(args: {
 }): Promise<void> {
   const cwd = args.cwd || process.cwd()
   const filePath = getSettingsPathForSource({ source: args.source, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
-  const matcher = normalizeMatcher(args.matcher)
+  const matcher = eventUsesMatcher(args.eventName) ? normalizeMatcher(args.matcher) : '*'
   const command = normalizeCommand(args.command)
   if (!command) return
 
@@ -150,7 +165,7 @@ export async function deleteHookCommand(args: {
       nextRules.push(rule)
       continue
     }
-    if (normalizeMatcher((rule as any).matcher) !== matcher) {
+    if (getRuleMatcher(args.eventName, rule) !== matcher) {
       nextRules.push(rule)
       continue
     }
@@ -164,7 +179,7 @@ export async function deleteHookCommand(args: {
     })
 
     if (nextHooks.length === 0) continue
-    nextRules.push({ ...(rule as any), matcher, hooks: nextHooks })
+    nextRules.push(buildRule({ eventName: args.eventName, base: rule, matcher, hooks: nextHooks }))
   }
 
   if (nextRules.length === 0) delete hooksRoot[args.eventName]
@@ -173,4 +188,3 @@ export async function deleteHookCommand(args: {
   const out = writeSettingsRecord({ existingSettings, hooksRoot })
   await args.fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
 }
-

@@ -3,7 +3,7 @@ import type { Platform } from '../adapters/fs/configPaths.js'
 import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPath } from '../adapters/permissions/permissionsStore.js'
 import type { HookEventName, HookRuleEntry, HookSource, MergedHooks } from './types.js'
 
-function eventUsesMatcher(eventName: HookEventName): boolean {
+export function eventUsesMatcher(eventName: HookEventName): boolean {
   return eventName === 'PreToolUse' || eventName === 'PermissionRequest' || eventName === 'PostToolUse'
 }
 
@@ -13,13 +13,18 @@ function normalizeMatcher(args: {
   raw: unknown
   warnings: string[]
 }): string | null {
-  const matcher = typeof args.raw === 'string' ? args.raw.trim() : ''
-  if (matcher) return matcher
-
   if (!eventUsesMatcher(args.eventName)) {
-    // Claude docs: matcher is optional for matcher-less events (e.g. UserPromptSubmit).
+    // Claude docs: matcher is optional (and effectively ignored) for matcher-less events.
+    // To keep runtime/UI consistent, we treat any matcher value as "*".
+    const raw = typeof args.raw === 'string' ? args.raw.trim() : ''
+    if (raw && raw !== '*') {
+      args.warnings.push(`Ignoring matcher "${raw}" for ${args.source} ${args.eventName} hook rule (matcher-less event)`)
+    }
     return '*'
   }
+
+  const matcher = typeof args.raw === 'string' ? args.raw.trim() : ''
+  if (matcher) return matcher
 
   args.warnings.push(
     `Ignoring ${args.source} ${args.eventName} hook rule with empty matcher (use "*" to match all tools)`,

@@ -5,7 +5,7 @@ import { useInputScope, useScopeActivation, useScopedInput } from '../../feature
 import { getTheme } from '../../utils/theme.js'
 import type { HookEventName, HookRuleEntry, HookSource } from '../../hooks/types.js'
 import type { HookMatcherSummary, HooksBySource } from '../../hooks/store.js'
-import { loadHooksBySource } from '../../hooks/store.js'
+import { eventUsesMatcher, loadHooksBySource } from '../../hooks/store.js'
 import { deleteHookCommand, persistHookCommand } from '../../hooks/settingsStore.js'
 import { HOOK_EVENTS, isEnabledHookEventName, MATCHER_VALUES, SAVE_SCOPE_OPTIONS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
@@ -91,7 +91,10 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     const view = state.view
     if (view.kind !== 'hookList') return { items: [], entries: [] }
 
-    const raw = hooksBySource[view.source][view.event]
+    const sources: HookSource[] = ['projectLocal', 'project', 'user']
+    const raw = eventUsesMatcher(view.event)
+      ? hooksBySource[view.source][view.event]
+      : sources.flatMap((source) => hooksBySource[source][view.event])
     const entries = raw.filter((e) => String(e.matcher ?? '').trim() === String(view.matcher ?? '').trim())
 
     const items: HookListItem[] = [{ type: 'add' }, ...entries.map((entry) => ({ type: 'hook' as const, entry }))]
@@ -164,16 +167,25 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
 
   const normalizeMatcher = (raw: string): string => String(raw ?? '').trim()
 
-  const openMatcherList = useCallback((event: HookEventName) => {
-    dispatch({ type: 'PUSH_VIEW', view: { kind: 'matcherList', event, cursor: 0, banner: null } })
-  }, [])
-
   const openHookList = useCallback((event: HookEventName, source: HookSource, matcher: string) => {
     dispatch({
       type: 'PUSH_VIEW',
       view: { kind: 'hookList', event, source, matcher: normalizeMatcher(matcher), cursor: 0, banner: null },
     })
   }, [])
+
+  const openMatcherList = useCallback(
+    (event: HookEventName) => {
+      if (!eventUsesMatcher(event)) {
+        // Claude docs: matcher is optional for matcher-less events (e.g. UserPromptSubmit).
+        // UI parity: skip the matcher screens entirely and go straight to the hook list.
+        openHookList(event, 'projectLocal', '*')
+        return
+      }
+      dispatch({ type: 'PUSH_VIEW', view: { kind: 'matcherList', event, cursor: 0, banner: null } })
+    },
+    [openHookList],
+  )
 
   const openAddMatcher = useCallback((event: HookEventName) => {
     dispatch({ type: 'PUSH_VIEW', view: { kind: 'addMatcher', event, matcherInput: '' } })
@@ -312,13 +324,23 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           setReloadKey((n) => n + 1)
 
           const eventIdx = Math.max(0, HOOK_EVENTS.findIndex((e) => e.id === view.event))
+          const usesMatcher = eventUsesMatcher(view.event)
           dispatch({
             type: 'RESET_NAV',
-            stack: [
-              { kind: 'eventList', cursor: eventIdx, banner: null },
-              { kind: 'matcherList', event: view.event, cursor: 0, banner: null },
-            ],
-            view: { kind: 'hookList', event: view.event, source: scope, matcher: view.matcher, cursor: 0, banner: `Saved to ${scope}.` },
+            stack: usesMatcher
+              ? [
+                  { kind: 'eventList', cursor: eventIdx, banner: null },
+                  { kind: 'matcherList', event: view.event, cursor: 0, banner: null },
+                ]
+              : [{ kind: 'eventList', cursor: eventIdx, banner: null }],
+            view: {
+              kind: 'hookList',
+              event: view.event,
+              source: scope,
+              matcher: view.matcher,
+              cursor: 0,
+              banner: `Saved to ${scope}.`,
+            },
           })
         })()
       }
@@ -424,6 +446,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           theme={theme}
           eventName={view.event}
           matcher={view.matcher}
+          showMatcher={eventUsesMatcher(view.event)}
           hooks={hookListItems.entries}
           cursor={clamp(view.cursor, 0, hookCursorMax)}
           banner={view.banner}
@@ -437,6 +460,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           theme={theme}
           eventName={view.event}
           matcherName={view.matcher}
+          showMatcher={eventUsesMatcher(view.event)}
           inputText={view.commandInput}
           inputScope={INPUT_SCOPE}
           onChange={(value) => dispatch({ type: 'SET_COMMAND_INPUT', value })}
@@ -457,6 +481,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           theme={theme}
           eventName={view.event}
           matcherName={view.matcher}
+          showMatcher={eventUsesMatcher(view.event)}
           hookCommand={view.command}
           cursor={view.cursor}
         />
@@ -470,6 +495,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           command={view.command}
           eventName={view.event}
           matcherName={view.matcher}
+          showMatcher={eventUsesMatcher(view.event)}
           source={view.source}
           cursor={view.cursor}
         />

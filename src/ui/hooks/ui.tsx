@@ -247,6 +247,7 @@ export function HookListView({
   theme,
   eventName,
   matcher,
+  showMatcher = true,
   hooks,
   cursor,
   banner,
@@ -254,6 +255,7 @@ export function HookListView({
   theme: Theme
   eventName: string
   matcher: string
+  showMatcher?: boolean
   hooks: HookRuleEntry[]
   cursor: number
   banner?: string | null
@@ -268,7 +270,13 @@ export function HookListView({
     <Box flexDirection="column">
       <DialogFrame theme={theme} borderColor={theme.success}>
         <Text color={theme.success} bold>
-          {eventName} - Matcher: {formatMatcherLabel(matcher)}
+          {showMatcher ? (
+            <>
+              {eventName} - Matcher: {formatMatcherLabel(matcher)}
+            </>
+          ) : (
+            eventName
+          )}
         </Text>
         <ToolExecutionInfo theme={theme} eventName={eventName} />
         {banner ? <Text color={theme.secondaryText}>{banner}</Text> : null}
@@ -369,6 +377,7 @@ export function AddHookView({
   theme,
   eventName,
   matcherName,
+  showMatcher = true,
   inputText,
   inputScope,
   onChange,
@@ -377,6 +386,7 @@ export function AddHookView({
   theme: Theme
   eventName: string
   matcherName: string
+  showMatcher?: boolean
   inputText: string
   inputScope: InputScopeId
   onChange: (value: string) => void
@@ -407,14 +417,16 @@ export function AddHookView({
           </Text>
         </Box>
         <ToolExecutionInfo theme={theme} eventName={eventName} compact />
-        <Box marginTop={1}>
-          <Text>
-            Matcher: <Text bold>{formatMatcherLabel(matcherName)}</Text>
-          </Text>
-        </Box>
+        {showMatcher ? (
+          <Box marginTop={1}>
+            <Text>
+              Matcher: <Text bold>{formatMatcherLabel(matcherName)}</Text>
+            </Text>
+          </Box>
+        ) : null}
       </>
     )
-  }, [eventDesc, eventName, matcherName, theme.secondaryText, theme.success])
+  }, [eventDesc, eventName, matcherName, showMatcher, theme.secondaryText, theme.success])
 
   const examples = React.useMemo(() => {
     return (
@@ -451,12 +463,14 @@ export function SaveHookView({
   theme,
   eventName,
   matcherName,
+  showMatcher = true,
   hookCommand,
   cursor,
 }: {
   theme: Theme
   eventName: string
   matcherName: string
+  showMatcher?: boolean
   hookCommand: string
   cursor: number
 }): React.ReactNode {
@@ -473,10 +487,12 @@ export function SaveHookView({
             {'  '}
             Event: {fullEventLabel}
           </Text>
-          <Text>
-            {'  '}
-            Matcher: {formatMatcherLabel(matcherName)}
-          </Text>
+          {showMatcher ? (
+            <Text>
+              {'  '}
+              Matcher: {formatMatcherLabel(matcherName)}
+            </Text>
+          ) : null}
           <Text>
             {'  '}
             Command: {hookCommand}
@@ -526,6 +542,7 @@ export function ConfirmDeleteView({
   command,
   eventName,
   matcherName,
+  showMatcher = true,
   source,
   cursor,
 }: {
@@ -533,6 +550,7 @@ export function ConfirmDeleteView({
   command: string
   eventName: string
   matcherName: string
+  showMatcher?: boolean
   source: HookSource
   cursor: 0 | 1
 }): React.ReactNode {
@@ -545,7 +563,7 @@ export function ConfirmDeleteView({
         <Box marginTop={1} flexDirection="column">
           <Text>{`  ${command}`}</Text>
           <Text>{`  Event: ${eventName}`}</Text>
-          <Text>{`  Matcher: ${formatMatcherLabel(matcherName)}`}</Text>
+          {showMatcher ? <Text>{`  Matcher: ${formatMatcherLabel(matcherName)}`}</Text> : null}
           <Text>{`  ${formatSettingsLocation(source)}`}</Text>
         </Box>
         <Box marginTop={1}>
