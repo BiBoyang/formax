@@ -412,7 +412,7 @@ export function useReplSend(args: {
   - 文件：新增 `src/screens/repl/messageItems.ts`；修改 `src/screens/REPL.tsx`
   - 验收：`bun run test -- src/screens/REPL.deriveMessageItemDescriptors.test.ts`
 
-- [ ] 1.2 新增 `src/screens/repl/panels.tsx`，迁移 Explore/Detailed 面板（45–60min）
+- [x] 1.2 新增 `src/screens/repl/panels.tsx`，迁移 Explore/Detailed 面板（45–60min）
   - 文件：新增 `src/screens/repl/panels.tsx`；修改 `src/screens/REPL.tsx`
   - 约束：文案/树状符号/缩进严格 copy，不做“修文案”。
   - 验收：`bun run test -- src/screens/REPL.test.tsx`
