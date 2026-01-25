@@ -37,6 +37,7 @@ import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import { useScopedInput } from '../features/repl/inputScopeContext'
 import type { TokenUsage } from '../streaming/types'
+import { deriveMessageItemDescriptors, findLastContiguousExploreTaskGroup } from './repl/messageItems'
 
 type Props = {
   onExit?: () => void
@@ -551,37 +552,8 @@ function clampPct(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)))
 }
 
-export type MessageItemDescriptor =
-  | { kind: 'message'; key: string; message: Msg }
-  | { kind: 'explore-group'; key: string; tasks: Msg[] }
-
-export function deriveMessageItemDescriptors(
-  messages: Msg[],
-  opts: { groupExploreTasks: boolean },
-): MessageItemDescriptor[] {
-  if (!opts.groupExploreTasks) {
-    return messages.map((message) => ({ kind: 'message', key: message.id, message }))
-  }
-
-  const items: MessageItemDescriptor[] = []
-
-  let i = 0
-  while (i < messages.length) {
-    const group = findContiguousExploreTaskGroupFrom(messages, i)
-    if (group && group.tasks.length >= 2) {
-      const groupId = exploreGroupId(group.tasks[0]!.id)
-      items.push({ kind: 'explore-group', key: groupId, tasks: group.tasks })
-      i = group.end + 1
-      continue
-    }
-
-    const message = messages[i]!
-    items.push({ kind: 'message', key: message.id, message })
-    i++
-  }
-
-  return items
-}
+export type { MessageItemDescriptor } from './repl/messageItems'
+export { deriveMessageItemDescriptors } from './repl/messageItems'
 
 function formatTokens(n: number): string {
   const v = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
@@ -589,39 +561,6 @@ function formatTokens(n: number): string {
   if (v < 100000) return `${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`
   if (v < 1000000) return `${Math.round(v / 1000)}k`
   return `${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}m`
-}
-
-function exploreGroupId(firstTaskMsgId: string): string {
-  return `explore-group-${firstTaskMsgId}`
-}
-
-function isExploreTaskMessage(msg: Msg | undefined): msg is Msg {
-  if (!msg) return false
-  if (msg.role !== 'tool') return false
-  if (msg.toolInfo?.name !== 'Task') return false
-  if (msg.toolInfo?.status === 'running') return false
-  const subagentType = (msg.toolInfo?.input as any)?.subagent_type
-  return String(subagentType || '') === 'Explore'
-}
-
-function findContiguousExploreTaskGroupFrom(
-  messages: Msg[],
-  startIndex: number,
-): { tasks: Msg[]; start: number; end: number } | null {
-  if (!isExploreTaskMessage(messages[startIndex])) return null
-  let end = startIndex
-  while (end + 1 < messages.length && isExploreTaskMessage(messages[end + 1]!)) end++
-  return { tasks: messages.slice(startIndex, end + 1), start: startIndex, end }
-}
-
-function findLastContiguousExploreTaskGroup(messages: Msg[]): { tasks: Msg[]; start: number; end: number } | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (!isExploreTaskMessage(messages[i])) continue
-    let start = i
-    while (start - 1 >= 0 && isExploreTaskMessage(messages[start - 1]!)) start--
-    return { tasks: messages.slice(start, i + 1), start, end: i }
-  }
-  return null
 }
 
 function sumTokens(usage: TokenUsage | undefined): number {

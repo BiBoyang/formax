@@ -408,7 +408,7 @@ export function useReplSend(args: {
 
 # Phase 1 — 拆 `src/screens/REPL.tsx`（先拆纯逻辑/纯 UI）
 
-- [ ] 1.1 新增 `src/screens/repl/messageItems.ts`，迁移 `deriveMessageItemDescriptors`（30–45min）
+- [x] 1.1 新增 `src/screens/repl/messageItems.ts`，迁移 `deriveMessageItemDescriptors`（30–45min）
   - 文件：新增 `src/screens/repl/messageItems.ts`；修改 `src/screens/REPL.tsx`
   - 验收：`bun run test -- src/screens/REPL.deriveMessageItemDescriptors.test.ts`
 
