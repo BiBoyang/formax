@@ -225,6 +225,8 @@ describe('useReplController', () => {
 
     const sendPromise = controller.actions.send('hello')
     await waitFor(() => lastAssistantText(controller) === 'Hi')
+    await waitFor(() => controller.state.transientMessages.some((m) => m.role === 'assistant' && m.isStreaming))
+    expect(controller.state.staticMessages.some((m) => m.role === 'assistant')).toBe(false)
     releaseSecondDelta()
     await sendPromise
     await tick()
@@ -233,6 +235,8 @@ describe('useReplController', () => {
     expect(assistants).toHaveLength(1)
     expect(assistants[0]?.content).toBe('Hi there')
     expect(assistants[0]?.isStreaming).toBe(false)
+    expect(controller.state.transientMessages).toEqual([])
+    expect(controller.state.staticMessages.filter((m) => m.role === 'assistant')).toHaveLength(1)
   })
 
   it('thinking_delta is throttled (updates only after 200ms)', async () => {
@@ -366,6 +370,8 @@ describe('useReplController tool lifecycle', () => {
         msg.toolInfo?.middleLines?.[0] === 'Working…'
       )
     })
+    expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
+    expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
 
     releaseEnd()
     await sendPromise
@@ -374,6 +380,8 @@ describe('useReplController tool lifecycle', () => {
     expect(msg?.toolInfo?.status).toBe('completed')
     expect(msg?.toolInfo?.result).toBe('ok')
     expect(msg?.content).toBeTruthy()
+    expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
+    expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
   })
 
   it('formats Task completion as Done(...tool uses · tokens · duration)', async () => {

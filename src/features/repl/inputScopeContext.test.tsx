@@ -220,6 +220,8 @@ describe('InputScopeProvider', () => {
       useScopedInput('repl', (input, key) => {
         if (key.upArrow) onReplEvent('up')
         if (key.downArrow) onReplEvent('down')
+        if (key.leftArrow) onReplEvent('left')
+        if (key.rightArrow) onReplEvent('right')
         if (key.tab || input === '\t') onReplEvent('tab')
         if (input === '1') onReplEvent('1')
         if (key.escape) onReplEvent('esc')
@@ -227,6 +229,8 @@ describe('InputScopeProvider', () => {
       useScopedInput('overlay:test', (input, key) => {
         if (key.upArrow) onOverlayEvent('up')
         if (key.downArrow) onOverlayEvent('down')
+        if (key.leftArrow) onOverlayEvent('left')
+        if (key.rightArrow) onOverlayEvent('right')
         if (key.tab || input === '\t') onOverlayEvent('tab')
         if (input === '1') onOverlayEvent('1')
         if (key.escape) onOverlayEvent('esc')
@@ -285,12 +289,17 @@ describe('InputScopeProvider', () => {
     // In repl scope: navigation keys should hit repl only.
     stdin.write('\u001b[A') // up
     await tick()
+    stdin.write('\u001b[D') // left
+    await tick()
     stdin.write('\t') // tab
     await tick()
     stdin.write('1')
     await tick()
+    // Esc has to be tested standalone because arrow keys also begin with \u001b.
+    stdin.write('\u001b') // esc
+    await tick()
 
-    expect(replEvents).toEqual(expect.arrayContaining(['up', 'tab', '1']))
+    expect(replEvents).toEqual(expect.arrayContaining(['up', 'left', 'tab', '1', 'esc']))
     expect(overlayEvents).toEqual([])
 
     // Switch to overlay scope.
@@ -301,12 +310,16 @@ describe('InputScopeProvider', () => {
     const replCountBeforeOverlayNav = replEvents.length
     stdin.write('\u001b[B') // down
     await tick()
+    stdin.write('\u001b[C') // right
+    await tick()
     stdin.write('\t') // tab
     await tick()
     stdin.write('1')
     await tick()
+    stdin.write('\u001b') // esc
+    await tick()
 
-    expect(overlayEvents).toEqual(expect.arrayContaining(['down', 'tab', '1']))
+    expect(overlayEvents).toEqual(expect.arrayContaining(['down', 'right', 'tab', '1', 'esc']))
     expect(replEvents).toHaveLength(replCountBeforeOverlayNav)
 
     // Return to repl scope.
