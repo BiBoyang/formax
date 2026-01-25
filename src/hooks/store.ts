@@ -230,18 +230,21 @@ export async function loadHooksBySource(args: {
       PermissionRequest: buildFor('projectLocal', 'PermissionRequest'),
       PostToolUse: buildFor('projectLocal', 'PostToolUse'),
       UserPromptSubmit: buildFor('projectLocal', 'UserPromptSubmit'),
+      SessionStart: buildFor('projectLocal', 'SessionStart'),
     },
     project: {
       PreToolUse: buildFor('project', 'PreToolUse'),
       PermissionRequest: buildFor('project', 'PermissionRequest'),
       PostToolUse: buildFor('project', 'PostToolUse'),
       UserPromptSubmit: buildFor('project', 'UserPromptSubmit'),
+      SessionStart: buildFor('project', 'SessionStart'),
     },
     user: {
       PreToolUse: buildFor('user', 'PreToolUse'),
       PermissionRequest: buildFor('user', 'PermissionRequest'),
       PostToolUse: buildFor('user', 'PostToolUse'),
       UserPromptSubmit: buildFor('user', 'UserPromptSubmit'),
+      SessionStart: buildFor('user', 'SessionStart'),
     },
     matchersBySource: {
       projectLocal: {
@@ -249,18 +252,21 @@ export async function loadHooksBySource(args: {
         PermissionRequest: buildMatchersFor('projectLocal', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('projectLocal', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('projectLocal', 'UserPromptSubmit'),
+        SessionStart: buildMatchersFor('projectLocal', 'SessionStart'),
       },
       project: {
         PreToolUse: buildMatchersFor('project', 'PreToolUse'),
         PermissionRequest: buildMatchersFor('project', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('project', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('project', 'UserPromptSubmit'),
+        SessionStart: buildMatchersFor('project', 'SessionStart'),
       },
       user: {
         PreToolUse: buildMatchersFor('user', 'PreToolUse'),
         PermissionRequest: buildMatchersFor('user', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('user', 'PostToolUse'),
         UserPromptSubmit: buildMatchersFor('user', 'UserPromptSubmit'),
+        SessionStart: buildMatchersFor('user', 'SessionStart'),
       },
     },
     warnings,
@@ -287,6 +293,7 @@ export async function loadMergedHooks(args: {
     PermissionRequest: buildForEvent('PermissionRequest'),
     PostToolUse: buildForEvent('PostToolUse'),
     UserPromptSubmit: buildForEvent('UserPromptSubmit'),
+    SessionStart: buildForEvent('SessionStart'),
     warnings: bySource.warnings,
   }
 }

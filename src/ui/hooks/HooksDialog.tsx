@@ -25,13 +25,13 @@ type HookListItem =
 
 function emptyHooksBySource(): HooksBySource {
   return {
-    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
-    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
-    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
     matchersBySource: {
-      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
-      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
-      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
+      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [], SessionStart: [] },
     },
     warnings: [],
   }
@@ -333,7 +333,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
       if (!item) return
 
       if (!item.enabled) {
-        dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first four events are wired.' })
+        dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first five events are wired.' })
         return
       }
 

@@ -111,6 +111,7 @@ describe('ChatEngine', () => {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [
           {
@@ -214,6 +215,7 @@ describe('ChatEngine', () => {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [],
         additionalContext: [],
@@ -315,6 +317,7 @@ describe('ChatEngine', () => {
         additionalContext: ['CTX_FROM_HOOK'],
         blocked: false,
       }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
     }
 
@@ -356,5 +359,86 @@ describe('ChatEngine', () => {
     const outJson = JSON.stringify(out)
     expect(outJson).not.toContain('UserPromptSubmit hook additional context:')
     expect(outJson).not.toContain('CTX_FROM_HOOK')
+  })
+
+  it('injects SessionStart additionalContext once, as a text block after the initial user prompt (and does not persist it)', async () => {
+    const seenMessages: PromptMessage[][] = []
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({
+        runs: [
+          {
+            command: 'echo hook',
+            exitCode: 0,
+            signal: null,
+            stdout: '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"CTX_SESSION"}}',
+            stderr: '',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'CTX_SESSION' } },
+          },
+        ],
+        additionalContext: ['CTX_SESSION'],
+        blocked: false,
+      }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        seenMessages.push(args.messages)
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+
+    const out1 = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go-1' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    const out2 = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go-2' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(seenMessages).toHaveLength(2)
+
+    const firstLast = seenMessages[0]![seenMessages[0]!.length - 1]!
+    expect(firstLast.role).toBe('user')
+    const firstBlocks = firstLast.content as any[]
+    expect(firstBlocks[0]?.type).toBe('text')
+    expect(firstBlocks[1]?.type).toBe('text')
+    expect(String(firstBlocks[1]?.text || '')).toContain('SessionStart hook additional context:')
+    expect(String(firstBlocks[1]?.text || '')).toContain('CTX_SESSION')
+
+    const secondLast = seenMessages[1]![seenMessages[1]!.length - 1]!
+    expect(secondLast.role).toBe('user')
+    const secondBlocks = secondLast.content as any[]
+    expect(secondBlocks[0]?.type).toBe('text')
+    expect(secondBlocks.length).toBe(1)
+
+    expect(JSON.stringify(out1)).not.toContain('SessionStart hook additional context:')
+    expect(JSON.stringify(out2)).not.toContain('SessionStart hook additional context:')
   })
 })

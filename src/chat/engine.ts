@@ -7,6 +7,7 @@ import { pruneForPromptBudget } from './context/prune'
 import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditLog } from '../adapters/audit/auditLog.js'
 import { appendHookRunAuditEvents } from '../hooks/audit.js'
+import { randomUUID } from 'node:crypto'
 
 export type ChatHistory = PromptMessage[]
 
@@ -51,6 +52,10 @@ export function createChatEngine(deps: {
   hooks?: HooksRuntime
   audit?: AuditLog
 }): ChatEngine {
+  const sessionId = randomUUID()
+  let pendingSessionStartText: string[] | null = null
+  let didAttemptSessionStart = false
+
   return {
     async runTurn({
       history,
@@ -72,7 +77,7 @@ export function createChatEngine(deps: {
 	        return raw === '1' || raw === 'true' || raw === 'yes'
 	      })()
 
-	      const executorCtxBase: ExecutionContext = {
+      const executorCtxBase: ExecutionContext = {
 	        cwd,
 	        signal,
 	        onEvent,
@@ -86,6 +91,30 @@ export function createChatEngine(deps: {
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,
         hooks: deps.hooks,
+      }
+
+      const runSessionStart = async (): Promise<void> => {
+        if (!deps.hooks) return
+        if (didAttemptSessionStart) return
+        didAttemptSessionStart = true
+
+        const res = await deps.hooks.runSessionStart({ sessionId, cwd, signal })
+
+        appendHookRunAuditEvents({
+          audit,
+          hooksDebugEnabled,
+          tool: { name: 'SessionStart', toolUseId: 'session_start' },
+          agentDepth: executorCtxBase.agentDepth,
+          eventName: 'SessionStart',
+          runs: res.runs,
+        })
+
+        if (res.additionalContext.length > 0) {
+          const combined = res.additionalContext.join('\n\n')
+          pendingSessionStartText = [
+            `<system-reminder>\nSessionStart hook additional context:\n${combined}\n</system-reminder>`,
+          ]
+        }
       }
 
       const runUserPromptSubmit = async (): Promise<void> => {
@@ -113,6 +142,7 @@ export function createChatEngine(deps: {
         }
       }
 
+      await runSessionStart()
       await runUserPromptSubmit()
 
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
@@ -192,11 +222,16 @@ export function createChatEngine(deps: {
           }
 
           const injectedMessages = buildMessagesWithPostToolUseText(loopMessages, pendingPostToolUseTextByToolUseId)
-          const injectedWithUserPromptSubmit = buildMessagesWithUserPromptSubmitText(
-            injectedMessages,
-            pendingUserPromptSubmitText,
-          )
+          const preCallExtra =
+            pendingSessionStartText || pendingUserPromptSubmitText
+              ? [
+                  ...(pendingSessionStartText ?? []),
+                  ...(pendingUserPromptSubmitText ?? []),
+                ]
+              : null
+          const injectedWithUserPromptSubmit = buildMessagesWithUserPromptSubmitText(injectedMessages, preCallExtra)
           pendingUserPromptSubmitText = null
+          pendingSessionStartText = null
 
           const messagesForCall =
             promptBudget?.contextWindowTokens

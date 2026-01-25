@@ -1,4 +1,4 @@
-export type HookEventName = 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit'
+export type HookEventName = 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart'
 
 export type HookDefinition = {
   type: 'command'
@@ -30,6 +30,7 @@ export type MergedHooks = {
   PermissionRequest: HookRuleEntry[]
   PostToolUse: HookRuleEntry[]
   UserPromptSubmit: HookRuleEntry[]
+  SessionStart: HookRuleEntry[]
   warnings: string[]
 }
 

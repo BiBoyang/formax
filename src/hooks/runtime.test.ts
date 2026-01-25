@@ -17,7 +17,7 @@ import { runCommandHooks } from './runner.js'
 import { loadMergedHooks } from './store.js'
 
 function mergedHooksWithCommand(args: {
-  eventName: keyof Pick<MergedHooks, 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit'>
+  eventName: keyof Pick<MergedHooks, 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart'>
   matcher?: string
   command?: string
 }): MergedHooks {
@@ -33,6 +33,7 @@ function mergedHooksWithCommand(args: {
     PermissionRequest: args.eventName === 'PermissionRequest' ? [entry] : [],
     PostToolUse: args.eventName === 'PostToolUse' ? [entry] : [],
     UserPromptSubmit: args.eventName === 'UserPromptSubmit' ? [entry] : [],
+    SessionStart: args.eventName === 'SessionStart' ? [entry] : [],
     warnings: [],
   }
 }
@@ -50,6 +51,7 @@ function mergedHooksWithPostToolUseCommand(command = 'echo hook'): MergedHooks {
       },
     ],
     UserPromptSubmit: [],
+    SessionStart: [],
     warnings: [],
   }
 }
@@ -279,5 +281,79 @@ describe('HooksRuntime', () => {
 
     expect(res.additionalContext).toEqual(['CTX_JSON'])
     expect(res.blocked).toBe(false)
+  })
+
+  it('injects stdout as additionalContext for SessionStart (when stdout is not JSON)', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'SessionStart', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: 'CTX_SESSION\n',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual(['CTX_SESSION'])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('extracts SessionStart.additionalContext from stdout JSON', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'SessionStart', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"CTX_JSON"}}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'CTX_JSON' } },
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual(['CTX_JSON'])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('does not block SessionStart on exitCode=2', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'SessionStart', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo deny',
+        exitCode: 2,
+        signal: null,
+        stdout: '',
+        stderr: 'not applicable',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+
+    expect(res.blocked).toBe(false)
+    expect(res.additionalContext).toEqual([])
+    expect(res.runs).toHaveLength(1)
+    expect(res.runs[0].exitCode).toBe(2)
   })
 })

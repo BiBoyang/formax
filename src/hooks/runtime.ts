@@ -41,6 +41,19 @@ function buildUserPromptSubmitPayload(args: {
   }
 }
 
+function buildSessionStartPayload(args: {
+  sessionId: string
+  cwd: string
+}): Record<string, unknown> {
+  return {
+    session_id: args.sessionId,
+    hook_event_name: 'SessionStart',
+    source: 'startup',
+    cwd: args.cwd,
+    permission_mode: 'default',
+  }
+}
+
 function extractAdditionalContextFromRun(args: {
   hookEventName: HookEventName
   run: HookRun
@@ -81,6 +94,12 @@ export type HooksRuntime = {
     blockedBy?: HookRun
   }>
   runUserPromptSubmit: (args: { prompt: string; cwd: string; signal?: AbortSignal }) => Promise<{
+    runs: HookRun[]
+    additionalContext: string[]
+    blocked: boolean
+    blockedBy?: HookRun
+  }>
+  runSessionStart: (args: { sessionId: string; cwd: string; signal?: AbortSignal }) => Promise<{
     runs: HookRun[]
     additionalContext: string[]
     blocked: boolean
@@ -197,6 +216,40 @@ export function createHooksRuntime(args: {
         .filter((v): v is string => Boolean(v))
 
       // Claude docs: for UserPromptSubmit, stdout is injected into context on success.
+      // We only do that when stdout is *not* JSON (to avoid injecting raw JSON blobs).
+      for (const r of runs) {
+        if (r.exitCode !== 0) continue
+        if (r.parsedJson !== null) continue
+        const text = String(r.stdout ?? '').trim()
+        if (!text) continue
+        additionalContext.push(text)
+      }
+
+      return { runs, additionalContext, blocked: false, blockedBy: undefined }
+    },
+
+    async runSessionStart({ sessionId, cwd, signal }) {
+      if (isDisabledByEnv(env)) return { runs: [], additionalContext: [], blocked: false }
+
+      const merged = await loadHooks(cwd)
+      const entries = merged.SessionStart
+      if (entries.length === 0) return { runs: [], additionalContext: [], blocked: false }
+
+      const runs = await runCommandHooks({
+        hooks: entries,
+        payload: buildSessionStartPayload({ sessionId, cwd }),
+        cwd,
+        env: buildExecEnv(cwd),
+        signal,
+      })
+
+      // Claude docs: SessionStart does not have blocking semantics; exitCode=2 is
+      // "not applicable" and should only be surfaced to the user in detail mode.
+      const additionalContext = runs
+        .map((r) => extractAdditionalContextFromRun({ hookEventName: 'SessionStart', run: r }))
+        .filter((v): v is string => Boolean(v))
+
+      // Claude docs: for SessionStart, stdout is injected into context on success.
       // We only do that when stdout is *not* JSON (to avoid injecting raw JSON blobs).
       for (const r of runs) {
         if (r.exitCode !== 0) continue
