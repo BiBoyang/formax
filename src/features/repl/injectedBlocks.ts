@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { PromptBlock } from '../../prompts'
-import { readTodosCount } from '../../tools/runtime/todosFile'
 import type { LocalCommandRecord } from '../commands/registry'
 
 const MAX_CLAUDE_MD_CHARS = 200_000
@@ -33,21 +32,6 @@ export function buildClaudeMdInjectedBlocks(args: { cwd: string }): PromptBlock[
     'IMPORTANT: this context may or may not be relevant to your tasks. ' +
     'You should not respond to this context unless it is highly relevant to your task.\n' +
     '</system-reminder>\n'
-
-  return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }]
-}
-
-export function buildTodoInjectedBlocks(args: { cwd: string }): PromptBlock[] {
-  const { exists, count } = readTodosCount(args.cwd)
-  if (count === null) return []
-  if (exists && count > 0) return []
-
-  const text =
-    '<system-reminder>\n' +
-    'This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. ' +
-    'If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. ' +
-    'Again do not mention this message to the user.\n' +
-    '</system-reminder>'
 
   return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }]
 }

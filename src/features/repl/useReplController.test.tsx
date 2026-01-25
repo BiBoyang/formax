@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react'
 import { render } from 'ink-testing-library'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useReplController } from './useReplController'
 import { createUserInputManager } from '../../tools/runtime/userInputManager'
@@ -9,6 +12,7 @@ import type { RuntimeConfig } from '../../env/config'
 import type { ToolDefinition } from '../../tools/types'
 import type { StreamEvent } from '../../streaming/types'
 import type { SlashCommandRegistry } from '../commands/registry'
+import type { PromptBlock } from '../../prompts'
 
 const { estimatePromptTokensMock } = vi.hoisted(() => ({
   estimatePromptTokensMock: vi.fn(() => 0),
@@ -124,6 +128,71 @@ describe('useReplController', () => {
     const assistants = controller.state.messages.filter((m) => m.role === 'assistant')
     expect(assistants).toHaveLength(1)
     expect(assistants[0]?.content).toBe('Hi there')
+  })
+
+  it('injects todo reminder into request but does not persist it into history', async () => {
+    const calls: Array<{ history: unknown[]; user: { role: string; content: PromptBlock[] } }> = []
+
+    const engine: ChatEngine = {
+      async runTurn({ history, user }) {
+        calls.push({ history, user })
+        return [
+          ...history,
+          user,
+          { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+        ] as any
+      },
+    }
+
+    const tmpConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = tmpConfigDir
+
+    try {
+      let controller!: ReturnType<typeof useReplController>
+      render(
+        <Harness
+          engine={engine}
+          cfg={createCfg({ ui: { ...createCfg().ui, promptProfile: 'full' } })}
+          onController={(c) => (controller = c)}
+        />,
+      )
+
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('hello')
+      await tick()
+      await controller.actions.send('next')
+      await tick()
+
+      expect(calls).toHaveLength(2)
+
+      // 1) The reminder should exist in the *request* (last user message content),
+      // not in history.
+      const first = calls[0]!
+      expect(first.history).toHaveLength(0)
+      expect(first.user.role).toBe('user')
+      expect(Array.isArray(first.user.content)).toBe(true)
+      expect(
+        first.user.content.some((b) => typeof (b as any)?.text === 'string' && /<system-reminder>/i.test((b as any).text)),
+      ).toBe(true)
+
+      // 2) It should NOT persist into long-term history: the next turn's history
+      // must not contain system-reminder blocks from the previous request.
+      const second = calls[1]!
+      const firstUserFromHistory = second.history.find((m: any) => m?.role === 'user') as any
+      expect(Array.isArray(firstUserFromHistory?.content)).toBe(true)
+      expect(
+        (firstUserFromHistory.content as any[]).some(
+          (b) => typeof b?.text === 'string' && /<system-reminder>/i.test(b.text),
+        ),
+      ).toBe(false)
+      expect(firstUserFromHistory.content).toEqual([{ type: 'text', text: 'hello' }])
+    } finally {
+      if (typeof prevConfigDir === 'string') process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      else delete process.env.FORMAX_CONFIG_DIR
+      await fsp.rm(tmpConfigDir, { recursive: true, force: true })
+    }
   })
 
   it('stream mode: creates a streaming assistant message and appends deltas incrementally', async () => {

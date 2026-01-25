@@ -60,7 +60,7 @@
 - [x] 注入点：patch 本轮请求的 messages（不改长期 history）
   - [x] **用户发消息时（推荐）**：在 last-user message 的 `content` **追加一个 `type:"text"` block**
   - [ ] （可选/后续）tool loop 中间注入：更像 `PostToolUse` 的职责（本 TODO 暂不做，以免增加 token 与复杂度）
-- [ ] 文本形态：`<system-reminder>\n...\n</system-reminder>`
+- [x] 文本形态：`<system-reminder>\n...\n</system-reminder>`
 - [x] 保证：不把 reminder 写进 `loopMessages` / history（避免污染与 token 累积）
 
 ## 4. 状态信号（“最近没用 TodoWrite”的定义）
@@ -84,7 +84,7 @@
 - [x] 保留一个权威入口：`src/features/repl/reminders/ReminderService.ts`
 - [x] 移除 `src/chat/engine.ts` 内的 todo reminder 注入（避免 tool loop 重复 token）
 - [ ] 盘点/清理其它遗留入口：
-  - [ ] `src/features/repl/injectedBlocks.ts` 的 `buildTodoInjectedBlocks()`（当前仅测试使用，主流程未使用；可后续删除或迁移为纯文案）
+  - [x] `src/features/repl/injectedBlocks.ts` 的 `buildTodoInjectedBlocks()`（已删除，避免重复注入路径）
 
 ## 5.1 Hook 接线（让 todo reminder 真正由 hook 驱动）
 
@@ -105,8 +105,8 @@
 
 ### 6.2 集成测试（engine / request patch 语义）
 
-- [ ] 断言：reminder 只出现在“本轮 messages 的 last user message”里
-- [ ] 断言：reminder **不写入**长期 history（下一轮历史里不应该自带 reminder）
+- [x] 断言：reminder 只出现在“本轮 messages 的 last user message”里
+- [x] 断言：reminder **不写入**长期 history（下一轮历史里不应该自带 reminder）
 
 ## 7. 手动验收剧本（不抓包也能验证）
 
