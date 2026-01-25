@@ -86,6 +86,7 @@ export function useReplController(deps: {
   engine: ChatEngine
   tools: ToolDefinition[]
   cfg: RuntimeConfig
+  onClearTerminal?: () => void | Promise<void>
   allowedSubagents?: Array<{ name: string; description: string }>
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   mode: ReplMode
@@ -698,13 +699,7 @@ export function useReplController(deps: {
           return
         }
 
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
-        }
-
+        await deps.onClearTerminal?.()
         historyRef.current = []
         pendingInjectedBlocksRef.current = []
         pendingExitPlanReminderRef.current = false
@@ -715,20 +710,18 @@ export function useReplController(deps: {
         setError(null)
         currentAssistantIdRef.current = null
         contextBudgetConfigRef.current = null
+        sendSeqRef.current = 0
+        lastAutoCompactSeqRef.current = -1_000_000
         setContext(null)
+        toolNameByIdRef.current.clear()
+        taskStatsByToolUseIdRef.current.clear()
+        taskKindByToolUseIdRef.current.clear()
+        exploreBatchRef.current = null
 
         // Ink <Static> is append-only; when clearing messages we must force a remount
         // so the new transcript starts from a fresh render surface.
         setTranscriptSeq((n) => n + 1)
-        setMessages(() => [
-          userMsg,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: 'Conversation history cleared.',
-            timestamp: new Date(),
-          },
-        ])
+        setMessages(() => [])
         return
       }
 

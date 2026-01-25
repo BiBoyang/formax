@@ -40,6 +40,7 @@ import type { TokenUsage } from '../streaming/types'
 
 type Props = {
   onExit?: () => void
+  onClearTerminal?: () => void | Promise<void>
   engine: ChatEngine
   tools: ToolDefinition[]
   cfg: RuntimeConfig
@@ -51,6 +52,7 @@ type Props = {
 
 export function REPL({
   onExit,
+  onClearTerminal,
   engine,
   tools,
   cfg,
@@ -177,6 +179,7 @@ export function REPL({
     engine,
     tools,
     cfg,
+    onClearTerminal,
     allowedSubagents,
     reloadSubagents,
     mode,

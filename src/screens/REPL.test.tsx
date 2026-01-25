@@ -239,7 +239,7 @@ describe('REPL', () => {
       stdin.write('/clear')
       await tick()
       stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('Conversation history cleared'))
+      await waitForFrame(lastFrame, (f) => !f.includes('HISTLEN:2'))
       await sleep(25)
 
       stdin.write('hi3')

@@ -212,6 +212,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
           engine={engine}
           tools={tools}
           cfg={cfg}
+          onClearTerminal={clearTerminal}
           allowedSubagents={allowedSubagents}
           reloadSubagents={reloadSubagents}
           toolRegistry={toolRegistry}

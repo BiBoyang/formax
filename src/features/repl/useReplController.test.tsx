@@ -586,10 +586,7 @@ describe('useReplController /clear', () => {
 
     await controller.actions.send('/clear')
     await tick()
-    expect(lastAssistantText(controller)).toBe('Conversation history cleared.')
-    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === '/clear')).toBe(true)
-    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === 'hi2')).toBe(false)
-    expect(controller.state.messages.length).toBeLessThanOrEqual(3)
+    expect(controller.state.messages).toHaveLength(0)
 
     await controller.actions.send('hi3')
     await waitFor(() => controller.state.isLoading === false)
