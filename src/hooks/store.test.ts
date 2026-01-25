@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
-import { loadMergedHooks } from './store.js'
+import { loadHooksBySource, loadMergedHooks } from './store.js'
 
 async function writeJson(filePath: string, value: unknown): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -107,5 +107,35 @@ describe('loadMergedHooks', () => {
 
     expect(merged.PreToolUse.map((e) => e.command)).toEqual(['echo ok'])
     expect(merged.warnings.join('\n')).toContain('empty matcher')
+  })
+
+  it('includes explicit "*" matchers in matchersBySource (even when hooks are empty)', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        PreToolUse: [
+          { matcher: '', hooks: [] }, // ignored
+          { matcher: '*', hooks: [] }, // should still appear as selectable matcher
+          { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo ok' }] },
+        ],
+      },
+    })
+
+    const fileStore = createNodeFileStore()
+    const bySource = await loadHooksBySource({ fileStore, cwd, homedir: home, platform: 'darwin' })
+
+    const matchers = (bySource.matchersBySource.projectLocal.PreToolUse ?? []).map((m) => m.matcher)
+    expect(matchers).toContain('*')
+    expect(matchers).toContain('Bash')
+    expect(matchers).not.toContain('')
   })
 })
