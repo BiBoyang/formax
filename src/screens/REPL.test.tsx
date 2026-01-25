@@ -194,6 +194,61 @@ describe('REPL', () => {
     })
   })
 
+  describe('/clear', () => {
+    it('clears prompt history and continues the chat from a fresh context', async () => {
+      function getUserText(msg: PromptMessage): string {
+        const content = msg.content as any
+        if (typeof content === 'string') return content
+        if (!Array.isArray(content)) return ''
+        return content
+          .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
+          .join('')
+      }
+
+      const clearEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          const assistantText = userText ? `HISTLEN:${history.length}` : `HISTLEN:${history.length}`
+
+          onEvent({ type: 'assistant_delta', text: assistantText })
+          onEvent({ type: 'complete' })
+
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+          ]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={clearEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('hi')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+      await sleep(25)
+
+      stdin.write('hi2')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:2'))
+      await sleep(25)
+
+      stdin.write('/clear')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('Conversation history cleared'))
+      await sleep(25)
+
+      stdin.write('hi3')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+    })
+  })
+
   describe('auto-compact', () => {
     it('auto-compacts prompt history before sending when over the limit', async () => {
       function getUserText(msg: PromptMessage): string {

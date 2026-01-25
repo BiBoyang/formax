@@ -450,7 +450,7 @@ export function REPL({
         <Box flexDirection="column" height="100%">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
             {/* Header + 消息 Static */}
-            <Static items={staticItems}>
+            <Static key={state.transcriptSeq} items={staticItems}>
               {(item) => <Box key={item.key}>{item.jsx}</Box>}
             </Static>
 

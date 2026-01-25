@@ -78,6 +78,13 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
+    id: 'builtin:/clear',
+    source: 'builtin',
+    command: '/clear',
+    description: 'Clear the current conversation history',
+    implemented: true,
+  },
+  {
     id: 'builtin:/compact',
     source: 'builtin',
     command: '/compact',

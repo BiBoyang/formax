@@ -553,6 +553,51 @@ describe('useReplController /compact', () => {
   })
 })
 
+describe('useReplController /clear', () => {
+  it('clears prompt history and replaces the UI message list', async () => {
+    const historyLens: number[] = []
+    const runTurn = vi.fn(async (args: any) => {
+      historyLens.push((args.history ?? []).length)
+      return [
+        ...(args.history ?? []),
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: `HISTLEN:${(args.history ?? []).length}` }] },
+      ]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('hi')
+    await waitFor(() => controller.state.isLoading === false)
+    expect(historyLens[0]).toBe(0)
+
+    await controller.actions.send('hi2')
+    await waitFor(() => controller.state.isLoading === false)
+    expect(historyLens[1]).toBeGreaterThan(0)
+
+    await controller.actions.send('/clear')
+    await tick()
+    expect(lastAssistantText(controller)).toBe('Conversation history cleared.')
+    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === '/clear')).toBe(true)
+    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === 'hi2')).toBe(false)
+    expect(controller.state.messages.length).toBeLessThanOrEqual(3)
+
+    await controller.actions.send('hi3')
+    await waitFor(() => controller.state.isLoading === false)
+    expect(historyLens[2]).toBe(0)
+    expect(runTurn).toHaveBeenCalledTimes(3)
+  })
+})
+
 describe('useReplController auto-compact', () => {
   it('runs an auto-compact turn once and shows the notice', async () => {
     estimatePromptTokensMock.mockReturnValue(9000)

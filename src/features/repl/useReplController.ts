@@ -36,6 +36,7 @@ export type ReplControllerState = {
   messages: Msg[]
   staticMessages: Msg[]
   transientMessages: Msg[]
+  transcriptSeq: number
   isLoading: boolean
   loadingText: string
   thinkingText: string
@@ -94,6 +95,7 @@ export function useReplController(deps: {
   planSession?: PlanSessionManager
 }): ReplController {
   const [messages, setMessages] = useState<Msg[]>([])
+  const [transcriptSeq, setTranscriptSeq] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
   const [thinkingText, setThinkingText] = useState('')
@@ -681,6 +683,55 @@ export function useReplController(deps: {
 
       const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
 
+      if (isExactSlashCommand(text, '/clear')) {
+        const args = text.replace(/^\/clear\b/i, '').trim()
+        if (args) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              content: 'Usage: /clear',
+              timestamp: new Date(),
+            },
+          ])
+          return
+        }
+
+        const userMsg: Msg = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          timestamp: new Date(),
+        }
+
+        historyRef.current = []
+        pendingInjectedBlocksRef.current = []
+        pendingExitPlanReminderRef.current = false
+        assistantBufferRef.current = ''
+        thinkingBufferRef.current = ''
+        thinkingLastFlushAtRef.current = 0
+        setThinkingText('')
+        setError(null)
+        currentAssistantIdRef.current = null
+        contextBudgetConfigRef.current = null
+        setContext(null)
+
+        // Ink <Static> is append-only; when clearing messages we must force a remount
+        // so the new transcript starts from a fresh render surface.
+        setTranscriptSeq((n) => n + 1)
+        setMessages(() => [
+          userMsg,
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: 'Conversation history cleared.',
+            timestamp: new Date(),
+          },
+        ])
+        return
+      }
+
       if (isExactSlashCommand(text, '/compact')) {
         const userMsg: Msg = {
           id: `user-${Date.now()}`,
@@ -1216,6 +1267,7 @@ export function useReplController(deps: {
       messages,
       staticMessages,
       transientMessages,
+      transcriptSeq,
       isLoading,
       loadingText,
       thinkingText,
