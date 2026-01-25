@@ -6,8 +6,7 @@ import type { ContextBudgetConfig } from './context/budget'
 import { pruneForPromptBudget } from './context/prune'
 import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditLog } from '../adapters/audit/auditLog.js'
-import { nowIso } from '../core/audit/schema.js'
-import type { HookRun } from '../hooks/types.js'
+import { appendHookRunAuditEvents } from '../hooks/audit.js'
 
 export type ChatHistory = PromptMessage[]
 
@@ -102,51 +101,14 @@ export function createChatEngine(deps: {
 	            signal,
 	          })
 
-	          if (audit && post.runs.length > 0) {
-	            const preview = (raw: unknown, limit = 2000): string | undefined => {
-	              const s = String(raw ?? '').trimEnd()
-	              if (!s) return undefined
-	              return s.length <= limit ? s : s.slice(s.length - limit)
-	            }
-
-	            const statusFrom = (r: HookRun): 'ok' | 'blocked' | 'failed' | 'aborted' => {
-	              if (r.exitCode === 0) return 'ok'
-	              if (r.exitCode === 2) return 'blocked'
-	              if (r.exitCode === null && String(r.stderr || '').trim().toLowerCase() === 'aborted') return 'aborted'
-	              return 'failed'
-	            }
-
-	            for (const r of post.runs as HookRun[]) {
-	              const status = statusFrom(r)
-	              const stderrPreview = status === 'ok' ? undefined : preview(r.stderr, 2000)
-	              const stdoutPreview = hooksDebugEnabled ? preview(r.stdout, 2000) : undefined
-
-	              void audit.append({
-	                schemaVersion: 1,
-	                ts: nowIso(),
-	                kind: 'hook.run',
-	                agentDepth: exec?.agentDepth ?? 0,
-	                tool: { name: call.name, toolUseId: call.id },
-	                hook: {
-	                  eventName: 'PostToolUse',
-	                  ...(r.source ? { source: r.source } : {}),
-	                  ...(typeof r.matcher === 'string' ? { matcher: r.matcher } : {}),
-	                  command: r.command,
-	                  ...(typeof r.timeoutMs === 'number' || r.timeoutMs === null ? { timeoutMs: r.timeoutMs } : {}),
-	                  exitCode: r.exitCode,
-	                  signal: r.signal,
-	                  timedOut: r.timedOut,
-	                  durationMs: r.durationMs,
-	                  status,
-	                  parsedJson: r.parsedJson !== null,
-	                  ...(stdoutPreview ? { stdoutPreview } : {}),
-	                  ...(stderrPreview ? { stderrPreview } : {}),
-	                  ...(typeof r.stdoutTruncated === 'boolean' ? { stdoutTruncated: r.stdoutTruncated } : {}),
-	                  ...(typeof r.stderrTruncated === 'boolean' ? { stderrTruncated: r.stderrTruncated } : {}),
-	                },
-	              })
-	            }
-	          }
+          appendHookRunAuditEvents({
+            audit,
+            hooksDebugEnabled,
+            tool: { name: call.name, toolUseId: call.id },
+            agentDepth: executorCtxBase.agentDepth,
+            eventName: 'PostToolUse',
+            runs: post.runs,
+          })
 
 	          const lines: string[] = []
 
