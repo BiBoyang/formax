@@ -699,7 +699,6 @@ export function useReplController(deps: {
           return
         }
 
-        await deps.onClearTerminal?.()
         historyRef.current = []
         pendingInjectedBlocksRef.current = []
         pendingExitPlanReminderRef.current = false
@@ -722,6 +721,9 @@ export function useReplController(deps: {
         // so the new transcript starts from a fresh render surface.
         setTranscriptSeq((n) => n + 1)
         setMessages(() => [])
+        // Clear the terminal *after* scheduling state resets, otherwise Ink may
+        // re-render the old transcript once before the clear takes effect.
+        void deps.onClearTerminal?.()
         return
       }
 

@@ -205,14 +205,23 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const hooks = createHooksRuntime({ fileStore, env: process.env })
   const engine = createChatEngine({ client, executor, hooks, audit })
 
-  render(
+  let replInstance: ReturnType<typeof render> | null = null
+  const onClearTerminal = async () => {
+    // Keep Ink's internal "previous output" in sync with our terminal clear.
+    // `instance.clear()` resets Ink's log-update buffer, while `clearTerminal()`
+    // actually clears the terminal scrollback/screen.
+    replInstance?.clear()
+    await clearTerminal()
+  }
+
+  replInstance = render(
     <InputScopeProvider initialScope="repl">
       <UserInputProvider userInput={userInputManager}>
         <REPL
           engine={engine}
           tools={tools}
           cfg={cfg}
-          onClearTerminal={clearTerminal}
+          onClearTerminal={onClearTerminal}
           allowedSubagents={allowedSubagents}
           reloadSubagents={reloadSubagents}
           toolRegistry={toolRegistry}

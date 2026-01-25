@@ -332,7 +332,9 @@ export function REPL({
 
       if (slashSuggestions.length > 0 && selectedSlash?.command) {
         const normalized = text.replace(/\s+$/, '')
-        if (normalized !== selectedSlash.command && !normalized.startsWith(selectedSlash.command + ' ')) {
+        const normalizedLower = normalized.toLowerCase()
+        const selectedLower = selectedSlash.command.toLowerCase()
+        if (normalizedLower !== selectedLower && !normalizedLower.startsWith(selectedLower + ' ')) {
           setInput(selectedSlash.command)
           setSlashIndex(0)
           return

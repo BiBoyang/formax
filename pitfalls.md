@@ -66,3 +66,19 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - if the view must be long, introduce an explicit scroll region or collapse long help/examples (UI behavior change — requires user approval).
 - **Links**: `src/ui/hooks/ui.tsx`
 - **Keywords**: ink, overlay, flicker, flash, layout, terminal height, marginY, marginBottom, width=100%, TextInput
+
+## `/clear` needs two runs / flashes once (Ink log-update cache vs manual ANSI clear)
+- **Problem**: running `/clear` appears to “flash” and only fully clears the transcript on the 2nd run (or looks like it didn’t clear at all).
+- **Repro**:
+  1) run `bun run dev`
+  2) have some chat history on screen
+  3) run `/clear` once → the screen flashes / old content comes back
+  4) run `/clear` again → finally clean
+- **Root cause**:
+  - Ink uses an internal “previous frame” buffer (via `log-update`) to compute what to draw next.
+  - If we manually write ANSI clear sequences (e.g. `\x1b[2J\x1b[3J\x1b[H`) *before* the React state is cleared, Ink may render one more frame using the old buffer/state and “paint back” the old transcript (buffer/terminal becomes out of sync).
+- **Fix**:
+  - Clear transcript state first (`setMessages([])` + `setTranscriptSeq(+1)`), then clear the terminal.
+  - When clearing the terminal, clear Ink’s buffer too: `instance.clear()` *then* `clearTerminal()` (ANSI).
+- **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/utils/terminal.ts`
+- **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
