@@ -25,7 +25,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
-  - TodoWrite “stale todo” reminder injection (Claude Code style): `src/chat/engine.ts` (appends `<system-reminder>` to last `tool_result` content)
+  - TodoWrite reminders (prompt injection): `src/prompts/reminders/todos.ts` + wiring in `src/chat/engine.ts`
 - Anthropic streaming client: `src/streaming/anthropic/StreamClient.ts`
 - SSE parser: `src/streaming/anthropic/sseParser.ts`
 - Stream events/types: `src/streaming/types.ts`
@@ -67,9 +67,11 @@ This file is a “where to change what” index for quickly navigating the codeb
   - PermissionRequest: `src/tools/executor/policyPreflight.ts`
   - PostToolUse (+ `additionalContext` injection before next LLM turn): `src/chat/engine.ts`
 - Audit/debug (observability, not UI):
+  - Centralized `hook.run` audit fields: `src/hooks/audit.ts`
   - `hook.run` schema: `src/core/audit/schema.ts`
   - Debug previews (stdout tail, etc): `FORMAX_HOOKS_DEBUG=1`
 - Tests:
+  - Audit fields: `src/hooks/audit.test.ts`
   - Runner/runtime: `src/hooks/runner.test.ts`, `src/hooks/runtime.test.ts`
   - PermissionRequest wiring: `src/tools/executor/policyPreflight.test.ts`
   - PostToolUse wiring: `src/chat/engine.test.ts`
