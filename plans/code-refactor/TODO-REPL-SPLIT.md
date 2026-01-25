@@ -377,13 +377,13 @@ export function useReplSend(args: {
   - 验收：`bun run test -- src/components/ui/TextInput.test.tsx`
   - 回滚：删新增文件。
 
-- [ ] 0.3 增强 controller：preferredSlashSpecId 透传（30–45min）
+- [x] 0.3 增强 controller：preferredSlashSpecId 透传（30–45min）
   - 文件：`src/features/repl/useReplController.test.tsx`
   - 内容：`send('/status', {preferredSlashSpecId})` → `commandRegistry.dispatch(_, { preferredSpecId })`；让 dispatch 返回 consumed effect，确保不走 `engine.runTurn`。
   - 验收：`bun run test -- src/features/repl/useReplController.test.tsx`
   - 回滚：回滚单个测试块。
 
-- [ ] 0.4 增强 controller：`/clear` 必须 bump `transcriptSeq`（30–45min）
+- [x] 0.4 增强 controller：`/clear` 必须 bump `transcriptSeq`（30–45min）
   - 文件：`src/features/repl/useReplController.test.tsx`
   - 内容：`/clear` 前后断言 `transcriptSeq` 增加 1，且 `messages` 变为 `[]`。
   - 验收：同上

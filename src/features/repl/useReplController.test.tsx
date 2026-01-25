@@ -592,8 +592,9 @@ describe('useReplController /clear', () => {
     await waitFor(() => controller.state.isLoading === false)
     expect(historyLens[1]).toBeGreaterThan(0)
 
+    const seqBefore = controller.state.transcriptSeq
     await controller.actions.send('/clear')
-    await tick()
+    await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
     expect(controller.state.messages).toHaveLength(0)
 
     await controller.actions.send('hi3')
@@ -932,6 +933,35 @@ describe('useReplController consumed slash commands', () => {
     await controller.actions.send('/permissions')
     await waitFor(() => controller.state.permissionsDialogOpen === true)
     expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
+  it('passes preferredSlashSpecId through to commandRegistry.dispatch as preferredSpecId', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const dispatch = vi.fn((input: string, opts?: { preferredSpecId?: string }) => {
+      if (input === '/status') {
+        expect(opts).toEqual({ preferredSpecId: 'user:/status' })
+        return { kind: 'local', stdout: 'ok' }
+      }
+      return null
+    })
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: dispatch as any,
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/status', { preferredSlashSpecId: 'user:/status' })
+    await tick()
+
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+    expect(controller.state.messages.some((m) => m.role === 'assistant' && m.content.trim() === 'ok')).toBe(true)
   })
 
   it('runs local_async commands and appends stdout without calling the engine', async () => {
