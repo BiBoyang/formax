@@ -12,6 +12,16 @@ Formax 的 Claude Code 风格 hooks 子系统：在“关键时机”运行本�
 - `PermissionRequest`：审批 UI 前（工具执行链路）
 - `PostToolUse`：tool 执行后（工具执行链路；支持 `additionalContext` 注入下一次模型请求）
 - `UserPromptSubmit`：用户提交消息后、当轮首次 LLM 请求前（ChatEngine；支持 `additionalContext` 一次性注入当轮首次请求；Phase 1 不允许 block）
+- `SessionStart`：会话启动/恢复时（ChatEngine；支持 `additionalContext` 一次性注入当轮首次请求；Phase 1 不允许 block）
+
+### matcher-less 事件（重要）
+
+在 Claude Code 文档里，像 `UserPromptSubmit` / `SessionStart` 这种事件可以省略 `matcher` 字段。
+Formax 也按这个语义实现：
+
+- **运行时**：matcher-less 事件总是视为 `*`（match all），即使 settings 里写了 `matcher` 也会被忽略
+- **配置落盘**：matcher-less 事件在 `.formax/settings*.json` 里不会写入 `matcher` 字段（与 Claude Code 示例一致）
+- **UI**：matcher-less 事件不会出现 “Matchers/Tool Matchers” 页面，也不会显示 “Matcher:” 行
 
 ## 新增一个 hook 事件：标准步骤
 
@@ -82,4 +92,3 @@ Formax 的 Claude Code 风格 hooks 子系统：在“关键时机”运行本�
 - 执行：`src/hooks/runner.ts`、`src/hooks/runtime.ts`
 - 匹配：`src/hooks/matcher.ts`
 - 审计：`src/hooks/audit.ts`
-

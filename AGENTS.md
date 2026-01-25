@@ -41,6 +41,7 @@
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
 - **Coverage mindset**: Prioritize adding/strengthening tests when behavior is user-visible or stability-critical (tools, permissions, hooks, REPL input, UI flows). Avoid “happy-path only” tests—cover edge cases and regressions you’ve already seen.
 - **Refactor safety**: Before refactoring, add/extend tests to lock current behavior. Do not rely on “tests pass” if manual behavior regresses.
+- **Code review (mandatory in loops)**: After tests pass, run `codex review --uncommitted` and fix all high/medium findings plus any low-risk, clearly-correct low findings.
 - **Code review loop**: After checks pass, run `codex review --uncommitted` and address all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
 - **Pre-commit review**: For non-trivial changes, run `codex review --uncommitted` before committing; fix all high/medium findings (and low-risk issues that are clearly correct and low-churn).
 
