@@ -17,7 +17,7 @@ import { runCommandHooks } from './runner.js'
 import { loadMergedHooks } from './store.js'
 
 function mergedHooksWithCommand(args: {
-  eventName: keyof Pick<MergedHooks, 'PreToolUse' | 'PermissionRequest' | 'PostToolUse'>
+  eventName: keyof Pick<MergedHooks, 'PreToolUse' | 'PermissionRequest' | 'PostToolUse' | 'UserPromptSubmit'>
   matcher?: string
   command?: string
 }): MergedHooks {
@@ -32,6 +32,7 @@ function mergedHooksWithCommand(args: {
     PreToolUse: args.eventName === 'PreToolUse' ? [entry] : [],
     PermissionRequest: args.eventName === 'PermissionRequest' ? [entry] : [],
     PostToolUse: args.eventName === 'PostToolUse' ? [entry] : [],
+    UserPromptSubmit: args.eventName === 'UserPromptSubmit' ? [entry] : [],
     warnings: [],
   }
 }
@@ -48,6 +49,7 @@ function mergedHooksWithPostToolUseCommand(command = 'echo hook'): MergedHooks {
         timeoutMs: null,
       },
     ],
+    UserPromptSubmit: [],
     warnings: [],
   }
 }
@@ -229,5 +231,53 @@ describe('HooksRuntime', () => {
     expect(res.blockingErrors).toEqual([])
     expect(res.runs).toHaveLength(1)
     expect(res.runs[0].exitCode).toBe(1)
+  })
+
+  it('injects stdout as additionalContext for UserPromptSubmit (when stdout is not JSON)', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'UserPromptSubmit', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: 'CTX_STDOUT\n',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runUserPromptSubmit({ prompt: 'hi', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual(['CTX_STDOUT'])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('extracts UserPromptSubmit.additionalContext from stdout JSON', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'UserPromptSubmit', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo ok',
+        exitCode: 0,
+        signal: null,
+        stdout: '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"CTX_JSON"}}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'CTX_JSON' } },
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runUserPromptSubmit({ prompt: 'hi', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual(['CTX_JSON'])
+    expect(res.blocked).toBe(false)
   })
 })

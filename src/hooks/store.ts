@@ -3,6 +3,30 @@ import type { Platform } from '../adapters/fs/configPaths.js'
 import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPath } from '../adapters/permissions/permissionsStore.js'
 import type { HookEventName, HookRuleEntry, HookSource, MergedHooks } from './types.js'
 
+function eventUsesMatcher(eventName: HookEventName): boolean {
+  return eventName === 'PreToolUse' || eventName === 'PermissionRequest' || eventName === 'PostToolUse'
+}
+
+function normalizeMatcher(args: {
+  eventName: HookEventName
+  source: HookSource
+  raw: unknown
+  warnings: string[]
+}): string | null {
+  const matcher = typeof args.raw === 'string' ? args.raw.trim() : ''
+  if (matcher) return matcher
+
+  if (!eventUsesMatcher(args.eventName)) {
+    // Claude docs: matcher is optional for matcher-less events (e.g. UserPromptSubmit).
+    return '*'
+  }
+
+  args.warnings.push(
+    `Ignoring ${args.source} ${args.eventName} hook rule with empty matcher (use "*" to match all tools)`,
+  )
+  return null
+}
+
 function tryParseJsonRecord(raw: string): Record<string, unknown> | null {
   const text = String(raw || '').trim()
   if (!text) return null
@@ -41,14 +65,13 @@ function parseRulesForEvent(args: {
 
   for (const rule of rawRules) {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
-    const matcherRaw = (rule as any).matcher
-    const matcher = typeof matcherRaw === 'string' ? matcherRaw.trim() : ''
-    if (!matcher) {
-      args.warnings.push(
-        `Ignoring ${args.source} ${args.eventName} hook rule with empty matcher (use "*" to match all tools)`,
-      )
-      continue
-    }
+    const matcher = normalizeMatcher({
+      eventName: args.eventName,
+      source: args.source,
+      raw: (rule as any).matcher,
+      warnings: args.warnings,
+    })
+    if (!matcher) continue
     const hooks = (rule as any).hooks
     if (!Array.isArray(hooks)) continue
 
@@ -93,8 +116,12 @@ function parseMatchersForEvent(args: {
 
   for (const rule of rawRules) {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
-    const matcherRaw = (rule as any).matcher
-    const matcher = typeof matcherRaw === 'string' ? matcherRaw.trim() : ''
+    const matcher =
+      typeof (rule as any).matcher === 'string'
+        ? String((rule as any).matcher).trim()
+        : eventUsesMatcher(args.eventName)
+          ? ''
+          : '*'
     if (!matcher) continue
     if (seen.has(matcher)) continue
     seen.add(matcher)
@@ -202,32 +229,38 @@ export async function loadHooksBySource(args: {
       PreToolUse: buildFor('projectLocal', 'PreToolUse'),
       PermissionRequest: buildFor('projectLocal', 'PermissionRequest'),
       PostToolUse: buildFor('projectLocal', 'PostToolUse'),
+      UserPromptSubmit: buildFor('projectLocal', 'UserPromptSubmit'),
     },
     project: {
       PreToolUse: buildFor('project', 'PreToolUse'),
       PermissionRequest: buildFor('project', 'PermissionRequest'),
       PostToolUse: buildFor('project', 'PostToolUse'),
+      UserPromptSubmit: buildFor('project', 'UserPromptSubmit'),
     },
     user: {
       PreToolUse: buildFor('user', 'PreToolUse'),
       PermissionRequest: buildFor('user', 'PermissionRequest'),
       PostToolUse: buildFor('user', 'PostToolUse'),
+      UserPromptSubmit: buildFor('user', 'UserPromptSubmit'),
     },
     matchersBySource: {
       projectLocal: {
         PreToolUse: buildMatchersFor('projectLocal', 'PreToolUse'),
         PermissionRequest: buildMatchersFor('projectLocal', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('projectLocal', 'PostToolUse'),
+        UserPromptSubmit: buildMatchersFor('projectLocal', 'UserPromptSubmit'),
       },
       project: {
         PreToolUse: buildMatchersFor('project', 'PreToolUse'),
         PermissionRequest: buildMatchersFor('project', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('project', 'PostToolUse'),
+        UserPromptSubmit: buildMatchersFor('project', 'UserPromptSubmit'),
       },
       user: {
         PreToolUse: buildMatchersFor('user', 'PreToolUse'),
         PermissionRequest: buildMatchersFor('user', 'PermissionRequest'),
         PostToolUse: buildMatchersFor('user', 'PostToolUse'),
+        UserPromptSubmit: buildMatchersFor('user', 'UserPromptSubmit'),
       },
     },
     warnings,
@@ -253,6 +286,7 @@ export async function loadMergedHooks(args: {
     PreToolUse: buildForEvent('PreToolUse'),
     PermissionRequest: buildForEvent('PermissionRequest'),
     PostToolUse: buildForEvent('PostToolUse'),
+    UserPromptSubmit: buildForEvent('UserPromptSubmit'),
     warnings: bySource.warnings,
   }
 }

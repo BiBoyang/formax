@@ -25,13 +25,13 @@ type HookListItem =
 
 function emptyHooksBySource(): HooksBySource {
   return {
-    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
-    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
-    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
+    projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+    project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+    user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
     matchersBySource: {
-      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
-      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
-      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
+      projectLocal: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+      project: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
+      user: { PreToolUse: [], PermissionRequest: [], PostToolUse: [], UserPromptSubmit: [] },
     },
     warnings: [],
   }
@@ -333,7 +333,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
       if (!item) return
 
       if (!item.enabled) {
-        dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first three events are wired.' })
+        dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first four events are wired.' })
         return
       }
 

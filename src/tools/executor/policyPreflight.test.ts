@@ -513,6 +513,7 @@ describe('createPolicyPreflight', () => {
           blocked: true,
           blockedBy,
         }),
+        runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
         runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
       }
 

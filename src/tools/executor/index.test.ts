@@ -81,6 +81,7 @@ describe('createToolExecutor', () => {
         blockedBy,
       }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
     }
 

@@ -29,6 +29,18 @@ function buildHookPayload(args: {
   return payload
 }
 
+function buildUserPromptSubmitPayload(args: {
+  prompt: string
+  cwd: string
+}): Record<string, unknown> {
+  return {
+    hook_event_name: 'UserPromptSubmit',
+    prompt: args.prompt,
+    cwd: args.cwd,
+    permission_mode: 'default',
+  }
+}
+
 function extractAdditionalContextFromRun(args: {
   hookEventName: HookEventName
   run: HookRun
@@ -65,6 +77,12 @@ export type HooksRuntime = {
   }>
   runPermissionRequest: (args: { toolName: string; toolInput: unknown; cwd: string; signal?: AbortSignal }) => Promise<{
     runs: HookRun[]
+    blocked: boolean
+    blockedBy?: HookRun
+  }>
+  runUserPromptSubmit: (args: { prompt: string; cwd: string; signal?: AbortSignal }) => Promise<{
+    runs: HookRun[]
+    additionalContext: string[]
     blocked: boolean
     blockedBy?: HookRun
   }>
@@ -123,13 +141,13 @@ export function createHooksRuntime(args: {
     const entries = filterHooksForToolName(merged[args2.eventName], args2.toolName)
     if (entries.length === 0) return []
 
-    const payload = buildHookPayload({
-      hookEventName: args2.eventName,
-      toolName: args2.toolName,
-      toolInput: args2.toolInput,
-      toolResponse: args2.toolResponse,
-      cwd: args2.cwd,
-    })
+      const payload = buildHookPayload({
+        hookEventName: args2.eventName,
+        toolName: args2.toolName,
+        toolInput: args2.toolInput,
+        toolResponse: args2.toolResponse,
+        cwd: args2.cwd,
+      })
 
     return await runCommandHooks({
       hooks: entries,
@@ -151,6 +169,44 @@ export function createHooksRuntime(args: {
       const runs = await runEvent({ eventName: 'PermissionRequest', toolName, toolInput, cwd, signal })
       const { blocked } = summarizeHookRuns(runs)
       return { runs, blocked: blocked.length > 0, blockedBy: blocked[0] ?? undefined }
+    },
+
+    async runUserPromptSubmit({ prompt, cwd, signal }) {
+      if (isDisabledByEnv(env)) return { runs: [], additionalContext: [], blocked: false }
+
+      const merged = await loadHooks(cwd)
+      const entries = merged.UserPromptSubmit
+      if (entries.length === 0) return { runs: [], additionalContext: [], blocked: false }
+
+      const runs = await runCommandHooks({
+        hooks: entries,
+        payload: buildUserPromptSubmitPayload({ prompt, cwd }),
+        cwd,
+        env: buildExecEnv(cwd),
+        signal,
+      })
+
+      // Phase 1: we execute hooks and record their exit codes, but we do NOT
+      // block the model call based on UserPromptSubmit. Blocking semantics can
+      // be added later once we have a clear transcript/history UX.
+      // We still surface exitCode=2 in `runs`, but we don't treat it as "blocked".
+      const { blocked } = summarizeHookRuns(runs)
+
+      const additionalContext = runs
+        .map((r) => extractAdditionalContextFromRun({ hookEventName: 'UserPromptSubmit', run: r }))
+        .filter((v): v is string => Boolean(v))
+
+      // Claude docs: for UserPromptSubmit, stdout is injected into context on success.
+      // We only do that when stdout is *not* JSON (to avoid injecting raw JSON blobs).
+      for (const r of runs) {
+        if (r.exitCode !== 0) continue
+        if (r.parsedJson !== null) continue
+        const text = String(r.stdout ?? '').trim()
+        if (!text) continue
+        additionalContext.push(text)
+      }
+
+      return { runs, additionalContext, blocked: false, blockedBy: undefined }
     },
 
     async runPostToolUse({ toolUseId: _toolUseId, toolName, toolInput, toolResult, cwd, signal }) {

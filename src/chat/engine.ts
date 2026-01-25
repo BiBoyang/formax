@@ -65,6 +65,7 @@ export function createChatEngine(deps: {
 	    }): Promise<ChatHistory> {
 	      const loopMessages: ChatHistory = [...history, user]
 	      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
+	      let pendingUserPromptSubmitText: string[] | null = null
 	      const audit = deps.audit
 	      const hooksDebugEnabled = (() => {
 	        const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
@@ -86,6 +87,33 @@ export function createChatEngine(deps: {
         denyTools: exec?.denyTools,
         hooks: deps.hooks,
       }
+
+      const runUserPromptSubmit = async (): Promise<void> => {
+        if (!deps.hooks) return
+
+        const prompt = extractPromptText(user)
+        if (!prompt) return
+
+        const res = await deps.hooks.runUserPromptSubmit({ prompt, cwd, signal })
+
+        appendHookRunAuditEvents({
+          audit,
+          hooksDebugEnabled,
+          tool: { name: 'UserPromptSubmit', toolUseId: 'user_prompt' },
+          agentDepth: executorCtxBase.agentDepth,
+          eventName: 'UserPromptSubmit',
+          runs: res.runs,
+        })
+
+        if (res.additionalContext.length > 0) {
+          const combined = res.additionalContext.join('\n\n')
+          pendingUserPromptSubmitText = [
+            `<system-reminder>\nUserPromptSubmit hook additional context:\n${combined}\n</system-reminder>`,
+          ]
+        }
+      }
+
+      await runUserPromptSubmit()
 
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
 	        const res = await deps.executor(call, executorCtxBase)
@@ -164,17 +192,23 @@ export function createChatEngine(deps: {
           }
 
           const injectedMessages = buildMessagesWithPostToolUseText(loopMessages, pendingPostToolUseTextByToolUseId)
+          const injectedWithUserPromptSubmit = buildMessagesWithUserPromptSubmitText(
+            injectedMessages,
+            pendingUserPromptSubmitText,
+          )
+          pendingUserPromptSubmitText = null
+
           const messagesForCall =
             promptBudget?.contextWindowTokens
               ? pruneForPromptBudget({
                   system: systemForThisCall,
-                  messages: injectedMessages,
+                  messages: injectedWithUserPromptSubmit,
                   contextWindowTokens: promptBudget.contextWindowTokens,
                   effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
                   autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
                   baselineTokens: promptBudget.baselineTokens,
                 }).messages
-              : injectedMessages
+              : injectedWithUserPromptSubmit
 
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
@@ -262,4 +296,29 @@ function buildMessagesWithPostToolUseText(
 
   for (const id of used) pendingByToolUseId.delete(id)
   return patched
+}
+
+function extractPromptText(user: PromptMessage): string {
+  if (user.role !== 'user' || !Array.isArray(user.content)) return ''
+  const texts = user.content
+    .filter((b) => (b as any)?.type === 'text' && typeof (b as any)?.text === 'string')
+    .map((b) => String((b as any).text))
+    .filter(Boolean)
+  return texts.join('\n').trim()
+}
+
+function buildMessagesWithUserPromptSubmitText(messages: ChatHistory, extra: string[] | null): ChatHistory {
+  if (!extra || extra.length === 0) return messages
+
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'user' || !Array.isArray(last.content)) return messages
+
+  // Only inject on the *initial* user prompt message. Tool-loop user messages
+  // contain tool_result blocks and should not receive UserPromptSubmit output.
+  if (last.content.some((b) => (b as any)?.type === 'tool_result')) return messages
+
+  const nextBlocks: PromptBlock[] = [...last.content]
+  for (const text of extra) nextBlocks.push({ type: 'text', text })
+
+  return [...messages.slice(0, -1), { ...last, content: nextBlocks }]
 }

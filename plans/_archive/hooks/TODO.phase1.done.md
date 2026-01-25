@@ -2,6 +2,8 @@
 
 这份文件是 `plans/hooks/TODO.md` 的归档版本：Phase 1（`PreToolUse / PermissionRequest / PostToolUse`）已完成，因此把完成清单移到这里，避免干扰后续开发。
 
+> Update (2026-01-25): Formax 已额外实现最小 `UserPromptSubmit`（一次性 additionalContext 注入到当轮的首次 LLM 请求，且 Phase 1 不允许 block）。本文件中“Phase 1 范围约束”的备份文本仍保留原样，仅供回看当时决策背景。
+
 如需回看 Phase 1 的设计与约束，请参考：
 - `plans/hooks/hooks.md`
 - `plans/hooks/hook-guide.md`
@@ -34,4 +36,3 @@
 - [x] H4：PermissionRequest 接入（审批 UI 之前）
 - [x] H5：PostToolUse 接入（工具执行后 + 下一轮注入）
 - [x] H6：测试与回滚（单测/集成/审计字段/回滚开关）
-

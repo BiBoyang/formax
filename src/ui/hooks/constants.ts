@@ -10,7 +10,7 @@ export const HOOK_EVENTS: HooksEventListItem[] = [
   { id: 'PreToolUse', label: 'PreToolUse - Before tool execution', enabled: true },
   { id: 'PermissionRequest', label: 'PermissionRequest - When permission is requested', enabled: true },
   { id: 'PostToolUse', label: 'PostToolUse - After tool execution', enabled: true },
-  { id: 'UserPromptSubmit', label: 'UserPromptSubmit - When the user submits a prompt', enabled: false },
+  { id: 'UserPromptSubmit', label: 'UserPromptSubmit - When the user submits a prompt', enabled: true },
   { id: 'Notification', label: 'Notification - When notifications are sent', enabled: false },
   { id: 'Stop', label: 'Stop - When the main agent finishes a response', enabled: false },
   { id: 'SubagentStop', label: 'SubagentStop - When a sub-agent finishes a task', enabled: false },
@@ -20,7 +20,7 @@ export const HOOK_EVENTS: HooksEventListItem[] = [
 ]
 
 export function isEnabledHookEventName(id: string): id is HookEventName {
-  return id === 'PreToolUse' || id === 'PermissionRequest' || id === 'PostToolUse'
+  return id === 'PreToolUse' || id === 'PermissionRequest' || id === 'PostToolUse' || id === 'UserPromptSubmit'
 }
 
 export type SaveScope = 'projectLocal' | 'project' | 'user'

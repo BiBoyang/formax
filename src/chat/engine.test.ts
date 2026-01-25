@@ -110,6 +110,7 @@ describe('ChatEngine', () => {
     const hooks: HooksRuntime = {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [
           {
@@ -212,6 +213,7 @@ describe('ChatEngine', () => {
     const hooks: HooksRuntime = {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [],
         additionalContext: [],
@@ -289,5 +291,70 @@ describe('ChatEngine', () => {
 
     const outJson = JSON.stringify(out)
     expect(outJson).not.toContain('HOOK_BLOCKED')
+  })
+
+  it('injects UserPromptSubmit additionalContext as a text block after the user prompt (and does not persist it)', async () => {
+    let firstCallMessages: PromptMessage[] | null = null
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({
+        runs: [
+          {
+            command: 'echo hook',
+            exitCode: 0,
+            signal: null,
+            stdout: '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"CTX_FROM_HOOK"}}',
+            stderr: '',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'CTX_FROM_HOOK' } },
+          },
+        ],
+        additionalContext: ['CTX_FROM_HOOK'],
+        blocked: false,
+      }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        firstCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(firstCallMessages).not.toBeNull()
+    const last = firstCallMessages![firstCallMessages!.length - 1]
+    expect(last.role).toBe('user')
+    const blocks = last.content as any[]
+    expect(blocks[0]?.type).toBe('text')
+    expect(blocks[1]?.type).toBe('text')
+    expect(String(blocks[1]?.text || '')).toContain('<system-reminder>')
+    expect(String(blocks[1]?.text || '')).toContain('UserPromptSubmit hook additional context:')
+    expect(String(blocks[1]?.text || '')).toContain('CTX_FROM_HOOK')
+
+    const outJson = JSON.stringify(out)
+    expect(outJson).not.toContain('UserPromptSubmit hook additional context:')
+    expect(outJson).not.toContain('CTX_FROM_HOOK')
   })
 })
