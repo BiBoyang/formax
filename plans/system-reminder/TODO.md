@@ -1,127 +1,125 @@
-# system-reminder × 工具返回注入：对齐验证 TODO
+# system-reminder（TodoWrite）— 产品化 TODO（不追求 100% Claude Code）
 
-目标：把我们“从抓包观察到的 `<system-reminder>...</system-reminder>` 出现在 `tool_result.content` 里”的现象，拆成可验证的规则集（每条规则都有：触发条件、适用工具、注入位置、去重/阈值），并据此决定 Formax 是否需要“结构对齐”（把 reminder 追加到 `tool_result.content`）或只做“效果对齐”（通过 `system` 注入）。
+这份 TODO 以两个事实为依据：
 
-> 重要约束：在完成抓包验证前，不改 Formax 的核心注入逻辑（避免“猜测式对齐”导致行为漂移）。
+- Claude Code 抓包事实表：`plans/system-reminder/claude-code-todowrite-reminders.md`
+- `UserPromptSubmit` 触发时机抓包验证：`plans/system-reminder/claude-user-prompt-submit-hook-findings.md`
 
-## 0. 已有证据（输入材料）
+原则：
 
-- 统计脚本：`scripts/extract-system-reminder-map.mjs`
-- 汇总结果：
-  - `proxy/system-reminder-tool-map.json`
-  - `proxy/system-reminder-tool-map.md`
+- `<system-reminder>` 只给模型看，UI 不展示这个标签本身。
+- 我们不做 “tool_result.content 拼接”（Claude Code 的一种注入形态），默认采用更可控的 **策略 A**：
+  - **只在发给 LLM 的 `messages[]` 里追加一个新的 `text` content block**（本轮生效，不写入长期 history）。
+- 目标是**减少 token**：区分场景、加冷却/去重/裁剪。
 
-该脚本当前只统计一种情况：
-> `type=tool_result` 的 `content` 字符串里包含 `<system-reminder>...</system-reminder>`（即“工具返回被注入”的模式）。
+## 0. 本阶段范围（只做 TodoWrite reminders）
 
-## 1. 输出物（我们要产出的结论格式）
+不包含：
 
-- [ ] 产出一份“规则表”Markdown（建议：`plans/system-reminder/RESULTS.md`）包含：
-  - [ ] reminder 类型（文本去标签后的 normalized 内容）
-  - [ ] 触发条件（必要且充分，至少给出可复现的近似条件）
-  - [ ] 适用范围（主会话 / Task 子会话；哪些 subagent_type；哪些工具）
-  - [ ] 注入位置（`tool_result` 末尾 / `system` / 其他）
-  - [ ] 阈值/去重（recently 的定义；是否被 TodoWrite 重置；是否按 turn/tool_use 计数）
-  - [ ] 反例（明确“不触发”的条件）
+- Read/malware 安全提醒
+- 其它 tool 的 `<system-reminder>` 研究（后续另起）
 
-## 2. 验证环境准备（避免污染）
+## 0.1 Hook 视角（本 TODO 的承载方式）
 
-- [ ] 使用“干净目录”进行 Claude Code 抓包（不要在 Formax repo 根目录里做验证）
-  - [ ] 新建目录：`~/Documents/github/var/catch-system-reminder/`
-  - [ ] 在该目录运行 Claude Code（确保 `.claude/` 写在该目录内）
-- [ ] 每轮实验前记录：
-  - [ ] 当前工作目录 `pwd`
-  - [ ] `.claude/settings.local.json` 中 permissions 相关片段（尤其 allow 列表）
-  - [ ] 是否开启/进入过 plan mode、accept edits mode
-- [ ] 抓包产物：
-  - [ ] `proxy/traffic-logs-*`（或单独新目录如 `proxy/traffic-logs-reminders-*`）
-  - [ ] 命令行复制：`plans/system-reminder/terminal-copy/*.txt`
-  - [ ] 可选录像：`record/claude-code/*.cast`（如果你觉得必要）
+我们会把 **TodoWrite reminder 的触发**承载到一个“用户发送消息时”的 hook 上（文档里常称 `UserPromptSubmitHook`）：
 
-## 3. 需要验证的 reminder 类型（从 map 抽取）
+- **更契合语义**：todo 提醒是“会话/工作流提醒”，自然发生在用户发起下一步之前。
+- **更省 token**：不会在每次 tool loop 里都注入；触发频率更可控。
 
-> 下列 reminder 文本以 `proxy/system-reminder-tool-map.json` 为准；最终要确认“是否确实由 Claude Code 应用层注入”，还是上游 harness 注入。
+同时明确：
 
-- [ ] **TodoWrite-stale 提醒**：`The TodoWrite tool hasn't been used recently... NEVER mention this reminder to the user`
-- [ ] **Read-malware 提醒**：`Whenever you read a file, you should consider whether it would be considered malware...`
-- [ ] **READ-ONLY 强提醒**：`CRITICAL: This is a READ-ONLY task. You CANNOT edit, write, or create files.`
+- Read/malware 那类安全提醒更契合 `PostToolUse`（但本 TODO 不做）。
 
-## 4. 需要验证的工具集合（从 map 抽取）
+## 1. 定义三类 TodoWrite reminder（拆分是为省 token）
 
-- [ ] `Read`
-- [ ] `Write`
-- [ ] `Bash`
-- [ ] `Grep`
-- [ ] `Glob`
-- [ ] `Skill`
+- [ ] `TODO_EMPTY`
+  - 触发：todo 列表为空（或不存在/读取失败时的策略：先不提醒）
+  - 输出：短提醒（不带 list）
+- [ ] `TODO_UNUSED`
+  - 触发：todo 列表存在，但“最近没用 TodoWrite”到达阈值
+  - 输出：短提醒（不带 list）
+- [ ] `TODO_UNUSED_WITH_LIST`
+  - 触发：满足 `TODO_UNUSED` 且进入“再次提醒/更强提醒”窗口（例如连续多次 stale）
+  - 输出：提醒 + **裁剪后的 todo list 片段**
 
-## 5. 验证矩阵（每条都要抓到请求）
+> 说明：拆成三类，是为了把“默认提醒”做短，只有必要时才带 list（最吃 token）。
 
-### 5.1 TodoWrite-stale 提醒：触发/阈值/重置
+## 2. 冷却/去重/裁剪（token 控制三件套）
 
-- [ ] A1：空会话，从未调用 TodoWrite，连续调用 `Read` 5 次（读不同文件）
-  - 预期：确认是否在 `Read.tool_result` 末尾出现该 reminder
-- [ ] A2：空会话，从未调用 TodoWrite，连续调用 `Grep` 5 次
-  - 预期：确认是否在 `Grep.tool_result` 末尾出现该 reminder
-- [ ] A3：空会话，从未调用 TodoWrite，连续调用 `Bash` 5 次（只读命令：`pwd`、`ls`、`cat` 等）
-  - 预期：确认是否在 `Bash.tool_result` 末尾出现该 reminder
-- [ ] A4：调用一次 `TodoWrite`（哪怕只写 1 条），然后立刻 `Read` 1 次
-  - 预期：确认 reminder 是否消失（“recently” 是否被重置）
-- [ ] A5：调用一次 `TodoWrite` 后，再进行 N 次非 TodoWrite 工具调用（N=1/3/5/10），找出阈值
-  - [ ] N=1
-  - [ ] N=3
-  - [ ] N=5
-  - [ ] N=10
-- [ ] A6：多轮对话：隔一段时间（或插入大量普通文本对话）再触发工具，看“recently”是否是按时间窗口
-  - 预期：判断 “recently” 是时间还是回合/工具数
-- [ ] A7：同一个对话里、不同工具之间是否共享计数器（`Read` 触发后 `Write` 是否也触发）
-- [ ] A8：在子会话（Task subagent）里触发工具，看该 reminder 是否更容易出现
+- [ ] 冷却（cooldown）：同一类 reminder 在 N 轮（或 N 次 tool_use）内最多注入一次
+- [ ] 去重（dedupe）：如果“本轮文本”与“上次注入的文本”一致，则不注入
+- [ ] 裁剪（trim）：对 `TODO_UNUSED_WITH_LIST` 的 list 片段做强约束
+  - [ ] 最多 N 条（例如 3 条）
+  - [ ] 每条最多 M 字符
+  - [ ] 总字符预算上限（例如 800 chars）
 
-### 5.2 Read-malware 提醒：仅 Read？仅在读“可疑内容”？
+## 3. 注入点与形态（策略 A，符合抓包“last user 判定”）
 
-- [ ] B1：读一个正常文本/TS 文件（无可疑内容）
-- [ ] B2：读一个包含“恶意样例”关键词的文件（例如包含 `eval(` / `base64` / `shellcode` 之类），看是否更容易触发
-- [ ] B3：读同一个文件多次，确认是否每次都注入 or 有去重
-- [ ] B4：Read 报错路径（文件不存在 / 无权限）时是否也注入
+抓包事实表的关键点是：**判定“当轮注入”要看请求 messages 里最后一个 `role:"user"` message**。
 
-### 5.3 READ-ONLY 强提醒：只在子会话？只在工具不可用错误？
+- [ ] 注入点：patch 本轮请求的 messages（不改长期 history）
+  - [ ] **用户发消息时（推荐）**：由 `UserPromptSubmitHook` 决定是否注入，在 last-user message 的 `content` **追加一个 `type:"text"` block**
+  - [ ] （可选/后续）tool loop 中间注入：更像 `PostToolUse` 的职责（本 TODO 暂不做，以免增加 token 与复杂度）
+- [ ] 文本形态：`<system-reminder>\n...\n</system-reminder>`
+- [ ] 保证：不把 reminder 写进 `loopMessages` / history（避免污染与 token 累积）
 
-从 `proxy/system-reminder-tool-map.json` 的 example 前缀看，这类提醒经常出现在：
-`<tool_use_error>Error: No such tool available: X</tool_use_error>`
+## 4. 状态信号（“最近没用 TodoWrite”的定义）
 
-- [ ] C1：主会话正常调用 `Bash/Glob/Read`，确认是否会出现该提醒
-- [ ] C2：在 Task 子会话里触发一个“工具不可用”的场景（例如限制工具 allowlist），确认是否会出现该提醒
-- [ ] C3：在 Explore/Plan 子会话里（只读/受限场景）触发工具，确认出现概率
-- [ ] C4：该提醒是否只跟“只读任务提示词”绑定（例如某些 subagent prompt 写了 READ-ONLY）
+我们采用“会话内信号”，不做复杂任务分类（先简单可控）：
 
-## 6. 上下文维度（必须覆盖的差异）
+- [ ] `nonTodoToolUsesSinceLastTodoWrite`（只统计主会话 tool loop）
+- [ ] `lastTodoWriteAt`（用于 TTL 冷却）
+- [ ] `lastReminderAt` + `lastReminderKind`（用于去重/冷却）
 
-- [ ] 主会话 vs Task 子会话（subagent）
-- [ ] 不同 subagent_type：`Explore` / `Plan` / `general-purpose` / 自定义 agent
-- [ ] 是否启用 “accept edits mode”
-- [ ] 是否在 plan mode
-- [ ] 是否在 session 内做过 `/todos` / `TodoWrite`
-- [ ] 是否在会话内出现过工具失败（`tool_use_error`）
+## 5. 与现有代码的合并/去重（避免两套提醒同时跑）
 
-## 7. 数据整理（把抓包变成可用结论）
+当前 repo 里 TodoWrite reminder 相关入口至少有：
 
-- [ ] 每次抓包后重新运行统计脚本，确认新增样本能被 map 捕获
-  - [ ] 确认 `scanned_files` 增长
-  - [ ] 确认 `reminder_events` 增长
-  - [ ] 记录新出现的 reminder 文本（如果有）
-- [ ] 为每一种 reminder 文本建立“最小复现步骤”
-- [ ] 记录“反例”（明确做了什么但没有出现 reminder）
+- `src/chat/engine.ts`（tool loop 阈值 + 注入）
+- `src/features/repl/reminders/ReminderService.ts`（会话态提醒）
+- `src/features/repl/injectedBlocks.ts`（提示文案片段）
 
-## 8. Formax 侧落地（在规则确认之后再做）
+本阶段目标：收敛为“单一注入路径”，避免重复提醒与重复 token。
 
-> 这一节只列“可能的实现方向”，不在当前阶段动代码。
+- [ ] 盘点当前实际启用路径（主 REPL）到底走哪条
+- [ ] 保留一个权威入口，另两个改为：
+  - [ ] 只提供文案/纯函数（不做注入）
+  - [ ] 或直接删除/弃用（需先加测试锁行为）
 
-- [ ] D1：决定“结构对齐”还是“效果对齐”
-  - [ ] 结构对齐：把某些 reminder 追加到 `tool_result.content` 末尾
-  - [ ] 效果对齐：通过 `system` 注入保证模型可见，但不污染 tool_result
-- [ ] D2：如果需要结构对齐，建立工具白名单（仅对纯文本工具追加；禁止污染 JSON 输出）
-- [ ] D3：如果需要结构对齐，明确追加策略：
-  - [ ] 只在 `tool_result` 成功时追加？失败时也追加？
-  - [ ] 追加到末尾还是单独一段？
-  - [ ] 去重规则（同一轮/同一会话不重复注入）
+## 5.1 Hook 接线（让 todo reminder 真正由 hook 驱动）
 
+> 目标：TodoWrite reminder 不再是 engine 里“临时逻辑”，而是一个可开关、可测试、可审计的 hook。
+
+- [ ] 增加 hook event：`UserPromptSubmit`（仅用于本机制）
+  - [ ] 定义事件名、payload、stdout schema（只要最小字段：cwd、recentToolUses 统计摘要、todos 是否存在/数量）
+  - [ ] 与现有 `PreToolUse/PermissionRequest/PostToolUse` 并列（不影响现有三件套行为）
+- [ ] 在 `src/chat/engine.ts`（或对应“用户发送消息 → 发起 LLM 请求”的入口）触发该 hook
+  - [ ] hook 返回 `additionalContext` 时：转成 `<system-reminder>` 的 text block，按策略 A 注入到本轮 messages（不写入 history）
+- [ ] 加回滚开关：`FORMAX_DISABLE_HOOKS=1` 下不触发该 hook（避免上线风险）
+
+## 6. 测试（必须先锁行为，防回归）
+
+### 6.1 单元测试（纯函数/状态机）
+
+- [ ] 空 todo → 注入 `TODO_EMPTY`
+- [ ] 有 todo + 未到阈值 → 不注入
+- [ ] 到阈值首次 → 注入 `TODO_UNUSED`（不带 list）
+- [ ] 多次 stale → 注入 `TODO_UNUSED_WITH_LIST`（带裁剪 list）
+- [ ] 冷却期内 → 不重复注入
+
+### 6.2 集成测试（engine / request patch 语义）
+
+- [ ] 断言：reminder 只出现在“本轮 messages 的 last user message”里
+- [ ] 断言：reminder **不写入**长期 history（下一轮历史里不应该自带 reminder）
+- [ ] 断言：tool loop 时 reminder 作为紧跟的 text block（不污染 tool_result.content）
+
+## 7. 手动验收剧本（不抓包也能验证）
+
+- [ ] Case A：没有 todos，聊天两轮，观察提醒出现频率与冷却
+- [ ] Case B：建 3 条 todo，但故意不再用 TodoWrite，连续触发 5 次非 TodoWrite tool，观察 reminder 从 UNUSED → UNUSED_WITH_LIST 的升级
+- [ ] Case C：触发一次 TodoWrite 更新，再触发 tool，观察 stale 计数清零
+
+## 8. 待抓包确认（不阻塞实现）
+
+- [ ] Claude Code 的 `TODO_UNUSED_WITH_LIST` 升级阈值（是 step 计数还是时间）
+- [ ] Claude Code 对“用户明确拒绝维护 todo”的处理（我们可更产品化：用户拒绝时暂停注入或延长冷却）

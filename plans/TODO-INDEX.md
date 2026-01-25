@@ -11,6 +11,7 @@
 
 - `plans/ui/TODO.md`：UI 稳定基座（已完成，可作为组件/测试参考）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
+- `plans/system-reminder/TODO.md`：TodoWrite reminders（基于 `UserPromptSubmit` hook，优先控 token）
 
 ## 暂停（等 IAM 稳定后再继续）
 
