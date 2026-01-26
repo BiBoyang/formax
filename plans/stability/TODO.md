@@ -54,12 +54,6 @@
 
 > 说明：S9-1 属于“底座级”改造，建议在 S9-0 的回归网齐全后再做；否则很容易出现“改动大、回归难定位”。
 
-### S9-2：全局快捷键挂起（suspend）（中等改动）
-
-- [ ] S9-2.1：定义 “group-based suspend” API（优先只覆盖 REPL command handlers）
-  - [ ] 当 overlay/dialog 打开时：挂起 `group=command`（REPL 全局快捷键）
-  - [ ] 当 slash suggestions / selector 打开时：挂起与 selector 冲突的 command
-
 ### S9-3：不要直写 ANSI 控制码（工程约束）
 
 - [x] S9-3.1：新增 “ANSI 直写审计” 测试（只允许 `src/utils/terminal.ts` 内含 raw ANSI）
