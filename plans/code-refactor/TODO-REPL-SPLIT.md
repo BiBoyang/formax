@@ -477,7 +477,7 @@ export function useReplSend(args: {
   - 验收：全量 controller tests + 全量 REPL tests + 手动多轮对话触发 auto-compact、/compact、/clear。
   - 回滚：一旦回归，优先 revert 最近拆分 commit（不要补丁式“修到过”为止）。
 
-- [ ] 2.9 `useReplController.ts` 收尾：变成“组合层”（30–45min）
+- [x] 2.9 `useReplController.ts` 收尾：变成“组合层”（30–45min）
   - 内容：只保留 state/refs 初始化 + 调用 overlays/streaming/send + abort + return `{state, actions}`；禁止顺手重命名/格式化。
   - 验收：`bun run test` + `bun run type-check`（原文写了 `bun run ui:boundaries`，需确认你项目里是否存在该脚本；没有就只跑 type-check/核心边界脚本）。
 
