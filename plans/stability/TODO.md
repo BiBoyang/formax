@@ -14,9 +14,11 @@
 - `/agents` / `/permissions` / `/hooks` overlay 打开时，↑↓ 不再被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
 - `/hooks` overlay 打开时：prompt mode 会更新、`Esc` 不会被 REPL 抢键：见 `src/screens/REPL.tsx`、`src/screens/repl/hotkeys.ts`、`src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
 - `/permissions` overlay 打开期间：`Enter/Esc/Tab/←→/Backspace/Delete/数字键` 不会被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
+- `/permissions` overlay：`Esc` 由 overlay 处理并关闭，REPL 不抢键：见 `src/screens/REPL.overlays.test.tsx`
 - InputScope 路由契约：`Esc/Enter/数字键` 只路由到 active scope：见 `src/features/repl/inputScopeContext.test.tsx`
 - TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
+- overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
 
 ---
 
@@ -37,14 +39,6 @@
 目标：吸收 OpenCode 的“输入优先级/对话框栈/命令挂起”这些**框架无关**的稳定性设计点，但不迁移渲染框架（OpenCode 非 Ink/React，迁移代价过大）。
 
 ### S9-0：先补“稳定性契约”的回归网（小改动、低风险）
-
-- [ ] S9-0.5：overlay scope 接线到位（只做“缺什么补什么”，不改 UI）
-  - [ ] 确认/补齐 scope id：
-    - [ ] `/agents`：`overlay:agents`（`src/ui/agents/AgentsDialog.tsx`）
-    - [ ] `/permissions`：`overlay:permissions`（`src/ui/permissions/PermissionsDialog.tsx`）
-    - [ ] `/hooks`：`overlay:hooks`（`src/ui/hooks/HooksDialog.tsx`）
-  - [ ] overlay 打开/关闭时，scope push/pop 稳定（不因输入导致反复 pop/push）
-  - [ ] 测试：在 `src/screens/REPL.overlays.test.tsx` 至少覆盖 1 个 overlay 的 “Esc 由 overlay 处理并关闭 overlay，REPL 不抢”
 
 ### S9-1：同一 scope 内的“输入消费(consumed)”与“优先级”基座（偏底层，改动较大）
 
