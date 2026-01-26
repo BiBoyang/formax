@@ -17,6 +17,7 @@
 - `/permissions` overlay：`Esc` 由 overlay 处理并关闭，REPL 不抢键：见 `src/screens/REPL.overlays.test.tsx`
 - InputScope 路由契约：`Esc/Enter/数字键` 只路由到 active scope：见 `src/features/repl/inputScopeContext.test.tsx`
 - InputScopeProvider：引入 router 基座（`registerHandler`，仅供测试/后续接线）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
+- useScopedInput：在 Provider 存在时改为走 router；无 Provider 时保留 fallback：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
@@ -45,10 +46,6 @@
 
 目标：解决“输入框边界不动时按键漏到外层列表/快捷键”的根因：Ink 的多个 `useInput` 默认都会收到事件，我们需要一个**集中路由器**来做 stop-propagation。
 
-- [ ] S9-1.2：把 `useScopedInput` 接入 router（保留无 Provider fallback，避免破坏现有用例）
-  - [ ] router 存在时：`useInput` 仍调用但 `isActive=false`，避免重复触发
-  - [ ] router 不存在时：保持旧行为
-  - [ ] 测试：无 `InputScopeProvider` 时 `useScopedInput` 仍工作（fallback 不回归）
 - [ ] S9-1.3：引入 consumed 语义（`handler(...) === true` 则停止分发）
   - [ ] 测试：同 scope 下 A consume 后 B 不应收到
 - [ ] S9-1.4：TextInput 明确 consume 规则（即使在边界也 consume）

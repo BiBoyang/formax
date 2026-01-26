@@ -137,6 +137,24 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
+  it('works without InputScopeProvider (fallback)', async () => {
+    const onRepl = vi.fn()
+
+    function NoProviderHarness(): React.ReactNode {
+      useScopedInput('repl', (input) => {
+        if (input) onRepl(input)
+      })
+      return null
+    }
+
+    const { stdin } = render(<NoProviderHarness />)
+    await tick()
+
+    stdin.write('a')
+    await tick()
+    expect(onRepl).toHaveBeenCalledWith('a')
+  })
+
   it('routes input only to the active scope (router)', async () => {
     const onRepl = vi.fn()
     const onOverlay = vi.fn()

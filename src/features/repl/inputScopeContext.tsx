@@ -23,6 +23,7 @@ export type InputScopeController = {
   stack: InputScopeId[]
   push: (scope: InputScopeId) => void
   pop: (scope?: InputScopeId) => void
+  hasRouter: boolean
   registerHandler: (opts: {
     scope: InputScopeId
     group?: string
@@ -38,6 +39,7 @@ const Ctx = createContext<InputScopeController>({
   stack: [DEFAULT_SCOPE],
   push: () => {},
   pop: () => {},
+  hasRouter: false,
   registerHandler: () => () => {},
 })
 
@@ -99,7 +101,7 @@ export function InputScopeProvider({
 
   const value = useMemo<InputScopeController>(() => {
     const activeScope = stack[stack.length - 1] ?? initialRef.current
-    return { activeScope, stack, push, pop, registerHandler }
+    return { activeScope, stack, push, pop, hasRouter: true, registerHandler }
   }, [pop, push, registerHandler, stack])
 
   const activeScopeRef = useRef<InputScopeId>(value.activeScope)
@@ -146,7 +148,7 @@ export function useScopedInput(
   handler: Parameters<typeof useInput>[0],
   opts?: { enabled?: boolean },
 ): void {
-  const { activeScope } = useInputScope()
+  const { activeScope, hasRouter, registerHandler } = useInputScope()
   const enabled = opts?.enabled !== false
 
   const handlerRef = useRef(handler)
@@ -154,12 +156,24 @@ export function useScopedInput(
     handlerRef.current = handler
   }, [handler])
 
+  useEffect(() => {
+    if (!hasRouter) return
+    if (!enabled) return
+    return registerHandler({
+      scope,
+      handler: (input, key) => {
+        handlerRef.current(input, key)
+        return false
+      },
+    })
+  }, [enabled, hasRouter, registerHandler, scope])
+
   useInput(
     (input, key) => {
       if (!enabled) return
       if (activeScope !== scope) return
       handlerRef.current(input, key)
     },
-    { isActive: true },
+    { isActive: !hasRouter },
   )
 }
