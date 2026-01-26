@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
-import { buildSystemPrompt, buildUserContent } from '../../prompts'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../env/config'
 import type { StreamEvent, TokenUsage } from '../../streaming/types'
@@ -10,14 +9,9 @@ import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
-import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
 import { computeContextStats, type ContextBudgetConfig } from '../../chat/context/budget'
-import { estimatePromptTokens } from '../../chat/context/estimate'
-import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
-import { pruneForPromptBudget } from '../../chat/context/prune'
-import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import type { SlashCommandEffect } from '../commands/registry'
 import type {
@@ -25,10 +19,7 @@ import type {
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
 } from '../../ui/agents/AgentsDialog.js'
-import { buildSkillToolSpecForCwd } from '../../tools/modules/skill'
 import {
-  countNonToolUserTurns,
-  extractAssistantText,
   formatDuration,
   formatTokenTotal,
   formatToolUses,
@@ -39,7 +30,12 @@ import {
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './controller/send'
+import {
+  maybeHandleClearCommand,
+  maybeHandleCompactCommand,
+  maybeHandleConsumedSlashCommand,
+  runMainSendTurn,
+} from './controller/send'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -651,7 +647,6 @@ export function useReplController(deps: {
           setError,
           setContext,
           handleEvent,
-          buildCompactRequest,
         })
         return
       }
@@ -678,264 +673,39 @@ export function useReplController(deps: {
         if (res.shouldReturn) return
       }
 
-      const userMsg: Msg = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: text,
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, userMsg])
-      setIsLoading(true)
-      setLoadingText(slashEffect?.kind === 'llm' ? slashEffect.loadingText || 'Thinking' : 'Thinking')
-      thinkingBufferRef.current = ''
-      thinkingLastFlushAtRef.current = 0
-      setThinkingText('')
-      setError(null)
-      currentAssistantIdRef.current = null
-
-      const abortController = new AbortController()
-      abortControllerRef.current = abortController
-      assistantBufferRef.current = ''
-      contextBudgetConfigRef.current = null
-      const sendSeq = (sendSeqRef.current += 1)
-
-      try {
-        if (!reminderServiceRef.current) reminderServiceRef.current = new ReminderService()
-
-        const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
-        const planPath =
-          deps.mode === 'plan'
-            ? deps.planSession?.getPlanPath() ?? deps.planSession?.startNewPlan() ?? null
-            : deps.planSession?.getPlanPath() ?? null
-
-        const cwd = process.cwd()
-        const injectedBlocks: PromptBlock[] = [
-          ...(promptProfile === 'full' ? reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
-          ...buildModeInjectedBlocks(deps.mode, planPath),
-          ...(pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
-          ...pendingInjectedBlocksRef.current,
-        ]
-        pendingInjectedBlocksRef.current = []
-
-        const user =
-          slashEffect?.kind === 'llm'
-            ? { role: 'user' as const, content: [...injectedBlocks, ...slashEffect.blocks] }
-            : { role: 'user' as const, content: [...injectedBlocks, ...buildUserContent(text)] }
-
-        const system = buildSystemPrompt({
-          allowedSubagents,
-          cwd,
-          model: deps.cfg.llm.model,
-          profile: promptProfile,
-        })
-
-        const contextWindowTokens =
-          deps.cfg.llm.contextWindowTokens ??
-          getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
-
-        contextBudgetConfigRef.current = contextWindowTokens
-          ? {
-              contextWindowTokens,
-              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-              baselineTokens: deps.cfg.context.baselineTokens,
-            }
-          : null
-
-        if (
-          deps.cfg.context.enableAutoCompact &&
-          contextWindowTokens &&
-          historyRef.current.length > 0 &&
-          countNonToolUserTurns(historyRef.current) >= 2 &&
-          sendSeq - lastAutoCompactSeqRef.current >= deps.cfg.context.autoCompactMinTurnsBetweenRuns
-        ) {
-          const usedTokens = estimatePromptTokens({ system, messages: [...historyRef.current, user] })
-          const stats = computeContextStats({
-            config: {
-              contextWindowTokens,
-              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-              baselineTokens: deps.cfg.context.baselineTokens,
-            },
-            usedTokens,
-          })
-
-          if (stats.shouldAutoCompact) {
-            const previousHistory = historyRef.current
-            const compactUser: ChatHistory[number] = {
-              role: 'user',
-              content: [{ type: 'text', text: buildCompactRequest('') }],
-            }
-
-            const compactSink = (ev: StreamEvent) => {
-              // Auto-compact runs inside an active turn; forwarding complete/error into the main
-              // event handler would incorrectly reset loading state or surface irrelevant errors.
-              if (ev.type === 'thinking_delta' || ev.type === 'usage') {
-                handleEvent(ev)
-              }
-            }
-
-            const compactedHistory = await deps.engine.runTurn({
-              history: previousHistory,
-              user: compactUser,
-              system,
-              tools: [],
-              onEvent: compactSink,
-              cwd,
-              signal: abortController.signal,
-              promptBudget: contextBudgetConfigRef.current,
-              exec: {
-                replMode: deps.mode,
-                getReplMode: () => modeRef.current,
-                setReplMode,
-                getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-              },
-            })
-
-            const summary = extractAssistantText(compactedHistory).trim()
-            if (summary) {
-              const compacted = rebuildHistoryAfterCompaction({
-                summary,
-                previousHistory,
-                keepLastTurns: deps.cfg.context.compactKeepLastTurns,
-              })
-
-              historyRef.current = pruneForPromptBudget({
-                system,
-                messages: compacted,
-                contextWindowTokens,
-                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-                baselineTokens: deps.cfg.context.baselineTokens,
-              }).messages
-
-              lastAutoCompactSeqRef.current = sendSeq
-              if (deps.cfg.ui.showAutoCompactNotice) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `assistant-${Date.now()}`,
-                    role: 'assistant',
-                    content: 'Conversation history auto-compacted (summary kept for future turns).',
-                    timestamp: new Date(),
-                  },
-                ])
-              }
-            }
-          }
-        }
-        const prunedForTurn = contextWindowTokens
-          ? pruneForPromptBudget({
-              system,
-              messages: [...historyRef.current, user],
-              contextWindowTokens,
-              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-              baselineTokens: deps.cfg.context.baselineTokens,
-            })
-          : { messages: [...historyRef.current, user], pruned: false }
-
-        const prunedUser = prunedForTurn.messages[prunedForTurn.messages.length - 1]!
-        const prunedHistory = prunedForTurn.messages.slice(0, -1)
-        historyRef.current = prunedHistory
-
-        if (contextWindowTokens) {
-          const usedTokens = estimatePromptTokens({ system, messages: [...prunedHistory, prunedUser] })
-          const stats = computeContextStats({
-            config: {
-              contextWindowTokens,
-              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-              baselineTokens: deps.cfg.context.baselineTokens,
-            },
-            usedTokens,
-          })
-          setContext({
-            usedTokens: stats.usedTokens,
-            limitTokens: stats.effectiveLimitTokens,
-            percentRemaining: stats.percentRemaining,
-            source: 'estimate',
-          })
-        } else {
-          setContext(null)
-        }
-
-        const exec = {
-          replMode: deps.mode,
-          getReplMode: () => modeRef.current,
-          setReplMode,
-          getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-        }
-        const historyLen = prunedHistory.length
-        const toolsForTurn = patchToolsForTurn(deps.tools, cwd)
-        const nextHistory = await deps.engine.runTurn({
-          history: prunedHistory,
-          user: prunedUser,
-          system,
-          tools: toolsForTurn,
-          onEvent: handleEvent,
-          cwd,
-          signal: abortController.signal,
-          promptBudget: contextBudgetConfigRef.current,
-          exec,
-        })
-
-        pendingExitPlanReminderRef.current = false
-
-        const stripped =
-          injectedBlocks.length > 0
-            ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
-            : nextHistory
-
-        historyRef.current =
-          contextWindowTokens
-            ? pruneForPromptBudget({
-                system,
-                messages: stripped,
-                contextWindowTokens,
-                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-                baselineTokens: deps.cfg.context.baselineTokens,
-              }).messages
-            : stripped
-
-        if (contextWindowTokens) {
-          const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
-          const stats = computeContextStats({
-            config: {
-              contextWindowTokens,
-              effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-              autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-              baselineTokens: deps.cfg.context.baselineTokens,
-            },
-            usedTokens,
-          })
-          setContext({
-            usedTokens: stats.usedTokens,
-            limitTokens: stats.effectiveLimitTokens,
-            percentRemaining: stats.percentRemaining,
-            source: 'estimate',
-          })
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to send message'
-        if (!isAbortLikeError(e)) {
-          setError(msg)
-          setMessages((prev) => [
-            ...prev.filter((m) => !(m.role === 'assistant' && m.content === '')),
-            {
-              id: `error-${Date.now()}`,
-              role: 'assistant',
-              content: `Error: ${msg}`,
-              timestamp: new Date(),
-            },
-          ])
-        }
-      } finally {
-        setIsLoading(false)
-        abortControllerRef.current = null
-      }
+      await runMainSendTurn({
+        text,
+        slashEffect,
+        provider,
+        engine: deps.engine,
+        cfg: deps.cfg,
+        promptProfile: deps.promptProfile,
+        planSession: deps.planSession ?? null,
+        reminderServiceRef,
+        tools: deps.tools,
+        allowedSubagents,
+        mode: deps.mode,
+        getReplMode: () => modeRef.current,
+        setReplMode,
+        historyRef,
+        pendingInjectedBlocksRef,
+        pendingExitPlanReminderRef,
+        contextBudgetConfigRef,
+        abortControllerRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        thinkingLastFlushAtRef,
+        currentAssistantIdRef,
+        sendSeqRef,
+        lastAutoCompactSeqRef,
+        setMessages,
+        setIsLoading,
+        setLoadingText,
+        setThinkingText,
+        setError,
+        setContext,
+        handleEvent,
+      })
     },
     [
       allowedSubagents,
@@ -982,63 +752,6 @@ export function useReplController(deps: {
       saveAgentFromDialog,
     },
   }
-}
-
-function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): PromptBlock[] {
-  if (mode !== 'plan') return []
-  return [
-    {
-      type: 'text',
-      text: buildPlanModeSystemReminder(planPath),
-      cache_control: { type: 'ephemeral' },
-    },
-  ]
-}
-
-function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
-  // Some tools (e.g. Skill) depend on the current workspace state and should be
-  // regenerated per turn so the model sees up-to-date info.
-  return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
-}
-
-function buildExitPlanInjectedBlocks(planPath: string | null): PromptBlock[] {
-  return [
-    {
-      type: 'text',
-      text: buildExitedPlanModeSystemReminder(planPath),
-      cache_control: { type: 'ephemeral' },
-    },
-  ]
-}
-
-function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {
-  const msg = history[userIndex]
-  if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return history
-  if (injectedCount <= 0) return history
-  if (msg.content.length <= injectedCount) return history
-
-  const stripped: ChatHistory[number] = {
-    ...msg,
-    content: msg.content.slice(injectedCount),
-  }
-
-  return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
-}
-
-function buildCompactRequest(instructions: string): string {
-  const extra = instructions.trim()
-  return (
-    'Summarize the conversation so far for future context.\n\n' +
-    'Requirements:\n' +
-    '- Preserve user goals, constraints, and preferences.\n' +
-    '- Preserve key technical decisions and trade-offs.\n' +
-    '- Preserve important file paths, commands, and APIs discussed.\n' +
-    '- Preserve open questions and next steps.\n' +
-    '- Keep it concise and structured (bullets or short sections).\n' +
-    '- Do NOT call tools.\n\n' +
-    (extra ? `Additional user instructions:\n${extra}\n\n` : '') +
-    'Output only the summary.'
-  )
 }
 
 function parseBackgroundTaskId(rawResult: string): string | null {

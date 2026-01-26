@@ -472,7 +472,7 @@ export function useReplSend(args: {
   - 目标：slash dispatch/consumed（ui effects、model effects）行为不变。
   - 验收：controller tests + REPL slash suggestion tests。
 
-- [ ] 2.8 抽离 send：搬 LLM turn（剩余主体）与 auto-compact（60min+，建议拆两条）
+- [x] 2.8 抽离 send：搬 LLM turn（剩余主体）与 auto-compact（60min+，建议拆两条）
   - 风险：最大风险块（历史/上下文 meter/auto-compact）。
   - 验收：全量 controller tests + 全量 REPL tests + 手动多轮对话触发 auto-compact、/compact、/clear。
   - 回滚：一旦回归，优先 revert 最近拆分 commit（不要补丁式“修到过”为止）。
