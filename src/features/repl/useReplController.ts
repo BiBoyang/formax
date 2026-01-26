@@ -41,6 +41,7 @@ import {
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
+import { maybeHandleClearCommand } from './controller/send'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -595,46 +596,34 @@ export function useReplController(deps: {
 
       const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
 
-      if (isExactSlashCommand(text, '/clear')) {
-        const args = text.replace(/^\/clear\b/i, '').trim()
-        if (args) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: 'Usage: /clear',
-              timestamp: new Date(),
-            },
-          ])
-          return
-        }
-
-        historyRef.current = []
-        pendingInjectedBlocksRef.current = []
-        pendingExitPlanReminderRef.current = false
-        assistantBufferRef.current = ''
-        thinkingBufferRef.current = ''
-        thinkingLastFlushAtRef.current = 0
-        setThinkingText('')
-        setError(null)
-        currentAssistantIdRef.current = null
-        contextBudgetConfigRef.current = null
-        sendSeqRef.current = 0
-        lastAutoCompactSeqRef.current = -1_000_000
-        setContext(null)
-        toolNameByIdRef.current.clear()
-        taskStatsByToolUseIdRef.current.clear()
-        taskKindByToolUseIdRef.current.clear()
-        exploreBatchRef.current = null
-
-        // Ink <Static> is append-only; when clearing messages we must force a remount
-        // so the new transcript starts from a fresh render surface.
-        setTranscriptSeq((n) => n + 1)
-        setMessages(() => [])
-        // Clear the terminal *after* scheduling state resets, otherwise Ink may
-        // re-render the old transcript once before the clear takes effect.
-        void deps.onClearTerminal?.()
+      if (
+        maybeHandleClearCommand({
+          text,
+          isLoading,
+          setMessages,
+          setThinkingText,
+          setError,
+          setContext,
+          setTranscriptSeq,
+          onClearTerminal: deps.onClearTerminal ?? null,
+          refs: {
+            historyRef,
+            pendingInjectedBlocksRef,
+            pendingExitPlanReminderRef,
+            assistantBufferRef,
+            thinkingBufferRef,
+            thinkingLastFlushAtRef,
+            currentAssistantIdRef,
+            contextBudgetConfigRef,
+            sendSeqRef,
+            lastAutoCompactSeqRef,
+            toolNameByIdRef,
+            taskStatsByToolUseIdRef,
+            taskKindByToolUseIdRef,
+            exploreBatchRef,
+          },
+        })
+      ) {
         return
       }
 

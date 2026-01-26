@@ -461,7 +461,7 @@ export function useReplSend(args: {
   - 内容：所有 streaming event 分支（assistant/thinking/tool/usage/error/complete）迁移；工具生命周期文案严格保持。
   - 验收：全量 controller tests + 手动触发一次 tool loop。
 
-- [ ] 2.5 抽离 send：先只搬 `/clear` 分支（45–60min）
+- [x] 2.5 抽离 send：先只搬 `/clear` 分支（45–60min）
   - 文件：新增/修改 `src/features/repl/controller/send.ts`、`src/features/repl/useReplController.ts`
   - 验收：`/clear` 相关 tests（含 transcriptSeq bump）+ 手动 `/clear` 不闪回。
 
