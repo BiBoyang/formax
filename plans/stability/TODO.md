@@ -62,9 +62,9 @@
 
 ### S9-3：不要直写 ANSI 控制码（工程约束）
 
-- [ ] S9-3.1：新增 “ANSI 直写审计” 测试（只允许 `src/utils/terminal.ts` 内含 raw ANSI）
-  - [ ] 排除 `*.test.*`（tests 里会出现 `\u001b[A` 等按键序列）
-  - [ ] 失败输出要能定位到文件/行号
+- [x] S9-3.1：新增 “ANSI 直写审计” 测试（只允许 `src/utils/terminal.ts` 内含 raw ANSI）
+  - [x] 排除 `*.test.*`（tests 里会出现 `\u001b[A` 等按键序列）
+  - [x] 失败输出要能定位到文件/行号
 
 ### S9-4：`prompt.clear` vs `session.new`（语义清晰化，按需做）
 

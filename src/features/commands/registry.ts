@@ -9,6 +9,7 @@ import { readTodos } from '../../tools/runtime/todosFile'
 import { getConfigPaths } from '../../adapters/fs/configPaths'
 import { createCommandStore } from '../../commands/CommandStore'
 import { buildFileCommandContent } from '../../commands/render'
+import { ansiBold, ansiGray, ansiStrike } from '../../utils/terminal'
 
 export type SlashCommandSpec = {
   id: string
@@ -365,7 +366,7 @@ function formatTodosCommandOutput(
 
   const headerCount = todos.length
   const headerNoun = headerCount === 1 ? 'todo' : 'todos'
-  const header = `\u001b[1m${headerCount} ${headerNoun}\u001b[22m:`
+  const header = `${ansiBold(`${headerCount} ${headerNoun}`)}:`
 
   const lines: string[] = [header, '']
   for (const t of todos) {
@@ -373,9 +374,9 @@ function formatTodosCommandOutput(
     const status = String(t?.status ?? '')
 
     if (status === 'in_progress') {
-      lines.push(`☐ \u001b[1m${content}\u001b[22m`)
+      lines.push(`☐ ${ansiBold(content)}`)
     } else if (status === 'completed') {
-      lines.push(`\u001b[38;2;153;153;153m☒ \u001b[9m${content}\u001b[29m\u001b[39m`)
+      lines.push(ansiGray(`☒ ${ansiStrike(content)}`))
     } else {
       lines.push(`☐ ${content}`)
     }
@@ -383,6 +384,7 @@ function formatTodosCommandOutput(
 
   return lines.join('\n')
 }
+
 
 function subsequenceMatch(query: string, text: string): { start: number; span: number; gaps: number } | null {
   const q = String(query || '')
