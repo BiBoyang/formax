@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../env/config'
-import type { StreamEvent, TokenUsage } from '../../streaming/types'
+import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
@@ -151,7 +151,7 @@ export function useReplController(deps: {
     return partitionMessages(messages)
   }, [messages])
 
-  const { flushAssistantBuffer, handleEvent } = useReplStreaming({
+  const { handleEvent } = useReplStreaming({
     assistantTextMode,
     setMessages,
     setThinkingText,

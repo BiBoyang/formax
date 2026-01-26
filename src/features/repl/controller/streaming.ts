@@ -81,10 +81,7 @@ export function useReplStreaming(args: {
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
-}): {
-  flushAssistantBuffer: () => void
-  handleEvent: (ev: StreamEvent) => void
-} {
+}): { handleEvent: (ev: StreamEvent) => void } {
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
     if (!text) return
@@ -434,5 +431,5 @@ export function useReplStreaming(args: {
     [args, flushAssistantBuffer],
   )
 
-  return { flushAssistantBuffer, handleEvent }
+  return { handleEvent }
 }
