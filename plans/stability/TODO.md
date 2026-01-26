@@ -16,6 +16,7 @@
 - `/permissions` overlay 打开期间：`Enter/Esc/Tab/←→/Backspace/Delete/数字键` 不会被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
 - InputScope 路由契约：`Esc/Enter/数字键` 只路由到 active scope：见 `src/features/repl/inputScopeContext.test.tsx`
 - TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
+- `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 
 ---
 
@@ -36,12 +37,6 @@
 目标：吸收 OpenCode 的“输入优先级/对话框栈/命令挂起”这些**框架无关**的稳定性设计点，但不迁移渲染框架（OpenCode 非 Ink/React，迁移代价过大）。
 
 ### S9-0：先补“稳定性契约”的回归网（小改动、低风险）
-
-- [ ] S9-0.4：补 hooks 输入“闪屏/丢字”回归（只加测试或最小复现）
-  - [ ] 目标：`/hooks` → Add new hook 的输入框，连续输入时不应触发 scope flicker（不会丢字符/闪屏）
-  - [ ] 修复点（如果再次复现）：检查 hooks 内 `useScopeActivation(...)` 的依赖，避免依赖整个 `view` 对象（应只依赖 `view.kind` / `open`），否则每次输入可能触发 effect cleanup → scope pop/push → 丢键/闪屏
-    - [ ] 重点文件：`src/ui/hooks/HooksDialog.tsx`、`src/ui/hooks/reducer.ts`
-  - [ ] 备注：优先用 `ink-testing-library` 做最小复现；如果难以稳定断言，至少把“触发过回归的关键点”写进 `pitfalls.md` 并保留一个可复现脚本/步骤
 
 - [ ] S9-0.5：overlay scope 接线到位（只做“缺什么补什么”，不改 UI）
   - [ ] 确认/补齐 scope id：

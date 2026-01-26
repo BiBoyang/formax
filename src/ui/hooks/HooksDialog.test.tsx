@@ -4,7 +4,7 @@ import { render } from 'ink-testing-library'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { InputScopeProvider } from '../../features/repl/inputScopeContext'
+import { InputScopeProvider, useInputScope } from '../../features/repl/inputScopeContext'
 import { HooksDialog } from './HooksDialog'
 
 function tick(): Promise<void> {
@@ -63,6 +63,16 @@ async function waitForJsonContains(
   throw new Error(`Timed out waiting for JSON predicate to be true: ${filePath}\n\nLast JSON:\n${raw}`)
 }
 
+function ActiveScopeSpy({ onScope }: { onScope: (s: string) => void }): React.ReactNode {
+  const { activeScope } = useInputScope()
+  const onScopeRef = React.useRef(onScope)
+  onScopeRef.current = onScope
+  React.useEffect(() => {
+    onScopeRef.current(activeScope)
+  }, [activeScope])
+  return null
+}
+
 describe('HooksDialog', () => {
   it('shows wildcard (*) matcher rules even when hooks are empty', async () => {
     const originalCwd = process.cwd()
@@ -99,8 +109,10 @@ describe('HooksDialog', () => {
 
     try {
       const onExit = vi.fn()
+      const scopes: string[] = []
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
+          <ActiveScopeSpy onScope={(s) => scopes.push(s)} />
           <HooksDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -161,8 +173,10 @@ describe('HooksDialog', () => {
 
     try {
       const onExit = vi.fn()
+      const scopes: string[] = []
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
+          <ActiveScopeSpy onScope={(s) => scopes.push(s)} />
           <HooksDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -203,6 +217,10 @@ describe('HooksDialog', () => {
 
       await waitForText(lastFrame, 'Save hook configuration')
       await waitForText(lastFrame, 'Command: 12945')
+
+      const firstOverlayIdx = scopes.indexOf('overlay:hooks')
+      expect(firstOverlayIdx).toBeGreaterThanOrEqual(0)
+      expect(scopes.slice(firstOverlayIdx + 1)).not.toContain('repl')
 
       // Save to project local
       stdin.write('\r')
