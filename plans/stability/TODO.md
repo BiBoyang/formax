@@ -28,7 +28,7 @@
 - [ ] S9-1：把“键盘优先级规则”写成可执行的约束 + 回归测试
   - [ ] 规则：Overlay/Dialog 打开时 REPL 不得抢键（↑↓←→Tab/数字键/Esc）
   - [ ] 规则：输入框聚焦时，仅输入框消费左右/Backspace/Delete；外层列表不应被误触发
-  - [ ] 测试：覆盖 `/agents`、`/permissions`、`/hooks` 的关键路径（至少 Enter/Esc/Tab/↑↓/←→/Backspace/Delete）
+  - [ ] 测试：扩展 `src/screens/REPL.overlays.test.tsx` 覆盖 `/agents`、`/permissions`、`/hooks` 的关键路径（已覆盖 ↑↓；待补 Enter/Esc/Tab/←→/Backspace/Delete）
 - [ ] S9-2：实现“全局快捷键挂起（suspend）”的统一机制
   - [ ] 当 overlay/dialog stack > 0 时，挂起全局快捷键（类似 OpenCode 的 CommandProvider suspension）
   - [ ] 当 autocomplete/选择器可见时，挂起与之冲突的全局快捷键

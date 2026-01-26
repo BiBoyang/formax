@@ -223,4 +223,116 @@ describe('REPL overlay input gating', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 20000)
+
+  it('routes arrow keys to /agents overlay and hides the REPL input bar', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-agents-overlay-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const projectAgentsDir = path.join(projectConfigDir, 'agents')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    const userAgentsDir = path.join(globalConfigDir, 'agents')
+
+    await mkdir(projectAgentsDir, { recursive: true })
+    await mkdir(userAgentsDir, { recursive: true })
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({
+        agentsDialogOpen: true,
+        allowedSubagents: [
+          { name: 'design-planner', description: '' },
+          { name: 'general-purpose', description: '' },
+          { name: 'statusline-setup', description: '' },
+          { name: 'Explore', description: '' },
+          { name: 'Plan', description: '' },
+          { name: 'claude-code-guide', description: '' },
+        ],
+      })
+
+      const { REPL } = await import('./REPL')
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL
+            engine={{ runTurn: async () => [] }}
+            tools={[]}
+            cfg={makeCfg({ paths: { logsDir: '', planDir: '', subagentsDir: projectAgentsDir } })}
+          />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(lastFrame, (f) => f.includes('Agents'))
+      await waitForFrame(lastFrame, (f) => f.includes('Create new agent'))
+      await waitForFrame(lastFrame, (f) => f.includes('design-planner'))
+      await waitForScope((s) => s === 'overlay:agents')
+      // Ink 的 useInput 订阅可能在 scope 切换的同一 tick 尚未就绪；多等一拍避免方向键丢失
+      await tick()
+
+      const initial = lastFrame() || ''
+      expect(initial).not.toContain('Try "fix typecheck errors"')
+      expect(initial).toMatch(/>\s+Create new agent/)
+
+      stdin.write('\u001B[B')
+
+      const afterDown = await waitForFrame(lastFrame, (f) => />\s+design-planner/.test(f))
+      expect(afterDown).toMatch(/>\s+design-planner/)
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('routes arrow keys to /hooks overlay and hides the REPL input bar', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-hooks-overlay-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(path.join(projectConfigDir, 'settings.local.json'), JSON.stringify({ version: 1, hooks: {} }, null, 2), 'utf8')
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({ hooksDialogOpen: true })
+
+      const { REPL } = await import('./REPL')
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(lastFrame, (f) => f.includes('Hook Configuration'))
+      await waitForFrame(lastFrame, (f) => f.includes('Select hook event:'))
+      await waitForFrame(lastFrame, (f) => f.includes('PreToolUse - Before tool execution'))
+      await waitForScope((s) => s === 'overlay:hooks')
+      // 同 /agents：scope 切换后的同一 tick 里，overlay 可能还没绑定到键盘事件
+      await tick()
+
+      const initial = lastFrame() || ''
+      expect(initial).not.toContain('Try "fix typecheck errors"')
+      expect(initial).toMatch(/❯\s*1\.\s+PreToolUse\b/)
+
+      stdin.write('\u001B[B')
+
+      const afterDown = await waitForFrame(lastFrame, (f) => /❯\s*2\.\s+PermissionRequest\b/.test(f))
+      expect(afterDown).toMatch(/❯\s*2\.\s+PermissionRequest\b/)
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
 })
