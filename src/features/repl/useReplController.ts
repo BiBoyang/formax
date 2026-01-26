@@ -5,8 +5,7 @@ import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../env/config'
 import type { StreamEvent, TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
-import { formatToolResult } from '../../utils/toolFormatting'
-import { stripTrailingSystemReminderBlock } from '../../utils/toolFormatting'
+import { formatToolResult, stripTrailingSystemReminderBlock } from '../../utils/toolFormatting'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
@@ -41,6 +40,7 @@ import {
 } from './controller/utils'
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
+import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -74,12 +74,6 @@ export type ReplController = {
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }
-}
-
-type ExploreTaskBatch = {
-  toolUseIds: Set<string>
-  completedToolUseIds: Set<string>
-  lastSeenAtMs: number
 }
 
 export function useReplController(deps: {
@@ -169,7 +163,7 @@ export function useReplController(deps: {
     return partitionMessages(messages)
   }, [messages])
 
-  const flushAssistantBuffer = useCallback(() => {
+  const legacyFlushAssistantBuffer = useCallback(() => {
     const text = assistantBufferRef.current
     if (!text) return
     assistantBufferRef.current = ''
@@ -184,7 +178,7 @@ export function useReplController(deps: {
     ])
   }, [])
 
-  const handleEvent = useCallback((ev: StreamEvent) => {
+  const legacyHandleEvent = useCallback((ev: StreamEvent) => {
     switch (ev.type) {
       case 'assistant_delta': {
         if (assistantTextMode === 'buffered') {
@@ -246,7 +240,7 @@ export function useReplController(deps: {
 
       case 'tool_start': {
         if (assistantTextMode === 'buffered') {
-          flushAssistantBuffer()
+          legacyFlushAssistantBuffer()
         } else {
           // Freeze any currently-streaming assistant message before tool
           if (currentAssistantIdRef.current) {
@@ -499,7 +493,7 @@ export function useReplController(deps: {
 
       case 'complete': {
         if (assistantTextMode === 'buffered') {
-          flushAssistantBuffer()
+          legacyFlushAssistantBuffer()
         } else {
           if (currentAssistantIdRef.current) {
             const id = currentAssistantIdRef.current
@@ -517,7 +511,26 @@ export function useReplController(deps: {
       default:
         return
     }
-  }, [assistantTextMode, flushAssistantBuffer])
+  }, [assistantTextMode, legacyFlushAssistantBuffer])
+
+  const { flushAssistantBuffer, handleEvent } = useReplStreaming({
+    assistantTextMode,
+    setMessages,
+    setThinkingText,
+    setLoadingText,
+    setContext,
+    setError,
+    currentAssistantIdRef,
+    assistantBufferRef,
+    thinkingBufferRef,
+    thinkingLastFlushAtRef,
+    toolNameByIdRef,
+    taskStatsByToolUseIdRef,
+    taskKindByToolUseIdRef,
+    exploreBatchRef,
+    reminderServiceRef,
+    contextBudgetConfigRef,
+  })
 
   const abort = useCallback(() => {
     abortControllerRef.current?.abort()

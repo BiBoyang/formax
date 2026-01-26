@@ -456,7 +456,7 @@ export function useReplSend(args: {
   - 内容：overlay manager 订阅、closeAgents/Permissions/Hooks、agents wizard（含 reloadSubagents）；文案保持一致。
   - 验收：`bun run test` + 手动打开/关闭 overlays 验证不抢键。
 
-- [ ] 2.4 新建 `controller/streaming.ts`，抽 `handleEvent` + `flushAssistantBuffer`（60min）
+- [x] 2.4 新建 `controller/streaming.ts`，抽 `handleEvent` + `flushAssistantBuffer`（60min）
   - 文件：新增 `src/features/repl/controller/streaming.ts`；修改 `src/features/repl/useReplController.ts`
   - 内容：所有 streaming event 分支（assistant/thinking/tool/usage/error/complete）迁移；工具生命周期文案严格保持。
   - 验收：全量 controller tests + 手动触发一次 tool loop。
