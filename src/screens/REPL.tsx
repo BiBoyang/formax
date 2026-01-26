@@ -34,6 +34,7 @@ import { deriveMessageItemDescriptors, findLastContiguousExploreTaskGroup } from
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
 import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
+import { isPromptMode as computePromptMode } from './repl/promptMode'
 
 type Props = {
   onExit?: () => void
@@ -147,22 +148,10 @@ export function REPL({
     setShowThinking(false)
   }, [state.isLoading])
 
-  const isPromptMode = useMemo(() => {
-    if (state.agentsDialogOpen) return true
-    if (state.permissionsDialogOpen) return true
-    if (state.hooksDialogOpen) return true
-    if (!userInput) return false
-    const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
-    return state.transientMessages.some((m) => {
-      if (m.role !== 'tool' || m.toolInfo?.status !== 'running') return false
-      const toolUseId = m.toolInfo.toolUseId || (m.id.startsWith('tool-') ? m.id.slice('tool-'.length) : m.id)
-      const interactive = toolRegistry?.getMeta(m.toolInfo.name)?.interactive ?? alwaysInteractive.has(m.toolInfo.name)
-      if (m.toolInfo.name === 'Task' && Array.isArray(m.toolInfo.nestedTools)) {
-        return m.toolInfo.nestedTools.some((t) => Boolean(t?.id) && userInput.isPending(String(t.id)))
-      }
-      return interactive || userInput.isPending(toolUseId)
-    })
-  }, [state.agentsDialogOpen, state.permissionsDialogOpen, state.transientMessages, toolRegistry, userInput])
+  const isPromptMode = useMemo(
+    () => computePromptMode({ state, userInput, toolRegistry }),
+    [state.agentsDialogOpen, state.permissionsDialogOpen, state.transientMessages, toolRegistry, userInput],
+  )
 
   const allMessages = useMemo(
     () => [...state.staticMessages, ...state.transientMessages],
