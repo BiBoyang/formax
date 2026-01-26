@@ -137,6 +137,78 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
+  it('routes input only to the active scope (router)', async () => {
+    const onRepl = vi.fn()
+    const onOverlay = vi.fn()
+    const scopes: string[] = []
+
+    function useRouted(scope: 'repl' | 'overlay:test', onInput: (s: string) => void): void {
+      const { registerHandler } = useInputScope()
+      const onInputRef = React.useRef(onInput)
+      onInputRef.current = onInput
+
+      React.useEffect(() => {
+        return registerHandler({
+          scope,
+          handler: (input) => {
+            if (!input) return
+            onInputRef.current(input)
+          },
+        })
+      }, [registerHandler, scope])
+    }
+
+    function RouterHarness(): React.ReactNode {
+      const [showOverlay, setShowOverlay] = useState(false)
+
+      useRouted('repl', (input) => {
+        if (input === 'O') setShowOverlay(true)
+        else onRepl(input)
+      })
+
+      useRouted('overlay:test', (input) => {
+        if (input === 'C') setShowOverlay(false)
+        else onOverlay(input)
+      })
+
+      return (
+        <>
+          <ScopeReporter onScope={(s) => scopes.push(s)} />
+          {showOverlay ? <Overlay /> : null}
+        </>
+      )
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <RouterHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    stdin.write('a')
+    await tick()
+    expect(onRepl).toHaveBeenCalledWith('a')
+    expect(onOverlay).not.toHaveBeenCalled()
+
+    stdin.write('O')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:test')
+
+    stdin.write('b')
+    await tick()
+    expect(onOverlay).toHaveBeenCalledWith('b')
+
+    stdin.write('C')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    stdin.write('c')
+    await tick()
+    expect(onRepl).toHaveBeenCalledWith('c')
+  })
+
   it('removes non-top scopes when they unmount', async () => {
     const scopes: string[] = []
 
