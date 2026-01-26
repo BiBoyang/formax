@@ -468,7 +468,7 @@ export function useReplSend(args: {
 - [x] 2.6 抽离 send：再搬 `/compact` 分支（60min）
   - 验收：controller tests + 手动 `/compact`。
 
-- [ ] 2.7 抽离 send：搬 slash consumed 分支（45–60min）
+- [x] 2.7 抽离 send：搬 slash consumed 分支（45–60min）
   - 目标：slash dispatch/consumed（ui effects、model effects）行为不变。
   - 验收：controller tests + REPL slash suggestion tests。
 

@@ -13,8 +13,12 @@ import type { StreamEvent } from '../../../streaming/types'
 import type { RuntimeConfig } from '../../../env/config'
 import type { SystemPromptProfile } from '../../../prompts/system'
 import type { ReplMode } from '../mode'
+import { slashEffectToCommandResult, isSlashCommandResultData } from '../../commands/adapter'
+import type { SlashCommandEffect, SlashCommandRegistry } from '../../commands/registry'
+import { isConsumedCommandResult, type OverlaySpec } from '../../commands/contracts'
 import { extractAssistantText, isAbortLikeError, isExactSlashCommand } from './utils'
 import type { ExploreTaskBatch } from './streaming'
+import { buildLocalCommandInjectedBlocks } from '../injectedBlocks'
 
 export function maybeHandleClearCommand(args: {
   text: string
@@ -291,4 +295,115 @@ export async function maybeHandleCompactCommand(args: {
   }
 
   return true
+}
+
+export async function maybeHandleConsumedSlashCommand(args: {
+  text: string
+  preferredSlashSpecId?: string
+  commandRegistry?: SlashCommandRegistry
+  openOverlay: (spec: OverlaySpec) => void
+  closeOverlay: () => void
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  thinkingBufferRef: { current: string }
+  thinkingLastFlushAtRef: { current: number }
+  currentAssistantIdRef: { current: string | null }
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+}): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
+  const slashEffect = args.text.startsWith('/')
+    ? args.commandRegistry?.dispatch(args.text, { preferredSpecId: args.preferredSlashSpecId }) ?? null
+    : null
+  const slashResult = slashEffectToCommandResult(slashEffect)
+  if (!isConsumedCommandResult(slashResult)) return { slashEffect, shouldReturn: false }
+
+  const userMsg: Msg = {
+    id: `user-${Date.now()}`,
+    role: 'user',
+    content: args.text,
+    timestamp: new Date(),
+  }
+
+  const appended: Msg[] = []
+  for (const eff of slashResult.ui ?? []) {
+    if (eff.type === 'appendMessages') {
+      for (const m of eff.messages) {
+        appended.push({
+          id: m.id ?? `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: m.content,
+          timestamp: m.timestamp ?? new Date(),
+        })
+      }
+    } else if (eff.type === 'openOverlay') {
+      args.openOverlay(eff.overlay)
+    } else if (eff.type === 'closeOverlay') {
+      args.closeOverlay()
+    } else if (eff.type === 'toast') {
+      appended.push({
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: eff.message,
+        timestamp: new Date(),
+      })
+    }
+  }
+
+  for (const eff of slashResult.model ?? []) {
+    if (eff.type === 'injectNextTurn') args.pendingInjectedBlocksRef.current.push(...eff.blocks)
+  }
+
+  const data = isSlashCommandResultData(slashResult.data) ? slashResult.data : null
+  if (data?.kind !== 'llm') {
+    args.setMessages((prev) => [...prev, userMsg, ...appended])
+  }
+
+  if (data?.kind === 'local_async') {
+    args.setIsLoading(true)
+    args.setLoadingText(data.loadingText || 'Working')
+    args.thinkingBufferRef.current = ''
+    args.thinkingLastFlushAtRef.current = 0
+    args.setThinkingText('')
+    args.setError(null)
+    args.currentAssistantIdRef.current = null
+
+    try {
+      const out = await data.run()
+      if (out.recordForNextTurn) {
+        args.pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
+      }
+      args.setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: out.stdout,
+          timestamp: new Date(),
+        },
+      ])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Command failed'
+      args.setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: `Error: ${msg}`,
+          timestamp: new Date(),
+        },
+      ])
+    } finally {
+      args.setIsLoading(false)
+    }
+
+    return { slashEffect, shouldReturn: true }
+  }
+
+  if (data?.kind === 'llm') {
+    return { slashEffect, shouldReturn: false }
+  }
+
+  return { slashEffect, shouldReturn: true }
 }

@@ -19,9 +19,7 @@ import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
 import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
-import { slashEffectToCommandResult, isSlashCommandResultData } from '../commands/adapter'
-import { isConsumedCommandResult } from '../commands/contracts'
-import { buildLocalCommandInjectedBlocks } from './injectedBlocks'
+import type { SlashCommandEffect } from '../commands/registry'
 import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
@@ -41,7 +39,7 @@ import {
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { maybeHandleClearCommand, maybeHandleCompactCommand } from './controller/send'
+import { maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './controller/send'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -658,98 +656,26 @@ export function useReplController(deps: {
         return
       }
 
-      const slashEffect = text.startsWith('/')
-        ? deps.commandRegistry?.dispatch(text, { preferredSpecId: opts?.preferredSlashSpecId })
-        : null
-      const slashResult = slashEffectToCommandResult(slashEffect)
-      if (isConsumedCommandResult(slashResult)) {
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
-        }
-
-        const appended: Msg[] = []
-        for (const eff of slashResult.ui ?? []) {
-          if (eff.type === 'appendMessages') {
-            for (const m of eff.messages) {
-              appended.push({
-                id: m.id ?? `assistant-${Date.now()}`,
-                role: 'assistant',
-                content: m.content,
-                timestamp: m.timestamp ?? new Date(),
-              })
-            }
-          } else if (eff.type === 'openOverlay') {
-            openOverlay(eff.overlay)
-          } else if (eff.type === 'closeOverlay') {
-            closeOverlay()
-          } else if (eff.type === 'toast') {
-            appended.push({
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: eff.message,
-              timestamp: new Date(),
-            })
-          }
-        }
-
-        for (const eff of slashResult.model ?? []) {
-          if (eff.type === 'injectNextTurn') pendingInjectedBlocksRef.current.push(...eff.blocks)
-        }
-
-        const data = isSlashCommandResultData(slashResult.data) ? slashResult.data : null
-        if (data?.kind !== 'llm') {
-          setMessages((prev) => [...prev, userMsg, ...appended])
-        }
-
-        if (data?.kind === 'local_async') {
-          setIsLoading(true)
-          setLoadingText(data.loadingText || 'Working')
-          thinkingBufferRef.current = ''
-          thinkingLastFlushAtRef.current = 0
-          setThinkingText('')
-          setError(null)
-          currentAssistantIdRef.current = null
-
-          try {
-            const out = await data.run()
-            if (out.recordForNextTurn) {
-              pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
-            }
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `assistant-${Date.now()}`,
-                role: 'assistant',
-                content: out.stdout,
-                timestamp: new Date(),
-              },
-            ])
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : 'Command failed'
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `error-${Date.now()}`,
-                role: 'assistant',
-                content: `Error: ${msg}`,
-                timestamp: new Date(),
-              },
-            ])
-          } finally {
-            setIsLoading(false)
-          }
-
-          return
-        }
-
-        if (data?.kind === 'llm') {
-          // Continue into the LLM streaming path, using the provided blocks.
-        } else {
-          return
-        }
+      let slashEffect: SlashCommandEffect | null = null
+      if (text.startsWith('/')) {
+        const res = await maybeHandleConsumedSlashCommand({
+          text,
+          preferredSlashSpecId: opts?.preferredSlashSpecId,
+          commandRegistry: deps.commandRegistry,
+          openOverlay,
+          closeOverlay,
+          pendingInjectedBlocksRef,
+          thinkingBufferRef,
+          thinkingLastFlushAtRef,
+          currentAssistantIdRef,
+          setMessages,
+          setIsLoading,
+          setLoadingText,
+          setThinkingText,
+          setError,
+        })
+        slashEffect = res.slashEffect
+        if (res.shouldReturn) return
       }
 
       const userMsg: Msg = {
