@@ -441,7 +441,7 @@ export function useReplSend(args: {
 
 # Phase 2 — 拆 `src/features/repl/useReplController.ts`（先抽纯函数，再抽 hook 块）
 
-- [ ] 2.1 新建 `controller/utils.ts`，迁移纯 helper（30–60min）
+- [x] 2.1 新建 `controller/utils.ts`，迁移纯 helper（30–60min）
   - 文件：新增 `src/features/repl/controller/utils.ts`；修改 `src/features/repl/useReplController.ts`
   - 内容：抽 `isAbortLikeError` / `isExactSlashCommand` / token&duration 格式化 / prompt 注入 helper 等；保持签名与行为。
   - 验收：`bun run test -- src/features/repl/useReplController.test.tsx`
