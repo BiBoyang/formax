@@ -67,6 +67,20 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Links**: `src/ui/hooks/ui.tsx`
 - **Keywords**: ink, overlay, flicker, flash, layout, terminal height, marginY, marginBottom, width=100%, TextInput
 
+## Ink `useInput` “bubbling” (multiple handlers receive the same key)
+- **Problem**: TextInput 到边界时按 `←/→/Backspace/Delete/Enter`，会“漏”给外层 list/快捷键（表现为：选中项乱跳、Tab/方向键误触、甚至 REPL 热键被触发）。
+- **Repro**:
+  1) 打开一个 overlay（例如 `/hooks` 的 Add new hook），光标放在 input 最左/最右
+  2) 连续按 `←/→` 或 `Backspace/Delete`
+  3) 观察到外层列表或 REPL 的快捷键也被触发（尤其在边界时更明显）
+- **Root cause**: Ink 的多个 `useInput` 默认都能收到同一个按键事件；没有浏览器那种 stop-propagation。只靠“某个 handler 里 return”并不会阻止别的 handler 收到键。
+- **Fix**:
+  - 用 InputScope router 做集中分发，并引入 “consumed” 语义：`handler(...) === true` 代表消费该按键，阻止同 scope 的低优先级 handler 继续处理。
+  - TextInput 在 scope 模式下，对 `←/→/Backspace/Delete/Enter` **即使在边界**也要 consume（避免漏到外层）。
+  - REPL hotkeys 与 slash selector 分组并给 priority，确保 selector 导航键先被 consume。
+- **Links**: `src/features/repl/inputScopeContext.tsx`, `src/components/ui/TextInput.tsx`, `src/screens/repl/hotkeys.ts`, `src/features/repl/inputScopeContext.test.tsx`, `src/components/ui/TextInput.test.tsx`, `src/screens/repl/hotkeys.test.tsx`
+- **Keywords**: ink, useInput, bubbling, consumed, priority, input scope, TextInput, hotkeys
+
 ## `/clear` needs two runs / flashes once (Ink log-update cache vs manual ANSI clear)
 - **Problem**: running `/clear` appears to “flash” and only fully clears the transcript on the 2nd run (or looks like it didn’t clear at all).
 - **Repro**:

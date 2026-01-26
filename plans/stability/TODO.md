@@ -26,6 +26,7 @@
 - overlay 打开期间：`Esc`/`Shift+Tab` 不触发 REPL abort/mode 切换：见 `src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
+- pitfalls 已补齐输入路由稳定契约（consumed/priority/scope）：见 `pitfalls.md`
 
 ---
 
@@ -71,16 +72,6 @@
 - [ ] S9-4.2：把 “发送后清输入” 抽成 `clearPrompt()`（只清输入与 slash selector 内部状态，不动 session）
 
 ---
-
-## S9-doc：把“新稳定契约”写回文档（避免下次再踩坑）
-
-- [ ] 更新 `pitfalls.md`：至少包含
-  - [ ] TextInput consume 规则（哪些键永远不该漏到外层）
-  - [ ] group suspend 规则（command/selector/text）与嵌套 refcount
-  - [ ] overlay scope 规范：`overlay:agents` / `overlay:permissions` / `overlay:hooks` + `useScopeActivation` 依赖只用 `view.kind`（避免 scope flicker）
-
----
-
 ## 备注（来自 opencode-study，但这里先不展开）
 
 - Phase 4 的 “mock overlay 做 end-to-end 按键路由” 方案：你们已经有 `src/screens/REPL.overlays.test.tsx`，优先把它补齐到覆盖更多按键即可（避免再造一套测试基建）。
