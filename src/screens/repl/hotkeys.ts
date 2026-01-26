@@ -1,5 +1,5 @@
 import { useInput } from 'ink'
-import { useScopedInput } from '../../features/repl/inputScopeContext'
+import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import { nextReplMode, type ReplMode } from '../../features/repl/mode'
 import type { ReplController } from '../../features/repl/useReplController'
 import type { Msg } from '../../components/tool/ToolMessage'
@@ -74,62 +74,64 @@ export function useReplHotkeys(args: {
     { isActive: true },
   )
 
-  useScopedInput('repl', (inputKey, key) => {
-    if (key.ctrl && inputKey === 'o') {
-      if (state.agentsDialogOpen) return
-      if (state.permissionsDialogOpen) return
-      if (state.hooksDialogOpen) return
-      if (isPromptMode) return
+  useScopedRoutedInput(
+    'repl',
+    (inputKey, key) => {
+      if (key.ctrl && inputKey === 'o') {
+        if (state.agentsDialogOpen) return true
+        if (state.permissionsDialogOpen) return true
+        if (state.hooksDialogOpen) return true
+        if (isPromptMode) return true
 
-      if (state.isLoading && state.thinkingText.trim()) {
-        setShowThinking((v) => !v)
-        return
-      }
-
-      if (showDetailedTranscript) {
-        setShowDetailedTranscript(false)
-        return
-      }
-
-      if (showExploreAgentsPanel) {
-        setShowExploreAgentsPanel(false)
-        return
-      }
-
-      const lastMsg = allMessages.length > 0 ? allMessages[allMessages.length - 1] : null
-      const wantsExplorePanel =
-        lastMsg?.role === 'assistant' && /^\d+\s+Explore agents\s+finished\b/.test(lastMsg.content || '')
-
-      if (wantsExplorePanel) {
-        const lastExploreGroup = findLastContiguousExploreTaskGroup(allMessages)
-        if (lastExploreGroup && lastExploreGroup.tasks.length >= 2) {
-          setShowExploreAgentsPanel(true)
-          return
+        if (state.isLoading && state.thinkingText.trim()) {
+          setShowThinking((v) => !v)
+          return true
         }
-      }
 
-      const lastTaskWithTranscript = [...allMessages].reverse().find((m) => {
-        if (m.role !== 'tool') return false
-        if (m.toolInfo?.name !== 'Task') return false
-        return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
-      })
+        if (showDetailedTranscript) {
+          setShowDetailedTranscript(false)
+          return true
+        }
 
-      if (lastTaskWithTranscript) {
-        setDetailedTranscriptTargetId(lastTaskWithTranscript.id)
-        setShowDetailedTranscript(true)
+        if (showExploreAgentsPanel) {
+          setShowExploreAgentsPanel(false)
+          return true
+        }
+
+        const lastMsg = allMessages.length > 0 ? allMessages[allMessages.length - 1] : null
+        const wantsExplorePanel =
+          lastMsg?.role === 'assistant' && /^\d+\s+Explore agents\s+finished\b/.test(lastMsg.content || '')
+
+        if (wantsExplorePanel) {
+          const lastExploreGroup = findLastContiguousExploreTaskGroup(allMessages)
+          if (lastExploreGroup && lastExploreGroup.tasks.length >= 2) {
+            setShowExploreAgentsPanel(true)
+            return true
+          }
+        }
+
+        const lastTaskWithTranscript = [...allMessages].reverse().find((m) => {
+          if (m.role !== 'tool') return false
+          if (m.toolInfo?.name !== 'Task') return false
+          return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
+        })
+
+        if (lastTaskWithTranscript) {
+          setDetailedTranscriptTargetId(lastTaskWithTranscript.id)
+          setShowDetailedTranscript(true)
+        }
+        return true
       }
-      return
-    }
 
     if (key.escape) {
-      if (state.agentsDialogOpen) return
-      if (state.permissionsDialogOpen) return
-      if (state.hooksDialogOpen) return
+      if (state.agentsDialogOpen) return true
+      if (state.permissionsDialogOpen) return true
+      if (state.hooksDialogOpen) return true
       actions.abort()
-      return
+      return true
     }
 
-    if (isPromptMode) return
+    if (isPromptMode) return false
 
     if (key.shift && key.tab) {
       setMode((m) => {
@@ -137,20 +139,42 @@ export function useReplHotkeys(args: {
         if (next === 'plan') ensurePlanPath()
         return next
       })
-      return
+      return true
     }
 
-    if (slashSuggestions.length > 0) {
+      return false
+    },
+    { group: 'command', priority: 0 },
+  )
+
+  useScopedRoutedInput(
+    'repl',
+    (inputKey, key) => {
+      if (isPromptMode) return false
+      if (slashSuggestions.length === 0) return false
+
       if (key.downArrow) {
         setSlashSelectionTouched(true)
         setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
-      } else if (key.upArrow) {
+        return true
+      }
+
+      if (key.upArrow) {
         setSlashSelectionTouched(true)
         setSlashIndex((i) => Math.max(i - 1, 0))
-      } else if (key.tab && selectedSlash?.command) {
-        setInput(selectedSlash.command)
-        setSlashIndex(0)
+        return true
       }
-    }
-  })
+
+      if (key.tab || inputKey === '\t') {
+        if (selectedSlash?.command) {
+          setInput(selectedSlash.command)
+          setSlashIndex(0)
+        }
+        return true
+      }
+
+      return false
+    },
+    { group: 'selector', priority: 10 },
+  )
 }
