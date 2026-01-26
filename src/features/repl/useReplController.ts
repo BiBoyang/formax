@@ -41,7 +41,7 @@ import {
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { maybeHandleClearCommand } from './controller/send'
+import { maybeHandleClearCommand, maybeHandleCompactCommand } from './controller/send'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -628,162 +628,33 @@ export function useReplController(deps: {
       }
 
       if (isExactSlashCommand(text, '/compact')) {
-        const userMsg: Msg = {
-          id: `user-${Date.now()}`,
-          role: 'user',
-          content: text,
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, userMsg])
-
-        setIsLoading(true)
-        setLoadingText('Compacting')
-        thinkingBufferRef.current = ''
-        thinkingLastFlushAtRef.current = 0
-        setThinkingText('')
-        setError(null)
-        currentAssistantIdRef.current = null
-
-        const abortController = new AbortController()
-        abortControllerRef.current = abortController
-        assistantBufferRef.current = ''
-        contextBudgetConfigRef.current = null
-
-        try {
-          const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
-          const cwd = process.cwd()
-          const previousHistory = historyRef.current
-
-          const system = buildSystemPrompt({
-            allowedSubagents,
-            cwd,
-            model: deps.cfg.llm.model,
-            profile: promptProfile,
-          })
-
-          const contextWindowTokens =
-            deps.cfg.llm.contextWindowTokens ??
-            getKnownContextWindowTokens({ provider, model: deps.cfg.llm.model })
-
-          contextBudgetConfigRef.current = contextWindowTokens
-            ? {
-                contextWindowTokens,
-                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-                baselineTokens: deps.cfg.context.baselineTokens,
-              }
-            : null
-
-          const instructions = text.replace(/^\/compact\b/i, '').trim()
-          const compactUser: ChatHistory[number] = {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: buildCompactRequest(instructions),
-              },
-            ],
-          }
-
-          const compactSink = (ev: StreamEvent) => {
-            if (
-              ev.type === 'thinking_delta' ||
-              ev.type === 'usage' ||
-              ev.type === 'error' ||
-              ev.type === 'complete'
-            ) {
-              handleEvent(ev)
-            }
-          }
-
-          const nextHistory = await deps.engine.runTurn({
-            history: previousHistory,
-            user: compactUser,
-            system,
-            tools: [],
-            onEvent: compactSink,
-            cwd,
-            signal: abortController.signal,
-            promptBudget: contextBudgetConfigRef.current,
-            exec: {
-              replMode: deps.mode,
-              getReplMode: () => modeRef.current,
-              setReplMode,
-              getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-            },
-          })
-
-          const summary = extractAssistantText(nextHistory).trim()
-          if (!summary) throw new Error('Compact failed: empty summary')
-
-          const compacted = rebuildHistoryAfterCompaction({
-            summary,
-            previousHistory,
-            keepLastTurns: deps.cfg.context.compactKeepLastTurns,
-          })
-
-          historyRef.current =
-            contextWindowTokens
-              ? pruneForPromptBudget({
-                  system,
-                  messages: compacted,
-                  contextWindowTokens,
-                  effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-                  autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-                  baselineTokens: deps.cfg.context.baselineTokens,
-                }).messages
-              : compacted
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: 'Conversation history compacted (summary kept for future turns).',
-              timestamp: new Date(),
-            },
-          ])
-
-          if (contextWindowTokens) {
-            const usedTokens = estimatePromptTokens({ system, messages: historyRef.current })
-            const stats = computeContextStats({
-              config: {
-                contextWindowTokens,
-                effectiveContextWindowPercent: deps.cfg.context.effectiveContextWindowPercent,
-                autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
-                baselineTokens: deps.cfg.context.baselineTokens,
-              },
-              usedTokens,
-            })
-            setContext({
-              usedTokens: stats.usedTokens,
-              limitTokens: stats.effectiveLimitTokens,
-              percentRemaining: stats.percentRemaining,
-              source: 'estimate',
-            })
-          } else {
-            setContext(null)
-          }
-        } catch (e) {
-          if (isAbortLikeError(e)) {
-            return
-          }
-          const msg = e instanceof Error ? e.message : 'Compact failed'
-          setError(msg)
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `error-${Date.now()}`,
-              role: 'assistant',
-              content: `Error: ${msg}`,
-              timestamp: new Date(),
-            },
-          ])
-        } finally {
-          setIsLoading(false)
-          abortControllerRef.current = null
-        }
-
+        await maybeHandleCompactCommand({
+          text,
+          provider,
+          engine: deps.engine,
+          cfg: deps.cfg,
+          promptProfile: deps.promptProfile,
+          allowedSubagents,
+          mode: deps.mode,
+          getReplMode: () => modeRef.current,
+          setReplMode,
+          getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
+          historyRef,
+          contextBudgetConfigRef,
+          abortControllerRef,
+          assistantBufferRef,
+          thinkingBufferRef,
+          thinkingLastFlushAtRef,
+          currentAssistantIdRef,
+          setMessages,
+          setIsLoading,
+          setLoadingText,
+          setThinkingText,
+          setError,
+          setContext,
+          handleEvent,
+          buildCompactRequest,
+        })
         return
       }
 

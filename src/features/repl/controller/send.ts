@@ -1,10 +1,19 @@
 import type { Dispatch, SetStateAction } from 'react'
-import type { ChatHistory } from '../../../chat/engine'
-import type { ContextBudgetConfig } from '../../../chat/context/budget'
+import type { ChatEngine, ChatHistory } from '../../../chat/engine'
+import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
+import { estimatePromptTokens } from '../../../chat/context/estimate'
+import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow'
+import { pruneForPromptBudget } from '../../../chat/context/prune'
+import { rebuildHistoryAfterCompaction } from '../../../chat/context/compact'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../../prompts'
+import { buildSystemPrompt } from '../../../prompts'
 import type { TokenUsage } from '../../../streaming/types'
-import { isExactSlashCommand } from './utils'
+import type { StreamEvent } from '../../../streaming/types'
+import type { RuntimeConfig } from '../../../env/config'
+import type { SystemPromptProfile } from '../../../prompts/system'
+import type { ReplMode } from '../mode'
+import { extractAssistantText, isAbortLikeError, isExactSlashCommand } from './utils'
 import type { ExploreTaskBatch } from './streaming'
 
 export function maybeHandleClearCommand(args: {
@@ -87,6 +96,199 @@ export function maybeHandleClearCommand(args: {
   // Clear the terminal *after* scheduling state resets, otherwise Ink may
   // re-render the old transcript once before the clear takes effect.
   void args.onClearTerminal?.()
+
+  return true
+}
+
+export async function maybeHandleCompactCommand(args: {
+  text: string
+  provider: 'openai' | 'anthropic'
+  engine: ChatEngine
+  cfg: RuntimeConfig
+  promptProfile?: SystemPromptProfile
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: ReplMode
+  getReplMode: () => ReplMode
+  setReplMode: (next: ReplMode) => void
+  getPlanPath: () => string | null
+  historyRef: { current: ChatHistory }
+  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+  abortControllerRef: { current: AbortController | null }
+  assistantBufferRef: { current: string }
+  thinkingBufferRef: { current: string }
+  thinkingLastFlushAtRef: { current: number }
+  currentAssistantIdRef: { current: string | null }
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+  setContext: Dispatch<
+    SetStateAction<
+      | {
+          usedTokens: number
+          limitTokens: number
+          percentRemaining: number
+          source: 'estimate'
+        }
+      | null
+    >
+  >
+  handleEvent: (ev: StreamEvent) => void
+  buildCompactRequest: (instructions: string) => string
+}): Promise<boolean> {
+  if (!isExactSlashCommand(args.text, '/compact')) return false
+
+  const userMsg: Msg = {
+    id: `user-${Date.now()}`,
+    role: 'user',
+    content: args.text,
+    timestamp: new Date(),
+  }
+  args.setMessages((prev) => [...prev, userMsg])
+
+  args.setIsLoading(true)
+  args.setLoadingText('Compacting')
+  args.thinkingBufferRef.current = ''
+  args.thinkingLastFlushAtRef.current = 0
+  args.setThinkingText('')
+  args.setError(null)
+  args.currentAssistantIdRef.current = null
+
+  const abortController = new AbortController()
+  args.abortControllerRef.current = abortController
+  args.assistantBufferRef.current = ''
+  args.contextBudgetConfigRef.current = null
+
+  try {
+    const promptProfile = args.promptProfile ?? args.cfg.ui.promptProfile
+    const cwd = process.cwd()
+    const previousHistory = args.historyRef.current
+
+    const system = buildSystemPrompt({
+      allowedSubagents: args.allowedSubagents,
+      cwd,
+      model: args.cfg.llm.model,
+      profile: promptProfile,
+    })
+
+    const contextWindowTokens =
+      args.cfg.llm.contextWindowTokens ??
+      getKnownContextWindowTokens({ provider: args.provider, model: args.cfg.llm.model })
+
+    args.contextBudgetConfigRef.current = contextWindowTokens
+      ? {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        }
+      : null
+
+    const instructions = args.text.replace(/^\/compact\b/i, '').trim()
+    const compactUser: ChatHistory[number] = {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: args.buildCompactRequest(instructions),
+        },
+      ],
+    }
+
+    const compactSink = (ev: StreamEvent) => {
+      if (ev.type === 'thinking_delta' || ev.type === 'usage' || ev.type === 'error' || ev.type === 'complete') {
+        args.handleEvent(ev)
+      }
+    }
+
+    const nextHistory = await args.engine.runTurn({
+      history: previousHistory,
+      user: compactUser,
+      system,
+      tools: [],
+      onEvent: compactSink,
+      cwd,
+      signal: abortController.signal,
+      promptBudget: args.contextBudgetConfigRef.current,
+      exec: {
+        replMode: args.mode,
+        getReplMode: args.getReplMode,
+        setReplMode: args.setReplMode,
+        getPlanPath: args.getPlanPath,
+      },
+    })
+
+    const summary = extractAssistantText(nextHistory).trim()
+    if (!summary) throw new Error('Compact failed: empty summary')
+
+    const compacted = rebuildHistoryAfterCompaction({
+      summary,
+      previousHistory,
+      keepLastTurns: args.cfg.context.compactKeepLastTurns,
+    })
+
+    args.historyRef.current =
+      contextWindowTokens
+        ? pruneForPromptBudget({
+            system,
+            messages: compacted,
+            contextWindowTokens,
+            effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+            autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+            baselineTokens: args.cfg.context.baselineTokens,
+          }).messages
+        : compacted
+
+    args.setMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: 'Conversation history compacted (summary kept for future turns).',
+        timestamp: new Date(),
+      },
+    ])
+
+    if (contextWindowTokens) {
+      const usedTokens = estimatePromptTokens({ system, messages: args.historyRef.current })
+      const stats = computeContextStats({
+        config: {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        },
+        usedTokens,
+      })
+      args.setContext({
+        usedTokens: stats.usedTokens,
+        limitTokens: stats.effectiveLimitTokens,
+        percentRemaining: stats.percentRemaining,
+        source: 'estimate',
+      })
+    } else {
+      args.setContext(null)
+    }
+  } catch (e) {
+    if (isAbortLikeError(e)) {
+      return true
+    }
+    const msg = e instanceof Error ? e.message : 'Compact failed'
+    args.setError(msg)
+    args.setMessages((prev) => [
+      ...prev,
+      {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `Error: ${msg}`,
+        timestamp: new Date(),
+      },
+    ])
+  } finally {
+    args.setIsLoading(false)
+    args.abortControllerRef.current = null
+  }
 
   return true
 }

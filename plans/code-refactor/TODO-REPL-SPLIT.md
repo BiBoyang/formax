@@ -465,7 +465,7 @@ export function useReplSend(args: {
   - 文件：新增/修改 `src/features/repl/controller/send.ts`、`src/features/repl/useReplController.ts`
   - 验收：`/clear` 相关 tests（含 transcriptSeq bump）+ 手动 `/clear` 不闪回。
 
-- [ ] 2.6 抽离 send：再搬 `/compact` 分支（60min）
+- [x] 2.6 抽离 send：再搬 `/compact` 分支（60min）
   - 验收：controller tests + 手动 `/compact`。
 
 - [ ] 2.7 抽离 send：搬 slash consumed 分支（45–60min）
