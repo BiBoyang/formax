@@ -14,6 +14,7 @@
 - `/agents` / `/permissions` / `/hooks` overlay 打开时，↑↓ 不再被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
 - `/hooks` overlay 打开时：prompt mode 会更新、`Esc` 不会被 REPL 抢键：见 `src/screens/REPL.tsx`、`src/screens/repl/hotkeys.ts`、`src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
 - `/permissions` overlay 打开期间：`Enter/Esc/Tab/←→/Backspace/Delete/数字键` 不会被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
+- InputScope 路由契约：`Esc/Enter/数字键` 只路由到 active scope：见 `src/features/repl/inputScopeContext.test.tsx`
 
 ---
 
@@ -34,13 +35,6 @@
 目标：吸收 OpenCode 的“输入优先级/对话框栈/命令挂起”这些**框架无关**的稳定性设计点，但不迁移渲染框架（OpenCode 非 Ink/React，迁移代价过大）。
 
 ### S9-0：先补“稳定性契约”的回归网（小改动、低风险）
-
-- [ ] S9-0.2b：补 “InputScope 路由契约” 的底层回归（只加测试，不改实现）
-  - [ ] `src/features/repl/inputScopeContext.test.tsx`：锁死 “只路由到 active scope” 的按键（至少覆盖）：
-    - [ ] `Esc`
-    - [ ] `Enter`
-    - [ ] `数字键`（例如 `1`）
-  - [ ] 用例结构建议：先 active=repl 触发一轮，再切 active=overlay 触发一轮，断言两个 handler 的记录不会串
 
 - [ ] S9-0.3：锁住 TextInput 的“Tab 不作为文本输入”约束（只加测试）
   - [ ] `src/components/chat/InputBar.test.tsx`：输入框中按 `Tab` 不应改变 value（Tab 保留给更高层导航）

@@ -224,6 +224,7 @@ describe('InputScopeProvider', () => {
         if (key.rightArrow) onReplEvent('right')
         if (key.tab || input === '\t') onReplEvent('tab')
         if (input === '1') onReplEvent('1')
+        if (key.return || input === '\r') onReplEvent('enter')
         if (key.escape) onReplEvent('esc')
       })
       useScopedInput('overlay:test', (input, key) => {
@@ -233,6 +234,7 @@ describe('InputScopeProvider', () => {
         if (key.rightArrow) onOverlayEvent('right')
         if (key.tab || input === '\t') onOverlayEvent('tab')
         if (input === '1') onOverlayEvent('1')
+        if (key.return || input === '\r') onOverlayEvent('enter')
         if (key.escape) onOverlayEvent('esc')
       })
       return null
@@ -295,11 +297,13 @@ describe('InputScopeProvider', () => {
     await tick()
     stdin.write('1')
     await tick()
+    stdin.write('\r') // enter
+    await tick()
     // Esc has to be tested standalone because arrow keys also begin with \u001b.
     stdin.write('\u001b') // esc
     await tick()
 
-    expect(replEvents).toEqual(expect.arrayContaining(['up', 'left', 'tab', '1', 'esc']))
+    expect(replEvents).toEqual(expect.arrayContaining(['up', 'left', 'tab', '1', 'enter', 'esc']))
     expect(overlayEvents).toEqual([])
 
     // Switch to overlay scope.
@@ -316,10 +320,12 @@ describe('InputScopeProvider', () => {
     await tick()
     stdin.write('1')
     await tick()
+    stdin.write('\r') // enter
+    await tick()
     stdin.write('\u001b') // esc
     await tick()
 
-    expect(overlayEvents).toEqual(expect.arrayContaining(['down', 'right', 'tab', '1', 'esc']))
+    expect(overlayEvents).toEqual(expect.arrayContaining(['down', 'right', 'tab', '1', 'enter', 'esc']))
     expect(replEvents).toHaveLength(replCountBeforeOverlayNav)
 
     // Return to repl scope.
