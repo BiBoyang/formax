@@ -10,6 +10,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## REPL UI (Ink)
 - Main screen: `src/screens/REPL.tsx`
+- Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/*`
 - Input UI: `src/components/chat/InputBar.tsx`
 - Header: `src/components/chat/HeaderBanner.tsx`
 - Mode indicator: `src/components/chat/ModeIndicator.tsx`
@@ -31,7 +32,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Stream events/types: `src/streaming/types.ts`
 
 ## Context Management (UI transcript vs prompt history)
-- Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact: `src/features/repl/useReplController.ts`
+- Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact: `src/features/repl/controller/send.ts` (wired by `src/features/repl/useReplController.ts`)
 - Budget + stats: `src/chat/context/budget.ts`
 - Token estimate fallback: `src/chat/context/estimate.ts`
 - Model context window table (current provider-agnostic hints): `src/chat/context/modelWindow.ts`
@@ -130,7 +131,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - REPL mode type: `src/features/repl/mode.ts`
 - Plan session manager (plan file path, lifecycle): `src/features/repl/planSession.ts`
 - Plan path helpers: `src/utils/planMode.ts`
-- Plan mode injected blocks: `src/features/repl/useReplController.ts`
+- Plan mode injected blocks: `src/features/repl/controller/send.ts` (wired by `src/features/repl/useReplController.ts`)
 - Plan tools:
   - EnterPlanMode: `src/tools/modules/enterPlanMode/*`
   - ExitPlanMode: `src/tools/modules/exitPlanMode/*`

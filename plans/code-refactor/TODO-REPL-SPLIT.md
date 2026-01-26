@@ -497,7 +497,7 @@ export function useReplSend(args: {
 
 # 可选（不强制，但建议在 Phase 1/2 完成后做）
 
-- [ ] CODEMAP.md 增补“拆分后去哪改什么”（不改现有 heading/anchor）
+- [x] CODEMAP.md 增补“拆分后去哪改什么”（不改现有 heading/anchor）
   - REPL UI：`src/screens/repl/*`
   - controller：`src/features/repl/controller/*`
 
