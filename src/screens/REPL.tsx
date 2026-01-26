@@ -178,6 +178,12 @@ export function REPL({
     setSlashSelectionTouched(false)
   }, [])
 
+  const clearPrompt = useCallback(() => {
+    setInput('')
+    setSlashIndex(0)
+    setSlashSelectionTouched(false)
+  }, [])
+
   useReplHotkeys({
     onExit,
     actions,
@@ -220,11 +226,12 @@ export function REPL({
         if (normalizedLower !== selectedLower && !normalizedLower.startsWith(selectedLower + ' ')) {
           setInput(selectedSlash.command)
           setSlashIndex(0)
+          setSlashSelectionTouched(false)
           return
         }
       }
 
-      setInput('')
+      clearPrompt()
       if (state.isLoading) return
       await actions.send(
         text,
@@ -233,7 +240,7 @@ export function REPL({
           : undefined,
       )
     },
-    [actions, selectedSlash, slashSelectionTouched, slashSuggestions.length, state.isLoading],
+    [actions, clearPrompt, selectedSlash, slashSelectionTouched, slashSuggestions.length, state.isLoading],
   )
 
   const renderMessage = useCallback(

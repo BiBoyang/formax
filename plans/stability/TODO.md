@@ -9,26 +9,7 @@
 
 ---
 
-## 0. 已完成（不再追踪，仅做定位参考）
-
-- `/agents` / `/permissions` / `/hooks` overlay 打开时，↑↓ 不再被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
-- `/hooks` overlay 打开时：prompt mode 会更新、`Esc` 不会被 REPL 抢键：见 `src/screens/REPL.tsx`、`src/screens/repl/hotkeys.ts`、`src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
-- `/permissions` overlay 打开期间：`Enter/Esc/Tab/←→/Backspace/Delete/数字键` 不会被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
-- `/permissions` overlay：`Esc` 由 overlay 处理并关闭，REPL 不抢键：见 `src/screens/REPL.overlays.test.tsx`
-- InputScope 路由契约：`Esc/Enter/数字键` 只路由到 active scope：见 `src/features/repl/inputScopeContext.test.tsx`
-- InputScopeProvider：引入 router 基座（`registerHandler`，仅供测试/后续接线）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
-- useScopedInput：在 Provider 存在时改为走 router；无 Provider 时保留 fallback：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
-- TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
-- InputScope router：支持 consumed 语义（`handler(...) === true` 则停止分发）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
-- TextInput：在 scope 下 left/right/backspace/delete/enter/newline 即使在边界也 consume（避免漏到外层 list/快捷键）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
-- InputScope router：支持 group suspend/resume（含嵌套 refcount）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
-- REPL hotkeys：拆分 command/selector 两组输入注册并给出 priority（slash suggestions 导航 consume）：见 `src/screens/repl/hotkeys.ts`、`src/screens/repl/hotkeys.test.tsx`、`src/screens/REPL.slashSuggestions.test.tsx`
-- overlay 打开期间：`Esc`/`Shift+Tab` 不触发 REPL abort/mode 切换：见 `src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
-- `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
-- overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
-- pitfalls 已补齐输入路由稳定契约（consumed/priority/scope）：见 `pitfalls.md`
-
----
+已完成项（仅定位参考）移动到：`plans/_archive/stability/COMPLETED-2026-01-26.md`
 
 ## S8 — 结构化输出保护（先写 TODO，等抓包确认后再动）
 
@@ -41,31 +22,3 @@
   - [ ] 是否会影响 prune/compact 的截断策略？
 
 ---
-
-## S9 — 借鉴 OpenCode 的 TUI Runtime 思路（不改框架）
-
-目标：吸收 OpenCode 的“输入优先级/对话框栈/命令挂起”这些**框架无关**的稳定性设计点，但不迁移渲染框架（OpenCode 非 Ink/React，迁移代价过大）。
-
-### S9-0：先补“稳定性契约”的回归网（小改动、低风险）
-
-### S9-1：同一 scope 内的“输入消费(consumed)”与“优先级”基座（偏底层，改动较大）
-
-目标：解决“输入框边界不动时按键漏到外层列表/快捷键”的根因：Ink 的多个 `useInput` 默认都会收到事件，我们需要一个**集中路由器**来做 stop-propagation。
-
-> 说明：S9-1 属于“底座级”改造，建议在 S9-0 的回归网齐全后再做；否则很容易出现“改动大、回归难定位”。
-
-### S9-3：不要直写 ANSI 控制码（工程约束）
-
-- [x] S9-3.1：新增 “ANSI 直写审计” 测试（只允许 `src/utils/terminal.ts` 内含 raw ANSI）
-  - [x] 排除 `*.test.*`（tests 里会出现 `\u001b[A` 等按键序列）
-  - [x] 失败输出要能定位到文件/行号
-
-### S9-4：`prompt.clear` vs `session.new`（语义清晰化，按需做）
-
-- [ ] S9-4.1：把 `/clear` 的“会话重置”抽成 `actions.newSession()`（保持现有行为与清屏顺序，不改 UI）
-- [ ] S9-4.2：把 “发送后清输入” 抽成 `clearPrompt()`（只清输入与 slash selector 内部状态，不动 session）
-
----
-## 备注（来自 opencode-study，但这里先不展开）
-
-- Phase 4 的 “mock overlay 做 end-to-end 按键路由” 方案：你们已经有 `src/screens/REPL.overlays.test.tsx`，优先把它补齐到覆盖更多按键即可（避免再造一套测试基建）。

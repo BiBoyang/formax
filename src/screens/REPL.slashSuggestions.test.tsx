@@ -67,6 +67,7 @@ vi.mock('../features/repl/useReplController', async () => {
       },
       actions: {
         send: sendSpy,
+        newSession: vi.fn(),
         abort: vi.fn(),
         closeAgentsDialog: vi.fn(),
         closePermissionsDialog: vi.fn(),
@@ -188,4 +189,3 @@ describe('REPL slash suggestions', () => {
     }
   })
 })
-

@@ -54,6 +54,7 @@ export type ReplController = {
   state: ReplControllerState
   actions: {
     send: (text: string, opts?: { preferredSlashSpecId?: string }) => Promise<void>
+    newSession: () => void
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
@@ -225,6 +226,34 @@ export function useReplController(deps: {
     })
   }, [userInput])
 
+  const newSession = useCallback(() => {
+    historyRef.current = []
+    pendingInjectedBlocksRef.current = []
+    pendingExitPlanReminderRef.current = false
+    assistantBufferRef.current = ''
+    thinkingBufferRef.current = ''
+    thinkingLastFlushAtRef.current = 0
+    setThinkingText('')
+    setError(null)
+    currentAssistantIdRef.current = null
+    contextBudgetConfigRef.current = null
+    sendSeqRef.current = 0
+    lastAutoCompactSeqRef.current = -1_000_000
+    setContext(null)
+    toolNameByIdRef.current.clear()
+    taskStatsByToolUseIdRef.current.clear()
+    taskKindByToolUseIdRef.current.clear()
+    exploreBatchRef.current = null
+
+    // Ink <Static> is append-only; when clearing messages we must force a remount
+    // so the new transcript starts from a fresh render surface.
+    setTranscriptSeq((n) => n + 1)
+    setMessages(() => [])
+    // Clear the terminal *after* scheduling state resets, otherwise Ink may
+    // re-render the old transcript once before the clear takes effect.
+    void deps.onClearTerminal?.()
+  }, [deps.onClearTerminal])
+
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
       const text = value.trim()
@@ -237,27 +266,7 @@ export function useReplController(deps: {
           text,
           isLoading,
           setMessages,
-          setThinkingText,
-          setError,
-          setContext,
-          setTranscriptSeq,
-          onClearTerminal: deps.onClearTerminal ?? null,
-          refs: {
-            historyRef,
-            pendingInjectedBlocksRef,
-            pendingExitPlanReminderRef,
-            assistantBufferRef,
-            thinkingBufferRef,
-            thinkingLastFlushAtRef,
-            currentAssistantIdRef,
-            contextBudgetConfigRef,
-            sendSeqRef,
-            lastAutoCompactSeqRef,
-            toolNameByIdRef,
-            taskStatsByToolUseIdRef,
-            taskKindByToolUseIdRef,
-            exploreBatchRef,
-          },
+          newSession,
         })
       ) {
         return
@@ -362,6 +371,7 @@ export function useReplController(deps: {
       closeOverlay,
       handleEvent,
       isLoading,
+      newSession,
       openOverlay,
       setReplMode,
       userInput,
@@ -386,6 +396,7 @@ export function useReplController(deps: {
     },
     actions: {
       send,
+      newSession,
       abort,
       closeAgentsDialog,
       closePermissionsDialog,

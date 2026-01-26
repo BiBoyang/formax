@@ -149,6 +149,7 @@ describe('REPL overlay input gating', () => {
   beforeEach(() => {
     mockActions = {
       send: vi.fn(),
+      newSession: vi.fn(),
       abort: vi.fn(),
       closeAgentsDialog: vi.fn(),
       closePermissionsDialog: vi.fn(),
