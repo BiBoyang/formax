@@ -143,10 +143,10 @@ export function useScopeActivation(scope: InputScopeId, enabled = true): void {
   }, [enabled, pop, push, scope])
 }
 
-export function useScopedInput(
+export function useScopedRoutedInput(
   scope: InputScopeId,
-  handler: Parameters<typeof useInput>[0],
-  opts?: { enabled?: boolean },
+  handler: RoutedInputHandler,
+  opts?: { enabled?: boolean; group?: string; priority?: number },
 ): void {
   const { activeScope, hasRouter, registerHandler } = useInputScope()
   const enabled = opts?.enabled !== false
@@ -161,12 +161,11 @@ export function useScopedInput(
     if (!enabled) return
     return registerHandler({
       scope,
-      handler: (input, key) => {
-        handlerRef.current(input, key)
-        return false
-      },
+      group: opts?.group,
+      priority: opts?.priority,
+      handler: (input, key) => handlerRef.current(input, key) === true,
     })
-  }, [enabled, hasRouter, registerHandler, scope])
+  }, [enabled, hasRouter, opts?.group, opts?.priority, registerHandler, scope])
 
   useInput(
     (input, key) => {
@@ -175,5 +174,25 @@ export function useScopedInput(
       handlerRef.current(input, key)
     },
     { isActive: !hasRouter },
+  )
+}
+
+export function useScopedInput(
+  scope: InputScopeId,
+  handler: Parameters<typeof useInput>[0],
+  opts?: { enabled?: boolean },
+): void {
+  const handlerRef = useRef(handler)
+  useEffect(() => {
+    handlerRef.current = handler
+  }, [handler])
+
+  useScopedRoutedInput(
+    scope,
+    (input, key) => {
+      handlerRef.current(input, key)
+      return false
+    },
+    opts,
   )
 }

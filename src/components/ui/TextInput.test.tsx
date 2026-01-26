@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { render } from 'ink-testing-library'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
+import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import TextInput, { classifyDeletionKey, computeNextCursorOffsetForControlledValue } from './TextInput'
 
 function tick(): Promise<void> {
@@ -38,6 +39,27 @@ function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): Rea
         cursorChar="▏"
         multiline
       />
+    </ReplUiProvider>
+  )
+}
+
+function ScopedConsumeWrapper({ onList }: { onList: (s: string) => void }): React.ReactNode {
+  const [value, setValue] = useState('')
+
+  useScopedRoutedInput(
+    'overlay:test',
+    (input, key) => {
+      onList('called')
+      if (key.leftArrow || input === '\u001b[D') onList('left')
+      if (key.backspace || input === '\x7f') onList('backspace')
+      return false
+    },
+    { priority: 0 },
+  )
+
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput value={value} onChange={setValue} cursorStyle="bar" cursorChar="▏" scope="overlay:test" />
     </ReplUiProvider>
   )
 }
@@ -225,6 +247,32 @@ describe('TextInput', () => {
     await tick()
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('consumes left/backspace even at boundaries when scoped', async () => {
+    const onList = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="overlay:test">
+        <ScopedConsumeWrapper onList={(s) => onList(s)} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('a')
+    await tick()
+
+    // Move to start (and one extra left on boundary)
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\u001B[D')
+    await tick()
+
+    // Backspace on boundary should not bubble.
+    stdin.write('\x7f')
+    await tick()
+
+    expect(onList).not.toHaveBeenCalled()
   })
 
   it('treats macOS Backspace reported as delete as backspace', () => {

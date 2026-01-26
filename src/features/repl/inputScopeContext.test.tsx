@@ -227,6 +227,54 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
+  it('stops dispatch when a handler consumes input (router)', async () => {
+    const calls: string[] = []
+
+    function ConsumeHarness(): React.ReactNode {
+      const { registerHandler } = useInputScope()
+
+      React.useEffect(() => {
+        const unregisterA = registerHandler({
+          scope: 'repl',
+          priority: 10,
+          handler: (input) => {
+            if (!input) return
+            calls.push(`A:${input}`)
+            return true
+          },
+        })
+
+        const unregisterB = registerHandler({
+          scope: 'repl',
+          priority: 0,
+          handler: (input) => {
+            if (!input) return
+            calls.push(`B:${input}`)
+          },
+        })
+
+        return () => {
+          unregisterA()
+          unregisterB()
+        }
+      }, [registerHandler])
+
+      return null
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <ConsumeHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    stdin.write('x')
+    await tick()
+
+    expect(calls).toEqual(['A:x'])
+  })
+
   it('removes non-top scopes when they unmount', async () => {
     const scopes: string[] = []
 

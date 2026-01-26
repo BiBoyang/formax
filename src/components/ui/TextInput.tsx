@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
-import { useScopedInput } from '../../features/repl/inputScopeContext'
+import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 
 type TextInputProps = {
   value: string
@@ -105,7 +105,7 @@ export default function TextInput({
   }, [cursorOffset])
 
   const handler = useCallback((input: string, key: any) => {
-    if (!focus) return
+    if (!focus) return false
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
     const raw = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
@@ -117,7 +117,7 @@ export default function TextInput({
     const wantsNewline = multiline && (isNewline || (isSubmit && Boolean(key.shift)))
 
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
-    if (key.tab || input === '\t') return
+    if (key.tab || input === '\t') return false
 
     const deletion = classifyDeletionKey({ keyName, raw, key })
     if (deletion === 'backspace') {
@@ -129,7 +129,7 @@ export default function TextInput({
         cursorOffsetRef.current = nextCursorOffset
         setCursorOffset(nextCursorOffset)
       }
-      return
+      return true
     }
 
     if (deletion === 'forwardDelete') {
@@ -138,23 +138,27 @@ export default function TextInput({
         onChangeRef.current(newValue)
         valueRef.current = newValue
       }
-      return
+      return true
     }
 
     const isLeftArrowSeq = raw === '\u001B[D' || raw === '\u001BOD'
-    if ((key.leftArrow || isLeftArrowSeq) && currentCursorOffset > 0) {
-      const nextCursorOffset = currentCursorOffset - 1
-      cursorOffsetRef.current = nextCursorOffset
-      setCursorOffset(nextCursorOffset)
-      return
+    if (key.leftArrow || isLeftArrowSeq) {
+      if (currentCursorOffset > 0) {
+        const nextCursorOffset = currentCursorOffset - 1
+        cursorOffsetRef.current = nextCursorOffset
+        setCursorOffset(nextCursorOffset)
+      }
+      return true
     }
 
     const isRightArrowSeq = raw === '\u001B[C' || raw === '\u001BOC'
-    if ((key.rightArrow || isRightArrowSeq) && currentCursorOffset < currentValue.length) {
-      const nextCursorOffset = currentCursorOffset + 1
-      cursorOffsetRef.current = nextCursorOffset
-      setCursorOffset(nextCursorOffset)
-      return
+    if (key.rightArrow || isRightArrowSeq) {
+      if (currentCursorOffset < currentValue.length) {
+        const nextCursorOffset = currentCursorOffset + 1
+        cursorOffsetRef.current = nextCursorOffset
+        setCursorOffset(nextCursorOffset)
+      }
+      return true
     }
 
     if (wantsNewline) {
@@ -164,12 +168,12 @@ export default function TextInput({
       const nextCursorOffset = currentCursorOffset + 1
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
-      return
+      return true
     }
 
     if (isSubmit || isNewline) {
       if (onSubmitRef.current) onSubmitRef.current(currentValue)
-      return
+      return true
     }
 
     // Insert text at cursor position.
@@ -182,10 +186,16 @@ export default function TextInput({
       const nextCursorOffset = currentCursorOffset + raw.length
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
+      return true
     }
+    return false
   }, [focus, multiline])
 
-  useScopedInput(scope ?? 'repl', handler, { enabled: Boolean(scope) && focus })
+  useScopedRoutedInput(scope ?? 'repl', handler, {
+    enabled: Boolean(scope) && focus,
+    group: 'textInput',
+    priority: 100,
+  })
   useInput(handler, { isActive: Boolean(focus) && !scope })
 
   const displayValue = mask ? value.replace(/./g, mask) : value

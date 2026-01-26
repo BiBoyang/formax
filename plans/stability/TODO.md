@@ -19,6 +19,8 @@
 - InputScopeProvider：引入 router 基座（`registerHandler`，仅供测试/后续接线）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - useScopedInput：在 Provider 存在时改为走 router；无 Provider 时保留 fallback：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
+- InputScope router：支持 consumed 语义（`handler(...) === true` 则停止分发）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
+- TextInput：在 scope 下 left/right/backspace/delete/enter/newline 即使在边界也 consume（避免漏到外层 list/快捷键）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
 
@@ -45,12 +47,6 @@
 ### S9-1：同一 scope 内的“输入消费(consumed)”与“优先级”基座（偏底层，改动较大）
 
 目标：解决“输入框边界不动时按键漏到外层列表/快捷键”的根因：Ink 的多个 `useInput` 默认都会收到事件，我们需要一个**集中路由器**来做 stop-propagation。
-
-- [ ] S9-1.3：引入 consumed 语义（`handler(...) === true` 则停止分发）
-  - [ ] 测试：同 scope 下 A consume 后 B 不应收到
-- [ ] S9-1.4：TextInput 明确 consume 规则（即使在边界也 consume）
-  - [ ] `src/components/ui/TextInput.tsx`：left/right/backspace/delete/enter/newline 返回 consumed（true）
-  - [ ] 测试：输入框聚焦时，外层 list 不应因 backspace/delete/方向键误触发
 
 > 说明：S9-1 属于“底座级”改造，建议在 S9-0 的回归网齐全后再做；否则很容易出现“改动大、回归难定位”。
 
