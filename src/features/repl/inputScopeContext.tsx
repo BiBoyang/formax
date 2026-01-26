@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useInput } from 'ink'
 
 export type InputScopeId = 'repl' | `overlay:${string}` | `wizard:${string}` | `prompt:${string}`
@@ -76,5 +76,18 @@ export function useScopedInput(
 ): void {
   const { activeScope } = useInputScope()
   const enabled = opts?.enabled !== false
-  useInput(handler, { isActive: enabled && activeScope === scope })
+
+  const handlerRef = useRef(handler)
+  useEffect(() => {
+    handlerRef.current = handler
+  }, [handler])
+
+  useInput(
+    (input, key) => {
+      if (!enabled) return
+      if (activeScope !== scope) return
+      handlerRef.current(input, key)
+    },
+    { isActive: true },
+  )
 }

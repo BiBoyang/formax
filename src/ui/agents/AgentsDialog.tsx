@@ -3,7 +3,7 @@ import { Box, Text } from 'ink'
 import TextInput from '../../components/ui/TextInput'
 import { RotatingStar } from '../../components/ui/RotatingStar'
 import { getTheme } from '../../utils/theme'
-import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
+import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import {
   Spacer,
   DialogFrame,
