@@ -275,6 +275,76 @@ describe('InputScopeProvider', () => {
     expect(calls).toEqual(['A:x'])
   })
 
+  it('supports group suspend/resume with refcount (router)', async () => {
+    const calls: string[] = []
+    let suspend: ((group: string) => void) | null = null
+    let resume: ((group: string) => void) | null = null
+
+    function SuspendHarness(): React.ReactNode {
+      const { registerHandler, suspendGroup, resumeGroup } = useInputScope()
+      suspend = suspendGroup
+      resume = resumeGroup
+
+      React.useEffect(() => {
+        const unregisterA = registerHandler({
+          scope: 'repl',
+          group: 'command',
+          priority: 0,
+          handler: (input) => {
+            if (!input) return
+            calls.push(`A:${input}`)
+          },
+        })
+
+        const unregisterB = registerHandler({
+          scope: 'repl',
+          group: 'default',
+          priority: 0,
+          handler: (input) => {
+            if (!input) return
+            calls.push(`B:${input}`)
+          },
+        })
+
+        return () => {
+          unregisterA()
+          unregisterB()
+        }
+      }, [registerHandler])
+
+      return null
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <SuspendHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    stdin.write('x')
+    await tick()
+    expect(calls).toEqual(['A:x', 'B:x'])
+
+    // Suspend twice; one resume should still keep it suspended.
+    suspend?.('command')
+    suspend?.('command')
+
+    stdin.write('y')
+    await tick()
+    expect(calls).toEqual(['A:x', 'B:x', 'B:y'])
+
+    resume?.('command')
+    stdin.write('z')
+    await tick()
+    expect(calls).toEqual(['A:x', 'B:x', 'B:y', 'B:z'])
+
+    resume?.('command')
+    stdin.write('w')
+    await tick()
+    expect(calls).toEqual(['A:x', 'B:x', 'B:y', 'B:z', 'A:w', 'B:w'])
+  })
+
   it('removes non-top scopes when they unmount', async () => {
     const scopes: string[] = []
 

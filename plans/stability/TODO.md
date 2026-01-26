@@ -21,6 +21,7 @@
 - TextInput：`Tab` 不作为文本输入：见 `src/components/chat/InputBar.test.tsx`
 - InputScope router：支持 consumed 语义（`handler(...) === true` 则停止分发）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - TextInput：在 scope 下 left/right/backspace/delete/enter/newline 即使在边界也 consume（避免漏到外层 list/快捷键）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
+- InputScope router：支持 group suspend/resume（含嵌套 refcount）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
 
@@ -55,8 +56,6 @@
 - [ ] S9-2.1：定义 “group-based suspend” API（优先只覆盖 REPL command handlers）
   - [ ] 当 overlay/dialog 打开时：挂起 `group=command`（REPL 全局快捷键）
   - [ ] 当 slash suggestions / selector 打开时：挂起与 selector 冲突的 command
-  - [ ] 支持嵌套/refcount：多层 overlay 打开/关闭时不会“永久挂起”或“提前恢复”
-    - [ ] 测试：suspend 两次 → resume 一次仍应保持挂起；resume 两次才恢复
 - [ ] S9-2.2：补测试：overlay 打开期间，REPL 的 mode 切换/abort/面板切换不触发
 
 - [ ] S9-2.3：把 REPL 热键/选择器导航拆成不同 group（降低冲突面）

@@ -23,6 +23,8 @@ export type InputScopeController = {
   stack: InputScopeId[]
   push: (scope: InputScopeId) => void
   pop: (scope?: InputScopeId) => void
+  suspendGroup: (group: string) => void
+  resumeGroup: (group: string) => void
   hasRouter: boolean
   registerHandler: (opts: {
     scope: InputScopeId
@@ -39,6 +41,8 @@ const Ctx = createContext<InputScopeController>({
   stack: [DEFAULT_SCOPE],
   push: () => {},
   pop: () => {},
+  suspendGroup: () => {},
+  resumeGroup: () => {},
   hasRouter: false,
   registerHandler: () => () => {},
 })
@@ -53,6 +57,7 @@ export function InputScopeProvider({
   const initialRef = useRef<InputScopeId>(initialScope)
   const [stack, setStack] = useState<InputScopeId[]>(() => [initialRef.current])
   const handlersRef = useRef<Map<InputScopeId, RegisteredHandler[]>>(new Map())
+  const suspendedGroupsRef = useRef<Map<string, number>>(new Map())
   const nextHandlerIdRef = useRef(1)
   const nextOrderRef = useRef(1)
 
@@ -99,10 +104,26 @@ export function InputScopeProvider({
     }
   }, [])
 
+  const suspendGroup = useCallback<InputScopeController['suspendGroup']>((group) => {
+    const key = group.trim()
+    if (!key) return
+    const cur = suspendedGroupsRef.current.get(key) ?? 0
+    suspendedGroupsRef.current.set(key, cur + 1)
+  }, [])
+
+  const resumeGroup = useCallback<InputScopeController['resumeGroup']>((group) => {
+    const key = group.trim()
+    if (!key) return
+    const cur = suspendedGroupsRef.current.get(key) ?? 0
+    const next = cur - 1
+    if (next <= 0) suspendedGroupsRef.current.delete(key)
+    else suspendedGroupsRef.current.set(key, next)
+  }, [])
+
   const value = useMemo<InputScopeController>(() => {
     const activeScope = stack[stack.length - 1] ?? initialRef.current
-    return { activeScope, stack, push, pop, hasRouter: true, registerHandler }
-  }, [pop, push, registerHandler, stack])
+    return { activeScope, stack, push, pop, suspendGroup, resumeGroup, hasRouter: true, registerHandler }
+  }, [pop, push, registerHandler, resumeGroup, stack, suspendGroup])
 
   const activeScopeRef = useRef<InputScopeId>(value.activeScope)
   useEffect(() => {
@@ -117,6 +138,7 @@ export function InputScopeProvider({
 
       const ordered = [...handlers].sort((a, b) => b.priority - a.priority || a.order - b.order)
       for (const h of ordered) {
+        if ((suspendedGroupsRef.current.get(h.group) ?? 0) > 0) continue
         try {
           const consumed = h.handler(input, key) === true
           if (consumed) return
