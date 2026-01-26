@@ -13,7 +13,6 @@ import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
 import { ModeIndicator } from '../components/chat/ModeIndicator'
 import type { TaskManager } from '../tools/runtime/taskManager'
-import { createSlashCommandRegistry } from '../features/commands/registry'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine'
 import { ThinkingStatusLine } from '../components/ui/ThinkingStatusLine'
@@ -23,14 +22,8 @@ import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
 import { getTheme } from '../utils/theme'
-import { runDoctor } from '../core/diagnostics/doctor'
-import { formatDoctorHuman } from '../core/diagnostics/format'
-import { createStatusSnapshot } from '../core/diagnostics/status'
-import { testSetupConnection } from '../adapters/setup/connectionTest'
-import { checkWritableDir } from '../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
-import { configShow } from '../core/config/show'
 import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
@@ -38,6 +31,7 @@ import { getConfigPaths } from '../adapters/fs/configPaths'
 import { useScopedInput } from '../features/repl/inputScopeContext'
 import type { TokenUsage } from '../streaming/types'
 import { deriveMessageItemDescriptors, findLastContiguousExploreTaskGroup } from './repl/messageItems'
+import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
 import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
 
@@ -103,65 +97,14 @@ export function REPL({
 
   const commandRegistry = useMemo(
     () =>
-      createSlashCommandRegistry({
-        cwd: process.cwd(),
+      createReplCommandRegistry({
+        cfg,
         taskManager,
-        plan: planSession,
-        promptProfile: { get: () => promptProfile, set: setPromptProfile },
-        status: {
-          get: () =>
-            (() => {
-              const base = createStatusSnapshot({
-                version: String((pkg as any)?.version || 'unknown'),
-                cwd: process.cwd(),
-                runtime: {
-                  llm: {
-                    provider: cfg.llm.provider,
-                    baseUrl: cfg.llm.baseUrl,
-                    model: cfg.llm.model,
-                    timeoutMs: cfg.llm.timeoutMs,
-                    apiKey: cfg.llm.apiKey,
-                  },
-                  paths: cfg.paths,
-                  ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
-                },
-                workspaceRoots,
-              })
-
-              if (!workspaceRootWarnings.length) return base
-              return { ...base, warnings: [...base.warnings, ...workspaceRootWarnings] }
-            })(),
-        },
-        doctor: {
-          run: async () => {
-            const store = createNodeFileStore()
-            const shown = await configShow({
-              fileStore: store,
-              cwd: process.cwd(),
-              env: process.env,
-              platform: process.platform,
-            })
-            const report = await runDoctor({
-              version: String((pkg as any)?.version || 'unknown'),
-              cwd: process.cwd(),
-              provider: shown.config.llm.provider,
-              runtime: {
-                llm: { apiKey: cfg.llm.apiKey, baseUrl: cfg.llm.baseUrl, model: cfg.llm.model },
-                paths: cfg.paths,
-              },
-              config: { paths: shown.paths, files: shown.files },
-              warnings: shown.warnings,
-              testConnection: testSetupConnection,
-              checkWritableDir,
-            })
-            return formatDoctorHuman({
-              version: report.version,
-              cwd: report.cwd,
-              checks: report.checks,
-              warnings: report.warnings,
-            }) + '\n'
-          },
-        },
+        planSession,
+        promptProfile,
+        setPromptProfile,
+        workspaceRoots,
+        workspaceRootWarnings,
       }),
     [
       cfg.llm.apiKey,

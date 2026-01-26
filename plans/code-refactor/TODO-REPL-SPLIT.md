@@ -417,7 +417,7 @@ export function useReplSend(args: {
   - 约束：文案/树状符号/缩进严格 copy，不做“修文案”。
   - 验收：`bun run test -- src/screens/REPL.test.tsx`
 
-- [ ] 1.3 新增 `src/screens/repl/createReplCommandRegistry.ts`（30–60min）
+- [x] 1.3 新增 `src/screens/repl/createReplCommandRegistry.ts`（30–60min）
   - 文件：新增 `src/screens/repl/createReplCommandRegistry.ts`；修改 `src/screens/REPL.tsx`
   - 内容：把 `useMemo(() => createSlashCommandRegistry({...}))` 原封不动搬出（只做 wiring，不 render）。
   - 验收：`bun run test -- src/screens/REPL.test.tsx`
