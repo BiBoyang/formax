@@ -20,11 +20,13 @@ describe('useReplHotkeys', () => {
   })
 
   it('does not abort on Escape when hooks dialog is open', async () => {
+    const setMode = vi.fn()
+
     const Harness = ({ hooksDialogOpen }: { hooksDialogOpen: boolean }) => {
       useReplHotkeys({
         actions,
         ensurePlanPath: () => {},
-        setMode: () => {},
+        setMode,
         isPromptMode: hooksDialogOpen,
         userInput: null,
         toolRegistry: undefined,
@@ -74,6 +76,11 @@ describe('useReplHotkeys', () => {
     ui.stdin.write('\u001B')
     await tick()
     expect(actions.abort).toHaveBeenCalledTimes(0)
+
+    setMode.mockClear()
+    ui.stdin.write('\u001B[Z') // Shift+Tab
+    await tick()
+    expect(setMode).toHaveBeenCalledTimes(0)
   })
 
   it('consumes slash suggestion navigation keys before lower-priority handlers', async () => {

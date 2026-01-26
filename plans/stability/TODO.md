@@ -23,6 +23,7 @@
 - TextInput：在 scope 下 left/right/backspace/delete/enter/newline 即使在边界也 consume（避免漏到外层 list/快捷键）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
 - InputScope router：支持 group suspend/resume（含嵌套 refcount）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - REPL hotkeys：拆分 command/selector 两组输入注册并给出 priority（slash suggestions 导航 consume）：见 `src/screens/repl/hotkeys.ts`、`src/screens/repl/hotkeys.test.tsx`、`src/screens/REPL.slashSuggestions.test.tsx`
+- overlay 打开期间：`Esc`/`Shift+Tab` 不触发 REPL abort/mode 切换：见 `src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
 
@@ -57,7 +58,6 @@
 - [ ] S9-2.1：定义 “group-based suspend” API（优先只覆盖 REPL command handlers）
   - [ ] 当 overlay/dialog 打开时：挂起 `group=command`（REPL 全局快捷键）
   - [ ] 当 slash suggestions / selector 打开时：挂起与 selector 冲突的 command
-- [ ] S9-2.2：补测试：overlay 打开期间，REPL 的 mode 切换/abort/面板切换不触发
 
 ### S9-3：不要直写 ANSI 控制码（工程约束）
 
