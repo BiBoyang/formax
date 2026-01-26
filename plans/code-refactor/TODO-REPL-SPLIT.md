@@ -451,7 +451,7 @@ export function useReplSend(args: {
   - 内容：`isTransientMessage` + `partitionMessages`（running tool/streaming assistant 必须在 transient，防止塞进 Static）。
   - 验收：`bun run test -- src/features/repl/useReplController.test.tsx`
 
-- [ ] 2.3 新建 `controller/overlays.ts`，抽 overlay manager + dialog actions（45–60min）
+- [x] 2.3 新建 `controller/overlays.ts`，抽 overlay manager + dialog actions（45–60min）
   - 文件：新增 `src/features/repl/controller/overlays.ts`；修改 `src/features/repl/useReplController.ts`
   - 内容：overlay manager 订阅、closeAgents/Permissions/Hooks、agents wizard（含 reloadSubagents）；文案保持一致。
   - 验收：`bun run test` + 手动打开/关闭 overlays 验证不抢键。

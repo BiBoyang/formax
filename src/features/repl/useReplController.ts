@@ -20,10 +20,8 @@ import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../chat/context/prune'
 import { rebuildHistoryAfterCompaction } from '../../chat/context/compact'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
-import { createAgentFromWizardAnswers, generateAgentDraftWithClaude } from '../../subagents/agentsWizard'
 import { slashEffectToCommandResult, isSlashCommandResultData } from '../commands/adapter'
 import { isConsumedCommandResult } from '../commands/contracts'
-import { createOverlayManager } from './overlays/OverlayManager'
 import { buildLocalCommandInjectedBlocks } from './injectedBlocks'
 import type {
   AgentsDialogGenerateDraft,
@@ -42,6 +40,7 @@ import {
   sumInputTokens,
 } from './controller/utils'
 import { partitionMessages } from './controller/messages'
+import { useReplOverlays } from './controller/overlays'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -104,10 +103,23 @@ export function useReplController(deps: {
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
   const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
-  const overlayManagerRef = useRef(
-    createOverlayManager(process.env.FORMAX_START_AGENTS_DIALOG === '1' ? { kind: 'agents' } : null),
-  )
-  const [overlay, setOverlay] = useState(overlayManagerRef.current.current())
+  const {
+    overlay,
+    openOverlay,
+    closeOverlay,
+    closeAgentsDialog,
+    closePermissionsDialog,
+    closeHooksDialog,
+    generateAgentDraft,
+    saveAgentFromDialog,
+  } = useReplOverlays({
+    engine: deps.engine,
+    projectAgentsDir: deps.cfg.paths.subagentsDir,
+    reloadSubagents: deps.reloadSubagents,
+    setAllowedSubagents,
+    setMessages,
+    initialOverlay: process.env.FORMAX_START_AGENTS_DIALOG === '1' ? { kind: 'agents' } : null,
+  })
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
   const historyRef = useRef<ChatHistory>([])
@@ -131,115 +143,6 @@ export function useReplController(deps: {
   const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
-
-  useEffect(() => overlayManagerRef.current.subscribe(setOverlay), [])
-
-  const closeAgentsDialog = useCallback(({ createdAgents }: { createdAgents: string[] }) => {
-    overlayManagerRef.current.close()
-    const lines =
-      createdAgents.length === 0
-        ? ['Agents dialog dismissed']
-        : ['Agent changes:', ...createdAgents.map((a) => `Created agent: ${a}`)]
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: lines.map((l) => `  ⎿  ${l}`).join('\n'),
-        timestamp: new Date(),
-      },
-    ])
-  }, [])
-
-  const closePermissionsDialog = useCallback(() => {
-    overlayManagerRef.current.close()
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '  ⎿  Permissions dialog dismissed',
-        timestamp: new Date(),
-      },
-    ])
-  }, [])
-
-  const closeHooksDialog = useCallback(() => {
-    overlayManagerRef.current.close()
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '  ⎿  Hooks dialog dismissed',
-        timestamp: new Date(),
-      },
-    ])
-  }, [])
-
-  const generateAgentDraft = useCallback(
-    async (description: string, signal?: AbortSignal): Promise<AgentsDialogGenerateDraft> => {
-      return generateAgentDraftWithClaude({
-        engine: deps.engine,
-        description,
-        cwd: process.cwd(),
-        signal,
-      })
-    },
-    [deps.engine],
-  )
-
-  const saveAgentFromDialog = useCallback(
-    async (args: AgentsDialogSaveArgs): Promise<AgentsDialogSaveResult> => {
-      const out = await createAgentFromWizardAnswers({
-        answers: {
-          scope:
-            args.scope === 'user'
-              ? 'User-level (~/.formax/agents)'
-              : 'Project-level (.formax/agents)',
-          name: args.name,
-          description: args.description,
-          systemPrompt: args.systemPrompt,
-          tools: args.tools,
-          model: args.model,
-          color: args.color,
-        },
-        cwd: process.cwd(),
-        projectAgentsDir: deps.cfg.paths.subagentsDir,
-      })
-
-      try {
-        const next = await deps.reloadSubagents?.()
-        if (next) setAllowedSubagents(next)
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: `Note: agent created but reload failed: ${msg}`,
-            timestamp: new Date(),
-          },
-        ])
-      }
-
-      if (args.openInEditor) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: `Saved agent: ${out.name} (${out.filePath}). Open this file in your editor to make edits.`,
-            timestamp: new Date(),
-          },
-        ])
-      }
-
-      return out
-    },
-    [deps.cfg.paths.subagentsDir, deps.reloadSubagents],
-  )
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
@@ -906,9 +809,9 @@ export function useReplController(deps: {
               })
             }
           } else if (eff.type === 'openOverlay') {
-            overlayManagerRef.current.open(eff.overlay)
+            openOverlay(eff.overlay)
           } else if (eff.type === 'closeOverlay') {
-            overlayManagerRef.current.close()
+            closeOverlay()
           } else if (eff.type === 'toast') {
             appended.push({
               id: `assistant-${Date.now()}`,
@@ -1245,8 +1148,10 @@ export function useReplController(deps: {
       deps.promptProfile,
       deps.reloadSubagents,
       deps.tools,
+      closeOverlay,
       handleEvent,
       isLoading,
+      openOverlay,
       setReplMode,
       userInput,
     ],
