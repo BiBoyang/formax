@@ -356,49 +356,65 @@ export async function maybeHandleConsumedSlashCommand(args: {
   return { slashEffect, shouldReturn: true }
 }
 
-export async function runMainSendTurn(args: {
-  text: string
-  slashEffect: SlashCommandEffect | null
-  provider: 'openai' | 'anthropic'
-  engine: ChatEngine
-  cfg: RuntimeConfig
-  promptProfile?: SystemPromptProfile
-  planSession?: PlanSessionManager | null
-  reminderServiceRef: { current: ReminderService | null }
-  tools: ToolDefinition[]
-  allowedSubagents: Array<{ name: string; description: string }>
-  mode: ReplMode
-  getReplMode: () => ReplMode
-  setReplMode: (next: ReplMode) => void
-  historyRef: { current: ChatHistory }
-  pendingInjectedBlocksRef: { current: PromptBlock[] }
-  pendingExitPlanReminderRef: { current: boolean }
-  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
-  abortControllerRef: { current: AbortController | null }
-  assistantBufferRef: { current: string }
-  thinkingBufferRef: { current: string }
-  thinkingLastFlushAtRef: { current: number }
-  currentAssistantIdRef: { current: string | null }
-  sendSeqRef: { current: number }
-  lastAutoCompactSeqRef: { current: number }
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  setIsLoading: Dispatch<SetStateAction<boolean>>
-  setLoadingText: Dispatch<SetStateAction<string>>
-  setThinkingText: Dispatch<SetStateAction<string>>
-  setError: Dispatch<SetStateAction<string | null>>
-  setContext: Dispatch<
-    SetStateAction<
-      | {
-          usedTokens: number
-          limitTokens: number
-          percentRemaining: number
-          source: 'estimate'
-        }
-      | null
+export async function runMainSendTurn(raw: {
+  input: {
+    text: string
+    slashEffect: SlashCommandEffect | null
+    provider: 'openai' | 'anthropic'
+  }
+  deps: {
+    engine: ChatEngine
+    cfg: RuntimeConfig
+    promptProfile?: SystemPromptProfile
+    planSession?: PlanSessionManager | null
+    reminderServiceRef: { current: ReminderService | null }
+    tools: ToolDefinition[]
+    allowedSubagents: Array<{ name: string; description: string }>
+    mode: ReplMode
+    getReplMode: () => ReplMode
+    setReplMode: (next: ReplMode) => void
+    handleEvent: (ev: StreamEvent) => void
+  }
+  refs: {
+    historyRef: { current: ChatHistory }
+    pendingInjectedBlocksRef: { current: PromptBlock[] }
+    pendingExitPlanReminderRef: { current: boolean }
+    contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+    abortControllerRef: { current: AbortController | null }
+    assistantBufferRef: { current: string }
+    thinkingBufferRef: { current: string }
+    thinkingLastFlushAtRef: { current: number }
+    currentAssistantIdRef: { current: string | null }
+    sendSeqRef: { current: number }
+    lastAutoCompactSeqRef: { current: number }
+  }
+  state: {
+    setMessages: Dispatch<SetStateAction<Msg[]>>
+    setIsLoading: Dispatch<SetStateAction<boolean>>
+    setLoadingText: Dispatch<SetStateAction<string>>
+    setThinkingText: Dispatch<SetStateAction<string>>
+    setError: Dispatch<SetStateAction<string | null>>
+    setContext: Dispatch<
+      SetStateAction<
+        | {
+            usedTokens: number
+            limitTokens: number
+            percentRemaining: number
+            source: 'estimate'
+          }
+        | null
+      >
     >
-  >
-  handleEvent: (ev: StreamEvent) => void
+  }
 }): Promise<void> {
+  const args = {
+    text: raw.input.text,
+    slashEffect: raw.input.slashEffect,
+    provider: raw.input.provider,
+    ...raw.deps,
+    ...raw.refs,
+    ...raw.state,
+  }
   const userMsg: Msg = {
     id: `user-${Date.now()}`,
     role: 'user',
