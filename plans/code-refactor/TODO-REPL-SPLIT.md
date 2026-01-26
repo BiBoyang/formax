@@ -427,7 +427,7 @@ export function useReplSend(args: {
   - 内容：抽 `isPromptMode(state, userInput, toolRegistry)` 为纯函数（逻辑保持一致）。
   - 验收：`bun run test -- src/screens/REPL.test.tsx`
 
-- [ ] 1.5 新增 `src/screens/repl/hotkeys.ts`（45–60min）
+- [x] 1.5 新增 `src/screens/repl/hotkeys.ts`（45–60min）
   - 文件：新增 `src/screens/repl/hotkeys.ts`；修改 `src/screens/REPL.tsx`
   - 内容：逐行迁移现有键盘逻辑（ctrl+c、ctrl+o、esc、shift+tab、↑↓、Tab），不改行为。
   - 验收：全量 `bun run test` + 手动 smoke（见文末）

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import path from 'node:path'
-import { Box, Text, useInput, Static } from 'ink'
+import { Box, Text, Static } from 'ink'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
@@ -28,12 +28,12 @@ import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
-import { useScopedInput } from '../features/repl/inputScopeContext'
 import type { TokenUsage } from '../streaming/types'
 import { deriveMessageItemDescriptors, findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
 import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
+import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
 
 type Props = {
@@ -171,93 +171,33 @@ export function REPL({
     setSlashSelectionTouched(false)
   }, [])
 
-  useInput(
-    (inputKey, key) => {
-      if (key.ctrl && inputKey === 'c') {
-        actions.abort()
-        onExit ? onExit() : process.exit(0)
-        return
-      }
+  useReplHotkeys({
+    onExit,
+    actions,
+    ensurePlanPath,
+    setMode,
+    isPromptMode,
+    userInput,
+    toolRegistry,
+    allMessages,
+    showDetailedTranscript,
+    setShowDetailedTranscript,
+    showExploreAgentsPanel,
+    setShowExploreAgentsPanel,
+    setDetailedTranscriptTargetId,
+    setShowThinking,
+    state: {
+      agentsDialogOpen: state.agentsDialogOpen,
+      permissionsDialogOpen: state.permissionsDialogOpen,
+      isLoading: state.isLoading,
+      thinkingText: state.thinkingText,
+      transientMessages: state.transientMessages,
     },
-    { isActive: true },
-  )
-
-  useScopedInput('repl', (inputKey, key) => {
-    if (key.ctrl && inputKey === 'o') {
-      if (state.agentsDialogOpen) return
-      if (state.permissionsDialogOpen) return
-      if (isPromptMode) return
-
-      if (state.isLoading && state.thinkingText.trim()) {
-        setShowThinking((v) => !v)
-        return
-      }
-
-      if (showDetailedTranscript) {
-        setShowDetailedTranscript(false)
-        return
-      }
-
-      if (showExploreAgentsPanel) {
-        setShowExploreAgentsPanel(false)
-        return
-      }
-
-      const lastMsg = allMessages.length > 0 ? allMessages[allMessages.length - 1] : null
-      const wantsExplorePanel =
-        lastMsg?.role === 'assistant' && /^\d+\s+Explore agents\s+finished\b/.test(lastMsg.content || '')
-
-      if (wantsExplorePanel) {
-        const lastExploreGroup = findLastContiguousExploreTaskGroup(allMessages)
-        if (lastExploreGroup && lastExploreGroup.tasks.length >= 2) {
-          setShowExploreAgentsPanel(true)
-          return
-        }
-      }
-
-      const lastTaskWithTranscript = [...allMessages].reverse().find((m) => {
-        if (m.role !== 'tool') return false
-        if (m.toolInfo?.name !== 'Task') return false
-        return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
-      })
-
-      if (lastTaskWithTranscript) {
-        setDetailedTranscriptTargetId(lastTaskWithTranscript.id)
-        setShowDetailedTranscript(true)
-      }
-      return
-    }
-
-    if (key.escape) {
-      if (state.agentsDialogOpen) return
-      if (state.permissionsDialogOpen) return
-      actions.abort()
-      return
-    }
-
-    if (isPromptMode) return
-
-    if (key.shift && key.tab) {
-      setMode((m) => {
-        const next = nextReplMode(m)
-        if (next === 'plan') ensurePlanPath()
-        return next
-      })
-      return
-    }
-
-    if (slashSuggestions.length > 0) {
-      if (key.downArrow) {
-        setSlashSelectionTouched(true)
-        setSlashIndex((i) => Math.min(i + 1, slashSuggestions.length - 1))
-      } else if (key.upArrow) {
-        setSlashSelectionTouched(true)
-        setSlashIndex((i) => Math.max(i - 1, 0))
-      } else if (key.tab && selectedSlash?.command) {
-        setInput(selectedSlash.command)
-        setSlashIndex(0)
-      }
-    }
+    slashSuggestions,
+    selectedSlash,
+    setSlashSelectionTouched,
+    setSlashIndex,
+    setInput,
   })
 
   const handleSend = useCallback(

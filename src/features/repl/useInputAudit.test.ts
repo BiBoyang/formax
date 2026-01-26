@@ -44,7 +44,7 @@ describe('useInput audit', () => {
       'src/components/ui/TextInput.tsx',
       'src/features/repl/inputScopeContext.tsx',
       'src/screens/LoadingExampleScreen.tsx',
-      'src/screens/REPL.tsx',
+      'src/screens/repl/hotkeys.ts',
       'src/screens/ToolExamplesScreen.tsx',
     ])
 
