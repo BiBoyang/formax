@@ -13,6 +13,7 @@
 
 - `/agents` / `/permissions` / `/hooks` overlay 打开时，↑↓ 不再被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
 - `/hooks` overlay 打开时：prompt mode 会更新、`Esc` 不会被 REPL 抢键：见 `src/screens/REPL.tsx`、`src/screens/repl/hotkeys.ts`、`src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
+- `/permissions` overlay 打开期间：`Enter/Esc/Tab/←→/Backspace/Delete/数字键` 不会被 REPL 抢键：见 `src/screens/REPL.overlays.test.tsx`
 
 ---
 
@@ -33,16 +34,6 @@
 目标：吸收 OpenCode 的“输入优先级/对话框栈/命令挂起”这些**框架无关**的稳定性设计点，但不迁移渲染框架（OpenCode 非 Ink/React，迁移代价过大）。
 
 ### S9-0：先补“稳定性契约”的回归网（小改动、低风险）
-
-- [ ] S9-0.2：把 overlay 抢键问题“全锁死”（只加测试，不改 UI）
-  - [ ] 扩 `src/screens/REPL.overlays.test.tsx`：在 overlay 打开期间，REPL 不得响应这些按键：
-    - [ ] `Enter`（不得触发 send）
-    - [ ] `Esc`
-    - [ ] `Tab`
-    - [ ] `←/→`
-    - [ ] `Backspace/Delete`
-    - [ ] `数字键`（例如 `1`）
-  - [ ] 同时验证：overlay 自己仍能收到这些按键（至少覆盖 1 个 overlay：`/hooks` 或 `/permissions`）
 
 - [ ] S9-0.2b：补 “InputScope 路由契约” 的底层回归（只加测试，不改实现）
   - [ ] `src/features/repl/inputScopeContext.test.tsx`：锁死 “只路由到 active scope” 的按键（至少覆盖）：

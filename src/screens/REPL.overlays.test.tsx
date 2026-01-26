@@ -224,6 +224,90 @@ describe('REPL overlay input gating', () => {
     }
   }, 20000)
 
+  it('does not route navigation keys to the REPL while /permissions overlay is open', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-permissions-keys-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: ['WebFetch', 'Bash(ls:*)'],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({ permissionsDialogOpen: true })
+
+      const { REPL } = await import('./REPL')
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(lastFrame, (f) => f.includes('Permissions:'))
+      await waitForFrame(lastFrame, (f) => f.includes('Add a new rule'))
+      await waitForFrame(lastFrame, (f) => f.includes('WebFetch'))
+      await waitForScope((s) => s === 'overlay:permissions')
+      await tick()
+
+      inputEvents = []
+
+      stdin.write('\u001B[D') // ←
+      await tick()
+      stdin.write('\u001B[C') // →
+      await tick()
+      stdin.write('1')
+      await tick()
+      stdin.write('\u007F') // Backspace
+      await tick()
+      stdin.write('\u001B[3~') // Delete
+      await tick()
+      stdin.write('\r') // Enter
+      await tick()
+
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+      expect(mockActions.send).toHaveBeenCalledTimes(0)
+
+      // overlay 自己能消费：Tab 切到 Ask 后，WebFetch 不应再出现（ask 为空）
+      stdin.write('\t')
+      const afterTab = await waitForFrame(lastFrame, (f) => f.includes('Permissions:') && !f.includes('WebFetch'))
+      expect(afterTab).not.toContain('WebFetch')
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+      expect(mockActions.send).toHaveBeenCalledTimes(0)
+
+      // Esc 不应触发 abort（交给 overlay 处理）
+      stdin.write('\u001B')
+      await tick()
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
   it('routes arrow keys to /agents overlay and hides the REPL input bar', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-agents-overlay-'))
     const projectRoot = path.join(repoRoot, 'repo')
