@@ -446,7 +446,7 @@ export function useReplSend(args: {
   - 内容：抽 `isAbortLikeError` / `isExactSlashCommand` / token&duration 格式化 / prompt 注入 helper 等；保持签名与行为。
   - 验收：`bun run test -- src/features/repl/useReplController.test.tsx`
 
-- [ ] 2.2 新建 `controller/messages.ts`，抽离 static/transient 分区（30–45min）
+- [x] 2.2 新建 `controller/messages.ts`，抽离 static/transient 分区（30–45min）
   - 文件：新增 `src/features/repl/controller/messages.ts`；修改 `src/features/repl/useReplController.ts`
   - 内容：`isTransientMessage` + `partitionMessages`（running tool/streaming assistant 必须在 transient，防止塞进 Static）。
   - 验收：`bun run test -- src/features/repl/useReplController.test.tsx`

@@ -41,6 +41,7 @@ import {
   isExactSlashCommand,
   sumInputTokens,
 } from './controller/utils'
+import { partitionMessages } from './controller/messages'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -262,13 +263,7 @@ export function useReplController(deps: {
   )
 
   const { staticMessages, transientMessages } = useMemo(() => {
-    const isTransient = (m: Msg) =>
-      (m.role === 'tool' && m.toolInfo?.status === 'running') || Boolean(m.isStreaming)
-
-    return {
-      staticMessages: messages.filter((m) => !isTransient(m)),
-      transientMessages: messages.filter((m) => isTransient(m)),
-    }
+    return partitionMessages(messages)
   }, [messages])
 
   const flushAssistantBuffer = useCallback(() => {
