@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import path from 'node:path'
-import { Box, Text, Static } from 'ink'
+import { Box, Text } from 'ink'
 import type { ChatEngine } from '../chat/engine'
 import type { RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
@@ -8,7 +8,6 @@ import type { ToolRegistry } from '../tools/registry'
 import { useReplController } from '../features/repl/useReplController'
 import { ToolRouter } from '../components/tool/ToolRouter'
 import type { Msg } from '../components/tool/ToolMessage'
-import { HeaderBanner } from '../components/chat/HeaderBanner'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
 import { ModeIndicator } from '../components/chat/ModeIndicator'
@@ -17,7 +16,7 @@ import { ReplUiProvider } from '../features/repl/replUiContext'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine'
 import { ThinkingStatusLine } from '../components/ui/ThinkingStatusLine'
 import { PulsingDot } from '../components/ui/PulsingDot'
-import { nextReplMode, type ReplMode } from '../features/repl/mode'
+import type { ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
@@ -29,12 +28,13 @@ import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
-import { deriveMessageItemDescriptors, findLastContiguousExploreTaskGroup } from './repl/messageItems'
+import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
 import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
 import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
+import { ReplTranscript } from './repl/transcript'
 
 type Props = {
   onExit?: () => void
@@ -262,13 +262,6 @@ export function REPL({
     [toolRegistry],
   )
 
-  const renderMessageItems = useCallback(
-    (messages: Msg[]) => {
-      return messages.map((message) => ({ key: message.id, jsx: renderMessage(message) }))
-    },
-    [renderMessage],
-  )
-
   const modelLabel = useMemo(() => {
     const model = cfg.llm.model || process.env.ANTHROPIC_MODEL || 'Model not set'
     return `Model: ${model}`
@@ -284,21 +277,7 @@ export function REPL({
     return `Context: ${pct}% free (${used}/${limit}, ${src})`
   }, [cfg.ui.showContextMeter, state.context])
 
-  // Header 作为 Static 列表的第一项（避免 Static items 把消息刷到 header 上方）
-  const staticItems = useMemo(() => {
-    const header = {
-      key: 'header',
-      jsx: (
-        <HeaderBanner
-          version={(pkg as any).version || '0.0.0'}
-          modelLabel={modelLabel}
-          cwd={process.cwd()}
-        />
-      ),
-    }
-    const messages = renderMessageItems(state.staticMessages)
-    return [header, ...messages]
-  }, [modelLabel, renderMessageItems, state.staticMessages])
+  const replCwd = useMemo(() => process.cwd(), [])
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
@@ -329,14 +308,15 @@ export function REPL({
       <ReplUiProvider abort={actions.abort}>
         <Box flexDirection="column" height="100%">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            {/* Header + 消息 Static */}
-            <Static key={state.transcriptSeq} items={staticItems}>
-              {(item) => <Box key={item.key}>{item.jsx}</Box>}
-            </Static>
-
-            {renderMessageItems(state.transientMessages).map((item) => (
-              <Box key={item.key}>{item.jsx}</Box>
-            ))}
+            <ReplTranscript
+              transcriptSeq={state.transcriptSeq}
+              version={(pkg as any).version || '0.0.0'}
+              modelLabel={modelLabel}
+              cwd={replCwd}
+              staticMessages={state.staticMessages}
+              transientMessages={state.transientMessages}
+              renderMessage={renderMessage}
+            />
 
             {showExploreAgentsPanel && !isPromptMode && (
               <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />

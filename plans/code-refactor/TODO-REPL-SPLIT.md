@@ -432,7 +432,7 @@ export function useReplSend(args: {
   - 内容：逐行迁移现有键盘逻辑（ctrl+c、ctrl+o、esc、shift+tab、↑↓、Tab），不改行为。
   - 验收：全量 `bun run test` + 手动 smoke（见文末）
 
-- [ ] 1.6 新增 `src/screens/repl/transcript.tsx`（45–60min）
+- [x] 1.6 新增 `src/screens/repl/transcript.tsx`（45–60min）
   - 文件：新增 `src/screens/repl/transcript.tsx`；修改 `src/screens/REPL.tsx`
   - 内容：抽 Static + transient 渲染；必须保留 “Header 作为 Static 第一个 item” 的策略（避免消息跑到 header 上方）。
   - 验收：`bun run test -- src/screens/REPL.test.tsx`
