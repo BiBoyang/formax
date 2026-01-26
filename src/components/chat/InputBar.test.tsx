@@ -55,6 +55,20 @@ describe('InputBar', () => {
     expect(onChange).toHaveBeenCalledWith('a')
   })
 
+  it('does not treat Tab as text input', async () => {
+    const onChange = vi.fn()
+    const { stdin } = render(<Harness initialScope="repl" initialValue="ab" onChange={onChange} />)
+    await tick()
+
+    stdin.write('\t')
+    await tick()
+    expect(onChange).not.toHaveBeenCalled()
+
+    stdin.write('c')
+    await tick()
+    expect(onChange).toHaveBeenLastCalledWith('abc')
+  })
+
   it('does not accept input when a non-repl scope is active', async () => {
     const onChange = vi.fn()
     const { stdin } = render(<Harness initialScope="overlay:test" onChange={onChange} />)
