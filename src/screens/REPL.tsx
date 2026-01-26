@@ -150,7 +150,14 @@ export function REPL({
 
   const isPromptMode = useMemo(
     () => computePromptMode({ state, userInput, toolRegistry }),
-    [state.agentsDialogOpen, state.permissionsDialogOpen, state.transientMessages, toolRegistry, userInput],
+    [
+      state.agentsDialogOpen,
+      state.permissionsDialogOpen,
+      state.hooksDialogOpen,
+      state.transientMessages,
+      toolRegistry,
+      userInput,
+    ],
   )
 
   const allMessages = useMemo(
@@ -189,6 +196,7 @@ export function REPL({
     state: {
       agentsDialogOpen: state.agentsDialogOpen,
       permissionsDialogOpen: state.permissionsDialogOpen,
+      hooksDialogOpen: state.hooksDialogOpen,
       isLoading: state.isLoading,
       thinkingText: state.thinkingText,
       transientMessages: state.transientMessages,

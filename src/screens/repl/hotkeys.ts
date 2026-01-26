@@ -30,6 +30,7 @@ export function useReplHotkeys(args: {
   state: {
     agentsDialogOpen: boolean
     permissionsDialogOpen: boolean
+    hooksDialogOpen: boolean
     isLoading: boolean
     thinkingText: string
     transientMessages: Msg[]
@@ -77,6 +78,7 @@ export function useReplHotkeys(args: {
     if (key.ctrl && inputKey === 'o') {
       if (state.agentsDialogOpen) return
       if (state.permissionsDialogOpen) return
+      if (state.hooksDialogOpen) return
       if (isPromptMode) return
 
       if (state.isLoading && state.thinkingText.trim()) {
@@ -122,6 +124,7 @@ export function useReplHotkeys(args: {
     if (key.escape) {
       if (state.agentsDialogOpen) return
       if (state.permissionsDialogOpen) return
+      if (state.hooksDialogOpen) return
       actions.abort()
       return
     }

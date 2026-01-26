@@ -335,4 +335,50 @@ describe('REPL overlay input gating', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 20000)
+
+  it('updates prompt mode when /hooks overlay opens', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-hooks-prompt-mode-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(path.join(projectConfigDir, 'settings.local.json'), JSON.stringify({ version: 1, hooks: {} }, null, 2), 'utf8')
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({ hooksDialogOpen: false })
+
+      const { REPL } = await import('./REPL')
+      const ui = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(ui.lastFrame, (f) => f.includes('Try "fix typecheck errors"'))
+
+      mockState = baseState({ hooksDialogOpen: true })
+      ui.rerender(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      const afterOpen = await waitForFrame(ui.lastFrame, (f) => f.includes('Hook Configuration'))
+      expect(afterOpen).not.toContain('Try "fix typecheck errors"')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
 })
