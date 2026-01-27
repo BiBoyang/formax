@@ -8,6 +8,15 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForCalls(fn: { mock: { calls: unknown[] } }, count = 1, timeoutMs = 15000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (fn.mock.calls.length >= count) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for fn to be called ${count} times (got ${fn.mock.calls.length})`)
+}
+
 function OverlayToggle({ open }: { open: boolean }): React.ReactNode {
   useScopeActivation('overlay:test', open)
   return null
@@ -51,7 +60,7 @@ describe('InputBar', () => {
     const { stdin } = render(<Harness initialScope="repl" onChange={onChange} />)
     await tick()
     stdin.write('a')
-    await tick()
+    await waitForCalls(onChange, 1)
     expect(onChange).toHaveBeenCalledWith('a')
   })
 

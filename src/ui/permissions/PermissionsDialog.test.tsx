@@ -19,7 +19,7 @@ function tick(): Promise<void> {
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -34,7 +34,7 @@ async function waitForText(
 async function waitForNoText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -49,7 +49,7 @@ async function waitForNoText(
 async function waitForJsonContains(
   filePath: string,
   predicate: (parsed: any) => boolean,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -274,15 +274,13 @@ describe('PermissionsDialog', () => {
       stdin.write('\u001B[D')
       await tick()
 
-      expect(lastFrame()).toContain('abc▏de')
+      await waitForText(lastFrame, 'abc▏de')
 
       stdin.write('\x7f')
-      await tick()
-      expect(lastFrame()).toContain('ab▏de')
+      await waitForText(lastFrame, 'ab▏de')
 
       stdin.write('X')
-      await tick()
-      expect(lastFrame()).toContain('abX▏de')
+      await waitForText(lastFrame, 'abX▏de')
     } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR

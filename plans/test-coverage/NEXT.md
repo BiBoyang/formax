@@ -13,13 +13,24 @@
 - [ ] 更新本文件：把完成项直接删除（不留 `[x]` 噪音）
 - [ ] `git add` + commit（Conventional Commit）
 
-## 优先顺序（跳过 search / glob / webFetch 后）
+## 优先顺序（按 Branches 倒序；跳过 search / glob / webFetch）
+
+> 参考你最新的 coverage report 截图（Branches 列）。
+
+### 1) `src/tools/modules/killShell`
+
+### 2) `src/tools/executor/handlers`
+
+### 3) `src/tools/presenters`
+
+### 4) `src/tools/modules/webSearch`
+
+### 5) `src/streaming/anthropic`
 
 ### 6) `src/tools/modules/taskOutput`
 
 ### 7) `src/components/chat`
-
-- [ ] 按 coverage 报告挑 1-2 个“分支多且常触发”的组件补测试（Ink UI：键盘路由/条件渲染）
+（已补 `HeaderBanner.tsx` 的关键分支；如仍需提升，再按 report 选下一个组件）
 
 ### 8) `src/tools/modules/notebookEdit`
 

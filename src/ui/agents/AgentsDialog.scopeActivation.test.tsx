@@ -24,7 +24,7 @@ async function waitForText(lastFrame: () => string | undefined, text: string, ti
 async function waitForPredicate(
   lastFrame: () => string | undefined,
   predicate: (frame: string) => boolean,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<string> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {

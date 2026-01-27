@@ -178,7 +178,9 @@ export function useScopedRoutedInput(
     handlerRef.current = handler
   }, [handler])
 
-  useEffect(() => {
+  // Register synchronously (layout effect) so the handler is available immediately after a view/scope switch.
+  // Using `useEffect` can drop early keystrokes in fast UIs or under coverage/slow test runs.
+  useLayoutEffect(() => {
     if (!hasRouter) return
     if (!enabled) return
     return registerHandler({

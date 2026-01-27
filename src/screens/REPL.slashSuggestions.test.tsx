@@ -115,7 +115,7 @@ function tick(): Promise<void> {
 async function waitForFrame(
   lastFrame: () => string | undefined,
   predicate: (frame: string) => boolean,
-  timeoutMs = 1500,
+  timeoutMs = 15000,
 ): Promise<string> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -137,7 +137,7 @@ describe('REPL slash suggestions', () => {
 
     try {
       stdin.write('/st')
-      await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('/status'))
 
       stdin.write('\r')
       await tick()
@@ -155,7 +155,7 @@ describe('REPL slash suggestions', () => {
 
     try {
       stdin.write('/st')
-      await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('/status'))
 
       stdin.write('\t')
       await tick()

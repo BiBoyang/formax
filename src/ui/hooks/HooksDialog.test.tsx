@@ -35,7 +35,7 @@ async function moveCursorToItem(
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -50,7 +50,7 @@ async function waitForText(
 async function waitForJsonContains(
   filePath: string,
   predicate: (parsed: any) => boolean,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {

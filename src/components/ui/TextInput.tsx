@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
@@ -80,11 +80,14 @@ export default function TextInput({
   const onChangeRef = useRef(onChange)
   const onSubmitRef = useRef(onSubmit)
 
-  useEffect(() => {
+  // Keep refs in sync before Ink can process the next input event.
+  // `useEffect` can be too late (after a paint) and lead to stale handlers when props change quickly
+  // (e.g. slash suggestions update `onSubmit` while the user hits Enter immediately).
+  useLayoutEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onSubmitRef.current = onSubmit
   }, [onSubmit])
 
