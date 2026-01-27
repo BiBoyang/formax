@@ -17,11 +17,6 @@
 
 ### 6) `src/tools/modules/taskOutput`
 
-- [ ] 覆盖：
-  - [ ] 空输出/缺字段
-  - [ ] 多段输出（合并/渲染分支）
-  - [ ] 错误输出分支
-
 ### 7) `src/components/chat`
 
 - [ ] 按 coverage 报告挑 1-2 个“分支多且常触发”的组件补测试（Ink UI：键盘路由/条件渲染）

@@ -24,6 +24,28 @@ describe('TaskOutputToolHandler', () => {
     expect(parsed.status).toBe('running')
   })
 
+  it('includes partial output when running (non-blocking)', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({
+      kind: 'other',
+      run: async ({ updateResult }) => {
+        updateResult({ content: 'partial' })
+        await sleep(50)
+        return { content: 'done' }
+      },
+    })
+
+    const handler = createTaskOutputToolHandler(manager)
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, block: false } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('running')
+    expect(parsed.output).toBe('partial')
+  })
+
   it('blocks until completion when requested', async () => {
     const manager = new TaskManager()
     const taskId = manager.create({ kind: 'other', run: async () => {
@@ -60,6 +82,29 @@ describe('TaskOutputToolHandler', () => {
     expect(parsed.timed_out).toBe(true)
   })
 
+  it('includes partial output when timed out waiting', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({
+      kind: 'other',
+      run: async ({ updateResult }) => {
+        updateResult({ content: 'partial' })
+        await sleep(50)
+        return { content: 'ok' }
+      },
+    })
+
+    const handler = createTaskOutputToolHandler(manager)
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, block: true, timeout: 1 } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('running')
+    expect(parsed.timed_out).toBe(true)
+    expect(parsed.output).toBe('partial')
+  })
+
   it('returns error when task is missing', async () => {
     const handler = createTaskOutputToolHandler(new TaskManager())
     const res = await handler.execute(
@@ -71,6 +116,23 @@ describe('TaskOutputToolHandler', () => {
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe('missing')
     expect(parsed.output).toContain("Task 'missing' not found")
+  })
+
+  it('propagates task error status and is_error flag', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({ kind: 'other', run: async () => ({ content: 'bad', is_error: true }) })
+    await sleep(1)
+
+    const handler = createTaskOutputToolHandler(manager)
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, block: false } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.output).toBe('bad')
   })
 
   it('returns JSON error when task_id is missing', async () => {
@@ -101,5 +163,56 @@ describe('TaskOutputToolHandler', () => {
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe(taskId)
     expect(parsed.output).toContain('timeout must be a number')
+  })
+
+  it('returns JSON error when timeout is negative', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({ kind: 'other', run: async () => ({ content: 'ok' }) })
+    const handler = createTaskOutputToolHandler(manager)
+
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, timeout: -1 } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.task_id).toBe(taskId)
+    expect(parsed.output).toContain('timeout must be >= 0')
+  })
+
+  it('returns JSON error when timeout exceeds MAX_TIMEOUT_MS', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({ kind: 'other', run: async () => ({ content: 'ok' }) })
+    const handler = createTaskOutputToolHandler(manager)
+
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, timeout: 600001 } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.task_id).toBe(taskId)
+    expect(parsed.output).toContain('timeout must be <=')
+  })
+
+  it('returns JSON error when input contains unexpected keys', async () => {
+    const manager = new TaskManager()
+    const taskId = manager.create({ kind: 'other', run: async () => ({ content: 'ok' }) })
+    const handler = createTaskOutputToolHandler(manager)
+
+    const res = await handler.execute(
+      { id: '1', name: 'TaskOutput', input: { task_id: taskId, extra: true } as any },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    const parsed = JSON.parse(res.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.task_id).toBe(taskId)
+    expect(parsed.output).toContain('Error:')
   })
 })
