@@ -17,12 +17,7 @@
 
 > 参考你最新的 coverage report 截图（Branches 列）。
 
-### 1) `src/tools/modules/notebookEdit`
-
-- [ ] 覆盖常见失败分支（路径/输入/权限）
-- [ ] 覆盖成功路径的关键边界（空 patch/多 patch/无变更）
-
-### 2) `src/tools/modules/grep`
+### 1) `src/tools/modules/grep`
 
 - [ ] 覆盖：
   - [ ] 0 matches
