@@ -12,11 +12,6 @@
 
 ## P2（REPL 交互：快捷键/面板/覆盖 UI 分支）
 
-### 7) Hotkeys：`src/screens/repl/hotkeys.ts`
-
-- [ ] 扩展 `src/screens/repl/hotkeys.test.tsx`（建议用现有 REPL 测试模式/上下文）
-  - [ ] `escape`：调用 `actions.abort()`（promptMode/overlay 打开时应被拦截）
-
 ### 8) Panels：`src/screens/repl/panels.tsx`
 
 - [ ] 新增 `src/screens/repl/panels.test.tsx`

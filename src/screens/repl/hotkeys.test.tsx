@@ -441,15 +441,23 @@ describe('useReplHotkeys', () => {
     expect(mode).toBe('plan')
   })
 
-  it('does not abort on Escape when hooks dialog is open', async () => {
+  it('aborts on Escape unless an overlay is open', async () => {
     const setMode = vi.fn()
 
-    const Harness = ({ hooksDialogOpen }: { hooksDialogOpen: boolean }) => {
+    const Harness = ({
+      agentsDialogOpen,
+      permissionsDialogOpen,
+      hooksDialogOpen,
+    }: {
+      agentsDialogOpen: boolean
+      permissionsDialogOpen: boolean
+      hooksDialogOpen: boolean
+    }) => {
       useReplHotkeys({
         actions,
         ensurePlanPath: () => {},
         setMode,
-        isPromptMode: hooksDialogOpen,
+        isPromptMode: agentsDialogOpen || permissionsDialogOpen || hooksDialogOpen,
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
@@ -460,8 +468,8 @@ describe('useReplHotkeys', () => {
         setDetailedTranscriptTargetId: () => {},
         setShowThinking: () => {},
         state: {
-          agentsDialogOpen: false,
-          permissionsDialogOpen: false,
+          agentsDialogOpen,
+          permissionsDialogOpen,
           hooksDialogOpen,
           isLoading: false,
           thinkingText: '',
@@ -478,7 +486,7 @@ describe('useReplHotkeys', () => {
 
     const ui = render(
       <InputScopeProvider initialScope="repl">
-        <Harness hooksDialogOpen={false} />
+        <Harness agentsDialogOpen={false} permissionsDialogOpen={false} hooksDialogOpen={false} />
       </InputScopeProvider>,
     )
 
@@ -487,13 +495,36 @@ describe('useReplHotkeys', () => {
     await tick()
     expect(actions.abort).toHaveBeenCalledTimes(1)
 
-    actions.abort.mockClear()
-    ui.rerender(
-      <InputScopeProvider initialScope="repl">
-        <Harness hooksDialogOpen />
-      </InputScopeProvider>,
-    )
+    const rerenderWith = (state: {
+      agentsDialogOpen: boolean
+      permissionsDialogOpen: boolean
+      hooksDialogOpen: boolean
+    }) => {
+      actions.abort.mockClear()
+      ui.rerender(
+        <InputScopeProvider initialScope="repl">
+          <Harness
+            agentsDialogOpen={state.agentsDialogOpen}
+            permissionsDialogOpen={state.permissionsDialogOpen}
+            hooksDialogOpen={state.hooksDialogOpen}
+          />
+        </InputScopeProvider>,
+      )
+    }
 
+    rerenderWith({ agentsDialogOpen: true, permissionsDialogOpen: false, hooksDialogOpen: false })
+    await tick()
+    ui.stdin.write('\u001B')
+    await tick()
+    expect(actions.abort).toHaveBeenCalledTimes(0)
+
+    rerenderWith({ agentsDialogOpen: false, permissionsDialogOpen: true, hooksDialogOpen: false })
+    await tick()
+    ui.stdin.write('\u001B')
+    await tick()
+    expect(actions.abort).toHaveBeenCalledTimes(0)
+
+    rerenderWith({ agentsDialogOpen: false, permissionsDialogOpen: false, hooksDialogOpen: true })
     await tick()
     ui.stdin.write('\u001B')
     await tick()
