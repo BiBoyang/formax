@@ -431,4 +431,80 @@ describe('TaskSubAgentToolHandler', () => {
     expect(waited.snapshot.status).toBe('completed')
     expect(waited.snapshot.result?.content).toBe('background')
   })
+
+  it('bounds search-like transcript output and summarizes hidden tool uses', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+
+    const manyPaths = Array.from({ length: 30 }, (_, i) => `file${i}.ts`).join('\n')
+
+    const runner: SubAgentRunner = {
+      async run(args) {
+        args.onEvent?.({ type: 'tool_start', id: 't1', name: 'Search' })
+        args.onEvent?.({ type: 'tool_input', id: 't1', input: { pattern: 'x', path: '/tmp' } })
+        args.onEvent?.({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: manyPaths } })
+
+        args.onEvent?.({ type: 'tool_start', id: 't2', name: 'Read' })
+        args.onEvent?.({ type: 'tool_input', id: 't2', input: { file_path: '/Users/david/Documents/github/formax/README.md' } })
+        args.onEvent?.({ type: 'tool_end', id: 't2', result: { tool_use_id: 't2', content: 'Read 1 lines' } })
+
+        args.onEvent?.({ type: 'tool_start', id: 't3', name: 'Bash' })
+        args.onEvent?.({ type: 'tool_input', id: 't3', input: { command: 'echo hi' } })
+        args.onEvent?.({
+          type: 'tool_end',
+          id: 't3',
+          result: { tool_use_id: 't3', content: 'Error: Exit code 1\\nboom', is_error: true },
+        })
+
+        args.onEvent?.({ type: 'tool_start', id: 't4', name: 'Write' })
+        args.onEvent?.({ type: 'tool_start', id: 't5', name: 'Grep' })
+
+        return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+      },
+    }
+
+    const events: any[] = []
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
+    }
+
+    const result = await handler.execute(call, {
+      cwd: process.cwd(),
+      agentDepth: 0,
+      onEvent: (ev) => events.push(ev),
+    })
+
+    expect(result.is_error).toBeFalsy()
+
+    const lastUpdate = events.filter((e) => e.type === 'tool_update' && e.id === '1').slice(-1)[0]
+    expect(Array.isArray(lastUpdate.middleLines)).toBe(true)
+    expect(lastUpdate.middleLines.some((l: string) => l.includes('+3 more tool uses'))).toBe(true)
+
+    const parsed = JSON.parse(result.content)
+    const transcript = Array.isArray(parsed.transcript) ? parsed.transcript.join('\n') : ''
+    expect(transcript).toContain('… +5 more')
+    expect(transcript).toContain('Exit code 1')
+  })
 })
