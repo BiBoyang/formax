@@ -17,46 +17,40 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/tools/modules/exitPlanMode/handler.ts`
-
-- [ ] 覆盖：
-  - [ ] 正常退出路径
-  - [ ] 非 plan mode / 无 session 等边界路径
-
-### 2) `src/utils/terminal.ts`
+### 1) `src/utils/terminal.ts`
 
 - [ ] 覆盖：
   - [ ] ANSI/clear 等封装的主要分支
   - [ ] no-op / 环境不支持的边界分支
 
-### 3) `src/screens/repl/promptMode.ts`
+### 2) `src/screens/repl/promptMode.ts`
 
 - [ ] 覆盖：
   - [ ] prompt mode 判定的主要分支
   - [ ] 与 overlays/hooks 相关的 guard 分支
 
-### 4) `src/adapters/permissions/permissionKeys.ts`
+### 3) `src/adapters/permissions/permissionKeys.ts`
 
 - [ ] 覆盖：
   - [ ] key 解析/格式化的分支（合法 + 非法）
 
-### 5) `src/adapters/fs/checkWritableDir.ts`
+### 4) `src/adapters/fs/checkWritableDir.ts`
 
 - [ ] 覆盖：
   - [ ] 可写/不可写/不存在 的分支
 
-### 6) `src/tools/modules/bash/presenter.tsx`
+### 5) `src/tools/modules/bash/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] error 输出（exit code + stderr 展示）
   - [ ] approved/denied/pending 等分支
 
-### 7) `src/tools/modules/write/presenter.tsx`
+### 6) `src/tools/modules/write/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] prompt/pending 与完成态分支
 
-### 8) `src/ui/hooks/utils.ts`
+### 7) `src/ui/hooks/utils.ts`
 
 - [ ] 覆盖：
   - [ ] matcher/hook label 相关分支（含无 matcher 事件）

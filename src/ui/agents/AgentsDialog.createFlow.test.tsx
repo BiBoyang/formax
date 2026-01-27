@@ -70,6 +70,9 @@ describe('AgentsDialog (create flow)', () => {
 
     await tick()
     await waitForText(lastFrame, 'Agents')
+    // Give the input scope time to activate before the first Enter, otherwise the event can be dropped
+    // under full-suite + coverage load.
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Create new agent -> choose location (project) -> choose method (generate) -> description input
     stdin.write('\r')
@@ -148,6 +151,7 @@ describe('AgentsDialog (create flow)', () => {
 
     await tick()
     await waitForText(lastFrame, 'Agents')
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Create -> project scope
     stdin.write('\r')

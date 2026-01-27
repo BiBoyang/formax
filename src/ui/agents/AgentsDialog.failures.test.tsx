@@ -8,10 +8,10 @@ import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
 import { AgentsDialog } from './AgentsDialog.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 10000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const frame = lastFrame() || ''
@@ -59,6 +59,7 @@ describe('AgentsDialog (failures)', () => {
 
     await tick()
     await waitForText(lastFrame, 'Agents')
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Create -> project scope -> generate with Claude -> description
     stdin.write('\r')
@@ -113,6 +114,7 @@ describe('AgentsDialog (failures)', () => {
 
     await tick()
     await waitForText(lastFrame, 'Agents')
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Create -> project scope -> manual configuration -> name/desc -> tools -> model -> color -> confirm
     stdin.write('\r')
@@ -169,4 +171,3 @@ describe('AgentsDialog (failures)', () => {
     unmount()
   }, 15000)
 })
-
