@@ -17,52 +17,46 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/subagents/builtins.ts`
-
-- [ ] 覆盖：
-  - [ ] builtins 列表/映射的主要分支
-  - [ ] 关键 guard（缺字段/默认值）
-
-### 2) `src/tools/modules/exitPlanMode/handler.ts`
+### 1) `src/tools/modules/exitPlanMode/handler.ts`
 
 - [ ] 覆盖：
   - [ ] 正常退出路径
   - [ ] 非 plan mode / 无 session 等边界路径
 
-### 3) `src/utils/terminal.ts`
+### 2) `src/utils/terminal.ts`
 
 - [ ] 覆盖：
   - [ ] ANSI/clear 等封装的主要分支
   - [ ] no-op / 环境不支持的边界分支
 
-### 4) `src/screens/repl/promptMode.ts`
+### 3) `src/screens/repl/promptMode.ts`
 
 - [ ] 覆盖：
   - [ ] prompt mode 判定的主要分支
   - [ ] 与 overlays/hooks 相关的 guard 分支
 
-### 5) `src/adapters/permissions/permissionKeys.ts`
+### 4) `src/adapters/permissions/permissionKeys.ts`
 
 - [ ] 覆盖：
   - [ ] key 解析/格式化的分支（合法 + 非法）
 
-### 6) `src/adapters/fs/checkWritableDir.ts`
+### 5) `src/adapters/fs/checkWritableDir.ts`
 
 - [ ] 覆盖：
   - [ ] 可写/不可写/不存在 的分支
 
-### 7) `src/tools/modules/bash/presenter.tsx`
+### 6) `src/tools/modules/bash/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] error 输出（exit code + stderr 展示）
   - [ ] approved/denied/pending 等分支
 
-### 8) `src/tools/modules/write/presenter.tsx`
+### 7) `src/tools/modules/write/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] prompt/pending 与完成态分支
 
-### 9) `src/ui/hooks/utils.ts`
+### 8) `src/ui/hooks/utils.ts`
 
 - [ ] 覆盖：
   - [ ] matcher/hook label 相关分支（含无 matcher 事件）

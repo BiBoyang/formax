@@ -37,6 +37,11 @@ function loadPrompt(fileName: string, vars: PromptVars, fallback: string): strin
   return interpolatePrompt(stripped, vars).trim()
 }
 
+export const __testOnly = {
+  stripLeadingHtmlComment,
+  interpolatePrompt,
+}
+
 export function getBuiltinSubagents(): SubAgentConfig[] {
   const commonVars: PromptVars = {
     GLOB_TOOL_NAME: 'Glob',
