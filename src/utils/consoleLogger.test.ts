@@ -157,6 +157,10 @@ describe('sendLogMessageToClients', () => {
 })
 
 describe('startConsoleLogger/stopConsoleLogger', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('startConsoleLogger is idempotent (does not create multiple servers)', () => {
     startConsoleLogger(3333)
     startConsoleLogger(3333)
