@@ -4,6 +4,7 @@ import TextInput from '../../components/ui/TextInput'
 import { RotatingStar } from '../../components/ui/RotatingStar'
 import { getTheme } from '../../utils/theme'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
+import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import {
   Spacer,
   DialogFrame,
@@ -64,6 +65,7 @@ export function AgentsDialog({
 }): React.ReactNode {
   const theme = useMemo(() => getTheme(), [])
   useScopeActivation('overlay:agents')
+  const escapeBufferRef = useRef('')
 
   const [diskUserAgents, setDiskUserAgents] = useState<Record<string, DiskAgentInfo>>({})
   const [diskProjectAgents, setDiskProjectAgents] = useState<Record<string, DiskAgentInfo>>({})
@@ -524,16 +526,47 @@ export function AgentsDialog({
   ])
 
   useScopedInput('overlay:agents', (input, key) => {
-    if (handleBusyKeys(input, key)) return
-    if (handleErrorKeys(input, key)) return
-    if (handleManualTextKeys(input, key)) return
+    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+    const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+    const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
 
-    if (handleEscapeKeys(input, key)) return
-    if (handleConfirmKeys(input, key)) return
-    if (handleListKeys(input, key)) return
-    if (handleChoiceCursorKeys(input, key)) return
+    if (key.escape || keyName === 'escape') escapeBufferRef.current = ''
 
-    if (key.return) {
+    const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
+    const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
+
+    // In some environments/tests, arrow escape sequences can arrive split across multiple
+    // `useInput` calls. Buffer ESC sequences so Up/Down work reliably.
+    let bufferedUp = false
+    let bufferedDown = false
+    if (!isUpArrowKey && !isDownArrowKey && token) {
+      const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
+      escapeBufferRef.current = res.nextBuffer
+      if (res.pending) return
+      bufferedUp = res.arrow === 'up'
+      bufferedDown = res.arrow === 'down'
+    }
+
+    const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
+    const isDown = isDownArrowKey || bufferedDown || token === '\u001B[B' || token === '\u001BOB'
+
+    const patchedKey = (isUp || isDown) && !(key as any)?.upArrow && !(key as any)?.downArrow
+      ? ({ ...key, upArrow: isUp, downArrow: isDown } as any)
+      : (key as any)
+
+    const forwardedInput = isUp || isDown ? '' : input
+
+    if (handleBusyKeys(forwardedInput, patchedKey)) return
+    if (handleErrorKeys(forwardedInput, patchedKey)) return
+    if (handleManualTextKeys(forwardedInput, patchedKey)) return
+
+    if (handleEscapeKeys(forwardedInput, patchedKey)) return
+    if (handleConfirmKeys(forwardedInput, patchedKey)) return
+    if (handleListKeys(forwardedInput, patchedKey)) return
+    if (handleChoiceCursorKeys(forwardedInput, patchedKey)) return
+
+    const isEnter = Boolean(patchedKey.return) || keyName === 'return' || token === '\r' || token === '\n'
+    if (isEnter) {
       if (handleChoiceEnterKeys()) return
     }
   })

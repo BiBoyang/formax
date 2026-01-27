@@ -174,6 +174,51 @@ describe('AgentsDialog', () => {
     unmount()
   })
 
+  it('handles arrow escape sequences for Up/Down navigation', async () => {
+    const onExit = vi.fn()
+    const userDir = await makeTempDir('formax-agents-user-')
+    const projectDir = await makeTempDir('formax-agents-project-')
+
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="overlay:agents">
+        <AgentsDialog
+          agents={[
+            { name: 'design-planner', description: 'help design things' },
+            { name: 'general-purpose', description: 'builtin' },
+          ]}
+          toolNames={['Read', 'Grep', 'Write']}
+          userAgentsDir={userDir}
+          projectAgentsDir={projectDir}
+          onGenerateDraft={async () => ({
+            name: 'draft',
+            description: 'draft',
+            systemPrompt: 'sys',
+          })}
+          onSaveAgent={async () => ({ name: 'draft', filePath: path.join(projectDir, 'draft.md') })}
+          onExit={onExit}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    await waitForText(lastFrame, 'Agents')
+    expect(lastFrame()).toContain('> Create new agent')
+
+    // Down arrow (escape sequence)
+    stdin.write('\u001B[B')
+    await tick()
+
+    // Should move selection to the first agent row
+    await waitForText(lastFrame, '> design-planner')
+
+    // Up arrow (escape sequence)
+    stdin.write('\u001B[A')
+    await tick()
+
+    await waitForText(lastFrame, '> Create new agent')
+    unmount()
+  })
+
   it('supports manual agent creation flow', async () => {
     const onExit = vi.fn()
     const userDir = await makeTempDir('formax-agents-user-')
