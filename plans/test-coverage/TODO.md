@@ -5,34 +5,16 @@
 > - Branches: 59.76% (5433 / 9091)
 > - Functions: 78.81% (1395 / 1770)
 
-## 运行方式（常用命令）
+## 环境/配置（可选，但建议）
 
-- 全量覆盖率：`npm run test:coverage`（或 `bun run test:coverage`）
-- 单文件覆盖率：`npx vitest run --coverage src/path/to/file.test.ts`
-- HTML 报告：`coverage/index.html`
-
-## 环境/配置 TODO（先做）
-
-- [ ] 统一依赖版本：当前提示 `vitest@4.0.16` 与 `@vitest/coverage-v8@4.0.18` 版本混用（建议对齐到同一版本，避免潜在 bug）
-- [ ] （可选）添加覆盖率门槛：先从 **关键模块** 做 file-level threshold（例如 approvals/policy/handlers），避免“一刀切”导致 CI 噪音
-- [ ] （可选）补充 `coverage` include/exclude：确保把纯 demo/示例屏幕与脚手架产物排除在门槛之外（例如 ToolExamplesScreen 这类）
+- [ ] 添加覆盖率门槛：先从 **关键模块** 做 file-level threshold（例如 approvals/policy/handlers），避免“一刀切”导致 CI 噪音
+- [ ] 补充 `coverage` include/exclude：确保把纯 demo/示例屏幕与脚手架产物排除在门槛之外（例如 ToolExamplesScreen 这类）
 
 ## P0（安全/权限/交互：高优先级）
 
-### 1) 规则生成：`src/core/approval/rules.ts`
-
-- [ ] 新增 `src/core/approval/rules.test.ts`：覆盖 `createAllowRuleFromAction()`
-  - [ ] `fs.read` / `fs.write`：ruleId 里使用 basename（Windows/Unix path 都要）
-  - [ ] `bash.exec`：ruleId 使用 command 首 token；match 使用 `commandPrefix`
-  - [ ] `net.fetch`：hostname 作为 shortId（非法 URL 走 error？——建议补一个用例锁定当前行为）
-  - [ ] `net.search`：shortId 固定为 `search`
-  - [ ] `ruleId`/`createdAt`/`reason`/`template` 显式传入时优先级正确
-  - [ ] sanitize：空字符串/特殊字符/多分隔符/前后 `-` 清理
-
 ### 2) 审批主逻辑：`src/tools/executor/approvalService.ts`
 
-- [ ] 新增 `src/tools/executor/approvalService.test.ts`
-  - [ ] `userInput` 缺失时：返回 “Approval required …” 的 error result
+- [ ] 扩展 `src/tools/executor/approvalService.test.ts`
   - [ ] signal aborted：返回 “Request aborted”
   - [ ] decision=approve：直接放行（并验证 audit 事件写入：prompt/result）
   - [ ] decision=approve_remember：
@@ -80,14 +62,14 @@
 
 ### 7) Hotkeys：`src/screens/repl/hotkeys.ts`
 
-- [ ] 新增 `src/screens/repl/hotkeys.test.tsx`（建议用现有 REPL 测试模式/上下文）
+- [ ] 扩展 `src/screens/repl/hotkeys.test.tsx`（建议用现有 REPL 测试模式/上下文）
   - [ ] `ctrl+o`：
     - [ ] promptMode/overlay 打开时应被拦截
     - [ ] loading + thinkingText 时 toggle thinking
     - [ ] 已打开 detailed transcript / explore panel 时关闭
     - [ ] 满足 Explore finished 末条消息 + contiguous group 条件时打开 explore panel
     - [ ] 否则：找到最近 Task transcript 并打开 detailed transcript
-  - [ ] `escape`：调用 `actions.abort()`（overlay 打开时应被拦截）
+  - [ ] `escape`：调用 `actions.abort()`（promptMode/overlay 打开时应被拦截）
   - [ ] `shift+tab`：切换 mode；进入 plan 时触发 `ensurePlanPath()`
 
 ### 8) Panels：`src/screens/repl/panels.tsx`
@@ -117,15 +99,6 @@
     - [ ] aborted => 返回 “Request aborted” toolResult
     - [ ] usage 事件透传；pending tool promise 都会 await
   - 实现建议：mock `fetch()` + mock `parseAnthropicSSEStream()`（直接驱动 callbacks，不必真的构造 SSE）
-
-### 11) Task 子代理 handler：`src/tools/executor/handlers/taskSubAgent.ts`
-
-- [ ] 新增 `src/tools/executor/handlers/taskSubAgent.test.ts`
-  - [ ] input 校验：缺字段/多字段/不支持 model => error result
-  - [ ] subagent 不存在 => error
-  - [ ] run_in_background 分支：返回 task_id/agent_id/status；taskManager.create 调用参数正确
-  - [ ] nested tools：tool_start/input/end 对 entries 渲染/截断（`MAX_VISIBLE_TOOL_USES`、`MAX_ENTRIES`、`MAX_LINE_CHARS`）
-  - [ ] transcriptLines：Prompt/Response/Done line（含 tokens/duration）
 
 ### 12) Diagnostics 打包：`src/adapters/diagnostics/nodeArchive.ts`
 
@@ -159,3 +132,8 @@
 - [ ] P0 完成后：至少保证 approvals/policy/plan mode 相关文件达到 **>90% statements** 且分支覆盖有明显提升
 - [ ] 每做完一个模块：跑一次单文件 coverage + 全量 coverage，确认没有把 UI 文案/交互键位改掉
 
+## 常用命令（备忘）
+
+- 全量覆盖率：`npm run test:coverage`（或 `bun run test:coverage`）
+- 单文件覆盖率：`npx vitest run --coverage src/ui/permissions/PermissionsDialog.test.tsx`
+- HTML 报告：`coverage/index.html`
