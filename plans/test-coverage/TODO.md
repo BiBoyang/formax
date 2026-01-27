@@ -14,14 +14,6 @@
 
 ## P3（网络/执行器：稳定性与复杂分支）
 
-### 12) Diagnostics 打包：`src/adapters/diagnostics/nodeArchive.ts`
-
-- [ ] 新增 `src/adapters/diagnostics/nodeArchive.test.ts`
-  - [ ] 参数缺失：抛 “Missing …”
-  - [ ] spawn error / exit code != 0 / signal：reject 错误信息包含 code/signal
-  - [ ] 成功：resolve
-  - 实现建议：mock `node:child_process` 的 `spawn`
-
 ## P4（AgentsDialog：补齐未覆盖分支，保持 UI 文案/键位不变）
 
 > 现状：`src/ui/agents/AgentsDialog.tsx` 仍有大量未覆盖分支（特别是 create flow、advanced tools、磁盘 agents 合并/去重、失败分支）。
