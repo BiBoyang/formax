@@ -17,6 +17,4 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/ui/hooks/reducer.ts`（branches 48%）
-
-- [ ] 覆盖：各 view transition 的边界分支（只补 reducer 单测）
+（本轮已完成，无剩余项）
