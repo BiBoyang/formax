@@ -12,12 +12,6 @@
 
 ## P0（安全/权限/交互：高优先级）
 
-### 3) 交互提示组件：`src/tools/presenters/skillApprovalPrompt.tsx`
-
-- [ ] 新增 `src/tools/presenters/skillApprovalPrompt.test.tsx`（`ink-testing-library`）
-  - [ ] 选择 Yes / Remember / Feedback / Esc 时 `onDecision` 映射正确
-  - [ ] Feedback：输入内容会 trim；空输入不应该提交（或按现状锁定）
-
 ## P1（Plan Mode：交互链路 + presenter/handler）
 
 ### 4) EnterPlanMode handler：`src/tools/modules/enterPlanMode/handler.ts`
