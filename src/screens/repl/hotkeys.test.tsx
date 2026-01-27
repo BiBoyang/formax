@@ -10,6 +10,15 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForCalls(fn: { mock: { calls: any[] } }, times: number, timeoutMs = 5000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (fn.mock.calls.length >= times) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for mock to be called ${times} times`)
+}
+
 describe('useReplHotkeys', () => {
   let actions: any
 
@@ -62,7 +71,7 @@ describe('useReplHotkeys', () => {
 
     await tick()
     ui.stdin.write('\u000f') // ctrl+o
-    await tick()
+    await waitForCalls(setShowThinking, 1)
 
     expect(setShowThinking).toHaveBeenCalledTimes(1)
     expect(setShowThinking).toHaveBeenCalledWith(expect.any(Function))

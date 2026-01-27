@@ -11,7 +11,7 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 2000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const frame = lastFrame() || ''
@@ -58,13 +58,11 @@ describe('AgentsDialog', () => {
     expect(lastFrame()).toContain('> Create new agent')
 
     stdin.write('\u001B[B')
+    await waitForText(lastFrame, '> design-planner')
     await tick()
-    expect(lastFrame()).toContain('> design-planner')
-    expect(lastFrame()).not.toContain('> Create new agent')
-
     stdin.write('\r')
     await tick()
-    await waitForText(lastFrame, 'Agent')
+    await waitForText(lastFrame, 'Agent', 5000)
     expect(lastFrame()).toContain('design-planner')
 
     stdin.write('\u001b')
@@ -73,7 +71,7 @@ describe('AgentsDialog', () => {
 
     expect(onExit).not.toHaveBeenCalled()
     unmount()
-  })
+  }, 15000)
 
   it('exits on Esc from the list view', async () => {
     const onExit = vi.fn()

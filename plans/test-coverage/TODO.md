@@ -5,11 +5,9 @@
 > - Branches: 59.76% (5433 / 9091)
 > - Functions: 78.81% (1395 / 1770)
 
-## 环境/配置（可选，但建议）
+## 已落地
 
-- [ ] 添加覆盖率门槛：先从 **关键模块** 做 file-level threshold（例如 approvals/policy/handlers），避免“一刀切”导致 CI 噪音
+- 新增 `test:coverage:gate`：`vitest run --coverage && node ./scripts/check-coverage-thresholds.mjs`
+- 当前 gate 只检查少量关键文件的 statements（避免“一刀切”导致 CI 噪音）
 
-## 验收（建议）
-
-- [ ] P0 完成后：至少保证 approvals/policy/plan mode 相关文件达到 **>90% statements** 且分支覆盖有明显提升
-- [ ] 每做完一个模块：跑一次单文件 coverage + 全量 coverage，确认没有把 UI 文案/交互键位改掉
+如果后续要扩展 gate 的覆盖范围，优先在“稳定/安全关键”的文件上加阈值，并同步补齐对应回归测试。
