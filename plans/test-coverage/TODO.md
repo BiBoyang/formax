@@ -10,23 +10,12 @@
 - [ ] 添加覆盖率门槛：先从 **关键模块** 做 file-level threshold（例如 approvals/policy/handlers），避免“一刀切”导致 CI 噪音
 - [ ] 补充 `coverage` include/exclude：确保把纯 demo/示例屏幕与脚手架产物排除在门槛之外（例如 ToolExamplesScreen 这类）
 
-## P0（安全/权限/交互：高优先级）
-
-## P1（Plan Mode：交互链路 + presenter/handler）
-
 ## P2（REPL 交互：快捷键/面板/覆盖 UI 分支）
 
 ### 7) Hotkeys：`src/screens/repl/hotkeys.ts`
 
 - [ ] 扩展 `src/screens/repl/hotkeys.test.tsx`（建议用现有 REPL 测试模式/上下文）
-  - [ ] `ctrl+o`：
-    - [ ] promptMode/overlay 打开时应被拦截
-    - [ ] loading + thinkingText 时 toggle thinking
-    - [ ] 已打开 detailed transcript / explore panel 时关闭
-    - [ ] 满足 Explore finished 末条消息 + contiguous group 条件时打开 explore panel
-    - [ ] 否则：找到最近 Task transcript 并打开 detailed transcript
   - [ ] `escape`：调用 `actions.abort()`（promptMode/overlay 打开时应被拦截）
-  - [ ] `shift+tab`：切换 mode；进入 plan 时触发 `ensurePlanPath()`
 
 ### 8) Panels：`src/screens/repl/panels.tsx`
 
