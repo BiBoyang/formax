@@ -14,7 +14,9 @@
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
     "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage"
   },
   "bin": {
     "formax": "bin/formax.js"
