@@ -10,6 +10,80 @@ function tick(): Promise<void> {
 }
 
 describe('EditApprovalPrompt', () => {
+  it('enter approves on the default "Yes" row', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve' })
+  })
+
+  it('supports "Yes, remember" and cycles scope with Shift+Tab', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin, lastFrame } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('remember for session')
+
+    stdin.write('\u001B[Z') // Shift+Tab
+    await tick()
+    expect(lastFrame()).toContain('remember for project')
+
+    stdin.write('\u001B[Z') // Shift+Tab
+    await tick()
+    expect(lastFrame()).toContain('remember for global')
+
+    stdin.write('\u001B[Z') // Shift+Tab
+    await tick()
+    expect(lastFrame()).toContain('remember for session')
+
+    // Shift+Tab pins the cursor to the remember row.
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve_remember', scope: 'session' })
+  })
+
+  it('persists the selected remember scope in the decision payload', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\u001B[Z') // Shift+Tab -> remember for project
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledTimes(1)
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve_remember', scope: 'project' })
+  })
+
   it('allows typing digits when the custom message row is selected', async () => {
     const onDecision = vi.fn()
 
