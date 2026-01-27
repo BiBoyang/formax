@@ -118,7 +118,10 @@ describe('AskUserQuestionToolPresenter', () => {
     // Navigate to Review tab and press Enter twice quickly.
     stdin.write('\t')
     await tick()
+    await tick()
+
     stdin.write('\r')
+    await tick()
     stdin.write('\r')
     await tick()
 

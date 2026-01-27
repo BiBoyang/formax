@@ -167,7 +167,7 @@ describe('EditApprovalPrompt', () => {
   it('preserves the draft when navigating while typing', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <EditApprovalPrompt title="Do you want to edit foo.ts?" onDecision={onDecision} />
@@ -178,6 +178,7 @@ describe('EditApprovalPrompt', () => {
     await tick()
     stdin.write('3')
     await tick()
+    expect(lastFrame()).toContain('❯ 3.')
 
     stdin.write('a')
     await tick()
@@ -187,8 +188,12 @@ describe('EditApprovalPrompt', () => {
     // Navigate away and back; draft should persist and continue appending.
     stdin.write('\u001B[A')
     await tick()
+    await tick()
+    expect(lastFrame()).toContain('❯ 2.')
     stdin.write('\u001B[B')
     await tick()
+    await tick()
+    expect(lastFrame()).toContain('❯ 3.')
 
     // Resume typing and submit.
     stdin.write('\r')

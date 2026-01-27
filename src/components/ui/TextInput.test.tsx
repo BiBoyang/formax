@@ -9,6 +9,17 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForFrameContains(
+  getFrame: () => string,
+  expected: string,
+  tries = 10,
+): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    if (getFrame().includes(expected)) return
+    await tick()
+  }
+}
+
 function Wrapper(): React.ReactNode {
   const [value, setValue] = useState('')
   return (
@@ -104,13 +115,16 @@ describe('TextInput', () => {
     await tick()
     stdin.write('a')
     await tick()
+    await waitForFrameContains(frameText, 'a')
     stdin.write('b')
     await tick()
+    await waitForFrameContains(frameText, 'ab')
 
     stdin.write('\u001B[D')
     await tick()
     stdin.write('X')
     await tick()
+    await waitForFrameContains(frameText, 'aX')
 
     expect(frameText()).toContain('aX')
     expect(frameText()).toContain('b')
