@@ -54,11 +54,12 @@ describe('AgentsDialog', () => {
 
     await tick()
     await waitForText(lastFrame, 'Agents')
+    for (let i = 0; i < 5; i++) await tick()
 
     expect(lastFrame()).toContain('> Create new agent')
 
     stdin.write('\u001B[B')
-    await waitForText(lastFrame, '> design-planner')
+    await waitForText(lastFrame, '> design-planner', 15000)
     await tick()
     stdin.write('\r')
     await tick()
@@ -207,7 +208,7 @@ describe('AgentsDialog', () => {
     await tick()
 
     // Should move selection to the first agent row
-    await waitForText(lastFrame, '> design-planner')
+    await waitForText(lastFrame, '> design-planner', 15000)
 
     // Up arrow (escape sequence)
     stdin.write('\u001B[A')

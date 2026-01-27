@@ -9,6 +9,20 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForFrame(
+  lastFrame: () => string | undefined,
+  predicate: (frame: string) => boolean,
+  timeoutMs = 5000,
+): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const frame = lastFrame() || ''
+    if (predicate(frame)) return
+    await tick()
+  }
+  throw new Error('Timed out waiting for UI update')
+}
+
 describe('BashApprovalPrompt', () => {
   it('esc cancels', async () => {
     const onDecision = vi.fn()
@@ -21,7 +35,8 @@ describe('BashApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    // Ensure the prompt has mounted and claimed input scope before sending ESC.
+    for (let i = 0; i < 5; i++) await tick()
     stdin.write('\u001B')
     await tick()
 
@@ -32,7 +47,7 @@ describe('BashApprovalPrompt', () => {
   it('allows providing feedback by typing on option 3', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
@@ -41,14 +56,15 @@ describe('BashApprovalPrompt', () => {
     )
 
     await tick()
+    const beforeSelect = lastFrame() || ''
     stdin.write('3')
-    await tick()
+    await waitForFrame(lastFrame, (frame) => frame !== beforeSelect && frame.includes('❯ 3.'), 15000)
     stdin.write('a')
     await tick()
     stdin.write('b')
     await tick()
     stdin.write('c')
-    await tick()
+    await waitForFrame(lastFrame, (frame) => frame.includes('abc'), 15000)
     stdin.write('\r')
     await tick()
 

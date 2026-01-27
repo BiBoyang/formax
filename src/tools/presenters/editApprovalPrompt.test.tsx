@@ -9,6 +9,20 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForFrame(
+  lastFrame: () => string | undefined,
+  predicate: (frame: string) => boolean,
+  timeoutMs = 5000,
+): Promise<string> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const frame = lastFrame() || ''
+    if (predicate(frame)) return frame
+    await tick()
+  }
+  throw new Error('Timed out waiting for UI to match predicate')
+}
+
 describe('EditApprovalPrompt', () => {
   it('enter approves on the default "Yes" row', async () => {
     const onDecision = vi.fn()
@@ -41,21 +55,25 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
-    expect(lastFrame()).toContain('remember for session')
+    await waitForFrame(lastFrame, (frame) => frame.includes('remember for session'))
 
+    const beforeProject = lastFrame() || ''
     stdin.write('\u001B[Z') // Shift+Tab
     await tick()
-    expect(lastFrame()).toContain('remember for project')
+    await waitForFrame(lastFrame, (frame) => frame !== beforeProject && frame.includes('remember for project'))
 
+    const beforeGlobal = lastFrame() || ''
     stdin.write('\u001B[Z') // Shift+Tab
     await tick()
-    expect(lastFrame()).toContain('remember for global')
+    await waitForFrame(lastFrame, (frame) => frame !== beforeGlobal && frame.includes('remember for global'))
 
+    const beforeSession = lastFrame() || ''
     stdin.write('\u001B[Z') // Shift+Tab
     await tick()
-    expect(lastFrame()).toContain('remember for session')
+    await waitForFrame(lastFrame, (frame) => frame !== beforeSession && frame.includes('remember for session'))
 
     // Shift+Tab pins the cursor to the remember row.
+    await tick()
     stdin.write('\r')
     await tick()
 
@@ -66,7 +84,7 @@ describe('EditApprovalPrompt', () => {
   it('persists the selected remember scope in the decision payload', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <EditApprovalPrompt title="Approve this edit?" onDecision={onDecision} />
@@ -75,8 +93,10 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
+    const beforeProject = lastFrame() || ''
     stdin.write('\u001B[Z') // Shift+Tab -> remember for project
     await tick()
+    await waitForFrame(lastFrame, (frame) => frame !== beforeProject && frame.includes('remember for project'))
     stdin.write('\r')
     await tick()
 

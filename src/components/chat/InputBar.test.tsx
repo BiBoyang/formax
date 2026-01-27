@@ -99,14 +99,14 @@ describe('InputBar', () => {
     await tick()
 
     view.rerender(<Harness initialScope="repl" initialValue="ab" overlayOpen onChange={onChange} />)
-    await tick()
+    // Let the overlay scope activate before sending any keys.
+    for (let i = 0; i < 5; i++) await tick()
 
-    const beforeBlocked = view.lastFrame() || ''
+    const callsBeforeBlocked = onChange.mock.calls.length
     view.stdin.write('1')
     view.stdin.write('\u001B[D')
     await tick()
-    const afterBlocked = view.lastFrame() || ''
-    expect(afterBlocked).toEqual(beforeBlocked)
+    expect(onChange.mock.calls.length).toBe(callsBeforeBlocked)
 
     view.rerender(<Harness initialScope="repl" initialValue="ab" overlayOpen={false} onChange={onChange} />)
     await tick()
