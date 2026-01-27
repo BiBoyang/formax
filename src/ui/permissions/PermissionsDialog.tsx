@@ -12,6 +12,7 @@ import {
 } from '../../adapters/permissions/permissionsStore.js'
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
+import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import type { PermissionTab, SaveScope } from './constants.js'
 import { SAVE_SCOPE_OPTIONS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
@@ -146,23 +147,11 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
     let bufferedUp = false
     let bufferedDown = false
     if (!isUpArrow && !isDownArrow && input) {
-      const nextBuf = escapeBufferRef.current + input
-      if (nextBuf.startsWith('\u001B')) {
-        if (nextBuf === '\u001B[A' || nextBuf === '\u001BOA') {
-          bufferedUp = true
-          escapeBufferRef.current = ''
-        } else if (nextBuf === '\u001B[B' || nextBuf === '\u001BOB') {
-          bufferedDown = true
-          escapeBufferRef.current = ''
-        } else if (nextBuf.length >= 3) {
-          escapeBufferRef.current = ''
-        } else {
-          escapeBufferRef.current = nextBuf
-          return
-        }
-      } else {
-        escapeBufferRef.current = ''
-      }
+      const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: input })
+      escapeBufferRef.current = res.nextBuffer
+      if (res.pending) return
+      bufferedUp = res.arrow === 'up'
+      bufferedDown = res.arrow === 'down'
     }
 
     const isUp = isUpArrow || bufferedUp

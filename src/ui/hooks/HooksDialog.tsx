@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, us
 import { Box, Text } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { useInputScope, useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
+import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getTheme } from '../../utils/theme.js'
 import type { HookEventName, HookRuleEntry, HookSource } from '../../hooks/types.js'
 import type { HookMatcherSummary, HooksBySource } from '../../hooks/store.js'
@@ -246,24 +247,11 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     let bufferedUp = false
     let bufferedDown = false
     if (!isUpArrowKey && !isDownArrowKey && token) {
-      const nextBuf = escapeBufferRef.current + token
-
-      if (nextBuf === '\u001B[A' || nextBuf === '\u001BOA') {
-        bufferedUp = true
-        escapeBufferRef.current = ''
-      } else if (nextBuf === '\u001B[B' || nextBuf === '\u001BOB') {
-        bufferedDown = true
-        escapeBufferRef.current = ''
-      } else if (nextBuf === '\u001B' || nextBuf === '\u001B[' || nextBuf === '\u001BO') {
-        escapeBufferRef.current = nextBuf
-        return
-      } else if (nextBuf.startsWith('\u001B')) {
-        // Some terminals may split escape sequences into multiple keypresses.
-        // If the buffer doesn't match a known prefix by the time it grows, discard it.
-        escapeBufferRef.current = ''
-      } else {
-        escapeBufferRef.current = ''
-      }
+      const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
+      escapeBufferRef.current = res.nextBuffer
+      if (res.pending) return
+      bufferedUp = res.arrow === 'up'
+      bufferedDown = res.arrow === 'down'
     }
 
     const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
