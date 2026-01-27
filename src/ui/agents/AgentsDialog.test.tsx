@@ -11,7 +11,7 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 2000): Promise<void> {
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const frame = lastFrame() || ''

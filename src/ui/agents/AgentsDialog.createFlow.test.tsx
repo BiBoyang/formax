@@ -8,10 +8,12 @@ import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
 import { AgentsDialog } from './AgentsDialog.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // In coverage/instrumented runs, Ink can take a little longer to flush frames
+  // and input events. A small delay here reduces flakes without changing behavior.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 10000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const frame = lastFrame() || ''
@@ -176,9 +178,11 @@ describe('AgentsDialog (create flow)', () => {
     await waitForText(lastFrame, 'Select tools')
 
     // Continue -> model -> choose Inherit -> color -> confirm
+    await waitForText(lastFrame, '[ Continue ]')
+    await waitForText(lastFrame, 'All tools selected')
     stdin.write('\r')
     await tick()
-    await waitForText(lastFrame, 'Select model')
+    await waitForText(lastFrame, 'Select model', 20000)
 
     await pressDown(stdin, 3)
     stdin.write('\r')

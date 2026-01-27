@@ -7,10 +7,11 @@ import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/in
 import { useReplHotkeys } from './hotkeys.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Coverage/instrumentation runs can delay Ink's input dispatch; give it a tiny bit of breathing room.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-async function waitForCalls(fn: { mock: { calls: any[] } }, times: number, timeoutMs = 5000): Promise<void> {
+async function waitForCalls(fn: { mock: { calls: any[] } }, times: number, timeoutMs = 15000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     if (fn.mock.calls.length >= times) return

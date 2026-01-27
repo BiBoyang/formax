@@ -4,6 +4,7 @@ import { getTheme } from '../../utils/theme'
 import { InlineTextEditorRow } from './InlineTextEditorRow.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
+import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
 
 export type ConfirmMenuOption =
   | { kind: 'choice'; key: string; label: string; dim?: boolean }
@@ -40,6 +41,7 @@ export function ConfirmMenu({
   const cursorRef = useRef(initialCursor)
   const typingRef = useRef(false)
   const typingValueRef = useRef('')
+  const escapeBufferRef = useRef('')
 
   const feedbackIndex = options.findIndex((o) => o.kind === 'feedback')
 
@@ -77,29 +79,59 @@ export function ConfirmMenu({
     (input, key) => {
       if (!isActive) return
       if (submittedRef.current) return
+      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+      const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+      const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
+
+      if (key.escape || keyName === 'escape') escapeBufferRef.current = ''
+
+      const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
+      const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
+
+      // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
+      // Buffer ESC chunks so Up/Down always work reliably.
+      let bufferedUp = false
+      let bufferedDown = false
+      if (!isUpArrowKey && !isDownArrowKey && token) {
+        const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
+        escapeBufferRef.current = res.nextBuffer
+        if (res.pending) return
+        bufferedUp = res.arrow === 'up'
+        bufferedDown = res.arrow === 'down'
+      }
+
+      const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
+      const isDown = isDownArrowKey || bufferedDown || token === '\u001B[B' || token === '\u001BOB'
+
+      const patchedKey =
+        (isUp || isDown) && !(key as any)?.upArrow && !(key as any)?.downArrow
+          ? ({ ...key, upArrow: isUp, downArrow: isDown } as any)
+          : (key as any)
+
+      const forwardedInput = isUp || isDown ? '' : input
       const currentCursor = cursorRef.current
       const isTyping = typingRef.current
 
-      if (key.shift && key.tab && onShiftTab) {
+      if (patchedKey.shift && patchedKey.tab && onShiftTab) {
         if (isTyping) setTypingImmediate(false)
         onShiftTab()
         setCursorImmediate(clamp(shiftTabCursor, 0, options.length - 1))
         return
       }
 
-      if (key.escape) {
+      if (patchedKey.escape) {
         submit({ kind: 'cancel' })
         return
       }
 
       if (isTyping) {
         // Preserve draft while navigating.
-        if (key.upArrow) {
+        if (patchedKey.upArrow) {
           setTypingImmediate(false)
           setCursorImmediate((c) => clamp(c - 1, 0, options.length - 1))
           return
         }
-        if (key.downArrow) {
+        if (patchedKey.downArrow) {
           setTypingImmediate(false)
           setCursorImmediate((c) => clamp(c + 1, 0, options.length - 1))
           return
@@ -108,16 +140,16 @@ export function ConfirmMenu({
         return
       }
 
-      if (key.upArrow) {
+      if (patchedKey.upArrow) {
         setCursorImmediate((c) => clamp(c - 1, 0, options.length - 1))
         return
       }
-      if (key.downArrow) {
+      if (patchedKey.downArrow) {
         setCursorImmediate((c) => clamp(c + 1, 0, options.length - 1))
         return
       }
 
-      if (key.return) {
+      if (patchedKey.return) {
         const opt = options[currentCursor]
         if (!opt) return
         if (opt.kind === 'feedback') setTypingImmediate(true)
@@ -125,14 +157,14 @@ export function ConfirmMenu({
         return
       }
 
-      if (feedbackIndex === currentCursor && input && !key.ctrl && !key.meta) {
+      if (feedbackIndex === currentCursor && forwardedInput && !patchedKey.ctrl && !patchedKey.meta) {
         setTypingImmediate(true)
-        setTypingValueImmediate((v) => v + input)
+        setTypingValueImmediate((v) => v + forwardedInput)
         return
       }
 
-      if (/^[0-9]$/.test(input)) {
-        const n = Number.parseInt(input, 10)
+      if (/^[0-9]$/.test(forwardedInput)) {
+        const n = Number.parseInt(forwardedInput, 10)
         if (!Number.isFinite(n) || n <= 0) return
         const idx = n - 1
         if (idx < 0 || idx >= options.length) return
