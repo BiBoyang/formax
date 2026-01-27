@@ -448,9 +448,8 @@ describe('HooksDialog', () => {
       })
 
       // Delete the hook we just added (move cursor to entry)
-      await waitForText(lastFrame, cmd)
-      stdin.write('\u001B[B')
-      await tick()
+      await waitForText(lastFrame, '+ Add new hook…')
+      await moveCursorToItem(lastFrame, stdin, cmd)
       stdin.write('\r')
       await waitForText(lastFrame, 'Delete hook?')
       await waitForText(lastFrame, `Event: UserPromptSubmit`)

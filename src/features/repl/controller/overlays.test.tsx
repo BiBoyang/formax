@@ -11,10 +11,19 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForApiRef(apiRef: { current: HarnessApi | null }, timeoutMs = 3000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (apiRef.current) return
+    await tick()
+  }
+  throw new Error('Timed out waiting for Harness apiRef to be populated')
+}
+
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 10000,
+  timeoutMs = 3000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -106,6 +115,7 @@ describe('useReplOverlays', () => {
     const app = render(<Harness apiRef={apiRef} />)
 
     expect(app.lastFrame()).toContain('overlay=none')
+    await waitForApiRef(apiRef)
     await tick()
 
     apiRef.current?.openOverlay({ kind: 'agents' })
@@ -120,6 +130,7 @@ describe('useReplOverlays', () => {
     const app = render(<Harness apiRef={apiRef} initialOverlay={{ kind: 'agents' }} />)
 
     expect(app.lastFrame()).toContain('overlay=agents')
+    await waitForApiRef(apiRef)
     await tick()
 
     apiRef.current?.closeAgentsDialog({ createdAgents: [] })
@@ -131,6 +142,7 @@ describe('useReplOverlays', () => {
   it('closeAgentsDialog appends a message (created agents)', async () => {
     const apiRef = { current: null as HarnessApi | null }
     const app = render(<Harness apiRef={apiRef} />)
+    await waitForApiRef(apiRef)
     await tick()
 
     apiRef.current?.closeAgentsDialog({ createdAgents: ['a', 'b'] })
@@ -143,6 +155,7 @@ describe('useReplOverlays', () => {
   it('closePermissionsDialog and closeHooksDialog append messages', async () => {
     const apiRef = { current: null as HarnessApi | null }
     const app = render(<Harness apiRef={apiRef} />)
+    await waitForApiRef(apiRef)
     await tick()
 
     apiRef.current?.closePermissionsDialog()
@@ -156,6 +169,7 @@ describe('useReplOverlays', () => {
     const apiRef = { current: null as HarnessApi | null }
     const reloadSubagents = vi.fn(async () => [{ name: 'x', description: 'X' }])
     const app = render(<Harness apiRef={apiRef} reloadSubagents={reloadSubagents} />)
+    await waitForApiRef(apiRef)
     await tick()
 
     const res = await apiRef.current!.saveAgentFromDialog({
@@ -181,6 +195,7 @@ describe('useReplOverlays', () => {
       throw new Error('boom')
     })
     const app = render(<Harness apiRef={apiRef} reloadSubagents={reloadSubagents} />)
+    await waitForApiRef(apiRef)
     await tick()
 
     const res = await apiRef.current!.saveAgentFromDialog({

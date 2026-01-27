@@ -81,6 +81,7 @@ describe('AgentsDialog scope activation', () => {
     expect(lastFrame()).toContain('> Create new agent')
 
     stdin.write('\u001B[B')
+    await tick()
 
     await waitForPredicate(lastFrame, (f) => />\s+design-planner/.test(f))
 
