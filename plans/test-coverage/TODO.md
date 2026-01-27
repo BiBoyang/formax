@@ -14,17 +14,6 @@
 
 ## P3（网络/执行器：稳定性与复杂分支）
 
-### 10) Streaming client：`src/streaming/anthropic/StreamClient.ts`
-
-- [ ] 新增 `src/streaming/anthropic/StreamClient.test.ts`
-  - [ ] `sortToolResultsByCallOrder()`：缺失 tool_use_id => 注入 error；extras 追加在末尾
-  - [ ] `streamOnce()`：
-    - [ ] response 非 ok / 无 body => throw
-    - [ ] tool 执行成功/抛错 => tool_end 正确发出
-    - [ ] aborted => 返回 “Request aborted” toolResult
-    - [ ] usage 事件透传；pending tool promise 都会 await
-  - 实现建议：mock `fetch()` + mock `parseAnthropicSSEStream()`（直接驱动 callbacks，不必真的构造 SSE）
-
 ### 12) Diagnostics 打包：`src/adapters/diagnostics/nodeArchive.ts`
 
 - [ ] 新增 `src/adapters/diagnostics/nodeArchive.test.ts`
