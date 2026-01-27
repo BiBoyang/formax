@@ -15,13 +15,6 @@
 
 ## 优先顺序（跳过 search / glob / webFetch 后）
 
-### 4) `src/streaming/anthropic`
-
-- [ ] 增补“解析分支”的测试（fixture/单元）：
-  - [ ] 非预期 event / 字段缺失
-  - [ ] error event / 终止原因分支
-  - [ ] tool_use / tool_result 边界（如果 parser 有）
-
 ### 5) `src/tools/modules/webSearch`
 
 - [ ] 覆盖失败分支（网络失败/空结果/输入不合法/被 policy 拒绝）
