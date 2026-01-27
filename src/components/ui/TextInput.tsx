@@ -14,6 +14,7 @@ type TextInputProps = {
   multiline?: boolean
   cursorStyle?: 'block' | 'bar'
   cursorChar?: string
+  reservedChars?: string[]
   scope?: InputScopeId
 }
 
@@ -68,6 +69,7 @@ export default function TextInput({
   multiline = false,
   cursorStyle = 'block',
   cursorChar = '▏',
+  reservedChars,
   scope,
 }: TextInputProps) {
   const theme = getTheme()
@@ -172,14 +174,19 @@ export default function TextInput({
     }
 
     if (isSubmit || isNewline) {
-      if (onSubmitRef.current) onSubmitRef.current(currentValue)
-      return true
+      if (onSubmitRef.current) {
+        onSubmitRef.current(currentValue)
+        return true
+      }
+      // Let parent handlers decide what Enter means when no submit callback is provided.
+      return false
     }
 
     // Insert text at cursor position.
     // Prefer `raw` (sequence) because in some terminals Ink may surface the printable character via
     // `key.sequence` with an empty `input` string.
     if (raw && !raw.startsWith('\u001b') && !key.ctrl && !key.meta) {
+      if (reservedChars?.includes(raw)) return false
       const newValue = currentValue.slice(0, currentCursorOffset) + raw + currentValue.slice(currentCursorOffset)
       onChangeRef.current(newValue)
       valueRef.current = newValue

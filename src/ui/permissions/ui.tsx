@@ -105,7 +105,7 @@ export function SearchRow({
   return (
     <Box>
       <Text>Search: </Text>
-      <TextInput value={query} onChange={onChange} cursorStyle="bar" scope={scope} />
+      <TextInput value={query} onChange={onChange} cursorStyle="bar" reservedChars={['/']} scope={scope} />
     </Box>
   )
 }
