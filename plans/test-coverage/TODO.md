@@ -19,11 +19,7 @@
 > 现状：`src/ui/agents/AgentsDialog.tsx` 仍有大量未覆盖分支（特别是 create flow、advanced tools、磁盘 agents 合并/去重、失败分支）。
 
 - [ ] 扩展 `src/ui/agents/AgentsDialog.test.tsx` / 新增分文件测试：
-  - [ ] disk user/project agents 读取后：分组、优先级、去重（project 覆盖 user）、builtin model 显示
-  - [ ] create flow：Generate with Claude / Manual 两条路径都覆盖
-  - [ ] advanced tools：toggle、group 全选/取消、NON_SELECTABLE_TOOLS 不出现
   - [ ] 保存失败/生成失败：错误提示与返回路径（Esc/Back）稳定
-  - [ ] openInEditor 行为与 createdAgents 记录
 
 ## P5（CLI：补齐长尾分支）
 
