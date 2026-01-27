@@ -12,11 +12,6 @@
 
 ## P2（REPL 交互：快捷键/面板/覆盖 UI 分支）
 
-### 9) Mode 相关：`src/features/repl/mode.ts` + `src/components/chat/ModeIndicator.tsx`
-
-- [ ] `src/features/repl/mode.test.ts`：`nextReplMode()` 循环与默认分支
-- [ ] `src/components/chat/ModeIndicator.test.tsx`：三种 mode 的 icon/label/颜色（至少锁定 icon+label+“shift+tab to cycle”）
-
 ## P3（网络/执行器：稳定性与复杂分支）
 
 ### 10) Streaming client：`src/streaming/anthropic/StreamClient.ts`
