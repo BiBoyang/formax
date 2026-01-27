@@ -15,14 +15,6 @@
 
 ## 优先顺序（跳过 search / glob / webFetch 后）
 
-### 3) `src/tools/presenters`
-
-- [ ] 优先挑“用户经常看到”的 presenter 补分支（例如：错误格式化、空内容、分段渲染）
-- [ ] 覆盖点建议：
-  - [ ] `is_error=true` 的 tool_result 展示分支
-  - [ ] content 结构差异（string vs blocks / 多行 vs 单行）分支
-  - [ ] 截断/省略/上限分支（如果有）
-
 ### 4) `src/streaming/anthropic`
 
 - [ ] 增补“解析分支”的测试（fixture/单元）：
