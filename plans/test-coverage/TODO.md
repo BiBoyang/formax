@@ -12,16 +12,6 @@
 
 ## P2（REPL 交互：快捷键/面板/覆盖 UI 分支）
 
-### 8) Panels：`src/screens/repl/panels.tsx`
-
-- [ ] 新增 `src/screens/repl/panels.test.tsx`
-  - [ ] `ExploreAgentsPanel`：tasks=null/空 => “No Explore details…”
-  - [ ] map 渲染：最后一项/非最后一项 branch/pipe 字符正确
-  - [ ] toolUses/tokens 组合文案（0 tokens 不显示 tokens）
-  - [ ] `getTaskShortLabel`：优先 description，其次 prompt，否则 “Task”
-  - [ ] `formatTaskPanelTitle`：非 Task/非 tool => “Task”；subagent_type=code-reviewer => “Reviewer”
-  - [ ] `DetailedTranscriptPanel`：title 有无；空行渲染；无 lines 时 “No detailed transcript…”
-
 ### 9) Mode 相关：`src/features/repl/mode.ts` + `src/components/chat/ModeIndicator.tsx`
 
 - [ ] `src/features/repl/mode.test.ts`：`nextReplMode()` 循环与默认分支
