@@ -17,23 +17,18 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/adapters/fs/checkWritableDir.ts`
-
-- [ ] 覆盖：
-  - [ ] 可写/不可写/不存在 的分支
-
-### 2) `src/tools/modules/bash/presenter.tsx`
+### 1) `src/tools/modules/bash/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] error 输出（exit code + stderr 展示）
   - [ ] approved/denied/pending 等分支
 
-### 3) `src/tools/modules/write/presenter.tsx`
+### 2) `src/tools/modules/write/presenter.tsx`
 
 - [ ] 覆盖：
   - [ ] prompt/pending 与完成态分支
 
-### 4) `src/ui/hooks/utils.ts`
+### 3) `src/ui/hooks/utils.ts`
 
 - [ ] 覆盖：
   - [ ] matcher/hook label 相关分支（含无 matcher 事件）
