@@ -161,7 +161,10 @@ describe('WebSearchToolPresenter', () => {
 
     await tick()
     stdin.write('\u001B')
-    await tick()
+    for (let i = 0; i < 10; i += 1) {
+      await tick()
+      if (submitAnswers.mock.calls.length > 0) break
+    }
 
     expect(submitAnswers).toHaveBeenCalledWith('ws4', { decision: 'cancel' })
   })
@@ -194,4 +197,3 @@ describe('WebSearchToolPresenter', () => {
     expect(lastFrame()).toContain('Error: Rate limited')
   })
 })
-

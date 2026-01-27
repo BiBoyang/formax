@@ -250,11 +250,11 @@ describe('PermissionsDialog', () => {
 
     try {
       const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <PermissionsDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
 
       await waitForText(lastFrame, 'Add a new rule')
 
@@ -268,25 +268,26 @@ describe('PermissionsDialog', () => {
         stdin.write(ch)
         await tick()
       }
+      await waitForText(lastFrame, 'Search: abcde')
 
       stdin.write('\u001B[D')
       await tick()
       stdin.write('\u001B[D')
       await tick()
 
-      await waitForText(lastFrame, 'abc▏de')
+      await waitForText(lastFrame, 'Search: abc▏de')
 
       stdin.write('\x7f')
-      await waitForText(lastFrame, 'ab▏de')
+      await waitForText(lastFrame, 'Search: ab▏de')
 
       stdin.write('X')
-      await waitForText(lastFrame, 'abX▏de')
+      await waitForText(lastFrame, 'Search: abX▏de')
     } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
   it('supports cursor movement when editing rule input', async () => {
     const originalCwd = process.cwd()

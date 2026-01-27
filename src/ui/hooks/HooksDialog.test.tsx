@@ -420,11 +420,16 @@ describe('HooksDialog', () => {
       stdin.write('\r')
       await waitForText(lastFrame, 'Add new hook')
       expect(lastFrame() || '').not.toContain('Matcher:')
-      await tick()
+      // Let the input scope activate before typing, otherwise ink-testing-library can drop the first
+      // chunk under full-suite + coverage load.
+      for (let i = 0; i < 3; i += 1) await tick()
 
       const cmd = 'python3 .formax/hooks/user_prompt_submit_probe.py'
-      stdin.write(cmd)
-      await tick()
+      for (const ch of cmd) {
+        stdin.write(ch)
+        await tick()
+      }
+      await waitForText(lastFrame, cmd)
       stdin.write('\r')
 
       await waitForText(lastFrame, 'Save hook configuration')

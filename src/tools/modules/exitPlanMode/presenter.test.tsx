@@ -255,7 +255,10 @@ describe('ExitPlanModeToolPresenter', () => {
       await tick()
 
       stdin.write('x')
-      await tick()
+      for (let i = 0; i < 10; i += 1) {
+        await tick()
+        if (lastFrame().includes('x')) break
+      }
 
       expect(lastFrame()).toContain('x')
       expect(submitAnswers).toHaveBeenCalledTimes(0)
