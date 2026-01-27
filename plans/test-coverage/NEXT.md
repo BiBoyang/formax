@@ -17,14 +17,10 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/tools/modules/edit/presenter.tsx`（branches 45%）
-
-- [ ] 覆盖：error / empty / multi-line 等分支（只补测试）
-
-### 2) `src/tools/modules/todoWrite/handler.ts`（branches 45%）
+### 1) `src/tools/modules/todoWrite/handler.ts`（branches 45%）
 
 - [ ] 覆盖：空列表 / 非法 status / reorder / 去重/merge 等分支（只补测试）
 
-### 3) `src/ui/hooks/reducer.ts`（branches 48%）
+### 2) `src/ui/hooks/reducer.ts`（branches 48%）
 
 - [ ] 覆盖：各 view transition 的边界分支（只补 reducer 单测）
