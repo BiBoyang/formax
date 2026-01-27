@@ -15,11 +15,6 @@
 
 ## 优先顺序（跳过 search / glob / webFetch 后）
 
-### 5) `src/tools/modules/webSearch`
-
-- [ ] 覆盖失败分支（网络失败/空结果/输入不合法/被 policy 拒绝）
-- [ ] 覆盖“成功但结果为空”的分支（如果支持）
-
 ### 6) `src/tools/modules/taskOutput`
 
 - [ ] 覆盖：
