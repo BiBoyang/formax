@@ -12,20 +12,6 @@
 
 ## P0（安全/权限/交互：高优先级）
 
-### 2) 审批主逻辑：`src/tools/executor/approvalService.ts`
-
-- [ ] 扩展 `src/tools/executor/approvalService.test.ts`
-  - [ ] signal aborted：返回 “Request aborted”
-  - [ ] decision=approve：直接放行（并验证 audit 事件写入：prompt/result）
-  - [ ] decision=approve_remember：
-    - [ ] `fs.write`：进入 `acceptEdits`（不持久化 policy rules）
-    - [ ] `bash.exec` + tool `Bash`：写入 repo-local allow（`persistProjectPermissionAllow`）
-    - [ ] scope=session：写入 sessionRules（并确保后续 `getSessionRules` 可读到）
-    - [ ] scope=project/global：调用 `savePolicyRules`，且去重逻辑（按 match+decision）
-  - [ ] decision=feedback：空 feedback => cancel；非空 => 返回带 user message 的 reject 内容
-  - [ ] decision=cancel/unknown：返回默认 reject 内容
-  - [ ] persist 失败：返回 “Failed to save …” 的 error result
-
 ### 3) 交互提示组件：`src/tools/presenters/skillApprovalPrompt.tsx`
 
 - [ ] 新增 `src/tools/presenters/skillApprovalPrompt.test.tsx`（`ink-testing-library`）
