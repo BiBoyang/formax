@@ -226,4 +226,145 @@ describe('AnthropicStreamClient.streamOnce', () => {
     await p
     expect(returned).toBe(true)
   })
+
+  it('normalizes baseUrl that already ends with /v1 and does not emit usage for empty objects', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [],
+        stopReason: 'end_turn',
+        usage: {},
+      }
+    })
+
+    const events: any[] = []
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example/v1/',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: (e) => events.push(e),
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls[0][0]).toBe('http://example/v1/messages')
+    expect(events.some((e) => e.type === 'usage')).toBe(false)
+  })
+
+  it('emits an aborted tool_result when onEvent aborts the signal during tool_input', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      callbacks.onToolUseStart('t1', 'Bash')
+      await callbacks.onToolUseComplete(0, { id: 't1', name: 'Bash', input: { command: 'echo 1' } })
+      return {
+        contentBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } }],
+        stopReason: 'tool_use',
+        usage: undefined,
+      }
+    })
+
+    const abortController = new AbortController()
+    const events: any[] = []
+    const executeTool = vi.fn(async () => ({ tool_use_id: 't1', content: 'ok' }))
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      signal: abortController.signal,
+      onEvent: (e) => {
+        events.push(e)
+        if (e.type === 'tool_input') abortController.abort()
+      },
+      executeTool,
+    })
+
+    expect(executeTool).toHaveBeenCalledTimes(0)
+    const toolEnd = events.find((e) => e.type === 'tool_end' && e.id === 't1')
+    expect(toolEnd?.result?.is_error).toBe(true)
+    expect(toolEnd?.result?.content).toBe('Request aborted')
+    expect(out.toolResults).toEqual([{ tool_use_id: 't1', content: 'Request aborted', is_error: true }])
+  })
+
+  it('forwards assistant deltas and maps content blocks into assistantBlocks', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      callbacks.onTextDelta('hi')
+      callbacks.onThinkingDelta('hmm')
+      return {
+        contentBlocks: [
+          { type: 'text', text: 'hello' },
+          { type: 'thinking', thinking: 'think' },
+          { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
+          { type: 'foo', bar: 1 },
+        ],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const events: any[] = []
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: (e) => events.push(e),
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect(events.some((e) => e.type === 'assistant_delta' && e.text === 'hi')).toBe(true)
+    expect(events.some((e) => e.type === 'thinking_delta' && e.thinking === 'hmm')).toBe(true)
+    expect(out.assistantBlocks).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'thinking', thinking: 'think' },
+      { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
+      { type: 'foo', bar: 1 },
+    ])
+  })
 })
