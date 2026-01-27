@@ -28,12 +28,14 @@ function Harness({
   onChange,
   initialValue = '',
   overlayOpen = false,
+  suggestions,
 }: {
   initialScope: React.ComponentProps<typeof InputScopeProvider>['initialScope']
   onSubmit?: (v: string) => void
   onChange?: (v: string) => void
   initialValue?: string
   overlayOpen?: boolean
+  suggestions?: React.ComponentProps<typeof InputBar>['suggestions']
 }): React.ReactNode {
   const [value, setValue] = useState(initialValue)
   const submit = onSubmit ?? (() => {})
@@ -49,6 +51,7 @@ function Harness({
           change(next)
         }}
         onSubmit={(next) => submit(next)}
+        suggestions={suggestions}
       />
     </InputScopeProvider>
   )
@@ -112,5 +115,19 @@ describe('InputBar', () => {
     await tick()
     // Cursor was moved left before overlay opened, so the insert should happen mid-string.
     expect(onChange).toHaveBeenLastCalledWith('a1b')
+  })
+
+  it('renders dimmed suggestions without crashing', async () => {
+    const view = render(
+      <Harness
+        initialScope="repl"
+        suggestions={[{ id: 's1', command: '/help', description: 'desc', dim: true }]}
+      />,
+    )
+    await tick()
+
+    const frame = view.lastFrame() ?? ''
+    expect(frame).toContain('/help')
+    expect(frame).toContain('desc')
   })
 })

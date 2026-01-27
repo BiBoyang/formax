@@ -66,4 +66,19 @@ describe('HeaderBanner', () => {
     const frame = stripAnsi(view.lastFrame() ?? '')
     expect(frame).toContain('Context: 100% free (100.0k/100k, est.)')
   })
+
+  it('treats non-finite token values as 0', async () => {
+    const view = render(
+      <HeaderBanner
+        version="0.0.0"
+        modelLabel="Model: X"
+        cwd="/cwd"
+        context={{ percentRemaining: 50, usedTokens: NaN, limitTokens: Infinity, source: 'usage' }}
+      />,
+    )
+    await tick()
+
+    const frame = stripAnsi(view.lastFrame() ?? '')
+    expect(frame).toContain('Context: 50% free (0/0, usage)')
+  })
 })

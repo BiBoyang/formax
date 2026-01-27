@@ -17,15 +17,12 @@
 
 > 参考你最新的 coverage report 截图（Branches 列）。
 
-### 1) `src/components/chat`
-（已补 `HeaderBanner.tsx` 的关键分支；如仍需提升，再按 report 选下一个组件）
-
-### 2) `src/tools/modules/notebookEdit`
+### 1) `src/tools/modules/notebookEdit`
 
 - [ ] 覆盖常见失败分支（路径/输入/权限）
 - [ ] 覆盖成功路径的关键边界（空 patch/多 patch/无变更）
 
-### 3) `src/tools/modules/grep`
+### 2) `src/tools/modules/grep`
 
 - [ ] 覆盖：
   - [ ] 0 matches
