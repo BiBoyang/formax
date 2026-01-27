@@ -15,14 +15,6 @@
 
 ## 优先顺序（跳过 search / glob / webFetch 后）
 
-### 2) `src/tools/modules/killShell`
-
-- [ ] 覆盖至少这些分支（按现有实现细化断言）：
-  - [ ] 没有正在运行的 shell / session
-  - [ ] 传入 id 不存在 / 已结束
-  - [ ] 正常 kill 成功
-  - [ ] 重复 kill（幂等/错误信息一致性）
-
 ### 3) `src/tools/presenters`
 
 - [ ] 优先挑“用户经常看到”的 presenter 补分支（例如：错误格式化、空内容、分段渲染）
