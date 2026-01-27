@@ -17,6 +17,4 @@
 
 > 参考 `coverage/coverage-final.json`（branches% 升序）。
 
-### 1) `src/adapters/setup/connectionTest.ts`（branches 50%）
-
-- [ ] 覆盖：success / failure / timeout 分支（只补测试）
+（本轮已清空；下次从 `coverage/coverage-final.json` 重新挑选 branches 最低的模块生成列表。）

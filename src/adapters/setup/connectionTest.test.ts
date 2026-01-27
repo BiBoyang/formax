@@ -45,4 +45,18 @@ describe('testSetupConnection', () => {
     expect(res.code).toBe(ErrorCode.SetupRequired)
     expect(res.message).toContain('not implemented')
   })
+
+  it('returns a clear placeholder for gemini', async () => {
+    const res = await testSetupConnection({ provider: 'gemini', baseUrl: 'https://api.gemini.google.com/v1', apiKey: 'sk' })
+    if (!('code' in res)) throw new Error('Expected error result')
+    expect(res.code).toBe(ErrorCode.SetupRequired)
+    expect(res.message).toContain('Gemini setup is not implemented yet')
+  })
+
+  it('returns Unknown for unknown providers', async () => {
+    const res = await testSetupConnection({ provider: 'wat' as any, baseUrl: 'https://example.com', apiKey: 'sk' })
+    if (!('code' in res)) throw new Error('Expected error result')
+    expect(res.code).toBe(ErrorCode.Unknown)
+    expect(res.message).toContain('Unknown provider:')
+  })
 })
