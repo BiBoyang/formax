@@ -6,6 +6,14 @@ import { createNodeFileStore } from '../fs/nodeFileStore.js'
 import { buildSkillPermissionKey, getProjectSettingsLocalPath, loadProjectSkillAllowList, persistProjectSkillAllow } from './skillAllowList.js'
 
 describe('skill allowList (repo settings.local.json)', () => {
+  it('buildSkillPermissionKey normalizes empty input', () => {
+    expect(buildSkillPermissionKey('frontend-design')).toBe('Skill(frontend-design)')
+    expect(buildSkillPermissionKey('   ')).toBe('Skill()')
+    expect(buildSkillPermissionKey('')).toBe('Skill()')
+    expect(buildSkillPermissionKey(null as any)).toBe('Skill()')
+    expect(buildSkillPermissionKey(undefined as any)).toBe('Skill()')
+  })
+
   it('returns empty set when settings.local.json is missing', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-allow-empty-'))
     try {
