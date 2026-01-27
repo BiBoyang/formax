@@ -14,30 +14,6 @@
 
 ## P1（Plan Mode：交互链路 + presenter/handler）
 
-### 4) EnterPlanMode handler：`src/tools/modules/enterPlanMode/handler.ts`
-
-- [ ] 新增 `src/tools/modules/enterPlanMode/handler.test.ts`
-  - [ ] `agentDepth > 0`：返回交互禁用错误
-  - [ ] 已在 plan 模式：返回 “Already in plan mode.”
-  - [ ] choice=enter：`ctx.setReplMode('plan')` + 文案包含 “Entered plan mode”
-  - [ ] choice=skip/其它：返回 “User declined …”
-  - [ ] requestAnswers 抛错：返回 `Error: <msg>`
-
-### 5) EnterPlanMode presenter：`src/tools/modules/enterPlanMode/presenter.tsx`
-
-- [ ] 新增 `src/tools/modules/enterPlanMode/presenter.test.tsx`
-  - [ ] status=running 且无 userInput：显示 “Preparing…”
-  - [ ] status=running：↑↓/1/2/Enter 选择；Esc => skip；提交后不再响应二次输入
-  - [ ] status=error 且 result 包含 “Request aborted”：返回 null（不渲染）
-  - [ ] status=completed：entered/skip 两种渲染分支
-
-### 6) Plan session 文件管理：`src/features/repl/planSession.ts`
-
-- [ ] 新增 `src/features/repl/planSession.test.ts`
-  - [ ] `startNewPlan()` 会创建文件（空文件也可）并更新 `getPlanPath()`
-  - [ ] slug 冲突：模拟 `fileExists` 返回 true，最终走 fallback `plan-${Date.now()}.md`
-  - [ ] 目录不可写/创建失败：确保不会 throw（按当前实现“忽略错误”锁定）
-
 ## P2（REPL 交互：快捷键/面板/覆盖 UI 分支）
 
 ### 7) Hotkeys：`src/screens/repl/hotkeys.ts`
