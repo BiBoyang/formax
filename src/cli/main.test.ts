@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
+import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { dispatchCli } from './main.js'
 import pkg from '../../package.json'
 
@@ -190,6 +191,31 @@ describe('dispatchCli', () => {
     expect(parsed.command).toBe('unknown')
   })
 
+  it('setup triggers repl and sets FORMAX_FORCE_SETUP', async () => {
+    const prev = process.env.FORMAX_FORCE_SETUP
+    try {
+      delete (process.env as any).FORMAX_FORCE_SETUP
+
+      const res = await dispatchCli(['setup'])
+      expect(res.kind).toBe('repl')
+      expect(process.env.FORMAX_FORCE_SETUP).toBe('1')
+    } finally {
+      if (prev == null) delete (process.env as any).FORMAX_FORCE_SETUP
+      else process.env.FORMAX_FORCE_SETUP = prev
+    }
+  })
+
+  it('returns usage error for setup --json', async () => {
+    const res = await dispatchCli(['setup', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('setup')
+    expect(String(parsed?.error?.message || '')).toContain('--json is not supported')
+  })
+
   it('config show --json does not leak apiKey', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-config-show-'))
     try {
@@ -228,6 +254,144 @@ describe('dispatchCli', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it('config migrate no-ops when legacy dir equals global dir', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-config-migrate-noop-'))
+    try {
+      const store = createNodeFileStore()
+      const homedir = path.join(dir, 'home')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const legacyDir = path.join(homedir, '.config', 'formax')
+      const env = { FORMAX_CONFIG_DIR: legacyDir } as any
+
+      const res = await dispatchCli(['config', 'migrate'], {
+        fileStore: store,
+        cwd: projectDir,
+        env,
+        homedir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(0)
+      expect(res.stdout).toContain('Nothing to migrate.')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('config migrate reports copied/skipped/missing (human)', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-config-migrate-mixed-'))
+    try {
+      const store = createNodeFileStore()
+      const homedir = path.join(dir, 'home')
+      const projectDir = path.join(dir, 'repo')
+      const globalConfigDir = path.join(dir, 'global')
+
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const env = { FORMAX_CONFIG_DIR: globalConfigDir } as any
+      const paths = getConfigPaths({ cwd: projectDir, homedir, platform: 'linux', env })
+
+      await store.writeTextAtomic(paths.legacyConfigPath, '{"version":1}\n')
+      await store.writeTextAtomic(paths.legacyAuthPath, '{"version":1}\n')
+      await store.writeTextAtomic(paths.globalConfigPath, '{"version":1,"ui":{}}\n')
+      await fs.rm(paths.globalAuthPath, { force: true })
+      expect(await store.exists(paths.globalAuthPath)).toBe(false)
+
+      const humanRes = await dispatchCli(['config', 'migrate'], {
+        fileStore: store,
+        cwd: projectDir,
+        env,
+        homedir,
+        platform: 'linux',
+      })
+
+      expect(humanRes.kind).toBe('handled')
+      if (humanRes.kind !== 'handled') return
+      expect(humanRes.exitCode).toBe(0)
+      expect(humanRes.stdout).toContain('Migration:')
+      expect(humanRes.stdout).toContain('- config: skipped')
+      expect(humanRes.stdout).toContain('- auth: copied')
+      expect(humanRes.stdout).toContain('- rules: missing')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('config migrate reports copied/skipped/missing (--json)', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-config-migrate-mixed-json-'))
+    try {
+      const store = createNodeFileStore()
+      const homedir = path.join(dir, 'home')
+      const projectDir = path.join(dir, 'repo')
+      const globalConfigDir = path.join(dir, 'global')
+
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const env = { FORMAX_CONFIG_DIR: globalConfigDir } as any
+      const paths = getConfigPaths({ cwd: projectDir, homedir, platform: 'linux', env })
+
+      await store.writeTextAtomic(paths.legacyConfigPath, '{"version":1}\n')
+      await store.writeTextAtomic(paths.legacyAuthPath, '{"version":1}\n')
+      await store.writeTextAtomic(paths.globalConfigPath, '{"version":1,"ui":{}}\n')
+      await fs.rm(paths.globalAuthPath, { force: true })
+
+      const jsonRes = await dispatchCli(['config', 'migrate', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env,
+        homedir,
+        platform: 'linux',
+      })
+
+      expect(jsonRes.kind).toBe('handled')
+      if (jsonRes.kind !== 'handled') return
+      expect(jsonRes.exitCode).toBe(0)
+      const parsed = JSON.parse(jsonRes.stdout)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.command).toBe('config migrate')
+      expect(parsed?.data?.actions?.map((a: any) => a.status)).toEqual(['skipped', 'copied', 'missing'])
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns usage error for unknown config subcommand', async () => {
+    const res = await dispatchCli(['config', 'wat', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('config')
+    expect(parsed?.error?.message).toBe('Unknown subcommand')
+  })
+
+  it('returns usage error for missing auth subcommand', async () => {
+    const res = await dispatchCli(['auth', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('auth')
+    expect(parsed?.error?.message).toBe('Missing subcommand')
+  })
+
+  it('returns usage error for unknown auth subcommand', async () => {
+    const res = await dispatchCli(['auth', 'wat', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    const parsed = JSON.parse(res.stdout)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.command).toBe('auth')
+    expect(parsed?.error?.message).toBe('Unknown subcommand')
   })
 
   it('auth set/list/delete works and does not leak apiKey', async () => {
@@ -558,6 +722,101 @@ describe('dispatchCli', () => {
     }
   })
 
+  it('policy disable returns error when ruleId is not found', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-disable-missing-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const res = await dispatchCli(['policy', 'disable', 'nope', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(1)
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(false)
+      expect(parsed.command).toBe('policy disable')
+      expect(parsed?.error?.message).toBe('Rule not found: nope')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy disable updates project-only rules', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-disable-project-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'project',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const disableRes = await dispatchCli(['policy', 'disable', 'deny-rm', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(disableRes.kind).toBe('handled')
+      if (disableRes.kind !== 'handled') return
+      expect(disableRes.exitCode).toBe(0)
+
+      const listRes = await dispatchCli(['policy', 'list', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(listRes.kind).toBe('handled')
+      if (listRes.kind !== 'handled') return
+      const parsed = JSON.parse(listRes.stdout)
+      const rule = (parsed?.data?.rules || []).find((r: any) => r.ruleId === 'deny-rm')
+      expect(rule?.scope).toBe('project')
+      expect(rule?.enabled).toBe(false)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('policy delete removes the matched rule', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-delete-'))
     try {
@@ -574,6 +833,99 @@ describe('dispatchCli', () => {
             ruleId: 'deny-rm',
             createdAt: '2026-01-01T00:00:00Z',
             scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const deleteRes = await dispatchCli(['policy', 'delete', 'deny-rm', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(deleteRes.kind).toBe('handled')
+      if (deleteRes.kind !== 'handled') return
+      expect(deleteRes.exitCode).toBe(0)
+
+      const listRes = await dispatchCli(['policy', 'list', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(listRes.kind).toBe('handled')
+      if (listRes.kind !== 'handled') return
+      const parsed = JSON.parse(listRes.stdout)
+      expect((parsed?.data?.rules || []).some((r: any) => r.ruleId === 'deny-rm')).toBe(false)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy delete returns error when ruleId is not found', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-delete-missing-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'bash.exec', commandPrefix: 'rm' },
+          },
+        ],
+      })
+
+      const res = await dispatchCli(['policy', 'delete', 'nope', '--json'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(1)
+      const parsed = JSON.parse(res.stdout)
+      expect(parsed.ok).toBe(false)
+      expect(parsed.command).toBe('policy delete')
+      expect(parsed?.error?.message).toBe('Rule not found: nope')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('policy delete removes project-only rules', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-policy-delete-project-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rm',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'project',
             decision: 'deny',
             match: { kind: 'bash.exec', commandPrefix: 'rm' },
           },
