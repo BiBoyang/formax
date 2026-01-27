@@ -17,21 +17,19 @@
 
 > 参考你最新的 coverage report 截图（Branches 列）。
 
-### 1) `src/tools/modules/webSearch`
+### 1) `src/streaming/anthropic`
 
-### 2) `src/streaming/anthropic`
+### 2) `src/tools/modules/taskOutput`
 
-### 3) `src/tools/modules/taskOutput`
-
-### 4) `src/components/chat`
+### 3) `src/components/chat`
 （已补 `HeaderBanner.tsx` 的关键分支；如仍需提升，再按 report 选下一个组件）
 
-### 5) `src/tools/modules/notebookEdit`
+### 4) `src/tools/modules/notebookEdit`
 
 - [ ] 覆盖常见失败分支（路径/输入/权限）
 - [ ] 覆盖成功路径的关键边界（空 patch/多 patch/无变更）
 
-### 6) `src/tools/modules/grep`
+### 5) `src/tools/modules/grep`
 
 - [ ] 覆盖：
   - [ ] 0 matches
