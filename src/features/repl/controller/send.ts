@@ -282,6 +282,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
           id: m.id ?? `assistant-${Date.now()}`,
           role: 'assistant',
           content: m.content,
+          ui: m.ui,
           timestamp: m.timestamp ?? new Date(),
         })
       }

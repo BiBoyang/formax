@@ -36,6 +36,25 @@ export function useReplOverlays(args: {
   const openOverlay = useCallback((spec: OverlaySpec) => overlayManagerRef.current.open(spec), [])
   const closeOverlay = useCallback(() => overlayManagerRef.current.close(), [])
 
+  const appendCommandSublines = useCallback(
+    (lines: string[]) => {
+      if (lines.length === 0) return
+      const now = Date.now()
+      const timestamp = new Date()
+      setMessages((prev) => [
+        ...prev,
+        ...lines.map((content, idx) => ({
+          id: `assistant-${now}-${idx}`,
+          role: 'assistant' as const,
+          ui: { kind: 'command_subline' as const },
+          content,
+          timestamp,
+        })),
+      ])
+    },
+    [setMessages],
+  )
+
   const closeAgentsDialog = useCallback(
     ({ createdAgents }: { createdAgents: string[] }) => {
       overlayManagerRef.current.close()
@@ -43,44 +62,20 @@ export function useReplOverlays(args: {
         createdAgents.length === 0
           ? ['Agents dialog dismissed']
           : ['Agent changes:', ...createdAgents.map((a) => `Created agent: ${a}`)]
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: lines.map((l) => `  ⎿  ${l}`).join('\n'),
-          timestamp: new Date(),
-        },
-      ])
+      appendCommandSublines(lines)
     },
-    [setMessages],
+    [appendCommandSublines],
   )
 
   const closePermissionsDialog = useCallback(() => {
     overlayManagerRef.current.close()
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '  ⎿  Permissions dialog dismissed',
-        timestamp: new Date(),
-      },
-    ])
-  }, [setMessages])
+    appendCommandSublines(['Permissions dialog dismissed'])
+  }, [appendCommandSublines])
 
   const closeHooksDialog = useCallback(() => {
     overlayManagerRef.current.close()
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '  ⎿  Hooks dialog dismissed',
-        timestamp: new Date(),
-      },
-    ])
-  }, [setMessages])
+    appendCommandSublines(['Hooks dialog dismissed'])
+  }, [appendCommandSublines])
 
   const generateAgentDraft = useCallback(
     async (description: string, signal?: AbortSignal): Promise<AgentsDialogGenerateDraft> => {

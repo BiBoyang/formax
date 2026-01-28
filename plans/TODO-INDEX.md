@@ -10,6 +10,7 @@
 ## 并行参考（不作为主线推进）
 
 - `plans/ui/TODO.md`：UI 稳定基座（已完成，可作为组件/测试参考）
+- `plans/ui/TODO-command-subline-output.md`：Slash command 子行输出对齐（/agents /permissions /hooks /todos）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
 - `plans/system-reminder/TODO.md`：TodoWrite reminders（不走 hooks，优先控 token）
 - `plans/hooks/TODO.md`：Hooks 事件清单 & matcher 规则（哪些已实现/待接线）

@@ -4,6 +4,9 @@ export type UiMessage = {
   id?: string
   role: 'assistant' | 'system'
   content: string
+  ui?: {
+    kind: 'command_subline'
+  }
   timestamp?: Date
 }
 

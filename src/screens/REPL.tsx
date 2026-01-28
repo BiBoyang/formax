@@ -255,6 +255,15 @@ export function REPL({
 
       if (msg.role === 'assistant') {
         if (!msg.content) return null
+        if (msg.ui?.kind === 'command_subline') {
+          return (
+            <Box flexDirection="column" marginTop={0} marginBottom={0}>
+              <Box>
+                <Text>{`  ⎿  ${msg.content}`}</Text>
+              </Box>
+            </Box>
+          )
+        }
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
             <Box>

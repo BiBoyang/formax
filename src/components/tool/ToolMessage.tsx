@@ -62,6 +62,13 @@ export interface Msg {
   id: string
   /** Message role */
   role: 'user' | 'assistant' | 'tool'
+  /**
+   * UI-only hint for how this message should be rendered in the transcript.
+   * Must NOT affect LLM messages/history.
+   */
+  ui?: {
+    kind: 'command_subline'
+  }
   /** Message content (formatted result summary) */
   content: string
   /** Raw content for API calls */

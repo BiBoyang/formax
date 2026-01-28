@@ -23,6 +23,22 @@ function appendAssistantMessage(content: string): UiEffect {
   return { type: 'appendMessages', messages: [{ role: 'assistant', content }] }
 }
 
+function appendCommandSublines(stdout: string): UiEffect {
+  const lines = String(stdout ?? '').split('\n')
+  const now = Date.now()
+  const timestamp = new Date()
+  return {
+    type: 'appendMessages',
+    messages: lines.map((content, idx) => ({
+      id: `assistant-${now}-${idx}`,
+      role: 'assistant',
+      ui: { kind: 'command_subline' as const },
+      content,
+      timestamp,
+    })),
+  }
+}
+
 export function slashEffectToCommandResult(effect: SlashCommandEffect | null): CommandResult {
   if (!effect) return { consumed: false }
 
@@ -37,8 +53,13 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
       return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'hooks' } }] })
 
     case 'local':
+      // Claude Code renders `/todos` output as "sub lines" (⎿ ...) under the user command.
+      // Keep model injection behavior unchanged (recordForNextTurn), but align UI rendering.
       return consumedCommandResult({
-        ui: [appendAssistantMessage(effect.stdout)],
+        ui:
+          effect.recordForNextTurn?.commandName === '/todos'
+            ? [appendCommandSublines(effect.stdout)]
+            : [appendAssistantMessage(effect.stdout)],
         model: effect.recordForNextTurn
           ? [{ type: 'injectNextTurn', blocks: buildLocalCommandInjectedBlocks(effect.recordForNextTurn) }]
           : undefined,

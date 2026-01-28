@@ -65,9 +65,10 @@ function Harness(props: {
   apiRef: { current: HarnessApi | null }
   initialOverlay?: OverlaySpec | null
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
+  initialMessages?: Msg[]
 }) {
   const initialOverlay = props.initialOverlay ?? null
-  const [messages, setMessagesState] = useState<Msg[]>([])
+  const [messages, setMessagesState] = useState<Msg[]>(props.initialMessages ?? [])
   const setMessages = (updater: (prev: Msg[]) => Msg[]) => setMessagesState((prev) => updater(prev))
 
   const [allowedSubagents, setAllowedSubagents] = useState<Array<{ name: string; description: string }>>([])
@@ -100,7 +101,20 @@ function Harness(props: {
     <Box flexDirection='column'>
       <Text>overlay={overlayApi.overlay ? overlayApi.overlay.kind : 'none'}</Text>
       <Text>allowed={allowedSubagents.map((a) => a.name).join(',')}</Text>
-      <Text>last={messages.at(-1)?.content ?? ''}</Text>
+      <Text>
+        log=
+        {(() => {
+          const lines: string[] = []
+          for (const msg of messages) {
+            if (msg.ui?.kind === 'command_subline') {
+              lines.push(`  ⎿  ${msg.content}`)
+              continue
+            }
+            lines.push(msg.content)
+          }
+          return lines.join('\n')
+        })()}
+      </Text>
     </Box>
   )
 }
@@ -154,7 +168,19 @@ describe('useReplOverlays', () => {
 
   it('closePermissionsDialog and closeHooksDialog append messages', async () => {
     const apiRef = { current: null as HarnessApi | null }
-    const app = render(<Harness apiRef={apiRef} />)
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        initialMessages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: '/permissions',
+            timestamp: new Date(),
+          },
+        ]}
+      />,
+    )
     await waitForApiRef(apiRef)
     await tick()
 

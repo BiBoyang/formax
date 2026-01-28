@@ -15,8 +15,27 @@ describe('slashEffectToCommandResult', () => {
 
     expect(result.consumed).toBe(true)
     expect(result).toMatchObject({
-      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', content: 'hello' }] }],
+      ui: [
+        {
+          type: 'appendMessages',
+          messages: [
+            { role: 'assistant', ui: { kind: 'command_subline' }, content: 'hello' },
+          ],
+        },
+      ],
       model: [{ type: 'injectNextTurn' }],
+    })
+  })
+
+  it('keeps non-/todos local output as a normal assistant message', () => {
+    const result = slashEffectToCommandResult({
+      kind: 'local',
+      stdout: 'hello',
+      recordForNextTurn: { commandName: '/status', commandMessage: 'status', commandArgs: '', stdout: 'out' },
+    })
+
+    expect(result).toMatchObject({
+      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', content: 'hello' }] }],
     })
   })
 
