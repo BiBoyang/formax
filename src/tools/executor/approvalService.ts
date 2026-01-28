@@ -12,8 +12,12 @@ import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
-import { persistProjectPermissionAllow } from '../../adapters/permissions/permissionsStore.js'
+import { persistProjectPermissionAllow, persistWorkspaceDirectory } from '../../adapters/permissions/permissionsStore.js'
 import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
+
+export type WorkspaceAccessRequest = {
+  dir: string
+}
 
 type ApprovalAnswer = {
   decision?: string
@@ -30,6 +34,7 @@ export type ApprovalService = {
     effectiveDecision: PolicyDecision
     explained: PolicyExplainResult
     loaded: LoadedPolicyRules
+    workspaceRequest?: WorkspaceAccessRequest | null
   }) => Promise<{ ok: true } | { ok: false; result: ToolResult }>
 }
 
@@ -98,6 +103,7 @@ export function createApprovalService(args: {
     effectiveDecision: PolicyDecision
     explained: PolicyExplainResult
     loaded: LoadedPolicyRules
+    workspaceRequest?: WorkspaceAccessRequest | null
   }): Promise<{ ok: true } | { ok: false; result: ToolResult }> {
     const { call, ctx } = args2
 
@@ -147,6 +153,7 @@ export function createApprovalService(args: {
     const feedback = String(answers.feedback || '').trim()
     const scopeRaw = String(answers.scope || '').trim().toLowerCase()
     const scope: PolicyScope = scopeRaw === 'global' ? 'global' : scopeRaw === 'project' ? 'project' : 'session'
+    const workspaceDir = String(args2.workspaceRequest?.dir || '').trim()
 
     if (decision === 'approve') {
       if (args.audit) {
@@ -177,11 +184,33 @@ export function createApprovalService(args: {
         })
       }
 
+      if (workspaceDir) {
+        try {
+          await persistWorkspaceDirectory({
+            fileStore: args.fileStore,
+            cwd: ctx.cwd || process.cwd(),
+            scope: 'projectLocal',
+            dir: workspaceDir,
+            env,
+            platform: args.platform,
+            homedir: args.homedir,
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return { ok: false, result: { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true } }
+        }
+      }
+
       // Claude Code semantics:
       // - File edits are "remembered" by switching the session into accept-edits mode (no persistence).
       // - Persistent allow-lists are reserved for other permission types (e.g. Bash, Skill).
       if (args2.action.kind === 'fs.write') {
         ctx.setReplMode?.('acceptEdits')
+        return { ok: true }
+      }
+
+      // Workspace out-of-bounds reads are session-only and should not create policy rules.
+      if (args2.action.kind === 'fs.read' && workspaceDir) {
         return { ok: true }
       }
 

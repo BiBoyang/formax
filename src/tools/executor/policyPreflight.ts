@@ -7,11 +7,11 @@ import type { PolicyAction } from '../../core/policy/types.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ExecutionContext, ToolPreflight } from './index.js'
 import type { ApprovalService } from './approvalService.js'
+import type { WorkspaceAccessRequest } from './approvalService.js'
 import { classifyBashCommand } from '../modules/bash/policy.js'
 import { isSameFilePath } from '../../utils/planMode.js'
 import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
-import { ErrorCode } from '../../core/errors/codes.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import { nowIso } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
@@ -32,6 +32,15 @@ async function tryRealpath(p: string): Promise<string | null> {
     return await fs.realpath(p)
   } catch {
     return null
+  }
+}
+
+async function isExistingDirectory(p: string): Promise<boolean> {
+  try {
+    const st = await fs.stat(p)
+    return st.isDirectory()
+  } catch {
+    return false
   }
 }
 
@@ -88,6 +97,7 @@ export function createPolicyPreflight(args: {
 
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
+    let workspaceRequest: WorkspaceAccessRequest | null = null
     const auditHookRuns = (eventName: string, runs: HookRun[]) => {
       appendHookRunAuditEvents({
         audit: args.audit,
@@ -161,14 +171,26 @@ export function createPolicyPreflight(args: {
         cwd,
       })
 
-      if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
-        return {
-          tool_use_id: call.id,
-          content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(canonicalTargetPath)}`,
-          is_error: true,
-        }
-      }
-    }
+	      if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
+	        const isInteractiveMain = ctx.agentDepth === 0 && ctx.interactive !== false && Boolean(args.approval)
+	        if (!isInteractiveMain) {
+	          return {
+	            tool_use_id: call.id,
+	            content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(canonicalTargetPath)}`,
+	            is_error: true,
+	          }
+	        }
+
+	        let dir = canonicalTargetPath
+	        if (action.kind === 'fs.write') {
+	          dir = path.dirname(canonicalTargetPath)
+	        } else if (!(await isExistingDirectory(canonicalTargetPath))) {
+	          dir = path.dirname(canonicalTargetPath)
+	        }
+
+	        workspaceRequest = { dir }
+	      }
+	    }
 
     const loaded = await loadPolicyRules({
       fileStore: args.fileStore,
@@ -186,6 +208,10 @@ export function createPolicyPreflight(args: {
     // acceptEdits mode: treat prompts as implicitly approved (still respects deny rules).
     if (action.kind === 'fs.write' && replMode === 'acceptEdits' && effectiveDecision === 'prompt') {
       effectiveDecision = 'allow'
+    }
+
+    if (workspaceRequest && effectiveDecision !== 'deny') {
+      effectiveDecision = 'prompt'
     }
 
     // Bash: require approval for commands our classifier marks as confirm (unless an allow rule matched).
@@ -313,6 +339,7 @@ export function createPolicyPreflight(args: {
       effectiveDecision,
       explained,
       loaded,
+      workspaceRequest,
     })
     if ('result' in approved) return approved.result
     return null

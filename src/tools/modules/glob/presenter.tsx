@@ -7,8 +7,8 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
+import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
 
 export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -27,6 +27,7 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
   if (status === 'running' && userInput?.isPending(toolUseId)) {
+    const rawPath = String((input as any)?.path || '')
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
@@ -39,15 +40,14 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           <Text color={theme.secondaryText}>)</Text>
         </Box>
 
-        <EditApprovalPrompt
+        <FsReadApprovalPrompt
           title={`Approve this ${toolName} call?`}
+          directoryPath={rawPath || process.cwd()}
           onDecision={(d) => {
             if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_remember')
-              userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
-            else if (d.kind === 'feedback')
-              userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
             else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
           }}
         />

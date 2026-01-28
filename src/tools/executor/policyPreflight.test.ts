@@ -6,7 +6,12 @@ import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { createApprovalService, type ApprovalService } from './approvalService.js'
 import { createPolicyPreflight } from './policyPreflight.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
-import { addWorkspaceSessionDirectory, resetWorkspaceSessionForTests } from '../../adapters/permissions/workspaceSession.js'
+import {
+  addWorkspaceSessionDirectory,
+  listWorkspaceSessionDirectories,
+  resetWorkspaceSessionForTests,
+} from '../../adapters/permissions/workspaceSession.js'
+import { createUserInputManager } from '../runtime/userInputManager.js'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { AuditEventV1 } from '../../core/audit/schema.js'
 
@@ -257,6 +262,162 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('prompts for fs.read outside workspace roots and approve_remember adds a session workspace directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-read-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      resetWorkspaceSessionForTests()
+
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const target = path.join(outsideDir, 'a.txt')
+      const canonicalOutsideDir = await fs.realpath(outsideDir)
+
+      baseUserInput.submitAnswers('t1', { decision: 'approve_remember' })
+      const res1 = await preflight({ id: 't1', name: 'Read', input: { file_path: target } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(listWorkspaceSessionDirectories(projectDir).map((e) => e.dir)).toContain(canonicalOutsideDir)
+
+      // Subsequent reads should no longer trigger a workspace prompt (even if an approval service is present).
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight({ id: 't2', name: 'Read', input: { file_path: target } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res2).toBeNull()
+      expect(requests).toBe(1)
+    } finally {
+      resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts for fs.read outside workspace roots and approve does not persist workspace directories', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-once-read-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      resetWorkspaceSessionForTests()
+
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const target = path.join(outsideDir, 'a.txt')
+
+      baseUserInput.submitAnswers('t1', { decision: 'approve' })
+      const res1 = await preflight({ id: 't1', name: 'Read', input: { file_path: target } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(listWorkspaceSessionDirectories(projectDir)).toHaveLength(0)
+
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight({ id: 't2', name: 'Read', input: { file_path: target } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res2).toBeNull()
+      expect(requests).toBe(2)
+      expect(listWorkspaceSessionDirectories(projectDir)).toHaveLength(0)
+    } finally {
+      resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts for fs.read outside workspace roots for Grep file paths and approve_remember stores the directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-grep-file-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      resetWorkspaceSessionForTests()
+
+      const targetFile = path.join(outsideDir, 'a.txt')
+      await fs.writeFile(targetFile, 'hello', 'utf8')
+      const canonicalOutsideDir = await fs.realpath(outsideDir)
+
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      baseUserInput.submitAnswers('t1', { decision: 'approve_remember' })
+      const res1 = await preflight({ id: 't1', name: 'Grep', input: { path: targetFile, pattern: 'x' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(listWorkspaceSessionDirectories(projectDir).map((e) => e.dir)).toContain(canonicalOutsideDir)
+
+      // Subsequent greps in the same directory should no longer trigger a workspace prompt.
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight({ id: 't2', name: 'Grep', input: { path: outsideDir, pattern: 'x' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res2).toBeNull()
+      expect(requests).toBe(1)
+    } finally {
+      resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('blocks fs.write outside workspace roots before approval', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-write-'))
     try {
@@ -287,6 +448,79 @@ describe('createPolicyPreflight', () => {
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('outside the workspace')
     } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts for fs.write outside workspace roots and approve_remember adds a session workspace directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-write-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      resetWorkspaceSessionForTests()
+
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      let replMode: string | undefined
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const target = path.join(outsideDir, 'a.txt')
+      const canonicalOutsideDir = await fs.realpath(outsideDir)
+      baseUserInput.submitAnswers('t1', { decision: 'approve_remember' })
+      const res1 = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: target, content: 'hi' } },
+        {
+          cwd: projectDir,
+          agentDepth: 0,
+          getReplMode: () => replMode,
+          setReplMode: (m: string) => {
+            replMode = m
+          },
+        } as any,
+      )
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(replMode).toBe('acceptEdits')
+      expect(listWorkspaceSessionDirectories(projectDir).map((e) => e.dir)).toContain(canonicalOutsideDir)
+
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight(
+        { id: 't2', name: 'Write', input: { file_path: path.join(outsideDir, 'b.txt'), content: 'hi' } },
+        {
+          cwd: projectDir,
+          agentDepth: 0,
+          getReplMode: () => replMode,
+          setReplMode: (m: string) => {
+            replMode = m
+          },
+        } as any,
+      )
+      expect(res2).toBeNull()
+      expect(requests).toBe(1)
+    } finally {
+      resetWorkspaceSessionForTests()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })

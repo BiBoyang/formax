@@ -7,10 +7,10 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import path from 'node:path'
 import { formatPathForDisplay } from '../../../utils/paths'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
+import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
 
 export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -27,7 +27,6 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
-  const fileName = path.basename(filePathRaw || 'file')
 
   const dotColor =
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
@@ -45,13 +44,13 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         </Box>
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
-        <EditApprovalPrompt
-          title={`Do you want to read ${fileName}?`}
+        <FsReadApprovalPrompt
+          title='Read file'
+          directoryPath={path.dirname(filePathRaw || process.cwd())}
           onDecision={(d) => {
             if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_remember')
-              userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
+            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
             else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
             else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
           }}

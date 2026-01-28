@@ -16,8 +16,8 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => userInput,
 }))
 
-vi.mock('../../presenters/editApprovalPrompt', () => ({
-  EditApprovalPrompt: (props: any) => {
+vi.mock('../../presenters/fsReadApprovalPrompt', () => ({
+  FsReadApprovalPrompt: (props: any) => {
     lastPrompt = props
     return <Text>{props.title}</Text>
   },
@@ -61,8 +61,8 @@ describe('GrepToolPresenter', () => {
     lastPrompt.onDecision({ kind: 'approve' })
     expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'approve' })
 
-    lastPrompt.onDecision({ kind: 'approve_remember', scope: 'workspace' })
-    expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'approve_remember', scope: 'workspace' })
+    lastPrompt.onDecision({ kind: 'approve_remember' })
+    expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'approve_remember' })
 
     lastPrompt.onDecision({ kind: 'feedback', feedback: 'no' })
     expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'feedback', feedback: 'no' })
