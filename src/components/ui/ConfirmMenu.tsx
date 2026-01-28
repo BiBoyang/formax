@@ -7,7 +7,13 @@ import { useScopeActivation, useScopedInput } from '../../features/repl/inputSco
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
 
 export type ConfirmMenuOption =
-  | { kind: 'choice'; key: string; label: string; dim?: boolean }
+  | {
+      kind: 'choice'
+      key: string
+      label: string
+      dim?: boolean
+      emphasis?: { text: string; color?: string; bold?: boolean }
+    }
   | { kind: 'feedback'; key: string; label: string; placeholder: string }
 
 export type ConfirmMenuDecision =
@@ -23,6 +29,7 @@ export function ConfirmMenu({
   shiftTabCursor = 1,
   footer,
   scope = 'prompt:confirm',
+  activeColor,
 }: {
   options: ConfirmMenuOption[]
   initialCursor?: number
@@ -31,6 +38,7 @@ export function ConfirmMenu({
   shiftTabCursor?: number
   footer?: React.ReactNode
   scope?: InputScopeId
+  activeColor?: string
 }): React.ReactNode {
   const theme = getTheme()
   const [cursor, setCursor] = useState(initialCursor)
@@ -181,15 +189,42 @@ export function ConfirmMenu({
         {options.map((opt, idx) => {
           const active = cursor === idx
           const prefix = active ? '❯ ' : '  '
-          const color = active ? theme.text : theme.secondaryText
+          const color = active ? (activeColor ?? theme.text) : theme.secondaryText
+          const prefixColor = active ? (activeColor ?? theme.text) : undefined
 
           if (opt.kind === 'choice') {
+            const emphasisText = opt.emphasis?.text ? String(opt.emphasis.text) : ''
+            const hasEmphasis = Boolean(emphasisText && opt.label.includes(emphasisText))
+
             return (
               <Box key={opt.key}>
-                <Text>{prefix}</Text>
-                <Text color={opt.dim && !active ? theme.secondaryText : color}>
-                  {idx + 1}. {opt.label}
-                </Text>
+                <Text color={prefixColor}>{prefix}</Text>
+                {hasEmphasis ? (
+                  (() => {
+                    const index = opt.label.indexOf(emphasisText)
+                    const before = opt.label.slice(0, index)
+                    const after = opt.label.slice(index + emphasisText.length)
+                    const baseColor = opt.dim && !active ? theme.secondaryText : color
+                    const emphasisColor = active ? baseColor : (opt.emphasis?.color ?? theme.text)
+                    const emphasisBold = Boolean(opt.emphasis?.bold)
+
+                    return (
+                      <>
+                        <Text color={baseColor}>
+                          {idx + 1}. {before}
+                        </Text>
+                        <Text color={emphasisColor} bold={emphasisBold}>
+                          {emphasisText}
+                        </Text>
+                        <Text color={baseColor}>{after}</Text>
+                      </>
+                    )
+                  })()
+                ) : (
+                  <Text color={opt.dim && !active ? theme.secondaryText : color}>
+                    {idx + 1}. {opt.label}
+                  </Text>
+                )}
               </Box>
             )
           }

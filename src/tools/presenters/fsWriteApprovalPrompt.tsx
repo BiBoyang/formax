@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { ConfirmMenu, type ConfirmMenuDecision } from '../../components/ui/ConfirmMenu.js'
+import { ApprovalHeader } from './ApprovalHeader'
 
 export type FsWriteApprovalDecision =
   | { kind: 'approve' }
@@ -22,14 +23,11 @@ export function FsWriteApprovalPrompt({
     else if (d.kind === 'feedback') onDecision({ kind: 'feedback', feedback: d.feedback })
     else if (d.key === 'approve') onDecision({ kind: 'approve' })
     else if (d.key === 'approve_remember') onDecision({ kind: 'approve_remember' })
-    else if (d.key === 'cancel') onDecision({ kind: 'cancel' })
   }
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box marginBottom={1}>
-        <Text bold>{title}</Text>
-      </Box>
+      <ApprovalHeader title={title} />
 
       <ConfirmMenu
         options={[
@@ -41,13 +39,13 @@ export function FsWriteApprovalPrompt({
             label: '',
             placeholder: 'Type here to tell Claude what to do differently',
           },
-          { kind: 'choice', key: 'cancel', label: 'Cancel', dim: true },
         ]}
         onDecision={handleDecision}
+        activeColor={theme.permission}
       />
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Esc to interrupt</Text>
+        <Text color={theme.secondaryText}>Esc to cancel</Text>
       </Box>
     </Box>
   )

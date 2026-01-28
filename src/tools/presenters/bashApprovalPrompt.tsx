@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { ConfirmMenu, type ConfirmMenuDecision } from '../../components/ui/ConfirmMenu.js'
+import { ApprovalHeader } from './ApprovalHeader'
 
 export type BashApprovalDecision =
   | { kind: 'approve' }
@@ -26,14 +27,11 @@ export function BashApprovalPrompt({
     else if (d.kind === 'feedback') onDecision({ kind: 'feedback', feedback: d.feedback })
     else if (d.key === 'approve') onDecision({ kind: 'approve' })
     else if (d.key === 'approve_remember') onDecision({ kind: 'approve_remember' })
-    else if (d.key === 'cancel') onDecision({ kind: 'cancel' })
   }
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box marginBottom={1}>
-        <Text bold>{title}</Text>
-      </Box>
+      <ApprovalHeader title={title} />
 
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.secondaryText}>Command:</Text>
@@ -52,9 +50,9 @@ export function BashApprovalPrompt({
             label: '',
             placeholder: 'Type here to tell Claude what to do differently',
           },
-          { kind: 'choice', key: 'cancel', label: 'Cancel', dim: true },
         ]}
         onDecision={handleDecision}
+        activeColor={theme.permission}
       />
 
       <Box marginTop={1}>

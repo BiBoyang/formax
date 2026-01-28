@@ -3,6 +3,7 @@ import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { ConfirmMenu, type ConfirmMenuDecision } from '../../components/ui/ConfirmMenu.js'
+import { ApprovalHeader } from './ApprovalHeader'
 
 export type FsReadApprovalDecision =
   | { kind: 'approve' }
@@ -31,9 +32,7 @@ export function FsReadApprovalPrompt({
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box marginBottom={1}>
-        <Text bold>{title}</Text>
-      </Box>
+      <ApprovalHeader title={title} />
 
       <ConfirmMenu
         options={[
@@ -42,6 +41,7 @@ export function FsReadApprovalPrompt({
             kind: 'choice',
             key: 'approve_remember',
             label: `Yes, allow reading from ${dirLabel} during this session`,
+            emphasis: { text: dirLabel, color: theme.text, bold: true },
           },
           {
             kind: 'feedback',
@@ -51,6 +51,7 @@ export function FsReadApprovalPrompt({
           },
         ]}
         onDecision={handleDecision}
+        activeColor={theme.permission}
       />
 
       <Box marginTop={1}>

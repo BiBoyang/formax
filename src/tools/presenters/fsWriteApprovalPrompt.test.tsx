@@ -75,7 +75,7 @@ describe('FsWriteApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: 'hello' })
   })
 
-  it('supports esc cancel and explicit cancel choice', async () => {
+  it('supports esc cancel', async () => {
     const onDecision = vi.fn()
 
     const { stdin, unmount } = render(
@@ -92,22 +92,5 @@ describe('FsWriteApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
 
     unmount()
-
-    const onDecision2 = vi.fn()
-    const { stdin: stdin2 } = render(
-      <InputScopeProvider>
-        <ReplUiProvider abort={() => {}}>
-          <FsWriteApprovalPrompt title="Approve write?" onDecision={onDecision2} />
-        </ReplUiProvider>
-      </InputScopeProvider>,
-    )
-
-    await tick()
-    stdin2.write('4')
-    await tick()
-    stdin2.write('\r')
-    await tick()
-    expect(onDecision2).toHaveBeenCalledWith({ kind: 'cancel' })
   })
 })
-

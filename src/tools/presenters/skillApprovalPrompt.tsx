@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { ConfirmMenu, type ConfirmMenuDecision } from '../../components/ui/ConfirmMenu.js'
+import { ApprovalHeader } from './ApprovalHeader'
 
 export type SkillApprovalDecision =
   | { kind: 'approve' }
@@ -28,9 +29,7 @@ export function SkillApprovalPrompt({
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box marginBottom={1}>
-        <Text bold>{title}</Text>
-      </Box>
+      <ApprovalHeader title={title} />
 
       <ConfirmMenu
         options={[
@@ -44,6 +43,7 @@ export function SkillApprovalPrompt({
           },
         ]}
         onDecision={handleDecision}
+        activeColor={theme.permission}
       />
 
       <Box marginTop={1}>
