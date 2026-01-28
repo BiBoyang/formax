@@ -53,13 +53,10 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
       return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'hooks' } }] })
 
     case 'local':
-      // Claude Code renders `/todos` output as "sub lines" (⎿ ...) under the user command.
-      // Keep model injection behavior unchanged (recordForNextTurn), but align UI rendering.
+      // Render local slash command output as "sub lines" (⎿ ...) under the user command.
+      // Model injection remains controlled by recordForNextTurn (currently only /todos sets it).
       return consumedCommandResult({
-        ui:
-          effect.recordForNextTurn?.commandName === '/todos'
-            ? [appendCommandSublines(effect.stdout)]
-            : [appendAssistantMessage(effect.stdout)],
+        ui: [appendCommandSublines(effect.stdout)],
         model: effect.recordForNextTurn
           ? [{ type: 'injectNextTurn', blocks: buildLocalCommandInjectedBlocks(effect.recordForNextTurn) }]
           : undefined,
@@ -70,7 +67,7 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
 
     case 'local_async':
       return consumedCommandResult({
-        ui: [appendAssistantMessage(`${effect.loadingText || 'Working'}...`)],
+        ui: [appendCommandSublines(`${effect.loadingText || 'Working'}...`)],
         data: { kind: 'local_async', loadingText: effect.loadingText, run: effect.run },
       })
 

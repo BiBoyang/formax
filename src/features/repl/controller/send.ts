@@ -323,22 +323,28 @@ export async function maybeHandleConsumedSlashCommand(args: {
       if (out.recordForNextTurn) {
         args.pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
       }
+      const lines = String(out.stdout ?? '').split('\n')
+      const now = Date.now()
+      const timestamp = new Date()
       args.setMessages((prev) => [
         ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: out.stdout,
-          timestamp: new Date(),
-        },
+        ...lines.map((content, idx) => ({
+          id: `assistant-${now}-${idx}`,
+          role: 'assistant' as const,
+          ui: { kind: 'command_subline' as const },
+          content,
+          timestamp,
+        })),
       ])
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Command failed'
+      const now = Date.now()
       args.setMessages((prev) => [
         ...prev,
         {
-          id: `error-${Date.now()}`,
+          id: `error-${now}`,
           role: 'assistant',
+          ui: { kind: 'command_subline' as const },
           content: `Error: ${msg}`,
           timestamp: new Date(),
         },

@@ -27,16 +27,16 @@ describe('slashEffectToCommandResult', () => {
     })
   })
 
-  it('keeps non-/todos local output as a normal assistant message', () => {
+  it('renders local output as command sublines (no injectNextTurn when recordForNextTurn is absent)', () => {
     const result = slashEffectToCommandResult({
       kind: 'local',
       stdout: 'hello',
-      recordForNextTurn: { commandName: '/status', commandMessage: 'status', commandArgs: '', stdout: 'out' },
     })
 
     expect(result).toMatchObject({
-      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', content: 'hello' }] }],
+      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', ui: { kind: 'command_subline' }, content: 'hello' }] }],
     })
+    expect((result as any).model).toBeUndefined()
   })
 
   it('maps open_agents_dialog effect to openOverlay', () => {
@@ -68,7 +68,7 @@ describe('slashEffectToCommandResult', () => {
     const result = slashEffectToCommandResult({ kind: 'local_async', loadingText: 'Diagnosing', run })
     expect(result).toMatchObject({
       consumed: true,
-      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', content: 'Diagnosing...' }] }],
+      ui: [{ type: 'appendMessages', messages: [{ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Diagnosing...' }] }],
       data: { kind: 'local_async', loadingText: 'Diagnosing' },
     })
   })

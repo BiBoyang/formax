@@ -961,7 +961,11 @@ describe('useReplController consumed slash commands', () => {
 
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(runTurn).toHaveBeenCalledTimes(0)
-    expect(controller.state.messages.some((m) => m.role === 'assistant' && m.content.trim() === 'ok')).toBe(true)
+    expect(
+      controller.state.messages.some(
+        (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.trim() === 'ok',
+      ),
+    ).toBe(true)
   })
 
   it('runs local_async commands and appends stdout without calling the engine', async () => {
@@ -994,6 +998,14 @@ describe('useReplController consumed slash commands', () => {
     const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
     expect(assistantTexts.some((t) => t.includes('Diagnosing'))).toBe(true)
     expect(assistantTexts.some((t) => t.trim() === 'ok')).toBe(true)
+    expect(
+      controller.state.messages.some(
+        (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.includes('Diagnosing'),
+      ),
+    ).toBe(true)
+    expect(
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.trim() === 'ok'),
+    ).toBe(true)
   })
 
   it('surfaces errors from local_async commands without calling the engine', async () => {
@@ -1022,5 +1034,8 @@ describe('useReplController consumed slash commands', () => {
     expect(runTurn).toHaveBeenCalledTimes(0)
     expect(run).toHaveBeenCalledTimes(1)
     expect(lastAssistantText(controller)).toContain('Error: boom')
+    expect(
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.includes('Error: boom')),
+    ).toBe(true)
   })
 })
