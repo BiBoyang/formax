@@ -11,6 +11,8 @@ describe('UI Components', () => {
     secondaryBorder: '#888',
     text: '#fff',
     secondaryText: 'gray',
+    replUserPromptFg: '#fff',
+    replUserPromptBg: '#373737',
     suggestion: '#b1b9f9',
     claude: '#a78bfa',
     error: 'red',

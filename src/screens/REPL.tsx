@@ -59,6 +59,7 @@ export function REPL({
   toolRegistry,
   taskManager,
 }: Props): React.ReactNode {
+  const theme = useMemo(() => getTheme(), [])
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<ReplMode>('normal')
   const [slashIndex, setSlashIndex] = useState(0)
@@ -277,13 +278,12 @@ export function REPL({
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
           <Box>
-            <Text bold>&gt; </Text>
-            <Text>{msg.content}</Text>
+            <Text color={theme.replUserPromptFg} backgroundColor={theme.replUserPromptBg}>{`> ${msg.content} `}</Text>
           </Box>
         </Box>
       )
     },
-    [toolRegistry],
+    [theme.replUserPromptBg, theme.replUserPromptFg, toolRegistry],
   )
 
   const modelLabel = useMemo(() => {

@@ -6,6 +6,8 @@ export interface Theme {
   secondaryBorder: string
   text: string
   secondaryText: string
+  replUserPromptFg: string
+  replUserPromptBg: string
   suggestion: string
   claude: string  // AI assistant color
   // Semantic colors
@@ -28,6 +30,8 @@ const darkTheme: Theme = {
   secondaryBorder: '#888',
   text: '#fff',
   secondaryText: '#999',
+  replUserPromptFg: '#fff',
+  replUserPromptBg: '#373737',
   suggestion: '#b1b9f9',
   claude: '#a78bfa',
   success: '#4eba65',
@@ -46,4 +50,3 @@ const darkTheme: Theme = {
 export function getTheme(): Theme {
   return darkTheme
 }
-
