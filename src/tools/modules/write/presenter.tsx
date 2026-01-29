@@ -3,11 +3,13 @@ import path from 'node:path'
 import { Box, Text } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { ApprovalHeader } from '../../presenters/ApprovalHeader'
+import { ApprovalPreview } from '../../presenters/ApprovalPreview'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
@@ -63,7 +65,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
     const rawContent = (input as any).content
     const content = typeof rawContent === 'string' ? rawContent : ''
-    const preview = buildPreviewLines(content, 18)
+    const preview = buildPreviewMarkdown(content, 18)
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -79,16 +81,9 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
         <Box flexDirection="column" marginTop={1}>
           <ApprovalHeader title="Create file" />
-          <Box borderStyle="single" borderColor={theme.secondaryText} paddingX={1} flexDirection="column" width={cols}>
-            <Text>{fileName}</Text>
-            <Text> </Text>
-            {preview.lines.map((l, i) => (
-              <Text key={i}>{l}</Text>
-            ))}
-            {preview.remaining > 0 ? (
-              <Text color={theme.secondaryText}>… +{preview.remaining} lines</Text>
-            ) : null}
-          </Box>
+          <ApprovalPreview fileName={fileName} width={cols} remainingLines={preview.remaining}>
+            <MarkdownBlock markdown={preview.markdown} />
+          </ApprovalPreview>
 
           <Text>
             Do you want to create <Text bold>{fileName}</Text>?
@@ -113,18 +108,17 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   return <ToolMessage message={message} />
 }
 
-function buildPreviewLines(
+function buildPreviewMarkdown(
   raw: string,
   maxLines: number,
 ): {
-  lines: string[]
+  markdown: string
   remaining: number
 } {
   const all = String(raw || '').split(/\r?\n/)
   const slice = all.slice(0, maxLines)
   const remaining = Math.max(0, all.length - slice.length)
-  return {
-    lines: slice.map((l) => (l.length === 0 ? ' ' : l)),
-    remaining,
-  }
+  const fenceCount = slice.filter((l) => String(l).trimStart().startsWith('```')).length
+  const maybeCloseFence = fenceCount % 2 === 1 ? [...slice, '```'] : slice
+  return { markdown: maybeCloseFence.join('\n'), remaining }
 }

@@ -24,11 +24,11 @@
 
 ## B. 抽象 Preview（先做“结构”，后做“渲染”）
 
-- [ ] 定义 `ApprovalPreview` 组件（只管布局，不管语义）：  
+- [x] 定义 `ApprovalPreview` 组件（只管布局，不管语义）：  
   - 显示：文件名/标题行 + bordered box（建议 `borderStyle="round"` 对齐 CC）  
   - 预览区边框颜色：先保持 `theme.secondaryText`（后续再按截图逐项对齐）
 
-- [ ] 把 `Write` 的预览从 `src/tools/modules/write/presenter.tsx` 提取到 `ApprovalPreview`  
+- [x] 把 `Write` 的预览从 `src/tools/modules/write/presenter.tsx` 提取到 `ApprovalPreview`  
   - 现状：`WriteToolPresenter` 内部拼 preview（线 + Create file + border + 内容）
   - 目标：`WriteToolPresenter` 只负责“给 preview 数据”，不负责“画框/画线/空行”
 
@@ -36,7 +36,7 @@
 
 > 先不追求 100% 语法高亮；目标是能把预览统一渲染成“Markdown + code fence”，后续再加轻量高亮。
 
-- [ ] 新增一个纯 UI 的 `MarkdownText`（或 `MarkdownBlock`）组件：把 markdown 字符串渲染成 Ink `Text`/`Box`
+- [x] 新增一个纯 UI 的 `MarkdownText`（或 `MarkdownBlock`）组件：把 markdown 字符串渲染成 Ink `Text`/`Box`
   - 最小支持：
     - 段落换行
     - 无序列表（`- `）
@@ -44,7 +44,7 @@
     - inline code（`` `code` ``）
   - 约束：不要输出 raw ANSI（通过 Ink 的 `Text color/backgroundColor/bold` 实现）
 
-- [ ] 在 `ApprovalPreview` 里使用 `MarkdownBlock` 渲染预览内容：
+- [x] 在 `ApprovalPreview` 里使用 `MarkdownBlock` 渲染预览内容：
   - 对于代码文件：包装为 code fence（根据扩展名推断语言标签可选）
   - 对于 `.md`：直接渲染 markdown（含 code blocks）
 
