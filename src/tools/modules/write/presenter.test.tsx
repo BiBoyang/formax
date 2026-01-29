@@ -41,6 +41,14 @@ describe('WriteToolPresenter', () => {
     expect(frame).toContain('Do you want to create new.txt?')
     expect(frame).toContain('line1')
     expect(frame).toContain('line3')
+
+    // Only one "standalone" separator line (the approval header). Preview box borders should not count.
+    const ansi = /\u001B\[[0-9;]*m/g
+    const standaloneSeparators = frame
+      .split('\n')
+      .map((l) => l.replace(ansi, '').trim())
+      .filter((l) => /^─{20,}$/.test(l))
+    expect(standaloneSeparators).toHaveLength(1)
   })
 
   it('renders an Updated plan message when writing the active plan file', () => {
@@ -74,4 +82,3 @@ describe('WriteToolPresenter', () => {
     expect(frame).not.toContain('Write(')
   })
 })
-

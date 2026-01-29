@@ -7,6 +7,7 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
+import { ApprovalHeader } from '../../presenters/ApprovalHeader'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
@@ -59,7 +60,6 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
   if (status === 'running' && userInput?.isPending(toolUseId)) {
     const cols = Math.max((process.stdout.columns || 80), 40)
-    const line = '─'.repeat(cols)
 
     const rawContent = (input as any).content
     const content = typeof rawContent === 'string' ? rawContent : ''
@@ -78,11 +78,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
         </Box>
 
         <Box flexDirection="column" marginTop={1}>
-          <Text color={theme.secondaryText}>{line}</Text>
-          <Box marginTop={1} marginBottom={1}>
-            <Text>Create file</Text>
-          </Box>
-
+          <ApprovalHeader title="Create file" />
           <Box borderStyle="single" borderColor={theme.secondaryText} paddingX={1} flexDirection="column" width={cols}>
             <Text>{fileName}</Text>
             <Text> </Text>
@@ -94,8 +90,15 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
             ) : null}
           </Box>
 
+          <Box marginTop={1}>
+            <Text>
+              Do you want to create <Text bold>{fileName}</Text>?
+            </Text>
+          </Box>
+
           <FsWriteApprovalPrompt
             title={`Do you want to create ${fileName}?`}
+            variant="inline"
             onDecision={(d) => {
               if (!userInput) return
               if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })

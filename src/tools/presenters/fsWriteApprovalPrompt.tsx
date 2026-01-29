@@ -12,9 +12,11 @@ export type FsWriteApprovalDecision =
 
 export function FsWriteApprovalPrompt({
   title,
+  variant = 'header',
   onDecision,
 }: {
   title: string
+  variant?: 'header' | 'inline'
   onDecision: (decision: FsWriteApprovalDecision) => void
 }): React.ReactNode {
   const theme = getTheme()
@@ -26,8 +28,8 @@ export function FsWriteApprovalPrompt({
   }
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <ApprovalHeader title={title} />
+    <Box flexDirection="column" marginTop={variant === 'header' ? 1 : 0}>
+      {variant === 'header' ? <ApprovalHeader title={title} /> : null}
 
       <ConfirmMenu
         options={[
