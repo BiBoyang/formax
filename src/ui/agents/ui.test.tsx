@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { Text } from 'ink'
 import { Spacer, DialogFrame, CreateAgentHeader, Footer, FramedRow, FrameDivider } from './ui.js'
 
 describe('UI Components', () => {
@@ -45,7 +46,7 @@ describe('UI Components', () => {
     it('renders children with frame', () => {
       const { lastFrame } = render(
         <DialogFrame theme={mockTheme}>
-          <React.Fragment>Test content</React.Fragment>
+          <Text>Test content</Text>
         </DialogFrame>,
       )
       const output = lastFrame()
