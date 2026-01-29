@@ -12,27 +12,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect code changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.mjs'
+
       - uses: actions/setup-node@v4
+        if: steps.changes.outputs.code == 'true'
         with:
           node-version: '20'
 
       - uses: oven-sh/setup-bun@v2
+        if: steps.changes.outputs.code == 'true'
         with:
           bun-version: latest
 
       - name: Install deps
+        if: steps.changes.outputs.code == 'true'
         run: bun install --frozen-lockfile
 
       - name: Typecheck + boundary checks
+        if: steps.changes.outputs.code == 'true'
         run: bun run type-check
 
       - name: Tests (with coverage)
+        if: steps.changes.outputs.code == 'true'
         run: bun run test:coverage
 
       - name: Upload coverage to Codecov
+        if: steps.changes.outputs.code == 'true'
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage/coverage-final.json
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Skip (no code changes)
+        if: steps.changes.outputs.code != 'true'
+        run: echo "No *.ts/*.tsx/*.js/*.mjs changes; skipping typecheck/tests/coverage."
