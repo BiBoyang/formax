@@ -968,6 +968,34 @@ describe('useReplController consumed slash commands', () => {
     ).toBe(true)
   })
 
+  it('splits multiline local command stdout into multiple command_subline messages', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/multi') return { kind: 'local', stdout: 'one\ntwo\nthree' }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/multi')
+    await tick()
+
+    expect(runTurn).toHaveBeenCalledTimes(0)
+
+    const sublines = controller.state.messages
+      .filter((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline')
+      .map((m) => m.content)
+    expect(sublines).toEqual(['one', 'two', 'three'])
+  })
+
   it('runs local_async commands and appends stdout without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
@@ -1006,6 +1034,36 @@ describe('useReplController consumed slash commands', () => {
     expect(
       controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.trim() === 'ok'),
     ).toBe(true)
+  })
+
+  it('splits multiline local_async stdout into multiple command_subline messages', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+
+    const run = vi.fn(async () => ({ stdout: 'ok1\nok2\nok3' }))
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (input) => {
+        if (input === '/doctor') return { kind: 'local_async', loadingText: 'Diagnosing', run }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/doctor')
+    await waitFor(() => controller.state.isLoading === false)
+
+    expect(runTurn).toHaveBeenCalledTimes(0)
+    expect(run).toHaveBeenCalledTimes(1)
+
+    const sublines = controller.state.messages
+      .filter((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline')
+      .map((m) => m.content.trim())
+    expect(sublines).toEqual(['Diagnosing...', 'ok1', 'ok2', 'ok3'])
   })
 
   it('surfaces errors from local_async commands without calling the engine', async () => {
