@@ -62,7 +62,7 @@
   - 只有**一条**顶部分隔线（不再出现两条 `─` 分隔线）
   - `Create file` 紧凑（无多余空行）
   - `Do you want to create …?` 位于预览下方，且不会被额外分隔线隔开
-- [ ] 为 `Read`/`Bash` approval 补一条最小用例，保证重构不会破坏其它 prompt
+- [x] 为 `Read`/`Bash` approval 补一条最小用例，保证重构不会破坏其它 prompt
 
 ## F. 扩展范围（后置）
 

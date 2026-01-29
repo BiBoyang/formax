@@ -24,6 +24,32 @@ async function waitForFrame(
 }
 
 describe('BashApprovalPrompt', () => {
+  it('renders header and options', async () => {
+    const onDecision = vi.fn()
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Bash command" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    const frame = lastFrame() || ''
+    expect(frame).toContain('Bash command')
+    expect(frame).toContain('1. Yes')
+    expect(frame).toContain("2. Yes, don't ask again for this command in this repo")
+    expect(frame).toContain('Type here to tell Claude what to do differently')
+    expect(frame).toContain('Esc to cancel')
+
+    const ruleLines = frame
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter((l) => /^─{20,}$/.test(l))
+    expect(ruleLines).toHaveLength(1)
+  })
+
   it('esc cancels', async () => {
     const onDecision = vi.fn()
 
