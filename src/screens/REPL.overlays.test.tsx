@@ -431,6 +431,63 @@ describe('REPL overlay input gating', () => {
     }
   }, 20000)
 
+  it('closes /agents overlay on Esc (does not bubble to REPL)', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-agents-esc-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const projectAgentsDir = path.join(projectConfigDir, 'agents')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    const userAgentsDir = path.join(globalConfigDir, 'agents')
+
+    await mkdir(projectAgentsDir, { recursive: true })
+    await mkdir(userAgentsDir, { recursive: true })
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({
+        agentsDialogOpen: true,
+        allowedSubagents: [
+          { name: 'design-planner', description: '' },
+          { name: 'general-purpose', description: '' },
+          { name: 'statusline-setup', description: '' },
+          { name: 'Explore', description: '' },
+          { name: 'Plan', description: '' },
+          { name: 'claude-code-guide', description: '' },
+        ],
+      })
+
+      const { REPL } = await import('./REPL')
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL
+            engine={{ runTurn: async () => [] }}
+            tools={[]}
+            cfg={makeCfg({ paths: { logsDir: '', planDir: '', subagentsDir: projectAgentsDir } })}
+          />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(lastFrame, (f) => f.includes('Agents'))
+      await waitForScope((s) => s === 'overlay:agents')
+      await tick()
+
+      stdin.write('\u001B')
+      await tick()
+
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+      expect(mockActions.send).toHaveBeenCalledTimes(0)
+      expect(mockActions.closeAgentsDialog).toHaveBeenCalledTimes(1)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
   it('routes arrow keys to /hooks overlay and hides the REPL input bar', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-hooks-overlay-'))
     const projectRoot = path.join(repoRoot, 'repo')
@@ -473,6 +530,49 @@ describe('REPL overlay input gating', () => {
       const afterDown = await waitForFrame(lastFrame, (f) => /❯\s*2\.\s+PermissionRequest\b/.test(f))
       expect(afterDown).toMatch(/❯\s*2\.\s+PermissionRequest\b/)
       expect(mockActions.abort).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('closes /hooks overlay on Esc (does not bubble to REPL)', async () => {
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-repl-hooks-esc-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    await writeFile(path.join(projectConfigDir, 'settings.local.json'), JSON.stringify({ version: 1, hooks: {} }, null, 2), 'utf8')
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      mockState = baseState({ hooksDialogOpen: true })
+
+      const { REPL } = await import('./REPL')
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      await waitForFrame(lastFrame, (f) => f.includes('Hook Configuration'))
+      await waitForScope((s) => s === 'overlay:hooks')
+      await tick()
+
+      stdin.write('\u001B')
+      await tick()
+
+      expect(mockActions.abort).toHaveBeenCalledTimes(0)
+      expect(mockActions.send).toHaveBeenCalledTimes(0)
+      expect(mockActions.closeHooksDialog).toHaveBeenCalledTimes(1)
     } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
