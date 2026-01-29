@@ -24,8 +24,11 @@ describe('checkWritableDir', () => {
 
     const res = await checkWritableDir(filePath)
     expect(res.ok).toBe(false)
-    if (res.ok) throw new Error('Expected ok=false')
-    expect(res.error).toContain('E')
+    if (res.ok === false) {
+      expect(res.error).toContain('E')
+      return
+    }
+    throw new Error('Expected ok=false')
   })
 
   it('stringifies non-Error throwables', async () => {
@@ -47,4 +50,3 @@ describe('checkWritableDir', () => {
     vi.resetModules()
   })
 })
-

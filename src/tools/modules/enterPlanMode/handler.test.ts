@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createEnterPlanModeToolHandler } from './handler'
+import type { ExecutionContext } from '../../executor/index.js'
 
-function createCtx(overrides?: Partial<any>) {
-  const setReplMode = vi.fn()
+function createCtx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+  const setReplMode = vi.fn() as unknown as NonNullable<ExecutionContext['setReplMode']>
   return {
+    cwd: '/tmp',
     agentDepth: 0,
     replMode: 'normal',
     setReplMode,
@@ -81,4 +83,3 @@ describe('EnterPlanMode handler', () => {
     expect(res.content).toBe('Error: boom')
   })
 })
-

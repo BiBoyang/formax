@@ -12,7 +12,7 @@ vi.mock('../../core/diagnostics/status', () => {
   return { createStatusSnapshot: (args: any) => createStatusSnapshotMock(args) }
 })
 
-const configShowMock = vi.fn(async () => {
+const configShowMock = vi.fn(async (_args: any) => {
   return {
     config: { llm: { provider: 'anthropic' } },
     paths: { projectRoot: '/tmp/repo' },
@@ -21,14 +21,14 @@ const configShowMock = vi.fn(async () => {
   }
 })
 vi.mock('../../core/config/show', () => {
-  return { configShow: (...args: any[]) => configShowMock(...args) }
+  return { configShow: (arg: any) => configShowMock(arg) }
 })
 
-const runDoctorMock = vi.fn(async () => {
+const runDoctorMock = vi.fn(async (_args: any) => {
   return { version: 'v', cwd: '/tmp/repo', checks: [], warnings: [] }
 })
 vi.mock('../../core/diagnostics/doctor', () => {
-  return { runDoctor: (...args: any[]) => runDoctorMock(...args) }
+  return { runDoctor: (arg: any) => runDoctorMock(arg) }
 })
 
 vi.mock('../../core/diagnostics/format', () => {
@@ -56,7 +56,7 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'default',
+      promptProfile: 'full',
       setPromptProfile: () => {},
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
@@ -80,7 +80,7 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'default',
+      promptProfile: 'full',
       setPromptProfile: () => {},
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: ['extra-1', 'extra-2'],
@@ -104,7 +104,7 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'default',
+      promptProfile: 'full',
       setPromptProfile: () => {},
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
@@ -116,4 +116,3 @@ describe('createReplCommandRegistry', () => {
     expect(runDoctorMock).toHaveBeenCalledTimes(1)
   })
 })
-

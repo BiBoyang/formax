@@ -29,7 +29,8 @@ describe('createSlashCommandToolModule', () => {
   it('renders (none found) when no commands exist', async () => {
     await withTempRepo(async ({ root }) => {
       const mod = createSlashCommandToolModule({ cwd: root })
-      expect(mod.spec.description).toContain('\nAvailable Commands:\n(none found)\n')
+      const spec = typeof mod.spec === 'function' ? mod.spec() : mod.spec
+      expect(spec.description).toContain('\nAvailable Commands:\n(none found)\n')
     })
   })
 
@@ -62,7 +63,8 @@ describe('createSlashCommandToolModule', () => {
       expect(blocked?.disableModelInvocation).toBe(true)
 
       const mod = createSlashCommandToolModule({ cwd: root })
-      const desc = mod.spec.description
+      const spec = typeof mod.spec === 'function' ? mod.spec() : mod.spec
+      const desc = spec.description
 
       expect(desc).toContain('Available Commands:')
       expect(desc).toContain('- /hello: Hello command')
