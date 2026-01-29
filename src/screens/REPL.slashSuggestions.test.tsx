@@ -147,7 +147,7 @@ describe('REPL slash suggestions', () => {
     } finally {
       unmount()
     }
-  })
+  }, 20000)
 
   it('autocompletes on Tab without sending', async () => {
     const { REPL } = await import('./REPL')

@@ -207,7 +207,9 @@ export function useScopedInput(
   opts?: { enabled?: boolean },
 ): void {
   const handlerRef = useRef(handler)
-  useEffect(() => {
+  // Keep the routed handler up-to-date synchronously to avoid "stale closure" key handling
+  // when UI state changes and the user types immediately (common in overlays/prompts).
+  useLayoutEffect(() => {
     handlerRef.current = handler
   }, [handler])
 
