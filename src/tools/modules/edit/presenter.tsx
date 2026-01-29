@@ -10,6 +10,8 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
+import { ApprovalHeader } from '../../presenters/ApprovalHeader'
+import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 const MAX_PREVIEW_LINES = 12
@@ -79,16 +81,29 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         </Box>
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
-        <FsWriteApprovalPrompt
-          title={`Do you want to edit ${fileName}?`}
-          onDecision={(d) => {
-            if (!userInput) return
-            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
-            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-          }}
-        />
+        <Box flexDirection="column" marginTop={1}>
+          <ApprovalHeader title={`Edit file ${fileName}`} />
+
+          {typeof oldString === 'string' && typeof newString === 'string' ? (
+            <PatchApprovalPreview filePath={filePath} oldText={oldString} newText={newString} />
+          ) : null}
+
+          <Text>
+            Do you want to make this edit to <Text bold>{fileName}</Text>?
+          </Text>
+
+          <FsWriteApprovalPrompt
+            title={`Do you want to make this edit to ${fileName}?`}
+            variant="inline"
+            onDecision={(d) => {
+              if (!userInput) return
+              if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+              else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+              else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+              else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+            }}
+          />
+        </Box>
       ) : status !== 'running' ? (
         <Box flexDirection="column">
           <Box>

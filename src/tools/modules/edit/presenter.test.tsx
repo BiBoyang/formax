@@ -111,8 +111,11 @@ describe('EditToolPresenter', () => {
     )
 
     const frame = lastFrame()
-    expect(frame).toContain('Do you want to edit')
+    expect(frame).toContain('Edit file a.ts')
+    expect(frame).toContain('Do you want to make this edit to')
     expect(frame).toContain('a.ts')
+    expect(frame).toContain('-')
+    expect(frame).toContain('+')
 
     userInput.rejectAllPending(new Error('cleanup'))
   })
