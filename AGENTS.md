@@ -19,15 +19,15 @@
 - `CODEMAP.md` is the “where to change what” index (entrypoints, main loop, tools, plan mode, sub-tasks).
 
 ## Build, Test, and Development Commands
-- `bun install` or `npm install` installs dependencies.
-- `bun run dev` / `npm run dev` runs the CLI via `tsx` (entry: `src/entrypoints/cli.tsx`).
-- `bun run toole` / `npm run toole` runs the tool examples entrypoint.
-- `bun run loade` / `npm run loade` runs loading examples.
+- `bun install` installs dependencies.
+- `bun run dev` runs the CLI via `tsx` (entry: `src/entrypoints/cli.tsx`).
+- `bun run toole` runs the tool examples entrypoint.
+- `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
-- `bun run type-check` / `npm run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
+- `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
 - `bun run ui:boundaries` runs UI boundary checks (guards `src/ui/`, `src/screens/`, `src/components/` from importing forbidden layers).
-- `bun run test` / `npm test` runs `vitest run`; `bun run test:watch` / `npm run test:watch` runs Vitest watch.
-- Single test: `bun run test -- src/tools/registry.test.ts` (or `npm test -- src/tools/registry.test.ts`).
+- `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
+- Single test: `bun run test -- src/tools/registry.test.ts`.
 
 ## Coding Style & Naming Conventions
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
@@ -56,8 +56,8 @@
 
 ## Tool Contract Checks
 If you modify tool specs/contracts or tool module coverage, consider running:
-- `bun run tools:parity` (or `npm run tools:parity`)
-- `bun run tools:coverage` (or `npm run tools:coverage`)
+- `bun run tools:parity`
+- `bun run tools:coverage`
 
 ## Commit & Pull Request Guidelines
 - Commits follow Conventional Commit style in history: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:` with optional scope (`refactor(chat): ...`).

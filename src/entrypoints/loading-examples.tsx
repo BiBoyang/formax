@@ -4,7 +4,7 @@
  * Loading Examples Entry Point
  *
  * Launches the LoadingExampleScreen for debugging the loading UI.
- * Run with: npm run loade
+ * Run with: bun run loade
  */
 
 import React from 'react'
@@ -31,4 +31,3 @@ main().catch(err => {
   console.error(err)
   process.exit(1)
 })
-

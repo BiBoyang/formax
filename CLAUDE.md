@@ -3,19 +3,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build, Test, and Development Commands
 
-- `bun install` or `npm install` - Install dependencies
-- `bun run dev` or `npm run dev` - Run the CLI REPL interface
-- `bun run toole` or `npm run toole` - Run tool examples entrypoint
-- `bun run loade` or `npm run loade` - Run loading examples entrypoint
-- `bun run build` or `npm run build` - Bundle CLI to `dist/cli.js` (requires Bun)
-- `npm run type-check` - Run TypeScript type checks (no emit) plus core boundaries check
-- `npm run core:boundaries` - Run core module boundary checks (enforces no reverse dependencies from core to adapters/ui/cli)
-- `npm test` - Run all tests (Vitest)
-- `npm run test:watch` - Run tests in watch mode
-- `npm test -- <path>` - Run a specific test file (e.g., `npm test -- src/tools/registry.test.ts`)
-- `npm run test:watch -- -t "<test-name>"` - Run tests matching a pattern
-- `npm run tools:coverage` - Check tool implementation coverage vs reference specs
-- `npm run tools:parity` - Compare tool specs and schemas with reference file (default: `proxy/tools-copy.json`)
+- `bun install` - Install dependencies
+- `bun run dev` - Run the CLI REPL interface
+- `bun run toole` - Run tool examples entrypoint
+- `bun run loade` - Run loading examples entrypoint
+- `bun run build` - Bundle CLI to `dist/cli.js` (requires Bun)
+- `bun run type-check` - Run TypeScript type checks (no emit) plus core + UI boundary checks
+- `bun run core:boundaries` - Run core module boundary checks
+- `bun run ui:boundaries` - Run UI boundary checks
+- `bun run test` - Run all tests (Vitest)
+- `bun run test:watch` - Run tests in watch mode
+- `bun run test -- <path>` - Run a specific test file (e.g., `bun run test -- src/tools/registry.test.ts`)
+- `bun run test:watch -- -t "<test-name>"` - Run tests matching a pattern
+- `bun run tools:coverage` - Check tool implementation coverage vs reference specs
+- `bun run tools:parity` - Compare tool specs and schemas with reference file (default: `proxy/tools-copy.json`)
 
 ## High-Level Architecture
 
@@ -23,7 +24,7 @@ Formax is a terminal-based AI chat interface built with React + Ink, featuring a
 
 ### Layered Architecture
 
-The codebase follows a layered architecture with strict dependency boundaries (enforced by `npm run core:boundaries`):
+The codebase follows a layered architecture with strict dependency boundaries (enforced by `bun run core:boundaries` and `bun run ui:boundaries`):
 
 1. **Core Layer** (`src/core/`) - Business logic and configuration, no dependencies on outer layers
 2. **Adapters Layer** (`src/adapters/`) - I/O implementations (fs, permissions, audit) that implement core interfaces
@@ -230,7 +231,7 @@ Example: `refactor(tools): extract handler execution into separate module`
 ## Pitfalls & Gotchas (Keep Updated)
 When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `AGENTS.md` so future agents can avoid re-discovering it.
 
-- **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This is enforced by `npm run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
+- **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This is enforced by `bun run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
 
