@@ -90,11 +90,9 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
             ) : null}
           </Box>
 
-          <Box marginTop={1}>
-            <Text>
-              Do you want to create <Text bold>{fileName}</Text>?
-            </Text>
-          </Box>
+          <Text>
+            Do you want to create <Text bold>{fileName}</Text>?
+          </Text>
 
           <FsWriteApprovalPrompt
             title={`Do you want to create ${fileName}?`}
