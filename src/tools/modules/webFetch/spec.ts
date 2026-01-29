@@ -4,7 +4,7 @@ import type { ToolDefinition } from '../../types'
  * Tool spec for WebFetch.
  *
  * This is the single source of truth for this tool's specification.
- * It should match the corresponding entry in proxy/tools-copy.json
+ * It should match the corresponding entry in src/tools/specs/reference/tools-copy.json
  * (verified by parity tests).
  */
 export const spec: ToolDefinition = {

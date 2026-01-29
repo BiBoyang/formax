@@ -14,8 +14,6 @@ docs/*
 !docs/LEARNINGS/**
 .claude
 proxy/*
-!proxy/tools.json
-!proxy/tools-copy.json
 Kode-cli
 *.txt
 system-prompts

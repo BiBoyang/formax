@@ -98,7 +98,7 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 1) in `pitfalls.md` (canonical long-term log), and
 2) here **and** in `CLAUDE.md` if it affects day-to-day agent behavior.
 
-- **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
+- **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
 
 ## Local Paths

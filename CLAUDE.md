@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun run test -- <path>` - Run a specific test file (e.g., `bun run test -- src/tools/registry.test.ts`)
 - `bun run test:watch -- -t "<test-name>"` - Run tests matching a pattern
 - `bun run tools:coverage` - Check tool implementation coverage vs reference specs
-- `bun run tools:parity` - Compare tool specs and schemas with reference file (default: `proxy/tools-copy.json`)
+- `bun run tools:parity` - Compare tool specs and schemas with reference file (default: `src/tools/specs/reference/tools-copy.json`)
 
 ## High-Level Architecture
 
@@ -81,7 +81,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 - `src/tools/registry.ts` - Central registry for tool specifications and handlers
 - `src/tools/executor/` - Tool execution engine with context management (cwd, signals, tool allow/deny lists)
 - `src/tools/modules/` - Individual tool implementations (read, write, bash, grep, glob, webSearch, etc.)
-- `src/tools/catalog/` - Tool specification sources (loads from `proxy/tools.json` or similar)
+- `src/tools/specs/reference/` - Reference tool spec snapshots (used for parity/coverage only)
 - `src/tools/patches/` - Patches to modify tool specs at runtime (e.g., sub-agent integration)
 - `src/tools/runtime/` - Runtime managers for background tasks and user input prompts
 - `src/tools/presenters/` - Output formatting/presentation for tool results
@@ -182,7 +182,7 @@ Formax uses a layered configuration system (merges in order of precedence):
 
 **Path overrides**:
 - `FORMAX_CONFIG_DIR` - Global config directory (default: `~/.formax/`)
-- `FORMAX_TOOLS_JSON_PATH` - Tool spec JSON (default: `proxy/tools.json`)
+- `FORMAX_TOOLS_JSON_PATH` - Tool spec JSON (default: `src/tools/specs/reference/tools.json`)
 - `FORMAX_LOGS_DIR` - Traffic logs directory (default: `proxy/logs`)
 - `FORMAX_SUBAGENTS_DIR` - Project sub-agent definitions directory (default: `.formax/agents`)
 - `FORMAX_PLAN_DIR` - Plan mode directory (default: `.formax/plans/`)
@@ -232,7 +232,7 @@ Example: `refactor(tools): extract handler execution into separate module`
 When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `AGENTS.md` so future agents can avoid re-discovering it.
 
 - **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This is enforced by `bun run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
-- **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
+- **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
 
 ## Module Documentation

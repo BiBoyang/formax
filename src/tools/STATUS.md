@@ -1,6 +1,6 @@
 # Tools 系统：已完成内容 & 后续计划
 
-> 目标：逐步对齐 Claude Code 的 tool 生态（`proxy/tools-copy.json`），同时保持 formax 的实现是「可插拔工具模块化」。
+> 目标：逐步对齐 Claude Code 的 tool 生态（`src/tools/specs/reference/tools-copy.json`），同时保持 formax 的实现是「可插拔工具模块化」。
 
 ## 当前架构（本项目真实实现）
 
@@ -8,7 +8,7 @@
   - **唯一事实来源**：`src/tools/modules/**` 每个 Tool Module 自带 `spec`（`ToolDefinition`）
   - **运行时聚合**：`src/entrypoints/cli.tsx` 注册 modules → `toolRegistry.listSpecs()` 生成“暴露给模型”的 tools 列表
   - **Patch**：`src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
-  - **对照参考**：`proxy/tools-copy.json`（抓包得到的“参考全集”）；`proxy/tools.json` 不再参与运行时（仅保留为历史/参考）
+  - **对照参考**：`src/tools/specs/reference/tools-copy.json`（抓包得到的“参考全集”）；`src/tools/specs/reference/tools.json` 不再参与运行时（仅保留为历史/参考）
   - **差异追踪（避免忘记）**：`npm run tools:coverage`（工具名覆盖率）与 `npm run tools:parity`（schema 字段差异）
 
 - **工具执行（Handler）**
@@ -99,7 +99,7 @@
 
 ## tools-copy.json 还缺什么（未实现）
 
-来自 `proxy/tools-copy.json`（对齐目标）但目前仍缺：
+来自 `src/tools/specs/reference/tools-copy.json`（对齐目标）但目前仍缺：
 - `Skill`（技能执行：需要定义“skill 是什么/从哪里来/是否允许访问哪些能力”）
 
 ## 后续建议路线（按价值/依赖排序）
@@ -122,5 +122,5 @@
    - 任务持久化（可选）：重启后还能看到历史任务/输出（写入 logs）
 
 5. **工具规范生成（长期）**
-   - ✅ 已摆脱运行时对 `proxy/tools.json` 的依赖：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
+   - ✅ 已摆脱运行时对 `src/tools/specs/reference/tools.json` 的依赖：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
    - `tools-copy.json` 继续作为“对齐参考全集”（长期目标），并用 `npm run tools:coverage` 跟踪覆盖率

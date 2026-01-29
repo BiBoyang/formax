@@ -16,7 +16,7 @@ import { createUserInputManager } from '../src/tools/runtime/userInputManager.js
 type ToolsFile = { tools?: Array<{ name?: string }> }
 
 async function main(): Promise<void> {
-  const refPathArg = process.argv[2] || 'proxy/tools-copy.json'
+  const refPathArg = process.argv[2] || 'src/tools/specs/reference/tools-copy.json'
   const refPath = path.resolve(process.cwd(), refPathArg)
 
   const registry = buildRegistryForSpecs()
@@ -82,4 +82,3 @@ main().catch((err) => {
   console.error(err)
   process.exit(1)
 })
-

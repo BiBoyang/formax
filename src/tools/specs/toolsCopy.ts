@@ -1,12 +1,12 @@
 /**
  * @deprecated Use individual tool spec files in modules/{tool}/spec.ts instead.
- * This module is only kept for parity testing against proxy/tools-copy.json.
+ * This module is only kept for parity testing against src/tools/specs/reference/tools-copy.json.
  *
  * All runtime tool specs should be imported from their respective module directories.
- * The proxy/tools-copy.json file serves as a reference snapshot for parity validation.
+ * The src/tools/specs/reference/tools-copy.json file serves as a reference snapshot for parity validation.
  */
 import type { ToolDefinition } from '../types'
-import toolsCopy from '../../../proxy/tools-copy.json'
+import toolsCopy from './reference/tools-copy.json'
 
 export type ToolCopyName =
   | 'AskUserQuestion'
@@ -56,4 +56,3 @@ export function getToolCopySpec(name: ToolCopyName): ToolCopySpec {
 export function hasToolCopySpec(name: string): name is ToolCopyName {
   return Object.prototype.hasOwnProperty.call(TOOL_COPY_SPECS, name)
 }
-
