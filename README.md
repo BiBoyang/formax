@@ -8,7 +8,7 @@ Formax is a terminal-first AI assistant for software engineering tasks. It is in
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
 [![license](https://img.shields.io/github/license/yusifeng/formax)](LICENSE)
 
-<p align="center">
+<p align="left">
   <img src="./demo.gif" width="600" />
 </p>
 
@@ -45,6 +45,10 @@ export FORMAX_MODEL="..."                            # provider-specific model i
 # optional
 export FORMAX_TIMEOUT_MS="600000"
 ```
+
+### Providers
+
+Formax currently supports **Anthropic-compatible** APIs only. **OpenAI-compatible** and **Gemini** providers are not supported yet.
 
 ## REPL slash commands
 
