@@ -1,4 +1,4 @@
-# Pitfalls / 踩坑记录
+# Pitfalls
 
 This is a living knowledge base. Whenever you hit a non-obvious pitfall and you can reproduce + explain it, add a short entry.
 
@@ -68,16 +68,16 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Keywords**: ink, overlay, flicker, flash, layout, terminal height, marginY, marginBottom, width=100%, TextInput
 
 ## Ink `useInput` “bubbling” (multiple handlers receive the same key)
-- **Problem**: TextInput 到边界时按 `←/→/Backspace/Delete/Enter`，会“漏”给外层 list/快捷键（表现为：选中项乱跳、Tab/方向键误触、甚至 REPL 热键被触发）。
+- **Problem**: When the cursor is at a boundary in `TextInput`, pressing `←/→/Backspace/Delete/Enter` can “leak” to an outer list/hotkeys (symptoms: selection jumps, Tab/arrow navigation misfires, or even REPL hotkeys trigger).
 - **Repro**:
-  1) 打开一个 overlay（例如 `/hooks` 的 Add new hook），光标放在 input 最左/最右
-  2) 连续按 `←/→` 或 `Backspace/Delete`
-  3) 观察到外层列表或 REPL 的快捷键也被触发（尤其在边界时更明显）
-- **Root cause**: Ink 的多个 `useInput` 默认都能收到同一个按键事件；没有浏览器那种 stop-propagation。只靠“某个 handler 里 return”并不会阻止别的 handler 收到键。
+  1) Open an overlay (e.g. `/hooks` → Add new hook) and put the cursor at the far left/right of the input
+  2) Press `←/→` or `Backspace/Delete` repeatedly
+  3) Observe that the outer list or REPL hotkeys also fire (most noticeable at boundaries)
+- **Root cause**: Ink delivers the same keypress to multiple `useInput` handlers by default; there is no browser-style stop-propagation. Simply “returning” inside one handler does not prevent other handlers from receiving the key.
 - **Fix**:
-  - 用 InputScope router 做集中分发，并引入 “consumed” 语义：`handler(...) === true` 代表消费该按键，阻止同 scope 的低优先级 handler 继续处理。
-  - TextInput 在 scope 模式下，对 `←/→/Backspace/Delete/Enter` **即使在边界**也要 consume（避免漏到外层）。
-  - REPL hotkeys 与 slash selector 分组并给 priority，确保 selector 导航键先被 consume。
+  - Centralize routing via the InputScope router and introduce a “consumed” semantic: `handler(...) === true` means the key is consumed and prevents lower-priority handlers (within the same scope) from handling it.
+  - In scope mode, `TextInput` must consume `←/→/Backspace/Delete/Enter` **even at boundaries** (so it never leaks to outer handlers).
+  - Split REPL hotkeys vs slash selector into groups with priorities so selector navigation keys are consumed first.
 - **Links**: `src/features/repl/inputScopeContext.tsx`, `src/components/ui/TextInput.tsx`, `src/screens/repl/hotkeys.ts`, `src/features/repl/inputScopeContext.test.tsx`, `src/components/ui/TextInput.test.tsx`, `src/screens/repl/hotkeys.test.tsx`
 - **Keywords**: ink, useInput, bubbling, consumed, priority, input scope, TextInput, hotkeys
 
