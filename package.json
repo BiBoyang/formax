@@ -16,7 +16,7 @@
     "loade": "tsx ./src/entrypoints/loading-examples.tsx",
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
-    "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
+    "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
     "prepack": "bun run build",
     "core:boundaries": "node ./scripts/check-core-boundaries.mjs",
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
@@ -53,6 +53,6 @@
     "vitest": "^4.0.18"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   }
 }
