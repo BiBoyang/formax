@@ -10,16 +10,35 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const repoRoot = path.resolve(__dirname, '..')
-const entrypoint = path.join(repoRoot, 'src', 'entrypoints', 'cli.tsx')
+const distCli = path.join(repoRoot, 'dist', 'cli.js')
+const tsEntry = path.join(repoRoot, 'src', 'entrypoints', 'cli.tsx')
 
-if (!fs.existsSync(entrypoint)) {
-  console.error(`[formax] Could not find CLI entrypoint at: ${entrypoint}`)
+const args = process.argv.slice(2)
+
+if (fs.existsSync(distCli)) {
+  const child = spawn(process.execPath, [distCli, ...args], { stdio: 'inherit' })
+  child.once('error', (err) => {
+    console.error('[formax] Failed to start:', err)
+    process.exit(1)
+  })
+  child.once('exit', (code, signal) => {
+    if (signal) process.kill(process.pid, signal)
+    process.exit(code ?? 1)
+  })
+  process.exit(0)
+}
+
+if (!fs.existsSync(tsEntry)) {
+  console.error('[formax] Could not find CLI entrypoint.')
+  console.error(`- dist: ${distCli}`)
+  console.error(`- src:  ${tsEntry}`)
+  console.error('[formax] Install dependencies and/or build the CLI first.')
   process.exit(1)
 }
 
 const tsxCli = resolveTsxCli()
 
-const child = spawn(process.execPath, [tsxCli, entrypoint, ...process.argv.slice(2)], { stdio: 'inherit' })
+const child = spawn(process.execPath, [tsxCli, tsEntry, ...args], { stdio: 'inherit' })
 child.once('error', (err) => {
   console.error('[formax] Failed to start:', err)
   process.exit(1)
@@ -55,4 +74,3 @@ function resolveTsxCli() {
   )
   process.exit(1)
 }
-

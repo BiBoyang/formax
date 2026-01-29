@@ -173,7 +173,7 @@ Formax uses a layered configuration system (merges in order of precedence):
 ```
 
 **Environment variables** (override config files):
-- `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`
+- `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_MODEL`, `FORMAX_TIMEOUT_MS`
 - `FORMAX_WEBFETCH_MODEL`, `FORMAX_WEBFETCH_MAX_TOKENS`, `FORMAX_WEBFETCH_MAX_INPUT_CHARS`
 - `FORMAX_PATCH_TASK_TOOL` - Enable Task tool sub-agent patching (default: true)
 - `CONSOLE_LOGGER_PORT`, `ENABLE_CONSOLE_LOGGER` - Debug logging server
@@ -252,9 +252,6 @@ When working in these modules, read their READMEs first to understand patterns a
 
 ## Security Tips
 
-- Do not commit secrets. Local config uses `.env` (e.g., `ANTHROPIC_API_KEY2`); keep `.env` and traffic logs out of git
+- Do not commit secrets. Local config uses `.env` (e.g., `FORMAX_API_KEY`); keep `.env` and traffic logs out of git
 - When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting
 - Auth files (`~/.formax/auth.json`) should have mode 0o600 (enforced by the codebase)
-
-## Codex local project path
-- /Users/david/Documents/github/codex

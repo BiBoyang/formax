@@ -50,7 +50,7 @@ describe('configShow', () => {
       const res = await configShow({
         fileStore: store,
         cwd: projectDir,
-        env: { FORMAX_CONFIG_DIR: globalConfigDir, ANTHROPIC_API_KEY2: apiKey } as any,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: apiKey } as any,
       })
 
       expect(res.auth?.provider).toBe('anthropic')
@@ -61,4 +61,3 @@ describe('configShow', () => {
     }
   })
 })
-

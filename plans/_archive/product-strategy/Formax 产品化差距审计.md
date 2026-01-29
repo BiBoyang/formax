@@ -4,7 +4,7 @@
 
 我认为 **Formax 目前处于“开发者向 MVP / 高完成度 Demo（核心交互可用，但尚不可直接交付陌生用户）”阶段**：REPL + 工具调用 + Plan/AcceptEdits 等核心交互已经跑通，但“首次使用/配置/诊断/安全边界/发布维护”这些产品化必需件仍缺口较大。
 
-1. **最大交付阻塞点是配置与凭证**：当前主要靠环境变量（如 `ANTHROPIC_API_KEY2` / `ANTHROPIC_BASE_URL2`），缺少“首次启动向导、配置文件、profile、凭证安全存储、连接测试与错误引导”，陌生用户很难 15 分钟跑通。`/status`、`/doctor` 也已列为内置命令但仍未实现。
+1. **最大交付阻塞点是配置与凭证**：当前主要靠环境变量（如 `FORMAX_API_KEY` / `FORMAX_BASE_URL`），缺少“首次启动向导、配置文件、profile、凭证安全存储、连接测试与错误引导”，陌生用户很难 15 分钟跑通。`/status`、`/doctor` 也已列为内置命令但仍未实现。
 2. **安全能力“有骨架但缺边界”**：你已经实现了 Bash/Edit 的交互审批与“记住本次选择”的机制（`approve_remember`）以及 plan/acceptEdits 模式切换（Shift+Tab），这是很好的底座；但 Read/Glob/Grep 等文件读取与搜索目前可对任意绝对路径生效，缺少“工作区目录白名单/额外目录授权/网络访问域名白名单”等产品级权限边界。
 3. **可维护/可发布体系尚未成型**：CLI 层几乎只有 REPL，缺少 `--help`、子命令（setup/config/doctor）、版本与升级策略、诊断包导出、日志与脱敏策略、文档与 FAQ；此外 repo 内存在“文档/状态记录与运行时代码不一致或仅作参考”的情况（比如 `system-prompts/` 明确不在运行时加载），需要把“真相来源”收敛到一套稳定的配置/诊断/文档链路上。
 
@@ -23,9 +23,9 @@
 | 能力点                              | Claude Code 的做法（来源URL；没把握标【推测】）                                                                                     | Formax 当前状态（已/部分/缺失 + 文件路径）                                                                                       | 用户痛点/风险                                        | 建议（MVP 实现步骤）                                                                             |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | A1 安装/首次启动路径                     | 提供明确的安装与“快速开始”文档；安装后可运行 `claude` 进入交互模式；官方强调“自动保持最新状态/更新”。                                                          | **部分**：README/概览里有 `bun run ...` 的开发启动方式与环境变量说明；但缺少“普通用户安装方式”。（例如 overview 中提到 `bun run src/entrypoints/cli.tsx`） | 陌生用户不知道怎么装、怎么跑；只能按开发者方式运行，门槛高                  | P0：提供 npm 包（bin）或单文件二进制；README 给 3 行 QuickStart（安装→setup→首次对话）                           |
-| A2 首次运行引导（缺 key 自动进入向导）          | 文档提示首次运行需要完成认证/登录（例如 Claude.ai 或 API key 相关），并提供故障排查。                                                               | **缺失**：当前只从 env 读 `ANTHROPIC_API_KEY2` 等，不存在交互式 wizard；缺 key 时不会给“下一步指令”，只会在 API 调用时报错。                           | “第一次就卡死”：用户看到 HTTP 错误但不知道怎么修                   | P0：启动时 `ensureCredentials()` 检测缺失→触发 `runSetupWizard()`（输入 key 不回显、测试连通、写配置）             |
+| A2 首次运行引导（缺 key 自动进入向导）          | 文档提示首次运行需要完成认证/登录（例如 Claude.ai 或 API key 相关），并提供故障排查。                                                               | **缺失**：当前只从 env 读 `FORMAX_API_KEY` 等，不存在交互式 wizard；缺 key 时不会给“下一步指令”，只会在 API 调用时报错。                           | “第一次就卡死”：用户看到 HTTP 错误但不知道怎么修                   | P0：启动时 `ensureCredentials()` 检测缺失→触发 `runSetupWizard()`（输入 key 不回显、测试连通、写配置）             |
 | A3 配置优先级/作用域                     | Claude Code 有“设置作用域与优先级”概念：企业/托管设置、CLI 参数、项目设置、用户设置等（文档列出 precedence）。                                              | **缺失**：目前没有统一配置系统；env 是唯一来源；`src/utils/config.ts` 只是返回默认对象且“不从磁盘加载”。                                              | 配置不可追溯、不可迁移、不可诊断；多人协作时无法项目级覆盖                  | P0：实现 `resolveRuntimeConfig(flags, env, configFile)` 并定义优先级表（见第 3 节）                     |
-| A4 Provider/Model/Base URL 的统一入口 | Claude Code 支持通过 CLI flags 与设置文件配置 model、provider、base URL（例如 CLI reference 描述多选项；LLM gateway/设置相关文档）。              | **部分**：env 支持 `ANTHROPIC_BASE_URL2`/`ANTHROPIC_MODEL`；但 CLI flag 与配置文件缺失。                                         | 用户想用代理/本地网关时，只能改 env；无法 profile 化              | P0：新增 `--provider/--model/--base-url/--profile`；落盘配置；支持 per-profile 覆盖                   |
+| A4 Provider/Model/Base URL 的统一入口 | Claude Code 支持通过 CLI flags 与设置文件配置 model、provider、base URL（例如 CLI reference 描述多选项；LLM gateway/设置相关文档）。              | **部分**：env 支持 `FORMAX_BASE_URL`/`FORMAX_MODEL`；但 CLI flag 与配置文件缺失。                                         | 用户想用代理/本地网关时，只能改 env；无法 profile 化              | P0：新增 `--provider/--model/--base-url/--profile`；落盘配置；支持 per-profile 覆盖                   |
 | A5 终端多行输入/键绑定引导                  | Claude Code 有 `/terminal-setup` 来安装终端键绑定/设置以支持多行输入（文档）。                                                             | **缺失**：Formax 目前没有 /terminal-setup；命令 registry 标记该命令为未实现。                                                         | 用户在不同终端下输入体验不一致；无法引导 Shift+Enter 等             | P1：实现最小 `/terminal-setup`：只输出“如何开启多行/粘贴模式”的手册（先不改系统）                                     |
 | B1 凭证安全存储                        | Claude Code 侧强调安全存储：例如 macOS 使用 Keychain；也支持 `apiKeyHelper` 脚本以动态获取 key；并支持刷新/过期策略（IAM/credential 文档）。              | **缺失**：只通过 env 注入 key；没有 Keychain/Keytar；也没有“从外部 helper 获取”的接口。                                                   | 用户把 key 写进 `.env` 或 shell history；泄露风险高；无法企业集成 | P1：引入 keytar（可选依赖）→优先 OS 密钥库；否则 `~/.config/formax/credentials.json`（0600）                |
 | B2 key 脱敏显示与日志脱敏                 | Claude Code 文档提到隐私设置/日志等（/privacy-settings、sentry 等端点在网络文档出现）；同时诊断/错误通常不会直接回显完整 key。                                | **缺失**：没有统一 `redactSecrets`；也没有日志系统策略（默认是否记录/记录哪些）。当前还默认启动 console logger（见 A?）。                                  | 用户贴 log 给你/issue 时可能把 key/路径/项目内容一起泄露          | P0：实现 `redactSecrets(text)` 并在所有错误/日志/诊断输出走脱敏；默认不记录 prompt 全量                            |
@@ -137,7 +137,7 @@
 3. 新增 `src/config/load.ts`：读取 config file（不存在返回空）→ validate → migrate。
 4. 新增 `src/config/resolve.ts`：merge flags/env/config/defaults，输出 `ResolvedConfig`。
 5. 新增 `src/config/save.ts`：写 config file（确保目录存在、权限 0700/0600）。
-6. 修改 `src/env/config.ts`：逐步弃用“只读 env 的 RuntimeConfig”，改为调用 `resolveRuntimeConfig()`；保留 env override 兼容。你当前 `loadRuntimeConfig` 只读 env（`ANTHROPIC_API_KEY2` 等）。
+6. 修改 `src/env/config.ts`：逐步弃用“只读 env 的 RuntimeConfig”，改为调用 `resolveRuntimeConfig()`；保留 env override 兼容。你当前 `loadRuntimeConfig` 只读 env（`FORMAX_API_KEY` 等）。
 7. 修改 `src/entrypoints/cli.tsx`（或新的 `runRepl`）：从 `ResolvedConfig` 注入 `apiKey/baseUrl/model/timeout`。
 8. 在 `/status` 输出“config path / profile / provider / model / baseUrl（脱敏）”。
 
@@ -588,10 +588,10 @@
 **Anthropic**
 
 * `FORMAX_PROVIDER=anthropic`
-* `FORMAX_ANTHROPIC_API_KEY=...`（建议新增）
-* 兼容旧值：`ANTHROPIC_API_KEY2`（你当前使用）
-* `FORMAX_ANTHROPIC_BASE_URL=...`（兼容 `ANTHROPIC_BASE_URL2`/`ANTHROPIC_BASE_URL`）
-* `FORMAX_ANTHROPIC_MODEL=...`（兼容 `ANTHROPIC_MODEL`）
+* `FORMAX_API_KEY=...`（建议新增）
+* 兼容旧值：`FORMAX_API_KEY`（你当前使用）
+* `FORMAX_BASE_URL=...`（兼容 `FORMAX_BASE_URL`/`FORMAX_BASE_URL`）
+* `FORMAX_MODEL=...`（兼容 `FORMAX_MODEL`）
 
 **OpenAI / 兼容服务（预留）**
 
@@ -899,7 +899,7 @@
 
 ### 3.4.1 现有 config/env 读取点在哪里？
 
-* **runtime env config**：`src/env/config.ts` 读取 `ANTHROPIC_API_KEY2`、`ANTHROPIC_BASE_URL2`/`ANTHROPIC_BASE_URL`、`ANTHROPIC_MODEL`、`FORMAX_TIMEOUT_MS` 等
+* **runtime env config**：`src/env/config.ts` 读取 `FORMAX_API_KEY`、`FORMAX_BASE_URL`/`FORMAX_BASE_URL`、`FORMAX_MODEL`、`FORMAX_TIMEOUT_MS` 等
 * **旧 config 路径定义**：`src/utils/env.ts` 已定义 `FORMAX_CONFIG_DIR`（支持 `XDG_CONFIG_HOME`）与 `FORMAX_CONFIG_FILE`
 * **旧 global config stub**：`src/utils/config.ts` 目前 `loadGlobalConfig()` 不读磁盘，只返回 default
 * **REPL 启动默认开启 console logger**：`src/entrypoints/cli.tsx` 默认 `ENABLE_CONSOLE_LOGGER !== 'false'`
@@ -1530,7 +1530,7 @@ formax
 **1) “Missing API key / Authentication failed (401)”**
 
 * 运行：`formax setup`
-* 或设置环境变量：`FORMAX_ANTHROPIC_API_KEY=...`（不推荐长期使用）
+* 或设置环境变量：`FORMAX_API_KEY=...`（不推荐长期使用）
 * 再运行：`formax doctor`
 
 **2) “Cannot resolve host / DNS error”**
@@ -1707,7 +1707,7 @@ What you can do next:
 
 1. **缺少 API Key**
 
-   * `No API key configured. Run "formax setup" or set FORMAX_ANTHROPIC_API_KEY.`
+   * `No API key configured. Run "formax setup" or set FORMAX_API_KEY.`
 
 2. **401 鉴权失败**
 

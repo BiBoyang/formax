@@ -87,7 +87,7 @@ export async function loadRuntimeConfig(
   const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 
   const apiKey = resolved.auth?.apiKey || ''
-  const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.ANTHROPIC_BASE_URL2 || '')
+  const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.FORMAX_BASE_URL || '')
   const model = resolved.config.llm.model || ''
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const contextWindowTokens = resolved.config.llm.contextWindowTokens

@@ -94,17 +94,17 @@ function envToPatch(
 ): { patch: FormaxConfigV1Patch; auth: ResolvedAuth | null } {
   const patch: FormaxConfigV1Patch = {}
 
-  const apiKey = (env.ANTHROPIC_API_KEY2 || '').trim()
-  const baseUrl = normalizeAnthropicBaseUrl((env.ANTHROPIC_BASE_URL2 || '').trim())
-  const model = (env.ANTHROPIC_MODEL || '').trim()
-  const timeoutMsRaw = (env.ANTHROPIC_TIMEOUT_MS || '').trim()
+  const apiKey = (env.FORMAX_API_KEY || '').trim()
+  const baseUrl = normalizeAnthropicBaseUrl((env.FORMAX_BASE_URL || '').trim())
+  const model = (env.FORMAX_MODEL || '').trim()
+  const timeoutMsRaw = (env.FORMAX_TIMEOUT_MS || '').trim()
   const timeoutMsParsed = timeoutMsRaw ? Number(timeoutMsRaw) : undefined
   const timeoutMs =
     timeoutMsRaw && Number.isFinite(timeoutMsParsed) && Number.isInteger(timeoutMsParsed) && timeoutMsParsed > 0
       ? timeoutMsParsed
       : undefined
   if (timeoutMsRaw && timeoutMs === undefined) {
-    warnings.push('env ANTHROPIC_TIMEOUT_MS is invalid and was ignored')
+    warnings.push('env FORMAX_TIMEOUT_MS is invalid and was ignored')
   }
 
   const logsDir = (env.FORMAX_LOGS_DIR || '').trim()

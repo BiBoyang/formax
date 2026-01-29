@@ -104,7 +104,7 @@ flowchart TD
 | 现象                   | 优先检查                                                         | 命令                                             |
 | ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 配置加载后 apiKey 为空 | `auth.json` 是否存在 + authRef 拼写                              | `bun run dev -- doctor`                          |
-| env 变量不生效         | `resolve.ts` envToPatch 映射 + 变量名（如 `ANTHROPIC_API_KEY2`） | `bun run type-check`                             |
+| env 变量不生效         | `resolve.ts` envToPatch 映射 + 变量名（如 `FORMAX_API_KEY`）      | `bun run type-check`                             |
 | policy 规则匹配失败    | `engine.ts` matchPathPrefix/matchWordPrefix 逻辑                 | `bun run test -- src/core/policy/engine.test.ts` |
 | setup 向导跳步骤       | `session.ts` step 状态机 back/next                               | `bun run test -- src/core/setup/session.test.ts` |
 | doctor 报连接失败      | `diagnostics/doctor.ts` testConnection 参数                      | `bun run dev -- doctor`                          |

@@ -9,7 +9,7 @@
 
 ### 0.1 当前配置来源：仅 env（RuntimeConfig）
 
-* `src/env/config.ts` 里 `loadRuntimeConfig()` 读取 `ANTHROPIC_API_KEY2 / ANTHROPIC_BASE_URL2 / ANTHROPIC_MODEL / ANTHROPIC_TIMEOUT_MS` 等环境变量；并包含 UI/feature 的 env 开关。
+* `src/env/config.ts` 里 `loadRuntimeConfig()` 读取 `FORMAX_API_KEY / FORMAX_BASE_URL / FORMAX_MODEL / FORMAX_TIMEOUT_MS` 等环境变量；并包含 UI/feature 的 env 开关。
 
 
 ### 0.2 默认“配置目录/文件”常量已经存在（但未真正读取 config 文件）
@@ -118,7 +118,7 @@
 | 优先级（高→低） | 来源               | 示例                                                                       |
 | -------- | ---------------- | ------------------------------------------------------------------------ |
 | 1        | CLI flags        | `--profile prod --base-url ... --model ...`                              |
-| 2        | 环境变量 env         | `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL` 等（含旧变量兼容） |
+| 2        | 环境变量 env         | `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_MODEL` 等（含旧变量兼容） |
 | 3        | 配置文件 config.json | `profiles.default.llm.baseUrl` 等                                         |
 | 4        | 默认值 default      | baseUrl 默认 `https://api.anthropic.com`（现有逻辑里也默认该值）                       |
 
@@ -128,8 +128,8 @@
 * 行为规则（v1）：
 
   * 如果 config/auth 已存在且完整：env 只在显式 `--prefer-env` 或 `--override` 时覆盖（防止“上线后静默坏掉”）
-  * 如果 config/auth 缺失：读取 env（包括旧 `ANTHROPIC_*2`）并在 `status/doctor` 输出 `warnings: ["ENV_DEPRECATED: ANTHROPIC_API_KEY2"]`
-* 理由（【证据】）：当前系统就是靠 `ANTHROPIC_API_KEY2` 等工作；直接移除会大面积 break。
+  * 如果 config/auth 缺失：读取 env（包括旧 `ANTHROPIC_*2`）并在 `status/doctor` 输出 `warnings: ["ENV_DEPRECATED: FORMAX_API_KEY"]`
+* 理由（【证据】）：当前系统就是靠 `FORMAX_API_KEY` 等工作；直接移除会大面积 break。
 
 ---
 
@@ -582,7 +582,7 @@ doctor 由一串 checks 组成，每个 check 有统一结构（pass/warn/fail +
 Formax Doctor
 [PASS] config: loaded (v1) at ...
 [PASS] auth: entry anthropic-default present
-[WARN] env: deprecated ANTHROPIC_API_KEY2 is set (use `formax setup`)
+[WARN] env: deprecated FORMAX_API_KEY is set (use `formax setup`)
 [PASS] workspace: /Users/me/project (git root)
 [PASS] fs: can write config/log dirs
 [FAIL] network: E_DNS cannot resolve api.anthropic.com
@@ -1070,7 +1070,7 @@ export interface ResolvedRuntimeConfig {
 
 4. precedence：flags 覆盖 env/config
 5. precedence：env 覆盖 config
-6. 兼容旧 env：`ANTHROPIC_API_KEY2` 生效并产生 warning
+6. 兼容旧 env：`FORMAX_API_KEY` 生效并产生 warning
 
 ---
 
@@ -1456,7 +1456,7 @@ v1 的迁移流程（自动 + 手动两条腿）：
 
 1. 自动（首次运行）
 
-* 若 config/auth 缺失，但检测到 env（含 `ANTHROPIC_API_KEY2` 等）：
+* 若 config/auth 缺失，但检测到 env（含 `FORMAX_API_KEY` 等）：
 
   * `status/doctor` 提示：`ENV_DEPRECATED` + “Run `formax setup` to persist configuration.”
   * `setup wizard` 允许“一键导入 env 值作为初始值”（baseUrl/model 预填，apiKey 预填但仍隐藏显示）
@@ -1474,7 +1474,7 @@ v1 的迁移流程（自动 + 手动两条腿）：
 
 提示文案（建议）
 
-* `WARN: Detected deprecated env var ANTHROPIC_API_KEY2. Please run 'formax setup' to migrate.`
+* `WARN: Detected deprecated env var FORMAX_API_KEY. Please run 'formax setup' to migrate.`
 * `In v1.1 this env var will no longer be supported.`
 
 ## I3) 防回归测试（至少 10 条，P0）

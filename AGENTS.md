@@ -85,12 +85,12 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - global config files under `FORMAX_CONFIG_DIR` (default `~/.formax/`)
   - per-project overrides under `<repo>/.formax/`
 - Key env vars:
-  - Anthropic: `ANTHROPIC_API_KEY2`, `ANTHROPIC_BASE_URL2`, `ANTHROPIC_MODEL`, `ANTHROPIC_TIMEOUT_MS`
+  - LLM: `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_MODEL`, `FORMAX_TIMEOUT_MS`
   - Paths: `FORMAX_CONFIG_DIR`, `FORMAX_LOGS_DIR`, `FORMAX_SUBAGENTS_DIR`, `FORMAX_PLAN_DIR`
   - Setup: `FORMAX_FORCE_SETUP=1` (force the setup wizard)
 
 ## Security & Config Tips
-- Do not commit secrets. Local config uses `.env` (e.g., `ANTHROPIC_API_KEY2`); keep `.env` and traffic logs out of git.
+- Do not commit secrets. Local config uses `.env` (e.g., `FORMAX_API_KEY`); keep `.env` and traffic logs out of git.
 - When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting.
 
 ## Pitfalls & Gotchas (Keep Updated)
@@ -101,8 +101,5 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `proxy/` (e.g. `proxy/tools.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
 
-## Codex local project path
-- /Users/david/Documents/github/codex
-
-## OpenCode local project path
-- /Users/david/Documents/github/opencode
+## Local Paths
+- Avoid hardcoding machine-specific absolute paths in repo docs.

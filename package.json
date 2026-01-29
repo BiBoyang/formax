@@ -1,8 +1,15 @@
 {
-  "name": "formax",
-  "version": "0.1.0",
+  "name": "@yusifeng/formax",
+  "version": "0.0.1-beta.1",
   "type": "module",
-  "description": "A minimal CLI demo using Ink and React",
+  "description": "Terminal-first AI assistant for software engineering tasks (Ink + React)",
+  "license": "MIT",
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx",
     "toole": "tsx ./src/entrypoints/tool-examples.tsx",
@@ -10,6 +17,7 @@
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node",
+    "prepack": "bun run build",
     "core:boundaries": "node ./scripts/check-core-boundaries.mjs",
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
     "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs",
@@ -21,6 +29,9 @@
   },
   "bin": {
     "formax": "bin/formax.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

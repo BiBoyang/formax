@@ -221,19 +221,19 @@
 
   * `rg "FORMAX_CONFIG_DIR|FORMAX_CONFIG_FILE" -n src/utils/env.ts`
 
-24. **但当前运行时配置仍是 env-only：`loadRuntimeConfig` 从 env 读 `ANTHROPIC_API_KEY2`、`ANTHROPIC_BASE_URL2`、`ANTHROPIC_MODEL`、`FORMAX_LOGS_DIR`…；planDir 默认是 `~/.claude/plans`。**【证据】
+24. **但当前运行时配置仍是 env-only：`loadRuntimeConfig` 从 env 读 `FORMAX_API_KEY`、`FORMAX_BASE_URL`、`FORMAX_MODEL`、`FORMAX_LOGS_DIR`…；planDir 默认是 `~/.claude/plans`。**【证据】
 
 * repo 证据：`src/env/config.ts` / `loadRuntimeConfig`。
 * 可复现实验：
 
-  * `ANTHROPIC_MODEL=... node dist/entrypoints/cli.js`（预期使用该 model；具体表现可用 `/status`（我们会实现）观察）
+  * `FORMAX_MODEL=... node dist/entrypoints/cli.js`（预期使用该 model；具体表现可用 `/status`（我们会实现）观察）
 
 25. **CLI entrypoint 里如果 cfg.llm.model 为空，会 fallback 到 `'claude-sonnet-4-5-20250929'`。**【证据】
 
 * repo 证据：`src/entrypoints/cli.tsx`。
 * 可复现实验：
 
-  * 清空 `ANTHROPIC_MODEL`，启动；在日志或未来 `/status` 里看到 model=该默认值。
+  * 清空 `FORMAX_MODEL`，启动；在日志或未来 `/status` 里看到 model=该默认值。
 
 26. **Formax 已有 repl mode：`normal`/`plan`/`acceptEdits`。**【证据】
 
@@ -468,7 +468,7 @@ export interface AuthStore {
 | ------- | ---------------------------------------- | --------------------------------------------------------- | --------------------------- |
 | 1       | **Inline override** `-c key=value`       | `formax repl -c llm.defaultModel=gpt-5.1`                 | 覆盖所有其他来源（对齐 Codex `-c` 语义）。 |
 | 2       | **CLI flags**                            | `--profile work --model ... --base-url ...`               | 覆盖 env/config/default       |
-| 3       | **Environment**                          | `ANTHROPIC_API_KEY2`、`ANTHROPIC_MODEL`、`FORMAX_LOGS_DIR`… | 覆盖 config/default；兼容旧用户。    |
+| 3       | **Environment**                          | `FORMAX_API_KEY`、`FORMAX_MODEL`、`FORMAX_LOGS_DIR`… | 覆盖 config/default；兼容旧用户。    |
 | 4       | **Config file**（`~/.formax/config.json`） | v1 schema                                                 | 覆盖 default                  |
 | 5       | **Defaults**                             | 内置默认：workspaceRoots=[cwd]、networkPolicy=deny…             | 最低优先级                       |
 
@@ -537,9 +537,9 @@ export interface FormaxProfileV1 {
 
   // 兼容/迁移：保留旧字段映射（P0: read-only）
   compat?: {
-    anthropicApiKeyEnv?: string;    // default "ANTHROPIC_API_KEY2"
-    anthropicModelEnv?: string;     // default "ANTHROPIC_MODEL"
-    anthropicBaseUrlEnv?: string;   // default "ANTHROPIC_BASE_URL2"
+    anthropicApiKeyEnv?: string;    // default "FORMAX_API_KEY"
+    anthropicModelEnv?: string;     // default "FORMAX_MODEL"
+    anthropicBaseUrlEnv?: string;   // default "FORMAX_BASE_URL"
   };
 }
 
@@ -1051,7 +1051,7 @@ export type ErrorCode =
 * `E_AUTH_401`:
 
   * message: `Authentication failed (401).`
-  * hint: `Check your apiKeyRef and re-run "formax auth set <ref>". If using env, verify ANTHROPIC_API_KEY2 is set.`
+  * hint: `Check your apiKeyRef and re-run "formax auth set <ref>". If using env, verify FORMAX_API_KEY is set.`
 * `E_FS_DENIED`:
 
   * message: `Cannot write to <path> (permission denied).`
@@ -1374,7 +1374,7 @@ formax policy list|test|explain|add|delete [--json]
     * v2.0：考虑移除旧 env（或仅保留少数）
   * 迁移策略：
 
-    * 若 env 中存在 `ANTHROPIC_API_KEY2` 且 config 缺失：wizard 自动预填（但仍要求确认写入 auth.json）
+    * 若 env 中存在 `FORMAX_API_KEY` 且 config 缺失：wizard 自动预填（但仍要求确认写入 auth.json）
     * 若 config 中曾包含 apiKey（来自旧 GlobalConfig 结构）：自动迁移到 auth store 并把 config 替换为 apiKeyRef（P1）
 
 * **依据**
@@ -1519,9 +1519,9 @@ formax policy list|test|explain|add|delete [--json]
         "projectRulesFileName": ".formax/rules.json"
       },
       "compat": {
-        "anthropicApiKeyEnv": "ANTHROPIC_API_KEY2",
-        "anthropicModelEnv": "ANTHROPIC_MODEL",
-        "anthropicBaseUrlEnv": "ANTHROPIC_BASE_URL2"
+        "anthropicApiKeyEnv": "FORMAX_API_KEY",
+        "anthropicModelEnv": "FORMAX_MODEL",
+        "anthropicBaseUrlEnv": "FORMAX_BASE_URL"
       }
     }
   }
@@ -1659,7 +1659,7 @@ Doctor report (v1) 2026-01-10T12:03:00Z
 FAIL  auth.ref.exists   E_AUTH_MISSING  apiKeyRef anthropic/default not found
       Fix: run "formax auth set anthropic/default" and paste your API key.
 FAIL  llm.auth          E_AUTH_401  Authentication failed (401)
-      Fix: verify key for anthropic/default (or ANTHROPIC_API_KEY2 env), then re-run doctor.
+      Fix: verify key for anthropic/default (or FORMAX_API_KEY env), then re-run doctor.
 WARN  logs.writable     E_FS_DENIED  Cannot write logs to /root/.formax/logs
       Fix: set logging.logDir to a writable path, e.g. ~/.formax/logs
 ```

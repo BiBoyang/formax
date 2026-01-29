@@ -229,7 +229,7 @@
 
 1. `export FORMAX_CONFIG_DIR=/tmp/formax-pr1 && rm -rf $FORMAX_CONFIG_DIR`
 2. `formax config show --json`
-3. `formax auth set anthropic --api-key "sk-test-REDACT"`（或 `--api-key-env ANTHROPIC_API_KEY`）
+3. `formax auth set anthropic --api-key "sk-test-REDACT"`（或 `--api-key-env FORMAX_API_KEY`）
 4. `formax config show --json | jq '.data.resolved.provider'`
 5. `formax config migrate --dry-run --json`（如果 migrate 已实现）
 6. `FORMAX_CONFIG_DIR=/tmp/formax-pr1 formax config show --json | jq '.warnings'`

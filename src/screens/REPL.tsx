@@ -287,7 +287,7 @@ export function REPL({
   )
 
   const modelLabel = useMemo(() => {
-    const model = cfg.llm.model || process.env.ANTHROPIC_MODEL || 'Model not set'
+    const model = cfg.llm.model || process.env.FORMAX_MODEL || 'Model not set'
     return `Model: ${model}`
   }, [cfg.llm.model])
 

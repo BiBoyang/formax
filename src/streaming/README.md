@@ -100,7 +100,7 @@ sequenceDiagram
 
 | 现象                            | 优先检查                                        | 命令                                                                           |
 | ------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ |
-| 流卡住无响应                    | `StreamClient.ts` timeout 设置 + fetch 是否抛错 | 检查 `.env` 中 `ANTHROPIC_TIMEOUT_MS`                                          |
+| 流卡住无响应                    | `StreamClient.ts` timeout 设置 + fetch 是否抛错 | 检查 `.env` 中 `FORMAX_TIMEOUT_MS`                                            |
 | 丢事件（tool_end 未触发）       | `sseParser.ts` handleSSEEvent case 匹配         | `bun run test -- src/streaming/anthropic/sseParser.test.ts`                    |
 | Tool 结果顺序错乱               | `sortToolResultsByCallOrder` 逻辑               | `bun run test -- src/streaming/anthropic/StreamClient.sortToolResults.test.ts` |
 | JSON 解析失败（thinking block） | `sseParser.ts` inputJSONBuffers 拼接逻辑        | 添加 console.log 在 `content_block_stop` 分支                                  |

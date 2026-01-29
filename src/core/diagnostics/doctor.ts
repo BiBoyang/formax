@@ -129,7 +129,7 @@ export async function runDoctor(args: {
       status: 'fail',
       title: 'API key configured',
       message: 'No API key is configured.',
-      hint: 'Run `formax setup`, or write it to auth.json, or set ANTHROPIC_API_KEY2.',
+      hint: 'Run `formax setup`, or write it to auth.json, or set FORMAX_API_KEY.',
       code: ErrorCode.SetupRequired,
     })
   } else {
@@ -142,7 +142,7 @@ export async function runDoctor(args: {
       status: 'fail',
       title: 'Base URL configured',
       message: 'No base URL is configured.',
-      hint: 'Run `formax setup` or set ANTHROPIC_BASE_URL2.',
+      hint: 'Run `formax setup` or set FORMAX_BASE_URL.',
       code: ErrorCode.SetupRequired,
     })
   } else {
@@ -228,7 +228,7 @@ export async function runDoctor(args: {
       title: 'Auth store readable',
       filePath: paths.globalAuthPath,
       loaded: files.authStoreLoaded,
-      missingHint: 'Run `formax setup` or set ANTHROPIC_API_KEY2.',
+      missingHint: 'Run `formax setup` or set FORMAX_API_KEY.',
     })
 
     pushConfigFileCheck({

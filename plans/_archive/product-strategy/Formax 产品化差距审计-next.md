@@ -36,7 +36,7 @@ A. “配置系统 v1”最终决策（请你在几个分歧点做选择并给�
 - 配置路径：~/.formax vs XDG（Linux/macOS/Windows 的推荐默认路径与迁移）
 - 凭证存储：文件（600 权限）/ keychain（可选）/ env（兼容）
 - 配置优先级：flags/env/config/default 的明确表格
-- 旧 env 兼容策略：像 ANTHROPIC_API_KEY2 这类旧变量是否保留、如何提示迁移、何时移除
+- 旧 env 兼容策略：像 FORMAX_API_KEY 这类旧变量是否保留、如何提示迁移、何时移除
 
 B. “setup wizard” Ink 交互规格（逐屏/逐键盘交互）
 - 进入条件（缺 key？baseUrl 不通？model 为空？）

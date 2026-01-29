@@ -55,7 +55,7 @@ describe('loadRuntimeConfig', () => {
       })
 
       const cfg = await loadRuntimeConfig(
-        { FORMAX_CONFIG_DIR: globalConfigDir, ANTHROPIC_API_KEY2: 'sk-from-env' } as any,
+        { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: 'sk-from-env' } as any,
         projectDir,
       )
       expect(cfg.llm.apiKey).toBe('sk-from-env')

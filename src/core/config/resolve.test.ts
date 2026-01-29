@@ -7,7 +7,7 @@ describe('resolveRuntimeConfig', () => {
       defaults: { llm: { model: 'd' } },
       globalConfig: { llm: { model: 'g' } },
       projectConfig: { llm: { model: 'p' } },
-      env: { ANTHROPIC_MODEL: 'e' },
+      env: { FORMAX_MODEL: 'e' },
       flags: { llm: { model: 'f' } },
     })
 
@@ -29,16 +29,16 @@ describe('resolveRuntimeConfig', () => {
 
   it('normalizes anthropic baseUrl to include /v1', () => {
     const res = resolveRuntimeConfig({
-      env: { ANTHROPIC_BASE_URL2: 'https://api.anthropic.com' },
+      env: { FORMAX_BASE_URL: 'https://api.anthropic.com' },
     })
 
     expect(res.config.llm.baseUrl).toBe('https://api.anthropic.com/v1')
     expect(res.sources['llm.baseUrl']).toBe('env')
   })
 
-  it('exposes env auth when ANTHROPIC_API_KEY2 is present', () => {
+  it('exposes env auth when FORMAX_API_KEY is present', () => {
     const res = resolveRuntimeConfig({
-      env: { ANTHROPIC_API_KEY2: 'sk-ant-123' },
+      env: { FORMAX_API_KEY: 'sk-ant-123' },
     })
 
     expect(res.auth?.provider).toBe('anthropic')
@@ -75,7 +75,7 @@ describe('resolveRuntimeConfig', () => {
           },
         },
       },
-      env: { ANTHROPIC_API_KEY2: 'sk-env' },
+      env: { FORMAX_API_KEY: 'sk-env' },
     })
 
     expect(res.auth?.provider).toBe('anthropic')
@@ -89,15 +89,15 @@ describe('resolveRuntimeConfig', () => {
     expect(res.sources['ui.promptProfile']).toBe('default')
   })
 
-  it('ignores invalid ANTHROPIC_TIMEOUT_MS with warning', () => {
+  it('ignores invalid FORMAX_TIMEOUT_MS with warning', () => {
     const res = resolveRuntimeConfig({
-      env: { ANTHROPIC_TIMEOUT_MS: '-1', ANTHROPIC_MODEL: 'x' },
+      env: { FORMAX_TIMEOUT_MS: '-1', FORMAX_MODEL: 'x' },
     })
 
     expect(res.config.llm.model).toBe('x')
     expect(res.config.llm.timeoutMs).toBe(600000)
     expect(res.sources['llm.timeoutMs']).toBe('default')
-    expect(res.warnings.some((w) => w.includes('ANTHROPIC_TIMEOUT_MS'))).toBe(true)
+    expect(res.warnings.some((w) => w.includes('FORMAX_TIMEOUT_MS'))).toBe(true)
   })
 
   it('adds a warning and ignores invalid patches', () => {
