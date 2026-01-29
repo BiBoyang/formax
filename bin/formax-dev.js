@@ -13,21 +13,23 @@ const repoRoot = path.resolve(__dirname, '..')
 const distCli = path.join(repoRoot, 'dist', 'cli.js')
 const tsEntry = path.join(repoRoot, 'src', 'entrypoints', 'cli.tsx')
 
-const args = process.argv.slice(2)
+const rawArgs = process.argv.slice(2)
+const useDist = process.env.FORMAX_DEV_USE_DIST === '1' || rawArgs.includes('--use-dist')
+const args = rawArgs.filter((arg) => arg !== '--use-dist')
 
-if (fs.existsSync(distCli)) {
+if (!useDist && fs.existsSync(tsEntry)) {
+  const tsxCli = resolveTsxCli()
+  const child = spawn(process.execPath, [tsxCli, tsEntry, ...args], { stdio: 'inherit' })
+  wireChildProcess(child)
+} else if (fs.existsSync(distCli)) {
   const child = spawn(process.execPath, [distCli, ...args], { stdio: 'inherit' })
   wireChildProcess(child)
-} else if (!fs.existsSync(tsEntry)) {
+} else {
   console.error('[formax] Could not find CLI entrypoint.')
   console.error(`- dist: ${distCli}`)
   console.error(`- src:  ${tsEntry}`)
   console.error('[formax] Install dependencies and/or build the CLI first.')
   process.exit(1)
-} else {
-  const tsxCli = resolveTsxCli()
-  const child = spawn(process.execPath, [tsxCli, tsEntry, ...args], { stdio: 'inherit' })
-  wireChildProcess(child)
 }
 
 function resolveTsxCli() {
@@ -80,4 +82,3 @@ function wireChildProcess(child) {
     process.exit(code ?? 1)
   })
 }
-
