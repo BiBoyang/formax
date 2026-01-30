@@ -7,3 +7,5 @@
 - `<system-reminder>` 的用途与注入时机
 - `plan mode` / `accept edits mode` 等模式提示词
 
+相关笔记：
+- `docs/LEARNINGS/prompts/system-reminder.md`
