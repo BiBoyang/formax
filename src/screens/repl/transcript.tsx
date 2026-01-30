@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Box, Static } from 'ink'
+import { Box } from 'ink'
 import { HeaderBanner } from '../../components/chat/HeaderBanner'
 import type { Msg } from '../../components/tool/ToolMessage'
 
@@ -18,25 +18,21 @@ export function ReplTranscript(props: {
   transientMessages: Msg[]
   renderMessage: (msg: Msg) => React.ReactNode
 }): React.ReactNode {
-  const { transcriptSeq, version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
+  const { version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
 
-  const staticItems = useMemo(() => {
+  const items = useMemo(() => {
     const header = {
       key: 'header',
       jsx: <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />,
     }
     const messages = renderMessageItems(staticMessages, renderMessage)
-    return [header, ...messages]
-  }, [cwd, modelLabel, renderMessage, staticMessages, version])
+    const transient = renderMessageItems(transientMessages, renderMessage)
+    return [header, ...messages, ...transient]
+  }, [cwd, modelLabel, renderMessage, staticMessages, transientMessages, version])
 
   return (
     <>
-      {/* Header + 消息 Static */}
-      <Static key={transcriptSeq} items={staticItems}>
-        {(item) => <Box key={item.key}>{item.jsx}</Box>}
-      </Static>
-
-      {renderMessageItems(transientMessages, renderMessage).map((item) => (
+      {items.map((item) => (
         <Box key={item.key}>{item.jsx}</Box>
       ))}
     </>
