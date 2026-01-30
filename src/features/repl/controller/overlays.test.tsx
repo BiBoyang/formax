@@ -50,6 +50,47 @@ vi.mock('../../../subagents/agentsWizard', () => {
   }
 })
 
+vi.mock('../overlays/OverlayManager', () => {
+  const unsubscribes: Array<ReturnType<typeof vi.fn>> = []
+
+  return {
+    createOverlayManager: (initial: OverlaySpec | null = null) => {
+      let overlay: OverlaySpec | null = initial
+      const listeners = new Set<(next: OverlaySpec | null) => void>()
+
+      const notify = () => {
+        for (const fn of listeners) fn(overlay)
+      }
+
+      return {
+        open: (spec: OverlaySpec) => {
+          overlay = spec
+          notify()
+        },
+        close: () => {
+          overlay = null
+          notify()
+        },
+        current: () => overlay,
+        subscribe: (listener: (next: OverlaySpec | null) => void) => {
+          listeners.add(listener)
+          const unsubscribe = vi.fn(() => {
+            listeners.delete(listener)
+          })
+          unsubscribes.push(unsubscribe)
+          return unsubscribe
+        },
+      }
+    },
+    __test: {
+      reset: () => {
+        unsubscribes.length = 0
+      },
+      getUnsubscribes: () => unsubscribes,
+    },
+  }
+})
+
 type HarnessApi = {
   getOverlay: () => OverlaySpec | null
   getMessages: () => Msg[]
@@ -237,5 +278,23 @@ describe('useReplOverlays', () => {
 
     expect(res).toEqual({ name: 'my-agent', filePath: '/tmp/my-agent.md' })
     await waitForText(app.lastFrame, 'reload failed: boom')
+  })
+
+  it('unsubscribes overlay manager subscription on unmount', async () => {
+    const { __test } = (await import('../overlays/OverlayManager')) as any
+    __test.reset()
+
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(<Harness apiRef={apiRef} />)
+    await waitForApiRef(apiRef)
+    await tick()
+
+    const [unsubscribe] = __test.getUnsubscribes()
+    expect(unsubscribe).toBeDefined()
+    expect(unsubscribe).toHaveBeenCalledTimes(0)
+
+    app.unmount()
+    await tick()
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

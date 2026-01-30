@@ -288,6 +288,9 @@ describe('REPL overlay input gating', () => {
       stdin.write('\r') // Enter
       await tick()
 
+      expect(inputEvents.length).toBeGreaterThan(0)
+      expect(inputEvents.every((e) => e.scope === 'overlay:permissions')).toBe(true)
+
       expect(mockActions.abort).toHaveBeenCalledTimes(0)
       expect(mockActions.send).toHaveBeenCalledTimes(0)
 

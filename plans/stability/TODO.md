@@ -44,13 +44,6 @@
 
 ### P1（高优先级）
 
-- [ ] S9-P1-1：overlay manager 订阅在 unmount 时必须 unsubscribe
-  - [ ] `src/features/repl/controller/overlays.ts`：`useEffect(() => overlayManager.subscribe(...), [])` 改为 return unsubscribe
-  - [ ] `src/features/repl/controller/overlays.test.tsx`：mock `OverlayManager.subscribe` 返回 unsubscribe（`vi.fn()`），mount→unmount 后断言 unsubscribe 被调用
-
-- [ ] S9-P1-2：overlay 打开期间，断言“事件 scope”不出现 `repl`
-  - [ ] `src/screens/REPL.overlays.test.tsx`：在 `/permissions` overlay 的“does not route navigation keys…”测试里，断言这些键的 `inputEvents[].scope` 均为 `overlay:permissions`（而不是仅仅断言 actions 没被调用）
-
 - [x] S9-P1-3：split ESC arrow sequences 覆盖
   - 已有单测：`src/features/repl/keys/escapeSequences.test.ts`（覆盖分段 `\u001B` + `[` + `A/B` 等）
   - 统一消费入口：`consumeBufferedArrow` 已在 `ConfirmMenu` / `AgentsDialog` / `PermissionsDialog` / `HooksDialog` 复用

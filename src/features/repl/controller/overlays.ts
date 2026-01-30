@@ -31,7 +31,9 @@ export function useReplOverlays(args: {
   const overlayManagerRef = useRef(createOverlayManager(args.initialOverlay))
   const [overlay, setOverlay] = useState(overlayManagerRef.current.current())
 
-  useEffect(() => overlayManagerRef.current.subscribe(setOverlay), [])
+  useEffect(() => {
+    return overlayManagerRef.current.subscribe(setOverlay)
+  }, [])
 
   const openOverlay = useCallback((spec: OverlaySpec) => overlayManagerRef.current.open(spec), [])
   const closeOverlay = useCallback(() => overlayManagerRef.current.close(), [])

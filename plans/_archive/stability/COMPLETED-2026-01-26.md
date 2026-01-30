@@ -24,6 +24,8 @@ This file archives items that were completed and removed from `plans/stability/T
 - InputScope router：active scope / routed handler refs 改为 `useLayoutEffect` 同步（避免 scope/handler 切换后首个按键落到旧 scope/旧闭包）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
 - PermissionsDialog：输入页（add rule / add directory）改为由 TextInput `onSubmit` 处理 Enter（避免 Enter 冒泡到 list/hotkeys，且避免在 scoped TextInput 下丢提交）：见 `src/ui/permissions/PermissionsDialog.tsx`、`src/ui/permissions/ui.tsx`、`src/ui/permissions/PermissionsDialog.test.tsx`
 - TextInput：修复 burst 输入丢字（Ink 可能把多次写入合并，但 `key.sequence` 只反映最后一个字符；同时用 `useLayoutEffect` 同步 value/cursor refs，避免下一次按键读到旧值）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
+- useReplOverlays：overlay manager 订阅在 unmount 时会 unsubscribe（避免 listener 泄漏）：见 `src/features/repl/controller/overlays.ts`、`src/features/repl/controller/overlays.test.tsx`
+- `/permissions` overlay 测试：断言输入事件的 scope 始终为 `overlay:permissions`（避免 “activeScope 已切换但事件仍被记为 repl”）：见 `src/screens/REPL.overlays.test.tsx`
 
 ## Terminal / clear semantics
 
