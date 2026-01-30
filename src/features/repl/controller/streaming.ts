@@ -74,6 +74,7 @@ export function useReplStreaming(args: {
   currentAssistantIdRef: { current: string | null }
   assistantBufferRef: { current: string }
   thinkingBufferRef: { current: string }
+  currentThinkingMessageIdRef: { current: string | null }
   thinkingLastFlushAtRef: { current: number }
   thinkingTimingRef: { current: { startedAtMs: number | null; totalMs: number } }
   toolNameByIdRef: { current: Map<string, string> }
@@ -107,6 +108,19 @@ export function useReplStreaming(args: {
     args.setThinkingStartedAtMs(now)
   }, [args])
 
+  const finalizeThinkingSegment = useCallback(() => {
+    const messageId = args.currentThinkingMessageIdRef.current
+    if (!messageId) return
+
+    const text = args.thinkingBufferRef.current
+    args.setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)))
+
+    args.currentThinkingMessageIdRef.current = null
+    args.thinkingBufferRef.current = ''
+    args.thinkingLastFlushAtRef.current = 0
+    args.setThinkingText('')
+  }, [args])
+
   const stopThinkingIfActive = useCallback(() => {
     const startedAt = args.thinkingTimingRef.current.startedAtMs
     if (startedAt === null) return
@@ -115,7 +129,8 @@ export function useReplStreaming(args: {
     args.thinkingTimingRef.current.totalMs += Math.max(0, now - startedAt)
     args.setThinkingStartedAtMs(null)
     args.setThinkingTotalMs(args.thinkingTimingRef.current.totalMs)
-  }, [args])
+    finalizeThinkingSegment()
+  }, [args, finalizeThinkingSegment])
 
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
@@ -156,11 +171,38 @@ export function useReplStreaming(args: {
 
         case 'thinking_delta': {
           startThinkingIfNeeded()
+          if (!args.currentThinkingMessageIdRef.current) {
+            // Start a new thinking segment. This message is persisted in the transcript but
+            // only rendered in the Expanded Transcript view (Ctrl+O).
+            const thinkingId = `thinking-${Date.now()}`
+            args.currentThinkingMessageIdRef.current = thinkingId
+            args.thinkingBufferRef.current = ''
+            args.thinkingLastFlushAtRef.current = 0
+            args.thinkingBufferRef.current += ev.thinking
+            args.setThinkingText(args.thinkingBufferRef.current)
+            args.setMessages((prev) => [
+              ...prev,
+              {
+                id: thinkingId,
+                role: 'assistant',
+                ui: { kind: 'thinking_block' },
+                content: args.thinkingBufferRef.current,
+                timestamp: new Date(),
+              },
+            ])
+            return
+          }
+
           args.thinkingBufferRef.current += ev.thinking
           const now = Date.now()
           if (now - args.thinkingLastFlushAtRef.current > 200) {
             args.thinkingLastFlushAtRef.current = now
             args.setThinkingText(args.thinkingBufferRef.current)
+            const id = args.currentThinkingMessageIdRef.current
+            if (id) {
+              const text = args.thinkingBufferRef.current
+              args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: text } : m)))
+            }
           }
           return
         }
@@ -444,7 +486,6 @@ export function useReplStreaming(args: {
             }
           }
 
-          args.setThinkingText(args.thinkingBufferRef.current)
           return
         }
 

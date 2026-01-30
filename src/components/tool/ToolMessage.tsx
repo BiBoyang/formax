@@ -67,7 +67,7 @@ export interface Msg {
    * Must NOT affect LLM messages/history.
    */
   ui?: {
-    kind: 'command_subline'
+    kind: 'command_subline' | 'thinking_block'
   }
   /** Message content (formatted result summary) */
   content: string

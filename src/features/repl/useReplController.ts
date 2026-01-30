@@ -113,6 +113,7 @@ export function useReplController(deps: {
   const currentAssistantIdRef = useRef<string | null>(null)
   const assistantBufferRef = useRef<string>('')
   const thinkingBufferRef = useRef<string>('')
+  const currentThinkingMessageIdRef = useRef<string | null>(null)
   const thinkingLastFlushAtRef = useRef(0)
   const thinkingTimingRef = useRef<{ startedAtMs: number | null; totalMs: number }>({
     startedAtMs: null,
@@ -137,6 +138,7 @@ export function useReplController(deps: {
   const resetStreamingBuffers = useCallback(() => {
     assistantBufferRef.current = ''
     thinkingBufferRef.current = ''
+    currentThinkingMessageIdRef.current = null
     thinkingLastFlushAtRef.current = 0
     thinkingTimingRef.current = { startedAtMs: null, totalMs: 0 }
     setThinkingText('')
@@ -198,6 +200,7 @@ export function useReplController(deps: {
     currentAssistantIdRef,
     assistantBufferRef,
     thinkingBufferRef,
+    currentThinkingMessageIdRef,
     thinkingLastFlushAtRef,
     thinkingTimingRef,
     toolNameByIdRef,

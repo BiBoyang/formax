@@ -31,7 +31,7 @@ import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
-import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
+import { DetailedTranscriptPanel, ExploreAgentsPanel, ThinkingPanel, formatTaskPanelTitle } from './repl/panels'
 import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ReplTranscript } from './repl/transcript'
@@ -272,9 +272,13 @@ export function REPL({
   const renderMessage = useCallback(
     (msg: Msg) => {
       if (msg.role === 'tool') {
+        const toolMsg =
+          expandedTranscriptOpen && msg.toolInfo
+            ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } }
+            : msg
         return (
           <Box flexDirection="column">
-            <ToolRouter message={msg} registry={toolRegistry} />
+            <ToolRouter message={toolMsg} registry={toolRegistry} />
           </Box>
         )
       }
@@ -289,6 +293,11 @@ export function REPL({
               </Box>
             </Box>
           )
+        }
+        if (msg.ui?.kind === 'thinking_block') {
+          // Persisted thinking blocks are surfaced in the Expanded Transcript panel (Ctrl+O),
+          // not inline in the static transcript, since Ink <Static> doesn't re-render items.
+          return null
         }
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -308,7 +317,7 @@ export function REPL({
         </Box>
       )
     },
-    [theme.replUserPromptBg, theme.replUserPromptFg, toolRegistry],
+    [expandedTranscriptOpen, theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
   )
 
   const modelLabel = useMemo(() => {
@@ -352,7 +361,9 @@ export function REPL({
 
   const lastExploreGroup = useMemo(() => {
     if (!expandedTranscriptOpen || isPromptMode) return null
-    const group = findLastContiguousExploreTaskGroup(allMessages)
+    // Persisted assistant "thinking_block" messages should not break Explore-task grouping
+    // in the Expanded Transcript panels. Grouping is about tool messages, so filter to tools.
+    const group = findLastContiguousExploreTaskGroup(allMessages.filter((m) => m.role === 'tool'))
     if (!group || group.tasks.length < 2) return null
     return group
   }, [allMessages, expandedTranscriptOpen, isPromptMode])
@@ -371,6 +382,8 @@ export function REPL({
               transientMessages={state.transientMessages}
               renderMessage={renderMessage}
             />
+
+            {expandedTranscriptOpen && !isPromptMode ? <ThinkingPanel messages={allMessages} /> : null}
 
             {expandedTranscriptOpen && !isPromptMode && lastExploreGroup?.tasks?.length ? (
               <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />
