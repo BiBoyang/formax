@@ -57,10 +57,6 @@
 
 ### P2（后置/可选）
 
-- [ ] S9-P2-1：`REPL.tsx` 抽 prompt input + slash suggestions 为内部 hook（不改行为）
-  - [ ] 仅重构：把 `input` / `slashIndex` / selection state / suggest logic 收敛到 `usePromptLine()`（或类似）
-  - [ ] 主要回归：`src/screens/REPL.slashSuggestions.test.tsx`
-
 - [ ] S9-P2-2：`useReplController.ts` DRY reset（不改行为）
   - [ ] 抽出 `resetStreamingRefs()` / `resetSessionState()` 供 abort/newSession/send 复用（减少重复 reset 漂移）
 

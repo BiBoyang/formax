@@ -48,6 +48,48 @@ type Props = {
   taskManager?: TaskManager
 }
 
+function usePromptLine(args: {
+  commandRegistry: ReturnType<typeof createReplCommandRegistry>
+  isPromptMode: boolean
+}) {
+  const { commandRegistry, isPromptMode } = args
+  const [input, setInput] = useState('')
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [slashSelectionTouched, setSlashSelectionTouched] = useState(false)
+
+  const slashSuggestions = useMemo(() => {
+    if (isPromptMode) return []
+    return commandRegistry.suggest(input).slice(0, 10)
+  }, [commandRegistry, input, isPromptMode])
+
+  const selectedSlash = slashSuggestions[slashIndex] ?? null
+
+  const handleInputChange = useCallback((v: string) => {
+    setInput(v)
+    setSlashIndex(0)
+    setSlashSelectionTouched(false)
+  }, [])
+
+  const clearPrompt = useCallback(() => {
+    setInput('')
+    setSlashIndex(0)
+    setSlashSelectionTouched(false)
+  }, [])
+
+  return {
+    input,
+    setInput,
+    slashIndex,
+    setSlashIndex,
+    slashSelectionTouched,
+    setSlashSelectionTouched,
+    slashSuggestions,
+    selectedSlash,
+    handleInputChange,
+    clearPrompt,
+  }
+}
+
 export function REPL({
   onExit,
   onClearTerminal,
@@ -60,10 +102,7 @@ export function REPL({
   taskManager,
 }: Props): React.ReactNode {
   const theme = useMemo(() => getTheme(), [])
-  const [input, setInput] = useState('')
   const [mode, setMode] = useState<ReplMode>('normal')
-  const [slashIndex, setSlashIndex] = useState(0)
-  const [slashSelectionTouched, setSlashSelectionTouched] = useState(false)
   const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
   const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
@@ -166,24 +205,18 @@ export function REPL({
     [state.staticMessages, state.transientMessages],
   )
 
-  const slashSuggestions = useMemo(() => {
-    if (isPromptMode) return []
-    return commandRegistry.suggest(input).slice(0, 10)
-  }, [commandRegistry, input, isPromptMode])
-
-  const selectedSlash = slashSuggestions[slashIndex] ?? null
-
-  const handleInputChange = useCallback((v: string) => {
-    setInput(v)
-    setSlashIndex(0)
-    setSlashSelectionTouched(false)
-  }, [])
-
-  const clearPrompt = useCallback(() => {
-    setInput('')
-    setSlashIndex(0)
-    setSlashSelectionTouched(false)
-  }, [])
+  const {
+    input,
+    setInput,
+    slashIndex,
+    setSlashIndex,
+    slashSelectionTouched,
+    setSlashSelectionTouched,
+    slashSuggestions,
+    selectedSlash,
+    handleInputChange,
+    clearPrompt,
+  } = usePromptLine({ commandRegistry, isPromptMode })
 
   useReplHotkeys({
     onExit,

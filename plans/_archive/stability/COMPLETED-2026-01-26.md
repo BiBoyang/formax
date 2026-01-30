@@ -32,3 +32,4 @@ This file archives items that were completed and removed from `plans/stability/T
 - pitfalls 已补齐输入路由稳定契约（consumed/priority/scope）：见 `pitfalls.md`
 - `/clear`：会话重置抽为 `actions.newSession()`（保持现有行为与清屏顺序，不改 UI）：见 `src/features/repl/useReplController.ts`、`src/features/repl/controller/send.ts`
 - “发送后清输入”：抽为 `clearPrompt()`（只清输入与 slash selector 内部状态，不动 session）：见 `src/screens/REPL.tsx`
+- REPL：prompt line（input + slash suggestions）状态收敛到内部 hook `usePromptLine()`（仅重构，不改行为）：见 `src/screens/REPL.tsx`、`src/screens/REPL.slashSuggestions.test.tsx`
