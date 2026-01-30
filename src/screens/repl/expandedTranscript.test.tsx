@@ -122,7 +122,12 @@ describe('Expanded Transcript (ctrl+o)', () => {
     expect(expanded).toContain('Showing detailed transcript · ctrl+o to toggle')
 
     ui.stdin.write('\u000f') // ctrl+o again
-    await waitForFrame(ui.lastFrame, (f) => f.includes('? for shortcuts'), 10000)
+    const restored = await waitForFrame(
+      ui.lastFrame,
+      (f) => f.includes('? for shortcuts') && !f.includes('∴ Thinking') && !f.includes('TASK TRANSCRIPT: line 1'),
+      10000,
+    )
+    expect(restored).not.toContain('THINKING: hello')
   },
     20000,
   )
