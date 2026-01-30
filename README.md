@@ -1,6 +1,6 @@
 # Formax
 
-Formax is a terminal-first AI assistant for software engineering tasks. It is inspired by (but not affiliated with) Claude Code, and some behaviors are implemented by observation (e.g. network traces) rather than upstream source code. Formax is experimental—review changes and commands before approving them; you are responsible for any modifications it makes to your files or system.
+Formax is a terminal-first AI assistant for software engineering tasks. It is inspired by (but not affiliated with) Claude Code v2.0.67, and some behaviors are implemented by observation (e.g. network traces) rather than upstream source code. Formax is experimental—review changes and commands before approving them; you are responsible for any modifications it makes to your files or system.
 
 [![CI](https://github.com/yusifeng/formax/actions/workflows/ci.yml/badge.svg)](https://github.com/yusifeng/formax/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/yusifeng/formax/branch/main/graph/badge.svg)](https://codecov.io/gh/yusifeng/formax)
