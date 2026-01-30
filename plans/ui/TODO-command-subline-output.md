@@ -23,31 +23,13 @@
 
 ## P1 — 建立“命令子行输出”通道（UI-only）
 
-- [x] 定义一个 UI-only 的“命令子行输出”结构
-  - [x] 数据模型：在 `Msg` / `UiMessage` 上支持 `ui.kind = 'command_subline'`
-  - [x] 规则：将子行输出拆成多条 `Msg` 追加到 transcript；REPL 渲染时对 `command_subline` 走独立分支（不渲染 `⏺`，不加多余 margin）
-- [x] REPL 渲染接线
-  - [x] 位置：`src/screens/REPL.tsx`
-  - [x] 确保不会影响非 slash command 的普通对话渲染
-
-验收：
-
-- [x] 子行显示为 Claude Code 风格的 `⎿` 子行，且不会出现 `⏺`
-- [x] 子行不会被写入 LLM messages（UI-only）
+（已完成，见 git 历史）
 
 ---
 
 ## P2 — Overlay dismissed：/agents /permissions /hooks
 
-目标：关闭 overlay 时的 “... dialog dismissed” 不再通过 assistant Msg 输出。
-
-- [x] `/agents`
-  - [x] 触发点：overlay close（参考 `src/features/repl/controller/overlays.ts`）
-  - [x] 行为：追加一条 `ui.kind='command_subline'`：`Agents dialog dismissed`
-- [x] `/permissions`
-  - [x] 同上：`Permissions dialog dismissed`
-- [x] `/hooks`
-  - [x] 同上：`Hooks dialog dismissed`
+目标：关闭 overlay 时的 “... dialog dismissed” 不再通过 assistant Msg 输出。（已完成，见 git 历史）
 
 边界（必须覆盖）：
 
@@ -73,9 +55,7 @@
 
 目标：UI 上 /todos 的输出结构对齐 Claude Code（命令子行），同时不改变它“写入下次 messages”的既有行为。
 
-- [x] UI：把 “No todos currently tracked” 与列表输出改为命令子行（`⎿` 结构）
-- [x] Model-visible：保持现状（仍由 `recordForNextTurn -> pendingInjectedBlocksRef` 决定写入）
-- [x] 同时检查：`src/features/repl/injectedBlocks.ts` 与相关 test，确保 `/todos` 的 injected blocks 语义不变
+（已完成，见 git 历史）
 
 ---
 
@@ -83,11 +63,8 @@
 
 优先只锁 4 个命令，避免 scope 过大：
 
-- [x] `/permissions` dismissed：断言 rendered output 中出现 `⎿  Permissions dialog dismissed` 且不出现 `⏺`
-- [x] `/agents` dismissed：同上
-- [x] `/hooks` dismissed：同上
 - [ ] `/agents|/permissions|/hooks` Usage：同上（命令子行，不出现 `⏺`）
-- [x] `/todos`：输出为命令子行；并额外断言 injected blocks 仍包含 `/todos`（不破坏“写入下次 messages”）
+（`/permissions`/`/agents`/`/hooks` dismissed + `/todos` 关键路径已完成，剩余项见上）
 
 建议落点（可按实际选用）：
 
