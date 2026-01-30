@@ -57,9 +57,6 @@
 
 ### P2（后置/可选）
 
-- [ ] S9-P2-2：`useReplController.ts` DRY reset（不改行为）
-  - [ ] 抽出 `resetStreamingRefs()` / `resetSessionState()` 供 abort/newSession/send 复用（减少重复 reset 漂移）
-
 - [ ] S9-P2-3：router perf guardrail（不改行为）
   - [ ] 0/1 handler 快路径（避免每 key clone/sort）
   - [ ] （可选）缓存 ordered handlers 并在 register/unregister 失效

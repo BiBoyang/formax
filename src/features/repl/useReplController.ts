@@ -126,6 +126,30 @@ export function useReplController(deps: {
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
 
+  const resetStreamingBuffers = useCallback(() => {
+    assistantBufferRef.current = ''
+    thinkingBufferRef.current = ''
+    thinkingLastFlushAtRef.current = 0
+    setThinkingText('')
+  }, [])
+
+  const resetSessionState = useCallback(() => {
+    historyRef.current = []
+    pendingInjectedBlocksRef.current = []
+    pendingExitPlanReminderRef.current = false
+    resetStreamingBuffers()
+    setError(null)
+    currentAssistantIdRef.current = null
+    contextBudgetConfigRef.current = null
+    sendSeqRef.current = 0
+    lastAutoCompactSeqRef.current = -1_000_000
+    setContext(null)
+    toolNameByIdRef.current.clear()
+    taskStatsByToolUseIdRef.current.clear()
+    taskKindByToolUseIdRef.current.clear()
+    exploreBatchRef.current = null
+  }, [resetStreamingBuffers])
+
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
   }, [deps.allowedSubagents])
@@ -177,10 +201,7 @@ export function useReplController(deps: {
     userInput?.clearBufferedAnswers()
     userInput?.rejectAllPending(new Error('Request aborted'))
 
-    assistantBufferRef.current = ''
-    thinkingBufferRef.current = ''
-    thinkingLastFlushAtRef.current = 0
-    setThinkingText('')
+    resetStreamingBuffers()
     setIsLoading(false)
     setError(null)
 
@@ -224,26 +245,10 @@ export function useReplController(deps: {
 
       return next
     })
-  }, [userInput])
+  }, [resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
-    historyRef.current = []
-    pendingInjectedBlocksRef.current = []
-    pendingExitPlanReminderRef.current = false
-    assistantBufferRef.current = ''
-    thinkingBufferRef.current = ''
-    thinkingLastFlushAtRef.current = 0
-    setThinkingText('')
-    setError(null)
-    currentAssistantIdRef.current = null
-    contextBudgetConfigRef.current = null
-    sendSeqRef.current = 0
-    lastAutoCompactSeqRef.current = -1_000_000
-    setContext(null)
-    toolNameByIdRef.current.clear()
-    taskStatsByToolUseIdRef.current.clear()
-    taskKindByToolUseIdRef.current.clear()
-    exploreBatchRef.current = null
+    resetSessionState()
 
     // Ink <Static> is append-only; when clearing messages we must force a remount
     // so the new transcript starts from a fresh render surface.
@@ -252,7 +257,7 @@ export function useReplController(deps: {
     // Clear the terminal *after* scheduling state resets, otherwise Ink may
     // re-render the old transcript once before the clear takes effect.
     void deps.onClearTerminal?.()
-  }, [deps.onClearTerminal])
+  }, [deps.onClearTerminal, resetSessionState])
 
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
