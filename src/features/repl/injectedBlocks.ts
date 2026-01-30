@@ -1,24 +1,63 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import type { PromptBlock } from '../../prompts'
 import type { LocalCommandRecord } from '../commands/registry'
+import { getConfigPaths } from '../../adapters/fs/configPaths.js'
 
 const MAX_CLAUDE_MD_CHARS = 200_000
 
-export function buildClaudeMdInjectedBlocks(args: { cwd: string }): PromptBlock[] {
-  const cwd = args.cwd
-  const filePath = path.join(cwd, 'CLAUDE.md')
-  if (!fs.existsSync(filePath)) return []
+const TRUNCATED_MARKER = '\n\n(Truncated)\n'
 
-  let contents = ''
+function truncateWithMarker(input: string, maxChars: number): string {
+  if (maxChars <= 0) return ''
+  if (input.length <= maxChars) return input
+  if (maxChars <= TRUNCATED_MARKER.length) return TRUNCATED_MARKER.slice(0, maxChars)
+  return input.slice(0, maxChars - TRUNCATED_MARKER.length) + TRUNCATED_MARKER
+}
+
+function readOptionalFileRaw(filePath: string): { filePath: string; contents: string } | null {
+  if (!fs.existsSync(filePath)) return null
+
   try {
-    contents = fs.readFileSync(filePath, 'utf8')
+    const contents = fs.readFileSync(filePath, 'utf8')
+    return { filePath, contents }
   } catch {
-    return []
+    return null
   }
+}
 
-  const truncated = contents.length > MAX_CLAUDE_MD_CHARS
-  if (truncated) contents = contents.slice(0, MAX_CLAUDE_MD_CHARS) + '\n\n(Truncated)\n'
+export function buildClaudeMdInjectedBlocks(args: {
+  cwd: string
+  env?: NodeJS.ProcessEnv
+  platform?: string
+  homedir?: string
+}): PromptBlock[] {
+  const cwd = args.cwd
+  const env = args.env ?? process.env
+  const platform = args.platform ?? process.platform
+  const homedir = args.homedir ?? os.homedir()
+
+  const configPaths = getConfigPaths({ cwd, env, platform, homedir })
+  const globalClaudeMdPath = path.join(path.resolve(cwd, configPaths.globalConfigDir), 'CLAUDE.md')
+  const projectClaudeMdPath = path.join(cwd, 'CLAUDE.md')
+
+  const globalClaudeMdRaw = readOptionalFileRaw(globalClaudeMdPath)
+  const projectClaudeMdRaw = readOptionalFileRaw(projectClaudeMdPath)
+  const globalClaudeMd = globalClaudeMdRaw ? { ...globalClaudeMdRaw } : null
+  const projectClaudeMd = projectClaudeMdRaw ? { ...projectClaudeMdRaw } : null
+  if (!globalClaudeMd && !projectClaudeMd) return []
+
+  // Enforce a single cap across combined contents (prefer project instructions).
+  if (projectClaudeMd) {
+    projectClaudeMd.contents = truncateWithMarker(projectClaudeMd.contents, MAX_CLAUDE_MD_CHARS)
+  }
+  const remainingForGlobal = MAX_CLAUDE_MD_CHARS - (projectClaudeMd?.contents.length ?? 0)
+  if (globalClaudeMd && remainingForGlobal > 0) {
+    globalClaudeMd.contents = truncateWithMarker(globalClaudeMd.contents, remainingForGlobal)
+  } else if (globalClaudeMd) {
+    globalClaudeMd.contents = ''
+  }
 
   const text =
     '<system-reminder>\n' +
@@ -26,8 +65,13 @@ export function buildClaudeMdInjectedBlocks(args: { cwd: string }): PromptBlock[
     '# claudeMd\n' +
     'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' +
     'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.\n\n' +
-    `Contents of ${filePath} (project instructions, checked into the codebase):\n\n` +
-    contents +
+    'Precedence: project instructions override global user instructions.\n\n' +
+    (globalClaudeMd && globalClaudeMd.contents.trim()
+      ? `Contents of ${globalClaudeMd.filePath} (global user instructions, optional):\n\n${globalClaudeMd.contents}\n\n`
+      : '') +
+    (projectClaudeMd && projectClaudeMd.contents.trim()
+      ? `Contents of ${projectClaudeMd.filePath} (project instructions, checked into the codebase):\n\n${projectClaudeMd.contents}\n\n`
+      : '') +
     '\n\n' +
     'IMPORTANT: this context may or may not be relevant to your tasks. ' +
     'You should not respond to this context unless it is highly relevant to your task.\n' +

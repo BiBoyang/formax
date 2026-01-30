@@ -78,7 +78,7 @@ export class ReminderService {
     const todoReminders = this.buildTodoReminders({ cwd: args.cwd, now, state })
     reminders.push(...todoReminders)
 
-    const context = buildClaudeMdInjectedBlocks({ cwd: args.cwd })
+    const context = buildClaudeMdInjectedBlocks({ cwd: args.cwd, env: process.env })
     return [...reminders, ...context]
   }
 
