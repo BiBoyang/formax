@@ -15,6 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun run test:watch` - Run tests in watch mode
 - `bun run test -- <path>` - Run a specific test file (e.g., `bun run test -- src/tools/registry.test.ts`)
 - `bun run test:watch -- -t "<test-name>"` - Run tests matching a pattern
+- `bun run test:coverage` - Run tests with coverage report
+- `bun run test:coverage:watch` - Run tests in watch mode with coverage
+- `bun run test:coverage:gate` - Run tests with coverage and check thresholds
 - `bun run tools:coverage` - Check tool implementation coverage vs reference specs
 - `bun run tools:parity` - Compare tool specs and schemas with reference file (default: `src/tools/specs/reference/tools-copy.json`)
 
@@ -39,6 +42,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 **Entry Points**
 - `src/entrypoints/cli.tsx` - Main CLI entry, parses args and dispatches to commands or REPL
 - `src/entrypoints/tool-examples.tsx` - Tool testing/demo entry point
+- `src/entrypoints/loading-examples.tsx` - Loading examples entry point
 
 **CLI Layer**
 - `src/cli/args.ts` - CLI argument parsing
@@ -85,6 +89,10 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 - `src/tools/patches/` - Patches to modify tool specs at runtime (e.g., sub-agent integration)
 - `src/tools/runtime/` - Runtime managers for background tasks and user input prompts
 - `src/tools/presenters/` - Output formatting/presentation for tool results
+- `src/tools/catalog/` - Tool catalog utilities
+- `src/tools/README.md` - Tool system architecture and patterns documentation
+- `src/tools/STATUS.md` - Tool system development status and roadmap
+- `src/tools/SPEC_HANDLER_MISMATCHES.md` - Tracking spec/handler mismatches
 
 **Sub-Agents**
 - `src/subagents/registry.ts` - Loads and manages sub-agent definitions from `.formax/agents/*.md` and `~/.formax/agents/*.md` (also supports `.claude/agents` for compatibility)
@@ -240,10 +248,23 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 Many modules have detailed README files with architecture documentation:
 - `src/core/README.md` - Config, auth, setup, diagnostics, policy architecture
 - `src/tools/README.md` - Tool system architecture and patterns
+- `src/tools/STATUS.md` - Tool system development status and roadmap
 - `src/subagents/README.md` - Sub-agent system architecture
 - `src/streaming/README.md` - Streaming client architecture
 
 When working in these modules, read their READMEs first to understand patterns and invariants.
+
+## Scripts & Validation Tools
+
+The `scripts/` directory contains validation and utility scripts:
+- `check-core-boundaries.mjs` - Enforce core layer dependency rules
+- `check-ui-boundaries.mjs` - Enforce UI layer dependency rules
+- `check-coverage-thresholds.mjs` - Validate test coverage thresholds
+- `check-no-ansi.mjs` - Check for unwanted ANSI escape sequences
+- `check-no-claude.mjs` - Check for "claude" string references
+- `tools-coverage.ts` - Compare implemented tools vs reference specs
+- `tools-parity.ts` - Compare tool schemas and fields vs reference
+- `extract-system-reminder-map.mjs` - Extract system reminder mappings
 
 ## Documentation Hygiene
 
