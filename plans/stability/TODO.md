@@ -35,3 +35,44 @@
     - [ ] 如果将来要做 reminder：必须有去重/冷却/裁剪（避免 token 爆炸）
 
 ---
+
+## S9 — 输入路由 / Overlay 稳定性（来自 `plans/stability/webgpt.txt`）
+
+说明：把 `plans/stability/webgpt.txt` 的建议转成“可执行 + 可验收”的 TODO；并标注当前状态（未做/已做/后置）。
+
+### P0（最高优先级）
+
+### P1（高优先级）
+
+- [ ] S9-P1-1：overlay manager 订阅在 unmount 时必须 unsubscribe
+  - [ ] `src/features/repl/controller/overlays.ts`：`useEffect(() => overlayManager.subscribe(...), [])` 改为 return unsubscribe
+  - [ ] `src/features/repl/controller/overlays.test.tsx`：mock `OverlayManager.subscribe` 返回 unsubscribe（`vi.fn()`），mount→unmount 后断言 unsubscribe 被调用
+
+- [ ] S9-P1-2：overlay 打开期间，断言“事件 scope”不出现 `repl`
+  - [ ] `src/screens/REPL.overlays.test.tsx`：在 `/permissions` overlay 的“does not route navigation keys…”测试里，断言这些键的 `inputEvents[].scope` 均为 `overlay:permissions`（而不是仅仅断言 actions 没被调用）
+
+- [x] S9-P1-3：split ESC arrow sequences 覆盖
+  - 已有单测：`src/features/repl/keys/escapeSequences.test.ts`（覆盖分段 `\u001B` + `[` + `A/B` 等）
+  - 统一消费入口：`consumeBufferedArrow` 已在 `ConfirmMenu` / `AgentsDialog` / `PermissionsDialog` / `HooksDialog` 复用
+
+- [x] S9-P1-4：/clear flash hardening
+  - 已有回归：`src/screens/REPL.test.tsx`、`src/features/repl/useReplController.test.tsx`
+  - 备注：终端“闪屏”偏 manual/渲染时序问题；如后续复现再补更细粒度 frame 断言
+
+- [x] S9-P1-5：防止 rogue `useInput`（绕过 scope routing）
+  - 已有审计测试：`src/features/repl/useInputAudit.test.ts`
+
+### P2（后置/可选）
+
+- [ ] S9-P2-1：`REPL.tsx` 抽 prompt input + slash suggestions 为内部 hook（不改行为）
+  - [ ] 仅重构：把 `input` / `slashIndex` / selection state / suggest logic 收敛到 `usePromptLine()`（或类似）
+  - [ ] 主要回归：`src/screens/REPL.slashSuggestions.test.tsx`
+
+- [ ] S9-P2-2：`useReplController.ts` DRY reset（不改行为）
+  - [ ] 抽出 `resetStreamingRefs()` / `resetSessionState()` 供 abort/newSession/send 复用（减少重复 reset 漂移）
+
+- [ ] S9-P2-3：router perf guardrail（不改行为）
+  - [ ] 0/1 handler 快路径（避免每 key clone/sort）
+  - [ ] （可选）缓存 ordered handlers 并在 register/unregister 失效
+
+---

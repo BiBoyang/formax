@@ -333,6 +333,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
           title="Enter permission rule"
           value={state.ruleInput}
           onChange={(v) => dispatch({ type: 'SET_RULE_INPUT', value: v })}
+          onSubmit={() => dispatch({ type: 'SUBMIT_RULE' })}
           scope={SCOPE}
           placeholder="e.g., Bash(ls:*)"
         />
@@ -346,6 +347,11 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
           title="Add directory to workspace"
           value={state.dirInput}
           onChange={(v) => dispatch({ type: 'SET_DIR_INPUT', value: v })}
+          onSubmit={(raw) => {
+            const dir = raw.trim()
+            if (dir) void commitWorkspaceDir(dir)
+            dispatch({ type: 'SUBMIT_DIR' })
+          }}
           scope={SCOPE}
           placeholder="e.g., ~/src or ./my-project"
         />

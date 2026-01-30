@@ -247,6 +247,7 @@ export function TextEntryView({
   title,
   value,
   onChange,
+  onSubmit,
   scope,
   placeholder,
 }: {
@@ -254,6 +255,7 @@ export function TextEntryView({
   title: string
   value: string
   onChange: (value: string) => void
+  onSubmit?: (value: string) => void
   scope: any
   placeholder?: string
 }): React.ReactNode {
@@ -261,7 +263,14 @@ export function TextEntryView({
     <Box flexDirection="column">
       <Text>{title}</Text>
       <Box marginTop={1}>
-        <TextInput value={value} onChange={onChange} placeholder={placeholder ?? ''} cursorStyle="bar" scope={scope} />
+        <TextInput
+          value={value}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          placeholder={placeholder ?? ''}
+          cursorStyle="bar"
+          scope={scope}
+        />
       </Box>
       <Box marginTop={1}>
         <Text color={theme.secondaryText}>Enter to submit · Esc to go back</Text>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
@@ -79,6 +79,7 @@ export default function TextInput({
   const cursorOffsetRef = useRef(cursorOffset)
   const onChangeRef = useRef(onChange)
   const onSubmitRef = useRef(onSubmit)
+  const scopeRef = useRef(scope)
 
   // Keep refs in sync before Ink can process the next input event.
   // `useEffect` can be too late (after a paint) and lead to stale handlers when props change quickly
@@ -91,9 +92,13 @@ export default function TextInput({
     onSubmitRef.current = onSubmit
   }, [onSubmit])
 
+  useLayoutEffect(() => {
+    scopeRef.current = scope
+  }, [scope])
+
   // Keep cursor in-bounds without forcing it to the end.
   // This avoids surprising cursor jumps when the user edits in the middle while the input is controlled.
-  useEffect(() => {
+  useLayoutEffect(() => {
     valueRef.current = value
     const nextCursorOffset = computeNextCursorOffsetForControlledValue({
       prevValue: lastValueRef.current,
@@ -105,7 +110,7 @@ export default function TextInput({
     lastValueRef.current = value
   }, [value])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     cursorOffsetRef.current = cursorOffset
   }, [cursorOffset])
 
@@ -113,7 +118,13 @@ export default function TextInput({
     if (!focus) return false
 
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const raw = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+    // Prefer `input` when available: Ink can batch multiple keystrokes into a single handler call
+    // where `input` contains multiple characters but `key.sequence` only reflects the last one.
+    // Falling back to `key.sequence` preserves support for terminals where printable chars arrive
+    // with an empty `input` string.
+    const rawInput = typeof input === 'string' ? input : ''
+    const rawSeq = typeof seq === 'string' ? seq : ''
+    const raw = (rawInput.length > 0 ? rawInput : rawSeq) || ''
     const keyName = typeof key?.name === 'string' ? (key.name as string) : ''
     const currentValue = valueRef.current
     const currentCursorOffset = cursorOffsetRef.current
@@ -181,8 +192,9 @@ export default function TextInput({
         onSubmitRef.current(currentValue)
         return true
       }
-      // Let parent handlers decide what Enter means when no submit callback is provided.
-      return false
+      // When scoped, always consume Enter/Newline so it doesn't bubble to higher-level handlers
+      // (lists/hotkeys) in the same scope.
+      return Boolean(scopeRef.current)
     }
 
     // Insert text at cursor position.

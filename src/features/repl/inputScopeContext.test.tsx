@@ -137,6 +137,28 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
+  it('does not misroute burst input during a scope switch', async () => {
+    const onRepl = vi.fn()
+    const onOverlay = vi.fn()
+    const scopes: string[] = []
+
+    const { stdin } = render(<Harness onRepl={onRepl} onOverlay={onOverlay} onScope={(s) => scopes.push(s)} />)
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'repl')
+
+    // Trigger overlay open and immediately type again without waiting for timers/effects.
+    // This used to be flaky under coverage/slow runs because the active scope ref and routed
+    // handler refs were only updated in `useEffect`, leaving a stale window.
+    stdin.write('O')
+    stdin.write('b')
+
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:test')
+
+    expect(onOverlay).toHaveBeenCalledWith('b')
+    expect(onRepl).not.toHaveBeenCalledWith('b')
+  })
+
   it('works without InputScopeProvider (fallback)', async () => {
     const onRepl = vi.fn()
 

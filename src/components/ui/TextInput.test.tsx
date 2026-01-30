@@ -149,6 +149,19 @@ describe('TextInput', () => {
     expect(frameText()).not.toContain('a')
   })
 
+  it('does not drop burst character input', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
+
+    await tick()
+    stdin.write('a')
+    stdin.write('b')
+    stdin.write('c')
+    await tick()
+
+    expect(frameText()).toContain('abc')
+  })
+
   it('supports backspace removal at end of line', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
     const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
@@ -284,6 +297,25 @@ describe('TextInput', () => {
 
     // Backspace on boundary should not bubble.
     stdin.write('\x7f')
+    await tick()
+
+    expect(onList).not.toHaveBeenCalled()
+  })
+
+  it('consumes Enter when scoped even without onSubmit', async () => {
+    const onList = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="overlay:test">
+        <ScopedConsumeWrapper onList={(s) => onList(s)} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('a')
+    await tick()
+
+    stdin.write('\r')
     await tick()
 
     expect(onList).not.toHaveBeenCalled()

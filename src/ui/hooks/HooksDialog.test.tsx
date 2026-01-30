@@ -239,6 +239,96 @@ describe('HooksDialog', () => {
     }
   }, 20000)
 
+  it('does not drop burst input when adding a hook command', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-burst-input-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: {
+            PreToolUse: [{ matcher: 'Bash', hooks: [] }],
+            PermissionRequest: [],
+            PostToolUse: [],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const scopes: string[] = []
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <ActiveScopeSpy onScope={(s) => scopes.push(s)} />
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Hooks')
+      await waitForText(lastFrame, 'PreToolUse')
+      await tick()
+
+      // Enter PreToolUse event
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      await waitForText(lastFrame, '[Local] Bash')
+      await tick()
+
+      // Enter Bash matcher (cursor 0 is "+ Add new matcher…")
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
+      await tick()
+
+      // Enter "Add new hook"
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      await waitForText(lastFrame, 'Command:')
+      await tick()
+
+      // Burst typing: do not await between keystrokes.
+      stdin.write('a')
+      stdin.write('b')
+      stdin.write('c')
+      await tick()
+
+      // The input should contain the full burst.
+      expect(lastFrame() || '').toContain('abc')
+
+      // Confirm and ensure the saved summary contains the command.
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Save hook configuration')
+      await waitForText(lastFrame, 'Command: abc')
+
+      const firstOverlayIdx = scopes.indexOf('overlay:hooks')
+      expect(firstOverlayIdx).toBeGreaterThanOrEqual(0)
+      expect(scopes.slice(firstOverlayIdx + 1)).not.toContain('repl')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
   it('adds and deletes a hook while preserving other settings fields', async () => {
     const originalCwd = process.cwd()
     const originalConfigDir = process.env.FORMAX_CONFIG_DIR

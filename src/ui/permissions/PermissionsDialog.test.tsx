@@ -200,6 +200,12 @@ describe('PermissionsDialog', () => {
       expect(frame).toContain('WebFetch')
       expect(frame).not.toContain('Bash(ls:*)')
 
+      // Enter should be consumed by the search input (must not trigger list selection/tab changes/close).
+      stdin.write('\r')
+      await tick()
+      expect(lastFrame() || '').toContain('Search:')
+      expect(onExit).toHaveBeenCalledTimes(0)
+
       // Toggle search off
       stdin.write('/')
       await waitForNoText(lastFrame, 'Search:')

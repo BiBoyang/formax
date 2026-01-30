@@ -21,6 +21,9 @@ This file archives items that were completed and removed from `plans/stability/T
 - overlay 打开期间：`Esc`/`Shift+Tab` 不触发 REPL abort/mode 切换：见 `src/screens/REPL.overlays.test.tsx`、`src/screens/repl/hotkeys.test.tsx`
 - `/hooks` Add new hook：输入时 scope 不应 flicker 回 `repl`（避免丢字/闪屏）：见 `src/ui/hooks/HooksDialog.test.tsx`
 - overlay scope id 已对齐：`overlay:agents` / `overlay:permissions` / `overlay:hooks`：见 `src/ui/agents/AgentsDialog.tsx`、`src/ui/permissions/PermissionsDialog.tsx`、`src/ui/hooks/HooksDialog.tsx`
+- InputScope router：active scope / routed handler refs 改为 `useLayoutEffect` 同步（避免 scope/handler 切换后首个按键落到旧 scope/旧闭包）：见 `src/features/repl/inputScopeContext.tsx`、`src/features/repl/inputScopeContext.test.tsx`
+- PermissionsDialog：输入页（add rule / add directory）改为由 TextInput `onSubmit` 处理 Enter（避免 Enter 冒泡到 list/hotkeys，且避免在 scoped TextInput 下丢提交）：见 `src/ui/permissions/PermissionsDialog.tsx`、`src/ui/permissions/ui.tsx`、`src/ui/permissions/PermissionsDialog.test.tsx`
+- TextInput：修复 burst 输入丢字（Ink 可能把多次写入合并，但 `key.sequence` 只反映最后一个字符；同时用 `useLayoutEffect` 同步 value/cursor refs，避免下一次按键读到旧值）：见 `src/components/ui/TextInput.tsx`、`src/components/ui/TextInput.test.tsx`
 
 ## Terminal / clear semantics
 

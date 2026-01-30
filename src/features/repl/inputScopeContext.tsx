@@ -126,7 +126,9 @@ export function InputScopeProvider({
   }, [pop, push, registerHandler, resumeGroup, stack, suspendGroup])
 
   const activeScopeRef = useRef<InputScopeId>(value.activeScope)
-  useEffect(() => {
+  // Keep the active scope ref in sync before paint to avoid a stale-scope window where
+  // early keystrokes after a scope switch get routed to the previous scope.
+  useLayoutEffect(() => {
     activeScopeRef.current = value.activeScope
   }, [value.activeScope])
 
@@ -174,7 +176,9 @@ export function useScopedRoutedInput(
   const enabled = opts?.enabled !== false
 
   const handlerRef = useRef(handler)
-  useEffect(() => {
+  // Keep the routed handler up-to-date before paint to avoid a stale-handler window where
+  // early keystrokes after state changes are processed by an outdated closure.
+  useLayoutEffect(() => {
     handlerRef.current = handler
   }, [handler])
 
