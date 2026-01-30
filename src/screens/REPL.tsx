@@ -31,10 +31,10 @@ import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
 import { formatTokens } from './repl/format'
-import { DetailedTranscriptPanel, ExploreAgentsPanel, ThinkingPanel, formatTaskPanelTitle } from './repl/panels'
+import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } from './repl/panels'
 import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
-import { ReplTranscript } from './repl/transcript'
+import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 
 type Props = {
   onExit?: () => void
@@ -201,6 +201,8 @@ export function REPL({
     [state.staticMessages, state.transientMessages],
   )
 
+  const expandedViewActive = expandedTranscriptOpen && !isPromptMode
+
   const {
     input,
     setInput,
@@ -272,13 +274,9 @@ export function REPL({
   const renderMessage = useCallback(
     (msg: Msg) => {
       if (msg.role === 'tool') {
-        const toolMsg =
-          expandedTranscriptOpen && msg.toolInfo
-            ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } }
-            : msg
         return (
           <Box flexDirection="column">
-            <ToolRouter message={toolMsg} registry={toolRegistry} />
+            <ToolRouter message={msg} registry={toolRegistry} />
           </Box>
         )
       }
@@ -317,7 +315,70 @@ export function REPL({
         </Box>
       )
     },
-    [expandedTranscriptOpen, theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
+    [theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
+  )
+
+  const renderExpandedMessage = useCallback(
+    (msg: Msg) => {
+      if (msg.role === 'tool') {
+        const toolMsg = msg.toolInfo ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } } : msg
+        return (
+          <Box flexDirection="column">
+            <ToolRouter message={toolMsg} registry={toolRegistry} />
+          </Box>
+        )
+      }
+
+      if (msg.role === 'assistant') {
+        if (!msg.content) return null
+        if (msg.ui?.kind === 'command_subline') {
+          return (
+            <Box flexDirection="column" marginTop={0} marginBottom={0}>
+              <Box>
+                <Text>{`  ⎿  ${msg.content}`}</Text>
+              </Box>
+            </Box>
+          )
+        }
+        if (msg.ui?.kind === 'thinking_block') {
+          const raw = String(msg.content || '').trimEnd()
+          return (
+            <Box flexDirection="column" marginTop={1} marginBottom={0}>
+              <Text color={theme.secondaryText}>∴ Thinking…</Text>
+              <Box>
+                <Text> </Text>
+              </Box>
+              <Box flexDirection="column">
+                {raw
+                  ? raw.split('\n').map((line, idx) => (
+                      <Text key={idx} color={theme.secondaryText}>
+                        {line ? `  ${line}` : ' '}
+                      </Text>
+                    ))
+                  : null}
+              </Box>
+            </Box>
+          )
+        }
+        return (
+          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+            <Box>
+              <Text>⏺ </Text>
+              <Text>{msg.content}</Text>
+            </Box>
+          </Box>
+        )
+      }
+
+      return (
+        <Box flexDirection="column" marginTop={1} marginBottom={0}>
+          <Box>
+            <Text color={theme.replUserPromptFg} backgroundColor={theme.replUserPromptBg}>{`> ${msg.content} `}</Text>
+          </Box>
+        </Box>
+      )
+    },
+    [theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
   )
 
   const modelLabel = useMemo(() => {
@@ -349,7 +410,7 @@ export function REPL({
   }, [isPromptMode, state.isLoading, state.transientMessages])
 
   const expandedTranscriptTask = useMemo(() => {
-    if (!expandedTranscriptOpen || isPromptMode) return null
+    if (!expandedViewActive) return null
     return (
       [...allMessages].reverse().find((m) => {
         if (m.role !== 'tool') return false
@@ -357,39 +418,47 @@ export function REPL({
         return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
       }) ?? null
     )
-  }, [allMessages, expandedTranscriptOpen, isPromptMode])
+  }, [allMessages, expandedViewActive])
 
   const lastExploreGroup = useMemo(() => {
-    if (!expandedTranscriptOpen || isPromptMode) return null
+    if (!expandedViewActive) return null
     // Persisted assistant "thinking_block" messages should not break Explore-task grouping
     // in the Expanded Transcript panels. Grouping is about tool messages, so filter to tools.
     const group = findLastContiguousExploreTaskGroup(allMessages.filter((m) => m.role === 'tool'))
     if (!group || group.tasks.length < 2) return null
     return group
-  }, [allMessages, expandedTranscriptOpen, isPromptMode])
+  }, [allMessages, expandedViewActive])
 
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
         <Box flexDirection="column" height="100%">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            <ReplTranscript
-              transcriptSeq={state.transcriptSeq}
-              version={(pkg as any).version || '0.0.0'}
-              modelLabel={modelLabel}
-              cwd={replCwd}
-              staticMessages={state.staticMessages}
-              transientMessages={state.transientMessages}
-              renderMessage={renderMessage}
-            />
+            {expandedViewActive ? (
+              <ExpandedReplTranscript
+                version={(pkg as any).version || '0.0.0'}
+                modelLabel={modelLabel}
+                cwd={replCwd}
+                messages={allMessages}
+                renderMessage={renderExpandedMessage}
+              />
+            ) : (
+              <ReplTranscript
+                transcriptSeq={state.transcriptSeq}
+                version={(pkg as any).version || '0.0.0'}
+                modelLabel={modelLabel}
+                cwd={replCwd}
+                staticMessages={state.staticMessages}
+                transientMessages={state.transientMessages}
+                renderMessage={renderMessage}
+              />
+            )}
 
-            {expandedTranscriptOpen && !isPromptMode ? <ThinkingPanel messages={allMessages} /> : null}
-
-            {expandedTranscriptOpen && !isPromptMode && lastExploreGroup?.tasks?.length ? (
+            {expandedViewActive && lastExploreGroup?.tasks?.length ? (
               <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />
             ) : null}
 
-            {expandedTranscriptOpen && !isPromptMode && expandedTranscriptTask?.toolInfo?.transcriptLines?.length ? (
+            {expandedViewActive && expandedTranscriptTask?.toolInfo?.transcriptLines?.length ? (
               <DetailedTranscriptPanel
                 title={expandedTranscriptTask ? formatTaskPanelTitle(expandedTranscriptTask) : null}
                 lines={expandedTranscriptTask?.toolInfo?.transcriptLines ?? null}
@@ -439,7 +508,14 @@ export function REPL({
             )}
           </Box>
 
-          {!isPromptMode && (
+          {expandedViewActive && (
+            <Box flexDirection="column" flexShrink={0} marginTop={1}>
+              <Text color={theme.secondaryText}>{'─'.repeat(Math.max((process.stdout.columns || 80), 40))}</Text>
+              <Text color={theme.secondaryText}>{'  Showing detailed transcript · ctrl+o to toggle'}</Text>
+            </Box>
+          )}
+
+          {!isPromptMode && !expandedViewActive && (
             <Box flexDirection="column" flexShrink={0} marginTop={1}>
               <InputBar
                 value={input}

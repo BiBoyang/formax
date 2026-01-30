@@ -43,3 +43,29 @@ export function ReplTranscript(props: {
   )
 }
 
+export function ExpandedReplTranscript(props: {
+  version: string
+  modelLabel: string
+  cwd: string
+  messages: Msg[]
+  renderMessage: (msg: Msg) => React.ReactNode
+}): React.ReactNode {
+  const { version, modelLabel, cwd, messages, renderMessage } = props
+
+  const items = useMemo(() => {
+    const header = {
+      key: 'header',
+      jsx: <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />,
+    }
+    const rendered = renderMessageItems(messages, renderMessage)
+    return [header, ...rendered]
+  }, [cwd, messages, modelLabel, renderMessage, version])
+
+  return (
+    <>
+      {items.map((item) => (
+        <Box key={item.key}>{item.jsx}</Box>
+      ))}
+    </>
+  )
+}

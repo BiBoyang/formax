@@ -115,6 +115,9 @@ describe('Expanded Transcript (ctrl+o)', () => {
     const expanded = await waitForFrame(ui.lastFrame, (f) => f.includes('TASK TRANSCRIPT: line 1'), 10000)
     expect(expanded).toContain('∴ Thinking')
     expect(expanded).toContain('THINKING: hello')
+    expect(expanded).toContain('⏺  OK')
+    expect(expanded.indexOf('THINKING: hello')).toBeLessThan(expanded.indexOf('⏺  OK'))
+    expect(expanded).toContain('Showing detailed transcript · ctrl+o to toggle')
 
     ui.stdin.write('\u000f') // ctrl+o again
     await waitForFrame(ui.lastFrame, (f) => !f.includes('∴ Thinking'), 10000)

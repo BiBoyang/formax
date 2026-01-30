@@ -90,10 +90,6 @@ export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.Re
           )
         })}
       </Box>
-
-      <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Showing Explore agents · ctrl+o to toggle</Text>
-      </Box>
     </Box>
   )
 }
@@ -160,10 +156,6 @@ export function DetailedTranscriptPanel({
           <Text color={theme.secondaryText}>No detailed transcript available</Text>
         </Box>
       )}
-
-      <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Showing detailed transcript · ctrl+o to toggle</Text>
-      </Box>
     </Box>
   )
 }
