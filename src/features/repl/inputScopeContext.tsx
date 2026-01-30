@@ -57,6 +57,10 @@ export function InputScopeProvider({
   const initialRef = useRef<InputScopeId>(initialScope)
   const [stack, setStack] = useState<InputScopeId[]>(() => [initialRef.current])
   const handlersRef = useRef<Map<InputScopeId, RegisteredHandler[]>>(new Map())
+  const handlersVersionRef = useRef<Map<InputScopeId, number>>(new Map())
+  const orderedHandlersCacheRef = useRef<Map<InputScopeId, { version: number; ordered: RegisteredHandler[] }>>(
+    new Map(),
+  )
   const suspendedGroupsRef = useRef<Map<string, number>>(new Map())
   const nextHandlerIdRef = useRef(1)
   const nextOrderRef = useRef(1)
@@ -94,6 +98,8 @@ export function InputScopeProvider({
     const list = handlersRef.current.get(record.scope)
     if (list) list.push(record)
     else handlersRef.current.set(record.scope, [record])
+    handlersVersionRef.current.set(record.scope, (handlersVersionRef.current.get(record.scope) ?? 0) + 1)
+    orderedHandlersCacheRef.current.delete(record.scope)
 
     return () => {
       const cur = handlersRef.current.get(record.scope)
@@ -101,6 +107,8 @@ export function InputScopeProvider({
       const next = cur.filter((h) => h.id !== record.id)
       if (next.length === 0) handlersRef.current.delete(record.scope)
       else handlersRef.current.set(record.scope, next)
+      handlersVersionRef.current.set(record.scope, (handlersVersionRef.current.get(record.scope) ?? 0) + 1)
+      orderedHandlersCacheRef.current.delete(record.scope)
     }
   }, [])
 
@@ -138,7 +146,27 @@ export function InputScopeProvider({
       const handlers = handlersRef.current.get(activeScope)
       if (!handlers || handlers.length === 0) return
 
-      const ordered = [...handlers].sort((a, b) => b.priority - a.priority || a.order - b.order)
+      if (handlers.length === 1) {
+        const h = handlers[0]
+        if ((suspendedGroupsRef.current.get(h.group) ?? 0) > 0) return
+        try {
+          if (h.handler(input, key) === true) return
+        } catch {
+        }
+        return
+      }
+
+      const version = handlersVersionRef.current.get(activeScope) ?? 0
+      const cached = orderedHandlersCacheRef.current.get(activeScope)
+      const ordered =
+        cached && cached.version === version
+          ? cached.ordered
+          : [...handlers].sort((a, b) => b.priority - a.priority || a.order - b.order)
+
+      if (!cached || cached.version !== version) {
+        orderedHandlersCacheRef.current.set(activeScope, { version, ordered })
+      }
+
       for (const h of ordered) {
         if ((suspendedGroupsRef.current.get(h.group) ?? 0) > 0) continue
         try {
