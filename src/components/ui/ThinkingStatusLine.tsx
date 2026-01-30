@@ -4,11 +4,13 @@ import { getTheme } from '../../utils/theme'
 
 export function ThinkingStatusLine({
   startedAtMs,
+  accumulatedMs = 0,
   showThinkingHint = false,
   hintAfterMs = 2000,
   updateIntervalMs = 200,
 }: {
   startedAtMs: number | null
+  accumulatedMs?: number
   showThinkingHint?: boolean
   hintAfterMs?: number
   updateIntervalMs?: number
@@ -25,12 +27,15 @@ export function ThinkingStatusLine({
     return () => clearInterval(timer)
   }, [startedAtMs, updateIntervalMs])
 
-  const elapsedMs = useMemo(() => (startedAtMs === null ? 0 : Math.max(0, nowMs - startedAtMs)), [nowMs, startedAtMs])
+  const elapsedMs = useMemo(() => {
+    const runningMs = startedAtMs === null ? 0 : Math.max(0, nowMs - startedAtMs)
+    return Math.max(0, accumulatedMs) + runningMs
+  }, [accumulatedMs, nowMs, startedAtMs])
   const seconds = useMemo(() => Math.floor(elapsedMs / 1000), [elapsedMs])
 
-  if (startedAtMs === null) return null
+  if (startedAtMs === null && elapsedMs <= 0) return null
 
-  if (elapsedMs < hintAfterMs) {
+  if (startedAtMs !== null && elapsedMs < hintAfterMs) {
     return <Text color={theme.secondaryText}>∴ Thinking…</Text>
   }
 

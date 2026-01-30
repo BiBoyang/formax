@@ -71,6 +71,97 @@ describe('AnthropicStreamClient.streamOnce', () => {
     ).rejects.toThrow('No response body')
   })
 
+  it('includes thinking in request body by default', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+  })
+
+  it('retries without thinking when provider rejects thinking fields', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unknown field: thinking',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(2)
+
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const firstBody = JSON.parse(firstInit.body)
+    expect(firstBody.thinking).toBeDefined()
+    expect(firstInit.headers['anthropic-beta']).toBeDefined()
+
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    const secondBody = JSON.parse(secondInit.body)
+    expect(secondBody.thinking).toBeUndefined()
+    expect(secondInit.headers['anthropic-beta']).toBeUndefined()
+  })
+
   it('emits tool_start/tool_input/tool_end and returns sorted toolResults', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 

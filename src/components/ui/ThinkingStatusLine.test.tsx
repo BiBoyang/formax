@@ -4,6 +4,16 @@ import { render } from 'ink-testing-library'
 import { ThinkingStatusLine } from './ThinkingStatusLine'
 
 describe('ThinkingStatusLine', () => {
+  it('renders nothing when there is no thinking', () => {
+    const { lastFrame } = render(<ThinkingStatusLine startedAtMs={null} accumulatedMs={0} />)
+    expect((lastFrame() || '').trim()).toBe('')
+  })
+
+  it('shows Thought for Ns when thinking already completed', () => {
+    const { lastFrame } = render(<ThinkingStatusLine startedAtMs={null} accumulatedMs={5_000} />)
+    expect(lastFrame()).toContain('∴ Thought for 5s')
+  })
+
   it('shows Thinking… within threshold', () => {
     const startedAtMs = Date.now()
     const { lastFrame } = render(

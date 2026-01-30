@@ -37,6 +37,8 @@ export type ReplControllerState = {
   isLoading: boolean
   loadingText: string
   thinkingText: string
+  thinkingStartedAtMs: number | null
+  thinkingTotalMs: number
   error: string | null
   allowedSubagents: Array<{ name: string; description: string }>
   agentsDialogOpen: boolean
@@ -82,6 +84,8 @@ export function useReplController(deps: {
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
   const [thinkingText, setThinkingText] = useState('')
+  const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+  const [thinkingTotalMs, setThinkingTotalMs] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
   const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
@@ -110,6 +114,10 @@ export function useReplController(deps: {
   const assistantBufferRef = useRef<string>('')
   const thinkingBufferRef = useRef<string>('')
   const thinkingLastFlushAtRef = useRef(0)
+  const thinkingTimingRef = useRef<{ startedAtMs: number | null; totalMs: number }>({
+    startedAtMs: null,
+    totalMs: 0,
+  })
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
@@ -130,7 +138,10 @@ export function useReplController(deps: {
     assistantBufferRef.current = ''
     thinkingBufferRef.current = ''
     thinkingLastFlushAtRef.current = 0
+    thinkingTimingRef.current = { startedAtMs: null, totalMs: 0 }
     setThinkingText('')
+    setThinkingStartedAtMs(null)
+    setThinkingTotalMs(0)
   }, [])
 
   const resetSessionState = useCallback(() => {
@@ -179,6 +190,8 @@ export function useReplController(deps: {
     assistantTextMode,
     setMessages,
     setThinkingText,
+    setThinkingStartedAtMs,
+    setThinkingTotalMs,
     setLoadingText,
     setContext,
     setError,
@@ -186,6 +199,7 @@ export function useReplController(deps: {
     assistantBufferRef,
     thinkingBufferRef,
     thinkingLastFlushAtRef,
+    thinkingTimingRef,
     toolNameByIdRef,
     taskStatsByToolUseIdRef,
     taskKindByToolUseIdRef,
@@ -265,6 +279,10 @@ export function useReplController(deps: {
       if (!text || isLoading) return
 
       const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
+
+      // Thinking/streaming state is per-turn; clear buffers so stale thinking
+      // from previous turns can't leak into the next status line/panel.
+      resetStreamingBuffers()
 
       if (
         maybeHandleClearCommand({
@@ -382,6 +400,7 @@ export function useReplController(deps: {
       isLoading,
       newSession,
       openOverlay,
+      resetStreamingBuffers,
       setReplMode,
       userInput,
     ],
@@ -396,6 +415,8 @@ export function useReplController(deps: {
       isLoading,
       loadingText,
       thinkingText,
+      thinkingStartedAtMs,
+      thinkingTotalMs,
       error,
       allowedSubagents,
       agentsDialogOpen: overlay?.kind === 'agents',

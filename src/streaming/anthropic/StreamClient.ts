@@ -74,6 +74,26 @@ function normalizeBaseUrl(baseUrl?: string): string {
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 }
 
+function shouldRetryWithoutThinking(errorText: string): boolean {
+  const t = (errorText || '').toLowerCase()
+  if (!t) return false
+  return (
+    t.includes('thinking') ||
+    t.includes('interleaved-thinking') ||
+    t.includes('anthropic-beta') ||
+    t.includes('unknown field') ||
+    t.includes('unrecognized') ||
+    t.includes('additional properties') ||
+    t.includes('unexpected')
+  )
+}
+
+function stripThinkingHeaders(headers: Record<string, string>): Record<string, string> {
+  const next: Record<string, string> = { ...headers }
+  delete next['anthropic-beta']
+  return next
+}
+
 export class AnthropicStreamClient implements LlmStreamClient {
   private config: StreamClientConfig
   private headers: Record<string, string>
@@ -88,13 +108,21 @@ export class AnthropicStreamClient implements LlmStreamClient {
   }
 
   async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
-    const payload = {
+    const basePayload = {
       stream: true,
       model: this.config.model,
       max_tokens: args.maxTokens ?? 16000,
       messages: args.messages,
       system: args.system,
       tools: args.tools,
+    }
+
+    const payload = {
+      ...basePayload,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: Math.min(4096, basePayload.max_tokens),
+      },
     }
 
     const controller = new AbortController()
@@ -112,7 +140,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
     const isAborted = () => combinedSignal.aborted
 
     try {
-      const response = await fetch(`${this.config.baseUrl}/messages`, {
+      let response = await fetch(`${this.config.baseUrl}/messages`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(payload),
@@ -121,7 +149,22 @@ export class AnthropicStreamClient implements LlmStreamClient {
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
+
+        if (shouldRetryWithoutThinking(errorText)) {
+          response = await fetch(`${this.config.baseUrl}/messages`, {
+            method: 'POST',
+            headers: stripThinkingHeaders(this.headers),
+            body: JSON.stringify(basePayload),
+            signal: combinedSignal,
+          })
+
+          if (!response.ok) {
+            const retryErrorText = await response.text()
+            throw new Error(`HTTP ${response.status}: ${retryErrorText}`)
+          }
+        } else {
+          throw new Error(`HTTP ${response.status}: ${errorText}`)
+        }
       }
 
       if (!response.body) {

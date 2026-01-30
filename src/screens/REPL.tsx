@@ -403,12 +403,15 @@ export function REPL({
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">
-                <Box marginBottom={1}>
-                  <ThinkingStatusLine
-                    startedAtMs={loadingStartedAtMs}
-                    showThinkingHint={Boolean(state.thinkingText.trim())}
-                  />
-                </Box>
+                {(state.thinkingStartedAtMs !== null || state.thinkingTotalMs > 0) && (
+                  <Box marginBottom={1}>
+                    <ThinkingStatusLine
+                      startedAtMs={state.thinkingStartedAtMs}
+                      accumulatedMs={state.thinkingTotalMs}
+                      showThinkingHint={Boolean(state.thinkingText.trim())}
+                    />
+                  </Box>
+                )}
                 {showThinking && state.thinkingText.trim() && (
                   <Box marginBottom={1}>
                     <Text dimColor>{state.thinkingText.trimEnd()}</Text>

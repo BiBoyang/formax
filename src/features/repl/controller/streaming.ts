@@ -56,6 +56,8 @@ export function useReplStreaming(args: {
   assistantTextMode: string
   setMessages: Dispatch<SetStateAction<Msg[]>>
   setThinkingText: Dispatch<SetStateAction<string>>
+  setThinkingStartedAtMs: Dispatch<SetStateAction<number | null>>
+  setThinkingTotalMs: Dispatch<SetStateAction<number>>
   setLoadingText: Dispatch<SetStateAction<string>>
   setContext: Dispatch<
     SetStateAction<
@@ -73,6 +75,7 @@ export function useReplStreaming(args: {
   assistantBufferRef: { current: string }
   thinkingBufferRef: { current: string }
   thinkingLastFlushAtRef: { current: number }
+  thinkingTimingRef: { current: { startedAtMs: number | null; totalMs: number } }
   toolNameByIdRef: { current: Map<string, string> }
   taskStatsByToolUseIdRef: {
     current: Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
@@ -97,10 +100,28 @@ export function useReplStreaming(args: {
     ])
   }, [args])
 
+  const startThinkingIfNeeded = useCallback(() => {
+    if (args.thinkingTimingRef.current.startedAtMs !== null) return
+    const now = Date.now()
+    args.thinkingTimingRef.current.startedAtMs = now
+    args.setThinkingStartedAtMs(now)
+  }, [args])
+
+  const stopThinkingIfActive = useCallback(() => {
+    const startedAt = args.thinkingTimingRef.current.startedAtMs
+    if (startedAt === null) return
+    const now = Date.now()
+    args.thinkingTimingRef.current.startedAtMs = null
+    args.thinkingTimingRef.current.totalMs += Math.max(0, now - startedAt)
+    args.setThinkingStartedAtMs(null)
+    args.setThinkingTotalMs(args.thinkingTimingRef.current.totalMs)
+  }, [args])
+
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
       switch (ev.type) {
         case 'assistant_delta': {
+          stopThinkingIfActive()
           if (args.assistantTextMode === 'buffered') {
             args.assistantBufferRef.current += ev.text
             return
@@ -134,6 +155,7 @@ export function useReplStreaming(args: {
         }
 
         case 'thinking_delta': {
+          startThinkingIfNeeded()
           args.thinkingBufferRef.current += ev.thinking
           const now = Date.now()
           if (now - args.thinkingLastFlushAtRef.current > 200) {
@@ -159,6 +181,7 @@ export function useReplStreaming(args: {
         }
 
         case 'tool_start': {
+          stopThinkingIfActive()
           if (args.assistantTextMode === 'buffered') {
             flushAssistantBuffer()
           } else {
@@ -410,6 +433,7 @@ export function useReplStreaming(args: {
         }
 
         case 'complete': {
+          stopThinkingIfActive()
           if (args.assistantTextMode === 'buffered') {
             flushAssistantBuffer()
           } else {
@@ -428,7 +452,7 @@ export function useReplStreaming(args: {
           return
       }
     },
-    [args, flushAssistantBuffer],
+    [args, flushAssistantBuffer, startThinkingIfNeeded, stopThinkingIfActive],
   )
 
   return { handleEvent }
