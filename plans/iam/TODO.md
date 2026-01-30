@@ -4,8 +4,9 @@
 
 ## Pending（未完成/需抓包确认）
 
-- [ ] local command 的 permissions key 形式（Claude 里到底落在什么 ToolName/spec）
-- [ ] Settings 字段名/更多权限类型：如需继续对齐 Claude，再补齐（当前最小 schema 已可用）
+> 2026-01-30：决定不再为“完全对齐 Claude Code”做抓包验证；按 Formax 当前模型推进（Bash/Skill 为基座），其它能力按需再加。
+
+- [ ] （可选）Settings 字段名/更多权限类型：如需继续对齐 Claude，再补齐（当前最小 schema 已可用）
 
 ## Notes（已落地的基座能力）
 

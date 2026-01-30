@@ -741,7 +741,7 @@
 
 * **改动文件列表**
 
-  * `plans/stability/TODO.md`（把 S9 拆分后的 checklist 状态同步）
+  * （已完成并归档）`plans/_archive/stability/COMPLETED-2026-01-26.md`（S9 拆分后的 checklist 与回归点索引）
   * `pitfalls.md`（补“禁止 ANSI 直写审计”“TextInput consume 契约”“suspend group 约束”等）
 
 * **具体改动点**
@@ -782,4 +782,3 @@
 ---
 
 如果你希望我把上述 checklist **映射成你们 repo 的实际 PR 切分顺序**（例如每个 PR 包含哪几条、如何保证每个 PR 都是 green、以及哪些测试先落地更稳），我也可以在不需要额外上下文的情况下直接给出“PR 级别切分版”。
-

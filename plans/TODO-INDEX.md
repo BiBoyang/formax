@@ -4,7 +4,6 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/stability/TODO.md`：稳定性/可预测性基座（输出契约/abort/plan snippet 等）
 - `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（优先做基座，UI 后接线）
 
 ## 并行参考（不作为主线推进）
@@ -30,3 +29,4 @@
 
 - `plans/_archive/**`：历史抓包/研究/旧计划归档（不作为执行清单，仅供回看）
 - `plans/_archive/common-refactor/OUTDATED-NOTES.md`：旧文档审计笔记（Done/Pending/Outdated），仅供回看
+- `plans/_archive/stability/COMPLETED-2026-01-26.md`：已完成的稳定性/可预测性改动清单（回归点索引）

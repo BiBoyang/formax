@@ -2,7 +2,7 @@
 
 Date: 2026-01-26
 
-This file archives items that were completed and removed from `plans/stability/TODO.md` to keep the active TODO list focused.
+This file archives items that were completed and removed from the former `plans/stability/TODO.md` (now deleted) to keep the active TODO list focused.
 
 ## Input routing / overlays
 
