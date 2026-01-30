@@ -79,7 +79,7 @@ Performance / render strategy
 
 Code cleanup / maintainability
 - [ ] Reduce duplication between `renderMessage` and `renderExpandedMessage` (extract shared helpers; **do not** change UI copy/spacing).
-- [ ] Remove unused `ThinkingPanel` from `src/screens/repl/panels.tsx` (or document why we keep it).
+- [x] Remove unused `ThinkingPanel` from `src/screens/repl/panels.tsx` (or document why we keep it).
 
 Extra regression coverage
-- [ ] Add UI test: Expanded Transcript hides InputBar; toggling back restores InputBar.
+- [x] Add UI test: Expanded Transcript hides InputBar; toggling back restores InputBar.

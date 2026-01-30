@@ -107,12 +107,14 @@ describe('Expanded Transcript (ctrl+o)', () => {
     await waitForFrame(ui.lastFrame, (f) => f.includes('OK'), 10000)
 
     const baseline = ui.lastFrame() || ''
+    expect(baseline).toContain('? for shortcuts')
     expect(baseline).not.toContain('∴ Thinking')
     expect(baseline).not.toContain('THINKING: hello')
     expect(baseline).not.toContain('TASK TRANSCRIPT: line 1')
 
     ui.stdin.write('\u000f') // ctrl+o
     const expanded = await waitForFrame(ui.lastFrame, (f) => f.includes('TASK TRANSCRIPT: line 1'), 10000)
+    expect(expanded).not.toContain('? for shortcuts')
     expect(expanded).toContain('∴ Thinking')
     expect(expanded).toContain('THINKING: hello')
     expect(expanded).toContain('⏺  OK')
@@ -120,7 +122,7 @@ describe('Expanded Transcript (ctrl+o)', () => {
     expect(expanded).toContain('Showing detailed transcript · ctrl+o to toggle')
 
     ui.stdin.write('\u000f') // ctrl+o again
-    await waitForFrame(ui.lastFrame, (f) => !f.includes('∴ Thinking'), 10000)
+    await waitForFrame(ui.lastFrame, (f) => f.includes('? for shortcuts'), 10000)
   },
     20000,
   )

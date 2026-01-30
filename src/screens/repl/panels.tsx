@@ -4,41 +4,6 @@ import type { Msg } from '../../components/tool/ToolMessage'
 import { getTheme } from '../../utils/theme'
 import { formatTokens, sumTokens, truncate } from './format'
 
-export function ThinkingPanel({ messages }: { messages: Msg[] }): React.ReactNode {
-  const theme = getTheme()
-
-  const thinking = (Array.isArray(messages) ? messages : []).filter((m) => {
-    if (m.role !== 'assistant') return false
-    if (m.ui?.kind !== 'thinking_block') return false
-    return Boolean(m.content && m.content.trim())
-  })
-
-  if (thinking.length === 0) return null
-
-  return (
-    <Box flexDirection="column" marginTop={1}>
-      {thinking.map((m) => (
-        <Box key={m.id} flexDirection="column" marginBottom={1}>
-          <Text color={theme.secondaryText}>∴ Thinking…</Text>
-          <Box>
-            <Text> </Text>
-          </Box>
-          <Box flexDirection="column">
-            {String(m.content)
-              .trimEnd()
-              .split('\n')
-              .map((line, idx) => (
-                <Text key={idx} color={theme.secondaryText}>
-                  {line ? `  ${line}` : ' '}
-                </Text>
-              ))}
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  )
-}
-
 export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.ReactNode {
   const theme = getTheme()
   const safeTasks = Array.isArray(tasks) ? tasks : []
