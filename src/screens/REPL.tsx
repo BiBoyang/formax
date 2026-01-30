@@ -107,10 +107,7 @@ export function REPL({
   const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
-  const [showThinking, setShowThinking] = useState(false)
-  const [showDetailedTranscript, setShowDetailedTranscript] = useState(false)
-  const [detailedTranscriptTargetId, setDetailedTranscriptTargetId] = useState<string | null>(null)
-  const [showExploreAgentsPanel, setShowExploreAgentsPanel] = useState(false)
+  const [expandedTranscriptOpen, setExpandedTranscriptOpen] = useState(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
   const ensurePlanPath = useCallback(
@@ -185,7 +182,6 @@ export function REPL({
       return
     }
     setLoadingStartedAtMs(null)
-    setShowThinking(false)
   }, [state.isLoading])
 
   const isPromptMode = useMemo(
@@ -227,12 +223,8 @@ export function REPL({
     userInput,
     toolRegistry,
     allMessages,
-    showDetailedTranscript,
-    setShowDetailedTranscript,
-    showExploreAgentsPanel,
-    setShowExploreAgentsPanel,
-    setDetailedTranscriptTargetId,
-    setShowThinking,
+    expandedTranscriptOpen,
+    setExpandedTranscriptOpen,
     state: {
       agentsDialogOpen: state.agentsDialogOpen,
       permissionsDialogOpen: state.permissionsDialogOpen,
@@ -347,18 +339,23 @@ export function REPL({
     return true
   }, [isPromptMode, state.isLoading, state.transientMessages])
 
-  const detailedTranscriptTarget = useMemo(() => {
-    if (!showDetailedTranscript) return null
-    if (!detailedTranscriptTargetId) return null
-    return allMessages.find((m) => m.id === detailedTranscriptTargetId) ?? null
-  }, [allMessages, detailedTranscriptTargetId, showDetailedTranscript])
+  const expandedTranscriptTask = useMemo(() => {
+    if (!expandedTranscriptOpen || isPromptMode) return null
+    return (
+      [...allMessages].reverse().find((m) => {
+        if (m.role !== 'tool') return false
+        if (m.toolInfo?.name !== 'Task') return false
+        return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
+      }) ?? null
+    )
+  }, [allMessages, expandedTranscriptOpen, isPromptMode])
 
   const lastExploreGroup = useMemo(() => {
-    if (!showExploreAgentsPanel) return null
+    if (!expandedTranscriptOpen || isPromptMode) return null
     const group = findLastContiguousExploreTaskGroup(allMessages)
     if (!group || group.tasks.length < 2) return null
     return group
-  }, [allMessages, showExploreAgentsPanel])
+  }, [allMessages, expandedTranscriptOpen, isPromptMode])
 
   return (
     <PlanProvider planSession={planSession}>
@@ -375,16 +372,16 @@ export function REPL({
               renderMessage={renderMessage}
             />
 
-            {showExploreAgentsPanel && !isPromptMode && (
+            {expandedTranscriptOpen && !isPromptMode && lastExploreGroup?.tasks?.length ? (
               <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />
-            )}
+            ) : null}
 
-            {showDetailedTranscript && !isPromptMode && !showExploreAgentsPanel && (
+            {expandedTranscriptOpen && !isPromptMode && expandedTranscriptTask?.toolInfo?.transcriptLines?.length ? (
               <DetailedTranscriptPanel
-                title={detailedTranscriptTarget ? formatTaskPanelTitle(detailedTranscriptTarget) : null}
-                lines={detailedTranscriptTarget?.toolInfo?.transcriptLines ?? null}
+                title={expandedTranscriptTask ? formatTaskPanelTitle(expandedTranscriptTask) : null}
+                lines={expandedTranscriptTask?.toolInfo?.transcriptLines ?? null}
               />
-            )}
+            ) : null}
 
             {state.agentsDialogOpen && (
               <AgentsDialog
@@ -412,7 +409,7 @@ export function REPL({
                     />
                   </Box>
                 )}
-                {showThinking && state.thinkingText.trim() && (
+                {expandedTranscriptOpen && state.thinkingText.trim() && (
                   <Box marginBottom={1}>
                     <Text dimColor>{state.thinkingText.trimEnd()}</Text>
                   </Box>

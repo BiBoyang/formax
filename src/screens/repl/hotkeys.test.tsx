@@ -29,8 +29,8 @@ describe('useReplHotkeys', () => {
     }
   })
 
-  it('toggles thinking text on ctrl+o when loading', async () => {
-    const setShowThinking = vi.fn()
+  it('toggles Expanded Transcript on ctrl+o', async () => {
+    const setExpandedTranscriptOpen = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -41,12 +41,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking,
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -72,64 +68,13 @@ describe('useReplHotkeys', () => {
 
     await tick()
     ui.stdin.write('\u000f') // ctrl+o
-    await waitForCalls(setShowThinking, 1)
+    await waitForCalls(setExpandedTranscriptOpen, 1)
 
-    expect(setShowThinking).toHaveBeenCalledTimes(1)
-    expect(setShowThinking).toHaveBeenCalledWith(expect.any(Function))
-  })
-
-  it('closes the detailed transcript panel on ctrl+o', async () => {
-    const setShowDetailedTranscript = vi.fn()
-
-    const Harness = () => {
-      useReplHotkeys({
-        actions,
-        ensurePlanPath: () => {},
-        setMode: () => {},
-        isPromptMode: false,
-        userInput: null,
-        toolRegistry: undefined,
-        allMessages: [] as Msg[],
-        showDetailedTranscript: true,
-        setShowDetailedTranscript,
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
-        state: {
-          agentsDialogOpen: false,
-          permissionsDialogOpen: false,
-          hooksDialogOpen: false,
-          isLoading: false,
-          thinkingText: '',
-          transientMessages: [] as Msg[],
-        },
-        slashSuggestions: [],
-        selectedSlash: null,
-        setSlashSelectionTouched: () => {},
-        setSlashIndex: () => {},
-        setInput: () => {},
-      })
-      return <Text>ok</Text>
-    }
-
-    const ui = render(
-      <InputScopeProvider initialScope="repl">
-        <Harness />
-      </InputScopeProvider>,
-    )
-
-    await tick()
-    ui.stdin.write('\u000f') // ctrl+o
-    await tick()
-
-    expect(setShowDetailedTranscript).toHaveBeenCalledWith(false)
+    expect(setExpandedTranscriptOpen).toHaveBeenCalledWith(true)
   })
 
   it('ignores ctrl+o when an overlay is open', async () => {
-    const setShowThinking = vi.fn()
-    const setShowDetailedTranscript = vi.fn()
-    const setShowExploreAgentsPanel = vi.fn()
+    const setExpandedTranscriptOpen = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -140,12 +85,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript,
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel,
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking,
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: true,
@@ -173,13 +114,11 @@ describe('useReplHotkeys', () => {
     ui.stdin.write('\u000f') // ctrl+o
     await tick()
 
-    expect(setShowThinking).not.toHaveBeenCalled()
-    expect(setShowDetailedTranscript).not.toHaveBeenCalled()
-    expect(setShowExploreAgentsPanel).not.toHaveBeenCalled()
+    expect(setExpandedTranscriptOpen).not.toHaveBeenCalled()
   })
 
   it('ignores ctrl+o when promptMode is active', async () => {
-    const setShowThinking = vi.fn()
+    const setExpandedTranscriptOpen = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -190,12 +129,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking,
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -223,179 +158,10 @@ describe('useReplHotkeys', () => {
     ui.stdin.write('\u000f') // ctrl+o
     await tick()
 
-    expect(setShowThinking).not.toHaveBeenCalled()
+    expect(setExpandedTranscriptOpen).not.toHaveBeenCalled()
   })
 
-  it('opens explore agents panel when ctrl+o is pressed on Explore agents finished summary', async () => {
-    const setShowExploreAgentsPanel = vi.fn()
-
-    const exploreTask = (id: string): Msg => ({
-      id,
-      role: 'tool',
-      content: '',
-      timestamp: new Date(),
-      toolInfo: { name: 'Task', status: 'completed', input: { subagent_type: 'Explore' } },
-    })
-
-    const allMessages: Msg[] = [
-      exploreTask('t1'),
-      exploreTask('t2'),
-      { id: 'm1', role: 'assistant', content: '3 Explore agents finished (ctrl+o to expand)', timestamp: new Date() },
-    ]
-
-    const Harness = () => {
-      useReplHotkeys({
-        actions,
-        ensurePlanPath: () => {},
-        setMode: () => {},
-        isPromptMode: false,
-        userInput: null,
-        toolRegistry: undefined,
-        allMessages,
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel,
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
-        state: {
-          agentsDialogOpen: false,
-          permissionsDialogOpen: false,
-          hooksDialogOpen: false,
-          isLoading: false,
-          thinkingText: '',
-          transientMessages: [] as Msg[],
-        },
-        slashSuggestions: [],
-        selectedSlash: null,
-        setSlashSelectionTouched: () => {},
-        setSlashIndex: () => {},
-        setInput: () => {},
-      })
-      return <Text>ok</Text>
-    }
-
-    const ui = render(
-      <InputScopeProvider initialScope="repl">
-        <Harness />
-      </InputScopeProvider>,
-    )
-
-    await tick()
-    ui.stdin.write('\u000f') // ctrl+o
-    await tick()
-
-    expect(setShowExploreAgentsPanel).toHaveBeenCalledWith(true)
-  })
-
-  it('closes explore agents panel on ctrl+o when already open', async () => {
-    const setShowExploreAgentsPanel = vi.fn()
-
-    const Harness = () => {
-      useReplHotkeys({
-        actions,
-        ensurePlanPath: () => {},
-        setMode: () => {},
-        isPromptMode: false,
-        userInput: null,
-        toolRegistry: undefined,
-        allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: true,
-        setShowExploreAgentsPanel,
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
-        state: {
-          agentsDialogOpen: false,
-          permissionsDialogOpen: false,
-          hooksDialogOpen: false,
-          isLoading: false,
-          thinkingText: '',
-          transientMessages: [] as Msg[],
-        },
-        slashSuggestions: [],
-        selectedSlash: null,
-        setSlashSelectionTouched: () => {},
-        setSlashIndex: () => {},
-        setInput: () => {},
-      })
-      return <Text>ok</Text>
-    }
-
-    const ui = render(
-      <InputScopeProvider initialScope="repl">
-        <Harness />
-      </InputScopeProvider>,
-    )
-
-    await tick()
-    ui.stdin.write('\u000f') // ctrl+o
-    await tick()
-
-    expect(setShowExploreAgentsPanel).toHaveBeenCalledWith(false)
-  })
-
-  it('opens the most recent detailed transcript panel when available', async () => {
-    const setShowDetailedTranscript = vi.fn()
-    const setDetailedTranscriptTargetId = vi.fn()
-
-    const allMessages: Msg[] = [
-      {
-        id: 'tool-task',
-        role: 'tool',
-        content: '',
-        timestamp: new Date(),
-        toolInfo: { name: 'Task', status: 'completed', input: {}, transcriptLines: ['line1'] },
-      },
-      { id: 'm1', role: 'assistant', content: 'ok', timestamp: new Date() },
-    ]
-
-    const Harness = () => {
-      useReplHotkeys({
-        actions,
-        ensurePlanPath: () => {},
-        setMode: () => {},
-        isPromptMode: false,
-        userInput: null,
-        toolRegistry: undefined,
-        allMessages,
-        showDetailedTranscript: false,
-        setShowDetailedTranscript,
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId,
-        setShowThinking: () => {},
-        state: {
-          agentsDialogOpen: false,
-          permissionsDialogOpen: false,
-          hooksDialogOpen: false,
-          isLoading: false,
-          thinkingText: '',
-          transientMessages: [] as Msg[],
-        },
-        slashSuggestions: [],
-        selectedSlash: null,
-        setSlashSelectionTouched: () => {},
-        setSlashIndex: () => {},
-        setInput: () => {},
-      })
-      return <Text>ok</Text>
-    }
-
-    const ui = render(
-      <InputScopeProvider initialScope="repl">
-        <Harness />
-      </InputScopeProvider>,
-    )
-
-    await tick()
-    ui.stdin.write('\u000f') // ctrl+o
-    await tick()
-
-    expect(setDetailedTranscriptTargetId).toHaveBeenCalledWith('tool-task')
-    expect(setShowDetailedTranscript).toHaveBeenCalledWith(true)
-  })
+  it.skip('desired: ctrl+o toggles Expanded Transcript and ctrl+e folds history', () => {})
 
   it('switches to plan mode with shift+tab and calls ensurePlanPath', async () => {
     const ensurePlanPath = vi.fn()
@@ -413,12 +179,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -471,12 +233,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
         state: {
           agentsDialogOpen,
           permissionsDialogOpen,
@@ -560,12 +318,8 @@ describe('useReplHotkeys', () => {
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
-        showDetailedTranscript: false,
-        setShowDetailedTranscript: () => {},
-        showExploreAgentsPanel: false,
-        setShowExploreAgentsPanel: () => {},
-        setDetailedTranscriptTargetId: () => {},
-        setShowThinking: () => {},
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -608,3 +362,4 @@ describe('useReplHotkeys', () => {
     expect(lowerPriority).not.toHaveBeenCalled()
   })
 })
+

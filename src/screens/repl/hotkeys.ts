@@ -5,7 +5,6 @@ import type { ReplController } from '../../features/repl/useReplController'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { ToolRegistry } from '../../tools/registry'
 import type { UserInputManager } from '../../tools/runtime/userInputManager'
-import { findLastContiguousExploreTaskGroup } from './messageItems'
 
 export function useReplHotkeys(args: {
   onExit?: () => void
@@ -20,12 +19,8 @@ export function useReplHotkeys(args: {
 
   allMessages: Msg[]
 
-  showDetailedTranscript: boolean
-  setShowDetailedTranscript: (next: boolean) => void
-  showExploreAgentsPanel: boolean
-  setShowExploreAgentsPanel: (next: boolean) => void
-  setDetailedTranscriptTargetId: (next: string | null) => void
-  setShowThinking: (next: boolean | ((prev: boolean) => boolean)) => void
+  expandedTranscriptOpen: boolean
+  setExpandedTranscriptOpen: (next: boolean | ((prev: boolean) => boolean)) => void
 
   state: {
     agentsDialogOpen: boolean
@@ -48,13 +43,8 @@ export function useReplHotkeys(args: {
     ensurePlanPath,
     setMode,
     isPromptMode,
-    allMessages,
-    showDetailedTranscript,
-    setShowDetailedTranscript,
-    showExploreAgentsPanel,
-    setShowExploreAgentsPanel,
-    setDetailedTranscriptTargetId,
-    setShowThinking,
+    expandedTranscriptOpen,
+    setExpandedTranscriptOpen,
     state,
     slashSuggestions,
     selectedSlash,
@@ -83,43 +73,7 @@ export function useReplHotkeys(args: {
         if (state.hooksDialogOpen) return true
         if (isPromptMode) return true
 
-        if (state.isLoading && state.thinkingText.trim()) {
-          setShowThinking((v) => !v)
-          return true
-        }
-
-        if (showDetailedTranscript) {
-          setShowDetailedTranscript(false)
-          return true
-        }
-
-        if (showExploreAgentsPanel) {
-          setShowExploreAgentsPanel(false)
-          return true
-        }
-
-        const lastMsg = allMessages.length > 0 ? allMessages[allMessages.length - 1] : null
-        const wantsExplorePanel =
-          lastMsg?.role === 'assistant' && /^\d+\s+Explore agents\s+finished\b/.test(lastMsg.content || '')
-
-        if (wantsExplorePanel) {
-          const lastExploreGroup = findLastContiguousExploreTaskGroup(allMessages)
-          if (lastExploreGroup && lastExploreGroup.tasks.length >= 2) {
-            setShowExploreAgentsPanel(true)
-            return true
-          }
-        }
-
-        const lastTaskWithTranscript = [...allMessages].reverse().find((m) => {
-          if (m.role !== 'tool') return false
-          if (m.toolInfo?.name !== 'Task') return false
-          return Array.isArray(m.toolInfo?.transcriptLines) && m.toolInfo.transcriptLines.length > 0
-        })
-
-        if (lastTaskWithTranscript) {
-          setDetailedTranscriptTargetId(lastTaskWithTranscript.id)
-          setShowDetailedTranscript(true)
-        }
+        setExpandedTranscriptOpen(!expandedTranscriptOpen)
         return true
       }
 
