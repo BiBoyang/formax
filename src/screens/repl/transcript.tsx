@@ -3,11 +3,18 @@ import { Box } from 'ink'
 import { HeaderBanner } from '../../components/chat/HeaderBanner'
 import type { Msg } from '../../components/tool/ToolMessage'
 
-type MessageItem = { key: string; jsx: React.ReactNode }
-
-function renderMessageItems(messages: Msg[], renderMessage: (msg: Msg) => React.ReactNode): MessageItem[] {
-  return messages.map((message) => ({ key: message.id, jsx: renderMessage(message) }))
+type TranscriptMessageRowProps = {
+  message: Msg
+  renderMessage: (msg: Msg) => React.ReactNode
 }
+
+const TranscriptMessageRow = React.memo(
+  function TranscriptMessageRow({ message, renderMessage }: TranscriptMessageRowProps) {
+    const jsx = renderMessage(message)
+    return <Box>{jsx}</Box>
+  },
+  (prev, next) => prev.message === next.message && prev.renderMessage === next.renderMessage,
+)
 
 export function ReplTranscript(props: {
   transcriptSeq: number
@@ -20,21 +27,29 @@ export function ReplTranscript(props: {
 }): React.ReactNode {
   const { version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
 
-  const items = useMemo(() => {
-    const header = {
-      key: 'header',
-      jsx: <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />,
-    }
-    const messages = renderMessageItems(staticMessages, renderMessage)
-    const transient = renderMessageItems(transientMessages, renderMessage)
-    return [header, ...messages, ...transient]
-  }, [cwd, modelLabel, renderMessage, staticMessages, transientMessages, version])
+  const staticRows = useMemo(
+    () =>
+      staticMessages.map((message) => (
+        <TranscriptMessageRow key={message.id} message={message} renderMessage={renderMessage} />
+      )),
+    [renderMessage, staticMessages],
+  )
+
+  const transientRows = useMemo(
+    () =>
+      transientMessages.map((message) => (
+        <TranscriptMessageRow key={message.id} message={message} renderMessage={renderMessage} />
+      )),
+    [renderMessage, transientMessages],
+  )
 
   return (
     <>
-      {items.map((item) => (
-        <Box key={item.key}>{item.jsx}</Box>
-      ))}
+      <Box>
+        <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+      </Box>
+      {staticRows}
+      {transientRows}
     </>
   )
 }
@@ -48,20 +63,20 @@ export function ExpandedReplTranscript(props: {
 }): React.ReactNode {
   const { version, modelLabel, cwd, messages, renderMessage } = props
 
-  const items = useMemo(() => {
-    const header = {
-      key: 'header',
-      jsx: <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />,
-    }
-    const rendered = renderMessageItems(messages, renderMessage)
-    return [header, ...rendered]
-  }, [cwd, messages, modelLabel, renderMessage, version])
+  const rows = useMemo(
+    () =>
+      messages.map((message) => (
+        <TranscriptMessageRow key={message.id} message={message} renderMessage={renderMessage} />
+      )),
+    [messages, renderMessage],
+  )
 
   return (
     <>
-      {items.map((item) => (
-        <Box key={item.key}>{item.jsx}</Box>
-      ))}
+      <Box>
+        <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+      </Box>
+      {rows}
     </>
   )
 }

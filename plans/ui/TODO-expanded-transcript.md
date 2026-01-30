@@ -65,20 +65,26 @@ Notes:
 ## Phase 4 — Cleanup
 
 - [x] Remove old Ctrl+O code paths (`showThinking`, `showDetailedTranscript`, `showExploreAgentsPanel`) once Expanded Transcript fully supersedes them.
-- [ ] Update `CODEMAP.md` if any user-facing wiring moves.
+- [x] Update `CODEMAP.md` if any user-facing wiring moves.
 
 ## Phase 5 — Optimization (keep behavior stable)
 
 Performance / render strategy
-- [ ] Add a perf regression test plan (manual + automated): long transcript + toggle ctrl+o + verify no flicker/duplication.
-- [ ] Evaluate re-introducing `<Static>` safely for Primary Transcript:
-  - [ ] Only if we can guarantee ctrl+o toggle does not leave “old” lines (likely needs “clear+redraw” semantics).
-  - [ ] If we do this, add a regression test that would fail if Static residual output happens again.
-- [ ] If we keep “no Static”, add lightweight memoization:
-  - [ ] Memoize per-message render nodes in `ReplTranscript` / `ExpandedReplTranscript` to reduce re-render cost without changing UI.
+- [x] Add a perf regression test plan (manual + automated): long transcript + toggle ctrl+o + verify no flicker/duplication.
+  - Automated: `src/screens/repl/transcript.test.tsx` asserts we don’t re-render unchanged rows when appending new messages.
+  - Manual spot-check (long transcript):
+    - Generate a long transcript (e.g. run a few tool calls + a few chat turns).
+    - Toggle Ctrl+O on/off repeatedly; verify:
+      - No duplicated “old” transcript content remains after toggling.
+      - Expanded Transcript hides InputBar; toggling back restores it.
+- [x] Evaluate re-introducing `<Static>` safely for Primary Transcript:
+  - Decision (for now): keep “no Static”. Re-introducing `<Static>` likely requires “clear+redraw” semantics and a regression test to prevent the “old transcript doesn’t disappear” issue from returning.
+- [x] If we keep “no Static”, add lightweight memoization:
+  - [x] Memoize per-message render nodes in `ReplTranscript` / `ExpandedReplTranscript` to reduce re-render cost without changing UI.
+    - Implemented via `React.memo` row component in `src/screens/repl/transcript.tsx`.
 
 Code cleanup / maintainability
-- [ ] Reduce duplication between `renderMessage` and `renderExpandedMessage` (extract shared helpers; **do not** change UI copy/spacing).
+- [x] Reduce duplication between `renderMessage` and `renderExpandedMessage` (extract shared helpers; **do not** change UI copy/spacing).
 - [x] Remove unused `ThinkingPanel` from `src/screens/repl/panels.tsx` (or document why we keep it).
 
 Extra regression coverage

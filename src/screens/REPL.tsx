@@ -271,57 +271,13 @@ export function REPL({
     [actions, clearPrompt, selectedSlash, slashSelectionTouched, slashSuggestions.length, state.isLoading],
   )
 
-  const renderMessage = useCallback(
-    (msg: Msg) => {
+  type TranscriptRenderMode = 'primary' | 'expanded'
+
+  const renderReplMessage = useCallback(
+    (msg: Msg, mode: TranscriptRenderMode) => {
       if (msg.role === 'tool') {
-        return (
-          <Box flexDirection="column">
-            <ToolRouter message={msg} registry={toolRegistry} />
-          </Box>
-        )
-      }
-
-      if (msg.role === 'assistant') {
-        if (!msg.content) return null
-        if (msg.ui?.kind === 'command_subline') {
-          return (
-            <Box flexDirection="column" marginTop={0} marginBottom={0}>
-              <Box>
-                <Text>{`  ⎿  ${msg.content}`}</Text>
-              </Box>
-            </Box>
-          )
-        }
-        if (msg.ui?.kind === 'thinking_block') {
-          // Persisted thinking blocks are surfaced in the Expanded Transcript panel (Ctrl+O),
-          // not inline in the static transcript, since Ink <Static> doesn't re-render items.
-          return null
-        }
-        return (
-          <Box flexDirection="column" marginTop={1} marginBottom={0}>
-            <Box>
-              <Text>⏺ </Text>
-              <Text>{msg.content}</Text>
-            </Box>
-          </Box>
-        )
-      }
-
-      return (
-        <Box flexDirection="column" marginTop={1} marginBottom={0}>
-          <Box>
-            <Text color={theme.replUserPromptFg} backgroundColor={theme.replUserPromptBg}>{`> ${msg.content} `}</Text>
-          </Box>
-        </Box>
-      )
-    },
-    [theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
-  )
-
-  const renderExpandedMessage = useCallback(
-    (msg: Msg) => {
-      if (msg.role === 'tool') {
-        const toolMsg = msg.toolInfo ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } } : msg
+        const toolMsg =
+          mode === 'expanded' && msg.toolInfo ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } } : msg
         return (
           <Box flexDirection="column">
             <ToolRouter message={toolMsg} registry={toolRegistry} />
@@ -341,6 +297,12 @@ export function REPL({
           )
         }
         if (msg.ui?.kind === 'thinking_block') {
+          if (mode === 'primary') {
+            // Persisted thinking blocks are surfaced in the Expanded Transcript panel (Ctrl+O),
+            // not inline in the static transcript, since Ink <Static> doesn't re-render items.
+            return null
+          }
+
           const raw = String(msg.content || '').trimEnd()
           return (
             <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -373,13 +335,20 @@ export function REPL({
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
           <Box>
-            <Text color={theme.replUserPromptFg} backgroundColor={theme.replUserPromptBg}>{`> ${msg.content} `}</Text>
+            <Text
+              color={theme.replUserPromptFg}
+              backgroundColor={theme.replUserPromptBg}
+            >{`> ${msg.content} `}</Text>
           </Box>
         </Box>
       )
     },
     [theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
   )
+
+  const renderMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'primary'), [renderReplMessage])
+
+  const renderExpandedMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'expanded'), [renderReplMessage])
 
   const modelLabel = useMemo(() => {
     const model = cfg.llm.model || process.env.FORMAX_MODEL || 'Model not set'

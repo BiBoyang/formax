@@ -11,6 +11,9 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## REPL UI (Ink)
 - Main screen: `src/screens/REPL.tsx`
 - Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/*`
+- REPL hotkeys / input routing (Ctrl+O Expanded Transcript, etc.): `src/screens/repl/hotkeys.ts`
+- Prompt mode gating (overlays/prompt blocks disable hotkeys): `src/screens/repl/promptMode.ts`
+- Transcript renderers (Primary vs Expanded): `src/screens/repl/transcript.tsx`
 - Input UI: `src/components/chat/InputBar.tsx`
 - Header: `src/components/chat/HeaderBanner.tsx`
 - Mode indicator: `src/components/chat/ModeIndicator.tsx`
