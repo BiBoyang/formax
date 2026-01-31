@@ -135,7 +135,7 @@ describe('EditApprovalPrompt', () => {
   it('supports left/right cursor editing while typing', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
@@ -155,6 +155,7 @@ describe('EditApprovalPrompt', () => {
     // Move cursor left and insert in the middle.
     stdin.write('\u001B[D')
     await tick()
+    await waitForFrame(lastFrame, (frame) => frame.includes('a▏b'))
     stdin.write('X')
     await tick()
     stdin.write('\r')
