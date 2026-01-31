@@ -579,16 +579,16 @@ describe('PermissionsDialog', () => {
         </InputScopeProvider>,
       )
 
-      await tick()
       await waitForText(lastFrame, 'Add a new rule')
+      await waitForText(lastFrame, "Claude Code won't ask before using allowed tools.")
 
       // Switch to Workspace tab (Allow -> Ask -> Deny -> Workspace)
       stdin.write('\t')
-      await tick()
+      await waitForText(lastFrame, 'Claude Code will always ask for confirmation before using these tools.')
       stdin.write('\t')
-      await tick()
+      await waitForText(lastFrame, 'Claude Code will always reject requests to use denied tools.')
       stdin.write('\t')
-      await tick()
+      await waitForText(lastFrame, 'Claude Code can read files in the workspace, and make edits when auto-accept edits is on.')
 
       await waitForText(lastFrame, 'Add directory')
       await waitForText(lastFrame, 'Original working directory')
@@ -597,7 +597,7 @@ describe('PermissionsDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
 
   it('switches tabs with Tab key', async () => {

@@ -103,7 +103,7 @@ describe('BashApprovalPrompt', () => {
   it('supports left/right cursor editing while typing', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
@@ -112,15 +112,16 @@ describe('BashApprovalPrompt', () => {
     )
 
     for (let i = 0; i < 3; i++) await tick()
+    const beforeSelect = lastFrame() || ''
     stdin.write('3')
-    await tick()
+    await waitForFrame(lastFrame, (frame) => frame !== beforeSelect && frame.includes('❯ 3.'), 15000)
     stdin.write('a')
     await tick()
     stdin.write('b')
     await tick()
 
     stdin.write('\u001B[D')
-    await tick()
+    await waitForFrame(lastFrame, (frame) => frame.includes('a▏b'), 15000)
     stdin.write('X')
     await tick()
     stdin.write('\r')
