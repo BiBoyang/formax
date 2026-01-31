@@ -143,19 +143,18 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
     const isDownArrow = Boolean((key as any)?.downArrow)
 
     // In some environments/tests, arrow escape sequences can arrive split across multiple
-    // `useInput` calls. Buffer ESC sequences so Up/Down work reliably.
-    let bufferedUp = false
-    let bufferedDown = false
+    // `useInput` calls, or multiple arrows can be batched into one chunk. Buffer/parse ESC
+    // sequences so Up/Down work reliably.
+    let bufferedDelta = 0
     if (!isUpArrow && !isDownArrow && input) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: input })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending) return
-      bufferedUp = res.arrow === 'up'
-      bufferedDown = res.arrow === 'down'
+      if (res.pending && res.delta === 0) return
+      bufferedDelta = res.delta
     }
 
-    const isUp = isUpArrow || bufferedUp
-    const isDown = isDownArrow || bufferedDown
+    const keyDelta = isUpArrow ? -1 : isDownArrow ? 1 : 0
+    const delta = keyDelta !== 0 ? keyDelta : bufferedDelta
 
     if (s.view === 'list') {
       if (key.tab || input === '\t') {
@@ -168,17 +167,11 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
         return
       }
 
-      if (isUp) {
-        const cursor = listCursorRef.current
+      if (delta !== 0) {
         const max = listCursorMaxRef.current
-        dispatch({ type: 'MOVE_LIST_CURSOR', next: clamp(cursor - 1, 0, max) })
-        return
-      }
-
-      if (isDown) {
-        const cursor = listCursorRef.current
-        const max = listCursorMaxRef.current
-        dispatch({ type: 'MOVE_LIST_CURSOR', next: clamp(cursor + 1, 0, max) })
+        const next = clamp(listCursorRef.current + delta, 0, max)
+        listCursorRef.current = next
+        dispatch({ type: 'MOVE_LIST_CURSOR', next })
         return
       }
 
@@ -206,9 +199,12 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
 
     if (s.view === 'confirmDeleteRule' || s.view === 'confirmDeleteDir') {
       const cursor = s.confirmCursor
-      if (isUp || isDown) {
-        const next: 0 | 1 = cursor === 0 ? 1 : 0
-        dispatch({ type: 'MOVE_CONFIRM_CURSOR', next })
+      if (delta !== 0) {
+        const flips = Math.abs(delta) % 2
+        if (flips === 1) {
+          const next: 0 | 1 = cursor === 0 ? 1 : 0
+          dispatch({ type: 'MOVE_CONFIRM_CURSOR', next })
+        }
         return
       }
 
@@ -252,13 +248,8 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
       const max = Math.max(0, SAVE_SCOPE_OPTIONS.length - 1)
       const cursor = clamp(s.saveScopeCursor, 0, max)
 
-      if (isUp) {
-        dispatch({ type: 'MOVE_SAVE_SCOPE_CURSOR', next: clamp(cursor - 1, 0, max) })
-        return
-      }
-
-      if (isDown) {
-        dispatch({ type: 'MOVE_SAVE_SCOPE_CURSOR', next: clamp(cursor + 1, 0, max) })
+      if (delta !== 0) {
+        dispatch({ type: 'MOVE_SAVE_SCOPE_CURSOR', next: clamp(cursor + delta, 0, max) })
         return
       }
 

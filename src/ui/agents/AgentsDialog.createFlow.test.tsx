@@ -23,6 +23,40 @@ async function waitForText(lastFrame: () => string | undefined, text: string, ti
   throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
 }
 
+function isActiveRow(frame: string, label: string): boolean {
+  return frame
+    .split('\n')
+    .some((line) => line.includes(label) && line.includes('❯'))
+}
+
+async function moveUpUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (s: string) => void },
+  label: string,
+  maxSteps = 40,
+): Promise<void> {
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (isActiveRow(lastFrame() || '', label)) return
+    stdin.write('\u001B[A')
+    await tick()
+  }
+  throw new Error(`Timed out moving cursor to active row: ${label}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
+async function moveDownUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (s: string) => void },
+  label: string,
+  maxSteps = 40,
+): Promise<void> {
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (isActiveRow(lastFrame() || '', label)) return
+    stdin.write('\u001B[B')
+    await tick()
+  }
+  throw new Error(`Timed out moving cursor to active row: ${label}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
 async function makeTempDir(prefix: string): Promise<string> {
   return await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
 }
@@ -95,7 +129,7 @@ describe('AgentsDialog (create flow)', () => {
     expect(onGenerateDraft).toHaveBeenCalledTimes(1)
 
     // Toggle advanced options on
-    await pressDown(stdin, 6)
+    await moveDownUntilActiveRow(lastFrame, stdin, '[ Show advanced options ]')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, '[ Hide advanced options ]')
@@ -107,7 +141,7 @@ describe('AgentsDialog (create flow)', () => {
     expect(lastFrame()).not.toContain('KillShell')
 
     // Deselect all tools via "All tools" group, then hitting Continue shows the correct error
-    await pressUp(stdin, 5) // from cursor 6 -> cursor 1 ("All tools" group)
+    await moveUpUntilActiveRow(lastFrame, stdin, 'All tools')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'No tools selected')
@@ -162,8 +196,11 @@ describe('AgentsDialog (create flow)', () => {
     await waitForText(lastFrame, 'Creation method')
 
     // Choose manual configuration (2nd option)
+    // Give Ink a moment to flush the "Creation method" frame and wire the view handler;
+    // under full-suite load the first arrow can otherwise be dropped.
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('\u001B[B')
-    await tick()
+    for (let i = 0; i < 2; i += 1) await tick()
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Write manually')

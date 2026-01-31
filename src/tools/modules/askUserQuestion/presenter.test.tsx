@@ -9,7 +9,9 @@ import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { AskUserQuestionToolPresenter } from './presenter'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 function createRunningAskMessage(): Msg {
@@ -63,7 +65,7 @@ describe('AskUserQuestionToolPresenter', () => {
     )
 
     // Let Ink/React effects attach input listeners.
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Select option A (auto-advances to Review tab)
     stdin.write('1')
@@ -73,7 +75,8 @@ describe('AskUserQuestionToolPresenter', () => {
     stdin.write('\u001B[D')
     await tick()
     stdin.write('0')
-    await tick()
+    // Wait for the typing mode switch to flush before sending the custom value.
+    for (let i = 0; i < 2; i += 1) await tick()
     stdin.write('Custom')
     await tick()
 
@@ -113,7 +116,7 @@ describe('AskUserQuestionToolPresenter', () => {
     )
 
     // Let Ink/React effects attach input listeners.
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Navigate to Review tab and press Enter twice quickly.
     stdin.write('\t')

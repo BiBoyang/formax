@@ -24,19 +24,20 @@ describe('REPL', () => {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function waitForFrame(
-    lastFrame: () => string | undefined,
-    predicate: (frame: string) => boolean,
-    timeoutMs = 1500,
-  ): Promise<string> {
-    const start = Date.now()
-    while (Date.now() - start < timeoutMs) {
-      const frame = lastFrame() || ''
-      if (predicate(frame)) return frame
-      await tick()
-    }
-    throw new Error('Timed out waiting for UI update')
-  }
+	  async function waitForFrame(
+	    lastFrame: () => string | undefined,
+	    predicate: (frame: string) => boolean,
+	    timeoutMs = 1500,
+	  ): Promise<string> {
+	    const start = Date.now()
+	    while (Date.now() - start < timeoutMs) {
+	      const frame = lastFrame() || ''
+	      if (predicate(frame)) return frame
+	      await tick()
+	    }
+	    const last = lastFrame() || ''
+	    throw new Error(`Timed out waiting for UI update.\n\nLast frame:\n${last}`)
+	  }
 
   const engine: ChatEngine = {
     async runTurn({ history }) {
@@ -173,18 +174,31 @@ describe('REPL', () => {
       await tick()
 
       // Regular message: history starts empty.
-      stdin.write('hi')
-      await tick()
-      stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
-      await sleep(25)
+	      stdin.write('hi')
+	      await tick()
+	      stdin.write('\r')
+	      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+	      // React 19 + Ink 6 can batch state updates; wait until the loading line clears
+	      // so the next command isn't ignored due to isLoading still being true.
+	      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0') && !f.includes('esc to interrupt'), 3000)
+	      // Also wait for the input buffer to clear, otherwise subsequent stdin.write()
+	      // appends onto the previous input (e.g. "hi/compact") and the slash command
+	      // is not recognized.
+	      await waitForFrame(lastFrame, (f) => f.includes('>  Try \"fix typecheck errors\"'), 3000)
 
-      // Compact
-      stdin.write('/compact')
-      await tick()
-      stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('Conversation history compacted'))
-      await sleep(25)
+	      // Compact
+	      // Ensure the input is empty before typing the next command.
+	      // With React 19 + Ink 6 scheduling, the previous value can briefly linger and cause
+	      // typed text to append (e.g. "hi/compact"), which defeats slash command parsing.
+	      for (let i = 0; i < 16; i++) {
+	        stdin.write('\x7f')
+	        await tick()
+	      }
+	      stdin.write('/compact')
+	      await tick()
+	      stdin.write('\r')
+	      await waitForFrame(lastFrame, (f) => f.includes('Conversation history compacted'), 4000)
+	      await sleep(25)
 
       // Next message should see the compacted prompt history (summary + kept tail).
       stdin.write('hi')

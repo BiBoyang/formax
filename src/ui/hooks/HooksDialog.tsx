@@ -244,27 +244,20 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
     const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
 
-    let bufferedUp = false
-    let bufferedDown = false
+    let bufferedDelta = 0
     if (!isUpArrowKey && !isDownArrowKey && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending) return
-      bufferedUp = res.arrow === 'up'
-      bufferedDown = res.arrow === 'down'
+      if (res.pending && res.delta === 0) return
+      bufferedDelta = res.delta
     }
 
-    const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
-    const isDown = isDownArrowKey || bufferedDown || token === '\u001B[B' || token === '\u001BOB'
+    const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
 
     if (s.view.kind === 'addMatcher' || s.view.kind === 'addHook') return
 
-    if (isUp) {
-      moveCursor(-1)
-      return
-    }
-    if (isDown) {
-      moveCursor(1)
+    if (arrowDelta !== 0) {
+      moveCursor(arrowDelta)
       return
     }
 

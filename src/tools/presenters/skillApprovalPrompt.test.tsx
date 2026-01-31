@@ -5,7 +5,9 @@ import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { SkillApprovalPrompt } from './skillApprovalPrompt'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay makes these approval prompt tests deterministic without changing behavior.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 describe('SkillApprovalPrompt', () => {
@@ -18,7 +20,7 @@ describe('SkillApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('\u001B')
     await tick()
 
@@ -35,7 +37,7 @@ describe('SkillApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('\r')
     await tick()
 
@@ -52,7 +54,7 @@ describe('SkillApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('\u001B[B')
     await tick()
     stdin.write('\r')
@@ -71,7 +73,7 @@ describe('SkillApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('3')
     await tick()
     stdin.write(' ')
@@ -96,7 +98,7 @@ describe('SkillApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('3')
     await tick()
     stdin.write('\r')
@@ -108,4 +110,3 @@ describe('SkillApprovalPrompt', () => {
     expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', feedback: '' })
   })
 })
-

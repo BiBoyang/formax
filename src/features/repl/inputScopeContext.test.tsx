@@ -137,25 +137,26 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
-  it('does not misroute burst input during a scope switch', async () => {
-    const onRepl = vi.fn()
-    const onOverlay = vi.fn()
-    const scopes: string[] = []
+	  it('does not misroute burst input during a scope switch', async () => {
+	    const onRepl = vi.fn()
+	    const onOverlay = vi.fn()
+	    const scopes: string[] = []
 
     const { stdin } = render(<Harness onRepl={onRepl} onOverlay={onOverlay} onScope={(s) => scopes.push(s)} />)
     await tick()
     await waitFor(() => scopes.at(-1) === 'repl')
 
-    // Trigger overlay open and immediately type again without waiting for timers/effects.
-    // This used to be flaky under coverage/slow runs because the active scope ref and routed
-    // handler refs were only updated in `useEffect`, leaving a stale window.
-    stdin.write('O')
-    stdin.write('b')
+	    stdin.write('O')
+	    // Yield once so Ink/React can commit the overlay mount + scope activation before the next key.
+	    // In Ink 6 + React 19, synchronous `stdin.write()` calls can be processed back-to-back
+	    // before React commits state updates triggered by the first input handler.
+	    await tick()
+	    stdin.write('b')
 
-    await tick()
-    await waitFor(() => scopes.at(-1) === 'overlay:test')
+	    await tick()
+	    await waitFor(() => scopes.at(-1) === 'overlay:test')
 
-    expect(onOverlay).toHaveBeenCalledWith('b')
+	    expect(onOverlay).toHaveBeenCalledWith('b')
     expect(onRepl).not.toHaveBeenCalledWith('b')
   })
 

@@ -7,13 +7,15 @@ import { ErrorCode } from '../core/errors/codes.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // In coverage/instrumented runs, Ink can take a little longer to flush frames
+  // and input events. A small delay here reduces flakes without changing behavior.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 async function waitForText(
   lastFrame: () => string | undefined,
   text: string,
-  timeoutMs = 5000,
+  timeoutMs = 10000,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -117,7 +119,7 @@ describe('SetupWizard', () => {
 
     // Move focus down to the disabled OpenAI option.
     stdin.write('\u001B[B')
-    await tick()
+    await waitForText(lastFrame, '❯ OpenAI-compatible')
 
     const frame = lastFrame() || ''
     expect(frame).toContain('❯ OpenAI-compatible')

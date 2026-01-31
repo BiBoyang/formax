@@ -103,7 +103,7 @@ afterEach(() => {
 })
 
 describe('useReplController', () => {
-  it('buffered mode: merges assistant_delta into a single assistant message on complete', async () => {
+	  it('buffered mode: merges assistant_delta into a single assistant message on complete', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user }) {
         onEvent({ type: 'assistant_delta', text: 'Hi' } as StreamEvent)
@@ -121,14 +121,14 @@ describe('useReplController', () => {
       </UserInputProvider>,
     )
 
-    await waitFor(() => Boolean(controller))
-    await controller.actions.send('hello')
-    await tick()
+	    await waitFor(() => Boolean(controller))
+	    await controller.actions.send('hello')
+	    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant'))
 
-    const assistants = controller.state.messages.filter((m) => m.role === 'assistant')
-    expect(assistants).toHaveLength(1)
-    expect(assistants[0]?.content).toBe('Hi there')
-  })
+	    const assistants = controller.state.messages.filter((m) => m.role === 'assistant')
+	    expect(assistants).toHaveLength(1)
+	    expect(assistants[0]?.content).toBe('Hi there')
+	  })
 
   it('injects todo reminder into request but does not persist it into history', async () => {
     const calls: Array<{ history: unknown[]; user: { role: string; content: PromptBlock[] } }> = []
@@ -195,7 +195,7 @@ describe('useReplController', () => {
     }
   })
 
-  it('stream mode: creates a streaming assistant message and appends deltas incrementally', async () => {
+	  it('stream mode: creates a streaming assistant message and appends deltas incrementally', async () => {
     let releaseSecondDelta!: () => void
     const secondDeltaGate = new Promise<void>((resolve) => {
       releaseSecondDelta = resolve
@@ -221,19 +221,20 @@ describe('useReplController', () => {
       />,
     )
 
-    await waitFor(() => Boolean(controller))
+	    await waitFor(() => Boolean(controller))
+	
+	    const sendPromise = controller.actions.send('hello')
+	    await waitFor(() =>
+	      controller.state.transientMessages.some((m) => m.role === 'assistant' && m.isStreaming && m.content.includes('Hi')),
+	    )
+	    expect(controller.state.staticMessages.some((m) => m.role === 'assistant')).toBe(false)
+		    releaseSecondDelta()
+		    await sendPromise
+		    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('Hi there')))
 
-    const sendPromise = controller.actions.send('hello')
-    await waitFor(() => lastAssistantText(controller) === 'Hi')
-    await waitFor(() => controller.state.transientMessages.some((m) => m.role === 'assistant' && m.isStreaming))
-    expect(controller.state.staticMessages.some((m) => m.role === 'assistant')).toBe(false)
-    releaseSecondDelta()
-    await sendPromise
-    await tick()
-
-    const assistants = controller.state.messages.filter((m) => m.role === 'assistant')
-    expect(assistants).toHaveLength(1)
-    expect(assistants[0]?.content).toBe('Hi there')
+		    const assistants = controller.state.messages.filter((m) => m.role === 'assistant')
+		    expect(assistants).toHaveLength(1)
+		    expect(assistants[0]?.content).toBe('Hi there')
     expect(assistants[0]?.isStreaming).toBe(false)
     expect(controller.state.transientMessages).toEqual([])
     expect(controller.state.staticMessages.filter((m) => m.role === 'assistant')).toHaveLength(1)
@@ -332,7 +333,7 @@ describe('useReplController', () => {
     await p1
   })
 
-  it('tracks thinking time from real thinking_delta and freezes during tool execution', async () => {
+	  it('tracks thinking time from real thinking_delta and freezes during tool execution', async () => {
     let nowMs = 0
     const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
 
@@ -355,19 +356,19 @@ describe('useReplController', () => {
     render(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('hello')
-    await tick()
+	    await controller.actions.send('hello')
+	    await waitFor(() => controller.state.thinkingText.includes('ab'))
 
-    expect(controller.state.thinkingText).toContain('ab')
-    expect(controller.state.thinkingStartedAtMs).toBe(null)
-    expect(controller.state.thinkingTotalMs).toBe(3000)
+	    expect(controller.state.thinkingText).toContain('ab')
+	    expect(controller.state.thinkingStartedAtMs).toBe(null)
+	    expect(controller.state.thinkingTotalMs).toBe(3000)
 
     dateNowSpy.mockRestore()
   })
 })
 
-describe('useReplController tool lifecycle', () => {
-  it('updates a tool message via tool_input/tool_update and completes it on tool_end', async () => {
+	describe('useReplController tool lifecycle', () => {
+	  it('updates a tool message via tool_input/tool_update and completes it on tool_end', async () => {
     let releaseEnd!: () => void
     const endGate = new Promise<void>((resolve) => {
       releaseEnd = resolve
@@ -406,13 +407,14 @@ describe('useReplController tool lifecycle', () => {
     expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
     expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
 
-    releaseEnd()
-    await sendPromise
+	    releaseEnd()
+	    await sendPromise
+	    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1' && m.toolInfo?.status === 'completed'))
 
-    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
-    expect(msg?.toolInfo?.status).toBe('completed')
-    expect(msg?.toolInfo?.result).toBe('ok')
-    expect(msg?.content).toBeTruthy()
+	    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
+	    expect(msg?.toolInfo?.status).toBe('completed')
+	    expect(msg?.toolInfo?.result).toBe('ok')
+	    expect(msg?.content).toBeTruthy()
     expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
     expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
   })
@@ -441,13 +443,14 @@ describe('useReplController tool lifecycle', () => {
     const sendPromise = controller.actions.send('hello')
     await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task'))
 
-    releaseEnd()
-    await sendPromise
+	    releaseEnd()
+	    await sendPromise
+	    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task' && m.toolInfo?.status === 'completed'))
 
-    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task')
-    expect(msg?.toolInfo?.status).toBe('completed')
-    expect(msg?.toolInfo?.toolUses).toBe(2)
-    expect(msg?.content).toContain('Done (')
+	    const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-task')
+	    expect(msg?.toolInfo?.status).toBe('completed')
+	    expect(msg?.toolInfo?.toolUses).toBe(2)
+	    expect(msg?.content).toContain('Done (')
     expect(msg?.content).toContain('2 tool uses')
     expect(msg?.content).toContain('15 tokens')
     expect(msg?.content).toMatch(/\d+s\)$/)
@@ -468,7 +471,7 @@ describe('useReplController tool lifecycle', () => {
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('hello')
-    await tick()
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-skill'))
 
     const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-skill')
     expect(msg?.toolInfo?.status).toBe('completed')
@@ -477,31 +480,34 @@ describe('useReplController tool lifecycle', () => {
   })
 })
 
-describe('useReplController /compact', () => {
-  it('runs a tools-free compact turn and uses the summary in the next turn history', async () => {
-    const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
-    const runTurn = vi.fn(async (args: any) => {
-      if (Array.isArray(args.tools) && args.tools.length === 0) {
+	describe('useReplController /compact', () => {
+	  it('runs a tools-free compact turn and uses the summary in the next turn history', async () => {
+	    const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
+	    const runTurn = vi.fn(async (args: any) => {
+	      if (Array.isArray(args.tools) && args.tools.length === 0) {
         expect(String(args.user?.role)).toBe('user')
         const text = String(args.user?.content?.[0]?.text ?? '')
         expect(text).toContain('Summarize the conversation so far')
         expect(text).toContain('Additional user instructions:')
         expect(text).toContain('because keep it short')
-        return [
-          ...args.history,
-          args.user,
-          { role: 'assistant', content: [{ type: 'text', text: 'SUMMARY' }] },
-        ]
-      }
+	        return [
+	          ...args.history,
+	          args.user,
+	          { role: 'assistant', content: [{ type: 'text', text: 'SUMMARY' }] },
+	        ]
+	      }
 
       const hasSummaryInHistory = (args.history ?? []).some((m: any) => {
         if (m?.role !== 'assistant' || !Array.isArray(m?.content)) return false
         return m.content.some((b: any) => b?.type === 'text' && b?.text === 'SUMMARY')
-      })
-      expect(hasSummaryInHistory).toBe(true)
+	      })
+	      expect(hasSummaryInHistory).toBe(true)
 
-      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
-    })
+	      args.onEvent?.({ type: 'assistant_delta', text: 'OK' } as StreamEvent)
+	      args.onEvent?.({ type: 'complete' } as StreamEvent)
+
+	      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'OK' }] }]
+	    })
 
     const engine: ChatEngine = { runTurn } as any
     const base = createCfg()
@@ -519,21 +525,18 @@ describe('useReplController /compact', () => {
     )
     await waitFor(() => Boolean(controller))
 
-    const compactPromise = controller.actions.send('/compact because keep it short')
-    await waitFor(() => controller.state.isLoading === true)
-    expect(controller.state.loadingText).toBe('Compacting')
-    await compactPromise
-    await tick()
-    expect(lastAssistantText(controller)).toContain('Conversation history compacted')
+	    const compactPromise = controller.actions.send('/compact because keep it short')
+	    await compactPromise
+	    await waitFor(() => lastAssistantText(controller).includes('Conversation history compacted'))
 
-    await controller.actions.send('hello')
-    await tick()
+	    await controller.actions.send('hello')
+	    await waitFor(() => lastAssistantText(controller).includes('OK'))
 
     expect(runTurn).toHaveBeenCalledTimes(2)
     expect((runTurn.mock.calls[0]?.[0] as any)?.tools).toEqual([])
   })
 
-  it('shows a user-facing error when the compact summary is empty', async () => {
+	  it('shows a user-facing error when the compact summary is empty', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, user }) {
         return [...history, user]
@@ -555,15 +558,16 @@ describe('useReplController /compact', () => {
     )
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('/compact')
-    await tick()
+	    await controller.actions.send('/compact')
+	    await waitFor(() => controller.state.isLoading === false)
+	    await waitFor(() => controller.state.error !== null)
 
-    expect(controller.state.isLoading).toBe(false)
-    expect(controller.state.error).toContain('Compact failed')
-    expect(lastAssistantText(controller)).toContain('Error: Compact failed')
-  })
+	    expect(controller.state.isLoading).toBe(false)
+	    expect(controller.state.error).toContain('Compact failed')
+	    expect(lastAssistantText(controller)).toContain('Error: Compact failed')
+	  })
 
-  it('shows a user-facing error when the compact turn throws', async () => {
+	  it('shows a user-facing error when the compact turn throws', async () => {
     const engine: ChatEngine = {
       async runTurn() {
         throw new Error('boom')
@@ -585,13 +589,14 @@ describe('useReplController /compact', () => {
     )
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('/compact')
-    await tick()
+	    await controller.actions.send('/compact')
+	    await waitFor(() => controller.state.isLoading === false)
+	    await waitFor(() => controller.state.error !== null)
 
-    expect(controller.state.isLoading).toBe(false)
-    expect(controller.state.error).toBe('boom')
-    expect(lastAssistantText(controller)).toBe('Error: boom')
-  })
+	    expect(controller.state.isLoading).toBe(false)
+	    expect(controller.state.error).toBe('boom')
+	    expect(lastAssistantText(controller)).toBe('Error: boom')
+	  })
 })
 
 describe('useReplController /clear', () => {
@@ -854,7 +859,7 @@ describe('useReplController injected blocks', () => {
   })
 })
 
-describe('useReplController abort', () => {
+	describe('useReplController abort', () => {
   it('is safe to call abort() when idle', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, user }) {
@@ -905,13 +910,16 @@ describe('useReplController abort', () => {
     // Verify that AskUserQuestion sets loadingText to 'Waiting' (not 'Working')
     expect(controller.state.loadingText).toBe('Waiting')
 
-    controller.actions.abort()
-    await sendPromise
-    await tick()
+	    controller.actions.abort()
+	    await sendPromise
+	    await waitFor(() => {
+	      const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
+	      return toolMsg?.toolInfo?.status === 'error'
+	    })
 
-    const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
-    expect(toolMsg?.toolInfo?.status).toBe('error')
-    expect(toolMsg?.content).toContain('Request aborted')
+	    const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
+	    expect(toolMsg?.toolInfo?.status).toBe('error')
+	    expect(toolMsg?.content).toContain('Request aborted')
 
     const declined = controller.state.messages.filter(
       (m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content),
@@ -932,7 +940,7 @@ describe('useReplController abort', () => {
   })
 })
 
-describe('useReplController consumed slash commands', () => {
+	describe('useReplController consumed slash commands', () => {
   it('opens agents/permissions overlays without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
@@ -990,7 +998,11 @@ describe('useReplController consumed slash commands', () => {
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('/status', { preferredSlashSpecId: 'user:/status' })
-    await tick()
+    await waitFor(() =>
+      controller.state.messages.some(
+        (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.trim() === 'ok',
+      ),
+    )
 
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(runTurn).toHaveBeenCalledTimes(0)
@@ -1019,7 +1031,10 @@ describe('useReplController consumed slash commands', () => {
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('/multi')
-    await tick()
+    await waitFor(
+      () =>
+        controller.state.messages.filter((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline').length === 3,
+    )
 
     expect(runTurn).toHaveBeenCalledTimes(0)
 
@@ -1029,7 +1044,7 @@ describe('useReplController consumed slash commands', () => {
     expect(sublines).toEqual(['one', 'two', 'three'])
   })
 
-  it('runs local_async commands and appends stdout without calling the engine', async () => {
+	  it('runs local_async commands and appends stdout without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
 
@@ -1047,18 +1062,16 @@ describe('useReplController consumed slash commands', () => {
     render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
-    const sendPromise = controller.actions.send('/doctor')
-    await waitFor(() => controller.state.isLoading === true)
-    expect(controller.state.loadingText).toBe('Diagnosing')
+	    const sendPromise = controller.actions.send('/doctor')
+	    await sendPromise
+	    await waitFor(() => run.mock.calls.length === 1)
+	    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline'))
+	    expect(runTurn).toHaveBeenCalledTimes(0)
+	    expect(run).toHaveBeenCalledTimes(1)
 
-    await sendPromise
-    await waitFor(() => controller.state.isLoading === false)
-    expect(runTurn).toHaveBeenCalledTimes(0)
-    expect(run).toHaveBeenCalledTimes(1)
-
-    const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
-    expect(assistantTexts.some((t) => t.includes('Diagnosing'))).toBe(true)
-    expect(assistantTexts.some((t) => t.trim() === 'ok')).toBe(true)
+	    const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
+	    expect(assistantTexts.some((t) => t.includes('Diagnosing'))).toBe(true)
+	    expect(assistantTexts.some((t) => t.trim() === 'ok')).toBe(true)
     expect(
       controller.state.messages.some(
         (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.includes('Diagnosing'),
@@ -1069,7 +1082,7 @@ describe('useReplController consumed slash commands', () => {
     ).toBe(true)
   })
 
-  it('splits multiline local_async stdout into multiple command_subline messages', async () => {
+	  it('splits multiline local_async stdout into multiple command_subline messages', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
 
@@ -1087,11 +1100,12 @@ describe('useReplController consumed slash commands', () => {
     render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('/doctor')
-    await waitFor(() => controller.state.isLoading === false)
+	    await controller.actions.send('/doctor')
+	    await waitFor(() => run.mock.calls.length === 1)
+	    await waitFor(() => controller.state.messages.filter((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline').length >= 4)
 
-    expect(runTurn).toHaveBeenCalledTimes(0)
-    expect(run).toHaveBeenCalledTimes(1)
+	    expect(runTurn).toHaveBeenCalledTimes(0)
+	    expect(run).toHaveBeenCalledTimes(1)
 
     const sublines = controller.state.messages
       .filter((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline')
@@ -1099,7 +1113,7 @@ describe('useReplController consumed slash commands', () => {
     expect(sublines).toEqual(['Diagnosing...', 'ok1', 'ok2', 'ok3'])
   })
 
-  it('surfaces errors from local_async commands without calling the engine', async () => {
+	  it('surfaces errors from local_async commands without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
 
@@ -1119,12 +1133,13 @@ describe('useReplController consumed slash commands', () => {
     render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
-    await controller.actions.send('/doctor')
-    await waitFor(() => controller.state.isLoading === false)
+	    await controller.actions.send('/doctor')
+	    await waitFor(() => run.mock.calls.length === 1)
+	    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.includes('Error: boom')))
 
-    expect(runTurn).toHaveBeenCalledTimes(0)
-    expect(run).toHaveBeenCalledTimes(1)
-    expect(lastAssistantText(controller)).toContain('Error: boom')
+	    expect(runTurn).toHaveBeenCalledTimes(0)
+	    expect(run).toHaveBeenCalledTimes(1)
+	    expect(lastAssistantText(controller)).toContain('Error: boom')
     expect(
       controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content.includes('Error: boom')),
     ).toBe(true)

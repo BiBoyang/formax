@@ -6,7 +6,9 @@ import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/in
 import TextInput, { classifyDeletionKey, computeNextCursorOffsetForControlledValue } from './TextInput'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 async function waitForFrameContains(

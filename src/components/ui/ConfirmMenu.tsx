@@ -95,30 +95,22 @@ export function ConfirmMenu({
 
       const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
       const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
+      const isTyping = typingRef.current
 
       // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
       // Buffer ESC chunks so Up/Down always work reliably.
-      let bufferedUp = false
-      let bufferedDown = false
-      if (!isUpArrowKey && !isDownArrowKey && token) {
+      let bufferedDelta = 0
+      if (!isTyping && !isUpArrowKey && !isDownArrowKey && token) {
         const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
         escapeBufferRef.current = res.nextBuffer
-        if (res.pending) return
-        bufferedUp = res.arrow === 'up'
-        bufferedDown = res.arrow === 'down'
+        if (res.pending && res.delta === 0) return
+        bufferedDelta = res.delta
       }
 
-      const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
-      const isDown = isDownArrowKey || bufferedDown || token === '\u001B[B' || token === '\u001BOB'
+      const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
 
-      const patchedKey =
-        (isUp || isDown) && !(key as any)?.upArrow && !(key as any)?.downArrow
-          ? ({ ...key, upArrow: isUp, downArrow: isDown } as any)
-          : (key as any)
-
-      const forwardedInput = isUp || isDown ? '' : input
+      const patchedKey = key as any
       const currentCursor = cursorRef.current
-      const isTyping = typingRef.current
 
       if (patchedKey.shift && patchedKey.tab && onShiftTab) {
         if (isTyping) setTypingImmediate(false)
@@ -132,28 +124,36 @@ export function ConfirmMenu({
         return
       }
 
-      if (isTyping) {
-        // Preserve draft while navigating.
-        if (patchedKey.upArrow) {
-          setTypingImmediate(false)
-          setCursorImmediate((c) => clamp(c - 1, 0, options.length - 1))
-          return
-        }
-        if (patchedKey.downArrow) {
-          setTypingImmediate(false)
-          setCursorImmediate((c) => clamp(c + 1, 0, options.length - 1))
-          return
-        }
-        // Let `TextInput` handle editing + Enter submission.
+      if (arrowDelta !== 0) {
+        if (isTyping) setTypingImmediate(false)
+        setCursorImmediate((c) => clamp(c + arrowDelta, 0, options.length - 1))
         return
       }
 
-      if (patchedKey.upArrow) {
-        setCursorImmediate((c) => clamp(c - 1, 0, options.length - 1))
-        return
-      }
-      if (patchedKey.downArrow) {
-        setCursorImmediate((c) => clamp(c + 1, 0, options.length - 1))
+      if (isTyping) {
+        // Transition guard: `setTyping(true)` happens immediately, but the underlying `TextInput`
+        // may not have mounted/registered yet (React batching). If the user types very quickly,
+        // we can receive printable input here before `TextInput` is ready. Append in that case so
+        // keystrokes aren't dropped; once `TextInput` is mounted it will consume these events and
+        // this handler won't run.
+        if (patchedKey.return) {
+          const opt = options[currentCursor]
+          if (opt?.kind === 'feedback') {
+            submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })
+          }
+          return
+        }
+
+        if (token && !patchedKey.ctrl && !patchedKey.meta && !patchedKey.escape && token !== '\t') {
+          const chunk = String(token)
+          if (chunk && !chunk.startsWith('\u001b')) {
+            setTypingValueImmediate((v) => v + chunk)
+            return
+          }
+        }
+
+        // Preserve draft while navigating.
+        // Let `TextInput` handle editing + Enter submission.
         return
       }
 
@@ -165,14 +165,16 @@ export function ConfirmMenu({
         return
       }
 
-      if (feedbackIndex === currentCursor && forwardedInput && !patchedKey.ctrl && !patchedKey.meta) {
+      if (feedbackIndex === currentCursor && token && !patchedKey.ctrl && !patchedKey.meta) {
+        const chunk = String(token)
+        if (chunk.startsWith('\u001b')) return
         setTypingImmediate(true)
-        setTypingValueImmediate((v) => v + forwardedInput)
+        setTypingValueImmediate((v) => v + chunk)
         return
       }
 
-      if (/^[0-9]$/.test(forwardedInput)) {
-        const n = Number.parseInt(forwardedInput, 10)
+      if (/^[0-9]$/.test(token)) {
+        const n = Number.parseInt(token, 10)
         if (!Number.isFinite(n) || n <= 0) return
         const idx = n - 1
         if (idx < 0 || idx >= options.length) return

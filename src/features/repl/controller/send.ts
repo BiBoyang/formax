@@ -24,6 +24,7 @@ import { ReminderService } from '../reminders/ReminderService'
 import { countNonToolUserTurns, extractAssistantText, isAbortLikeError, isExactSlashCommand } from './utils'
 import type { ExploreTaskBatch } from './streaming'
 import { buildLocalCommandInjectedBlocks } from '../injectedBlocks'
+import { makeMessageId } from './ids'
 
 export function maybeHandleClearCommand(args: {
   text: string
@@ -39,7 +40,7 @@ export function maybeHandleClearCommand(args: {
     args.setMessages((prev) => [
       ...prev,
       {
-        id: `assistant-${Date.now()}`,
+        id: makeMessageId('assistant'),
         role: 'assistant',
         content: 'Usage: /clear',
         timestamp: new Date(),
@@ -92,7 +93,7 @@ export async function maybeHandleCompactCommand(args: {
   if (!isExactSlashCommand(args.text, '/compact')) return false
 
   const userMsg: Msg = {
-    id: `user-${Date.now()}`,
+    id: makeMessageId('user'),
     role: 'user',
     content: args.text,
     timestamp: new Date(),
@@ -195,7 +196,7 @@ export async function maybeHandleCompactCommand(args: {
     args.setMessages((prev) => [
       ...prev,
       {
-        id: `assistant-${Date.now()}`,
+        id: makeMessageId('assistant'),
         role: 'assistant',
         content: 'Conversation history compacted (summary kept for future turns).',
         timestamp: new Date(),
@@ -268,7 +269,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
   if (!isConsumedCommandResult(slashResult)) return { slashEffect, shouldReturn: false }
 
   const userMsg: Msg = {
-    id: `user-${Date.now()}`,
+    id: makeMessageId('user'),
     role: 'user',
     content: args.text,
     timestamp: new Date(),
@@ -279,7 +280,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
     if (eff.type === 'appendMessages') {
       for (const m of eff.messages) {
         appended.push({
-          id: m.id ?? `assistant-${Date.now()}`,
+          id: m.id ?? makeMessageId('assistant'),
           role: 'assistant',
           content: m.content,
           ui: m.ui,
@@ -292,7 +293,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
       args.closeOverlay()
     } else if (eff.type === 'toast') {
       appended.push({
-        id: `assistant-${Date.now()}`,
+        id: makeMessageId('assistant'),
         role: 'assistant',
         content: eff.message,
         timestamp: new Date(),
@@ -423,7 +424,7 @@ export async function runMainSendTurn(raw: {
     ...raw.state,
   }
   const userMsg: Msg = {
-    id: `user-${Date.now()}`,
+    id: makeMessageId('user'),
     role: 'user',
     content: args.text,
     timestamp: new Date(),
@@ -559,7 +560,7 @@ export async function runMainSendTurn(raw: {
             args.setMessages((prev) => [
               ...prev,
               {
-                id: `assistant-${Date.now()}`,
+                id: makeMessageId('assistant'),
                 role: 'assistant',
                 content: 'Conversation history auto-compacted (summary kept for future turns).',
                 timestamp: new Date(),

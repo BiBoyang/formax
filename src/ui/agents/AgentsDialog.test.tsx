@@ -21,6 +21,21 @@ async function waitForText(lastFrame: () => string | undefined, text: string, ti
   throw new Error(`Timed out waiting for UI to contain: ${text}`)
 }
 
+async function moveUpUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  rowText: string,
+  maxMoves = 20,
+): Promise<void> {
+  for (let i = 0; i < maxMoves; i++) {
+    const frame = lastFrame() || ''
+    if (frame.includes(`> ${rowText}`)) return
+    stdin.write('\u001B[A')
+    await tick()
+  }
+  throw new Error(`Failed to move selection to row: ${rowText}`)
+}
+
 async function makeTempDir(prefix: string): Promise<string> {
   return await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
 }
@@ -571,9 +586,8 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Agents')
 
     // Navigate back to "Create new agent" (cursor is still on design-planner)
-    stdin.write('\u001B[A')
-    await tick()
-    expect(lastFrame()).toContain('> Create new agent')
+    for (let i = 0; i < 2; i++) await tick()
+    await moveUpUntilActiveRow(lastFrame, stdin, 'Create new agent')
 
     // Enter create flow
     stdin.write('\r')

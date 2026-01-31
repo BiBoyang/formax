@@ -535,26 +535,65 @@ export function AgentsDialog({
     const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
     const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
 
-    // In some environments/tests, arrow escape sequences can arrive split across multiple
-    // `useInput` calls. Buffer ESC sequences so Up/Down work reliably.
-    let bufferedUp = false
-    let bufferedDown = false
+    // In some environments/tests, arrow escape sequences can arrive split or batched across
+    // multiple `useInput` calls. Buffer ESC sequences so Up/Down always work reliably.
+    let bufferedDelta = 0
     if (!isUpArrowKey && !isDownArrowKey && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending) return
-      bufferedUp = res.arrow === 'up'
-      bufferedDown = res.arrow === 'down'
+      if (res.pending && res.delta === 0) return
+      bufferedDelta = res.delta
     }
 
-    const isUp = isUpArrowKey || bufferedUp || token === '\u001B[A' || token === '\u001BOA'
-    const isDown = isDownArrowKey || bufferedDown || token === '\u001B[B' || token === '\u001BOB'
+    const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
 
-    const patchedKey = (isUp || isDown) && !(key as any)?.upArrow && !(key as any)?.downArrow
-      ? ({ ...key, upArrow: isUp, downArrow: isDown } as any)
-      : (key as any)
+    if (arrowDelta !== 0) {
+      if (view.kind === 'list') {
+        const max = Math.max(0, listRows.length - 1)
+        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(view.cursor + arrowDelta, max)) })
+        return
+      }
 
-    const forwardedInput = isUp || isDown ? '' : input
+      if (
+        view.kind === 'create_scope' ||
+        view.kind === 'create_method' ||
+        view.kind === 'create_tools' ||
+        view.kind === 'create_model' ||
+        view.kind === 'create_color'
+      ) {
+        let max = 0
+        switch (view.kind) {
+          case 'create_scope':
+            max = Math.max(0, SCOPE_OPTIONS.length - 1)
+            break
+          case 'create_method':
+            max = Math.max(0, METHOD_OPTIONS.length - 1)
+            break
+          case 'create_tools':
+            max = Math.max(
+              0,
+              getToolsSelectableRows({
+                toolGroupChecked,
+                showAdvancedTools,
+                selectableToolNames,
+                selectedToolSet,
+              }).length - 1,
+            )
+            break
+          case 'create_model':
+            max = Math.max(0, MODEL_OPTIONS.length - 1)
+            break
+          case 'create_color':
+            max = Math.max(0, COLOR_OPTIONS.length - 1)
+            break
+        }
+        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(view.cursor + arrowDelta, max)) })
+        return
+      }
+    }
+
+    const patchedKey = key as any
+    const forwardedInput = input
 
     if (handleBusyKeys(forwardedInput, patchedKey)) return
     if (handleErrorKeys(forwardedInput, patchedKey)) return

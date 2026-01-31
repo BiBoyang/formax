@@ -5,12 +5,12 @@ describe('consumeBufferedArrow', () => {
   it('emits up/down for complete sequences', () => {
     expect(consumeBufferedArrow({ buffer: '', chunk: '\u001B[A' })).toEqual({
       nextBuffer: '',
-      arrow: 'up',
+      delta: -1,
       pending: false,
     })
     expect(consumeBufferedArrow({ buffer: '', chunk: '\u001BOB' })).toEqual({
       nextBuffer: '',
-      arrow: 'down',
+      delta: 1,
       pending: false,
     })
   })
@@ -18,17 +18,17 @@ describe('consumeBufferedArrow', () => {
   it('buffers partial prefixes and emits when completed', () => {
     expect(consumeBufferedArrow({ buffer: '', chunk: '\u001B' })).toEqual({
       nextBuffer: '\u001B',
-      arrow: null,
+      delta: 0,
       pending: true,
     })
     expect(consumeBufferedArrow({ buffer: '\u001B', chunk: '[' })).toEqual({
       nextBuffer: '\u001B[',
-      arrow: null,
+      delta: 0,
       pending: true,
     })
     expect(consumeBufferedArrow({ buffer: '\u001B[', chunk: 'A' })).toEqual({
       nextBuffer: '',
-      arrow: 'up',
+      delta: -1,
       pending: false,
     })
   })
@@ -36,14 +36,21 @@ describe('consumeBufferedArrow', () => {
   it('clears buffer on non-escape input', () => {
     expect(consumeBufferedArrow({ buffer: '\u001B[', chunk: 'x' })).toEqual({
       nextBuffer: '',
-      arrow: null,
+      delta: 0,
       pending: false,
     })
     expect(consumeBufferedArrow({ buffer: '', chunk: 'x' })).toEqual({
       nextBuffer: '',
-      arrow: null,
+      delta: 0,
+      pending: false,
+    })
+  })
+
+  it('handles multiple arrow sequences in a single chunk', () => {
+    expect(consumeBufferedArrow({ buffer: '', chunk: '\u001B[B\u001B[B\u001B[A' })).toEqual({
+      nextBuffer: '',
+      delta: 1,
       pending: false,
     })
   })
 })
-

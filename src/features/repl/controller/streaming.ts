@@ -4,6 +4,7 @@ import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { formatToolResult, stripTrailingSystemReminderBlock } from '../../../utils/toolFormatting'
 import type { ReminderService } from '../reminders/ReminderService'
+import { makeMessageId } from './ids'
 import {
   formatDuration,
   formatTokenTotal,
@@ -93,7 +94,7 @@ export function useReplStreaming(args: {
     args.setMessages((prev) => [
       ...prev,
       {
-        id: `assistant-${Date.now()}`,
+        id: makeMessageId('assistant'),
         role: 'assistant',
         content: text,
         timestamp: new Date(),
@@ -144,30 +145,30 @@ export function useReplStreaming(args: {
             return
           }
 
-          args.setMessages((prev) => {
-            const existingId = args.currentAssistantIdRef.current
+          const existingId = args.currentAssistantIdRef.current
 
-            if (!existingId) {
-              const assistantId = `assistant-${Date.now()}`
-              args.currentAssistantIdRef.current = assistantId
-              return [
-                ...prev,
-                {
-                  id: assistantId,
-                  role: 'assistant',
-                  content: ev.text,
-                  timestamp: new Date(),
-                  isStreaming: true,
-                },
-              ]
-            }
+          // NOTE: Avoid reading or mutating `currentAssistantIdRef` inside the state updater.
+          // React may batch updates, and `complete`/`tool_start` can clear the ref before the
+          // queued updater runs, causing later deltas to create a new assistant message.
+          if (!existingId) {
+            const assistantId = makeMessageId('assistant')
+            args.currentAssistantIdRef.current = assistantId
+            args.setMessages((prev) => [
+              ...prev,
+              {
+                id: assistantId,
+                role: 'assistant',
+                content: ev.text,
+                timestamp: new Date(),
+                isStreaming: true,
+              },
+            ])
+            return
+          }
 
-            return prev.map((m) =>
-              m.id === existingId
-                ? { ...m, content: m.content + ev.text, isStreaming: true }
-                : m,
-            )
-          })
+          args.setMessages((prev) =>
+            prev.map((m) => (m.id === existingId ? { ...m, content: m.content + ev.text, isStreaming: true } : m)),
+          )
           return
         }
 
@@ -449,7 +450,7 @@ export function useReplStreaming(args: {
                 args.setMessages((prev) => [
                   ...prev,
                   {
-                    id: `assistant-${Date.now()}`,
+                    id: makeMessageId('assistant'),
                     role: 'assistant',
                     content: `${count} Explore agents finished (ctrl+o to expand)`,
                     timestamp: new Date(),

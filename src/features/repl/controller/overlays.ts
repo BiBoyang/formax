@@ -9,6 +9,7 @@ import type {
 } from '../../../ui/agents/AgentsDialog.js'
 import type { OverlaySpec } from '../../commands/contracts'
 import { createOverlayManager } from '../overlays/OverlayManager'
+import { makeMessageId } from './ids'
 
 export function useReplOverlays(args: {
   engine: ChatEngine
@@ -118,7 +119,7 @@ export function useReplOverlays(args: {
         setMessages((prev) => [
           ...prev,
           {
-            id: `assistant-${Date.now()}`,
+            id: makeMessageId('assistant'),
             role: 'assistant',
             content: `Note: agent created but reload failed: ${msg}`,
             timestamp: new Date(),
@@ -130,7 +131,7 @@ export function useReplOverlays(args: {
         setMessages((prev) => [
           ...prev,
           {
-            id: `assistant-${Date.now()}`,
+            id: makeMessageId('assistant'),
             role: 'assistant',
             content: `Saved agent: ${out.name} (${out.filePath}). Open this file in your editor to make edits.`,
             timestamp: new Date(),

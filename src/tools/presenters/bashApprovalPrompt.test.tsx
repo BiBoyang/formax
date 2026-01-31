@@ -6,7 +6,9 @@ import { ReplUiProvider } from '../../features/repl/replUiContext'
 import { BashApprovalPrompt } from './bashApprovalPrompt'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay makes these prompt interaction tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 async function waitForFrame(
@@ -81,7 +83,7 @@ describe('BashApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i++) await tick()
     const beforeSelect = lastFrame() || ''
     stdin.write('3')
     await waitForFrame(lastFrame, (frame) => frame !== beforeSelect && frame.includes('❯ 3.'), 15000)
@@ -109,7 +111,7 @@ describe('BashApprovalPrompt', () => {
       </InputScopeProvider>,
     )
 
-    await tick()
+    for (let i = 0; i < 3; i++) await tick()
     stdin.write('3')
     await tick()
     stdin.write('a')
