@@ -74,6 +74,7 @@ describe('AgentsDialog (failures)', () => {
 
     stdin.write('hello')
     await tick()
+    await waitForText(lastFrame, 'hello')
     stdin.write('\r')
     await tick()
 

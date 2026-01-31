@@ -472,21 +472,21 @@ describe('AgentsDialog', () => {
     // Navigate down through agents
     stdin.write('\u001B[B')
     await tick()
-    expect(lastFrame()).toContain('> agent-1')
+    await waitForText(lastFrame, '> agent-1', 15000)
 
     stdin.write('\u001B[B')
     await tick()
-    expect(lastFrame()).toContain('> agent-2')
+    await waitForText(lastFrame, '> agent-2', 15000)
 
     // Navigate back up
     stdin.write('\u001B[A')
     await tick()
-    expect(lastFrame()).toContain('> agent-1')
+    await waitForText(lastFrame, '> agent-1', 15000)
 
     // Navigate to top
     stdin.write('\u001B[A')
     await tick()
-    expect(lastFrame()).toContain('> Create new agent')
+    await waitForText(lastFrame, '> Create new agent', 15000)
 
     unmount()
   })
@@ -576,6 +576,7 @@ describe('AgentsDialog', () => {
     // Open first agent
     stdin.write('\u001B[B')
     await tick()
+    await waitForText(lastFrame, '> design-planner')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'design-planner')

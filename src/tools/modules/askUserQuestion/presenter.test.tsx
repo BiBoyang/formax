@@ -69,24 +69,24 @@ describe('AskUserQuestionToolPresenter', () => {
 
     // Select option A (auto-advances to Review tab)
     stdin.write('1')
-    await tick()
+    for (let i = 0; i < 2; i += 1) await tick()
 
     // Go back to the question tab, enter typing mode, type custom value, then confirm.
     stdin.write('\u001B[D')
-    await tick()
+    for (let i = 0; i < 2; i += 1) await tick()
     stdin.write('0')
     // Wait for the typing mode switch to flush before sending the custom value.
-    for (let i = 0; i < 2; i += 1) await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
     stdin.write('Custom')
-    await tick()
+    for (let i = 0; i < 2; i += 1) await tick()
 
     // Commit typing and advance
     stdin.write('\r')
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
 
     // Submit answers
     stdin.write('\r')
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
 
     expect(submitAnswers).toHaveBeenCalledTimes(1)
     expect(submitAnswers).toHaveBeenCalledWith('1', { Tech: 'Custom' })

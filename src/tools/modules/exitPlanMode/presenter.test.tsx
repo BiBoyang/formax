@@ -213,11 +213,11 @@ describe('ExitPlanModeToolPresenter', () => {
 
       await tick()
       stdin.write('3')
-      await tick()
+      for (let i = 0; i < 2; i += 1) await tick()
       stdin.write('fix this')
-      await tick()
+      for (let i = 0; i < 3; i += 1) await tick()
       stdin.write('\r')
-      await tick()
+      for (let i = 0; i < 3; i += 1) await tick()
 
       expect(submitAnswers).toHaveBeenCalledTimes(1)
       expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'fix this' })

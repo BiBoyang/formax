@@ -82,32 +82,44 @@ export function ConfirmMenu({
     [onDecision],
   )
 
+  const appendDraft = useCallback(
+    (chunk: string) => {
+      if (!chunk) return
+      setTypingValueImmediate((v) => v + chunk)
+    },
+    [setTypingValueImmediate],
+  )
+
+  const submitDraftIfFeedbackRow = useCallback(() => {
+    const opt = options[cursorRef.current]
+    if (opt?.kind !== 'feedback') return
+    submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })
+  }, [options, submit])
+
   useScopedInput(
     scope,
     (input, key) => {
       if (!isActive) return
       if (submittedRef.current) return
-      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-      const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-      const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
+      const token = getInputToken({ input, key })
+      const tokenInfo = getTokenInfo({ token, key })
 
-      if (key.escape || keyName === 'escape') escapeBufferRef.current = ''
+      if (tokenInfo.isEscape) escapeBufferRef.current = ''
 
-      const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
-      const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
       const isTyping = typingRef.current
 
       // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
       // Buffer ESC chunks so Up/Down always work reliably.
       let bufferedDelta = 0
-      if (!isTyping && !isUpArrowKey && !isDownArrowKey && token) {
+      if (!isTyping && !tokenInfo.isUpArrowKey && !tokenInfo.isDownArrowKey && tokenInfo.token) {
         const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
         escapeBufferRef.current = res.nextBuffer
         if (res.pending && res.delta === 0) return
         bufferedDelta = res.delta
       }
 
-      const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
+      const arrowDelta =
+        (tokenInfo.isUpArrowKey ? -1 : 0) + (tokenInfo.isDownArrowKey ? 1 : 0) + bufferedDelta
 
       const patchedKey = key as any
       const currentCursor = cursorRef.current
@@ -131,33 +143,15 @@ export function ConfirmMenu({
       }
 
       if (isTyping) {
-        // Transition guard: `setTyping(true)` happens immediately, but the underlying `TextInput`
-        // may not have mounted/registered yet (React batching). If the user types very quickly,
-        // we can receive printable input here before `TextInput` is ready. Append in that case so
-        // keystrokes aren't dropped; once `TextInput` is mounted it will consume these events and
-        // this handler won't run.
-        if (patchedKey.return) {
-          const opt = options[currentCursor]
-          if (opt?.kind === 'feedback') {
-            submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })
-          }
-          return
-        }
-
-        if (token && !patchedKey.ctrl && !patchedKey.meta && !patchedKey.escape && token !== '\t') {
-          const chunk = String(token)
-          if (chunk && !chunk.startsWith('\u001b')) {
-            setTypingValueImmediate((v) => v + chunk)
-            return
-          }
-        }
-
-        // Preserve draft while navigating.
-        // Let `TextInput` handle editing + Enter submission.
+        handleTypingTransitionGuard({
+          tokenInfo,
+          submitDraftIfFeedbackRow,
+          appendDraft,
+        })
         return
       }
 
-      if (patchedKey.return) {
+      if (tokenInfo.isReturnKey) {
         const opt = options[currentCursor]
         if (!opt) return
         if (opt.kind === 'feedback') setTypingImmediate(true)
@@ -165,22 +159,15 @@ export function ConfirmMenu({
         return
       }
 
-      if (feedbackIndex === currentCursor && token && !patchedKey.ctrl && !patchedKey.meta) {
-        const chunk = String(token)
-        if (chunk.startsWith('\u001b')) return
+      if (feedbackIndex === currentCursor && tokenInfo.printable) {
         setTypingImmediate(true)
-        setTypingValueImmediate((v) => v + chunk)
+        appendDraft(tokenInfo.token)
         return
       }
 
-      if (/^[0-9]$/.test(token)) {
-        const n = Number.parseInt(token, 10)
-        if (!Number.isFinite(n) || n <= 0) return
-        const idx = n - 1
-        if (idx < 0 || idx >= options.length) return
-        setCursorImmediate(idx)
-        return
-      }
+      const digitIndex = getDigitIndex(tokenInfo.token, options.length)
+      if (digitIndex == null) return
+      setCursorImmediate(digitIndex)
     },
     { enabled: isActive },
   )
@@ -261,4 +248,70 @@ export function ConfirmMenu({
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
+}
+
+function getInputToken(args: { input: string; key: unknown }): string {
+  const seq = (args.key as unknown as { sequence?: string } | undefined)?.sequence
+  return (typeof seq === 'string' && seq.length > 0 ? seq : args.input) || ''
+}
+
+function getTokenInfo(args: { token: string; key: any }): {
+  token: string
+  printable: boolean
+  isEscape: boolean
+  isReturnKey: boolean
+  isUpArrowKey: boolean
+  isDownArrowKey: boolean
+} {
+  const keyName = typeof args.key?.name === 'string' ? String(args.key.name) : ''
+  const isUpArrowKey = keyName === 'up' || Boolean(args.key?.upArrow)
+  const isDownArrowKey = keyName === 'down' || Boolean(args.key?.downArrow)
+  const isEscape = Boolean(args.key?.escape) || keyName === 'escape'
+
+  const token = args.token
+  const printable =
+    Boolean(token) &&
+    !args.key?.ctrl &&
+    !args.key?.meta &&
+    !args.key?.escape &&
+    token !== '\t' &&
+    !String(token).startsWith('\u001b')
+
+  return {
+    token,
+    printable,
+    isEscape,
+    isReturnKey: Boolean(args.key?.return),
+    isUpArrowKey,
+    isDownArrowKey,
+  }
+}
+
+function getDigitIndex(token: string, optionsLength: number): number | null {
+  if (!/^[0-9]$/.test(token)) return null
+  const n = Number.parseInt(token, 10)
+  if (!Number.isFinite(n) || n <= 0) return null
+  const idx = n - 1
+  if (idx < 0 || idx >= optionsLength) return null
+  return idx
+}
+
+function handleTypingTransitionGuard(args: {
+  tokenInfo: { token: string; printable: boolean; isReturnKey: boolean }
+  submitDraftIfFeedbackRow: () => void
+  appendDraft: (chunk: string) => void
+}): void {
+  // Transition guard: `setTyping(true)` happens immediately, but the underlying `TextInput`
+  // may not have mounted/registered yet (React batching). If the user types very quickly,
+  // we can receive printable input here before `TextInput` is ready. Append in that case so
+  // keystrokes aren't dropped; once `TextInput` is mounted it will consume these events and
+  // this handler won't run.
+  if (args.tokenInfo.isReturnKey) {
+    args.submitDraftIfFeedbackRow()
+    return
+  }
+
+  if (args.tokenInfo.printable) {
+    args.appendDraft(args.tokenInfo.token)
+  }
 }
