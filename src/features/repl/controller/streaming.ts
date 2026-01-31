@@ -113,12 +113,14 @@ export function useReplStreaming(args: {
     if (!messageId) return
 
     const text = args.thinkingBufferRef.current
+    // Ensure the latest buffered thinking is reflected in state even if the last delta
+    // was throttled and we never flushed it.
+    args.setThinkingText(text)
     args.setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)))
 
     args.currentThinkingMessageIdRef.current = null
     args.thinkingBufferRef.current = ''
     args.thinkingLastFlushAtRef.current = 0
-    args.setThinkingText('')
   }, [args])
 
   const stopThinkingIfActive = useCallback(() => {
@@ -177,7 +179,8 @@ export function useReplStreaming(args: {
             const thinkingId = `thinking-${Date.now()}`
             args.currentThinkingMessageIdRef.current = thinkingId
             args.thinkingBufferRef.current = ''
-            args.thinkingLastFlushAtRef.current = 0
+            // Seed the throttle window so an immediate second delta doesn't flush too early.
+            args.thinkingLastFlushAtRef.current = Date.now()
             args.thinkingBufferRef.current += ev.thinking
             args.setThinkingText(args.thinkingBufferRef.current)
             args.setMessages((prev) => [

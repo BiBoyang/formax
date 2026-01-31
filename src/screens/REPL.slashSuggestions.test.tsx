@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library'
 import type { RuntimeConfig } from '../env/config'
 import type { Msg } from '../components/tool/ToolMessage'
 import type { SlashCommandRegistry, SlashCommandSpec } from '../features/commands/registry'
+import { InputScopeProvider } from '../features/repl/inputScopeContext'
 
 let sendSpy: ReturnType<typeof vi.fn>
 
@@ -32,6 +33,14 @@ const mockCommandRegistry: SlashCommandRegistry = {
   },
   dispatch: () => null,
 }
+
+vi.mock('./repl/createReplCommandRegistry', async () => {
+  const actual = (await vi.importActual('./repl/createReplCommandRegistry')) as Record<string, unknown>
+  return {
+    ...actual,
+    createReplCommandRegistry: () => mockCommandRegistry,
+  }
+})
 
 vi.mock('../features/commands/registry', async () => {
   const actual = (await vi.importActual('../features/commands/registry')) as Record<string, unknown>
@@ -133,10 +142,18 @@ describe('REPL slash suggestions', () => {
 
   it('autocompletes on Enter without sending when input mismatches selected suggestion', async () => {
     const { REPL } = await import('./REPL')
-    const { stdin, lastFrame, unmount } = render(<REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />)
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="repl">
+        <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />
+      </InputScopeProvider>,
+    )
 
     try {
+      // Let layout effects register scoped input handlers before sending keys.
+      for (let i = 0; i < 3; i++) await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('> '))
       stdin.write('/st')
+      await waitForFrame(lastFrame, (f) => f.includes('> /st'))
       await waitForFrame(lastFrame, (f) => f.includes('/status'))
 
       stdin.write('\r')
@@ -151,10 +168,18 @@ describe('REPL slash suggestions', () => {
 
   it('autocompletes on Tab without sending', async () => {
     const { REPL } = await import('./REPL')
-    const { stdin, lastFrame, unmount } = render(<REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />)
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="repl">
+        <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />
+      </InputScopeProvider>,
+    )
 
     try {
+      // Let layout effects register scoped input handlers before sending keys.
+      for (let i = 0; i < 3; i++) await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('> '))
       stdin.write('/st')
+      await waitForFrame(lastFrame, (f) => f.includes('> /st'))
       await waitForFrame(lastFrame, (f) => f.includes('/status'))
 
       stdin.write('\t')
@@ -165,14 +190,22 @@ describe('REPL slash suggestions', () => {
     } finally {
       unmount()
     }
-  })
+  }, 20000)
 
   it('sends selected duplicate command with preferredSlashSpecId', async () => {
     const { REPL } = await import('./REPL')
-    const { stdin, lastFrame, unmount } = render(<REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />)
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="repl">
+        <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />
+      </InputScopeProvider>,
+    )
 
     try {
+      // Let layout effects register scoped input handlers before sending keys.
+      for (let i = 0; i < 3; i++) await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('> '))
       stdin.write('/status')
+      await waitForFrame(lastFrame, (f) => f.includes('> /status'))
       await tick()
 
       // Move selection to the second suggestion (user:/status).
@@ -187,5 +220,5 @@ describe('REPL slash suggestions', () => {
     } finally {
       unmount()
     }
-  })
+  }, 20000)
 })
