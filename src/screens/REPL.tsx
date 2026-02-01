@@ -26,6 +26,7 @@ import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
+import { ConfigDialog } from '../ui/config/ConfigDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
@@ -190,6 +191,7 @@ export function REPL({
       state.agentsDialogOpen,
       state.permissionsDialogOpen,
       state.hooksDialogOpen,
+      state.configDialogOpen,
       state.transientMessages,
       toolRegistry,
       userInput,
@@ -231,6 +233,7 @@ export function REPL({
       agentsDialogOpen: state.agentsDialogOpen,
       permissionsDialogOpen: state.permissionsDialogOpen,
       hooksDialogOpen: state.hooksDialogOpen,
+      configDialogOpen: state.configDialogOpen,
       isLoading: state.isLoading,
       thinkingText: state.thinkingText,
       transientMessages: state.transientMessages,
@@ -448,6 +451,7 @@ export function REPL({
 
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
             {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
+            {state.configDialogOpen && <ConfigDialog onExit={actions.closeConfigDialog} />}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

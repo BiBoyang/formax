@@ -44,6 +44,7 @@ export type ReplControllerState = {
   agentsDialogOpen: boolean
   permissionsDialogOpen: boolean
   hooksDialogOpen: boolean
+  configDialogOpen: boolean
   context: null | {
     usedTokens: number
     limitTokens: number
@@ -61,6 +62,7 @@ export type ReplController = {
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
     closeHooksDialog: () => void
+    closeConfigDialog: () => void
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }
@@ -96,6 +98,7 @@ export function useReplController(deps: {
     closeAgentsDialog,
     closePermissionsDialog,
     closeHooksDialog,
+    closeConfigDialog,
     generateAgentDraft,
     saveAgentFromDialog,
   } = useReplOverlays({
@@ -425,6 +428,7 @@ export function useReplController(deps: {
       agentsDialogOpen: overlay?.kind === 'agents',
       permissionsDialogOpen: overlay?.kind === 'permissions',
       hooksDialogOpen: overlay?.kind === 'hooks',
+      configDialogOpen: overlay?.kind === 'config',
       context,
     },
     actions: {
@@ -434,6 +438,7 @@ export function useReplController(deps: {
       closeAgentsDialog,
       closePermissionsDialog,
       closeHooksDialog,
+      closeConfigDialog,
       generateAgentDraft,
       saveAgentFromDialog,
     },

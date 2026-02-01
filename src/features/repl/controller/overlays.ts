@@ -25,6 +25,7 @@ export function useReplOverlays(args: {
   closeAgentsDialog: (args: { createdAgents: string[] }) => void
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
+  closeConfigDialog: () => void
   generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
   saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
 } {
@@ -78,6 +79,11 @@ export function useReplOverlays(args: {
   const closeHooksDialog = useCallback(() => {
     overlayManagerRef.current.close()
     appendCommandSublines(['Hooks dialog dismissed'])
+  }, [appendCommandSublines])
+
+  const closeConfigDialog = useCallback(() => {
+    overlayManagerRef.current.close()
+    appendCommandSublines(['Config dialog dismissed'])
   }, [appendCommandSublines])
 
   const generateAgentDraft = useCallback(
@@ -151,6 +157,7 @@ export function useReplOverlays(args: {
     closeAgentsDialog,
     closePermissionsDialog,
     closeHooksDialog,
+    closeConfigDialog,
     generateAgentDraft,
     saveAgentFromDialog,
   }

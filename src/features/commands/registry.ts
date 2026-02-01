@@ -42,6 +42,9 @@ export type SlashCommandEffect =
       kind: 'open_hooks_dialog'
     }
   | {
+      kind: 'open_config_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -76,6 +79,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/agents', source: 'builtin', command: '/agents', description: 'Create and manage custom sub-agents', implemented: true },
   { id: 'builtin:/permissions', source: 'builtin', command: '/permissions', description: 'Manage tool permissions and workspace access', implemented: true },
   { id: 'builtin:/hooks', source: 'builtin', command: '/hooks', description: 'Configure hooks (PreToolUse / PermissionRequest / PostToolUse)', implemented: true },
+  { id: 'builtin:/config', source: 'builtin', command: '/config', description: 'Configure Formax (preview UI)', implemented: true },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -150,101 +154,107 @@ export function createSlashCommandRegistry(deps: {
 
   // Built-in dispatchers
   setBuiltinDispatcher('/help', () => {
-      return { kind: 'local', stdout: formatHelpOutput(list()) }
+    return { kind: 'local', stdout: formatHelpOutput(list()) }
   })
 
   setBuiltinDispatcher('/tasks', () => ({
-      kind: 'local',
-      stdout: formatTasksOutput(deps.taskManager?.list() ?? []),
+    kind: 'local',
+    stdout: formatTasksOutput(deps.taskManager?.list() ?? []),
   }))
 
   setBuiltinDispatcher('/todos', (invocation) => {
-      const { todos } = readTodos(deps.cwd)
-      const stdout = formatTodosCommandOutput(todos)
-      return {
-        kind: 'local',
+    const { todos } = readTodos(deps.cwd)
+    const stdout = formatTodosCommandOutput(todos)
+    return {
+      kind: 'local',
+      stdout,
+      recordForNextTurn: {
+        commandName: invocation.command,
+        commandMessage: invocation.command.startsWith('/') ? invocation.command.slice(1) : invocation.command,
+        commandArgs: invocation.args,
         stdout,
-        recordForNextTurn: {
-          commandName: invocation.command,
-          commandMessage: invocation.command.startsWith('/') ? invocation.command.slice(1) : invocation.command,
-          commandArgs: invocation.args,
-          stdout,
-        },
-      }
+      },
+    }
   })
 
   setBuiltinDispatcher('/agents', (invocation) => {
-      const rawArgs = (invocation.args || '').trim()
-      if (rawArgs) return { kind: 'local', stdout: 'Usage: /agents' }
-      return { kind: 'open_agents_dialog' }
+    const rawArgs = (invocation.args || '').trim()
+    if (rawArgs) return { kind: 'local', stdout: 'Usage: /agents' }
+    return { kind: 'open_agents_dialog' }
   })
 
   setBuiltinDispatcher('/permissions', (invocation) => {
-      const rawArgs = (invocation.args || '').trim()
-      if (rawArgs) return { kind: 'local', stdout: 'Usage: /permissions' }
-      return { kind: 'open_permissions_dialog' }
+    const rawArgs = (invocation.args || '').trim()
+    if (rawArgs) return { kind: 'local', stdout: 'Usage: /permissions' }
+    return { kind: 'open_permissions_dialog' }
   })
 
   setBuiltinDispatcher('/hooks', (invocation) => {
-      const rawArgs = (invocation.args || '').trim()
-      if (rawArgs) return { kind: 'local', stdout: 'Usage: /hooks' }
-      return { kind: 'open_hooks_dialog' }
+    const rawArgs = (invocation.args || '').trim()
+    if (rawArgs) return { kind: 'local', stdout: 'Usage: /hooks' }
+    return { kind: 'open_hooks_dialog' }
+  })
+
+  setBuiltinDispatcher('/config', (invocation) => {
+    const rawArgs = (invocation.args || '').trim()
+    if (rawArgs) return { kind: 'local', stdout: 'Usage: /config' }
+    return { kind: 'open_config_dialog' }
   })
 
   setBuiltinDispatcher('/plan', () => {
-      const planPath = deps.plan?.getPlanPath() ?? null
-      if (!planPath) return { kind: 'local', stdout: 'No plan found for current session.' }
+    const planPath = deps.plan?.getPlanPath() ?? null
+    if (!planPath) return { kind: 'local', stdout: 'No plan found for current session.' }
 
-      try {
-        const raw = fs.readFileSync(planPath, 'utf8')
-        const stdout = raw.trimEnd() || '(empty plan)'
-        return { kind: 'local', stdout }
-      } catch {
-        return { kind: 'local', stdout: 'No plan found for current session.' }
-      }
+    try {
+      const raw = fs.readFileSync(planPath, 'utf8')
+      const stdout = raw.trimEnd() || '(empty plan)'
+      return { kind: 'local', stdout }
+    } catch {
+      return { kind: 'local', stdout: 'No plan found for current session.' }
+    }
   })
 
   setBuiltinDispatcher('/prompt', (invocation) => {
-      const current = deps.promptProfile?.get?.() ?? 'full'
-      const raw = (invocation.args || '').trim().toLowerCase()
-      if (!raw) {
-        return {
-          kind: 'local',
-          stdout:
-            `Prompt profile: ${current}\n\n` +
-            `Usage:\n` +
-            `- /prompt full\n` +
-            `- /prompt lite`,
-        }
+    const current = deps.promptProfile?.get?.() ?? 'full'
+    const raw = (invocation.args || '').trim().toLowerCase()
+    if (!raw) {
+      return {
+        kind: 'local',
+        stdout:
+          `Prompt profile: ${current}\n\n` +
+          `Usage:\n` +
+          `- /prompt full\n` +
+          `- /prompt lite`,
       }
+    }
 
-      if (raw !== 'full' && raw !== 'lite') {
-        return { kind: 'local', stdout: `Unknown profile: ${raw}\n\nUse: /prompt full|lite` }
-      }
+    if (raw !== 'full' && raw !== 'lite') {
+      return { kind: 'local', stdout: `Unknown profile: ${raw}\n\nUse: /prompt full|lite` }
+    }
 
-      deps.promptProfile?.set(raw)
-      return { kind: 'local', stdout: `Prompt profile set to: ${raw}` }
+    deps.promptProfile?.set(raw)
+    return { kind: 'local', stdout: `Prompt profile set to: ${raw}` }
   })
 
   setBuiltinDispatcher('/status', () => {
-      const snapshot = deps.status?.get?.()
-      if (!snapshot) return { kind: 'local', stdout: 'Status is not available in this context.' }
-      return { kind: 'local', stdout: formatStatusHuman(snapshot) + '\n' }
+    const snapshot = deps.status?.get?.()
+    if (!snapshot) return { kind: 'local', stdout: 'Status is not available in this context.' }
+    return { kind: 'local', stdout: formatStatusHuman(snapshot) + '\n' }
   })
 
   setBuiltinDispatcher('/doctor', () => {
-      if (!deps.doctor) return { kind: 'local', stdout: 'Doctor is not available in this context.' }
-      return {
-        kind: 'local_async',
-        loadingText: 'Diagnosing',
-        run: async () => ({ stdout: await deps.doctor.run() }),
-      }
+    if (!deps.doctor) return { kind: 'local', stdout: 'Doctor is not available in this context.' }
+    return {
+      kind: 'local_async',
+      loadingText: 'Diagnosing',
+      run: async () => ({ stdout: await deps.doctor.run() }),
+    }
   })
 
   setBuiltinDispatcher('/init', () => ({
-      kind: 'llm',
-      blocks: buildInitCommandContent(),
-      loadingText: 'Spelunking',
+    kind: 'llm',
+    blocks: buildInitCommandContent(),
+    loadingText: 'Spelunking',
   }))
 
   const list = (): SlashCommandSpec[] => {

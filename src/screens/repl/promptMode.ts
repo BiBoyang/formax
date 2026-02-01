@@ -12,6 +12,7 @@ export function isPromptMode(args: {
   if (state.agentsDialogOpen) return true
   if (state.permissionsDialogOpen) return true
   if (state.hooksDialogOpen) return true
+  if (state.configDialogOpen) return true
   if (!userInput) return false
 
   const alwaysInteractive = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
@@ -25,4 +26,3 @@ export function isPromptMode(args: {
     return interactive || userInput.isPending(toolUseId)
   })
 }
-
