@@ -134,10 +134,25 @@ function ExitPlanModePrompt({
   }, [stdout?.columns])
 
   const [cursor, setCursor] = useState(0) // 0..2
+  const cursorRef = useRef(0)
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
   const submittedRef = useRef(false)
   const escapeBufferRef = useRef('')
+
+  const setCursorSafe = useCallback((next: number | ((c: number) => number)) => {
+    if (typeof next === 'number') {
+      cursorRef.current = next
+      setCursor(next)
+      return
+    }
+
+    setCursor((prev) => {
+      const resolved = next(prev)
+      cursorRef.current = resolved
+      return resolved
+    })
+  }, [])
 
   const submit = useCallback(
     (kind: 'auto' | 'manual' | 'feedback' | 'cancel', feedback?: string) => {
@@ -175,12 +190,12 @@ function ExitPlanModePrompt({
       if (typing) {
         if (arrowDelta < 0) {
           setTyping(false)
-          setCursor((c) => Math.max(0, c - 1))
+          setCursorSafe((c) => Math.max(0, c - 1))
           return
         }
         if (arrowDelta > 0) {
           setTyping(false)
-          setCursor((c) => Math.min(2, c + 1))
+          setCursorSafe((c) => Math.min(2, c + 1))
           return
         }
         if (key.escape) {
@@ -194,7 +209,7 @@ function ExitPlanModePrompt({
       // If we handled navigation, stop here so split escape-sequence chunks (like the final "A"/"B")
       // don't accidentally enter typing mode or trigger numeric shortcuts.
       if (arrowDelta !== 0) {
-        setCursor((c) => Math.max(0, Math.min(2, c + arrowDelta)))
+        setCursorSafe((c) => Math.max(0, Math.min(2, c + arrowDelta)))
         return
       }
 
@@ -205,19 +220,20 @@ function ExitPlanModePrompt({
 
       // When the "custom message" row is selected, any character (including digits)
       // should start editing instead of triggering numeric shortcuts.
-      if (cursor === 2 && input && !key.ctrl && !key.meta) {
+      if (cursorRef.current === 2 && input && !key.ctrl && !key.meta) {
         setTyping(true)
         setTypingValue((v) => v + input)
         return
       }
 
-      if (input === '1') setCursor(0)
-      if (input === '2') setCursor(1)
-      if (input === '3') setCursor(2)
+      if (input === '1') setCursorSafe(0)
+      if (input === '2') setCursorSafe(1)
+      if (input === '3') setCursorSafe(2)
 
       if (key.return) {
-        if (cursor === 0) submit('auto')
-        else if (cursor === 1) submit('manual')
+        const resolvedCursor = cursorRef.current
+        if (resolvedCursor === 0) submit('auto')
+        else if (resolvedCursor === 1) submit('manual')
         else setTyping(true)
       }
     },

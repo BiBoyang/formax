@@ -175,6 +175,7 @@ describe('TextInput', () => {
     stdin.write('c')
     await tick()
 
+    await waitForFrameContains(frameText, 'abc', 30)
     expect(frameText()).toContain('abc')
   })
 

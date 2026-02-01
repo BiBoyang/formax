@@ -164,8 +164,11 @@ export default function TextInput({
     // multiple `useInput` calls (e.g. "\u001B", "[", "D"). Buffer left/right/delete sequences so
     // cursor movement works reliably in tests and in the UI.
     //
-    // Important: if Ink reports a real Escape key press (`key.escape`) and there's no buffered
-    // sequence in-progress, don't intercept it here—let higher-level handlers close dialogs.
+    // Important: if Ink reports a real Escape key press (`key.name === "escape"`) and there's no
+    // buffered sequence in-progress, don't intercept it here—let higher-level handlers close dialogs.
+    if (!escapeBufferRef.current && raw === '\u001B' && Boolean(key.escape) && keyName === 'escape') {
+      return false
+    }
     if (escapeBufferRef.current || raw.startsWith('\u001B')) {
       const buffer = escapeBufferRef.current
       const hadBufferedEscape = Boolean(buffer)
@@ -174,7 +177,7 @@ export default function TextInput({
       const horiz = consumeBufferedHorizontal({ buffer, chunk: raw })
       if (horiz.pending && horiz.delta === 0 && horiz.deletes === 0) {
         escapeBufferRef.current = horiz.nextBuffer
-        return false
+        return true
       }
 
       if (horiz.delta !== 0 || horiz.deletes !== 0) {
@@ -207,8 +210,9 @@ export default function TextInput({
         return true
       }
 
-      // Then, swallow split Up/Down sequences so they don't get inserted as literal "[A" text.
-      // We deliberately don't consume them (return false) so higher-level menus can handle them.
+      // Then, buffer Up/Down sequences (which this component does not "own") so they don't get
+      // inserted as literal "[A"/"A" text. We do not consume these so higher-level menus can
+      // handle them (and can apply their own split-sequence buffering).
       const vert = consumeBufferedArrow({ buffer, chunk: raw })
       if (vert.pending && vert.delta === 0) {
         escapeBufferRef.current = vert.nextBuffer
@@ -224,7 +228,7 @@ export default function TextInput({
       escapeBufferRef.current = ''
       // If the sequence was split across multiple chunks, swallow this chunk so it doesn't get
       // inserted as literal text (e.g. Shift+Tab delivered as ESC, '[', 'Z' would otherwise add 'Z').
-      if (hadBufferedEscape) return false
+      if (hadBufferedEscape) return true
     }
 
     const deletion = classifyDeletionKey({ keyName, raw, key })
