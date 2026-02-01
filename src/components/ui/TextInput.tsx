@@ -3,6 +3,7 @@ import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
+import { consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences.js'
 
 type TextInputProps = {
   value: string
@@ -26,9 +27,14 @@ export function classifyDeletionKey({
   keyName: string
   raw: string
   key: any
-}): 'backspace' | 'forwardDelete' | null {
-  const isForwardDelete = raw === '\u001B[3~'
-  if (isForwardDelete) return 'forwardDelete'
+}): 'backspace' | null {
+  // In practice, terminals/keyboards vary wildly in how they report "delete".
+  // For Formax UI inputs, we keep semantics simple and consistent:
+  // treat both Backspace and Delete-like sequences as "delete previous char".
+  //
+  // This matches the "delete_or_backspace" expectation users have in the REPL/overlays,
+  // and avoids subtle differences across terminals (and across Ink versions).
+  if (raw === '\u001B[3~') return 'backspace'
 
   const isBackspace =
     keyName === 'backspace' ||
@@ -80,6 +86,7 @@ export default function TextInput({
   const onChangeRef = useRef(onChange)
   const onSubmitRef = useRef(onSubmit)
   const scopeRef = useRef(scope)
+  const escapeBufferRef = useRef('')
 
   // Keep refs in sync before Ink can process the next input event.
   // `useEffect` can be too late (after a paint) and lead to stale handlers when props change quickly
@@ -135,6 +142,51 @@ export default function TextInput({
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return false
 
+    // In ink-testing-library (and in some terminals), escape sequences can arrive split across
+    // multiple `useInput` calls (e.g. "\u001B", "[", "D"). Buffer left/right/delete sequences so
+    // cursor movement works reliably in tests and in the UI.
+    //
+    // Important: if Ink reports a real Escape key press (`key.escape`) and there's no buffered
+    // sequence in-progress, don't intercept it here—let higher-level handlers close dialogs.
+    if ((escapeBufferRef.current || raw.startsWith('\u001B')) && !(key.escape && raw === '\u001B' && !escapeBufferRef.current)) {
+      const res = consumeBufferedHorizontal({ buffer: escapeBufferRef.current, chunk: raw })
+      escapeBufferRef.current = res.nextBuffer
+
+      // We only "own" horizontal sequences (left/right/delete). Anything else should bubble to higher
+      // level handlers (menus/hotkeys) while still avoiding partial escape chunks being inserted as
+      // text when ink-testing-library splits the sequence.
+      if (res.pending && res.delta === 0 && res.deletes === 0) return false
+      if (!res.pending && res.delta === 0 && res.deletes === 0) return false
+
+      if (res.delta !== 0 || res.deletes !== 0) {
+        // Apply horizontal movement.
+        if (res.delta !== 0) {
+          const next = Math.max(0, Math.min(currentCursorOffset + res.delta, currentValue.length))
+          cursorOffsetRef.current = next
+          setCursorOffset(next)
+        }
+
+        // Apply delete(s). For TextInput we treat delete as "delete previous char" (backspace).
+        if (res.deletes > 0) {
+          let nextValue = currentValue
+          let nextCursor = cursorOffsetRef.current
+          for (let i = 0; i < res.deletes; i += 1) {
+            if (nextValue.length === 0 || nextCursor <= 0) continue
+            nextValue = nextValue.slice(0, nextCursor - 1) + nextValue.slice(nextCursor)
+            nextCursor = Math.max(0, nextCursor - 1)
+          }
+          if (nextValue !== currentValue) {
+            onChangeRef.current(nextValue)
+            valueRef.current = nextValue
+            cursorOffsetRef.current = nextCursor
+            setCursorOffset(nextCursor)
+          }
+        }
+
+        return true
+      }
+    }
+
     const deletion = classifyDeletionKey({ keyName, raw, key })
     if (deletion === 'backspace') {
       if (currentValue.length > 0 && currentCursorOffset > 0) {
@@ -144,15 +196,6 @@ export default function TextInput({
         const nextCursorOffset = Math.max(0, currentCursorOffset - 1)
         cursorOffsetRef.current = nextCursorOffset
         setCursorOffset(nextCursorOffset)
-      }
-      return true
-    }
-
-    if (deletion === 'forwardDelete') {
-      if (currentValue.length > 0 && currentCursorOffset < currentValue.length) {
-        const newValue = currentValue.slice(0, currentCursorOffset) + currentValue.slice(currentCursorOffset + 1)
-        onChangeRef.current(newValue)
-        valueRef.current = newValue
       }
       return true
     }

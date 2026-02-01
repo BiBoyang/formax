@@ -26,6 +26,7 @@ export function useReplHotkeys(args: {
     agentsDialogOpen: boolean
     permissionsDialogOpen: boolean
     hooksDialogOpen: boolean
+    configDialogOpen?: boolean
     isLoading: boolean
     thinkingText: string
     transientMessages: Msg[]
@@ -71,30 +72,32 @@ export function useReplHotkeys(args: {
         if (state.agentsDialogOpen) return true
         if (state.permissionsDialogOpen) return true
         if (state.hooksDialogOpen) return true
+        if (state.configDialogOpen) return true
         if (isPromptMode) return true
 
         setExpandedTranscriptOpen(!expandedTranscriptOpen)
         return true
       }
 
-    if (key.escape) {
-      if (state.agentsDialogOpen) return true
-      if (state.permissionsDialogOpen) return true
-      if (state.hooksDialogOpen) return true
-      actions.abort()
-      return true
-    }
+      if (key.escape) {
+        if (state.agentsDialogOpen) return true
+        if (state.permissionsDialogOpen) return true
+        if (state.hooksDialogOpen) return true
+        if (state.configDialogOpen) return true
+        actions.abort()
+        return true
+      }
 
-    if (isPromptMode) return false
+      if (isPromptMode) return false
 
-    if (key.shift && key.tab) {
-      setMode((m) => {
-        const next = nextReplMode(m)
-        if (next === 'plan') ensurePlanPath()
-        return next
-      })
-      return true
-    }
+      if (key.shift && key.tab) {
+        setMode((m) => {
+          const next = nextReplMode(m)
+          if (next === 'plan') ensurePlanPath()
+          return next
+        })
+        return true
+      }
 
       return false
     },

@@ -219,11 +219,13 @@ describe('TextInput', () => {
     stdin.write('\u001B[D')
     await tick()
 
+    await waitForFrameContains(() => lastFrame() ?? '', '123▏45')
     expect(lastFrame()).toContain('123▏45')
 
     stdin.write('\x7f')
     await tick()
 
+    await waitForFrameContains(() => lastFrame() ?? '', '12▏45')
     expect(lastFrame()).toContain('12▏45')
   })
 
@@ -325,6 +327,6 @@ describe('TextInput', () => {
 
   it('treats macOS Backspace reported as delete as backspace', () => {
     expect(classifyDeletionKey({ keyName: 'delete', raw: '', key: { delete: true } })).toBe('backspace')
-    expect(classifyDeletionKey({ keyName: 'delete', raw: '\u001B[3~', key: { delete: true } })).toBe('forwardDelete')
+    expect(classifyDeletionKey({ keyName: 'delete', raw: '\u001B[3~', key: { delete: true } })).toBe('backspace')
   })
 })

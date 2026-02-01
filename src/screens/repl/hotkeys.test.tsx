@@ -47,6 +47,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
           hooksDialogOpen: false,
+          configDialogOpen: false,
           isLoading: true,
           thinkingText: 'thinking…',
           transientMessages: [] as Msg[],
@@ -91,6 +92,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen: false,
           permissionsDialogOpen: true,
           hooksDialogOpen: false,
+          configDialogOpen: false,
           isLoading: true,
           thinkingText: 'thinking…',
           transientMessages: [] as Msg[],
@@ -135,6 +137,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
           hooksDialogOpen: false,
+          configDialogOpen: false,
           isLoading: true,
           thinkingText: 'thinking…',
           transientMessages: [] as Msg[],
@@ -185,6 +188,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
           hooksDialogOpen: false,
+          configDialogOpen: false,
           isLoading: false,
           thinkingText: '',
           transientMessages: [] as Msg[],
@@ -220,16 +224,18 @@ describe('useReplHotkeys', () => {
       agentsDialogOpen,
       permissionsDialogOpen,
       hooksDialogOpen,
+      configDialogOpen,
     }: {
       agentsDialogOpen: boolean
       permissionsDialogOpen: boolean
       hooksDialogOpen: boolean
+      configDialogOpen: boolean
     }) => {
       useReplHotkeys({
         actions,
         ensurePlanPath: () => {},
         setMode,
-        isPromptMode: agentsDialogOpen || permissionsDialogOpen || hooksDialogOpen,
+        isPromptMode: agentsDialogOpen || permissionsDialogOpen || hooksDialogOpen || configDialogOpen,
         userInput: null,
         toolRegistry: undefined,
         allMessages: [] as Msg[],
@@ -239,6 +245,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen,
           permissionsDialogOpen,
           hooksDialogOpen,
+          configDialogOpen,
           isLoading: false,
           thinkingText: '',
           transientMessages: [] as Msg[],
@@ -254,7 +261,12 @@ describe('useReplHotkeys', () => {
 
     const ui = render(
       <InputScopeProvider initialScope="repl">
-        <Harness agentsDialogOpen={false} permissionsDialogOpen={false} hooksDialogOpen={false} />
+        <Harness
+          agentsDialogOpen={false}
+          permissionsDialogOpen={false}
+          hooksDialogOpen={false}
+          configDialogOpen={false}
+        />
       </InputScopeProvider>,
     )
 
@@ -267,6 +279,7 @@ describe('useReplHotkeys', () => {
       agentsDialogOpen: boolean
       permissionsDialogOpen: boolean
       hooksDialogOpen: boolean
+      configDialogOpen: boolean
     }) => {
       actions.abort.mockClear()
       ui.rerender(
@@ -275,24 +288,40 @@ describe('useReplHotkeys', () => {
             agentsDialogOpen={state.agentsDialogOpen}
             permissionsDialogOpen={state.permissionsDialogOpen}
             hooksDialogOpen={state.hooksDialogOpen}
+            configDialogOpen={state.configDialogOpen}
           />
         </InputScopeProvider>,
       )
     }
 
-    rerenderWith({ agentsDialogOpen: true, permissionsDialogOpen: false, hooksDialogOpen: false })
+    rerenderWith({
+      agentsDialogOpen: true,
+      permissionsDialogOpen: false,
+      hooksDialogOpen: false,
+      configDialogOpen: false,
+    })
     await tick()
     ui.stdin.write('\u001B')
     await tick()
     expect(actions.abort).toHaveBeenCalledTimes(0)
 
-    rerenderWith({ agentsDialogOpen: false, permissionsDialogOpen: true, hooksDialogOpen: false })
+    rerenderWith({
+      agentsDialogOpen: false,
+      permissionsDialogOpen: true,
+      hooksDialogOpen: false,
+      configDialogOpen: false,
+    })
     await tick()
     ui.stdin.write('\u001B')
     await tick()
     expect(actions.abort).toHaveBeenCalledTimes(0)
 
-    rerenderWith({ agentsDialogOpen: false, permissionsDialogOpen: false, hooksDialogOpen: true })
+    rerenderWith({
+      agentsDialogOpen: false,
+      permissionsDialogOpen: false,
+      hooksDialogOpen: true,
+      configDialogOpen: false,
+    })
     await tick()
     ui.stdin.write('\u001B')
     await tick()
@@ -324,6 +353,7 @@ describe('useReplHotkeys', () => {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
           hooksDialogOpen: false,
+          configDialogOpen: false,
           isLoading: false,
           thinkingText: '',
           transientMessages: [] as Msg[],
@@ -362,4 +392,3 @@ describe('useReplHotkeys', () => {
     expect(lowerPriority).not.toHaveBeenCalled()
   })
 })
-

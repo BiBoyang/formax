@@ -124,7 +124,11 @@ export function ConfirmMenu({
       const patchedKey = key as any
       const currentCursor = cursorRef.current
 
-      if (patchedKey.shift && patchedKey.tab && onShiftTab) {
+      // `ink-testing-library` and some terminals provide Shift+Tab as a raw escape sequence
+      // (either "\u001B[Z" or "\u001BOZ") instead of `key.shift + key.tab`.
+      // Support both so scope cycling is reliable and testable.
+      const isShiftTabSequence = token === '\u001B[Z' || token === '\u001BOZ'
+      if (((patchedKey.shift && patchedKey.tab) || isShiftTabSequence) && onShiftTab) {
         if (isTyping) setTypingImmediate(false)
         onShiftTab()
         setCursorImmediate(clamp(shiftTabCursor, 0, options.length - 1))

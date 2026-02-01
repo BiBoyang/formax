@@ -14,6 +14,18 @@ export type BufferedArrowResult = {
   pending: boolean
 }
 
+export type BufferedHorizontalResult = {
+  nextBuffer: string
+  /**
+   * Net movement:
+   * - negative => left
+   * - positive => right
+   */
+  delta: number
+  deletes: number
+  pending: boolean
+}
+
 /**
  * Some terminals (and ink-testing-library) may split arrow-key escape sequences across multiple
  * `useInput` callbacks. This helper incrementally buffers ESC-prefixed input and emits a semantic
@@ -69,4 +81,67 @@ export function consumeBufferedArrow(params: { buffer: string; chunk: string }):
   }
 
   return { nextBuffer: '', delta, pending: false }
+}
+
+/**
+ * Like `consumeBufferedArrow`, but for horizontal arrows and forward-delete.
+ *
+ * Supported sequences:
+ * - Left:   ESC [ D   (\\u001B[D)   or ESC O D (\\u001BOD)
+ * - Right:  ESC [ C   (\\u001B[C)   or ESC O C (\\u001BOC)
+ * - Delete: ESC [ 3 ~ (\\u001B[3~)
+ */
+export function consumeBufferedHorizontal(params: { buffer: string; chunk: string }): BufferedHorizontalResult {
+  const buffer = params.buffer
+  const chunk = params.chunk
+
+  if (!chunk) return { nextBuffer: buffer, delta: 0, deletes: 0, pending: false }
+
+  let nextBuf = buffer + chunk
+  if (!nextBuf.startsWith('\u001B')) return { nextBuffer: '', delta: 0, deletes: 0, pending: false }
+
+  let delta = 0
+  let deletes = 0
+  while (nextBuf.length > 0) {
+    if (nextBuf.startsWith('\u001B[D') || nextBuf.startsWith('\u001BOD')) {
+      delta -= 1
+      nextBuf = nextBuf.slice(3)
+      continue
+    }
+
+    if (nextBuf.startsWith('\u001B[C') || nextBuf.startsWith('\u001BOC')) {
+      delta += 1
+      nextBuf = nextBuf.slice(3)
+      continue
+    }
+
+    if (nextBuf.startsWith('\u001B[3~')) {
+      deletes += 1
+      nextBuf = nextBuf.slice(4)
+      continue
+    }
+
+    if (
+      nextBuf === '\u001B' ||
+      nextBuf === '\u001B[' ||
+      nextBuf === '\u001BO' ||
+      nextBuf === '\u001B[3' ||
+      nextBuf === '\u001B[3~'.slice(0, nextBuf.length)
+    ) {
+      return { nextBuffer: nextBuf, delta, deletes, pending: true }
+    }
+
+    if (
+      nextBuf === '\u001B' ||
+      (nextBuf.startsWith('\u001B[') && nextBuf.length < 3) ||
+      (nextBuf.startsWith('\u001BO') && nextBuf.length < 3) ||
+      (nextBuf.startsWith('\u001B[3') && nextBuf.length < 4)
+    ) {
+      return { nextBuffer: nextBuf, delta, deletes, pending: true }
+    }
+
+    return { nextBuffer: '', delta, deletes, pending: false }
+  }
+
+  return { nextBuffer: '', delta, deletes, pending: false }
 }
