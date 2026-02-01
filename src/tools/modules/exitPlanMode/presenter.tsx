@@ -157,12 +157,11 @@ function ExitPlanModePrompt({
       if (submittedRef.current) return
       const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
       const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-      const isBareEscape = Boolean(key.escape) && token === '\u001B' && !escapeBufferRef.current
 
       // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
       // Buffer ESC chunks so Up/Down works reliably even when `key.upArrow` isn't set.
       let bufferedDelta = 0
-      if (!isBareEscape && (escapeBufferRef.current || token.startsWith('\u001B')) && !key.upArrow && !key.downArrow) {
+      if ((escapeBufferRef.current || token.startsWith('\u001B')) && !key.upArrow && !key.downArrow) {
         const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
         escapeBufferRef.current = res.nextBuffer
         if (res.pending && res.delta === 0) return
@@ -192,8 +191,12 @@ function ExitPlanModePrompt({
         return
       }
 
-      if (arrowDelta < 0) setCursor((c) => Math.max(0, c - 1))
-      if (arrowDelta > 0) setCursor((c) => Math.min(2, c + 1))
+      // If we handled navigation, stop here so split escape-sequence chunks (like the final "A"/"B")
+      // don't accidentally enter typing mode or trigger numeric shortcuts.
+      if (arrowDelta !== 0) {
+        setCursor((c) => Math.max(0, Math.min(2, c + arrowDelta)))
+        return
+      }
 
       if (key.escape) {
         submit('cancel')

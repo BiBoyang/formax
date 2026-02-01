@@ -178,6 +178,31 @@ describe('TextInput', () => {
     expect(frameText()).toContain('abc')
   })
 
+  it('does not insert stray bytes from split non-arrow escape sequences', async () => {
+    const { stdin, lastFrame } = render(<Wrapper />)
+    const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')
+
+    await tick()
+    stdin.write('a')
+    await tick()
+    await waitForFrameContains(frameText, 'a')
+
+    // Shift+Tab is commonly sent as ESC[Z. When delivered as split chunks,
+    // TextInput should not insert the trailing "Z" into the value.
+    stdin.write('\u001B')
+    await tick()
+    stdin.write('[')
+    await tick()
+    stdin.write('Z')
+    await tick()
+
+    stdin.write('b')
+    await tick()
+    await waitForFrameContains(frameText, 'ab')
+
+    expect(frameText()).not.toContain('Z')
+  })
+
   it('supports backspace removal at end of line', async () => {
     const { stdin, lastFrame } = render(<Wrapper />)
     const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')

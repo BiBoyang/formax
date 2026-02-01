@@ -87,6 +87,7 @@ export default function TextInput({
   const onSubmitRef = useRef(onSubmit)
   const scopeRef = useRef(scope)
   const escapeBufferRef = useRef('')
+  const bareEscapePendingRef = useRef(false)
 
   // Keep refs in sync before Ink can process the next input event.
   // `useEffect` can be too late (after a paint) and lead to stale handlers when props change quickly
@@ -142,6 +143,23 @@ export default function TextInput({
     // Tab is reserved for higher-level navigation (e.g. mode/menus). Treat it as non-text input here.
     if (key.tab || input === '\t') return false
 
+    // Some environments deliver Escape as a key event with an empty `input`/`sequence`,
+    // then deliver the rest of an escape sequence in subsequent chunks (e.g. '[', 'Z').
+    // Track that case so we can buffer the follow-up bytes without dropping normal typing.
+    if (!raw && Boolean(key.escape)) {
+      bareEscapePendingRef.current = true
+      return false
+    }
+
+    if (bareEscapePendingRef.current) {
+      if (raw === '[' || raw === 'O') {
+        bareEscapePendingRef.current = false
+        escapeBufferRef.current = '\u001B'
+      } else {
+        bareEscapePendingRef.current = false
+      }
+    }
+
     // In ink-testing-library (and in some terminals), escape sequences can arrive split across
     // multiple `useInput` calls (e.g. "\u001B", "[", "D"). Buffer left/right/delete sequences so
     // cursor movement works reliably in tests and in the UI.
@@ -150,6 +168,7 @@ export default function TextInput({
     // sequence in-progress, don't intercept it here—let higher-level handlers close dialogs.
     if (escapeBufferRef.current || raw.startsWith('\u001B')) {
       const buffer = escapeBufferRef.current
+      const hadBufferedEscape = Boolean(buffer)
 
       // First, try the horizontal/delete sequences that this component "owns".
       const horiz = consumeBufferedHorizontal({ buffer, chunk: raw })
@@ -203,6 +222,9 @@ export default function TextInput({
 
       // Unknown/unsupported escape sequence (or a lone ESC). Clear the buffer so normal input isn't blocked.
       escapeBufferRef.current = ''
+      // If the sequence was split across multiple chunks, swallow this chunk so it doesn't get
+      // inserted as literal text (e.g. Shift+Tab delivered as ESC, '[', 'Z' would otherwise add 'Z').
+      if (hadBufferedEscape) return false
     }
 
     const deletion = classifyDeletionKey({ keyName, raw, key })

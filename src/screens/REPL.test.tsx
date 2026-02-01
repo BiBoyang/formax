@@ -240,23 +240,30 @@ describe('REPL', () => {
       const { stdin, lastFrame } = render(<REPL engine={clearEngine} tools={[]} cfg={cfg} />)
       await tick()
 
+      const waitForIdlePrompt = async () => {
+        // When the input is empty, REPL shows the placeholder ("Try ...").
+        // Under Ink 6 + React 19 batching (especially with coverage), it can take a couple ticks
+        // for the input field to clear after pressing Enter.
+        await waitForFrame(lastFrame, (f) => f.includes('Try "fix typecheck errors"'), 15000)
+      }
+
       stdin.write('hi')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
-      await sleep(25)
+      await waitForIdlePrompt()
 
       stdin.write('hi2')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:2'))
-      await sleep(25)
+      await waitForIdlePrompt()
 
       stdin.write('/clear')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => !f.includes('HISTLEN:2'))
-      await sleep(25)
+      await waitForIdlePrompt()
 
       stdin.write('hi3')
       await tick()
