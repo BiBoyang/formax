@@ -47,6 +47,8 @@ Goal: changing a value in `/config` updates the right file immediately and persi
 - [ ] Implement Output style injection in Formax’s next-turn injected blocks:
   - [ ] Inject a short style reminder block (similar role/type as other injected blocks) before the user’s message.
   - [ ] Keep it out of UI transcript (or mark it as injected-only), consistent with existing command output vs model context separation.
+  - [ ] Injection rule: only `/config` changes that affect prompt semantics should set `recordForNextTurn` (currently Output style). UI-only `/config` changes (e.g. Verbose output) should NOT inject `<command-name>`/`<local-command-stdout>`.
+
 - [ ] Add an integration-ish test to assert the injected block exists when Output style ≠ Default.
 
 ### Thinking mode (API request parameter)
@@ -82,3 +84,8 @@ Keep `/config` exit output aligned with Claude Code:
 
 - No persisted changes → `Status dialog dismissed`
 - With persisted changes → `Set <field> to <value>` (prefer showing only the last change for v0)
+
+## Notes — Injection parity
+
+- `/todos` output is injected into the next request (via `<command-name>` + `<local-command-stdout>`).
+- `/config` output is injected only when the change affects prompt semantics (currently: Output style).
