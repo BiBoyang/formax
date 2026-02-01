@@ -560,6 +560,7 @@ describe('AgentsDialog', () => {
 
     stdin.write('\u001B[B')
     await tick()
+    await waitForText(lastFrame, '> 2. Manual configuration', 15000)
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Agent name')
