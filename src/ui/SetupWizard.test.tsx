@@ -155,7 +155,7 @@ describe('SetupWizard', () => {
     stdin.write('X')
     await tick()
 
-    expect(lastFrame()).toContain('abcXde')
+    await waitForText(lastFrame, 'abcXde')
   })
 
   it('supports cursor movement in masked API Key input', async () => {
@@ -179,6 +179,7 @@ describe('SetupWizard', () => {
     await tick()
 
     const countBullets = () => (lastFrame() || '').split('•').length - 1
+    await waitForText(lastFrame, '•')
     expect(countBullets()).toBeGreaterThan(0)
 
     // Move cursor left in the input to ensure key events are handled (even though display is masked).

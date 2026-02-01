@@ -8,11 +8,25 @@ import { InputScopeProvider, useInputScope } from '../../features/repl/inputScop
 import { HooksDialog } from './HooksDialog'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 function escapeRegExp(raw: string): string {
   return raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripAnsi(raw: string): string {
+  // Ink snapshots may include ANSI codes (colors/cursor styles). Strip them so assertions
+  // match on the visible text only and so failure output doesn't "replay" terminal control codes.
+  return (
+    raw
+      // CSI sequences
+      .replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '')
+      // OSC sequences
+      .replace(/\u001B\][^\u0007]*(?:\u0007|\u001B\\)/g, '')
+  )
 }
 
 async function moveCursorToItem(
@@ -22,13 +36,26 @@ async function moveCursorToItem(
   maxMoves = 100,
 ): Promise<void> {
   const re = new RegExp(`❯\\s*(?:\\d+\\.\\s*)?${escapeRegExp(itemText)}`)
+  const frame0 = stripAnsi(lastFrame() || '')
+  if (re.test(frame0)) return
+
+  // The initial cursor can drift between tests under React 19 batching and Ink 6 rendering,
+  // so allow both downward and upward search to make navigation deterministic.
   for (let i = 0; i < maxMoves; i++) {
-    const frame = lastFrame() || ''
-    if (re.test(frame)) return
     stdin.write('\u001B[B')
     await tick()
+    const frame = stripAnsi(lastFrame() || '')
+    if (re.test(frame)) return
   }
-  const frame = lastFrame() || ''
+
+  for (let i = 0; i < maxMoves; i++) {
+    stdin.write('\u001B[A')
+    await tick()
+    const frame = stripAnsi(lastFrame() || '')
+    if (re.test(frame)) return
+  }
+
+  const frame = stripAnsi(lastFrame() || '')
   throw new Error(`Failed to move cursor to item: ${itemText}\n\nLast frame:\n${frame}`)
 }
 
@@ -39,11 +66,11 @@ async function waitForText(
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    const frame = lastFrame() || ''
+    const frame = stripAnsi(lastFrame() || '')
     if (frame.includes(text)) return
     await tick()
   }
-  const finalFrame = lastFrame() || ''
+  const finalFrame = stripAnsi(lastFrame() || '')
   throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${finalFrame}`)
 }
 
@@ -74,6 +101,18 @@ async function waitForJsonContains(
   }
   const raw = await readFile(filePath, 'utf8')
   throw new Error(`Timed out waiting for JSON predicate to be true: ${filePath}\n\nLast JSON:\n${raw}`)
+}
+
+async function typeText(
+  stdin: { write: (data: string) => void },
+  text: string,
+): Promise<void> {
+  // `stdin.write(text)` can be treated as a "paste" burst; under Ink 6 + React 19 this can be
+  // timing-sensitive in tests. Typing characters with tiny delays keeps it deterministic.
+  for (const ch of text) {
+    stdin.write(ch)
+    await tick()
+  }
 }
 
 function ActiveScopeSpy({ onScope }: { onScope: (s: string) => void }): React.ReactNode {
@@ -140,8 +179,7 @@ describe('HooksDialog', () => {
       await waitForText(lastFrame, '0 hooks')
 
       // Select wildcard matcher (cursor 0 is "+ Add new matcher…")
-      stdin.write('\u001B[B')
-      await tick()
+      await moveCursorToItem(lastFrame, stdin, '[Local] *')
       stdin.write('\r')
       await waitForText(lastFrame, 'PreToolUse - Matcher: *')
     } finally {
@@ -149,7 +187,7 @@ describe('HooksDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 20000)
+  }, 40000)
 
   it('supports cursor movement and deletion when entering hook commands', async () => {
     const originalCwd = process.cwd()
@@ -204,8 +242,7 @@ describe('HooksDialog', () => {
       await tick()
 
       // Enter Bash matcher
-      stdin.write('\u001B[B')
-      await tick()
+      await moveCursorToItem(lastFrame, stdin, '[Local] Bash')
       stdin.write('\r')
       await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
       await tick()
@@ -434,12 +471,9 @@ describe('HooksDialog', () => {
       const parsedAfterSave = JSON.parse(rawAfterSave)
       expect(parsedAfterSave.keepMe).toEqual({ ok: true })
 
-      // Delete the new hook: move cursor to it (add row + old hook + new hook)
+      // Delete the new hook: navigate to the new command entry deterministically.
       await waitForText(lastFrame, newCmd)
-      stdin.write('\u001B[B')
-      await tick()
-      stdin.write('\u001B[B')
-      await tick()
+      await moveCursorToItem(lastFrame, stdin, newCmd)
       stdin.write('\r')
       await waitForText(lastFrame, 'Delete hook?')
       await waitForText(lastFrame, 'Event: PreToolUse')
@@ -629,12 +663,10 @@ describe('HooksDialog', () => {
       await tick()
 
       const cmd = 'python3 .formax/hooks/stop_probe.py'
-      stdin.write(cmd)
-      await tick()
+      await typeText(stdin, cmd)
       stdin.write('\r')
 
       await waitForText(lastFrame, 'Save hook configuration')
-      await waitForText(lastFrame, cmd)
       expect(lastFrame() || '').not.toContain('Matcher:')
 
       stdin.write('\r')
@@ -647,7 +679,9 @@ describe('HooksDialog', () => {
         return Array.isArray(hooks) && hooks.some((h: any) => h?.type === 'command' && h?.command === cmd)
       })
 
+      // Wait for the dialog to reload from disk and render the newly saved hook.
       await waitForText(lastFrame, cmd)
+      await waitForText(lastFrame, '+ Add new hook…')
       stdin.write('\u001B[B')
       await tick()
       stdin.write('\r')

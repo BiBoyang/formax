@@ -10,34 +10,36 @@ import type { PromptBlock, PromptMessage } from '../prompts'
  * Feature: tool-ui-refactor
  * Property 4: Chat Functionality Preservation
  * Validates: Requirements 2.2
- * 
+ *
  * For any chat interaction sequence, the refactored REPL should
  * behave identically to the original implementation in terms of message
  * handling, streaming, and user interactions.
  */
 describe('REPL', () => {
   function tick(): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, 0))
+    // Ink 6 + React 19 can batch/schedule updates differently (especially under coverage).
+    // A tiny delay makes frame polling more reliable without changing behavior.
+    return new Promise((resolve) => setTimeout(resolve, 5))
   }
 
   function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-	  async function waitForFrame(
-	    lastFrame: () => string | undefined,
-	    predicate: (frame: string) => boolean,
-	    timeoutMs = 1500,
-	  ): Promise<string> {
-	    const start = Date.now()
-	    while (Date.now() - start < timeoutMs) {
-	      const frame = lastFrame() || ''
-	      if (predicate(frame)) return frame
-	      await tick()
-	    }
-	    const last = lastFrame() || ''
-	    throw new Error(`Timed out waiting for UI update.\n\nLast frame:\n${last}`)
-	  }
+  async function waitForFrame(
+    lastFrame: () => string | undefined,
+    predicate: (frame: string) => boolean,
+    timeoutMs = 10000,
+  ): Promise<string> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const frame = lastFrame() || ''
+      if (predicate(frame)) return frame
+      await tick()
+    }
+    const last = lastFrame() || ''
+    throw new Error(`Timed out waiting for UI update.\n\nLast frame:\n${last}`)
+  }
 
   const engine: ChatEngine = {
     async runTurn({ history }) {

@@ -11,6 +11,7 @@ import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
+import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -136,6 +137,7 @@ function ExitPlanModePrompt({
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
   const submittedRef = useRef(false)
+  const escapeBufferRef = useRef('')
 
   const submit = useCallback(
     (kind: 'auto' | 'manual' | 'feedback' | 'cancel', feedback?: string) => {
@@ -153,14 +155,31 @@ function ExitPlanModePrompt({
     scope,
     (input, key) => {
       if (submittedRef.current) return
+      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
+      const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+      const isBareEscape = Boolean(key.escape) && token === '\u001B' && !escapeBufferRef.current
+
+      // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
+      // Buffer ESC chunks so Up/Down works reliably even when `key.upArrow` isn't set.
+      let bufferedDelta = 0
+      if (!isBareEscape && (escapeBufferRef.current || token.startsWith('\u001B')) && !key.upArrow && !key.downArrow) {
+        const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
+        escapeBufferRef.current = res.nextBuffer
+        if (res.pending && res.delta === 0) return
+        bufferedDelta = res.delta
+      } else if (!token.startsWith('\u001B')) {
+        escapeBufferRef.current = ''
+      }
+
+      const arrowDelta = (key.upArrow ? -1 : 0) + (key.downArrow ? 1 : 0) + bufferedDelta
 
       if (typing) {
-        if (key.upArrow) {
+        if (arrowDelta < 0) {
           setTyping(false)
           setCursor((c) => Math.max(0, c - 1))
           return
         }
-        if (key.downArrow) {
+        if (arrowDelta > 0) {
           setTyping(false)
           setCursor((c) => Math.min(2, c + 1))
           return
@@ -173,8 +192,8 @@ function ExitPlanModePrompt({
         return
       }
 
-      if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-      if (key.downArrow) setCursor((c) => Math.min(2, c + 1))
+      if (arrowDelta < 0) setCursor((c) => Math.max(0, c - 1))
+      if (arrowDelta > 0) setCursor((c) => Math.min(2, c + 1))
 
       if (key.escape) {
         submit('cancel')

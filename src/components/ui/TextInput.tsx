@@ -3,7 +3,7 @@ import { Text, useInput } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
-import { consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences.js'
+import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences.js'
 
 type TextInputProps = {
   value: string
@@ -148,29 +148,31 @@ export default function TextInput({
     //
     // Important: if Ink reports a real Escape key press (`key.escape`) and there's no buffered
     // sequence in-progress, don't intercept it here—let higher-level handlers close dialogs.
-    if ((escapeBufferRef.current || raw.startsWith('\u001B')) && !(key.escape && raw === '\u001B' && !escapeBufferRef.current)) {
-      const res = consumeBufferedHorizontal({ buffer: escapeBufferRef.current, chunk: raw })
-      escapeBufferRef.current = res.nextBuffer
+    if (escapeBufferRef.current || raw.startsWith('\u001B')) {
+      const buffer = escapeBufferRef.current
 
-      // We only "own" horizontal sequences (left/right/delete). Anything else should bubble to higher
-      // level handlers (menus/hotkeys) while still avoiding partial escape chunks being inserted as
-      // text when ink-testing-library splits the sequence.
-      if (res.pending && res.delta === 0 && res.deletes === 0) return false
-      if (!res.pending && res.delta === 0 && res.deletes === 0) return false
+      // First, try the horizontal/delete sequences that this component "owns".
+      const horiz = consumeBufferedHorizontal({ buffer, chunk: raw })
+      if (horiz.pending && horiz.delta === 0 && horiz.deletes === 0) {
+        escapeBufferRef.current = horiz.nextBuffer
+        return false
+      }
 
-      if (res.delta !== 0 || res.deletes !== 0) {
+      if (horiz.delta !== 0 || horiz.deletes !== 0) {
+        escapeBufferRef.current = horiz.nextBuffer
+
         // Apply horizontal movement.
-        if (res.delta !== 0) {
-          const next = Math.max(0, Math.min(currentCursorOffset + res.delta, currentValue.length))
+        if (horiz.delta !== 0) {
+          const next = Math.max(0, Math.min(currentCursorOffset + horiz.delta, currentValue.length))
           cursorOffsetRef.current = next
           setCursorOffset(next)
         }
 
         // Apply delete(s). For TextInput we treat delete as "delete previous char" (backspace).
-        if (res.deletes > 0) {
+        if (horiz.deletes > 0) {
           let nextValue = currentValue
           let nextCursor = cursorOffsetRef.current
-          for (let i = 0; i < res.deletes; i += 1) {
+          for (let i = 0; i < horiz.deletes; i += 1) {
             if (nextValue.length === 0 || nextCursor <= 0) continue
             nextValue = nextValue.slice(0, nextCursor - 1) + nextValue.slice(nextCursor)
             nextCursor = Math.max(0, nextCursor - 1)
@@ -185,6 +187,22 @@ export default function TextInput({
 
         return true
       }
+
+      // Then, swallow split Up/Down sequences so they don't get inserted as literal "[A" text.
+      // We deliberately don't consume them (return false) so higher-level menus can handle them.
+      const vert = consumeBufferedArrow({ buffer, chunk: raw })
+      if (vert.pending && vert.delta === 0) {
+        escapeBufferRef.current = vert.nextBuffer
+        return false
+      }
+
+      if (vert.delta !== 0) {
+        escapeBufferRef.current = vert.nextBuffer
+        return false
+      }
+
+      // Unknown/unsupported escape sequence (or a lone ESC). Clear the buffer so normal input isn't blocked.
+      escapeBufferRef.current = ''
     }
 
     const deletion = classifyDeletionKey({ keyName, raw, key })

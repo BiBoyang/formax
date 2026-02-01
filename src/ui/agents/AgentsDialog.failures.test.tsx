@@ -32,6 +32,29 @@ async function pressDown(stdin: { write: (s: string) => void }, times: number): 
   }
 }
 
+function isActiveRow(frame: string, label: string): boolean {
+  return frame
+    .split('\n')
+    .some((line) => {
+      if (!line.includes(label)) return false
+      return /[>❯]\s*/.test(line)
+    })
+}
+
+async function moveDownUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (s: string) => void },
+  label: string,
+  maxSteps = 40,
+): Promise<void> {
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (isActiveRow(lastFrame() || '', label)) return
+    stdin.write('\u001B[B')
+    await tick()
+  }
+  throw new Error(`Timed out moving cursor to active row: ${label}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
 describe('AgentsDialog (failures)', () => {
   it('shows a generate failure error and returns to the description input on Enter', async () => {
     const onExit = vi.fn()
@@ -124,19 +147,22 @@ describe('AgentsDialog (failures)', () => {
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Creation method')
-    stdin.write('\u001B[B')
-    await tick()
+    for (let i = 0; i < 3; i += 1) await tick()
+    await moveDownUntilActiveRow(lastFrame, stdin, 'Manual configuration')
     stdin.write('\r')
     await tick()
+    await waitForText(lastFrame, 'Write manually')
     await waitForText(lastFrame, 'Agent name (used as subagent_type):')
 
     stdin.write('fail-agent')
     await tick()
+    await waitForText(lastFrame, 'fail-agent')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Description (tells Formax when to use this agent):')
     stdin.write('desc')
     await tick()
+    await waitForText(lastFrame, 'desc')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Select tools')

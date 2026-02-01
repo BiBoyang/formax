@@ -9,7 +9,17 @@ import type { UserInputManager } from '../../runtime/userInputManager'
 import { WebSearchToolPresenter } from './presenter'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  return new Promise((resolve) => setTimeout(resolve, 5))
+}
+
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 15000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const frame = lastFrame() || ''
+    if (frame.includes(text)) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
 }
 
 function renderWithProviders(args: { message: Msg; userInput?: UserInputManager | null }) {
@@ -98,7 +108,7 @@ describe('WebSearchToolPresenter', () => {
     expect(lastFrame()).toContain('Do you want to search the web?')
 
     stdin.write('\u001B[Z') // Shift+Tab -> remember row, scope project
-    await tick()
+    await waitForText(lastFrame, 'remember for project')
 
     stdin.write('\r')
     await tick()

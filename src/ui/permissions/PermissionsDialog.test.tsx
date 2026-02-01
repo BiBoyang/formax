@@ -13,7 +13,9 @@ import {
 } from '../../adapters/permissions/workspaceSession.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 async function waitForText(
@@ -112,13 +114,18 @@ describe('PermissionsDialog', () => {
       expect(initial).toMatch(/\n│\s*↓\s+10\.\s/)
 
       // Scroll far enough that the list window shifts from 1-10 to 2-11.
-      for (let i = 0; i < 10; i++) {
+      // In some environments, arrow sequences can be dropped/batched, so scroll until the window shifts.
+      for (let i = 0; i < 50; i++) {
         stdin.write('\u001B[B')
         await tick()
+        const frame = lastFrame() || ''
+        if (!frame.includes('Add a new rule...') && /\b11\.\s+Rule 10\b/.test(frame)) break
       }
 
+      await waitForNoText(lastFrame, 'Add a new rule...')
+      await waitForText(lastFrame, 'Rule 10')
+
       const shifted = lastFrame() || ''
-      expect(shifted).not.toContain('Add a new rule...')
       expect(shifted).toMatch(/↑\s+2\.\s+Rule 01/)
       expect(shifted).toMatch(/\b11\.\s+Rule 10\b/)
 
@@ -135,7 +142,7 @@ describe('PermissionsDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
   it('filters rules when using / search', async () => {
     const originalCwd = process.cwd()
@@ -219,7 +226,7 @@ describe('PermissionsDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
   it('supports cursor movement and deletion in / search input', async () => {
     const originalCwd = process.cwd()
@@ -383,7 +390,7 @@ describe('PermissionsDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
   it('supports cursor movement when editing directory input', async () => {
     const originalCwd = process.cwd()

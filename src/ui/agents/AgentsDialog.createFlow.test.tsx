@@ -146,10 +146,10 @@ describe('AgentsDialog (create flow)', () => {
     await tick()
     await waitForText(lastFrame, 'No tools selected')
 
-    await pressUp(stdin, 1) // cursor 0: [ Continue ]
+    await moveUpUntilActiveRow(lastFrame, stdin, '[ Continue ]')
     stdin.write('\r')
     await tick()
-    await waitForText(lastFrame, 'Error: Select at least one tool.')
+    await waitForText(lastFrame, 'Error: Select at least one tool.', 15000)
 
     // Enter returns to tools view
     stdin.write('\r')
@@ -249,5 +249,5 @@ describe('AgentsDialog (create flow)', () => {
     expect(onExit.mock.calls[0]?.[0]?.createdAgents).toEqual(['my-agent'])
 
     unmount()
-  }, 15000)
+  }, 30000)
 })

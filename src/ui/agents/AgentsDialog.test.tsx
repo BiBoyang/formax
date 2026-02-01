@@ -8,17 +8,23 @@ import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
 import { AgentsDialog } from './AgentsDialog.js'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 5000): Promise<void> {
+async function waitForText(lastFrame: () => string | undefined, text: string, timeoutMs = 15000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const frame = lastFrame() || ''
     if (frame.includes(text)) return
     await tick()
   }
-  throw new Error(`Timed out waiting for UI to contain: ${text}`)
+  throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
+function escapeRegExp(raw: string): string {
+  return raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function moveUpUntilActiveRow(
@@ -31,6 +37,28 @@ async function moveUpUntilActiveRow(
     const frame = lastFrame() || ''
     if (frame.includes(`> ${rowText}`)) return
     stdin.write('\u001B[A')
+    await tick()
+  }
+  throw new Error(`Failed to move selection to row: ${rowText}`)
+}
+
+async function moveDownUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  rowText: string,
+  maxMoves = 20,
+): Promise<void> {
+  const gtRe = new RegExp(`>\\s*(?:\\d+\\.)?\\s*${escapeRegExp(rowText)}\\b`)
+  const isActive = (frame: string): boolean =>
+    gtRe.test(frame) ||
+    frame
+      .split('\n')
+      .some((line) => line.includes(rowText) && line.includes('❯'))
+
+  for (let i = 0; i < maxMoves; i++) {
+    const frame = lastFrame() || ''
+    if (isActive(frame)) return
+    stdin.write('\u001B[B')
     await tick()
   }
   throw new Error(`Failed to move selection to row: ${rowText}`)
@@ -87,7 +115,7 @@ describe('AgentsDialog', () => {
 
     expect(onExit).not.toHaveBeenCalled()
     unmount()
-  }, 15000)
+  }, 30000)
 
   it('exits on Esc from the list view', async () => {
     const onExit = vi.fn()
@@ -272,23 +300,24 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Creation method')
 
     // Navigate to manual option
-    stdin.write('\u001B[B')
-    await tick()
+    await moveDownUntilActiveRow(lastFrame, stdin, 'Manual configuration')
     stdin.write('\r')
     await tick()
-    await waitForText(lastFrame, 'Agent name')
+    await waitForText(lastFrame, 'Write manually')
+    await waitForText(lastFrame, 'Agent name (used as subagent_type):')
 
     // Type agent name
     stdin.write('test-agent')
     await tick()
+    await waitForText(lastFrame, 'test-agent')
     stdin.write('\r')
     await tick()
-    await waitForText(lastFrame, 'Description')
+    await waitForText(lastFrame, 'Description (tells Formax when to use this agent):')
 
     // Type description
     stdin.write('A test agent for testing')
     await tick()
-    expect(lastFrame()).toContain('A test agent for testing')
+    await waitForText(lastFrame, 'A test agent for testing')
 
     unmount()
   })

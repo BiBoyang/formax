@@ -22,6 +22,17 @@ async function waitForFrameContains(
   }
 }
 
+async function waitForFrameNotContains(
+  getFrame: () => string,
+  expected: string,
+  tries = 10,
+): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    if (!getFrame().includes(expected)) return
+    await tick()
+  }
+}
+
 function Wrapper(): React.ReactNode {
   const [value, setValue] = useState('')
   return (
@@ -141,12 +152,15 @@ describe('TextInput', () => {
     await tick()
     stdin.write('b')
     await tick()
+    await waitForFrameContains(frameText, 'ab', 200)
 
     stdin.write('\u001B[D')
     await tick()
     stdin.write('\u001B[3~')
     await tick()
 
+    await waitForFrameContains(frameText, 'b', 200)
+    await waitForFrameNotContains(frameText, 'a', 200)
     expect(frameText()).toContain('b')
     expect(frameText()).not.toContain('a')
   })

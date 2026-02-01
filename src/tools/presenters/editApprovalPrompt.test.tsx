@@ -6,13 +6,15 @@ import { ReplUiProvider } from '../../features/repl/replUiContext'
 import { EditApprovalPrompt } from './editApprovalPrompt'
 
 function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
+  // A tiny delay keeps these UI/input tests deterministic.
+  return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
 async function waitForFrame(
   lastFrame: () => string | undefined,
   predicate: (frame: string) => boolean,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<string> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {

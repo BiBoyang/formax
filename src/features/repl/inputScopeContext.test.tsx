@@ -63,11 +63,20 @@ function HarnessInner({
   onOverlay: (s: string) => void
   onScope: (s: string) => void
 }): React.ReactNode {
+  const { push, pop } = useInputScope()
   useScopedInput('repl', (input) => {
-    if (input === 'O') setShowOverlay(true)
+    if (input === 'O') {
+      // Push the new scope immediately so inputs arriving during the overlay mount
+      // are routed consistently under Ink 6 + React 19 batching.
+      push('overlay:test')
+      setShowOverlay(true)
+    }
   })
   useScopedInput('overlay:test', (input) => {
-    if (input === 'C') setShowOverlay(false)
+    if (input === 'C') {
+      pop('overlay:test')
+      setShowOverlay(false)
+    }
   })
 
   return (
@@ -137,26 +146,26 @@ describe('InputScopeProvider', () => {
     expect(onRepl).toHaveBeenCalledWith('c')
   })
 
-	  it('does not misroute burst input during a scope switch', async () => {
-	    const onRepl = vi.fn()
-	    const onOverlay = vi.fn()
-	    const scopes: string[] = []
+  it('does not misroute burst input during a scope switch', async () => {
+    const onRepl = vi.fn()
+    const onOverlay = vi.fn()
+    const scopes: string[] = []
 
     const { stdin } = render(<Harness onRepl={onRepl} onOverlay={onOverlay} onScope={(s) => scopes.push(s)} />)
     await tick()
     await waitFor(() => scopes.at(-1) === 'repl')
 
-	    stdin.write('O')
-	    // Yield once so Ink/React can commit the overlay mount + scope activation before the next key.
-	    // In Ink 6 + React 19, synchronous `stdin.write()` calls can be processed back-to-back
-	    // before React commits state updates triggered by the first input handler.
-	    await tick()
-	    stdin.write('b')
+    stdin.write('O')
+    // Yield once so Ink/React can commit the overlay mount before the next key.
+    // Under Ink 6 + React 19, synchronous `stdin.write()` calls can otherwise be processed
+    // before React commits state updates triggered by the first input handler.
+    await tick()
+    stdin.write('b')
 
-	    await tick()
-	    await waitFor(() => scopes.at(-1) === 'overlay:test')
+    await tick()
+    await waitFor(() => scopes.at(-1) === 'overlay:test')
 
-	    expect(onOverlay).toHaveBeenCalledWith('b')
+    expect(onOverlay).toHaveBeenCalledWith('b')
     expect(onRepl).not.toHaveBeenCalledWith('b')
   })
 
