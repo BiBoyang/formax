@@ -13,6 +13,7 @@ export type RuntimeConfig = {
     model: string
     timeoutMs: number
     contextWindowTokens?: number
+    thinkingMode: boolean
   }
   paths: {
     logsDir: string
@@ -32,6 +33,8 @@ export type RuntimeConfig = {
     promptProfile: 'lite' | 'full'
     showContextMeter: boolean
     showAutoCompactNotice: boolean
+    outputStyle: 'default' | 'explanatory' | 'learning'
+    verboseOutput: boolean
   }
 }
 
@@ -91,10 +94,13 @@ export async function loadRuntimeConfig(
   const model = resolved.config.llm.model || ''
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const contextWindowTokens = resolved.config.llm.contextWindowTokens
+  const thinkingMode = resolved.config.llm.thinkingMode
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const promptProfile = resolved.config.ui.promptProfile
   const showContextMeter = resolved.config.ui.showContextMeter
   const showAutoCompactNotice = resolved.config.ui.showAutoCompactNotice
+  const outputStyle = resolved.config.ui.outputStyle
+  const verboseOutput = resolved.config.ui.verboseOutput
   const context = resolved.config.context
 
   return {
@@ -105,6 +111,7 @@ export async function loadRuntimeConfig(
       model,
       timeoutMs,
       ...(contextWindowTokens ? { contextWindowTokens } : {}),
+      thinkingMode,
     },
     paths: {
       logsDir,
@@ -124,6 +131,8 @@ export async function loadRuntimeConfig(
       promptProfile,
       showContextMeter,
       showAutoCompactNotice,
+      outputStyle,
+      verboseOutput,
     },
   }
 }

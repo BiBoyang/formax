@@ -21,6 +21,7 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import { isExactSlashCommand } from './controller/utils'
 import { partitionMessages } from './controller/messages'
+import { buildLocalCommandInjectedBlocks } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
@@ -138,6 +139,26 @@ export function useReplController(deps: {
   const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
+
+  const closeConfigDialogWithInjection = useCallback(
+    (exit: ConfigDialogExit) => {
+      closeConfigDialog(exit)
+
+      // `/config` only injects into the next request when the change affects prompt semantics.
+      // For v0, that's only Output style.
+      if (exit.kind === 'changed' && exit.message.startsWith('Set output style to ')) {
+        pendingInjectedBlocksRef.current.push(
+          ...buildLocalCommandInjectedBlocks({
+            commandName: '/config',
+            commandMessage: 'config',
+            commandArgs: '',
+            stdout: exit.message,
+          }),
+        )
+      }
+    },
+    [closeConfigDialog],
+  )
 
   const resetStreamingBuffers = useCallback(() => {
     assistantBufferRef.current = ''
@@ -439,7 +460,7 @@ export function useReplController(deps: {
       closeAgentsDialog,
       closePermissionsDialog,
       closeHooksDialog,
-      closeConfigDialog,
+      closeConfigDialog: closeConfigDialogWithInjection,
       generateAgentDraft,
       saveAgentFromDialog,
     },

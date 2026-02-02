@@ -21,6 +21,7 @@ export interface ChatEngine {
     cwd: string
     signal?: AbortSignal
     promptBudget?: ContextBudgetConfig | null
+    thinkingEnabled?: boolean
     exec?: Partial<
       Pick<
         ExecutionContext,
@@ -67,6 +68,7 @@ export function createChatEngine(deps: {
       cwd,
       signal,
       promptBudget,
+      thinkingEnabled,
       exec,
 	    }): Promise<ChatHistory> {
 	      const loopMessages: ChatHistory = [...history, user]
@@ -276,6 +278,7 @@ export function createChatEngine(deps: {
               onEvent,
               executeTool,
               signal,
+              thinkingEnabled,
             })
 
           const toolUseBlocks = assistantBlocks.filter(isToolUseBlock)

@@ -24,6 +24,7 @@ import { ReminderService } from '../reminders/ReminderService'
 import { countNonToolUserTurns, extractAssistantText, isAbortLikeError, isExactSlashCommand } from './utils'
 import type { ExploreTaskBatch } from './streaming'
 import { buildLocalCommandInjectedBlocks } from '../injectedBlocks'
+import { buildOutputStyleInjectedBlocks } from '../../../prompts/reminders/outputStyle'
 import { makeMessageId } from './ids'
 
 export function maybeHandleClearCommand(args: {
@@ -164,6 +165,7 @@ export async function maybeHandleCompactCommand(args: {
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
+      thinkingEnabled: args.cfg.llm.thinkingMode,
       exec: {
         replMode: args.mode,
         getReplMode: args.getReplMode,
@@ -457,6 +459,7 @@ export async function runMainSendTurn(raw: {
     const cwd = process.cwd()
     const injectedBlocks: PromptBlock[] = [
       ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
+      ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...buildModeInjectedBlocks(args.mode, planPath),
       ...(args.pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
       ...args.pendingInjectedBlocksRef.current,
@@ -530,6 +533,7 @@ export async function runMainSendTurn(raw: {
           cwd,
           signal: abortController.signal,
           promptBudget: args.contextBudgetConfigRef.current,
+          thinkingEnabled: args.cfg.llm.thinkingMode,
           exec: {
             replMode: args.mode,
             getReplMode: args.getReplMode,
@@ -624,6 +628,7 @@ export async function runMainSendTurn(raw: {
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
+      thinkingEnabled: args.cfg.llm.thinkingMode,
       exec,
     })
 

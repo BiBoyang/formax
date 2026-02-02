@@ -43,6 +43,7 @@ describe('Expanded Transcript (ctrl+o)', () => {
       apiKey: '',
       model: '',
       timeoutMs: 600000,
+      thinkingMode: true,
     },
     paths: {
       logsDir: '',
@@ -62,6 +63,8 @@ describe('Expanded Transcript (ctrl+o)', () => {
       promptProfile: 'lite',
       showContextMeter: false,
       showAutoCompactNotice: false,
+      outputStyle: 'default',
+      verboseOutput: false,
     },
   }
 

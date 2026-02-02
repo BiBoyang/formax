@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import type { ChatEngine } from '../chat/engine'
-import type { RuntimeConfig } from '../env/config'
+import { loadRuntimeConfig, type RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolRegistry } from '../tools/registry'
 import { useReplController } from '../features/repl/useReplController'
@@ -26,7 +26,7 @@ import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
 import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
-import { ConfigDialog } from '../ui/config/ConfigDialog'
+import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
@@ -36,6 +36,7 @@ import { DetailedTranscriptPanel, ExploreAgentsPanel, formatTaskPanelTitle } fro
 import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
+import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
 
 type Props = {
   onExit?: () => void
@@ -103,6 +104,7 @@ export function REPL({
   taskManager,
 }: Props): React.ReactNode {
   const theme = useMemo(() => getTheme(), [])
+  const [runtimeCfg, setRuntimeCfg] = useState(cfg)
   const [mode, setMode] = useState<ReplMode>('normal')
   const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
   const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
@@ -110,7 +112,10 @@ export function REPL({
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
   const [expandedTranscriptOpen, setExpandedTranscriptOpen] = useState(false)
   const userInput = useUserInputManager()
-  const planSession = useMemo(() => createPlanSessionManager({ planDir: cfg.paths.planDir }), [cfg.paths.planDir])
+  const planSession = useMemo(
+    () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
+    [runtimeCfg.paths.planDir],
+  )
   const ensurePlanPath = useCallback(
     () => planSession.getPlanPath() ?? planSession.startNewPlan(),
     [planSession],
@@ -137,7 +142,7 @@ export function REPL({
   const commandRegistry = useMemo(
     () =>
       createReplCommandRegistry({
-        cfg,
+        cfg: runtimeCfg,
         taskManager,
         planSession,
         promptProfile,
@@ -146,13 +151,13 @@ export function REPL({
         workspaceRootWarnings,
       }),
     [
-      cfg.llm.apiKey,
-      cfg.llm.baseUrl,
-      cfg.llm.model,
-      cfg.llm.provider,
-      cfg.llm.timeoutMs,
-      cfg.paths,
-      cfg.ui.assistantTextMode,
+      runtimeCfg.llm.apiKey,
+      runtimeCfg.llm.baseUrl,
+      runtimeCfg.llm.model,
+      runtimeCfg.llm.provider,
+      runtimeCfg.llm.timeoutMs,
+      runtimeCfg.paths,
+      runtimeCfg.ui.assistantTextMode,
       planSession,
       promptProfile,
       workspaceRoots,
@@ -163,7 +168,7 @@ export function REPL({
   const { state, actions } = useReplController({
     engine,
     tools,
-    cfg,
+    cfg: runtimeCfg,
     onClearTerminal,
     allowedSubagents,
     reloadSubagents,
@@ -176,6 +181,20 @@ export function REPL({
     commandRegistry,
     planSession,
   })
+
+  const reloadCfg = useCallback(async () => {
+    const next = await loadRuntimeConfig(process.env, process.cwd())
+    setRuntimeCfg(next)
+    setPromptProfile(next.ui.promptProfile)
+  }, [])
+
+  const handleConfigExit = useCallback(
+    (exit: ConfigDialogExit) => {
+      actions.closeConfigDialog(exit)
+      if (exit.kind === 'changed') void reloadCfg()
+    },
+    [actions, reloadCfg],
+  )
 
   useEffect(() => {
     if (state.isLoading) {
@@ -300,30 +319,10 @@ export function REPL({
           )
         }
         if (msg.ui?.kind === 'thinking_block') {
-          if (mode === 'primary') {
-            // Persisted thinking blocks are surfaced in the Expanded Transcript panel (Ctrl+O),
-            // not inline in the static transcript, since Ink <Static> doesn't re-render items.
+          if (!shouldRenderThinkingBlock({ mode, verboseOutput: runtimeCfg.ui.verboseOutput })) {
             return null
           }
-
-          const raw = String(msg.content || '').trimEnd()
-          return (
-            <Box flexDirection="column" marginTop={1} marginBottom={0}>
-              <Text color={theme.secondaryText}>∴ Thinking…</Text>
-              <Box>
-                <Text> </Text>
-              </Box>
-              <Box flexDirection="column">
-                {raw
-                  ? raw.split('\n').map((line, idx) => (
-                      <Text key={idx} color={theme.secondaryText}>
-                        {line ? `  ${line}` : ' '}
-                      </Text>
-                    ))
-                  : null}
-              </Box>
-            </Box>
-          )
+          return renderThinkingBlock({ content: msg.content, theme })
         }
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -346,7 +345,7 @@ export function REPL({
         </Box>
       )
     },
-    [theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
+    [runtimeCfg.ui.verboseOutput, theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
   )
 
   const renderMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'primary'), [renderReplMessage])
@@ -354,19 +353,19 @@ export function REPL({
   const renderExpandedMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'expanded'), [renderReplMessage])
 
   const modelLabel = useMemo(() => {
-    const model = cfg.llm.model || process.env.FORMAX_MODEL || 'Model not set'
+    const model = runtimeCfg.llm.model || process.env.FORMAX_MODEL || 'Model not set'
     return `Model: ${model}`
-  }, [cfg.llm.model])
+  }, [runtimeCfg.llm.model])
 
   const contextLine = useMemo(() => {
-    if (!cfg.ui.showContextMeter) return null
+    if (!runtimeCfg.ui.showContextMeter) return null
     if (!state.context) return null
     const pct = clampPct(state.context.percentRemaining)
     const used = formatTokens(state.context.usedTokens)
     const limit = formatTokens(state.context.limitTokens)
     const src = state.context.source === 'usage' ? 'usage' : 'est.'
     return `Context: ${pct}% free (${used}/${limit}, ${src})`
-  }, [cfg.ui.showContextMeter, state.context])
+  }, [runtimeCfg.ui.showContextMeter, state.context])
 
   const replCwd = useMemo(() => process.cwd(), [])
 
@@ -442,7 +441,7 @@ export function REPL({
                 agents={state.allowedSubagents}
                 toolNames={tools.map((t) => t.name)}
                 userAgentsDir={userAgentsDir}
-                projectAgentsDir={cfg.paths.subagentsDir}
+                projectAgentsDir={runtimeCfg.paths.subagentsDir}
                 onGenerateDraft={actions.generateAgentDraft}
                 onSaveAgent={actions.saveAgentFromDialog}
                 onExit={actions.closeAgentsDialog}
@@ -451,7 +450,7 @@ export function REPL({
 
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
             {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
-            {state.configDialogOpen && <ConfigDialog onExit={actions.closeConfigDialog} />}
+            {state.configDialogOpen && <ConfigDialog onExit={handleConfigExit} />}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

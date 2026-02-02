@@ -53,6 +53,8 @@ export type LlmStreamOnceArgs = {
   executeTool: (call: ToolCall) => Promise<ToolResult>
   signal?: AbortSignal
   maxTokens?: number
+  /** When false, omit thinking fields/headers (no thinking_delta expected). */
+  thinkingEnabled?: boolean
 }
 
 export interface LlmStreamClient {

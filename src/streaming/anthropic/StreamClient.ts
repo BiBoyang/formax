@@ -49,7 +49,6 @@ function getDefaultHeaders(apiKey: string): Record<string, string> {
     'accept-encoding': 'gzip, deflate, br',
     'content-type': 'application/json',
     'anthropic-version': '2023-06-01',
-    'anthropic-beta': 'interleaved-thinking-2025-05-14',
     'anthropic-dangerous-direct-browser-access': 'true',
     'x-api-key': apiKey,
     Authorization: `Bearer ${apiKey}`,
@@ -88,6 +87,10 @@ function shouldRetryWithoutThinking(errorText: string): boolean {
   )
 }
 
+function addThinkingHeaders(headers: Record<string, string>): Record<string, string> {
+  return { ...headers, 'anthropic-beta': 'interleaved-thinking-2025-05-14' }
+}
+
 function stripThinkingHeaders(headers: Record<string, string>): Record<string, string> {
   const next: Record<string, string> = { ...headers }
   delete next['anthropic-beta']
@@ -108,6 +111,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
   }
 
   async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
+    const thinkingEnabled = args.thinkingEnabled ?? true
     const basePayload = {
       stream: true,
       model: this.config.model,
@@ -117,13 +121,15 @@ export class AnthropicStreamClient implements LlmStreamClient {
       tools: args.tools,
     }
 
-    const payload = {
-      ...basePayload,
-      thinking: {
-        type: 'enabled',
-        budget_tokens: Math.min(4096, basePayload.max_tokens),
-      },
-    }
+    const payload = thinkingEnabled
+      ? {
+          ...basePayload,
+          thinking: {
+            type: 'enabled',
+            budget_tokens: Math.min(4096, basePayload.max_tokens),
+          },
+        }
+      : basePayload
 
     const controller = new AbortController()
     const timeoutId = setTimeout(
@@ -140,9 +146,12 @@ export class AnthropicStreamClient implements LlmStreamClient {
     const isAborted = () => combinedSignal.aborted
 
     try {
+      const requestHeaders = thinkingEnabled
+        ? addThinkingHeaders(this.headers)
+        : stripThinkingHeaders(this.headers)
       let response = await fetch(`${this.config.baseUrl}/messages`, {
         method: 'POST',
-        headers: this.headers,
+        headers: requestHeaders,
         body: JSON.stringify(payload),
         signal: combinedSignal,
       })
@@ -150,7 +159,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
       if (!response.ok) {
         const errorText = await response.text()
 
-        if (shouldRetryWithoutThinking(errorText)) {
+        if (thinkingEnabled && shouldRetryWithoutThinking(errorText)) {
           response = await fetch(`${this.config.baseUrl}/messages`, {
             method: 'POST',
             headers: stripThinkingHeaders(this.headers),

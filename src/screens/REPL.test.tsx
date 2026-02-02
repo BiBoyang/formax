@@ -54,6 +54,7 @@ describe('REPL', () => {
       apiKey: '',
       model: '',
       timeoutMs: 600000,
+      thinkingMode: true,
     },
     paths: {
       logsDir: '',
@@ -73,6 +74,8 @@ describe('REPL', () => {
       promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
+      outputStyle: 'default',
+      verboseOutput: false,
     },
   }
 

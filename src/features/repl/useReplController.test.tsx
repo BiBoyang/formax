@@ -45,6 +45,7 @@ function createCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
       timeoutMs: 600000,
       // Keep deterministic; avoids depending on model defaults.
       contextWindowTokens: 10000,
+      thinkingMode: true,
     },
     paths: { logsDir: '', subagentsDir: '', planDir: '' },
     context: {
@@ -60,6 +61,8 @@ function createCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
       promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
+      outputStyle: 'default',
+      verboseOutput: false,
     },
     ...overrides,
   }
@@ -96,6 +99,10 @@ function lastAssistantText(controller: ReturnType<typeof useReplController>): st
   return ''
 }
 
+function isTextPromptBlock(b: PromptBlock): b is PromptBlock & { type: 'text'; text: string } {
+  return (b as any).type === 'text' && typeof (b as any).text === 'string'
+}
+
 afterEach(() => {
   vi.useRealTimers()
   estimatePromptTokensMock.mockReset()
@@ -103,6 +110,56 @@ afterEach(() => {
 })
 
 describe('useReplController', () => {
+  it('injects /config into next turn only for Output style changes', async () => {
+    const captured: PromptBlock[][] = []
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user, thinkingEnabled }) {
+        captured.push(user.content as PromptBlock[])
+        expect(thinkingEnabled).toBe(true)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    render(
+      <UserInputProvider userInput={userInput}>
+        <Harness
+          engine={engine}
+          cfg={createCfg({ ui: { ...createCfg().ui, outputStyle: 'explanatory' } })}
+          onController={(c) => (controller = c)}
+        />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    controller.actions.closeConfigDialog({ kind: 'changed', message: 'Set output style to Explanatory' })
+    await controller.actions.send('hi')
+    expect(captured).toHaveLength(1)
+    expect(
+      captured[0].some((b) => isTextPromptBlock(b) && b.text.includes('<command-name>/config</command-name>')),
+    ).toBe(true)
+    expect(
+      captured[0].some(
+        (b) => isTextPromptBlock(b) && b.text.includes('Explanatory output style is active'),
+      ),
+    ).toBe(true)
+
+    await controller.actions.send('hi2')
+    expect(captured).toHaveLength(2)
+    expect(
+      captured[1].some((b) => isTextPromptBlock(b) && b.text.includes('<command-name>/config</command-name>')),
+    ).toBe(false)
+
+    controller.actions.closeConfigDialog({ kind: 'changed', message: 'Set verbose output to true' })
+    await controller.actions.send('hi3')
+    expect(captured).toHaveLength(3)
+    expect(
+      captured[2].some((b) => isTextPromptBlock(b) && b.text.includes('<command-name>/config</command-name>')),
+    ).toBe(false)
+  })
+
 	  it('buffered mode: merges assistant_delta into a single assistant message on complete', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user }) {

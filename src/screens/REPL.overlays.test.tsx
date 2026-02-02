@@ -89,6 +89,7 @@ function makeCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
       apiKey: '',
       model: '',
       timeoutMs: 600000,
+      thinkingMode: true,
     },
     paths: {
       logsDir: '',
@@ -108,6 +109,8 @@ function makeCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
       promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
+      outputStyle: 'default',
+      verboseOutput: false,
     },
   }
   if (!overrides) return base

@@ -107,6 +107,47 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(init.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14')
+  })
+
+  it('omits thinking and thinking headers when thinkingEnabled is false', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      thinkingEnabled: false,
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.thinking).toBeUndefined()
+    expect(init.headers['anthropic-beta']).toBeUndefined()
   })
 
   it('retries without thinking when provider rejects thinking fields', async () => {
@@ -154,7 +195,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
     const firstBody = JSON.parse(firstInit.body)
     expect(firstBody.thinking).toBeDefined()
-    expect(firstInit.headers['anthropic-beta']).toBeDefined()
+    expect(firstInit.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14')
 
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     const secondBody = JSON.parse(secondInit.body)

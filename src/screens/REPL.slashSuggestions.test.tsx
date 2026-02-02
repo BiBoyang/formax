@@ -95,6 +95,7 @@ const cfg: RuntimeConfig = {
     apiKey: '',
     model: '',
     timeoutMs: 600000,
+    thinkingMode: true,
   },
   paths: {
     logsDir: '',
@@ -114,6 +115,8 @@ const cfg: RuntimeConfig = {
     promptProfile: 'lite',
     showContextMeter: true,
     showAutoCompactNotice: true,
+    outputStyle: 'default',
+    verboseOutput: false,
   },
 }
 
