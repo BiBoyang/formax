@@ -60,6 +60,7 @@ export type ReplController = {
   actions: {
     send: (text: string, opts?: { preferredSlashSpecId?: string }) => Promise<void>
     newSession: () => void
+    resetTranscriptSurface: () => void
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
@@ -301,6 +302,12 @@ export function useReplController(deps: {
     void deps.onClearTerminal?.()
   }, [deps.onClearTerminal, resetSessionState])
 
+  const resetTranscriptSurface = useCallback(() => {
+    // Ink <Static> is append-only; forcing a remount gives us a fresh render surface.
+    setTranscriptSeq((n) => n + 1)
+    void deps.onClearTerminal?.()
+  }, [deps.onClearTerminal])
+
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
       const text = value.trim()
@@ -456,6 +463,7 @@ export function useReplController(deps: {
     actions: {
       send,
       newSession,
+      resetTranscriptSurface,
       abort,
       closeAgentsDialog,
       closePermissionsDialog,

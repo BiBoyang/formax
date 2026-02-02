@@ -26,6 +26,7 @@ describe('useReplHotkeys', () => {
   beforeEach(() => {
     actions = {
       abort: vi.fn(),
+      resetTranscriptSurface: vi.fn(),
     }
   })
 

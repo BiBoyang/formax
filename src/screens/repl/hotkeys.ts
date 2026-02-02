@@ -76,6 +76,7 @@ export function useReplHotkeys(args: {
         if (isPromptMode) return true
 
         setExpandedTranscriptOpen(!expandedTranscriptOpen)
+        actions.resetTranscriptSurface()
         return true
       }
 

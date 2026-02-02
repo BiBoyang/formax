@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Box } from 'ink'
+import { Box, Static } from 'ink'
 import { HeaderBanner } from '../../components/chat/HeaderBanner'
 import type { Msg } from '../../components/tool/ToolMessage'
 
@@ -8,10 +8,16 @@ type TranscriptMessageRowProps = {
   renderMessage: (msg: Msg) => React.ReactNode
 }
 
+type StaticTranscriptItem =
+  | { kind: 'header' }
+  | {
+      kind: 'message'
+      message: Msg
+    }
+
 const TranscriptMessageRow = React.memo(
   function TranscriptMessageRow({ message, renderMessage }: TranscriptMessageRowProps) {
-    const jsx = renderMessage(message)
-    return <Box>{jsx}</Box>
+    return <Box>{renderMessage(message)}</Box>
   },
   (prev, next) => prev.message === next.message && prev.renderMessage === next.renderMessage,
 )
@@ -25,7 +31,17 @@ export function ReplTranscript(props: {
   transientMessages: Msg[]
   renderMessage: (msg: Msg) => React.ReactNode
 }): React.ReactNode {
-  const { version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
+  const { transcriptSeq, version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
+
+  const enableInkStatic = process.env.NODE_ENV !== 'test' && !process.env.VITEST
+
+  const staticItems = useMemo<StaticTranscriptItem[]>(
+    () => [
+      { kind: 'header' as const },
+      ...staticMessages.map((message) => ({ kind: 'message' as const, message })),
+    ],
+    [staticMessages],
+  )
 
   const staticRows = useMemo(
     () =>
@@ -43,12 +59,34 @@ export function ReplTranscript(props: {
     [renderMessage, transientMessages],
   )
 
+  if (!enableInkStatic) {
+    return (
+      <>
+        <Box>
+          <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+        </Box>
+        {staticRows}
+        {transientRows}
+      </>
+    )
+  }
+
   return (
     <>
-      <Box>
-        <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
-      </Box>
-      {staticRows}
+      {/* Ink <Static> is append-only; we remount it via transcriptSeq when we need a fresh render surface. */}
+      <Static key={transcriptSeq} items={staticItems}>
+        {(item) => {
+          if (item.kind === 'header') {
+            return (
+              <Box key="header">
+                <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+              </Box>
+            )
+          }
+
+          return <TranscriptMessageRow key={item.message.id} message={item.message} renderMessage={renderMessage} />
+        }}
+      </Static>
       {transientRows}
     </>
   )
