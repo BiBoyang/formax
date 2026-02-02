@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { Box, Text } from 'ink'
 import type { Theme } from '../../utils/theme.js'
-import type { ConfigRow, ConfigTab, OutputStyleOption, ThemeOption } from './constants.js'
+import type { ConfigRow, ConfigTab, OutputStyleOption } from './constants.js'
 import { TABS } from './constants.js'
 
 function clamp(n: number, min: number, max: number): number {
@@ -88,7 +88,7 @@ export function SettingsListView({
   cursor,
 }: {
   theme: Theme
-  rows: Array<{ row: ConfigRow; value: string | boolean }>
+  rows: Array<{ row: ConfigRow; value: string | boolean; sourceLabel: string }>
   cursor: number
 }): React.ReactNode {
   const maxVisible = 15
@@ -124,123 +124,19 @@ export function SettingsListView({
 
         return (
           <Box key={item.row.id} flexDirection="row">
-            <Box width={48}>
+            <Box width={48} flexDirection="row">
               <Text color={color}>
                 {prefix}
                 {item.row.label}
               </Text>
             </Box>
-            <Text color={color}>{String(item.value)}</Text>
+            <Box flexGrow={1} flexDirection="row">
+              <Text color={color}>{String(item.value)}</Text>
+              <Text color={theme.secondaryText}> ({item.sourceLabel})</Text>
+            </Box>
           </Box>
         )
       })}
-    </Box>
-  )
-}
-
-function DiffPreview({
-  theme,
-}: {
-  theme: Theme
-}): React.ReactNode {
-  const dash = '╌'.repeat(terminalColumns(60))
-
-  const removedBg = theme.diff.removed
-  const removedWordBg = theme.diff.removedDimmed
-  const addedBg = theme.diff.added
-  const addedWordBg = theme.diff.addedDimmed
-
-  return (
-    <Box flexDirection="column">
-      <Text color={theme.secondaryText} dimColor>
-        {dash}
-      </Text>
-      <Text>
-        <Text color={theme.secondaryText}>  1 </Text>
-        <Text color={theme.text}>   function greet() {'{'} </Text>
-      </Text>
-      <Box flexDirection="row">
-        <Text color={theme.secondaryText}>  2 </Text>
-        <Text backgroundColor={removedBg} color={theme.text}>
-          -{'  '}
-        </Text>
-        <Text backgroundColor={removedBg} color={theme.text}>
-          {'  '}console.log("Hello,{' '}
-        </Text>
-        <Text backgroundColor={removedWordBg} color={theme.text}>
-          World
-        </Text>
-        <Text backgroundColor={removedBg} color={theme.text}>
-          !");
-        </Text>
-      </Box>
-      <Box flexDirection="row">
-        <Text color={theme.secondaryText}>  2 </Text>
-        <Text backgroundColor={addedBg} color={theme.text}>
-          +{'  '}
-        </Text>
-        <Text backgroundColor={addedBg} color={theme.text}>
-          {'  '}console.log("Hello,{' '}
-        </Text>
-        <Text backgroundColor={addedWordBg} color={theme.text}>
-          Claude
-        </Text>
-        <Text backgroundColor={addedBg} color={theme.text}>
-          !");
-        </Text>
-      </Box>
-      <Text>
-        <Text color={theme.secondaryText}>  3 </Text>
-        <Text color={theme.text}>   {'}'} </Text>
-      </Text>
-      <Text color={theme.secondaryText} dimColor>
-        {dash}
-      </Text>
-    </Box>
-  )
-}
-
-export function ThemeSelectionView({
-  theme,
-  options,
-  cursor,
-  currentThemeId,
-}: {
-  theme: Theme
-  options: ThemeOption[]
-  cursor: number
-  currentThemeId: string
-}): React.ReactNode {
-  return (
-    <Box flexDirection="column">
-      <Text color={theme.permission} bold>
-        Theme
-      </Text>
-      <Box height={1} />
-      <Text bold>Choose the text style that looks best with your terminal</Text>
-      <Box height={1} />
-
-      <Box flexDirection="column">
-        {options.map((opt, idx) => {
-          const active = idx === cursor
-          const selected = opt.id === currentThemeId
-          const prefix = active ? ' ❯ ' : '   '
-
-          const lineColor = selected ? theme.success : active ? theme.permission : theme.text
-
-          return (
-            <Text key={opt.id} color={lineColor}>
-              {prefix}
-              {idx + 1}. {opt.label}
-              {selected ? ' ✔' : ''}
-            </Text>
-          )
-        })}
-      </Box>
-
-      <Box marginTop={1}>
-        <DiffPreview theme={theme} />
-      </Box>
     </Box>
   )
 }

@@ -12,6 +12,7 @@ describe('FormaxConfigV1Schema', () => {
         model: '',
         timeoutMs: 600000,
         authRef: 'default',
+        thinkingMode: true,
       },
       paths: {},
       ui: {
@@ -19,6 +20,8 @@ describe('FormaxConfigV1Schema', () => {
         promptProfile: 'full',
         showContextMeter: true,
         showAutoCompactNotice: true,
+        outputStyle: 'default',
+        verboseOutput: false,
       },
       context: {
         effectiveContextWindowPercent: 0.95,

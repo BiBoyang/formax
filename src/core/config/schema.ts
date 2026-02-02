@@ -9,6 +9,9 @@ export type AssistantTextMode = z.infer<typeof AssistantTextModeSchema>
 export const PromptProfileSchema = z.enum(['lite', 'full'])
 export type PromptProfile = z.infer<typeof PromptProfileSchema>
 
+export const OutputStyleSchema = z.enum(['default', 'explanatory', 'learning'])
+export type OutputStyle = z.infer<typeof OutputStyleSchema>
+
 const TimeoutMsSchema = z.number().int().positive()
 const ContextWindowTokensSchema = z.number().int().positive()
 const Percent01Schema = z.number().min(0).max(1)
@@ -22,6 +25,7 @@ export const LlmConfigSchema = z
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
+    thinkingMode: z.boolean().default(true),
   })
   .strict()
   .default({})
@@ -36,6 +40,7 @@ export const LlmConfigPatchSchema = z
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
+    thinkingMode: z.boolean().optional(),
   })
   .strict()
 
@@ -68,6 +73,8 @@ export const UiConfigSchema = z
     promptProfile: PromptProfileSchema.default('full'),
     showContextMeter: z.boolean().default(true),
     showAutoCompactNotice: z.boolean().default(true),
+    outputStyle: OutputStyleSchema.default('default'),
+    verboseOutput: z.boolean().default(false),
   })
   .strict()
   .default({})
@@ -80,6 +87,8 @@ export const UiConfigPatchSchema = z
     promptProfile: PromptProfileSchema.optional(),
     showContextMeter: z.boolean().optional(),
     showAutoCompactNotice: z.boolean().optional(),
+    outputStyle: OutputStyleSchema.optional(),
+    verboseOutput: z.boolean().optional(),
   })
   .strict()
 

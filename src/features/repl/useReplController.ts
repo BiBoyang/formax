@@ -18,6 +18,7 @@ import type {
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
 } from '../../ui/agents/AgentsDialog.js'
+import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import { isExactSlashCommand } from './controller/utils'
 import { partitionMessages } from './controller/messages'
 import { useReplOverlays } from './controller/overlays'
@@ -62,7 +63,7 @@ export type ReplController = {
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
     closeHooksDialog: () => void
-    closeConfigDialog: () => void
+    closeConfigDialog: (exit: ConfigDialogExit) => void
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }

@@ -1,6 +1,10 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
 import { ConfigDialog } from './ConfigDialog.js'
 
@@ -103,144 +107,178 @@ async function waitForActiveRowValue(
 }
 
 describe('ConfigDialog', () => {
-  it('renders config list and toggles a setting', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+  async function withTempConfigDirs<T>(fn: (args: { env: NodeJS.ProcessEnv; cwd: string }) => Promise<T>) {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-config-'))
+    const cwd = path.join(base, 'project')
+    const configDir = path.join(base, 'user')
+    await fs.mkdir(cwd, { recursive: true })
+    await fs.mkdir(configDir, { recursive: true })
+    const env: NodeJS.ProcessEnv = { ...process.env, FORMAX_CONFIG_DIR: configDir }
 
-    await waitForText(lastFrame, 'Settings:')
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await waitForText(lastFrame, 'Auto-compact')
+    try {
+      return await fn({ env, cwd })
+    } finally {
+      await fs.rm(base, { recursive: true, force: true })
+    }
+  }
 
-    expectActiveRowValue(lastFrame(), 'Auto-compact', 'true')
+  it(
+    'renders default values with sources (Default)',
+    async () => {
+      await withTempConfigDirs(async ({ env, cwd }) => {
+        const onExit = vi.fn()
+        const { lastFrame } = render(
+          <InputScopeProvider>
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={createNodeFileStore()} />
+          </InputScopeProvider>,
+        )
 
-    stdin.write('\r')
-    await waitForActiveRowValue(lastFrame, 'Auto-compact', 'false')
-  })
+        await waitForText(lastFrame, 'Settings:')
+        await waitForText(lastFrame, 'Configure Formax preferences')
+        await waitForText(lastFrame, 'Thinking mode')
+        await waitForText(lastFrame, 'Verbose output')
+        await waitForText(lastFrame, 'Output style')
+        await waitForText(lastFrame, '(Default)')
+      })
+    },
+    20_000,
+  )
 
-  it('cycles tabs (Config → Usage → Status → Config)', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+  it(
+    'saving Output style persists to Project and shows Project source',
+    async () => {
+      await withTempConfigDirs(async ({ env, cwd }) => {
+        const onExit = vi.fn()
+        const store = createNodeFileStore()
+        const { lastFrame, stdin } = render(
+          <InputScopeProvider>
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+          </InputScopeProvider>,
+        )
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
+        await waitForText(lastFrame, 'Configure Formax preferences')
 
-    stdin.write('\t')
-    await waitForText(lastFrame, 'Usage')
+        // Move to "Output style" (3rd row) and open selection.
+        await moveCursorToRow(lastFrame, stdin, 'Output style')
+        stdin.write('\r')
+        await waitForText(lastFrame, 'Preferred output style')
 
-    stdin.write('\t')
-    await waitForText(lastFrame, 'Status')
+        // Select "Learning".
+        await moveCursorToRow(lastFrame, stdin, 'Learning')
+        stdin.write('\r')
 
-    stdin.write('\t')
-    await waitForText(lastFrame, 'Configure Formax preferences')
-  })
+        await waitForText(lastFrame, 'Configure Formax preferences')
+        await waitForText(lastFrame, 'Output style')
+        await waitForText(lastFrame, 'Learning')
+        await waitForText(lastFrame, '(Project)')
 
-  it('opens theme selection and selects an option', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+        const projectConfigPath = path.join(cwd, '.formax', 'config.json')
+        const raw = await fs.readFile(projectConfigPath, 'utf8')
+        const parsed = JSON.parse(raw)
+        expect(parsed.version).toBe(1)
+        expect(parsed.ui).toEqual({ outputStyle: 'learning' })
+      })
+    },
+    20_000,
+  )
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await moveCursorToRow(lastFrame, stdin, 'Theme')
+  it(
+    'saving Thinking mode persists to User and sparse-write removes defaults',
+    async () => {
+      await withTempConfigDirs(async ({ env, cwd }) => {
+        const onExit = vi.fn()
+        const store = createNodeFileStore()
+        const { lastFrame, stdin } = render(
+          <InputScopeProvider>
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+          </InputScopeProvider>,
+        )
 
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Theme')
-    await waitForText(lastFrame, 'Choose the text style')
+        await waitForText(lastFrame, 'Configure Formax preferences')
+        await waitForText(lastFrame, 'Thinking mode')
 
-    await moveCursorToRow(lastFrame, stdin, 'Light mode')
-    stdin.write('\r')
+        // Toggle Thinking mode (default true -> false).
+        stdin.write('\r')
+        await waitForText(lastFrame, 'false')
+        await waitForText(lastFrame, '(User)')
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await waitForNoText(lastFrame, 'Choose the text style')
+        const userConfigPath = path.join(env.FORMAX_CONFIG_DIR || '', 'config.json')
+        let raw = await fs.readFile(userConfigPath, 'utf8')
+        let parsed = JSON.parse(raw)
+        expect(parsed.version).toBe(1)
+        expect(parsed.llm).toEqual({ thinkingMode: false })
 
-    await waitForText(lastFrame, 'Theme')
-    await waitForText(lastFrame, 'Light mode')
-  })
+        // Toggle back to default true => key is removed (sparse write).
+        stdin.write('\r')
+        await waitForText(lastFrame, 'true')
 
-  it('closes sub-screen on Escape without exiting dialog', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+        raw = await fs.readFile(userConfigPath, 'utf8')
+        parsed = JSON.parse(raw)
+        expect(parsed.version).toBe(1)
+        expect(parsed.llm).toBeUndefined()
+      })
+    },
+    20_000,
+  )
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await moveCursorToRow(lastFrame, stdin, 'Theme')
+  it(
+    'reopening reads back persisted values',
+    async () => {
+      await withTempConfigDirs(async ({ env, cwd }) => {
+        const store = createNodeFileStore()
 
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Choose the text style')
+        // Seed both config files.
+        await fs.mkdir(path.join(cwd, '.formax'), { recursive: true })
+        await store.writeJsonAtomic(path.join(cwd, '.formax', 'config.json'), {
+          version: 1,
+          ui: { outputStyle: 'explanatory' },
+        })
+        await store.writeJsonAtomic(path.join(env.FORMAX_CONFIG_DIR || '', 'config.json'), {
+          version: 1,
+          llm: { thinkingMode: false },
+          ui: { verboseOutput: true },
+        })
 
-    stdin.write('\u001B')
-    await tick()
+        const onExit = vi.fn()
+        const { lastFrame } = render(
+          <InputScopeProvider>
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+          </InputScopeProvider>,
+        )
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await waitForNoText(lastFrame, 'Choose the text style')
-    expect(onExit).not.toHaveBeenCalled()
-  })
+        await waitForText(lastFrame, 'Configure Formax preferences')
+        await waitForText(lastFrame, 'Output style')
+        await waitForText(lastFrame, 'Explanatory')
+        await waitForText(lastFrame, '(Project)')
+        await waitForText(lastFrame, 'Thinking mode')
+        await waitForText(lastFrame, 'false')
+        await waitForText(lastFrame, '(User)')
+        await waitForText(lastFrame, 'Verbose output')
+        await waitForText(lastFrame, 'true')
+      })
+    },
+    20_000,
+  )
 
-  it('opens output style selection and selects an option', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
+  it(
+    'closes on Escape from main list with dismissed exit kind by default',
+    async () => {
+      const onExit = vi.fn()
+      const store = createNodeFileStore()
+      await withTempConfigDirs(async ({ env, cwd }) => {
+        const { lastFrame, stdin } = render(
+          <InputScopeProvider>
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+          </InputScopeProvider>,
+        )
 
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await moveCursorToRow(lastFrame, stdin, 'Output style')
+        await waitForText(lastFrame, 'Settings:')
+        stdin.write('\u001B')
+        await tick()
 
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Preferred output style')
-    await waitForText(lastFrame, 'This changes how Formax communicates')
-
-    await moveCursorToRow(lastFrame, stdin, 'Explanatory')
-    stdin.write('\r')
-
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await waitForText(lastFrame, 'Output style')
-    await waitForText(lastFrame, 'explanatory')
-  })
-
-  it('cycles default permission mode on Enter', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
-
-    await waitForText(lastFrame, 'Configure Formax preferences')
-    await moveCursorToRow(lastFrame, stdin, 'Default permission mode')
-
-    expectActiveRowValue(lastFrame(), 'Default permission mode', "Don't Ask")
-
-    stdin.write('\r')
-    await tick()
-
-    await waitForActiveRowValue(lastFrame, 'Default permission mode', 'Default')
-  })
-
-  it('closes on Escape from main list', async () => {
-    const onExit = vi.fn()
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <ConfigDialog onExit={onExit} />
-      </InputScopeProvider>,
-    )
-
-    await waitForText(lastFrame, 'Settings:')
-    stdin.write('\u001B')
-    await tick()
-    expect(onExit).toHaveBeenCalled()
-  })
+        expect(onExit).toHaveBeenCalledWith({ kind: 'dismissed' })
+      })
+    },
+    20_000,
+  )
 })

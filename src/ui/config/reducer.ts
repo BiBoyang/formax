@@ -7,11 +7,6 @@ export type DialogState =
       cursor: number
     }
   | {
-      view: 'themeSelect'
-      tab: ConfigTab
-      cursor: number
-    }
-  | {
       view: 'outputStyleSelect'
       tab: ConfigTab
       cursor: number
@@ -20,7 +15,6 @@ export type DialogState =
 export type DialogAction =
   | { type: 'SET_TAB'; tab: ConfigTab }
   | { type: 'MOVE_CURSOR'; next: number }
-  | { type: 'OPEN_THEME_SELECT' }
   | { type: 'OPEN_OUTPUT_STYLE_SELECT' }
   | { type: 'CLOSE_SUB_VIEW' }
 
@@ -39,13 +33,6 @@ export function dialogReducer(state: DialogState, action: DialogAction): DialogS
     }
     case 'MOVE_CURSOR': {
       return { ...state, cursor: action.next }
-    }
-    case 'OPEN_THEME_SELECT': {
-      return {
-        view: 'themeSelect',
-        tab: state.tab,
-        cursor: 0,
-      }
     }
     case 'OPEN_OUTPUT_STYLE_SELECT': {
       return {

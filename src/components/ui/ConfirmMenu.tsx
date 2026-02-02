@@ -135,7 +135,11 @@ export function ConfirmMenu({
         return
       }
 
-      if (patchedKey.escape) {
+      // Important: handle `key.escape` only when it's a real Escape keypress. In some
+      // environments/tests, arrow escape sequences can arrive split across callbacks and
+      // the first chunk (`\u001B`) may set `key.escape`. In that case, `token` is non-empty
+      // and we must not treat it as cancel.
+      if (patchedKey.escape && !token) {
         submit({ kind: 'cancel' })
         return
       }

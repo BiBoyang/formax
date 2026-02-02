@@ -7,6 +7,7 @@ import type {
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
 } from '../../../ui/agents/AgentsDialog.js'
+import type { ConfigDialogExit } from '../../../ui/config/ConfigDialog.js'
 import type { OverlaySpec } from '../../commands/contracts'
 import { createOverlayManager } from '../overlays/OverlayManager'
 import { makeMessageId } from './ids'
@@ -25,7 +26,7 @@ export function useReplOverlays(args: {
   closeAgentsDialog: (args: { createdAgents: string[] }) => void
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
-  closeConfigDialog: () => void
+  closeConfigDialog: (exit: ConfigDialogExit) => void
   generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
   saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
 } {
@@ -81,9 +82,13 @@ export function useReplOverlays(args: {
     appendCommandSublines(['Hooks dialog dismissed'])
   }, [appendCommandSublines])
 
-  const closeConfigDialog = useCallback(() => {
+  const closeConfigDialog = useCallback((exit: ConfigDialogExit) => {
     overlayManagerRef.current.close()
-    appendCommandSublines(['Config dialog dismissed'])
+    if (exit.kind === 'changed') {
+      appendCommandSublines([exit.message])
+      return
+    }
+    appendCommandSublines(['Status dialog dismissed'])
   }, [appendCommandSublines])
 
   const generateAgentDraft = useCallback(
