@@ -229,10 +229,13 @@ export function PatchPreview({
         if (row.kind === 'equal') {
           return (
             <Box key={`eq-${i}`}>
-              <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
-              {/* Align content with +/- rows. */}
-              <Text color={theme.secondaryText}>   </Text>
-              <Text color={theme.text}>{row.text}</Text>
+              {/* Keep this as a single <Text> tree: Ink inserts a separator between adjacent <Text> siblings. */}
+              <Text>
+                <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
+                {/* Align content with +/- rows. */}
+                <Text color={theme.secondaryText}>   </Text>
+                <Text color={theme.text}>{row.text}</Text>
+              </Text>
             </Box>
           )
         }
@@ -244,9 +247,10 @@ export function PatchPreview({
 
         return (
           <Box key={`${row.kind}-${i}`}>
-            <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
-            <Text color={theme.secondaryText}>{sign}  </Text>
+            {/* Keep this as a single <Text> tree: Ink inserts a separator between adjacent <Text> siblings. */}
             <Text>
+              <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
+              <Text color={theme.secondaryText}>{sign}  </Text>
               {segs.map((seg, j) => (
                 <Text
                   key={`${row.kind}-${i}-${j}`}
