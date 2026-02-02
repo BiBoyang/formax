@@ -230,6 +230,8 @@ export function PatchPreview({
           return (
             <Box key={`eq-${i}`}>
               <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
+              {/* Align content with +/- rows. */}
+              <Text color={theme.secondaryText}>   </Text>
               <Text color={theme.text}>{row.text}</Text>
             </Box>
           )
