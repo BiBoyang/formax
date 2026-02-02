@@ -12,9 +12,9 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { ApprovalHeader } from '../../presenters/ApprovalHeader'
 import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
+import { PatchPreview } from '../../presenters/PatchPreview'
+import { useSnippetStartLineNumber } from '../../presenters/useSnippetStartLineNumber'
 import { useUserInputManager } from '../../runtime/userInputContext'
-
-const MAX_PREVIEW_LINES = 12
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -65,8 +65,19 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const oldString = (input as any).old_string
   const newString = (input as any).new_string
 
-  const oldLines = typeof oldString === 'string' ? toLines(oldString) : null
-  const newLines = typeof newString === 'string' ? toLines(newString) : null
+  const stripCatNPrefixesForUi = (text: string) =>
+    String(text ?? '')
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*\d+(?:\t|→)/, ''))
+      .join('\n')
+
+  const oldTextForPreview = typeof oldString === 'string' ? stripCatNPrefixesForUi(oldString) : ''
+  const newTextForPreview = typeof newString === 'string' ? stripCatNPrefixesForUi(newString) : ''
+
+  // After the edit completes, the "old" snippet no longer exists on disk.
+  // For completed previews, prefer anchoring line numbers using the new snippet.
+  const lineSearchSnippet = status === 'completed' ? newTextForPreview || oldTextForPreview : ''
+  const previewStartLineNumber = useSnippetStartLineNumber({ filePath, snippet: lineSearchSnippet })
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -85,7 +96,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           <ApprovalHeader title={`Edit file ${fileName}`} />
 
           {typeof oldString === 'string' && typeof newString === 'string' ? (
-            <PatchApprovalPreview filePath={filePath} oldText={oldString} newText={newString} />
+            <PatchApprovalPreview filePath={filePath} oldText={oldTextForPreview} newText={newTextForPreview} />
           ) : null}
 
           <Text>
@@ -111,57 +122,13 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
             <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
           </Box>
 
-          {oldLines && newLines ? (
+          {typeof oldString === 'string' && typeof newString === 'string' ? (
             <Box flexDirection="column" marginTop={1}>
-              {renderDiffBlock({
-                kind: 'removed',
-                lines: oldLines,
-                theme,
-              })}
-              {renderDiffBlock({
-                kind: 'added',
-                lines: newLines,
-                theme,
-              })}
+              <PatchPreview oldText={oldTextForPreview} newText={newTextForPreview} startLineNumber={previewStartLineNumber} />
             </Box>
           ) : null}
         </Box>
       ) : null}
     </Box>
   )
-}
-
-function renderDiffBlock(args: {
-  kind: 'added' | 'removed'
-  lines: string[]
-  theme: ReturnType<typeof getTheme>
-}): React.ReactNode {
-  const bg = args.kind === 'added' ? args.theme.diff.added : args.theme.diff.removed
-  const prefix = args.kind === 'added' ? '+' : '-'
-
-  const visible = args.lines.slice(0, MAX_PREVIEW_LINES)
-  const truncated = args.lines.length > MAX_PREVIEW_LINES
-  const remainder = args.lines.length - visible.length
-
-  return (
-    <>
-      {visible.map((line, i) => (
-        <Box key={`${args.kind}-${i}`}>
-          <Text color={args.theme.secondaryText}>   </Text>
-          <Text backgroundColor={bg} color={args.theme.text}>
-            {prefix} {line}
-          </Text>
-        </Box>
-      ))}
-      {truncated ? (
-        <Box>
-          <Text color={args.theme.secondaryText}>   … ({remainder} more lines)</Text>
-        </Box>
-      ) : null}
-    </>
-  )
-}
-
-function toLines(value: string): string[] {
-  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
 }
