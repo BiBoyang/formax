@@ -126,6 +126,7 @@ export function useReplController(deps: {
     totalMs: 0,
   })
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
+  const toolInputByIdRef = useRef<Map<string, unknown>>(new Map())
   const taskStatsByToolUseIdRef = useRef<
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   >(new Map())
@@ -184,6 +185,7 @@ export function useReplController(deps: {
     lastAutoCompactSeqRef.current = -1_000_000
     setContext(null)
     toolNameByIdRef.current.clear()
+    toolInputByIdRef.current.clear()
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
@@ -230,6 +232,7 @@ export function useReplController(deps: {
     thinkingLastFlushAtRef,
     thinkingTimingRef,
     toolNameByIdRef,
+    toolInputByIdRef,
     taskStatsByToolUseIdRef,
     taskKindByToolUseIdRef,
     exploreBatchRef,

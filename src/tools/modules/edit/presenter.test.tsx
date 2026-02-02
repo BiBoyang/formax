@@ -6,9 +6,6 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { PlanProvider } from '../../../features/repl/planContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
-import fsp from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 
 describe('EditToolPresenter', () => {
   it('falls back to ToolMessage when toolInfo is missing', () => {
@@ -176,50 +173,29 @@ describe('EditToolPresenter', () => {
     expect(frame).toContain('…')
   })
 
-  it('anchors completed diff line numbers using the new snippet', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
-    try {
-      const filePath = path.join(tmpDir, 'demo.txt')
-
-      const prefix = Array.from({ length: 21 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
-      const newSnippet = 'alpha\nbeta\n'
-      await fsp.writeFile(filePath, prefix + newSnippet + 'tail\n', 'utf8')
-
-      const message: Msg = {
-        id: 'tool-1',
-        role: 'tool',
-        content: `Edited ${filePath}`,
-        timestamp: new Date(),
-        toolInfo: {
-          name: 'Edit',
-          status: 'completed',
-          input: {
-            file_path: filePath,
-            old_string: 'alpha\n',
-            new_string: newSnippet,
-          },
+  it('uses toolInfo.patchStartLineNumber for completed diff previews', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: 'Edited demo.txt',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Edit',
+        status: 'completed',
+        patchStartLineNumber: 22,
+        input: {
+          file_path: 'demo.txt',
+          old_string: 'alpha\n',
+          new_string: 'alpha\nbeta\n',
         },
-      }
-
-      const { lastFrame } = render(<EditToolPresenter message={message} />)
-
-      await waitFor(() => lastFrame().includes('  22 '), 2000)
-      const frame = lastFrame()
-      expect(frame).toContain('  22 ')
-      expect(frame).toContain('alpha')
-      expect(frame).toContain('  23 ')
-      expect(frame).toContain('beta')
-    } finally {
-      await fsp.rm(tmpDir, { recursive: true, force: true })
+      },
     }
+
+    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const frame = lastFrame()
+    expect(frame).toContain('  22 ')
+    expect(frame).toContain('alpha')
+    expect(frame).toContain('  23 ')
+    expect(frame).toContain('beta')
   })
 })
-
-async function waitFor(fn: () => boolean, timeoutMs = 2000): Promise<void> {
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < timeoutMs) {
-    if (fn()) return
-    await new Promise((r) => setTimeout(r, 10))
-  }
-  throw new Error('Timed out waiting for condition')
-}

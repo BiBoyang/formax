@@ -5,6 +5,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { formatToolResult, stripTrailingSystemReminderBlock } from '../../../utils/toolFormatting'
 import type { ReminderService } from '../reminders/ReminderService'
 import { makeMessageId } from './ids'
+import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import {
   formatDuration,
   formatTokenTotal,
@@ -79,6 +80,7 @@ export function useReplStreaming(args: {
   thinkingLastFlushAtRef: { current: number }
   thinkingTimingRef: { current: { startedAtMs: number | null; totalMs: number } }
   toolNameByIdRef: { current: Map<string, string> }
+  toolInputByIdRef: { current: Map<string, unknown> }
   taskStatsByToolUseIdRef: {
     current: Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   }
@@ -270,6 +272,8 @@ export function useReplStreaming(args: {
           const toolMsgId = `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
 
+          args.toolInputByIdRef.current.set(ev.id, ev.input as any)
+
           if (toolName === 'Task') {
             const subagentType = (ev.input as any)?.subagent_type
             const isExplore = String(subagentType || '') === 'Explore'
@@ -351,8 +355,15 @@ export function useReplStreaming(args: {
           const toolMsgId = `tool-${ev.id}`
           const toolNameFromStart = args.toolNameByIdRef.current.get(ev.id)
           args.toolNameByIdRef.current.delete(ev.id)
+          const toolInputFromStart = args.toolInputByIdRef.current.get(ev.id)
+          args.toolInputByIdRef.current.delete(ev.id)
           const taskKind = args.taskKindByToolUseIdRef.current.get(ev.id)
           args.taskKindByToolUseIdRef.current.delete(ev.id)
+
+          const editPatchStartLineNumber =
+            toolNameFromStart === 'Edit' && !ev.result.is_error
+              ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInputFromStart }) ?? 1
+              : null
 
           args.setMessages((prev) => {
             const toolMsg = prev.find((m) => m.id === toolMsgId)
@@ -432,6 +443,7 @@ export function useReplStreaming(args: {
                       resultLines: lines,
                       expandInfo,
                       middleLines,
+                      ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
                     },
                   }
                 : m,

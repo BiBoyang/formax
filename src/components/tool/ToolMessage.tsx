@@ -52,6 +52,8 @@ export interface ToolInfo {
   durationMs?: number
   /** UI-only: whether this tool message is expanded (e.g., ctrl+o) */
   expanded?: boolean
+  /** UI-only: start line number for patch-like previews (Edit/Write previews). */
+  patchStartLineNumber?: number
 }
 
 /**

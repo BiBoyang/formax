@@ -13,7 +13,6 @@ import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { ApprovalHeader } from '../../presenters/ApprovalHeader'
 import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
 import { PatchPreview } from '../../presenters/PatchPreview'
-import { useSnippetStartLineNumber } from '../../presenters/useSnippetStartLineNumber'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
@@ -74,10 +73,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const oldTextForPreview = typeof oldString === 'string' ? stripCatNPrefixesForUi(oldString) : ''
   const newTextForPreview = typeof newString === 'string' ? stripCatNPrefixesForUi(newString) : ''
 
-  // After the edit completes, the "old" snippet no longer exists on disk.
-  // For completed previews, prefer anchoring line numbers using the new snippet.
-  const lineSearchSnippet = status === 'completed' ? newTextForPreview || oldTextForPreview : ''
-  const previewStartLineNumber = useSnippetStartLineNumber({ filePath, snippet: lineSearchSnippet })
+  const previewStartLineNumber = message.toolInfo.patchStartLineNumber ?? 1
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
