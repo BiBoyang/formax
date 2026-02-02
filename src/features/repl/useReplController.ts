@@ -21,7 +21,7 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import { isExactSlashCommand } from './controller/utils'
 import { partitionMessages } from './controller/messages'
-import { buildLocalCommandInjectedBlocks } from './injectedBlocks'
+import { buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
@@ -30,6 +30,22 @@ import {
   maybeHandleConsumedSlashCommand,
   runMainSendTurn,
 } from './controller/send'
+import { SessionWriter } from './sessionSave/writer'
+
+function shouldPersistUiMsg(msg: Msg): boolean {
+  if (msg.isStreaming) return false
+  if (msg.role === 'tool' && msg.toolInfo?.status === 'running') return false
+  return true
+}
+
+function buildPersistedSigMap(messages: Msg[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const msg of messages) {
+    if (!shouldPersistUiMsg(msg)) continue
+    map.set(msg.id, JSON.stringify(msg))
+  }
+  return map
+}
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -76,6 +92,7 @@ export function useReplController(deps: {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   onClearTerminal?: () => void | Promise<void>
+  initialSession?: { filePath?: string; messages?: Msg[]; history?: ChatHistory }
   allowedSubagents?: Array<{ name: string; description: string }>
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   mode: ReplMode
@@ -84,7 +101,7 @@ export function useReplController(deps: {
   commandRegistry?: SlashCommandRegistry
   planSession?: PlanSessionManager
 }): ReplController {
-  const [messages, setMessages] = useState<Msg[]>([])
+  const [messages, setMessages] = useState<Msg[]>(() => deps.initialSession?.messages ?? [])
   const [transcriptSeq, setTranscriptSeq] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
@@ -114,7 +131,7 @@ export function useReplController(deps: {
   })
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
-  const historyRef = useRef<ChatHistory>([])
+  const historyRef = useRef<ChatHistory>(deps.initialSession?.history ?? [])
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentAssistantIdRef = useRef<string | null>(null)
   const assistantBufferRef = useRef<string>('')
@@ -138,17 +155,93 @@ export function useReplController(deps: {
   const reminderServiceRef = useRef<ReminderService | null>(null)
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
   const sendSeqRef = useRef(0)
+  const sessionWriterRef = useRef<SessionWriter | null>(null)
+  const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
+  const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
+  const prevIsLoadingRef = useRef(false)
+  const lastClaudeMdMetaSigRef = useRef<string | null>(null)
+
+  const sessionSaveEnabled = useMemo(() => {
+    const raw = String(process.env.FORMAX_SESSION_SAVE ?? '').trim().toLowerCase()
+    const disabled = String(process.env.FORMAX_SESSION_SAVE_DISABLED ?? '').trim().toLowerCase()
+    if (disabled === '1' || disabled === 'true' || disabled === 'yes') return false
+    if (!raw) return true
+    if (raw === '0' || raw === 'false' || raw === 'no') return false
+    return true
+  }, [])
   const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
+  const startNewSessionWriter = useCallback(async (): Promise<void> => {
+    if (!sessionSaveEnabled) return
+    const { writer } = await SessionWriter.createNew({
+      cwd: process.cwd(),
+      env: process.env,
+      model: deps.cfg.llm.model,
+    })
+    sessionWriterRef.current = writer
+    lastPersistedSigByMsgIdRef.current = new Map()
+    await writer.appendHistorySnapshot(historyRef.current)
+  }, [deps.cfg.llm.model, sessionSaveEnabled])
+
+  const openInitialSessionWriter = useCallback(async (): Promise<void> => {
+    if (!sessionSaveEnabled) return
+    if (sessionWriterRef.current) return
+    const filePath = deps.initialSession?.filePath
+    if (!filePath) {
+      await startNewSessionWriter()
+      return
+    }
+
+    const writer = await SessionWriter.openExisting({ filePath })
+    sessionWriterRef.current = writer
+    // Avoid duplicating the whole transcript when resuming: the messages state
+    // is already loaded from this session file, so mark them as already persisted.
+    lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(deps.initialSession?.messages ?? [])
+    await writer.appendEvent('resume')
+    await writer.appendHistorySnapshot(historyRef.current)
+  }, [deps.initialSession?.filePath, deps.initialSession?.messages, sessionSaveEnabled, startNewSessionWriter])
+
+  const shutdownSessionWriter = useCallback(async (): Promise<void> => {
+    const writer = sessionWriterRef.current
+    sessionWriterRef.current = null
+    if (!writer) return
+    await writer.shutdown()
+  }, [])
+
+  const ensureSessionWriter = useCallback(async (): Promise<void> => {
+    if (!sessionSaveEnabled) return
+    if (sessionWriterRef.current) return
+    const inflight = sessionWriterInitPromiseRef.current
+    if (inflight) {
+      await inflight
+      return
+    }
+    const promise = openInitialSessionWriter()
+      .finally(() => {
+        sessionWriterInitPromiseRef.current = null
+      })
+    sessionWriterInitPromiseRef.current = promise
+    await promise
+  }, [openInitialSessionWriter, sessionSaveEnabled])
 
   const closeConfigDialogWithInjection = useCallback(
     (exit: ConfigDialogExit) => {
       closeConfigDialog(exit)
+      if (sessionSaveEnabled) {
+        void sessionWriterRef.current?.appendEvent('config_exit', {
+          kind: exit.kind,
+          message: exit.message,
+        })
+      }
 
       // `/config` only injects into the next request when the change affects prompt semantics.
       // For v0, that's only Output style.
       if (exit.kind === 'changed' && exit.message.startsWith('Set output style to ')) {
+        if (sessionSaveEnabled) {
+          const style = exit.message.replace(/^Set output style to\s+/, '')
+          void sessionWriterRef.current?.appendEvent('output_style_changed', { style })
+        }
         pendingInjectedBlocksRef.current.push(
           ...buildLocalCommandInjectedBlocks({
             commandName: '/config',
@@ -159,7 +252,7 @@ export function useReplController(deps: {
         )
       }
     },
-    [closeConfigDialog],
+    [closeConfigDialog, sessionSaveEnabled],
   )
 
   const resetStreamingBuffers = useCallback(() => {
@@ -189,6 +282,7 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
+    lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
 
   useEffect(() => {
@@ -215,6 +309,38 @@ export function useReplController(deps: {
   const { staticMessages, transientMessages } = useMemo(() => {
     return partitionMessages(messages)
   }, [messages])
+
+  useEffect(() => {
+    if (!sessionSaveEnabled) return
+    void ensureSessionWriter()
+    return () => {
+      void shutdownSessionWriter()
+    }
+  }, [ensureSessionWriter, sessionSaveEnabled, shutdownSessionWriter])
+
+  useEffect(() => {
+    const writer = sessionWriterRef.current
+    if (!writer) return
+
+    for (const msg of messages) {
+      if (!shouldPersistUiMsg(msg)) continue
+      const sig = JSON.stringify(msg)
+      const prev = lastPersistedSigByMsgIdRef.current.get(msg.id)
+      if (prev === sig) continue
+      lastPersistedSigByMsgIdRef.current.set(msg.id, sig)
+      void writer.appendStableMsg(msg)
+    }
+  }, [messages])
+
+  useEffect(() => {
+    const writer = sessionWriterRef.current
+    const wasLoading = prevIsLoadingRef.current
+    prevIsLoadingRef.current = isLoading
+    if (!writer) return
+    if (wasLoading && !isLoading) {
+      void writer.appendHistorySnapshot(historyRef.current)
+    }
+  }, [isLoading])
 
   const { handleEvent } = useReplStreaming({
     assistantTextMode,
@@ -294,6 +420,16 @@ export function useReplController(deps: {
   }, [resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
+    if (sessionSaveEnabled) {
+      const oldWriter = sessionWriterRef.current
+      sessionWriterRef.current = null
+      lastPersistedSigByMsgIdRef.current = new Map()
+      void (async () => {
+        if (!oldWriter) return
+        await oldWriter.appendEvent('clear')
+        await oldWriter.shutdown()
+      })()
+    }
     resetSessionState()
 
     // Ink <Static> is append-only; when clearing messages we must force a remount
@@ -303,7 +439,11 @@ export function useReplController(deps: {
     // Clear the terminal *after* scheduling state resets, otherwise Ink may
     // re-render the old transcript once before the clear takes effect.
     void deps.onClearTerminal?.()
-  }, [deps.onClearTerminal, resetSessionState])
+
+    if (sessionSaveEnabled) {
+      void startNewSessionWriter()
+    }
+  }, [deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
   const resetTranscriptSurface = useCallback(() => {
     // Ink <Static> is append-only; forcing a remount gives us a fresh render surface.
@@ -322,6 +462,22 @@ export function useReplController(deps: {
       // from previous turns can't leak into the next status line/panel.
       resetStreamingBuffers()
 
+      await ensureSessionWriter()
+
+      if (sessionSaveEnabled) {
+        const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
+        if (promptProfile === 'full') {
+          const meta = getClaudeMdInjectionMeta({ cwd: process.cwd(), env: process.env })
+          if (meta.global || meta.project) {
+            const sig = JSON.stringify(meta)
+            if (lastClaudeMdMetaSigRef.current !== sig) {
+              lastClaudeMdMetaSigRef.current = sig
+              void sessionWriterRef.current?.appendEvent('claude_md_injection', meta)
+            }
+          }
+        }
+      }
+
       if (
         maybeHandleClearCommand({
           text,
@@ -334,6 +490,7 @@ export function useReplController(deps: {
       }
 
       if (isExactSlashCommand(text, '/compact')) {
+        if (sessionSaveEnabled) void sessionWriterRef.current?.appendEvent('compact_requested')
         await maybeHandleCompactCommand({
           text,
           provider,

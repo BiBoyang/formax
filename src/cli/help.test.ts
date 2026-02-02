@@ -29,6 +29,7 @@ describe('formatCliHelp', () => {
 
       Flags:
         --json     Output machine-readable JSON
+        --resume-last Resume the latest session for this cwd
         --bundle   Write a redacted debug bundle (doctor only)
         --bundle-tar Also write <bundleDir>.tgz (doctor only)
         --no-color Disable ANSI colors

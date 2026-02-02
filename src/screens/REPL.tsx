@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import type { ChatEngine } from '../chat/engine'
+import type { ChatEngine, ChatHistory } from '../chat/engine'
 import { loadRuntimeConfig, type RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolRegistry } from '../tools/registry'
@@ -44,6 +44,7 @@ type Props = {
   engine: ChatEngine
   tools: ToolDefinition[]
   cfg: RuntimeConfig
+  initialSession?: { filePath: string; messages: Msg[]; history: ChatHistory } | null
   allowedSubagents?: Array<{ name: string; description: string }>
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   toolRegistry?: ToolRegistry
@@ -98,6 +99,7 @@ export function REPL({
   engine,
   tools,
   cfg,
+  initialSession,
   allowedSubagents,
   reloadSubagents,
   toolRegistry,
@@ -170,6 +172,7 @@ export function REPL({
     tools,
     cfg: runtimeCfg,
     onClearTerminal,
+    initialSession: initialSession ?? undefined,
     allowedSubagents,
     reloadSubagents,
     mode,

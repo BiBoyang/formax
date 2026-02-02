@@ -6,6 +6,7 @@ export type CliFlags = {
   bundle: boolean
   bundleTar: boolean
   agents: boolean
+  resumeLast: boolean
 }
 
 export type CliArgs = {
@@ -22,6 +23,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     bundle: false,
     bundleTar: false,
     agents: false,
+    resumeLast: false,
   }
   const positionals: string[] = []
 
@@ -53,6 +55,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
     }
     if (arg === '--agents') {
       flags.agents = true
+      continue
+    }
+    if (arg === '--resume-last') {
+      flags.resumeLast = true
       continue
     }
     positionals.push(arg)

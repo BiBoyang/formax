@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { buildClaudeMdInjectedBlocks, buildLocalCommandInjectedBlocks } from './injectedBlocks'
+import { buildClaudeMdInjectedBlocks, buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 
 describe('repl injected blocks', () => {
   it('injects CLAUDE.md context when present', async () => {
@@ -71,6 +71,30 @@ describe('repl injected blocks', () => {
       expect(text).toContain('PROJECT_END')
       expect(text).not.toContain('GLOBAL_END')
       expect(text).toContain('(Truncated)')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('exposes CLAUDE.md injection metadata (capped lengths)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+
+      await fsp.writeFile(path.join(globalDir, 'CLAUDE.md'), 'G'.repeat(5000), 'utf8')
+      await fsp.writeFile(path.join(dir, 'CLAUDE.md'), 'P'.repeat(10), 'utf8')
+
+      const meta = getClaudeMdInjectionMeta({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+      expect(meta.capChars).toBeGreaterThan(0)
+      expect(meta.project?.scope).toBe('project')
+      expect(meta.project?.includedChars).toBe(10)
+      expect(meta.global?.scope).toBe('global')
+      expect(meta.global?.includedChars).toBeGreaterThan(0)
     } finally {
       await fsp.rm(dir, { recursive: true, force: true })
     }
