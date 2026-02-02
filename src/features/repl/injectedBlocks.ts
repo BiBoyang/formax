@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import crypto from 'node:crypto'
 import type { PromptBlock } from '../../prompts'
 import type { LocalCommandRecord } from '../commands/registry'
 import { getConfigPaths } from '../../adapters/fs/configPaths.js'
@@ -14,6 +15,7 @@ export type ClaudeMdFileMeta = {
   filePath: string
   sizeBytes: number
   mtimeMs: number
+  includedSha256: string
   originalChars: number
   includedChars: number
   truncated: boolean
@@ -32,6 +34,10 @@ function truncateWithMarker(input: string, maxChars: number): string {
   return input.slice(0, maxChars - TRUNCATED_MARKER.length) + TRUNCATED_MARKER
 }
 
+function sha256Hex(input: string): string {
+  return crypto.createHash('sha256').update(input, 'utf8').digest('hex')
+}
+
 type OptionalFileRaw = { filePath: string; contents: string; sizeBytes: number; mtimeMs: number }
 
 function readOptionalFileRaw(filePath: string): OptionalFileRaw | null {
@@ -48,6 +54,7 @@ function readOptionalFileRaw(filePath: string): OptionalFileRaw | null {
 
 type ClaudeMdSource = OptionalFileRaw & {
   scope: 'global' | 'project'
+  includedSha256: string
   originalChars: number
   includedChars: number
   truncated: boolean
@@ -107,6 +114,7 @@ function readAndCapClaudeMd(args: {
     if (!raw) return null
     return {
       ...raw,
+      includedSha256: sha256Hex(raw.contents),
       originalChars,
       includedChars,
       truncated: includedChars < originalChars,
@@ -134,6 +142,7 @@ export function getClaudeMdInjectionMeta(args: {
       filePath: src.filePath,
       sizeBytes: src.sizeBytes,
       mtimeMs: src.mtimeMs,
+      includedSha256: src.includedSha256,
       originalChars: src.originalChars,
       includedChars: src.includedChars,
       truncated: src.truncated,

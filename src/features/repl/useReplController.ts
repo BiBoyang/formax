@@ -6,13 +6,12 @@ import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
-import type { SlashCommandRegistry } from '../commands/registry'
+import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
 import type { ContextBudgetConfig } from '../../chat/context/budget'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
-import type { SlashCommandEffect } from '../commands/registry'
 import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
@@ -36,6 +35,22 @@ function shouldPersistUiMsg(msg: Msg): boolean {
   if (msg.isStreaming) return false
   if (msg.role === 'tool' && msg.toolInfo?.status === 'running') return false
   return true
+}
+
+function getLocalCommandInjectionStats(rec: LocalCommandRecord): {
+  stdoutChars: number
+  stdoutBytes: number
+  injectedChars: number
+  injectedBlocks: number
+} {
+  const blocks = buildLocalCommandInjectedBlocks(rec)
+  const injectedChars = blocks.reduce((sum, b) => sum + (typeof (b as any).text === 'string' ? (b as any).text.length : 0), 0)
+  return {
+    stdoutChars: rec.stdout.length,
+    stdoutBytes: Buffer.byteLength(rec.stdout, 'utf8'),
+    injectedChars,
+    injectedBlocks: blocks.length,
+  }
 }
 
 function buildPersistedSigMap(messages: Msg[]): Map<string, string> {
@@ -209,6 +224,13 @@ export function useReplController(deps: {
     await writer.shutdown()
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (!sessionSaveEnabled) return
+      void shutdownSessionWriter()
+    }
+  }, [sessionSaveEnabled, shutdownSessionWriter])
+
   const ensureSessionWriter = useCallback(async (): Promise<void> => {
     if (!sessionSaveEnabled) return
     if (sessionWriterRef.current) return
@@ -238,18 +260,30 @@ export function useReplController(deps: {
       // `/config` only injects into the next request when the change affects prompt semantics.
       // For v0, that's only Output style.
       if (exit.kind === 'changed' && exit.message.startsWith('Set output style to ')) {
-        if (sessionSaveEnabled) {
-          const style = exit.message.replace(/^Set output style to\s+/, '')
-          void sessionWriterRef.current?.appendEvent('output_style_changed', { style })
+        const rec: LocalCommandRecord = {
+          commandName: '/config',
+          commandMessage: 'config',
+          commandArgs: '',
+          stdout: exit.message,
         }
-        pendingInjectedBlocksRef.current.push(
-          ...buildLocalCommandInjectedBlocks({
-            commandName: '/config',
-            commandMessage: 'config',
-            commandArgs: '',
-            stdout: exit.message,
-          }),
-        )
+        const stats = getLocalCommandInjectionStats(rec)
+        const styleLabel = exit.message.replace(/^Set output style to\s+/, '').trim()
+        const styleId = styleLabel.toLowerCase()
+
+        if (sessionSaveEnabled) {
+          void sessionWriterRef.current?.appendEvent('output_style_changed', {
+            style: styleId,
+            label: styleLabel,
+            ...stats,
+          })
+          void sessionWriterRef.current?.appendEvent('local_command_injection', {
+            source: 'config_output_style',
+            commandName: rec.commandName,
+            ...stats,
+          })
+        }
+
+        pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(rec))
       }
     },
     [closeConfigDialog, sessionSaveEnabled],
@@ -297,6 +331,74 @@ export function useReplController(deps: {
     }
     prevModeRef.current = deps.mode
   }, [deps.mode])
+
+  useEffect(() => {
+    if (!sessionSaveEnabled) return
+    // Avoid altering Vitest's process-level behavior (it relies on these signals/exceptions).
+    if (String(process.env.VITEST || '').trim()) return
+
+    const flushBestEffort = async () => {
+      try {
+        await sessionWriterRef.current?.flush()
+      } catch {
+        // ignore
+      }
+    }
+
+    const forwardSignal = (signal: NodeJS.Signals) => {
+      const handler = () => {
+        process.off(signal, handler)
+        void flushBestEffort().finally(() => {
+          try {
+            process.kill(process.pid, signal)
+          } catch {
+            // ignore
+          }
+        })
+      }
+      process.on(signal, handler)
+      return () => process.off(signal, handler)
+    }
+
+    const offSigInt = forwardSignal('SIGINT')
+    const offSigTerm = forwardSignal('SIGTERM')
+
+    const onBeforeExit = () => {
+      void flushBestEffort()
+    }
+    process.on('beforeExit', onBeforeExit)
+
+    const onUncaught = (err: unknown) => {
+      void (async () => {
+        await flushBestEffort()
+        // Preserve default-ish behavior: print and exit non-zero.
+        // eslint-disable-next-line no-console
+        console.error(err)
+        process.exitCode = 1
+        process.exit()
+      })()
+    }
+    process.on('uncaughtException', onUncaught)
+
+    const onUnhandled = (reason: unknown) => {
+      void (async () => {
+        await flushBestEffort()
+        // eslint-disable-next-line no-console
+        console.error(reason)
+        process.exitCode = 1
+        process.exit()
+      })()
+    }
+    process.on('unhandledRejection', onUnhandled)
+
+    return () => {
+      offSigInt()
+      offSigTerm()
+      process.off('beforeExit', onBeforeExit)
+      process.off('uncaughtException', onUncaught)
+      process.off('unhandledRejection', onUnhandled)
+    }
+  }, [sessionSaveEnabled])
 
   const setReplMode = useCallback(
     (nextMode: ReplMode) => {
@@ -529,6 +631,15 @@ export function useReplController(deps: {
           openOverlay,
           closeOverlay,
           pendingInjectedBlocksRef,
+          onLocalCommandRecordForNextTurn: (rec) => {
+            if (!sessionSaveEnabled) return
+            const stats = getLocalCommandInjectionStats(rec)
+            void sessionWriterRef.current?.appendEvent('local_command_injection', {
+              source: 'slash_local_async',
+              commandName: rec.commandName,
+              ...stats,
+            })
+          },
           thinkingBufferRef,
           thinkingLastFlushAtRef,
           currentAssistantIdRef,
@@ -539,6 +650,15 @@ export function useReplController(deps: {
           setError,
         })
         slashEffect = res.slashEffect
+        if (sessionSaveEnabled && slashEffect?.kind === 'local' && slashEffect.recordForNextTurn) {
+          const rec = slashEffect.recordForNextTurn
+          const stats = getLocalCommandInjectionStats(rec)
+          void sessionWriterRef.current?.appendEvent('local_command_injection', {
+            source: 'slash_local',
+            commandName: rec.commandName,
+            ...stats,
+          })
+        }
         if (res.shouldReturn) return
       }
 

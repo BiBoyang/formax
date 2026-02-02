@@ -93,8 +93,10 @@ describe('repl injected blocks', () => {
       expect(meta.capChars).toBeGreaterThan(0)
       expect(meta.project?.scope).toBe('project')
       expect(meta.project?.includedChars).toBe(10)
+      expect(meta.project?.includedSha256).toMatch(/^[a-f0-9]{64}$/)
       expect(meta.global?.scope).toBe('global')
       expect(meta.global?.includedChars).toBeGreaterThan(0)
+      expect(meta.global?.includedSha256).toMatch(/^[a-f0-9]{64}$/)
     } finally {
       await fsp.rm(dir, { recursive: true, force: true })
     }

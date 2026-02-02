@@ -17,7 +17,7 @@ import type { ToolDefinition } from '../../../tools/types'
 import { buildSkillToolSpecForCwd } from '../../../tools/modules/skill'
 import type { ReplMode } from '../mode'
 import { slashEffectToCommandResult, isSlashCommandResultData } from '../../commands/adapter'
-import type { SlashCommandEffect, SlashCommandRegistry } from '../../commands/registry'
+import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../../commands/registry'
 import { isConsumedCommandResult, type OverlaySpec } from '../../commands/contracts'
 import type { PlanSessionManager } from '../planSession'
 import { ReminderService } from '../reminders/ReminderService'
@@ -255,6 +255,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
   pendingInjectedBlocksRef: { current: PromptBlock[] }
+  onLocalCommandRecordForNextTurn?: (rec: LocalCommandRecord) => void
   thinkingBufferRef: { current: string }
   thinkingLastFlushAtRef: { current: number }
   currentAssistantIdRef: { current: string | null }
@@ -325,6 +326,7 @@ export async function maybeHandleConsumedSlashCommand(args: {
       const out = await data.run()
       if (out.recordForNextTurn) {
         args.pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
+        args.onLocalCommandRecordForNextTurn?.(out.recordForNextTurn)
       }
       const lines = String(out.stdout ?? '').split('\n')
       const now = Date.now()
