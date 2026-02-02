@@ -111,6 +111,34 @@ describe('EditToolHandler', () => {
     await fsp.unlink(tmpFile)
   })
 
+  it('accepts space-expanded cat -n prefixed old/new strings', async () => {
+    const tmpFile = path.join(os.tmpdir(), `formax-edit-catn-space-${Date.now()}.txt`)
+    await fsp.writeFile(tmpFile, 'hello world\n', 'utf8')
+    await ReadToolHandler.execute(
+      { id: 'r3b', name: 'Read', input: { file_path: tmpFile } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    const handler = createEditToolHandler()
+
+    const result = await handler.execute(
+      {
+        id: 'catn2',
+        name: 'Edit',
+        input: {
+          file_path: tmpFile,
+          old_string: '     1  hello world',
+          new_string: '     1  hello plan',
+        },
+      },
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(await fsp.readFile(tmpFile, 'utf8')).toBe('hello plan\n')
+    await fsp.unlink(tmpFile)
+  })
+
   it('accepts plan snippet arrow prefixed old/new strings', async () => {
     const tmpFile = path.join(os.tmpdir(), `formax-edit-arrow-${Date.now()}.txt`)
     await fsp.writeFile(tmpFile, 'hello world\n', 'utf8')

@@ -8,6 +8,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useReplUi } from '../../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -65,19 +66,22 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
       {answers ? (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             <Text>Answered</Text>
           </Box>
           {Object.entries(answers).map(([k, v]) => (
             <Box key={k}>
-              <Text color={theme.secondaryText}>   {k}: </Text>
+              <Text color={theme.secondaryText}>
+                {TOOL_SUBLINE_INDENT}
+                {k}:{' '}
+              </Text>
               <Text>{v}</Text>
             </Box>
           ))}
         </Box>
       ) : (
         <Box flexDirection="column">
-          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
           <Text color={theme.secondaryText}>No answers</Text>
         </Box>
       )}

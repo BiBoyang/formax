@@ -11,6 +11,7 @@ import path from 'node:path'
 import { formatPathForDisplay } from '../../../utils/paths'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -60,25 +61,34 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       {status !== 'running' && (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {renderReadSummary({ theme, summary: message.content, status })}
           </Box>
           {status === 'error' ? (
             compactErrorDetail ? (
               <Box>
-                <Text color={theme.error}>   {compactErrorDetail}</Text>
+                <Text color={theme.error}>
+                  {TOOL_SUBLINE_INDENT}
+                  {compactErrorDetail}
+                </Text>
               </Box>
             ) : null
           ) : (
             <>
               {middleLines && middleLines.map((line, i) => (
                 <Box key={i}>
-                  <Text>   {line}</Text>
+                  <Text>
+                    {TOOL_SUBLINE_INDENT}
+                    {line}
+                  </Text>
                 </Box>
               ))}
               {expandInfo && (
                 <Box>
-                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                  <Text color={theme.secondaryText}>
+                    {TOOL_SUBLINE_INDENT}
+                    {expandInfo}
+                  </Text>
                 </Box>
               )}
             </>

@@ -120,8 +120,8 @@ describe('Expanded Transcript (ctrl+o)', () => {
     expect(expanded).not.toContain('? for shortcuts')
     expect(expanded).toContain('∴ Thinking')
     expect(expanded).toContain('THINKING: hello')
-    expect(expanded).toContain('⏺  OK')
-    expect(expanded.indexOf('THINKING: hello')).toBeLessThan(expanded.indexOf('⏺  OK'))
+    expect(expanded).toContain('⏺ OK')
+    expect(expanded.indexOf('THINKING: hello')).toBeLessThan(expanded.indexOf('⏺ OK'))
     expect(expanded).toContain('Showing detailed transcript · ctrl+o to toggle')
 
     ui.stdin.write('\u000f') // ctrl+o again

@@ -5,6 +5,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -34,7 +35,7 @@ export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Ms
       {status !== 'running' && (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {parsed.ok ? (
               <Text>Killed</Text>
             ) : status === 'error' ? (

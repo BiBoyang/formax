@@ -12,6 +12,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../utils/toolUi'
 import { PulsingDot } from '../ui/PulsingDot'
 import type { TokenUsage } from '../../streaming/types'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
@@ -159,14 +160,17 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
         <Box flexDirection="column">
           {/* First line with ⎿ prefix */}
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {renderToolSummary({ theme, toolName, summary: message.content, status })}
           </Box>
           
           {status === 'error' ? (
             compactErrorDetail ? (
               <Box>
-                <Text color={theme.error}>   {compactErrorDetail}</Text>
+                <Text color={theme.error}>
+                  {TOOL_SUBLINE_INDENT}
+                  {compactErrorDetail}
+                </Text>
               </Box>
             ) : null
           ) : (
@@ -174,14 +178,20 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
               {/* Middle lines with 3-space indent (for Bash output) */}
               {middleLines && middleLines.map((line, i) => (
                 <Box key={i}>
-                  <Text>   {line}</Text>
+                  <Text>
+                    {TOOL_SUBLINE_INDENT}
+                    {line}
+                  </Text>
                 </Box>
               ))}
 
               {/* Expand info (3-space indent to align with middle lines, gray color) */}
               {expandInfo && (
                 <Box>
-                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                  <Text color={theme.secondaryText}>
+                    {TOOL_SUBLINE_INDENT}
+                    {expandInfo}
+                  </Text>
                 </Box>
               )}
             </>

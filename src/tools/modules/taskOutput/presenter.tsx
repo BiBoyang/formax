@@ -5,6 +5,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -34,7 +35,7 @@ export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: M
       {status !== 'running' && (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {parsed.status === 'running' ? (
               <Text color={theme.secondaryText}>
                 Running{parsed.timed_out ? ' (timed out waiting)' : ''}
@@ -48,8 +49,10 @@ export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: M
 
           {parsed.status === 'running' && parsed.output ? (
             <Box>
-              <Text color={theme.secondaryText}>   </Text>
-              <Text>{parsed.output}</Text>
+              <Text color={theme.secondaryText}>
+                {TOOL_SUBLINE_INDENT}
+                {parsed.output}
+              </Text>
             </Box>
           ) : null}
         </Box>

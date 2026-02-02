@@ -6,6 +6,7 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { TodoItem } from './handler'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -33,7 +34,7 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
       {status !== 'running' && (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {status === 'error' ? <Text color={theme.error}>{message.content}</Text> : <Text>Updated todo list</Text>}
           </Box>
 
@@ -41,7 +42,7 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
             <Box flexDirection="column" marginTop={1}>
               {todos.map((t, i) => (
                 <Box key={i}>
-                  <Text color={theme.secondaryText}>   </Text>
+                  <Text color={theme.secondaryText}>{TOOL_SUBLINE_INDENT}</Text>
                   <TodoLine todo={t} />
                 </Box>
               ))}

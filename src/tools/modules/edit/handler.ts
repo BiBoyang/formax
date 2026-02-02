@@ -5,6 +5,7 @@ import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/plan
 import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { stripCatNPrefixes } from '../../../utils/catN'
 
 export function createEditToolHandler(): ToolHandler {
   return {
@@ -92,15 +93,6 @@ export function createEditToolHandler(): ToolHandler {
       }
     },
   }
-}
-
-function stripCatNPrefixes(text: string): string {
-  const raw = String(text ?? '')
-  return raw
-    .split(/\r?\n/)
-    // Support both `cat -n` style (`1<TAB>...`) and our plan snippet style (`1→...`).
-    .map((line) => line.replace(/^\s*\d+(?:\t|→)/, ''))
-    .join('\n')
 }
 
 function formatPlanSnippet(contents: string): string {

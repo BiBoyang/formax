@@ -14,6 +14,8 @@ import { ApprovalHeader } from '../../presenters/ApprovalHeader'
 import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
 import { PatchPreview } from '../../presenters/PatchPreview'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { stripCatNPrefixes } from '../../../utils/catN'
+import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -46,7 +48,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
         {status !== 'running' && (
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {status === 'error' ? (
               <Text color={theme.error}>{message.content}</Text>
             ) : (
@@ -64,14 +66,8 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const oldString = (input as any).old_string
   const newString = (input as any).new_string
 
-  const stripCatNPrefixesForUi = (text: string) =>
-    String(text ?? '')
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^\s*\d+(?:\t|→)/, ''))
-      .join('\n')
-
-  const oldTextForPreview = typeof oldString === 'string' ? stripCatNPrefixesForUi(oldString) : ''
-  const newTextForPreview = typeof newString === 'string' ? stripCatNPrefixesForUi(newString) : ''
+  const oldTextForPreview = typeof oldString === 'string' ? stripCatNPrefixes(oldString) : ''
+  const newTextForPreview = typeof newString === 'string' ? stripCatNPrefixes(newString) : ''
 
   const previewStartLineNumber = message.toolInfo.patchStartLineNumber ?? 1
 
@@ -114,7 +110,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       ) : status !== 'running' ? (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
           </Box>
 

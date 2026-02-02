@@ -11,6 +11,7 @@ import { WriteToolPresenter } from '../write/presenter'
 import { EditToolPresenter } from '../edit/presenter'
 import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
 import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -82,7 +83,10 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         <Box flexDirection="column">
           {nestedLines.map((line, i) => (
             <Box key={i}>
-              <Text>   {line}</Text>
+              <Text>
+                {TOOL_SUBLINE_INDENT}
+                {line}
+              </Text>
             </Box>
           ))}
         </Box>
@@ -92,7 +96,7 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
       {status !== 'running' ? (
         <Box>
-          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
           {status === 'error' ? (
             <Text color={theme.error}>{message.content}</Text>
           ) : (

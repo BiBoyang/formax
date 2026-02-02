@@ -12,6 +12,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
+import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -72,7 +73,7 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
         </Box>
 
         <Box>
-          <Text color={theme.secondaryText}>⎿  </Text>
+          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
           <Text color={theme.secondaryText}>
             Plan saved to: {planPathDisplay}
             {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit

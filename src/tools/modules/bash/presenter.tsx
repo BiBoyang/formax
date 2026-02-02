@@ -10,6 +10,7 @@ import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalPrompt } from '../../presenters/bashApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -70,7 +71,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       {status !== 'running' && (
         <Box flexDirection="column">
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {status === 'error' ? (
               <Text color={theme.error}>{message.content}</Text>
             ) : bg ? (
@@ -84,27 +85,39 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
           {!bg && fileSummary ? (
             <Box>
-              <Text color={theme.secondaryText}>   {fileSummary}</Text>
+              <Text color={theme.secondaryText}>
+                {TOOL_SUBLINE_INDENT}
+                {fileSummary}
+              </Text>
             </Box>
           ) : null}
 
           {!bg && status === 'error' ? (
             compactErrorDetail ? (
               <Box>
-                <Text color={theme.error}>   {compactErrorDetail}</Text>
+                <Text color={theme.error}>
+                  {TOOL_SUBLINE_INDENT}
+                  {compactErrorDetail}
+                </Text>
               </Box>
             ) : null
           ) : (
             <>
               {!bg && middleLines && middleLines.map((line, i) => (
                 <Box key={i}>
-                  <Text>   {line}</Text>
+                  <Text>
+                    {TOOL_SUBLINE_INDENT}
+                    {line}
+                  </Text>
                 </Box>
               ))}
 
               {!bg && expandInfo && (
                 <Box>
-                  <Text color={theme.secondaryText}>   {expandInfo}</Text>
+                  <Text color={theme.secondaryText}>
+                    {TOOL_SUBLINE_INDENT}
+                    {expandInfo}
+                  </Text>
                 </Box>
               )}
             </>

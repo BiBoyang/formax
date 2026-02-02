@@ -1,15 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { findSnippetStartLineNumber } from '../../../tools/presenters/snippetStartLine'
+import { stripCatNPrefixes } from '../../../utils/catN'
 
 const MAX_FILE_BYTES = 512 * 1024
-
-function stripCatNPrefixesForSearch(text: unknown): string {
-  return String(text ?? '')
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*\d+(?:\t|→)/, ''))
-    .join('\n')
-}
 
 function resolveAbsPath(cwd: string, rawPath: string): string {
   if (!rawPath) return ''
@@ -28,17 +22,24 @@ export function computeEditPatchStartLineNumber(args: {
 
   const oldString = input.old_string
   const newString = input.new_string
-  const snippet = stripCatNPrefixesForSearch(newString) || stripCatNPrefixesForSearch(oldString)
-  if (!snippet.trim()) return null
+  const newSnippet = stripCatNPrefixes(newString)
+  const oldSnippet = stripCatNPrefixes(oldString)
+  if (!newSnippet.trim() && !oldSnippet.trim()) return null
 
   try {
     const st = fs.statSync(absPath)
     if (!st.isFile()) return null
     if (st.size > MAX_FILE_BYTES) return null
     const fileText = fs.readFileSync(absPath, 'utf8')
-    return findSnippetStartLineNumber({ fileText, snippet })
+
+    const newStart = newSnippet.trim() ? findSnippetStartLineNumber({ fileText, snippet: newSnippet }) : null
+    if (newStart !== null) return newStart
+
+    const oldStart = oldSnippet.trim() ? findSnippetStartLineNumber({ fileText, snippet: oldSnippet }) : null
+    if (oldStart !== null) return oldStart
+
+    return null
   } catch {
     return null
   }
 }
-

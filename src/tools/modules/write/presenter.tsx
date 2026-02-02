@@ -14,6 +14,7 @@ import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
 import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
+import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -46,7 +47,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
         {status !== 'running' && (
           <Box>
-            <Text color={theme.secondaryText}>⎿  </Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {status === 'error' ? (
               <Text color={theme.error}>{message.content}</Text>
             ) : (
