@@ -5,6 +5,7 @@ import { InlineTextEditorRow } from './InlineTextEditorRow.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
+import { isPrintableToken, isReturnKeyToken } from '../../features/repl/keys/keyTokens'
 
 export type ConfirmMenuOption =
   | {
@@ -277,19 +278,13 @@ function getTokenInfo(args: { token: string; key: any }): {
   const isEscape = Boolean(args.key?.escape) || keyName === 'escape'
 
   const token = args.token
-  const printable =
-    Boolean(token) &&
-    !args.key?.ctrl &&
-    !args.key?.meta &&
-    !args.key?.escape &&
-    token !== '\t' &&
-    !String(token).startsWith('\u001b')
+  const printable = isPrintableToken({ token, key: args.key })
 
   return {
     token,
     printable,
     isEscape,
-    isReturnKey: Boolean(args.key?.return),
+    isReturnKey: isReturnKeyToken({ token, key: args.key }),
     isUpArrowKey,
     isDownArrowKey,
   }

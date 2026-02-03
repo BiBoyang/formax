@@ -360,14 +360,15 @@ export function useReplStreaming(args: {
           const taskKind = args.taskKindByToolUseIdRef.current.get(ev.id)
           args.taskKindByToolUseIdRef.current.delete(ev.id)
 
-          const editPatchStartLineNumber =
-            toolNameFromStart === 'Edit' && !ev.result.is_error
-              ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInputFromStart }) ?? 1
-              : null
-
           args.setMessages((prev) => {
             const toolMsg = prev.find((m) => m.id === toolMsgId)
             const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
+            const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
+
+            const editPatchStartLineNumber =
+              toolName === 'Edit' && !ev.result.is_error
+                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput }) ?? 1
+                : null
 
             const rawResult = ev.result.content
             const displayResult =
@@ -438,6 +439,7 @@ export function useReplStreaming(args: {
                     content: summary,
                     toolInfo: {
                       ...m.toolInfo!,
+                      ...(toolInput ? { input: toolInput as any } : {}),
                       status: ev.result.is_error ? 'error' : 'completed',
                       result: rawResult,
                       resultLines: lines,

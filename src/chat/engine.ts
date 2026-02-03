@@ -58,6 +58,14 @@ export function createChatEngine(deps: {
   let pendingStopText: string[] | null = null
   let didAttemptSessionStart = false
 
+  const toolLoopLimit = (() => {
+    const raw = String(process.env.FORMAX_TOOL_LOOP_LIMIT ?? '').trim()
+    if (!raw) return 200
+    const n = Number.parseInt(raw, 10)
+    if (!Number.isFinite(n) || n <= 0) return 200
+    return Math.min(2000, n)
+  })()
+
   return {
     async runTurn({
       history,
@@ -221,6 +229,7 @@ export function createChatEngine(deps: {
 
       try {
         let iteration = 0
+        const recentTools: string[] = []
         while (true) {
           const systemForThisCall = system
 
@@ -289,6 +298,12 @@ export function createChatEngine(deps: {
             break
           }
 
+          // Defensive: if the stream claims tool_use but no tool results are produced, the next
+          // iteration would repeat the same tool_use(s) and potentially spin until hitting the cap.
+          if (toolResults.length === 0) {
+            throw new Error('Tool loop produced no tool_results (stream bug)')
+          }
+
           loopMessages.push(
             ...toolResults.map((r) => ({
               role: 'user' as const,
@@ -303,9 +318,15 @@ export function createChatEngine(deps: {
             })),
           )
 
+          for (const b of toolUseBlocks) {
+            recentTools.push(String(b.name))
+          }
+          if (recentTools.length > 20) recentTools.splice(0, recentTools.length - 20)
+
           iteration++
-          if (iteration > 50) {
-            throw new Error('Tool loop exceeded iteration limit')
+          if (iteration > toolLoopLimit) {
+            const suffix = recentTools.length ? ` (recent: ${recentTools.join(', ')})` : ''
+            throw new Error(`Tool loop exceeded iteration limit (${toolLoopLimit})${suffix}`)
           }
         }
 

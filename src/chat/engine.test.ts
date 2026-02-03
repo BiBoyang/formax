@@ -527,4 +527,42 @@ describe('ChatEngine', () => {
     expect(outJson).not.toContain('Stop hook additional context:')
     expect(outJson).not.toContain('CTX_STOP')
   })
+
+  it('enforces a configurable tool loop iteration limit (with diagnostics)', async () => {
+    const prev = process.env.FORMAX_TOOL_LOOP_LIMIT
+    process.env.FORMAX_TOOL_LOOP_LIMIT = '2'
+    try {
+      let callCount = 0
+
+      const client: LlmStreamClient = {
+        async streamOnce(_args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+          callCount++
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: `t${callCount}`, name: 'Read', input: { file_path: '/tmp/a' } }],
+            stopReason: 'tool_use',
+            toolResults: [{ tool_use_id: `t${callCount}`, content: 'ok' }],
+          }
+        },
+      }
+
+      const executor: ToolExecutor = async () => {
+        throw new Error('executor should not be called by ChatEngine')
+      }
+
+      const engine = createChatEngine({ client, executor })
+      await expect(
+        engine.runTurn({
+          history: [],
+          user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+          system: [],
+          tools: [],
+          onEvent: (_ev: StreamEvent) => undefined,
+          cwd: '/tmp',
+        }),
+      ).rejects.toThrow(/Tool loop exceeded iteration limit \(2\).*recent: Read/)
+    } finally {
+      if (prev == null) delete process.env.FORMAX_TOOL_LOOP_LIMIT
+      else process.env.FORMAX_TOOL_LOOP_LIMIT = prev
+    }
+  })
 })
