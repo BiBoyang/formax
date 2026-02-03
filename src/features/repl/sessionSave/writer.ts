@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import type { ChatHistory } from '../../../chat/engine'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { stripEphemeralFromHistory } from './historyStrip'
@@ -23,6 +24,23 @@ function bestEffortProvider(): 'anthropic' | 'openai' | 'unknown' {
   if (raw === 'openai') return 'openai'
   if (raw === 'anthropic') return 'anthropic'
   return 'anthropic'
+}
+
+function bestEffortGitBranch(cwd: string): string | null {
+  try {
+    const res = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      timeout: 200,
+      windowsHide: true,
+    })
+    if (res.status !== 0) return null
+    const out = String(res.stdout ?? '').trim()
+    if (!out || out === 'HEAD') return null
+    return out
+  } catch {
+    return null
+  }
 }
 
 function isPersistableMsg(msg: Msg): boolean {
@@ -161,6 +179,7 @@ export class SessionWriter {
     const cwdReal = await fs
       .realpath(args.cwd)
       .catch(() => null)
+    const gitBranch = bestEffortGitBranch(args.cwd)
 
     const meta: SessionMetaRecord = {
       type: 'session_meta',
@@ -170,6 +189,7 @@ export class SessionWriter {
       startedAt: isoNow(now),
       cwd: args.cwd,
       ...(cwdReal ? { cwdReal } : {}),
+      ...(gitBranch ? { gitBranch } : {}),
       provider: bestEffortProvider(),
       ...(args.model ? { model: args.model } : {}),
     }

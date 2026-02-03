@@ -27,6 +27,7 @@ import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
+import { ResumeDialog } from '../ui/resume/ResumeDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
@@ -214,6 +215,7 @@ export function REPL({
       state.permissionsDialogOpen,
       state.hooksDialogOpen,
       state.configDialogOpen,
+      state.resumeDialogOpen,
       state.transientMessages,
       toolRegistry,
       userInput,
@@ -455,6 +457,13 @@ export function REPL({
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
             {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
             {state.configDialogOpen && <ConfigDialog onExit={handleConfigExit} />}
+            {state.resumeDialogOpen && (
+              <ResumeDialog
+                onExit={actions.closeResumeDialog}
+                onResume={actions.resumeSession}
+                onRename={actions.renameSession}
+              />
+            )}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

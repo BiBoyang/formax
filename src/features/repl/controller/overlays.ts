@@ -27,6 +27,7 @@ export function useReplOverlays(args: {
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
   closeConfigDialog: (exit: ConfigDialogExit) => void
+  closeResumeDialog: () => void
   generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
   saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
 } {
@@ -90,6 +91,10 @@ export function useReplOverlays(args: {
     }
     appendCommandSublines(['Status dialog dismissed'])
   }, [appendCommandSublines])
+
+  const closeResumeDialog = useCallback(() => {
+    overlayManagerRef.current.close()
+  }, [])
 
   const generateAgentDraft = useCallback(
     async (description: string, signal?: AbortSignal): Promise<AgentsDialogGenerateDraft> => {
@@ -163,6 +168,7 @@ export function useReplOverlays(args: {
     closePermissionsDialog,
     closeHooksDialog,
     closeConfigDialog,
+    closeResumeDialog,
     generateAgentDraft,
     saveAgentFromDialog,
   }

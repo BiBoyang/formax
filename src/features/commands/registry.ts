@@ -45,6 +45,9 @@ export type SlashCommandEffect =
       kind: 'open_config_dialog'
     }
   | {
+      kind: 'open_resume_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -80,6 +83,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/permissions', source: 'builtin', command: '/permissions', description: 'Manage tool permissions and workspace access', implemented: true },
   { id: 'builtin:/hooks', source: 'builtin', command: '/hooks', description: 'Configure hooks (PreToolUse / PermissionRequest / PostToolUse)', implemented: true },
   { id: 'builtin:/config', source: 'builtin', command: '/config', description: 'Configure Formax (preview UI)', implemented: true },
+  { id: 'builtin:/resume', source: 'builtin', command: '/resume', description: 'Resume a previous session', implemented: true },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -199,6 +203,12 @@ export function createSlashCommandRegistry(deps: {
     const rawArgs = (invocation.args || '').trim()
     if (rawArgs) return { kind: 'local', stdout: 'Usage: /config' }
     return { kind: 'open_config_dialog' }
+  })
+
+  setBuiltinDispatcher('/resume', (invocation) => {
+    const rawArgs = (invocation.args || '').trim()
+    if (rawArgs) return { kind: 'local', stdout: 'Usage: /resume' }
+    return { kind: 'open_resume_dialog' }
   })
 
   setBuiltinDispatcher('/plan', () => {

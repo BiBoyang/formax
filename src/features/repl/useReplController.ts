@@ -30,6 +30,7 @@ import {
   runMainSendTurn,
 } from './controller/send'
 import { SessionWriter } from './sessionSave/writer'
+import { readSessionFile } from './sessionSave/reader'
 
 function shouldPersistUiMsg(msg: Msg): boolean {
   if (msg.isStreaming) return false
@@ -78,6 +79,7 @@ export type ReplControllerState = {
   permissionsDialogOpen: boolean
   hooksDialogOpen: boolean
   configDialogOpen: boolean
+  resumeDialogOpen: boolean
   context: null | {
     usedTokens: number
     limitTokens: number
@@ -97,6 +99,9 @@ export type ReplController = {
     closePermissionsDialog: () => void
     closeHooksDialog: () => void
     closeConfigDialog: (exit: ConfigDialogExit) => void
+    closeResumeDialog: () => void
+    resumeSession: (filePath: string) => Promise<void>
+    renameSession: (filePath: string, label: string) => Promise<void>
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
   }
@@ -134,6 +139,7 @@ export function useReplController(deps: {
     closePermissionsDialog,
     closeHooksDialog,
     closeConfigDialog,
+    closeResumeDialog,
     generateAgentDraft,
     saveAgentFromDialog,
   } = useReplOverlays({
@@ -441,8 +447,19 @@ export function useReplController(deps: {
     if (!writer) return
     if (wasLoading && !isLoading) {
       void writer.appendHistorySnapshot(historyRef.current)
+      const uiMsgCount = messages.filter(shouldPersistUiMsg).length
+      const lastUserPrompt = (() => {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i]
+          if (m.role !== 'user') continue
+          const t = String(m.content ?? '').trim()
+          if (t) return t
+        }
+        return null
+      })()
+      void writer.appendEvent('ui_stats', { uiMsgCount, lastUserPrompt })
     }
-  }, [isLoading])
+  }, [isLoading, messages])
 
   const { handleEvent } = useReplStreaming({
     assistantTextMode,
@@ -552,6 +569,62 @@ export function useReplController(deps: {
     setTranscriptSeq((n) => n + 1)
     void deps.onClearTerminal?.()
   }, [deps.onClearTerminal])
+
+  const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('session_rename', { label })
+    await writer.shutdown()
+  }, [])
+
+  const resumeSession = useCallback(
+    async (filePath: string): Promise<void> => {
+      if (isLoading) return
+
+      abort()
+      closeResumeDialog()
+
+      const replay = await readSessionFile(filePath)
+
+      // Flush and close the current writer (if any) before switching to the resumed session file.
+      if (sessionSaveEnabled) {
+        const old = sessionWriterRef.current
+        sessionWriterRef.current = null
+        lastPersistedSigByMsgIdRef.current = new Map()
+        void (async () => {
+          if (!old) return
+          await old.appendEvent('resume_switch', { to: filePath })
+          await old.shutdown()
+        })()
+      }
+
+      // Reset transient runtime state, then restore persisted state.
+      resetSessionState()
+      historyRef.current = replay.history
+
+      // Replace transcript and remount Ink <Static> so old append-only content disappears.
+      setMessages(() => replay.messages)
+      lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(replay.messages)
+      setTranscriptSeq((n) => n + 1)
+      void deps.onClearTerminal?.()
+
+      if (sessionSaveEnabled) {
+        const writer = await SessionWriter.openExisting({ filePath })
+        sessionWriterRef.current = writer
+        await writer.appendEvent('resume')
+        await writer.appendHistorySnapshot(historyRef.current)
+      }
+    },
+    [
+      abort,
+      closeResumeDialog,
+      deps.onClearTerminal,
+      isLoading,
+      resetSessionState,
+      sessionSaveEnabled,
+      setMessages,
+      setTranscriptSeq,
+    ],
+  )
 
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
@@ -738,6 +811,7 @@ export function useReplController(deps: {
       permissionsDialogOpen: overlay?.kind === 'permissions',
       hooksDialogOpen: overlay?.kind === 'hooks',
       configDialogOpen: overlay?.kind === 'config',
+      resumeDialogOpen: overlay?.kind === 'resume',
       context,
     },
     actions: {
@@ -749,6 +823,9 @@ export function useReplController(deps: {
       closePermissionsDialog,
       closeHooksDialog,
       closeConfigDialog: closeConfigDialogWithInjection,
+      closeResumeDialog,
+      resumeSession,
+      renameSession,
       generateAgentDraft,
       saveAgentFromDialog,
     },

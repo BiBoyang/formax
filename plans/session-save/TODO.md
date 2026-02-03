@@ -35,6 +35,24 @@ Design reference: `plans/session-save/DESIGN.md` and `plans/session-save/codex.m
 - [x] Tool result cap: oversized `tool_result` is truncated and marked, without breaking tool_use/tool_result pairing
 - [x] Injected block events: CLAUDE.md metadata event emitted; outputStyle change emits event (no injected text persisted)
 
+## Phase 1.1 — `/resume` overlay (CC parity)
+
+Reference: `plans/session-save/cc-slash-resume.txt` (Claude Code)
+
+- [x] Add `/resume` built-in slash command (opens overlay)
+- [x] Add `ResumeDialog` overlay UI
+  - [x] Header matches approval style: top rule line + title "Resume Session"
+  - [x] Default filter: current project only (cwdReal match); `A` toggles all projects
+  - [x] Show branch column by default; `B` toggles branch display
+  - [x] Max visible sessions: 15; Up/Down scroll window (1–15 → 2–16)
+  - [x] List overflow indicators: show `↑ N` / `↓ N` when there are more sessions above/below
+  - [x] Bottom help line matches CC keys: `A`/`B`/`P`/`R`/`/`/`Esc`
+  - [x] `P` preview: show lightweight preview panel for the selected session (no API calls)
+  - [x] `R` rename: persist a user label for the selected session (append-only; no rewriting)
+  - [x] `/` search: filter sessions by prompt/label/branch/project; `Esc` exits search
+- [x] Resume action: selecting a session replaces transcript + history and continues appending to that session file
+- [x] Add targeted tests locking the above behavior (no `test:coverage`)
+
 ## Phase 2 — Make settings affect behavior (later)
 
 Moved to `plans/session-save/TODO-LATER.md`.

@@ -15,6 +15,7 @@ export type SessionMetaRecord = {
   startedAt: string
   cwd: string
   cwdReal?: string
+  gitBranch?: string
   provider: 'anthropic' | 'openai' | 'unknown'
   model?: string
 }
@@ -43,4 +44,3 @@ export type SessionEventRecord = {
   name: string
   data?: Record<string, unknown>
 }
-

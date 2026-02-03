@@ -15,6 +15,7 @@ export type OverlaySpec =
   | { kind: 'permissions' }
   | { kind: 'hooks' }
   | { kind: 'config' }
+  | { kind: 'resume' }
   | { kind: 'custom'; id: string; props?: Record<string, unknown> }
 
 export type UiEffect =
