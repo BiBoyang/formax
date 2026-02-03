@@ -758,6 +758,88 @@ describe('useReplController /clear', () => {
       await fsp.rm(configDir, { recursive: true, force: true })
     }
   })
+
+  it('does not race session writer creation after /clear', async () => {
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-race-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    const waitForSessionFiles = async (minCount: number) => {
+      const start = Date.now()
+      while (Date.now() - start < 2000) {
+        const files = await listSessionFiles()
+        if (files.length >= minCount) return files
+        await tick(10)
+      }
+      throw new Error('Timed out waiting for session files')
+    }
+
+    const realCreateNew = SessionWriter.createNew.bind(SessionWriter)
+    const createNewSpy = vi
+      .spyOn(SessionWriter, 'createNew')
+      .mockImplementation(async (args: any) => {
+        // Keep the writer init pending long enough for a second send() to overlap.
+        await tick(50)
+        return realCreateNew(args)
+      })
+
+    try {
+      const runTurn = vi.fn(async (args: any) => {
+        return [
+          ...(args.history ?? []),
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'OK' }] },
+        ]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+      await waitForSessionFiles(1)
+      createNewSpy.mockClear()
+
+      const seqBefore = controller.state.transcriptSeq
+      await controller.actions.send('/clear')
+      await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
+
+      await controller.actions.send('hi after clear')
+      await waitFor(() => controller.state.isLoading === false)
+
+      // Should only create a single new writer for the cleared session.
+      expect(createNewSpy).toHaveBeenCalledTimes(1)
+      const filesAfter = await waitForSessionFiles(2)
+      expect(filesAfter.length).toBeGreaterThanOrEqual(2)
+    } finally {
+      createNewSpy.mockRestore()
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('useReplController sessionSave resume', () => {

@@ -245,10 +245,9 @@ export function useReplController(deps: {
       await inflight
       return
     }
-    const promise = openInitialSessionWriter()
-      .finally(() => {
-        sessionWriterInitPromiseRef.current = null
-      })
+    const promise = openInitialSessionWriter().finally(() => {
+      if (sessionWriterInitPromiseRef.current === promise) sessionWriterInitPromiseRef.current = null
+    })
     sessionWriterInitPromiseRef.current = promise
     await promise
   }, [openInitialSessionWriter, sessionSaveEnabled])
@@ -560,7 +559,13 @@ export function useReplController(deps: {
     void deps.onClearTerminal?.()
 
     if (sessionSaveEnabled) {
-      void startNewSessionWriter()
+      // Coordinate writer initialization with ensureSessionWriter() so a fast
+      // subsequent send() can't create a second, orphaned session writer.
+      const promise = startNewSessionWriter().finally(() => {
+        if (sessionWriterInitPromiseRef.current === promise) sessionWriterInitPromiseRef.current = null
+      })
+      sessionWriterInitPromiseRef.current = promise
+      void promise
     }
   }, [deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
