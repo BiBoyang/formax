@@ -12,7 +12,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../utils/toolUi'
 import { PulsingDot } from '../ui/PulsingDot'
 import type { TokenUsage } from '../../streaming/types'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
@@ -125,8 +125,10 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={theme.secondaryText} />
-          <Text color={theme.secondaryText}>Unknown tool</Text>
+          <Text>
+            <PulsingDot color={theme.secondaryText} />
+            <Text color={theme.secondaryText}> Unknown tool</Text>
+          </Text>
         </Box>
       </Box>
     )
@@ -134,6 +136,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
 
   const { name, input, status, expandInfo, middleLines } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
   
@@ -143,30 +146,37 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
     status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
   
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      {/* Tool call header: ⏺ ToolName(params) */}
-      <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          {toolName}
-        </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{params}</Text>
-        <Text color={theme.secondaryText}>)</Text>
-      </Box>
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        {/* Tool call header: ⏺ ToolName(params) */}
+        <Box>
+          <Text>
+            <PulsingDot color={dotColor} pulse={status === 'running'} />
+            <Text bold color={theme.text}>
+              {' '}
+              {toolName}
+            </Text>
+            {showParams ? (
+              <Text color={theme.secondaryText}>
+                ({params})
+              </Text>
+            ) : null}
+          </Text>
+        </Box>
       
       {/* Tool result (only shown when not running) */}
       {status !== 'running' && (
         <Box flexDirection="column">
           {/* First line with ⎿ prefix */}
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {renderToolSummary({ theme, toolName, summary: message.content, status })}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              <Text color={status === 'error' ? theme.error : undefined}>{message.content || ''}</Text>
+            </Text>
           </Box>
           
           {status === 'error' ? (
             compactErrorDetail ? (
-              <Box>
+              <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                 <Text color={theme.error}>
                   {TOOL_SUBLINE_INDENT}
                   {compactErrorDetail}
@@ -177,7 +187,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
             <>
               {/* Middle lines with 3-space indent (for Bash output) */}
               {middleLines && middleLines.map((line, i) => (
-                <Box key={i}>
+                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text>
                     {TOOL_SUBLINE_INDENT}
                     {line}
@@ -187,7 +197,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
 
               {/* Expand info (3-space indent to align with middle lines, gray color) */}
               {expandInfo && (
-                <Box>
+                <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text color={theme.secondaryText}>
                     {TOOL_SUBLINE_INDENT}
                     {expandInfo}
@@ -203,18 +213,3 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
 }
 
 export default ToolMessage
-
-function renderToolSummary(args: {
-  theme: ReturnType<typeof getTheme>
-  toolName: string
-  summary: string
-  status: ToolInfo['status']
-}): React.ReactNode {
-  const summary = args.summary || ''
-
-  if (args.status === 'error') {
-    return <Text color={args.theme.error}>{summary}</Text>
-  }
-
-  return <Text>{summary}</Text>
-}

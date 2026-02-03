@@ -367,7 +367,7 @@ export function useReplStreaming(args: {
 
             const editPatchStartLineNumber =
               toolName === 'Edit' && !ev.result.is_error
-                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput }) ?? 1
+                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
                 : null
 
             const rawResult = ev.result.content

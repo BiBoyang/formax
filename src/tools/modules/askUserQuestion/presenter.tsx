@@ -8,7 +8,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useReplUi } from '../../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -54,35 +54,44 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} />
-        <Text bold color={theme.text}>
-          AskUserQuestion
+        <Text>
+          <PulsingDot color={dotColor} />
+          <Text bold color={theme.text}>
+            {' '}
+            AskUserQuestion
+          </Text>
+          <Text color={theme.secondaryText}>(</Text>
+          <Text color={theme.secondaryText}>{String(questions.length || 1)} questions</Text>
+          <Text color={theme.secondaryText}>)</Text>
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{String(questions.length || 1)} questions</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {answers ? (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            <Text>Answered</Text>
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              <Text>Answered</Text>
+            </Text>
           </Box>
           {Object.entries(answers).map(([k, v]) => (
-            <Box key={k}>
-              <Text color={theme.secondaryText}>
-                {TOOL_SUBLINE_INDENT}
-                {k}:{' '}
+            <Box key={k} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+              <Text>
+                <Text color={theme.secondaryText}>
+                  {TOOL_SUBLINE_INDENT}
+                  {k}:{' '}
+                </Text>
+                <Text>{v}</Text>
               </Text>
-              <Text>{v}</Text>
             </Box>
           ))}
         </Box>
       ) : (
-        <Box flexDirection="column">
-          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-          <Text color={theme.secondaryText}>No answers</Text>
+        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+          <Text color={theme.secondaryText}>
+            {TOOL_SUBLINE_PREFIX}
+            No answers
+          </Text>
         </Box>
       )}
     </Box>

@@ -5,7 +5,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -23,26 +23,26 @@ export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Ms
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          KillShell
+        <Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold color={theme.text}> KillShell</Text>
+          <Text color={theme.secondaryText}>({shellId || 'unknown'})</Text>
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{shellId || 'unknown'}</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {parsed.ok ? (
-              <Text>Killed</Text>
-            ) : status === 'error' ? (
-              <Text color={theme.error}>{message.content || parsed.message || 'Failed'}</Text>
-            ) : (
-              <Text>{parsed.message || message.content}</Text>
-            )}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              {parsed.ok ? (
+                <Text>Killed</Text>
+              ) : status === 'error' ? (
+                <Text color={theme.error}>{message.content || parsed.message || 'Failed'}</Text>
+              ) : (
+                <Text>{parsed.message || message.content}</Text>
+              )}
+            </Text>
           </Box>
         </Box>
       )}

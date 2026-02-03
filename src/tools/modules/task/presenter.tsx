@@ -11,7 +11,7 @@ import { WriteToolPresenter } from '../write/presenter'
 import { EditToolPresenter } from '../edit/presenter'
 import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
 import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -35,6 +35,7 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         ? prompt.trim()
         : ''
   const params = paramsRaw ? truncate(normalizeInlineText(paramsRaw), 60) : ''
+  const showParams = Boolean(params && params.trim().length > 0)
 
   const pendingNested = useMemo(() => {
     if (!userInput) return null
@@ -70,19 +71,20 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          {toolLabel}
+        <Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold color={theme.text}>
+            {' '}
+            {toolLabel}
+          </Text>
+          {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{params}</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {nestedLines.length > 0 ? (
         <Box flexDirection="column">
           {nestedLines.map((line, i) => (
-            <Box key={i}>
+            <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
               <Text>
                 {TOOL_SUBLINE_INDENT}
                 {line}
@@ -95,13 +97,15 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       {nestedPrompt ? <Box marginTop={1}>{nestedPrompt}</Box> : null}
 
       {status !== 'running' ? (
-        <Box>
-          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-          {status === 'error' ? (
-            <Text color={theme.error}>{message.content}</Text>
-          ) : (
-            <Text>{message.content}</Text>
-          )}
+        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+          <Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+            {status === 'error' ? (
+              <Text color={theme.error}>{message.content}</Text>
+            ) : (
+              <Text>{message.content}</Text>
+            )}
+          </Text>
         </Box>
       ) : null}
     </Box>

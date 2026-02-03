@@ -326,7 +326,9 @@ export function createChatEngine(deps: {
           iteration++
           if (iteration > toolLoopLimit) {
             const suffix = recentTools.length ? ` (recent: ${recentTools.join(', ')})` : ''
-            throw new Error(`Tool loop exceeded iteration limit (${toolLoopLimit})${suffix}`)
+            throw new Error(
+              `Tool loop exceeded iteration limit (${toolLoopLimit})${suffix} — set FORMAX_TOOL_LOOP_LIMIT to increase (default 200)`,
+            )
           }
         }
 

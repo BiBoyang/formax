@@ -5,6 +5,7 @@ import { BashToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
+import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 
 describe('BashToolPresenter', () => {
   it('keeps bash errors compact', () => {
@@ -102,6 +103,37 @@ describe('BashToolPresenter', () => {
     expect(frame).toContain('ls')
     expect(frame).toContain('Cwd:')
     expect(frame).toContain('/tmp')
+  })
+
+  it('submits approval on Enter and hides the approval prompt immediately', async () => {
+    const userInput = createUserInputManager()
+    void userInput.requestAnswers({ toolUseId: 't-approve', questions: [] })
+
+    const message: Msg = {
+      id: 'tool-approve',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        toolUseId: 't-approve',
+        name: 'Bash',
+        status: 'running',
+        input: { command: 'ls', cwd: '/tmp' },
+      },
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <BashToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    expect(lastFrame()).toContain('Approve running this command?')
+    stdin.write('\r')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(lastFrame()).not.toContain('Approve running this command?')
   })
 
   it('renders a background task summary when the result indicates running', () => {

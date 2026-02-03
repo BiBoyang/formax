@@ -35,8 +35,34 @@ export function computeEditPatchStartLineNumber(args: {
     const newStart = newSnippet.trim() ? findSnippetStartLineNumber({ fileText, snippet: newSnippet }) : null
     if (newStart !== null) return newStart
 
+    // If the full snippet cannot be matched (e.g. model-provided snippet is partial),
+    // fall back to anchoring on its first non-empty line to avoid inventing line numbers.
+    if (newSnippet.trim()) {
+      const firstNewLine = newSnippet
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .find((l) => l.trim().length > 0)
+      if (firstNewLine) {
+        const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstNewLine })
+        if (lineStart !== null) return lineStart
+      }
+    }
+
     const oldStart = oldSnippet.trim() ? findSnippetStartLineNumber({ fileText, snippet: oldSnippet }) : null
     if (oldStart !== null) return oldStart
+
+    if (oldSnippet.trim()) {
+      const firstOldLine = oldSnippet
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .find((l) => l.trim().length > 0)
+      if (firstOldLine) {
+        const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstOldLine })
+        if (lineStart !== null) return lineStart
+      }
+    }
 
     return null
   } catch {

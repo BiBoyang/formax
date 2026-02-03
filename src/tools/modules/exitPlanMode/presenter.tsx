@@ -12,7 +12,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
-import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -66,17 +66,22 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={theme.success} />
-          <Text bold color={theme.text}>
-            User approved Claude's plan
+          <Text>
+            <PulsingDot color={theme.success} />
+            <Text bold color={theme.text}>
+              {' '}
+              User approved Claude's plan
+            </Text>
           </Text>
         </Box>
 
-        <Box>
-          <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-          <Text color={theme.secondaryText}>
-            Plan saved to: {planPathDisplay}
-            {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit
+        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+          <Text>
+            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+            <Text color={theme.secondaryText}>
+              Plan saved to: {planPathDisplay}
+              {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit
+            </Text>
           </Text>
         </Box>
 
@@ -94,9 +99,12 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} />
-        <Text bold color={theme.text}>
-          {headline}
+        <Text>
+          <PulsingDot color={dotColor} />
+          <Text bold color={theme.text}>
+            {' '}
+            {headline}
+          </Text>
         </Text>
       </Box>
       {firstLine ? (

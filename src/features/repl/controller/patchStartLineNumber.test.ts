@@ -51,6 +51,29 @@ describe('computeEditPatchStartLineNumber', () => {
     }
   })
 
+  it('anchors on single-space cat -n prefixes (after copy/paste)', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      const prefix = Array.from({ length: 21 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
+      await fsp.writeFile(filePath, prefix + 'alpha\nbeta\n' + 'tail\n', 'utf8')
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'alpha\n',
+          // Some terminals/copy steps collapse the delimiter to a single space.
+          new_string: '22 alpha\n23 beta\n',
+        },
+      })
+
+      expect(lineNo).toBe(22)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('falls back to old_string when new_string snippet cannot be found', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
     try {
@@ -69,6 +92,28 @@ describe('computeEditPatchStartLineNumber', () => {
       })
 
       expect(lineNo).toBe(22)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('anchors appends near end of file (SOFTWARE + added line)', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'LICENSE')
+      const prefix = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
+      await fsp.writeFile(filePath, prefix + 'SOFTWARE.\nhello world\n', 'utf8')
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'SOFTWARE.\n',
+          new_string: 'SOFTWARE.\nhello world\n',
+        },
+      })
+
+      expect(lineNo).toBe(21)
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }

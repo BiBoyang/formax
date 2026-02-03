@@ -10,7 +10,7 @@ import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalPrompt } from '../../presenters/bashApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -20,6 +20,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   const dotColor =
@@ -59,32 +60,35 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}>
-            {toolName}
+          <Text>
+            <PulsingDot color={dotColor} pulse={status === 'running'} />
+            <Text bold color={theme.text}>
+              {' '}
+              {toolName}
+            </Text>
+            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{params}</Text>
-          <Text color={theme.secondaryText}>)</Text>
         </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {status === 'error' ? (
-              <Text color={theme.error}>{message.content}</Text>
-            ) : bg ? (
-              <Text>
-                Started background task <Text bold>{bg.task_id}</Text>
-              </Text>
-            ) : (
-              <Text>{message.content}</Text>
-            )}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              {status === 'error' ? (
+                <Text color={theme.error}>{message.content}</Text>
+              ) : bg ? (
+                <Text>
+                  Started background task <Text bold>{bg.task_id}</Text>
+                </Text>
+              ) : (
+                <Text>{message.content}</Text>
+              )}
+            </Text>
           </Box>
 
           {!bg && fileSummary ? (
-            <Box>
+            <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
               <Text color={theme.secondaryText}>
                 {TOOL_SUBLINE_INDENT}
                 {fileSummary}
@@ -94,7 +98,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
           {!bg && status === 'error' ? (
             compactErrorDetail ? (
-              <Box>
+              <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                 <Text color={theme.error}>
                   {TOOL_SUBLINE_INDENT}
                   {compactErrorDetail}
@@ -104,7 +108,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           ) : (
             <>
               {!bg && middleLines && middleLines.map((line, i) => (
-                <Box key={i}>
+                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text>
                     {TOOL_SUBLINE_INDENT}
                     {line}
@@ -113,7 +117,7 @@ export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
               ))}
 
               {!bg && expandInfo && (
-                <Box>
+                <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text color={theme.secondaryText}>
                     {TOOL_SUBLINE_INDENT}
                     {expandInfo}

@@ -14,7 +14,7 @@ import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
 import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
-import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -39,22 +39,24 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}>
-            Updated plan
+          <Text>
+            <PulsingDot color={dotColor} pulse={status === 'running'} />
+            <Text bold color={theme.text}> Updated plan</Text>
           </Text>
         </Box>
 
         {status !== 'running' && (
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {status === 'error' ? (
-              <Text color={theme.error}>{message.content}</Text>
-            ) : (
-              <Text color={theme.secondaryText}>
-                /plan to preview · {formatPlanPathForDisplay(planPath!)}
-              </Text>
-            )}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              {status === 'error' ? (
+                <Text color={theme.error}>{message.content}</Text>
+              ) : (
+                <Text color={theme.secondaryText}>
+                  /plan to preview · {formatPlanPathForDisplay(planPath!)}
+                </Text>
+              )}
+            </Text>
           </Box>
         )}
       </Box>
@@ -71,13 +73,11 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={theme.secondaryText} pulse />
-          <Text bold color={theme.text}>
-            Write
+          <Text>
+            <PulsingDot color={theme.secondaryText} pulse />
+            <Text bold color={theme.text}> Write</Text>
+            <Text color={theme.secondaryText}>({fileName})</Text>
           </Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{fileName}</Text>
-          <Text color={theme.secondaryText}>)</Text>
         </Box>
 
         <Box flexDirection="column" marginTop={1}>

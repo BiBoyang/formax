@@ -144,19 +144,29 @@ function formatLineNo(n: number, width = 4): string {
 }
 
 function normalizeLines(text: string): string[] {
-  return String(text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  // When splitting, a trailing newline produces a final empty string entry that does *not*
+  // represent an extra blank line. Drop exactly one such entry, but preserve any additional
+  // trailing blank lines so the diff can show newline-only edits.
+  if (lines.length === 1 && lines[0] === '') return []
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  return lines
 }
 
 export function PatchPreview({
   oldText,
   newText,
-  startLineNumber = 1,
+  startLineNumber,
 }: {
   oldText: string
   newText: string
   startLineNumber?: number
 }): React.ReactNode {
   const theme = getTheme()
+
+  const showLineNumbers = typeof startLineNumber === 'number' && Number.isFinite(startLineNumber)
+  const baseLineNumber = showLineNumbers ? startLineNumber : 1
+  const lineNoWidth = 4
 
   const linesOld = useMemo(() => normalizeLines(oldText).slice(0, MAX_INPUT_LINES_PER_SIDE), [oldText])
   const linesNew = useMemo(() => normalizeLines(newText).slice(0, MAX_INPUT_LINES_PER_SIDE), [newText])
@@ -166,8 +176,8 @@ export function PatchPreview({
   const rendered = useMemo(() => {
     const rows: Row[] = []
 
-    let oldNo = startLineNumber
-    let newNo = startLineNumber
+    let oldNo = baseLineNumber
+    let newNo = baseLineNumber
 
     let idx = 0
     while (idx < ops.length) {
@@ -213,7 +223,7 @@ export function PatchPreview({
     const head = rows.slice(0, MAX_RENDER_ROWS - 1)
     head.push({ kind: 'ellipsis' })
     return head
-  }, [ops, startLineNumber])
+  }, [baseLineNumber, ops])
 
   return (
     <Box flexDirection="column">
@@ -227,11 +237,12 @@ export function PatchPreview({
         }
 
         if (row.kind === 'equal') {
+          const lineNoText = showLineNumbers ? formatLineNo(row.lineNo, lineNoWidth) : ' '.repeat(lineNoWidth)
           return (
             <Box key={`eq-${i}`}>
               {/* Keep this as a single <Text> tree: Ink inserts a separator between adjacent <Text> siblings. */}
               <Text>
-                <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
+                <Text color={theme.secondaryText}>{lineNoText} </Text>
                 {/* Align content with +/- rows. */}
                 <Text color={theme.secondaryText}>   </Text>
                 <Text color={theme.text}>{row.text}</Text>
@@ -244,12 +255,13 @@ export function PatchPreview({
         const highlightBg = row.kind === 'insert' ? theme.diff.added : theme.diff.removed
         const sign = row.kind === 'insert' ? '+' : '-'
         const segs = row.segments ?? [{ text: row.text, changed: false }]
+        const lineNoText = showLineNumbers ? formatLineNo(row.lineNo, lineNoWidth) : ' '.repeat(lineNoWidth)
 
         return (
           <Box key={`${row.kind}-${i}`}>
             {/* Keep this as a single <Text> tree: Ink inserts a separator between adjacent <Text> siblings. */}
             <Text>
-              <Text color={theme.secondaryText}>{formatLineNo(row.lineNo)} </Text>
+              <Text color={theme.secondaryText}>{lineNoText} </Text>
               <Text color={theme.secondaryText}>{sign}  </Text>
               {segs.map((seg, j) => (
                 <Text

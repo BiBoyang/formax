@@ -187,6 +187,35 @@ describe('ToolMessage', () => {
 
   // Unit tests for tool types
   describe('tool types', () => {
+    it('renders exactly one space after ⏺ in the tool header', () => {
+      const msg = createMsg({
+        toolInfo: createToolInfo({
+          name: 'Read',
+          input: { file_path: 'LICENSE' },
+          status: 'completed',
+        }),
+      })
+
+      const { lastFrame } = render(<ToolMessage message={msg} />)
+      const frame = lastFrame()
+      expect(frame).toContain('⏺ Read')
+      expect(frame).not.toContain('⏺  Read')
+    })
+
+    it('should not render empty parentheses when params are empty', () => {
+      const msg = createMsg({
+        toolInfo: createToolInfo({
+          name: 'Edit',
+          input: {},
+          status: 'running',
+        }),
+      })
+
+      const { lastFrame } = render(<ToolMessage message={msg} />)
+      expect(lastFrame()).toContain('Edit')
+      expect(lastFrame()).not.toContain('Edit()')
+    })
+
     it('should render Read tool correctly', () => {
       const msg = createMsg({
         content: 'Read 42 lines',

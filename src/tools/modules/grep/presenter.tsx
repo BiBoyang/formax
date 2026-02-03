@@ -9,7 +9,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -19,6 +19,7 @@ export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const compactErrorDetail =
@@ -32,13 +33,14 @@ export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={theme.secondaryText} pulse />
-          <Text bold color={theme.text}>
-            {toolName}
+          <Text>
+            <PulsingDot color={theme.secondaryText} pulse />
+            <Text bold color={theme.text}>
+              {' '}
+              {toolName}
+            </Text>
+            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{params}</Text>
-          <Text color={theme.secondaryText}>)</Text>
         </Box>
 
         <FsReadApprovalPrompt
@@ -59,24 +61,27 @@ export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          {toolName}
+        <Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold color={theme.text}>
+            {' '}
+            {toolName}
+          </Text>
+          {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{params}</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {renderGrepSummary({ theme, summary: message.content, status })}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              {renderGrepSummary({ theme, summary: message.content, status })}
+            </Text>
           </Box>
           {status === 'error' ? (
             compactErrorDetail ? (
-              <Box>
+              <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                 <Text color={theme.error}>
                   {TOOL_SUBLINE_INDENT}
                   {compactErrorDetail}
@@ -86,7 +91,7 @@ export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
           ) : (
             <>
               {middleLines && middleLines.map((line, i) => (
-                <Box key={i}>
+                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text>
                     {TOOL_SUBLINE_INDENT}
                     {line}
@@ -94,7 +99,7 @@ export const GrepToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
                 </Box>
               ))}
               {expandInfo && (
-                <Box>
+                <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
                   <Text color={theme.secondaryText}>
                     {TOOL_SUBLINE_INDENT}
                     {expandInfo}

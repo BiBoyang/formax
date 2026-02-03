@@ -18,6 +18,7 @@ export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Ms
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -31,13 +32,14 @@ export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Ms
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse />
-          <Text bold color={theme.text}>
-            {toolName}
+          <Text>
+            <PulsingDot color={dotColor} pulse />
+            <Text bold color={theme.text}>
+              {' '}
+              {toolName}
+            </Text>
+            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{params}</Text>
-          <Text color={theme.secondaryText}>)</Text>
         </Box>
 
         <EditApprovalPrompt

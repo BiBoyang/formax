@@ -15,7 +15,7 @@ import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
 import { PatchPreview } from '../../presenters/PatchPreview'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { stripCatNPrefixes } from '../../../utils/catN'
-import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -26,6 +26,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
 
   const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
@@ -40,14 +41,17 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}>
-            Updated plan
+          <Text>
+            <PulsingDot color={dotColor} pulse={status === 'running'} />
+            <Text bold color={theme.text}>
+              {' '}
+              Updated plan
+            </Text>
           </Text>
         </Box>
 
-        {status !== 'running' && (
-          <Box>
+      {status !== 'running' && (
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
             <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
             {status === 'error' ? (
               <Text color={theme.error}>{message.content}</Text>
@@ -69,18 +73,19 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const oldTextForPreview = typeof oldString === 'string' ? stripCatNPrefixes(oldString) : ''
   const newTextForPreview = typeof newString === 'string' ? stripCatNPrefixes(newString) : ''
 
-  const previewStartLineNumber = message.toolInfo.patchStartLineNumber ?? 1
+  const previewStartLineNumber = message.toolInfo.patchStartLineNumber
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}>
-            {toolName}
+          <Text>
+            <PulsingDot color={dotColor} pulse={status === 'running'} />
+            <Text bold color={theme.text}>
+              {' '}
+              {toolName}
+            </Text>
+            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{params}</Text>
-          <Text color={theme.secondaryText}>)</Text>
         </Box>
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
@@ -109,9 +114,11 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         </Box>
       ) : status !== 'running' ? (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
+            </Text>
           </Box>
 
           {typeof oldString === 'string' && typeof newString === 'string' ? (

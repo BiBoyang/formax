@@ -7,7 +7,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { PulsingDot } from '../../../components/ui/PulsingDot'
 import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
-import { TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -27,13 +27,11 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          Skill
+        <Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold color={theme.text}> Skill</Text>
+          <Text color={theme.secondaryText}>({skillName || 'unknown'})</Text>
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{skillName || 'unknown'}</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
@@ -52,9 +50,11 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
       {status === 'error' && message.content ? (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            <Text color={theme.error}>{message.content}</Text>
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              <Text color={theme.error}>{message.content}</Text>
+            </Text>
           </Box>
         </Box>
       ) : null}

@@ -5,7 +5,7 @@ import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -23,32 +23,32 @@ export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: M
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
-        <PulsingDot color={dotColor} pulse={status === 'running'} />
-        <Text bold color={theme.text}>
-          TaskOutput
+        <Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} />
+          <Text bold color={theme.text}> TaskOutput</Text>
+          <Text color={theme.secondaryText}>({taskId || 'unknown'})</Text>
         </Text>
-        <Text color={theme.secondaryText}>(</Text>
-        <Text color={theme.secondaryText}>{taskId || 'unknown'}</Text>
-        <Text color={theme.secondaryText}>)</Text>
       </Box>
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {parsed.status === 'running' ? (
-              <Text color={theme.secondaryText}>
-                Running{parsed.timed_out ? ' (timed out waiting)' : ''}
-              </Text>
-            ) : parsed.is_error ? (
-              <Text color={theme.error}>{parsed.output}</Text>
-            ) : (
-              <Text>{parsed.output}</Text>
-            )}
+          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+            <Text>
+              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+              {parsed.status === 'running' ? (
+                <Text color={theme.secondaryText}>
+                  Running{parsed.timed_out ? ' (timed out waiting)' : ''}
+                </Text>
+              ) : parsed.is_error ? (
+                <Text color={theme.error}>{parsed.output}</Text>
+              ) : (
+                <Text>{parsed.output}</Text>
+              )}
+            </Text>
           </Box>
 
           {parsed.status === 'running' && parsed.output ? (
-            <Box>
+            <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
               <Text color={theme.secondaryText}>
                 {TOOL_SUBLINE_INDENT}
                 {parsed.output}

@@ -486,7 +486,7 @@ export function REPL({
             {state.error && !state.isLoading && (
               <Box marginTop={1}>
                 <PulsingDot color="red" />
-                <Text color="red">Error: {state.error}</Text>
+                <Text color="red"> Error: {state.error}</Text>
               </Box>
             )}
           </Box>

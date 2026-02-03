@@ -30,9 +30,11 @@ export function PulsingDot({
   color,
   pulse = false,
   intervalMs = 600,
-  // Ink renders a single separator space between adjacent <Text> siblings.
-  // Most call sites render `<PulsingDot /><Text>Read</Text>`, so emitting a trailing
-  // space here would create a double space: `⏺  Read`. Keep this off by default.
+  // We intentionally default to *no* trailing space here:
+  // - Many call sites are rendered as multiple <Text> nodes (Ink may insert separators),
+  //   and a trailing space can turn into `⏺  Read` (double space) in some environments.
+  // - Call sites that need an explicit space should provide it themselves (or set
+  //   trailingSpace=true) to keep transcript formatting predictable.
   trailingSpace = false,
 }: {
   color?: string
