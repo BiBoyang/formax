@@ -33,12 +33,8 @@ export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Ms
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={dotColor} pulse />
-            <Text bold color={theme.text}>
-              {' '}
-              {toolName}
-            </Text>
-            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
+            <PulsingDot color={dotColor} pulse /><Text bold color={theme.text}>{toolName}</Text>
+            {showParams ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}
           </Text>
         </Box>
 

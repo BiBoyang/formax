@@ -33,11 +33,7 @@ export const WebFetchToolPresenter: ToolPresenter = ({ message }: { message: Msg
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={dotColor} pulse />
-            <Text bold color={theme.text}>
-              {' '}
-              {toolName}
-            </Text>
+            <PulsingDot color={dotColor} pulse /><Text bold color={theme.text}>{toolName}</Text>
             {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
         </Box>

@@ -37,12 +37,8 @@ export const ReadToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} />
-            <Text bold color={theme.text}>
-              {' '}
-              {toolName}
-            </Text>
-            {showParams ? <Text color={theme.secondaryText}>({displayParams})</Text> : null}
+            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
+            {showParams ? <Text color={theme.secondaryText}>{`(${displayParams})`}</Text> : null}
           </Text>
         </Box>
 

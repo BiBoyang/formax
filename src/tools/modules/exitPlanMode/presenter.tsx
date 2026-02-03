@@ -67,11 +67,7 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={theme.success} />
-            <Text bold color={theme.text}>
-              {' '}
-              User approved Claude's plan
-            </Text>
+            <PulsingDot color={theme.success} /><Text bold color={theme.text}>{"User approved Claude's plan"}</Text>
           </Text>
         </Box>
 
@@ -100,11 +96,7 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text>
-          <PulsingDot color={dotColor} />
-          <Text bold color={theme.text}>
-            {' '}
-            {headline}
-          </Text>
+          <PulsingDot color={dotColor} /><Text bold color={theme.text}>{headline}</Text>
         </Text>
       </Box>
       {firstLine ? (

@@ -126,8 +126,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={theme.secondaryText} />
-            <Text color={theme.secondaryText}> Unknown tool</Text>
+            <PulsingDot color={theme.secondaryText} /><Text color={theme.secondaryText}>Unknown tool</Text>
           </Text>
         </Box>
       </Box>
@@ -150,16 +149,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
         {/* Tool call header: ⏺ ToolName(params) */}
         <Box>
           <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} />
-            <Text bold color={theme.text}>
-              {' '}
-              {toolName}
-            </Text>
-            {showParams ? (
-              <Text color={theme.secondaryText}>
-                ({params})
-              </Text>
-            ) : null}
+            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
+            {showParams ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}
           </Text>
         </Box>
       

@@ -28,9 +28,8 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}> Skill</Text>
-          <Text color={theme.secondaryText}>({skillName || 'unknown'})</Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>Skill</Text>
+          <Text color={theme.secondaryText}>{`(${skillName || 'unknown'})`}</Text>
         </Text>
       </Box>
 

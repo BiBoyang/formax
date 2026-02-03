@@ -24,8 +24,7 @@ export const TaskOutputToolPresenter: ToolPresenter = ({ message }: { message: M
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}> TaskOutput</Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>TaskOutput</Text>
           <Text color={theme.secondaryText}>({taskId || 'unknown'})</Text>
         </Text>
       </Box>

@@ -24,9 +24,8 @@ export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Ms
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}> KillShell</Text>
-          <Text color={theme.secondaryText}>({shellId || 'unknown'})</Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>KillShell</Text>
+          <Text color={theme.secondaryText}>{`(${shellId || 'unknown'})`}</Text>
         </Text>
       </Box>
 

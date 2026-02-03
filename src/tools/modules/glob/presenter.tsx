@@ -34,11 +34,7 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         <Box>
           <Text>
-            <PulsingDot color={theme.secondaryText} pulse />
-            <Text bold color={theme.text}>
-              {' '}
-              {toolName}
-            </Text>
+            <PulsingDot color={theme.secondaryText} pulse /><Text bold color={theme.text}>{toolName}</Text>
             {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
           </Text>
         </Box>
@@ -62,11 +58,7 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <Box>
         <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} />
-          <Text bold color={theme.text}>
-            {' '}
-            {toolName}
-          </Text>
+          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
           {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
         </Text>
       </Box>

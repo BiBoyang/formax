@@ -30,12 +30,10 @@ export function PulsingDot({
   color,
   pulse = false,
   intervalMs = 600,
-  // We intentionally default to *no* trailing space here:
-  // - Many call sites are rendered as multiple <Text> nodes (Ink may insert separators),
-  //   and a trailing space can turn into `⏺  Read` (double space) in some environments.
-  // - Call sites that need an explicit space should provide it themselves (or set
-  //   trailingSpace=true) to keep transcript formatting predictable.
-  trailingSpace = false,
+  // Claude Code style shows a single space after the bullet, e.g. `⏺ Read(...)`.
+  // Default to a trailing space and keep call sites free of leading spaces so we don't
+  // accidentally end up with `⏺  Read` (double space).
+  trailingSpace = true,
 }: {
   color?: string
   pulse?: boolean
