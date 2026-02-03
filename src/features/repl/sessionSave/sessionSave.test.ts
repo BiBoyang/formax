@@ -235,4 +235,58 @@ describe('sessionSave (jsonl)', () => {
     const latest = await findLatestSessionFile({ cwd, env })
     expect(latest).toBe(file2)
   })
+
+  it('findLatestSessionFile does not miss a project session when many other sessions are newer', async () => {
+    const cwdA = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-cwd-a-'))
+    const cwdB = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-cwd-b-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const sessionsRoot = getSessionsRoot({ cwd: cwdA, env })
+
+    const cwdAReal = await fs.realpath(cwdA).catch(() => cwdA)
+    const cwdBReal = await fs.realpath(cwdB).catch(() => cwdB)
+
+    const metaA = {
+      type: 'session_meta',
+      v: 1,
+      startedAt: '2026-02-01T00:00:00.000Z',
+      cwd: cwdA,
+      cwdReal: cwdAReal,
+      provider: 'anthropic',
+    }
+
+    const fileA = getSessionFilePath({
+      sessionsRoot,
+      now: new Date('2026-02-01T00:00:00.000Z'),
+      sessionId: 'project-a',
+    })
+    await fs.mkdir(path.dirname(fileA), { recursive: true })
+    await fs.writeFile(fileA, JSON.stringify({ ...metaA, ts: '2026-02-01T00:00:00.000Z', sessionId: 'a' }) + '\n', 'utf8')
+
+    // Create >200 newer sessions for another cwd, so a naive "check only top N newest globally"
+    // would miss the current project's latest session.
+    for (let i = 0; i < 250; i += 1) {
+      const stamp = new Date(Date.UTC(2026, 1, 2, 0, 0, i)) // 2026-02-02
+      const fp = getSessionFilePath({ sessionsRoot, now: stamp, sessionId: `other-${i}` })
+      await fs.mkdir(path.dirname(fp), { recursive: true })
+      await fs.writeFile(
+        fp,
+        JSON.stringify({
+          type: 'session_meta',
+          v: 1,
+          ts: stamp.toISOString(),
+          sessionId: `b-${i}`,
+          startedAt: stamp.toISOString(),
+          cwd: cwdB,
+          cwdReal: cwdBReal,
+          provider: 'anthropic',
+        }) + '\n',
+        'utf8',
+      )
+    }
+
+    const latest = await findLatestSessionFile({ cwd: cwdA, env })
+    expect(latest).toBe(fileA)
+  })
 })

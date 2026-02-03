@@ -120,14 +120,14 @@ export async function findLatestSessionFile(args: {
 
   candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
 
-  for (const filePath of candidates.slice(0, 200)) {
+  for (const filePath of candidates) {
     try {
-      const replay = await readSessionFile(filePath)
-      if (cwdReal && replay.meta.cwdReal) {
-        if (replay.meta.cwdReal === cwdReal) return filePath
+      const meta = await readSessionMetaOnly(filePath)
+      if (cwdReal && meta.cwdReal) {
+        if (meta.cwdReal === cwdReal) return filePath
         continue
       }
-      if (replay.meta.cwd === args.cwd) return filePath
+      if (meta.cwd === args.cwd) return filePath
     } catch {
       continue
     }
