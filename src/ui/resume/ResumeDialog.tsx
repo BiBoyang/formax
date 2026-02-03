@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import TextInput from '../../components/ui/TextInput.js'
 import { ApprovalHeader } from '../../tools/presenters/ApprovalHeader.js'
@@ -8,61 +8,17 @@ import { getTheme } from '../../utils/theme.js'
 import type { SessionSummary } from '../../features/repl/sessionSave/reader.js'
 import { listRecentSessions, readSessionPreview } from '../../features/repl/sessionSave/reader.js'
 
-const SCOPE = 'overlay:resume' as const
-const MAX_VISIBLE = 15
-const MAX_SESSIONS = 200
-
-type PreviewRow = { key: string; text: string; dim?: boolean }
-
-function clamp(n: number, min: number, max: number): number {
-  if (Number.isNaN(n)) return min
-  if (n < min) return min
-  if (n > max) return max
-  return n
-}
-
-function formatRelativeTime(then: Date, now: Date = new Date()): string {
-  const ms = Math.max(0, now.getTime() - then.getTime())
-  const sec = Math.floor(ms / 1000)
-  if (sec < 60) return `${sec || 1} seconds ago`
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min} minutes ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} hours ago`
-  const day = Math.floor(hr / 24)
-  return `${day} days ago`
-}
-
-function normalizePromptText(value: string | null): string {
-  const t = typeof value === 'string' ? value.trim() : ''
-  return t ? t : 'No prompt'
-}
-
-function matchesQuery(summary: SessionSummary, queryRaw: string): boolean {
-  const q = queryRaw.trim().toLowerCase()
-  if (!q) return true
-  const parts = [
-    summary.label ?? '',
-    summary.lastUserPrompt ?? '',
-    summary.meta.gitBranch ?? '',
-    summary.meta.cwd ?? '',
-    summary.meta.cwdReal ?? '',
-  ]
-  return parts.some((p) => String(p).toLowerCase().includes(q))
-}
-
-function buildPreviewRows(args: {
-  title: string
-  rows: Array<{ role: string; text: string }>
-}): PreviewRow[] {
-  const out: PreviewRow[] = [{ key: 'title', text: args.title, dim: true }]
-  for (let i = 0; i < args.rows.length; i++) {
-    const r = args.rows[i]
-    const prefix = r.role === 'user' ? '> ' : r.role === 'assistant' ? '⏺ ' : ''
-    out.push({ key: `${i}-${r.role}`, text: `${prefix}${r.text}` })
-  }
-  return out
-}
+import { MAX_SESSIONS, MAX_VISIBLE_SESSIONS, RESUME_SCOPE } from './constants.js'
+import { dialogReducer, initialDialogState } from './reducer.js'
+import type { PreviewRow } from './types.js'
+import {
+  buildPreviewRows,
+  clamp,
+  computeResumeListView,
+  formatRelativeTime,
+  matchesQuery,
+  normalizePromptText,
+} from './utils.js'
 
 export type ResumeDialogExit = { kind: 'dismissed' }
 
@@ -72,26 +28,33 @@ export function ResumeDialog(args: {
   onRename: (filePath: string, label: string) => Promise<void>
   cwd?: string
 }): React.ReactNode {
-  useScopeActivation(SCOPE)
+  useScopeActivation(RESUME_SCOPE)
   const theme = useMemo(() => getTheme(), [])
   const cwd = args.cwd ?? process.cwd()
+
+  const [dialog, dispatch] = useReducer(dialogReducer, undefined, initialDialogState)
 
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [includeAllProjects, setIncludeAllProjects] = useState(false)
-  const [showBranch, setShowBranch] = useState(true)
-  const [cursor, setCursor] = useState(0)
-  const [searchActive, setSearchActive] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [previewActive, setPreviewActive] = useState(false)
   const [previewRows, setPreviewRows] = useState<PreviewRow[] | null>(null)
-  const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
 
   const escapeBufferRef = useRef('')
-  const cursorRef = useRef(cursor)
+  const escapeFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cursorRef = useRef(0)
+  const viewRef = useRef(dialog.view)
+
+  const cursor = dialog.view.cursor
+  const includeAllProjects = dialog.view.includeAllProjects
+  const showBranch = dialog.view.showBranch
+  const previewActive = dialog.view.previewActive
+  const searchActive = dialog.view.kind === 'search'
+  const searchQuery = dialog.view.kind === 'search' ? dialog.view.query : ''
+  const renaming = dialog.view.kind === 'rename'
+  const renameValue = dialog.view.kind === 'rename' ? dialog.view.value : ''
+
   cursorRef.current = cursor
+  viewRef.current = dialog.view
 
   const reloadSessions = useCallback(async () => {
     setLoading(true)
@@ -103,7 +66,7 @@ export function ResumeDialog(args: {
         limit: MAX_SESSIONS,
       })
       setSessions(next)
-      setCursor((prev) => clamp(prev, 0, Math.max(0, next.length - 1)))
+      dispatch({ type: 'SET_CURSOR', cursor: clamp(cursorRef.current, 0, Math.max(0, next.length - 1)) })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setLoadError(msg)
@@ -122,9 +85,9 @@ export function ResumeDialog(args: {
 
   useEffect(() => {
     const max = Math.max(0, filteredSessions.length - 1)
-    const nextCursor = clamp(cursorRef.current, 0, max)
-    if (nextCursor !== cursorRef.current) setCursor(nextCursor)
-  }, [filteredSessions.length])
+    const nextCursor = clamp(cursor, 0, max)
+    if (nextCursor !== cursor) dispatch({ type: 'SET_CURSOR', cursor: nextCursor })
+  }, [cursor, filteredSessions.length])
 
   const selected = filteredSessions[cursor] ?? null
 
@@ -153,13 +116,14 @@ export function ResumeDialog(args: {
 
   const enterRenameMode = useCallback(() => {
     if (!selected) return
-    setRenaming(true)
-    setRenameValue(selected.label ?? normalizePromptText(selected.lastUserPrompt))
+    dispatch({
+      type: 'ENTER_RENAME',
+      value: selected.label ?? normalizePromptText(selected.lastUserPrompt),
+    })
   }, [selected])
 
   const exitRenameMode = useCallback(() => {
-    setRenaming(false)
-    setRenameValue('')
+    dispatch({ type: 'EXIT_RENAME' })
   }, [])
 
   const submitRename = useCallback(
@@ -176,7 +140,15 @@ export function ResumeDialog(args: {
     [args, exitRenameMode, reloadSessions, selected],
   )
 
-  useScopedInput(SCOPE, (input, key) => {
+  useScopedInput(RESUME_SCOPE, (input, key) => {
+    const cleanupEscapeFallback = () => {
+      const t = escapeFallbackTimerRef.current
+      if (t) clearTimeout(t)
+      escapeFallbackTimerRef.current = null
+    }
+
+    cleanupEscapeFallback()
+
     const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
     const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
     const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
@@ -196,17 +168,24 @@ export function ResumeDialog(args: {
     const delta = keyDelta !== 0 ? keyDelta : bufferedDelta
 
     if (key.escape && !token) {
-      escapeBufferRef.current = ''
-      if (renaming) {
-        exitRenameMode()
-        return
-      }
-      if (searchActive) {
-        setSearchActive(false)
-        setSearchQuery('')
-        return
-      }
-      args.onExit({ kind: 'dismissed' })
+      // Ink can deliver arrow keys as split chunks; the first chunk can be only ESC with no input/sequence.
+      // Buffer it briefly to avoid treating it as a dialog Escape.
+      escapeBufferRef.current = '\u001B'
+      escapeFallbackTimerRef.current = setTimeout(() => {
+        escapeFallbackTimerRef.current = null
+        escapeBufferRef.current = ''
+
+        const view = viewRef.current
+        if (view.kind === 'rename') {
+          dispatch({ type: 'EXIT_RENAME' })
+          return
+        }
+        if (view.kind === 'search') {
+          dispatch({ type: 'EXIT_SEARCH' })
+          return
+        }
+        args.onExit({ kind: 'dismissed' })
+      }, 25)
       return
     }
 
@@ -217,25 +196,24 @@ export function ResumeDialog(args: {
 
     if (searchActive) {
       if (token === '/') {
-        setSearchActive(false)
-        setSearchQuery('')
+        dispatch({ type: 'EXIT_SEARCH' })
         return
       }
       return
     }
 
     if (token === 'a' || token === 'A') {
-      setIncludeAllProjects((v) => !v)
+      dispatch({ type: 'TOGGLE_ALL_PROJECTS' })
       return
     }
 
     if (token === 'b' || token === 'B') {
-      setShowBranch((v) => !v)
+      dispatch({ type: 'TOGGLE_BRANCH' })
       return
     }
 
     if (token === 'p' || token === 'P') {
-      setPreviewActive((v) => !v)
+      dispatch({ type: 'TOGGLE_PREVIEW' })
       return
     }
 
@@ -245,14 +223,13 @@ export function ResumeDialog(args: {
     }
 
     if (token === '/') {
-      setSearchActive(true)
-      setSearchQuery('')
+      dispatch({ type: 'ENTER_SEARCH' })
       return
     }
 
     if (delta !== 0) {
       const max = Math.max(0, filteredSessions.length - 1)
-      setCursor((prev) => clamp(prev + delta, 0, max))
+      dispatch({ type: 'SET_CURSOR', cursor: clamp(cursor + delta, 0, max) })
       return
     }
 
@@ -263,17 +240,7 @@ export function ResumeDialog(args: {
   })
 
   const view = useMemo(() => {
-    const items = filteredSessions
-    const maxTop = Math.max(0, items.length - MAX_VISIBLE)
-    let top = 0
-    if (cursor <= 0) top = 0
-    else if (cursor > MAX_VISIBLE - 1) top = clamp(cursor - (MAX_VISIBLE - 1), 0, maxTop)
-
-    const visible = items.slice(top, top + MAX_VISIBLE)
-    const hasMoreAbove = top > 0
-    const hasMoreBelow = top + MAX_VISIBLE < items.length
-
-    return { top, visible, hasMoreAbove, hasMoreBelow, total: items.length }
+    return computeResumeListView({ items: filteredSessions, cursor, maxVisible: MAX_VISIBLE_SESSIONS })
   }, [cursor, filteredSessions])
 
   return (
@@ -339,10 +306,10 @@ export function ResumeDialog(args: {
           <Text>Search: </Text>
           <TextInput
             value={searchQuery}
-            onChange={setSearchQuery}
+            onChange={(query) => dispatch({ type: 'SET_SEARCH_QUERY', query })}
             cursorStyle="bar"
             reservedChars={['/']}
-            scope={SCOPE}
+            scope={RESUME_SCOPE}
           />
         </Box>
       ) : renaming ? (
@@ -350,10 +317,10 @@ export function ResumeDialog(args: {
           <Text>Rename: </Text>
           <TextInput
             value={renameValue}
-            onChange={setRenameValue}
+            onChange={(value) => dispatch({ type: 'SET_RENAME_VALUE', value })}
             onSubmit={(v) => void submitRename(v)}
             cursorStyle="bar"
-            scope={SCOPE}
+            scope={RESUME_SCOPE}
           />
         </Box>
       ) : null}

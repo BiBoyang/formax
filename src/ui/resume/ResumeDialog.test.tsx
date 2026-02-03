@@ -148,7 +148,11 @@ describe('ResumeDialog', () => {
 
       // Escape exits search (does not dismiss the dialog).
       stdin.write('\u001B')
-      await tick()
+      for (let i = 0; i < 50; i++) {
+        await tick()
+        const frame = lastFrame() || ''
+        if (!frame.includes('Search:')) break
+      }
 
       const frame = lastFrame() || ''
       expect(frame.includes('Search:')).toBe(false)
