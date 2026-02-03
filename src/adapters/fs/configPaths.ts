@@ -29,7 +29,12 @@ function expandLeadingTilde(inputPath: string, homedir: string): string {
 }
 
 function getDefaultGlobalConfigDir(env: NodeJS.ProcessEnv, homedir: string): string {
-  if (env.FORMAX_CONFIG_DIR) return expandLeadingTilde(env.FORMAX_CONFIG_DIR, homedir)
+  const rawOverride = String(env.FORMAX_CONFIG_DIR || '').trim()
+  // Defensive: some shells/CI setups accidentally set env vars to the literal string "undefined".
+  // Treat that as unset to avoid creating config dirs like "<cwd>/undefined/".
+  if (rawOverride && rawOverride !== 'undefined' && rawOverride !== 'null') {
+    return expandLeadingTilde(rawOverride, homedir)
+  }
   return path.join(homedir, '.formax')
 }
 

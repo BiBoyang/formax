@@ -14,6 +14,9 @@ async function main(): Promise<void> {
   if (parsed.flags.agents) {
     process.env.FORMAX_START_AGENTS_DIALOG = '1'
   }
+  if (parsed.flags.resumeLast) {
+    process.env.FORMAX_RESUME_LAST = '1'
+  }
 
   const res = await dispatchCli(argv)
   if (res.kind === 'handled') {

@@ -50,4 +50,14 @@ describe('getConfigPaths', () => {
     expect(paths.globalConfigDir).toBe('/home/alice/.formax')
     expect(paths.globalConfigPath).toBe('/home/alice/.formax/config.json')
   })
+
+  it('treats literal "undefined" FORMAX_CONFIG_DIR as unset', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: { FORMAX_CONFIG_DIR: 'undefined' } as any,
+    })
+    expect(paths.globalConfigDir).toBe('/home/alice/.formax')
+  })
 })

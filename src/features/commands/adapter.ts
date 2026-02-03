@@ -55,6 +55,9 @@ export function slashEffectToCommandResult(effect: SlashCommandEffect | null): C
     case 'open_config_dialog':
       return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'config' } }] })
 
+    case 'open_resume_dialog':
+      return consumedCommandResult({ ui: [{ type: 'openOverlay', overlay: { kind: 'resume' } }] })
+
     case 'local':
       // Render local slash command output as "sub lines" (⎿ ...) under the user command.
       // Model injection remains controlled by recordForNextTurn (currently only /todos sets it).

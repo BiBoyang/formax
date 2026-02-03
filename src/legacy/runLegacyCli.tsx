@@ -32,6 +32,7 @@ import { createAskUserQuestionToolModule } from '../tools/modules/askUserQuestio
 import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
 import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
+import { findLatestSessionFile, readSessionFile } from '../features/repl/sessionSave/index.js'
 import type { App } from '../core/app/createApp.js'
 import { SetupWizard } from '../ui/SetupWizard.js'
 import { testSetupConnection } from '../adapters/setup/connectionTest.js'
@@ -214,6 +215,16 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     await clearTerminal()
   }
 
+  const resumeLast = String(process.env.FORMAX_RESUME_LAST ?? '').trim() === '1'
+  const initialSession = resumeLast
+    ? await (async () => {
+        const filePath = await findLatestSessionFile({ cwd: process.cwd(), env: process.env })
+        if (!filePath) return null
+        const replay = await readSessionFile(filePath)
+        return { filePath, messages: replay.messages, history: replay.history }
+      })().catch(() => null)
+    : null
+
   replInstance = render(
     <InputScopeProvider initialScope="repl">
       <UserInputProvider userInput={userInputManager}>
@@ -221,6 +232,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
           engine={engine}
           tools={tools}
           cfg={cfg}
+          initialSession={initialSession ?? undefined}
           onClearTerminal={onClearTerminal}
           allowedSubagents={allowedSubagents}
           reloadSubagents={reloadSubagents}

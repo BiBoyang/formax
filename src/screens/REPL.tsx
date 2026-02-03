@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import type { ChatEngine } from '../chat/engine'
+import type { ChatEngine, ChatHistory } from '../chat/engine'
 import { loadRuntimeConfig, type RuntimeConfig } from '../env/config'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolRegistry } from '../tools/registry'
@@ -27,6 +27,7 @@ import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
+import { ResumeDialog } from '../ui/resume/ResumeDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
@@ -44,6 +45,7 @@ type Props = {
   engine: ChatEngine
   tools: ToolDefinition[]
   cfg: RuntimeConfig
+  initialSession?: { filePath: string; messages: Msg[]; history: ChatHistory } | null
   allowedSubagents?: Array<{ name: string; description: string }>
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   toolRegistry?: ToolRegistry
@@ -98,6 +100,7 @@ export function REPL({
   engine,
   tools,
   cfg,
+  initialSession,
   allowedSubagents,
   reloadSubagents,
   toolRegistry,
@@ -170,6 +173,7 @@ export function REPL({
     tools,
     cfg: runtimeCfg,
     onClearTerminal,
+    initialSession: initialSession ?? undefined,
     allowedSubagents,
     reloadSubagents,
     mode,
@@ -211,6 +215,7 @@ export function REPL({
       state.permissionsDialogOpen,
       state.hooksDialogOpen,
       state.configDialogOpen,
+      state.resumeDialogOpen,
       state.transientMessages,
       toolRegistry,
       userInput,
@@ -452,6 +457,13 @@ export function REPL({
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
             {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
             {state.configDialogOpen && <ConfigDialog onExit={handleConfigExit} />}
+            {state.resumeDialogOpen && (
+              <ResumeDialog
+                onExit={actions.closeResumeDialog}
+                onResume={actions.resumeSession}
+                onRename={actions.renameSession}
+              />
+            )}
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">

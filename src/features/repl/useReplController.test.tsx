@@ -3,7 +3,7 @@ import { render } from 'ink-testing-library'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReplController } from './useReplController'
 import { createUserInputManager } from '../../tools/runtime/userInputManager'
 import { UserInputProvider } from '../../tools/runtime/userInputContext'
@@ -13,6 +13,8 @@ import type { ToolDefinition } from '../../tools/types'
 import type { StreamEvent } from '../../streaming/types'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { PromptBlock } from '../../prompts'
+import { readSessionFile } from './sessionSave/reader'
+import { SessionWriter } from './sessionSave/writer'
 
 const { estimatePromptTokensMock } = vi.hoisted(() => ({
   estimatePromptTokensMock: vi.fn(() => 0),
@@ -21,6 +23,14 @@ const { estimatePromptTokensMock } = vi.hoisted(() => ({
 vi.mock('../../chat/context/estimate', () => ({
   estimatePromptTokens: estimatePromptTokensMock,
 }))
+
+const unmountFns: Array<() => void> = []
+
+function renderTracked(node: React.ReactElement): ReturnType<typeof render> {
+  const rendered = render(node)
+  unmountFns.push(rendered.unmount)
+  return rendered
+}
 
 function tick(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -73,6 +83,7 @@ function Harness(args: {
   tools?: ToolDefinition[]
   cfg?: RuntimeConfig
   commandRegistry?: SlashCommandRegistry
+  initialSession?: { filePath?: string; messages?: any[]; history?: any[] }
   onController: (c: ReturnType<typeof useReplController>) => void
 }): React.ReactNode {
   const controller = useReplController({
@@ -81,6 +92,7 @@ function Harness(args: {
     cfg: args.cfg ?? createCfg(),
     mode: 'normal',
     commandRegistry: args.commandRegistry,
+    initialSession: args.initialSession as any,
   })
 
   useEffect(() => {
@@ -103,10 +115,18 @@ function isTextPromptBlock(b: PromptBlock): b is PromptBlock & { type: 'text'; t
   return (b as any).type === 'text' && typeof (b as any).text === 'string'
 }
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers()
+  for (const unmount of unmountFns.splice(0)) unmount()
+  // Allow async cleanup (SessionWriter shutdown) to complete.
+  await tick(20)
   estimatePromptTokensMock.mockReset()
   vi.restoreAllMocks()
+})
+
+beforeEach(() => {
+  process.env.FORMAX_SESSION_SAVE = '0'
+  delete process.env.FORMAX_SESSION_SAVE_DISABLED
 })
 
 describe('useReplController', () => {
@@ -123,7 +143,7 @@ describe('useReplController', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness
           engine={engine}
@@ -172,7 +192,7 @@ describe('useReplController', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -207,7 +227,7 @@ describe('useReplController', () => {
 
     try {
       let controller!: ReturnType<typeof useReplController>
-      render(
+      renderTracked(
         <Harness
           engine={engine}
           cfg={createCfg({ ui: { ...createCfg().ui, promptProfile: 'full' } })}
@@ -270,7 +290,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <Harness
         engine={engine}
         cfg={createCfg({ ui: { ...createCfg().ui, assistantTextMode: 'stream' } })}
@@ -311,7 +331,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
 
     await waitFor(() => Boolean(controller))
 
@@ -338,7 +358,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
 
     await waitFor(() => Boolean(controller))
 
@@ -354,7 +374,7 @@ describe('useReplController', () => {
     const engine: ChatEngine = { runTurn } as any
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
 
     await waitFor(() => Boolean(controller))
 
@@ -376,7 +396,7 @@ describe('useReplController', () => {
     const engine: ChatEngine = { runTurn } as any
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
 
     await waitFor(() => Boolean(controller))
 
@@ -410,7 +430,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
 	    await controller.actions.send('hello')
@@ -444,7 +464,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
     const sendPromise = controller.actions.send('hello')
@@ -494,7 +514,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
     const sendPromise = controller.actions.send('hello')
@@ -524,7 +544,7 @@ describe('useReplController', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('hello')
@@ -575,7 +595,7 @@ describe('useReplController', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} tools={tools} cfg={cfg} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -608,7 +628,7 @@ describe('useReplController', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -639,7 +659,7 @@ describe('useReplController', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -658,44 +678,668 @@ describe('useReplController', () => {
 
 describe('useReplController /clear', () => {
   it('clears prompt history and replaces the UI message list', async () => {
-    const historyLens: number[] = []
-    const runTurn = vi.fn(async (args: any) => {
-      historyLens.push((args.history ?? []).length)
-      return [
-        ...(args.history ?? []),
-        args.user,
-        { role: 'assistant', content: [{ type: 'text', text: `HISTLEN:${(args.history ?? []).length}` }] },
-      ]
-    })
-    const engine: ChatEngine = { runTurn } as any
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
 
-    const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
-    const userInput = createUserInputManager()
-    let controller!: ReturnType<typeof useReplController>
-    render(
-      <UserInputProvider userInput={userInput}>
-        <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
-      </UserInputProvider>,
-    )
-    await waitFor(() => Boolean(controller))
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
 
-    await controller.actions.send('hi')
-    await waitFor(() => controller.state.isLoading === false)
-    expect(historyLens[0]).toBe(0)
+    const waitForSessionFiles = async (minCount: number) => {
+      const start = Date.now()
+      while (Date.now() - start < 2000) {
+        const files = await listSessionFiles()
+        if (files.length >= minCount) return files
+        await tick(10)
+      }
+      throw new Error('Timed out waiting for session files')
+    }
 
-    await controller.actions.send('hi2')
-    await waitFor(() => controller.state.isLoading === false)
-    expect(historyLens[1]).toBeGreaterThan(0)
+    try {
+      const historyLens: number[] = []
+      const runTurn = vi.fn(async (args: any) => {
+        historyLens.push((args.history ?? []).length)
+        return [
+          ...(args.history ?? []),
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: `HISTLEN:${(args.history ?? []).length}` }] },
+        ]
+      })
+      const engine: ChatEngine = { runTurn } as any
 
-    const seqBefore = controller.state.transcriptSeq
-    await controller.actions.send('/clear')
-    await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
-    expect(controller.state.messages).toHaveLength(0)
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+      const filesBefore = await waitForSessionFiles(1)
+      expect(filesBefore).toHaveLength(1)
 
-    await controller.actions.send('hi3')
-    await waitFor(() => controller.state.isLoading === false)
-    expect(historyLens[2]).toBe(0)
-    expect(runTurn).toHaveBeenCalledTimes(3)
+      await controller.actions.send('hi')
+      await waitFor(() => controller.state.isLoading === false)
+      expect(historyLens[0]).toBe(0)
+
+      await controller.actions.send('hi2')
+      await waitFor(() => controller.state.isLoading === false)
+      expect(historyLens[1]).toBeGreaterThan(0)
+
+      const seqBefore = controller.state.transcriptSeq
+      await controller.actions.send('/clear')
+      await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
+      expect(controller.state.messages).toHaveLength(0)
+      const filesAfterClear = await waitForSessionFiles(2)
+      expect(filesAfterClear.length).toBeGreaterThanOrEqual(2)
+
+      await controller.actions.send('hi3')
+      await waitFor(() => controller.state.isLoading === false)
+      expect(historyLens[2]).toBe(0)
+      expect(runTurn).toHaveBeenCalledTimes(3)
+    } finally {
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not race session writer creation after /clear', async () => {
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-race-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    const waitForSessionFiles = async (minCount: number) => {
+      const start = Date.now()
+      while (Date.now() - start < 2000) {
+        const files = await listSessionFiles()
+        if (files.length >= minCount) return files
+        await tick(10)
+      }
+      throw new Error('Timed out waiting for session files')
+    }
+
+    const realCreateNew = SessionWriter.createNew.bind(SessionWriter)
+    const createNewSpy = vi
+      .spyOn(SessionWriter, 'createNew')
+      .mockImplementation(async (args: any) => {
+        // Keep the writer init pending long enough for a second send() to overlap.
+        await tick(50)
+        return realCreateNew(args)
+      })
+
+    try {
+      const runTurn = vi.fn(async (args: any) => {
+        return [
+          ...(args.history ?? []),
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'OK' }] },
+        ]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+      await waitForSessionFiles(1)
+      createNewSpy.mockClear()
+
+      const seqBefore = controller.state.transcriptSeq
+      await controller.actions.send('/clear')
+      await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
+
+      await controller.actions.send('hi after clear')
+      await waitFor(() => controller.state.isLoading === false)
+
+      // Should only create a single new writer for the cleared session.
+      expect(createNewSpy).toHaveBeenCalledTimes(1)
+      const filesAfter = await waitForSessionFiles(2)
+      expect(filesAfter.length).toBeGreaterThanOrEqual(2)
+    } finally {
+      createNewSpy.mockRestore()
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('useReplController sessionSave resume', () => {
+  it('does not duplicate existing ui_msg records when resuming a session', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    try {
+      process.chdir(cwdDir)
+
+      const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+      await writer.appendStableMsg({
+        id: 'assistant-1',
+        role: 'assistant',
+        content: 'hello',
+        timestamp: new Date('2026-02-02T00:00:00.000Z'),
+      } as any)
+      await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] as any)
+      await writer.shutdown()
+
+      const replay = await readSessionFile(filePath)
+
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness
+            engine={engine}
+            cfg={cfg}
+            initialSession={{ filePath, messages: replay.messages as any, history: replay.history as any }}
+            onController={(c) => (controller = c)}
+          />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      let observedResume = false
+      const start = Date.now()
+      while (Date.now() - start < 2000) {
+        const raw = await fsp.readFile(filePath, 'utf8')
+        const recs = raw
+          .split('\n')
+          .map((l) => l.trimEnd())
+          .filter(Boolean)
+          .map((l) => JSON.parse(l))
+
+        const uiMsgs = recs.filter((r: any) => r.type === 'ui_msg')
+        const hasResume = recs.some((r: any) => r.type === 'event' && r.name === 'resume')
+        if (hasResume) {
+          observedResume = true
+          expect(uiMsgs).toHaveLength(1)
+          break
+        }
+        await tick(10)
+      }
+      expect(observedResume).toBe(true)
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses the last persisted history_state as the starting history when resuming', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    try {
+      process.chdir(cwdDir)
+
+      const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+      await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'fromHistory' }] }] as any)
+      await writer.shutdown()
+
+      const replay = await readSessionFile(filePath)
+
+      const runTurn = vi.fn(async ({ history, user, onEvent }: any) => {
+        expect((history[0] as any)?.content?.[0]?.text).toBe('fromHistory')
+        onEvent({ type: 'complete' } as any)
+        return [...history, user]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness
+            engine={engine}
+            cfg={cfg}
+            initialSession={{ filePath, messages: replay.messages as any, history: replay.history as any }}
+            onController={(c) => (controller = c)}
+          />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('next')
+      await waitFor(() => controller.state.isLoading === false)
+      expect(runTurn).toHaveBeenCalled()
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('useReplController sessionSave injected events', () => {
+  it('records CLAUDE.md injection metadata as an event (no text persisted)', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    await fsp.writeFile(path.join(cwdDir, 'CLAUDE.md'), '# PROJECT\n', 'utf8')
+    await fsp.writeFile(path.join(configDir, 'CLAUDE.md'), '# GLOBAL\n', 'utf8')
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    try {
+      process.chdir(cwdDir)
+
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('hi')
+      await waitFor(() => controller.state.isLoading === false)
+
+      const start = Date.now()
+      let filePath: string | null = null
+      while (Date.now() - start < 2000) {
+        const files = await listSessionFiles()
+        if (files.length > 0) {
+          filePath = files[0]!
+          break
+        }
+        await tick(10)
+      }
+      expect(filePath).toBeTruthy()
+
+      const raw = await fsp.readFile(filePath!, 'utf8')
+      const lines = raw
+        .split('\n')
+        .map((l) => l.trimEnd())
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+
+      const ev = lines.find((l: any) => l.type === 'event' && l.name === 'claude_md_injection')
+      expect(ev).toBeTruthy()
+      expect(ev.data?.project?.filePath).toContain('CLAUDE.md')
+      expect(ev.data?.global?.filePath).toContain('CLAUDE.md')
+      expect(String(ev.data?.project?.includedSha256 || '')).toMatch(/^[a-f0-9]{64}$/)
+      expect(String(ev.data?.global?.includedSha256 || '')).toMatch(/^[a-f0-9]{64}$/)
+      // Ensure we did not persist the injected text itself.
+      expect(JSON.stringify(ev)).not.toContain('# claudeMd')
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('records output style changes and local command injection metadata (no injected text persisted)', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    try {
+      process.chdir(cwdDir)
+
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      // Ensure a session file exists.
+      await controller.actions.send('hi')
+      await waitFor(() => controller.state.isLoading === false)
+
+      controller.actions.closeConfigDialog({ kind: 'changed', message: 'Set output style to Explanatory' } as any)
+
+      const start = Date.now()
+      let filePath: string | null = null
+      while (Date.now() - start < 2000) {
+        const files = await listSessionFiles()
+        if (files.length > 0) {
+          filePath = files[0]!
+          break
+        }
+        await tick(10)
+      }
+      expect(filePath).toBeTruthy()
+
+      const started = Date.now()
+      let raw = ''
+      let lines: any[] = []
+      let styleEv: any | undefined
+      let injEv: any | undefined
+      while (Date.now() - started < 2000) {
+        raw = await fsp.readFile(filePath!, 'utf8')
+        lines = raw
+          .split('\n')
+          .map((l) => l.trimEnd())
+          .filter(Boolean)
+          .map((l) => JSON.parse(l))
+        styleEv = lines.find((l: any) => l.type === 'event' && l.name === 'output_style_changed')
+        injEv = lines.find((l: any) => l.type === 'event' && l.name === 'local_command_injection')
+        if (styleEv && injEv) break
+        await tick(10)
+      }
+
+      expect(styleEv?.data?.style).toBe('explanatory')
+      expect(injEv?.data?.commandName).toBe('/config')
+      expect(injEv?.data?.stdoutChars).toBeGreaterThan(0)
+      expect(injEv?.data?.injectedChars).toBeGreaterThan(0)
+
+      // Ensure the injected blocks aren't persisted.
+      expect(raw).not.toContain('<local-command-stdout>')
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('records local command injection metadata for slash commands with recordForNextTurn', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    try {
+      process.chdir(cwdDir)
+
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+
+      const commandRegistry = {
+        dispatch(input: string) {
+          if (!input.startsWith('/todos')) return null
+          return {
+            kind: 'local' as const,
+            stdout: 'Todos output',
+            recordForNextTurn: {
+              commandName: '/todos',
+              commandMessage: 'todos',
+              commandArgs: '',
+              stdout: 'Todos output',
+            },
+          }
+        },
+      } as any
+
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} commandRegistry={commandRegistry} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('/todos')
+      await tick(20)
+
+      const files = await listSessionFiles()
+      expect(files.length).toBeGreaterThan(0)
+      const filePath = files[0]!
+
+      const raw = await fsp.readFile(filePath, 'utf8')
+      const lines = raw
+        .split('\n')
+        .map((l) => l.trimEnd())
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+
+      const injEv = lines.find((l: any) => l.type === 'event' && l.name === 'local_command_injection')
+      expect(injEv?.data?.source).toBe('slash_local')
+      expect(injEv?.data?.commandName).toBe('/todos')
+      expect(injEv?.data?.stdoutChars).toBeGreaterThan(0)
+      expect(raw).not.toContain('<local-command-stdout>')
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('records local command injection metadata for local_async recordForNextTurn', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevCwd = process.cwd()
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    process.env.FORMAX_CONFIG_DIR = configDir
+    process.env.FORMAX_SESSION_SAVE = '1'
+
+    const listSessionFiles = async (): Promise<string[]> => {
+      const root = path.join(configDir, 'sessions')
+      const out: string[] = []
+      const walk = async (dir: string) => {
+        const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+        for (const ent of ents) {
+          const full = path.join(dir, ent.name)
+          if (ent.isDirectory()) await walk(full)
+          else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+        }
+      }
+      await walk(root)
+      return out.sort()
+    }
+
+    try {
+      process.chdir(cwdDir)
+
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+
+      const commandRegistry = {
+        dispatch(input: string) {
+          if (!input.startsWith('/async')) return null
+          return {
+            kind: 'local_async' as const,
+            loadingText: 'Working',
+            async run() {
+              return {
+                stdout: 'ok',
+                recordForNextTurn: {
+                  commandName: '/async',
+                  commandMessage: 'async',
+                  commandArgs: '',
+                  stdout: 'Async output',
+                },
+              }
+            },
+          }
+        },
+      } as any
+
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness engine={engine} cfg={cfg} commandRegistry={commandRegistry} onController={(c) => (controller = c)} />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('/async')
+      await waitFor(() => controller.state.isLoading === false)
+
+      const files = await listSessionFiles()
+      expect(files.length).toBeGreaterThan(0)
+      const filePath = files[0]!
+
+      const raw = await fsp.readFile(filePath, 'utf8')
+      const lines = raw
+        .split('\n')
+        .map((l) => l.trimEnd())
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+
+      const injEv = lines.find((l: any) => l.type === 'event' && l.name === 'local_command_injection' && l.data?.commandName === '/async')
+      expect(injEv?.data?.source).toBe('slash_local_async')
+      expect(injEv?.data?.stdoutChars).toBeGreaterThan(0)
+      expect(raw).not.toContain('<local-command-stdout>')
+    } finally {
+      process.chdir(prevCwd)
+      process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
   })
 })
 
@@ -723,7 +1367,7 @@ describe('useReplController auto-compact', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} tools={tools} cfg={cfg} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -795,7 +1439,7 @@ describe('useReplController injected blocks', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness
           engine={engine}
@@ -879,7 +1523,7 @@ describe('useReplController injected blocks', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness
           engine={engine}
@@ -925,7 +1569,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
     await waitFor(() => Boolean(controller))
 
     const before = controller.state
@@ -955,7 +1599,7 @@ describe('useReplController injected blocks', () => {
 
     const userInput = createUserInputManager()
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <UserInputProvider userInput={userInput}>
         <Harness engine={engine} onController={(c) => (controller = c)} />
       </UserInputProvider>,
@@ -1013,7 +1657,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(
+    renderTracked(
       <Harness
         engine={engine}
         onController={(c) => (controller = c)}
@@ -1051,7 +1695,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('/status', { preferredSlashSpecId: 'user:/status' })
@@ -1084,7 +1728,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('/multi')
@@ -1116,7 +1760,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
 	    const sendPromise = controller.actions.send('/doctor')
@@ -1154,7 +1798,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
 	    await controller.actions.send('/doctor')
@@ -1187,7 +1831,7 @@ describe('useReplController injected blocks', () => {
     }
 
     let controller!: ReturnType<typeof useReplController>
-    render(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} commandRegistry={commandRegistry} />)
     await waitFor(() => Boolean(controller))
 
 	    await controller.actions.send('/doctor')
