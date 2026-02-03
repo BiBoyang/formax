@@ -329,16 +329,14 @@ export function REPL({
           }
           return renderThinkingBlock({ content: msg.content, theme })
         }
-	        return (
-	          <Box flexDirection="column" marginTop={1} marginBottom={0}>
-	            <Box>
-	              {/* Keep bullet without trailing space; Ink inserts the separator between adjacent <Text> nodes. */}
-	              <Text>⏺</Text>
-	              <Text>{msg.content}</Text>
-	            </Box>
-	          </Box>
-	        )
-	      }
+        return (
+          <Box flexDirection="column" marginTop={1} marginBottom={0}>
+            <Box>
+              <Text>{`⏺ ${msg.content}`}</Text>
+            </Box>
+          </Box>
+        )
+      }
 
       return (
         <Box flexDirection="column" marginTop={1} marginBottom={0}>
