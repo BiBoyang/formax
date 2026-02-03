@@ -137,21 +137,27 @@ export async function findLatestSessionFile(args: {
 }
 
 async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord> {
-  const rl = readline.createInterface({
-    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  })
+  const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
 
-  for await (const line of rl) {
-    const trimmed = String(line ?? '').trimEnd()
-    if (!trimmed) continue
-    const parsed = JSON.parse(trimmed) as unknown
-    if (!isObject(parsed)) break
-    if (parsed.type !== 'session_meta') break
-    return parsed as SessionMetaRecord
+  let meta: SessionMetaRecord | null = null
+  try {
+    for await (const line of rl) {
+      const trimmed = String(line ?? '').trimEnd()
+      if (!trimmed) continue
+      const parsed = JSON.parse(trimmed) as unknown
+      if (!isObject(parsed)) break
+      if (parsed.type !== 'session_meta') break
+      meta = parsed as SessionMetaRecord
+      break
+    }
+  } finally {
+    rl.close()
+    stream.destroy()
   }
 
-  throw new Error(`Invalid session file (missing session_meta): ${filePath}`)
+  if (!meta) throw new Error(`Invalid session file (missing session_meta): ${filePath}`)
+  return meta
 }
 
 async function readTailText(filePath: string, maxBytes: number): Promise<string> {
