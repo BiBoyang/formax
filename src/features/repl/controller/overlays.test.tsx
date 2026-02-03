@@ -99,6 +99,7 @@ type HarnessApi = {
   closeAgentsDialog: (args: { createdAgents: string[] }) => void
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
+  closeResumeDialog: (exit?: { kind: 'dismissed' }) => void
   saveAgentFromDialog: (args: any) => Promise<any>
 }
 
@@ -135,6 +136,7 @@ function Harness(props: {
     closeAgentsDialog: overlayApi.closeAgentsDialog,
     closePermissionsDialog: overlayApi.closePermissionsDialog,
     closeHooksDialog: overlayApi.closeHooksDialog,
+    closeResumeDialog: overlayApi.closeResumeDialog,
     saveAgentFromDialog: overlayApi.saveAgentFromDialog,
   }
 
@@ -230,6 +232,57 @@ describe('useReplOverlays', () => {
 
     apiRef.current?.closeHooksDialog()
     await waitForText(app.lastFrame, 'Hooks dialog dismissed')
+  })
+
+  it('closeResumeDialog appends a message when dismissed', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        initialOverlay={{ kind: 'resume' }}
+        initialMessages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: '/resume',
+            timestamp: new Date(),
+          },
+        ]}
+      />,
+    )
+    await waitForApiRef(apiRef)
+    await tick()
+
+    apiRef.current?.closeResumeDialog({ kind: 'dismissed' })
+
+    await waitForText(app.lastFrame, 'overlay=none')
+    await waitForText(app.lastFrame, 'Resume cancelled')
+  })
+
+  it('closeResumeDialog does not append a message by default', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        initialOverlay={{ kind: 'resume' }}
+        initialMessages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: '/resume',
+            timestamp: new Date(),
+          },
+        ]}
+      />,
+    )
+    await waitForApiRef(apiRef)
+    await tick()
+
+    apiRef.current?.closeResumeDialog()
+    await waitForText(app.lastFrame, 'overlay=none')
+
+    const frame = app.lastFrame() || ''
+    expect(frame).not.toContain('Resume cancelled')
   })
 
   it('saveAgentFromDialog triggers reloadSubagents success and openInEditor message', async () => {

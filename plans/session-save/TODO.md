@@ -51,6 +51,7 @@ Reference: `plans/session-save/cc-slash-resume.txt` (Claude Code)
   - [x] `R` rename: persist a user label for the selected session (append-only; no rewriting)
   - [x] `/` search: filter sessions by prompt/label/branch/project; `Esc` exits search
 - [x] Resume action: selecting a session replaces transcript + history and continues appending to that session file
+- [x] Cancel output (UI-only): exiting `/resume` via `Esc` appends `Resume cancelled` as `command_subline` (no LLM injection)
 - [x] Add targeted tests locking the above behavior (no `test:coverage`)
 
 ## Phase 2 — Make settings affect behavior (later)
