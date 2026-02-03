@@ -30,7 +30,10 @@ export function PulsingDot({
   color,
   pulse = false,
   intervalMs = 600,
-  trailingSpace = true,
+  // Ink renders a single separator space between adjacent <Text> siblings.
+  // Most call sites render `<PulsingDot /><Text>Read</Text>`, so emitting a trailing
+  // space here would create a double space: `⏺  Read`. Keep this off by default.
+  trailingSpace = false,
 }: {
   color?: string
   pulse?: boolean
