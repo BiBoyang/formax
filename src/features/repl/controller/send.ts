@@ -151,7 +151,13 @@ export async function maybeHandleCompactCommand(args: {
     }
 
     const compactSink = (ev: StreamEvent) => {
-      if (ev.type === 'thinking_delta' || ev.type === 'usage' || ev.type === 'error' || ev.type === 'complete') {
+      if (
+        ev.type === 'thinking_delta' ||
+        ev.type === 'thinking_stop' ||
+        ev.type === 'usage' ||
+        ev.type === 'error' ||
+        ev.type === 'complete'
+      ) {
         args.handleEvent(ev)
       }
     }
@@ -521,7 +527,7 @@ export async function runMainSendTurn(raw: {
         const compactSink = (ev: StreamEvent) => {
           // Auto-compact runs inside an active turn; forwarding complete/error into the main
           // event handler would incorrectly reset loading state or surface irrelevant errors.
-          if (ev.type === 'thinking_delta' || ev.type === 'usage') {
+          if (ev.type === 'thinking_delta' || ev.type === 'thinking_stop' || ev.type === 'usage') {
             args.handleEvent(ev)
           }
         }

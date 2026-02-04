@@ -17,6 +17,7 @@ import {
 function createMockCallbacks(): SSECallbacks & {
   textDeltas: Array<{ text: string; index: number }>
   thinkingDeltas: Array<{ thinking: string; index: number }>
+  thinkingStops: Array<{ index: number }>
   toolStarts: Array<{ id: string; name: string; index: number }>
   toolCompletes: Array<{ index: number; toolUse: any }>
   errors: Error[]
@@ -24,6 +25,7 @@ function createMockCallbacks(): SSECallbacks & {
 } {
   const textDeltas: Array<{ text: string; index: number }> = []
   const thinkingDeltas: Array<{ thinking: string; index: number }> = []
+  const thinkingStops: Array<{ index: number }> = []
   const toolStarts: Array<{ id: string; name: string; index: number }> = []
   const toolCompletes: Array<{ index: number; toolUse: any }> = []
   const errors: Error[] = []
@@ -32,12 +34,14 @@ function createMockCallbacks(): SSECallbacks & {
   return {
     textDeltas,
     thinkingDeltas,
+    thinkingStops,
     toolStarts,
     toolCompletes,
     errors,
     completions,
     onTextDelta: (text, index) => textDeltas.push({ text, index }),
     onThinkingDelta: (thinking, index) => thinkingDeltas.push({ thinking, index }),
+    onThinkingStop: (index) => thinkingStops.push({ index }),
     onToolUseStart: (id, name, index) => toolStarts.push({ id, name, index }),
     onToolUseComplete: (index, toolUse) => toolCompletes.push({ index, toolUse }),
     onError: (error) => errors.push(error),
@@ -46,6 +50,23 @@ function createMockCallbacks(): SSECallbacks & {
 }
 
 describe('SSE Streaming Parser', () => {
+  it('emits a thinking stop callback when a thinking block ends', async () => {
+    const callbacks = createMockCallbacks()
+    const events = [
+      { type: 'message_start', message: { id: 'msg_1', role: 'assistant' } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hello' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_stop' }
+    ]
+
+    const stream = createMockSSEStream(events)
+    await parseAnthropicSSEStream(stream, callbacks)
+
+    expect(callbacks.thinkingDeltas).toEqual([{ thinking: 'hello', index: 0 }])
+    expect(callbacks.thinkingStops).toEqual([{ index: 0 }])
+  })
+
   /**
    * Property 2: SSE Text Delta Accumulation
    * 

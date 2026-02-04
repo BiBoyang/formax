@@ -5,13 +5,8 @@ import { ThinkingStatusLine } from './ThinkingStatusLine'
 
 describe('ThinkingStatusLine', () => {
   it('renders nothing when there is no thinking', () => {
-    const { lastFrame } = render(<ThinkingStatusLine startedAtMs={null} accumulatedMs={0} />)
+    const { lastFrame } = render(<ThinkingStatusLine startedAtMs={null} />)
     expect((lastFrame() || '').trim()).toBe('')
-  })
-
-  it('shows Thought for Ns when thinking already completed', () => {
-    const { lastFrame } = render(<ThinkingStatusLine startedAtMs={null} accumulatedMs={5_000} />)
-    expect(lastFrame()).toContain('∴ Thought for 5s')
   })
 
   it('shows Thinking… within threshold', () => {

@@ -5,7 +5,7 @@
 核心原则（先对齐）
 
 - **不硬造 thinking**：只在模型真实输出 thinking（`thinking_delta` / `thinking` block）时显示 `∴ Thinking…`。
-- **thinking 与 tool 正交**：tool 执行期间 thinking 计时冻结（不增长），但可继续显示 “Thought for Ns”。
+- **thinking 严格跟随 stream**：只在 thinking block 活跃期间显示 `ThinkingStatusLine`；thinking 结束立即消失（不展示 paused/累计），并且每段 thinking 计时从 0 开始。
 - **默认 transcript 低噪音**：默认对话列表不展示 thinking 内容；但提供一个入口（`Ctrl+O` 面板）回看“更丰富的对话视图”（包含 thinking）。
 - **官方路径优先**：Anthropic thinking 先按官方请求字段开启；不为了“compatible provider”发明新的参数体系。
 
@@ -41,17 +41,17 @@
 
 ## Phase 2 — thinking 计时与切换规则（不再 100+ 秒）
 
-目标：thinking 计时只覆盖 thinking 活跃段；tool 阶段不增长；并保持 UI 规则可预测。
+目标：thinking 计时只覆盖 thinking block 活跃段；thinking 结束立即隐藏；并保持 UI 规则可预测。
 
 - [x] `src/features/repl/controller/streaming.ts`：明确计时规则并补测试：
   - [x] `thinking_delta` 首次出现时开始计时。
-  - [x] 遇到 `tool_start` / `assistant_delta` / `complete` 时停止计时并累加到 `thinkingTotalMs`。
-  - [x] tool 执行期间不再增长。
+  - [ ] thinking block stop (`content_block_stop`) 触发 `thinking_stop` 事件，并停止计时 + 隐藏状态行。
+  - [ ] 回退兜底：遇到 `tool_start` / `assistant_delta` / `complete` 时也会停止计时（防 provider 不发 stop）。
 - [ ] 处理边界：
-  - [ ] 多段 thinking（think → tool → think）应分段累计（最终展示总计）（实现已支持，待补一个回归测试钉死）。
+  - [ ] 多段 thinking（think → tool → think）应每段从 0 开始（不累计），并补一个回归测试钉死。
 
 验收：
-- 一个“think → tool（长时间）→继续”流程中，thinking 秒数不会随着 tool 时间增长。
+- 一个“think → tool（长时间）→继续”流程中，thinking 状态行会在 thinking 结束后立即消失；且再次 thinking 重新从 0 开始。
 
 ---
 

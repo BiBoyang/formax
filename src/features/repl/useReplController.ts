@@ -72,7 +72,6 @@ export type ReplControllerState = {
   loadingText: string
   thinkingText: string
   thinkingStartedAtMs: number | null
-  thinkingTotalMs: number
   error: string | null
   allowedSubagents: Array<{ name: string; description: string }>
   agentsDialogOpen: boolean
@@ -127,7 +126,6 @@ export function useReplController(deps: {
   const [loadingText, setLoadingText] = useState('Thinking')
   const [thinkingText, setThinkingText] = useState('')
   const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
-  const [thinkingTotalMs, setThinkingTotalMs] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<ReplControllerState['context']>(null)
   const [allowedSubagents, setAllowedSubagents] = useState(deps.allowedSubagents ?? [])
@@ -159,9 +157,8 @@ export function useReplController(deps: {
   const thinkingBufferRef = useRef<string>('')
   const currentThinkingMessageIdRef = useRef<string | null>(null)
   const thinkingLastFlushAtRef = useRef(0)
-  const thinkingTimingRef = useRef<{ startedAtMs: number | null; totalMs: number }>({
+  const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
     startedAtMs: null,
-    totalMs: 0,
   })
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
   const toolInputByIdRef = useRef<Map<string, unknown>>(new Map())
@@ -299,10 +296,9 @@ export function useReplController(deps: {
     thinkingBufferRef.current = ''
     currentThinkingMessageIdRef.current = null
     thinkingLastFlushAtRef.current = 0
-    thinkingTimingRef.current = { startedAtMs: null, totalMs: 0 }
+    thinkingTimingRef.current = { startedAtMs: null }
     setThinkingText('')
     setThinkingStartedAtMs(null)
-    setThinkingTotalMs(0)
   }, [])
 
   const resetSessionState = useCallback(() => {
@@ -465,7 +461,6 @@ export function useReplController(deps: {
     setMessages,
     setThinkingText,
     setThinkingStartedAtMs,
-    setThinkingTotalMs,
     setLoadingText,
     setContext,
     setError,
@@ -809,7 +804,6 @@ export function useReplController(deps: {
       loadingText,
       thinkingText,
       thinkingStartedAtMs,
-      thinkingTotalMs,
       error,
       allowedSubagents,
       agentsDialogOpen: overlay?.kind === 'agents',

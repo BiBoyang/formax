@@ -59,7 +59,6 @@ export function useReplStreaming(args: {
   setMessages: Dispatch<SetStateAction<Msg[]>>
   setThinkingText: Dispatch<SetStateAction<string>>
   setThinkingStartedAtMs: Dispatch<SetStateAction<number | null>>
-  setThinkingTotalMs: Dispatch<SetStateAction<number>>
   setLoadingText: Dispatch<SetStateAction<string>>
   setContext: Dispatch<
     SetStateAction<
@@ -78,7 +77,7 @@ export function useReplStreaming(args: {
   thinkingBufferRef: { current: string }
   currentThinkingMessageIdRef: { current: string | null }
   thinkingLastFlushAtRef: { current: number }
-  thinkingTimingRef: { current: { startedAtMs: number | null; totalMs: number } }
+  thinkingTimingRef: { current: { startedAtMs: number | null } }
   toolNameByIdRef: { current: Map<string, string> }
   toolInputByIdRef: { current: Map<string, unknown> }
   taskStatsByToolUseIdRef: {
@@ -129,11 +128,8 @@ export function useReplStreaming(args: {
   const stopThinkingIfActive = useCallback(() => {
     const startedAt = args.thinkingTimingRef.current.startedAtMs
     if (startedAt === null) return
-    const now = Date.now()
     args.thinkingTimingRef.current.startedAtMs = null
-    args.thinkingTimingRef.current.totalMs += Math.max(0, now - startedAt)
     args.setThinkingStartedAtMs(null)
-    args.setThinkingTotalMs(args.thinkingTimingRef.current.totalMs)
     finalizeThinkingSegment()
   }, [args, finalizeThinkingSegment])
 
@@ -210,6 +206,11 @@ export function useReplStreaming(args: {
               args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: text } : m)))
             }
           }
+          return
+        }
+
+        case 'thinking_stop': {
+          stopThinkingIfActive()
           return
         }
 

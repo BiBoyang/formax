@@ -13,6 +13,7 @@ export type StopReason = string | null
 export type StreamEvent =
   | { type: 'assistant_delta'; text: string }
   | { type: 'thinking_delta'; thinking: string }
+  | { type: 'thinking_stop' }
   | { type: 'tool_start'; id: string; name: string }
   | { type: 'tool_input'; id: string; input: unknown }
   | {

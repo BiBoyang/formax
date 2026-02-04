@@ -183,6 +183,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
       const sseCallbacks: SSECallbacks = {
         onTextDelta: (text) => args.onEvent({ type: 'assistant_delta', text }),
         onThinkingDelta: (thinking) => args.onEvent({ type: 'thinking_delta', thinking }),
+        onThinkingStop: () => args.onEvent({ type: 'thinking_stop' }),
         onToolUseStart: (id, name) => {
           args.onEvent({ type: 'tool_start', id, name })
         },

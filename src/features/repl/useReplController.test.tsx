@@ -410,7 +410,7 @@ describe('useReplController', () => {
     await p1
   })
 
-	  it('tracks thinking time from real thinking_delta and freezes during tool execution', async () => {
+	  it('tracks thinking time only while thinking is active (thinking_stop clears it)', async () => {
     let nowMs = 0
     const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
 
@@ -420,9 +420,11 @@ describe('useReplController', () => {
         onEvent({ type: 'thinking_delta', thinking: 'a' } as StreamEvent)
         nowMs = 1000
         onEvent({ type: 'thinking_delta', thinking: 'b' } as StreamEvent)
+        nowMs = 1500
+        onEvent({ type: 'thinking_stop' } as StreamEvent)
         nowMs = 3000
         onEvent({ type: 'tool_start', id: 't1', name: 'Read' } as StreamEvent)
-        nowMs = 10000
+        nowMs = 10_000
         onEvent({ type: 'assistant_delta', text: 'ok' } as StreamEvent)
         onEvent({ type: 'complete' } as StreamEvent)
         return [...history, user]
@@ -438,7 +440,6 @@ describe('useReplController', () => {
 
 	    expect(controller.state.thinkingText).toContain('ab')
 	    expect(controller.state.thinkingStartedAtMs).toBe(null)
-	    expect(controller.state.thinkingTotalMs).toBe(3000)
 
     dateNowSpy.mockRestore()
   })

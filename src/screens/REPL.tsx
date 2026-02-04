@@ -465,11 +465,10 @@ export function REPL({
 
             {showLoadingBlock && (
               <Box marginTop={1} flexDirection="column">
-                {(state.thinkingStartedAtMs !== null || state.thinkingTotalMs > 0) && (
+                {state.thinkingStartedAtMs !== null && (
                   <Box marginBottom={1}>
                     <ThinkingStatusLine
                       startedAtMs={state.thinkingStartedAtMs}
-                      accumulatedMs={state.thinkingTotalMs}
                       showThinkingHint={Boolean(state.thinkingText.trim())}
                     />
                   </Box>

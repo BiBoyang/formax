@@ -25,6 +25,7 @@ export interface ContentBlock {
 export interface SSECallbacks {
   onTextDelta: (text: string, blockIndex: number) => void
   onThinkingDelta: (thinking: string, blockIndex: number) => void
+  onThinkingStop: (blockIndex: number) => void
   onToolUseStart: (id: string, name: string, blockIndex: number) => void
   onToolUseComplete: (blockIndex: number, toolUse: { id: string; name: string; input: any }) => void
   onMessageComplete: (stopReason: string | null, content: ContentBlock[]) => void
@@ -235,6 +236,10 @@ function handleSSEEvent(
     case 'content_block_stop': {
       const index = event.index
       const block = contentBlocks[index]
+
+      if (block?.type === 'thinking') {
+        callbacks.onThinkingStop(index)
+      }
 
       // For tool_use blocks, parse the accumulated JSON
       if (block?.type === 'tool_use' && inputJSONBuffers.has(index)) {

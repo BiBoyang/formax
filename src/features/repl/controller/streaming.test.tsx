@@ -27,7 +27,6 @@ describe('useReplStreaming', () => {
         const [messages, setMessages] = useState<Msg[]>([])
         const [thinkingText, setThinkingText] = useState('')
         const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
-        const [thinkingTotalMs, setThinkingTotalMs] = useState(0)
         const [loadingText, setLoadingText] = useState('')
         const [ctx, setContext] = useState<any>(null)
         const [err, setError] = useState<string | null>(null)
@@ -41,9 +40,8 @@ describe('useReplStreaming', () => {
         const currentAssistantIdRef = useRef<string | null>(null)
         const currentThinkingMessageIdRef = useRef<string | null>(null)
         const thinkingLastFlushAtRef = useRef(0)
-        const thinkingTimingRef = useRef<{ startedAtMs: number | null; totalMs: number }>({
+        const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
           startedAtMs: null,
-          totalMs: 0,
         })
         const toolNameByIdRef = useRef(new Map<string, string>())
         const toolInputByIdRef = useRef(new Map<string, unknown>())
@@ -58,7 +56,6 @@ describe('useReplStreaming', () => {
           setMessages,
           setThinkingText,
           setThinkingStartedAtMs,
-          setThinkingTotalMs,
           setLoadingText,
           setContext,
           setError,

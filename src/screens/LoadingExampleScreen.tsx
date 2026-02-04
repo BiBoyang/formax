@@ -82,7 +82,10 @@ export function LoadingExampleScreen({ onExit }: Props): React.ReactNode {
       <Box marginTop={1} flexDirection="column">
         {isLoading ? (
           <>
-            <ThinkingStatusLine startedAtMs={startedAtMs} showThinkingHint={hasThinkingText} />
+            <ThinkingStatusLine
+              startedAtMs={hasThinkingText ? startedAtMs : null}
+              showThinkingHint={hasThinkingText}
+            />
             {showThinking && hasThinkingText && (
               <Box marginTop={1}>
                 <Text dimColor>{thinkingText}</Text>
