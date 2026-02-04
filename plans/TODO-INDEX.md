@@ -9,7 +9,7 @@
 ## 并行参考（不作为主线推进）
 
 - `plans/ui/ui-TODO-INDEX.md`：UI TODO 索引（串联 `plans/ui/` 下各 TODO）
-- `plans/ui/TODO-command-subline-output.md`：Slash command 子行输出对齐（/agents /permissions /hooks /todos）
+- `plans/ui/BACKLOG-command-subline-output.md`：Slash command 子行输出（扩展范围 / 后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 后置增强项（不作为执行清单）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
 - `plans/system-reminder/TODO.md`：TodoWrite reminders（不走 hooks，优先控 token）
