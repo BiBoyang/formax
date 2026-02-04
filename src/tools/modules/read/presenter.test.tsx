@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library'
 import { ReadToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import path from 'node:path'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 describe('ReadToolPresenter', () => {
   it('keeps read errors compact', () => {
@@ -26,7 +27,7 @@ describe('ReadToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<ReadToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={ReadToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('Read(')
     expect(frame).not.toContain('Workspace roots:')
@@ -49,7 +50,7 @@ describe('ReadToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<ReadToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={ReadToolPresenter({ message }).blocks} />)
     expect(lastFrame()).toContain('Read(README.md)')
   })
 })

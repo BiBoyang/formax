@@ -3,6 +3,7 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 type MockUserInput = {
   isPending: (toolUseId: string) => boolean
@@ -37,7 +38,7 @@ describe('GrepToolPresenter', () => {
 
   it('falls back when toolInfo is missing', () => {
     const message: Msg = { id: 'tool-1', role: 'tool', content: 'OK', timestamp: new Date() }
-    const { lastFrame } = render(<GrepToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={GrepToolPresenter({ message }).blocks} />)
     expect(lastFrame()).toContain('Unknown tool')
   })
 
@@ -53,7 +54,7 @@ describe('GrepToolPresenter', () => {
       toolInfo: { name: 'Grep', status: 'running', input: { pattern: 'x', path: 'src' }, result: '' },
     }
 
-    const view = render(<GrepToolPresenter message={message} />)
+    const view = render(<ToolUiBlocks blocks={GrepToolPresenter({ message }).blocks} />)
     expect(stripAnsi(view.lastFrame() ?? '')).toContain('Approve this Search call?')
     expect(lastPrompt).not.toBe(null)
     if (!lastPrompt) throw new Error('Expected EditApprovalPrompt to render')
@@ -87,7 +88,7 @@ describe('GrepToolPresenter', () => {
       },
     }
 
-    const view = render(<GrepToolPresenter message={message} />)
+    const view = render(<ToolUiBlocks blocks={GrepToolPresenter({ message }).blocks} />)
     const frame = stripAnsi(view.lastFrame() ?? '')
 
     expect(frame).toContain('⎿')
@@ -113,7 +114,7 @@ describe('GrepToolPresenter', () => {
       },
     }
 
-    const view = render(<GrepToolPresenter message={message} />)
+    const view = render(<ToolUiBlocks blocks={GrepToolPresenter({ message }).blocks} />)
     const frame = stripAnsi(view.lastFrame() ?? '')
 
     expect(frame).toContain('Error: something failed')
