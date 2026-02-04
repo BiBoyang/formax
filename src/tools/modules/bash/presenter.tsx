@@ -1,100 +1,120 @@
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolSubline'
-import type { ToolPresenter } from '../../presenters/types'
+import { createToolBlocksPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { extractFilepathsFromCommandOutput } from './filepaths'
-import { BashApprovalPrompt } from '../../presenters/bashApprovalPrompt'
-import { useUserInputManager } from '../../runtime/userInputContext'
+import { BashApprovalToolBlock } from '../../presenters/BashApprovalToolBlock'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
+import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 
-export const BashToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
-  const theme = getTheme()
-  const userInput = useUserInputManager()
+export const BashToolPresenter = createToolBlocksPresenter(
+  ({ message }: { message: Msg }): ToolBlocksOutput => {
+    const theme = getTheme()
 
-  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
+    if (!message.toolInfo) {
+      return {
+        blocks: [{ kind: 'header', status: 'completed', label: 'Unknown tool' }],
+      }
+    }
 
-  const { name, input, status, middleLines, expandInfo } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
-  const showParams = Boolean(params && params.trim().length > 0)
-  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+    const { name, input, status, middleLines, expandInfo } = message.toolInfo
+    const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+    const showParams = Boolean(params && params.trim().length > 0)
+    const toolUseId =
+      message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  if (status === 'running' && userInput?.isPending(toolUseId)) {
     const command = String((input as any)?.command || '')
     const cmdCwdRaw = String((input as any)?.cwd || '')
     const cwd = cmdCwdRaw || process.cwd()
 
+    const blocks: ToolBlocksOutput['blocks'] = [
+      { kind: 'header', status, label: toolName, params: showParams ? params : null },
+    ]
+
+    if (status === 'running') {
+      blocks.push({
+        kind: 'custom',
+        node: (
+          <BashApprovalToolBlock
+            toolUseId={toolUseId}
+            title="Approve running this command?"
+            command={command}
+            cwd={cwd}
+          />
+        ),
+      })
+      return { blocks }
+    }
+
+    const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
+    const bg = parseBackgroundBashResult(rawResult)
+    const fileExtract =
+      status !== 'running' && status !== 'error' && !bg
+        ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
+        : null
+    const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
+    const compactErrorDetail =
+      status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
+
+    if (status !== 'running') {
+      blocks.push({
+        kind: 'subline',
+        status: status === 'error' ? 'error' : 'completed',
+        children: renderBashSummary({ theme, summary: message.content, status, bg }),
+      })
+
+      if (!bg && fileSummary) {
+        blocks.push({
+          kind: 'lines',
+          lines: [{ tone: 'muted', text: fileSummary }],
+        })
+      }
+
+      if (!bg && status === 'error') {
+        if (compactErrorDetail) {
+          blocks.push({
+            kind: 'lines',
+            lines: [{ tone: 'error', text: compactErrorDetail }],
+          })
+        }
+      } else if (!bg) {
+        const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
+        if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
+        if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
+        if (lines.length > 0) {
+          blocks.push({ kind: 'lines', lines })
+        }
+      }
+    }
+
+    return { blocks }
+  },
+)
+
+function renderBashSummary(args: {
+  theme: ReturnType<typeof getTheme>
+  summary: string
+  status: 'running' | 'completed' | 'error'
+  bg: { task_id: string } | null
+}): React.ReactNode {
+  const summary = args.summary || ''
+
+  if (args.status === 'error') {
+    return <Text color={args.theme.error}>{summary}</Text>
+  }
+
+  if (args.bg) {
     return (
-      <BashApprovalPrompt
-        title="Approve running this command?"
-        command={command}
-        cwd={cwd}
-        onDecision={(d) => {
-          if (!userInput) return
-          if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-          else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
-          else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-          else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-        }}
-      />
+      <Text>
+        Started background task <Text bold>{args.bg.task_id}</Text>
+      </Text>
     )
   }
 
-  const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
-  const bg = parseBackgroundBashResult(rawResult)
-  const fileExtract =
-    status !== 'running' && status !== 'error' && !bg
-      ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
-      : null
-  const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
-  const compactErrorDetail =
-    status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
-
-  return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
-
-      {status !== 'running' && (
-        <Box flexDirection="column">
-          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
-            {status === 'error' ? (
-              <Text color={theme.error}>{message.content}</Text>
-            ) : bg ? (
-              <Text>
-                Started background task <Text bold>{bg.task_id}</Text>
-              </Text>
-            ) : (
-              <Text>{message.content}</Text>
-            )}
-          </ToolSubline>
-
-          {!bg && fileSummary ? (
-            <ToolIndentedLine tone="muted" text={fileSummary} />
-          ) : null}
-
-          {!bg && status === 'error' ? (
-            compactErrorDetail ? (
-              <ToolIndentedLine tone="error" text={compactErrorDetail} />
-            ) : null
-          ) : (
-            <>
-              {!bg && middleLines && middleLines.map((line, i) => (
-                <ToolIndentedLine key={i} text={line} />
-              ))}
-
-              {!bg && expandInfo && (
-                <ToolIndentedLine tone="muted" text={expandInfo} />
-              )}
-            </>
-          )}
-        </Box>
-      )}
-    </Box>
-  )
+  return <Text>{summary}</Text>
 }
 
 function parseBackgroundBashResult(raw: string): { task_id: string } | null {

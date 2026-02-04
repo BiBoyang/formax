@@ -1,13 +1,40 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
+import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { BashToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { UserInputProvider } from '../../runtime/userInputContext'
-import { createUserInputManager } from '../../runtime/userInputManager'
-import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
+
+type MockUserInput = {
+  isPending: (toolUseId: string) => boolean
+  submitAnswers: (toolUseId: string, answers: unknown) => void
+}
+
+let userInput: null | MockUserInput = null
+let lastBlockProps: null | { title: string; command: string; cwd: string; toolUseId: string } = null
+
+vi.mock('../../runtime/userInputContext', () => ({
+  useUserInputManager: () => userInput,
+}))
+
+vi.mock('../../presenters/BashApprovalToolBlock', () => ({
+  BashApprovalToolBlock: (props: any) => {
+    lastBlockProps = props
+    return React.createElement(Text, null, props.title)
+  },
+}))
+
+function stripAnsi(text: string): string {
+  return String(text || '').replace(/\u001b\[[0-9;]*m/g, '')
+}
 
 describe('BashToolPresenter', () => {
+  beforeEach(() => {
+    userInput = null
+    lastBlockProps = null
+  })
+
   it('keeps bash errors compact', () => {
     const message: Msg = {
       id: 'tool-1',
@@ -25,7 +52,7 @@ describe('BashToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<BashToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('Bash(')
     expect(frame).toContain('Error: Bash command denied')
@@ -53,7 +80,7 @@ describe('BashToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<BashToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('Error: Exit code 1')
     expect(frame).toContain('cat: missing.txt: No such file or directory')
@@ -70,13 +97,12 @@ describe('BashToolPresenter', () => {
       timestamp: new Date(),
     }
 
-    const { lastFrame } = render(<BashToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
     expect(lastFrame()).toContain('Unknown tool')
   })
 
   it('renders an approval prompt while a bash call is pending user input', () => {
-    const userInput = createUserInputManager()
-    void userInput.requestAnswers({ toolUseId: 't-approve', questions: [] })
+    userInput = { isPending: () => true, submitAnswers: vi.fn() }
 
     const message: Msg = {
       id: 'tool-approve',
@@ -91,49 +117,16 @@ describe('BashToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(
-      <UserInputProvider userInput={userInput}>
-        <BashToolPresenter message={message} />
-      </UserInputProvider>,
-    )
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
 
     const frame = lastFrame()
     expect(frame).toContain('Approve running this command?')
-    expect(frame).toContain('Command:')
-    expect(frame).toContain('ls')
-    expect(frame).toContain('Cwd:')
-    expect(frame).toContain('/tmp')
-  })
+    expect(lastBlockProps).not.toBe(null)
+    if (!lastBlockProps) throw new Error('Expected BashApprovalToolBlock to render')
 
-  it('submits approval on Enter and hides the approval prompt immediately', async () => {
-    const userInput = createUserInputManager()
-    void userInput.requestAnswers({ toolUseId: 't-approve', questions: [] })
-
-    const message: Msg = {
-      id: 'tool-approve',
-      role: 'tool',
-      content: '',
-      timestamp: new Date(),
-      toolInfo: {
-        toolUseId: 't-approve',
-        name: 'Bash',
-        status: 'running',
-        input: { command: 'ls', cwd: '/tmp' },
-      },
-    }
-
-    const { lastFrame, stdin } = render(
-      <InputScopeProvider>
-        <UserInputProvider userInput={userInput}>
-          <BashToolPresenter message={message} />
-        </UserInputProvider>
-      </InputScopeProvider>,
-    )
-
-    expect(lastFrame()).toContain('Approve running this command?')
-    stdin.write('\r')
-    await new Promise((r) => setTimeout(r, 0))
-    expect(lastFrame()).not.toContain('Approve running this command?')
+    expect(lastBlockProps.command).toBe('ls')
+    expect(lastBlockProps.cwd).toBe('/tmp')
+    expect(lastBlockProps.toolUseId).toBe('t-approve')
   })
 
   it('renders a background task summary when the result indicates running', () => {
@@ -150,7 +143,7 @@ describe('BashToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<BashToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('Started background task')
     expect(frame).toContain('task-123')
@@ -171,9 +164,31 @@ describe('BashToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<BashToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('hello')
     expect(frame).toContain('Files: a.txt, b.txt')
+  })
+
+  it('completed header is not "Unknown tool" and shows at least one output line', () => {
+    const message: Msg = {
+      id: 'tool-6',
+      role: 'tool',
+      content: 'Output line here',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'echo hello' },
+        result: 'Output line here',
+        middleLines: ['Middle line 1'],
+      },
+    }
+
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
+    const frame = stripAnsi(lastFrame() ?? '')
+    expect(frame).toContain('Bash(')
+    expect(frame).not.toContain('Unknown tool')
+    expect(frame).toContain('Output line here')
   })
 })
