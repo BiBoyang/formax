@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { KillShellToolPresenter } from './presenter'
 
 describe('KillShellToolPresenter', () => {
+  function renderPresenter(message: Msg) {
+    const out = KillShellToolPresenter({ message })
+    return render(<ToolUiBlocks blocks={out.blocks} />)
+  }
+
   it('falls back when toolInfo is missing', () => {
     const message: Msg = {
       id: 'tool-1',
@@ -13,7 +19,7 @@ describe('KillShellToolPresenter', () => {
       timestamp: new Date(),
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('Unknown tool')
@@ -33,7 +39,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('KillShell')
@@ -55,7 +61,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('KillShell')
@@ -78,7 +84,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('⎿')
@@ -98,7 +104,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('KillShell')
@@ -121,7 +127,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('Failed to kill')
@@ -141,7 +147,7 @@ describe('KillShellToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<KillShellToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('⎿')

@@ -1,16 +1,19 @@
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
-import type { ToolPresenter } from '../../presenters/types'
-import { FallbackToolPresenter } from '../../presenters/fallback'
+import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 
-export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const KillShellToolPresenter = createToolBlocksPresenter(
+  ({ message }: { message: Msg }): ToolBlocksOutput => {
   const theme = getTheme()
 
-  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
+  if (!message.toolInfo) {
+    return {
+      blocks: [{ kind: 'header', status: 'completed', label: 'Unknown tool' }],
+    }
+  }
 
   const { input, status } = message.toolInfo
 
@@ -18,26 +21,26 @@ export const KillShellToolPresenter: ToolPresenter = ({ message }: { message: Ms
   const raw = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
   const parsed = parseKillShellResult(raw)
 
-  return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <ToolHeaderLine status={status} label="KillShell" params={shellId || 'unknown'} />
+  const blocks: ToolBlocksOutput['blocks'] = [
+    { kind: 'header', status, label: 'KillShell', params: shellId || 'unknown' },
+  ]
 
-      {status !== 'running' && (
-        <Box flexDirection="column">
-          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
-            {parsed.ok ? (
-              <Text>Killed</Text>
-            ) : status === 'error' ? (
-              <Text color={theme.error}>{message.content || parsed.message || 'Failed'}</Text>
-            ) : (
-              <Text>{parsed.message || message.content}</Text>
-            )}
-          </ToolSubline>
-        </Box>
-      )}
-    </Box>
-  )
-}
+  if (status !== 'running') {
+    blocks.push({
+      kind: 'subline',
+      status: status === 'error' ? 'error' : 'completed',
+      children: parsed.ok ? (
+        <Text>Killed</Text>
+      ) : status === 'error' ? (
+        <Text color={theme.error}>{message.content || parsed.message || 'Failed'}</Text>
+      ) : (
+        <Text>{parsed.message || message.content}</Text>
+      ),
+    })
+  }
+
+  return { blocks }
+})
 
 function parseKillShellResult(raw: string): { ok: boolean; message?: string } {
   const trimmed = (raw || '').trim()

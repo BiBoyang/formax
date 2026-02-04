@@ -3,6 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { SearchToolPresenter } from './presenter'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 describe('SearchToolPresenter', () => {
   it('falls back when toolInfo is missing', () => {
@@ -13,7 +14,7 @@ describe('SearchToolPresenter', () => {
       timestamp: new Date(),
     }
 
-    const { lastFrame } = render(<SearchToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={SearchToolPresenter({ message }).blocks} />)
     expect(lastFrame()).toContain('Unknown tool')
   })
 
@@ -30,7 +31,7 @@ describe('SearchToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<SearchToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={SearchToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
 
     expect(frame).toContain('Search')
@@ -50,7 +51,7 @@ describe('SearchToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<SearchToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={SearchToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
 
     expect(frame).toContain('Search')
@@ -73,7 +74,7 @@ describe('SearchToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<SearchToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={SearchToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
 
     expect(frame).toContain('Search')
@@ -81,4 +82,3 @@ describe('SearchToolPresenter', () => {
     expect(frame).toContain('Error: failed to search')
   })
 })
-

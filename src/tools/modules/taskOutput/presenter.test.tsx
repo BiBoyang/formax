@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { TaskOutputToolPresenter } from './presenter'
 
 describe('TaskOutputToolPresenter', () => {
+  function renderPresenter(message: Msg) {
+    const out = TaskOutputToolPresenter({ message })
+    return render(<ToolUiBlocks blocks={out.blocks} />)
+  }
+
   it('falls back when toolInfo is missing', () => {
     const message: Msg = {
       id: 'tool-1',
@@ -13,7 +19,7 @@ describe('TaskOutputToolPresenter', () => {
       timestamp: new Date(),
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     expect(lastFrame()).toContain('Unknown tool')
   })
 
@@ -26,7 +32,7 @@ describe('TaskOutputToolPresenter', () => {
       toolInfo: { name: 'TaskOutput', status: 'running', input: { task_id: 't1' }, result: '' },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('TaskOutput')
@@ -48,7 +54,7 @@ describe('TaskOutputToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('⎿')
@@ -69,7 +75,7 @@ describe('TaskOutputToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('⎿')
@@ -90,7 +96,7 @@ describe('TaskOutputToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     expect(lastFrame()).toContain('(no output)')
   })
 
@@ -108,7 +114,7 @@ describe('TaskOutputToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     expect(lastFrame()).toContain('raw text')
   })
 
@@ -126,11 +132,10 @@ describe('TaskOutputToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TaskOutputToolPresenter message={message} />)
+    const { lastFrame } = renderPresenter(message)
     const frame = lastFrame()
 
     expect(frame).toContain('Running (timed out waiting)')
     expect(frame).toContain('still working')
   })
 })
-

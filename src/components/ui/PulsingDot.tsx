@@ -56,8 +56,6 @@ export function PulsingDot({
   const shaded = dimHexColor(dotColor, factor) ?? dotColor
 
   return (
-    <Text color={shaded}>
-      ⏺{trailingSpace ? ' ' : ''}
-    </Text>
+    <Text color={shaded}>{`⏺${trailingSpace ? ' ' : ''}`}</Text>
   )
 }

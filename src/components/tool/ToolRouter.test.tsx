@@ -5,6 +5,7 @@ import { render } from 'ink-testing-library'
 import { ToolRouter } from './ToolRouter'
 import type { Msg } from './ToolMessage'
 import { ToolRegistry } from '../../tools/registry'
+import { createToolBlocksPresenter } from '../../tools/presenters/types'
 
 function createToolMsg(overrides: Partial<Msg> = {}): Msg {
   return {
@@ -60,5 +61,30 @@ describe('ToolRouter', () => {
     })
     const { lastFrame } = render(<ToolRouter message={msg} registry={registry} />)
     expect(lastFrame()).toContain('Alias presenter')
+  })
+
+  it('renders blocks presenters via ToolUiBlocks', () => {
+    const registry = new ToolRegistry()
+
+    registry.register({
+      name: 'Search',
+      presenter: createToolBlocksPresenter(() => ({
+        blocks: [
+          { kind: 'header', status: 'completed', label: 'Search', params: 'src' },
+          { kind: 'subline', status: 'completed', text: 'Found 1 files' },
+        ],
+      })),
+    })
+
+    const msg = createToolMsg({
+      toolInfo: { name: 'Search', input: { path: 'src' }, status: 'completed' },
+      content: 'Found 1 files',
+    })
+    const { lastFrame } = render(<ToolRouter message={msg} registry={registry} />)
+    const frame = lastFrame()
+
+    expect(frame).toContain('⏺ Search')
+    expect(frame).toContain('  ⎿  ')
+    expect(frame).toContain('Found 1 files')
   })
 })

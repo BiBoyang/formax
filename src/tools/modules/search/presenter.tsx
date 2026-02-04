@@ -1,36 +1,39 @@
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import type { ToolPresenter } from '../../presenters/types'
-import { FallbackToolPresenter } from '../../presenters/fallback'
+import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 
-export const SearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const SearchToolPresenter = createToolBlocksPresenter(
+  ({ message }: { message: Msg }): ToolBlocksOutput => {
   const theme = getTheme()
 
-  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
+  if (!message.toolInfo) {
+    return {
+      blocks: [{ kind: 'header', status: 'completed', label: 'Unknown tool' }],
+    }
+  }
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const showParams = Boolean(params && params.trim().length > 0)
 
-  return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
+  const blocks: ToolBlocksOutput['blocks'] = [
+    { kind: 'header', status, label: toolName, params: showParams ? params : null },
+  ]
 
-      {status !== 'running' && (
-        <Box flexDirection="column">
-          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
-            {renderSearchSummary({ theme, summary: message.content, status })}
-          </ToolSubline>
-        </Box>
-      )}
-    </Box>
-  )
-}
+  if (status !== 'running') {
+    blocks.push({
+      kind: 'subline',
+      status: status === 'error' ? 'error' : 'completed',
+      children: renderSearchSummary({ theme, summary: message.content, status }),
+    })
+  }
+
+  return { blocks }
+})
 
 function renderSearchSummary(args: {
   theme: ReturnType<typeof getTheme>
