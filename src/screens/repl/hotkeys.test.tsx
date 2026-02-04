@@ -32,6 +32,7 @@ describe('useReplHotkeys', () => {
 
   it('toggles Expanded Transcript on ctrl+o', async () => {
     const setExpandedTranscriptOpen = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -44,6 +45,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen,
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -75,8 +78,96 @@ describe('useReplHotkeys', () => {
     expect(setExpandedTranscriptOpen).toHaveBeenCalledWith(true)
   })
 
+  it('toggles Expanded Transcript history folding on ctrl+e', async () => {
+    const setExpandedTranscriptHideHistory = vi.fn()
+
+    const Harness = ({
+      expandedTranscriptOpen,
+      isPromptMode,
+      permissionsDialogOpen,
+    }: {
+      expandedTranscriptOpen: boolean
+      isPromptMode: boolean
+      permissionsDialogOpen: boolean
+    }) => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: true,
+          thinkingText: 'thinking…',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        setInput: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness expandedTranscriptOpen={false} isPromptMode={false} permissionsDialogOpen={false} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    ui.stdin.write('\u0005') // ctrl+e
+    await tick()
+    expect(setExpandedTranscriptHideHistory).not.toHaveBeenCalled()
+
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        <Harness expandedTranscriptOpen isPromptMode={false} permissionsDialogOpen={false} />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u0005') // ctrl+e
+    await waitForCalls(setExpandedTranscriptHideHistory, 1)
+    const update = setExpandedTranscriptHideHistory.mock.calls[0]?.[0]
+    expect(typeof update).toBe('function')
+    expect(update(false)).toBe(true)
+
+    setExpandedTranscriptHideHistory.mockClear()
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        <Harness expandedTranscriptOpen isPromptMode permissionsDialogOpen={false} />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u0005') // ctrl+e
+    await tick()
+    expect(setExpandedTranscriptHideHistory).not.toHaveBeenCalled()
+
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        <Harness expandedTranscriptOpen isPromptMode={false} permissionsDialogOpen />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u0005') // ctrl+e
+    await tick()
+    expect(setExpandedTranscriptHideHistory).not.toHaveBeenCalled()
+  })
+
   it('ignores ctrl+o when an overlay is open', async () => {
     const setExpandedTranscriptOpen = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -89,6 +180,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen,
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: true,
@@ -122,6 +215,7 @@ describe('useReplHotkeys', () => {
 
   it('ignores ctrl+o when promptMode is active', async () => {
     const setExpandedTranscriptOpen = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -134,6 +228,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen,
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -173,6 +269,7 @@ describe('useReplHotkeys', () => {
     const setMode = vi.fn((next: any) => {
       mode = typeof next === 'function' ? next(mode) : next
     })
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -185,6 +282,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,
@@ -220,6 +319,7 @@ describe('useReplHotkeys', () => {
 
   it('aborts on Escape unless an overlay is open', async () => {
     const setMode = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = ({
       agentsDialogOpen,
@@ -242,6 +342,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen,
           permissionsDialogOpen,
@@ -338,6 +440,7 @@ describe('useReplHotkeys', () => {
     const setSlashIndex = vi.fn()
     const setSlashSelectionTouched = vi.fn()
     const lowerPriority = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = () => {
       useReplHotkeys({
@@ -350,6 +453,8 @@ describe('useReplHotkeys', () => {
         allMessages: [] as Msg[],
         expandedTranscriptOpen: false,
         setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
         state: {
           agentsDialogOpen: false,
           permissionsDialogOpen: false,

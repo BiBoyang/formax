@@ -134,4 +134,59 @@ describe('Expanded Transcript (ctrl+o)', () => {
   },
     20000,
   )
+
+  it(
+    'supports Ctrl+E history folding inside Expanded Transcript',
+    async () => {
+      let turn = 0
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          if (userText.trim()) {
+            onEvent({ type: 'assistant_delta', text: `OK ${turn}` })
+            onEvent({ type: 'complete' })
+            turn++
+          }
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: `OK ${turn - 1}` }] as any },
+          ]
+        },
+      }
+
+      const ui = render(
+        <InputScopeProvider initialScope="repl">
+          <REPL engine={engine} tools={[]} cfg={cfg} />
+        </InputScopeProvider>,
+      )
+
+      const sendTurn = async (n: number) => {
+        ui.stdin.write(`hi ${n}`)
+        await tick()
+        ui.stdin.write('\r')
+        await waitForFrame(ui.lastFrame, (f) => f.includes(`OK ${n}`), 10000)
+        await tick()
+      }
+
+      for (let i = 0; i < 11; i++) {
+        await sendTurn(i)
+      }
+
+      ui.stdin.write('\u000f') // ctrl+o
+      await waitForFrame(ui.lastFrame, (f) => f.includes('Showing detailed transcript'), 10000)
+
+      const expanded = ui.lastFrame() || ''
+      expect(expanded).toContain('Ctrl+E to hide 2 previous messages')
+
+      ui.stdin.write('\u0005') // ctrl+e
+      const folded = await waitForFrame(ui.lastFrame, (f) => f.includes('Ctrl+E to show 2 previous messages'), 10000)
+      expect(folded).not.toContain('OK 0')
+
+      ui.stdin.write('\u0005') // ctrl+e again
+      const restored = await waitForFrame(ui.lastFrame, (f) => f.includes('Ctrl+E to hide 2 previous messages'), 10000)
+      expect(restored).toContain('OK 0')
+    },
+    40000,
+  )
 })

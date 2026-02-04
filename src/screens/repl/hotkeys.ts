@@ -21,6 +21,8 @@ export function useReplHotkeys(args: {
 
   expandedTranscriptOpen: boolean
   setExpandedTranscriptOpen: (next: boolean | ((prev: boolean) => boolean)) => void
+  expandedTranscriptHideHistory: boolean
+  setExpandedTranscriptHideHistory: (next: boolean | ((prev: boolean) => boolean)) => void
 
   state: {
     agentsDialogOpen: boolean
@@ -46,6 +48,7 @@ export function useReplHotkeys(args: {
     isPromptMode,
     expandedTranscriptOpen,
     setExpandedTranscriptOpen,
+    setExpandedTranscriptHideHistory,
     state,
     slashSuggestions,
     selectedSlash,
@@ -77,6 +80,18 @@ export function useReplHotkeys(args: {
 
         setExpandedTranscriptOpen(!expandedTranscriptOpen)
         actions.resetTranscriptSurface()
+        return true
+      }
+
+      if (key.ctrl && inputKey === 'e') {
+        if (!expandedTranscriptOpen) return false
+        if (state.agentsDialogOpen) return true
+        if (state.permissionsDialogOpen) return true
+        if (state.hooksDialogOpen) return true
+        if (state.configDialogOpen) return true
+        if (isPromptMode) return true
+
+        setExpandedTranscriptHideHistory((prev) => !prev)
         return true
       }
 

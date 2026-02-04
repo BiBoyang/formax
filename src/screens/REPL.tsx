@@ -114,6 +114,7 @@ export function REPL({
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
   const [expandedTranscriptOpen, setExpandedTranscriptOpen] = useState(false)
+  const [expandedTranscriptHideHistory, setExpandedTranscriptHideHistory] = useState(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(
     () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
@@ -229,6 +230,10 @@ export function REPL({
 
   const expandedViewActive = expandedTranscriptOpen && !isPromptMode
 
+  useEffect(() => {
+    if (!expandedTranscriptOpen) setExpandedTranscriptHideHistory(false)
+  }, [expandedTranscriptOpen])
+
   const {
     input,
     setInput,
@@ -253,6 +258,8 @@ export function REPL({
     allMessages,
     expandedTranscriptOpen,
     setExpandedTranscriptOpen,
+    expandedTranscriptHideHistory,
+    setExpandedTranscriptHideHistory,
     state: {
       agentsDialogOpen: state.agentsDialogOpen,
       permissionsDialogOpen: state.permissionsDialogOpen,
@@ -404,6 +411,17 @@ export function REPL({
     return group
   }, [allMessages, expandedViewActive])
 
+  const expandedTranscriptHiddenCount = useMemo(() => {
+    if (!expandedViewActive) return 0
+    return Math.max(0, allMessages.length - 20)
+  }, [allMessages.length, expandedViewActive])
+
+  const expandedTranscriptMessages = useMemo(() => {
+    if (!expandedViewActive) return allMessages
+    if (!expandedTranscriptHideHistory) return allMessages
+    return allMessages.slice(-20)
+  }, [allMessages, expandedTranscriptHideHistory, expandedViewActive])
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -414,7 +432,7 @@ export function REPL({
                 version={(pkg as any).version || '0.0.0'}
                 modelLabel={modelLabel}
                 cwd={replCwd}
-                messages={allMessages}
+                messages={expandedTranscriptMessages}
                 renderMessage={renderExpandedMessage}
               />
             ) : (
@@ -494,6 +512,13 @@ export function REPL({
             <Box flexDirection="column" flexShrink={0} marginTop={1}>
               <Text color={theme.secondaryText}>{'─'.repeat(Math.max((process.stdout.columns || 80), 40))}</Text>
               <Text color={theme.secondaryText}>{'  Showing detailed transcript · ctrl+o to toggle'}</Text>
+              {expandedTranscriptHiddenCount > 0 && (
+                <Text color={theme.secondaryText}>
+                  {expandedTranscriptHideHistory
+                    ? `  Ctrl+E to show ${expandedTranscriptHiddenCount} previous messages`
+                    : `  Ctrl+E to hide ${expandedTranscriptHiddenCount} previous messages`}
+                </Text>
+              )}
             </Box>
           )}
 
