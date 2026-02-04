@@ -1,7 +1,6 @@
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Box } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import type { ToolPresenter } from '../../presenters/types'
@@ -9,6 +8,7 @@ import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
 
 export const WebFetchToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -22,21 +22,13 @@ export const WebFetchToolPresenter: ToolPresenter = ({ message }: { message: Msg
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
   if (status === 'running' && userInput?.isPending(toolUseId)) {
     const url = String((input as any)?.url || '')
     const title = url ? `Do you want to fetch ${url}?` : 'Do you want to fetch this URL?'
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse /><Text bold color={theme.text}>{toolName}</Text>
-            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
-          </Text>
-        </Box>
+        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
         <EditApprovalPrompt
           title={title}

@@ -2,14 +2,14 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolSubline'
 
 export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -25,19 +25,11 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
   if (status === 'running' && userInput?.isPending(toolUseId)) {
     const rawPath = String((input as any)?.path || '')
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={theme.secondaryText} pulse /><Text bold color={theme.text}>{toolName}</Text>
-            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
-          </Text>
-        </Box>
+        <ToolHeaderLine status="running" label={toolName} params={showParams ? params : null} />
 
         <FsReadApprovalPrompt
           title={`Approve this ${toolName} call?`}
@@ -56,48 +48,21 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
-          {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
-        </Text>
-      </Box>
+      <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              {renderGlobSummary({ theme, summary: message.content, status })}
-            </Text>
-          </Box>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+            {renderGlobSummary({ theme, summary: message.content, status })}
+          </ToolSubline>
           {status === 'error' ? (
             compactErrorDetail ? (
-              <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                <Text color={theme.error}>
-                  {TOOL_SUBLINE_INDENT}
-                  {compactErrorDetail}
-                </Text>
-              </Box>
+              <ToolIndentedLine tone="error" text={compactErrorDetail} />
             ) : null
           ) : (
             <>
-              {middleLines && middleLines.map((line, i) => (
-                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                  <Text>
-                    {TOOL_SUBLINE_INDENT}
-                    {line}
-                  </Text>
-                </Box>
-              ))}
-              {expandInfo && (
-                <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                  <Text color={theme.secondaryText}>
-                    {TOOL_SUBLINE_INDENT}
-                    {expandInfo}
-                  </Text>
-                </Box>
-              )}
+              {middleLines && middleLines.map((line, i) => <ToolIndentedLine key={i} text={line} />)}
+              {expandInfo ? <ToolIndentedLine tone="muted" text={expandInfo} /> : null}
             </>
           )}
         </Box>
