@@ -7,8 +7,8 @@ import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 // Default is intentionally generous: many real-world commands (tests, reviews) can
 // take minutes, and users can always interrupt from the UI.
-const DEFAULT_TIMEOUT_MS = 600000
-const MAX_TIMEOUT_MS = 600000
+const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000
+const MAX_TIMEOUT_MS = 20 * 60 * 1000
 const MAX_OUTPUT_CHARS = 30000
 
 export function createBashToolHandler(deps: { taskManager: TaskManager }): ToolHandler {

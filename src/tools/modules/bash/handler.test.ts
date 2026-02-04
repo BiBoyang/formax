@@ -76,7 +76,7 @@ describe('BashToolHandler', () => {
     expect(negativeTimeout.content).toBe('Error: timeout must be >= 0')
 
     const tooLargeTimeout = await handler.execute(
-      { id: '1', name: 'Bash', input: { command: 'echo hi', timeout: 600001 } } as any,
+      { id: '1', name: 'Bash', input: { command: 'echo hi', timeout: 1200001 } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
     expect(tooLargeTimeout.is_error).toBe(true)
