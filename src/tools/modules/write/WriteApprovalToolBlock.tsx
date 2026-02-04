@@ -38,7 +38,7 @@ export function WriteApprovalToolBlock({
   const preview = buildPreviewMarkdown(content, 18)
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column">
       <ApprovalHeader title="Create file" />
       <ApprovalPreview fileName={fileName} width={cols} remainingLines={preview.remaining}>
         <MarkdownBlock markdown={preview.markdown} />

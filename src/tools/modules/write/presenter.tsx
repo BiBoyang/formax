@@ -22,7 +22,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
 
   if (!message.toolInfo) {
     return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+      <Box flexDirection="column" marginBottom={0}>
         <ToolHeaderLine status="completed" label="Unknown tool" />
       </Box>
     )
@@ -41,7 +41,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   // Plan file special case - render "Updated plan" header
   if (isPlanFile) {
     return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+      <Box flexDirection="column" marginBottom={0}>
         <ToolHeaderLine status={status} label="Updated plan" />
 
         {status !== 'running' && (
@@ -65,7 +65,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
+    <Box flexDirection="column" marginBottom={0}>
       <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
       {status === 'running' ? (

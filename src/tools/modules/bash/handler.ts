@@ -5,7 +5,9 @@ import type { ManagedTaskResult, ManagedTaskRunContext, TaskManager } from '../.
 import { classifyBashCommand } from './policy'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
-const DEFAULT_TIMEOUT_MS = 120000
+// Default is intentionally generous: many real-world commands (tests, reviews) can
+// take minutes, and users can always interrupt from the UI.
+const DEFAULT_TIMEOUT_MS = 600000
 const MAX_TIMEOUT_MS = 600000
 const MAX_OUTPUT_CHARS = 30000
 
@@ -102,6 +104,9 @@ async function runForeground(args: {
         cwd: args.cmdCwd,
         env: args.env,
         timeout: args.timeoutMs,
+        // We truncate the final tool output ourselves, but `exec` still needs a higher
+        // ceiling to avoid "maxBuffer length exceeded" on verbose commands.
+        maxBuffer: 10 * 1024 * 1024,
         signal: args.signal as any,
       },
       (err, stdout, stderr) => {
@@ -110,9 +115,23 @@ async function runForeground(args: {
           appendLimited('', sanitizeShellText(stderr)),
         )
         if (err) {
-          const exitCode = (err as any)?.code
+          const code = (err as any)?.code as unknown
+          const signal = (err as any)?.signal as unknown
+          const killed = Boolean((err as any)?.killed)
+          const aborted = Boolean(args.signal?.aborted)
           const msg = err instanceof Error ? err.message : String(err)
-          const headline = typeof exitCode === 'number' ? `Exit code ${exitCode}` : msg
+          const isTimeout =
+            !aborted && (code === 'ETIMEDOUT' || (killed && typeof signal === 'string' && signal === 'SIGTERM'))
+          const headline =
+            isTimeout
+              ? `Timed out after ${args.timeoutMs}ms`
+              : code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
+                ? 'Output exceeded exec maxBuffer'
+                : typeof code === 'number'
+                  ? `Exit code ${code}`
+                  : typeof signal === 'string' && signal
+                    ? `Exit signal ${signal}`
+                    : msg
           resolve({ content: content ? `Error: ${headline}\n${content}` : `Error: ${headline}`, isError: true })
         } else {
           resolve({ content, isError: false })
