@@ -25,6 +25,23 @@ describe('classifyBashCommand', () => {
     expect(res.matchedRule).toBe('confirm_redirection')
   })
 
+  it('does not treat fd-to-fd redirections as file redirection', () => {
+    const res = classifyBashCommand({ command: 'codex review --uncommitted 2>&1', agentDepth: 0 })
+    expect(res.risk).toBe('allow')
+  })
+
+  it('still treats file redirection as redirection even when combined with fd-to-fd', () => {
+    const res = classifyBashCommand({ command: 'echo ok > out.txt 2>&1', agentDepth: 0 })
+    expect(res.risk).toBe('confirm')
+    expect(res.matchedRule).toBe('confirm_redirection')
+  })
+
+  it('does not misclassify file redirects with numeric filename prefixes as fd-to-fd redirects', () => {
+    const res = classifyBashCommand({ command: 'echo hi >&1foo', agentDepth: 0 })
+    expect(res.risk).toBe('confirm')
+    expect(res.matchedRule).toBe('confirm_redirection')
+  })
+
   it('does not treat tee as redirection when it is an argument', () => {
     const res = classifyBashCommand({ command: 'echo tee', agentDepth: 0 })
     expect(res.risk).toBe('allow')

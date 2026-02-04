@@ -65,6 +65,7 @@ export function classifyBashCommand(args: {
   }
 
   // Shell redirections are almost always writes; require explicit confirmation.
+  // Exception: fd-to-fd redirections like `2>&1` don't touch the filesystem and are used to merge output streams.
   if (hasUnquotedRedirection(normalized) || hasTeeWrite(tokens)) {
     return {
       risk: 'confirm',
@@ -164,7 +165,8 @@ function hasUnquotedRedirection(command: string): boolean {
   let quote: '"' | "'" | null = null
   let escape = false
 
-  for (const ch of text) {
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] || ''
     if (escape) {
       escape = false
       continue
@@ -185,7 +187,18 @@ function hasUnquotedRedirection(command: string): boolean {
       continue
     }
 
-    if (ch === '<' || ch === '>') return true
+    if (ch === '<' || ch === '>') {
+      // Ignore fd-to-fd redirections like `2>&1`, `>&2`, `<&0`.
+      // These are common and do not write to the filesystem, but do include `<`/`>` characters.
+      if (text[i + 1] === '&') {
+        const after = text.slice(i + 2)
+        // Require the target to be exactly digits or '-' (close fd), terminated by end/whitespace/metachar.
+        // Avoid treating file redirects like `>&1foo` as safe (bash writes to a file named `1foo`).
+        if (/^(?:\d+|-)(?=$|\s|[;&|()<>])/.test(after)) continue
+      }
+
+      return true
+    }
   }
 
   return false
