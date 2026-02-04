@@ -131,6 +131,27 @@ describe('SlashCommandRegistry', () => {
     }
   })
 
+  it('dispatches /hooks to open the hooks dialog', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+    const effect = reg.dispatch('/hooks')
+    expect(effect?.kind).toBe('open_hooks_dialog')
+    await fsp.rm(cwd, { recursive: true, force: true })
+  })
+
+  it('dispatches /hooks with args as usage output', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/hooks extra')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toBe('Usage: /hooks')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('loads .formax/commands/*.md as commands', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
     const dir = path.join(cwd, '.formax', 'commands')
