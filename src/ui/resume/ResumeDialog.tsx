@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import TextInput from '../../components/ui/TextInput.js'
-import { ApprovalHeader } from '../../tools/presenters/ApprovalHeader.js'
+import { ApprovalHeader } from '../../components/ui/ApprovalHeader.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getTheme } from '../../utils/theme.js'
@@ -229,7 +229,10 @@ export function ResumeDialog(args: {
 
     if (delta !== 0) {
       const max = Math.max(0, filteredSessions.length - 1)
-      dispatch({ type: 'SET_CURSOR', cursor: clamp(cursor + delta, 0, max) })
+      // Use a ref so rapid arrow repeats don't drop movements under React batching.
+      const nextCursor = clamp(cursorRef.current + delta, 0, max)
+      cursorRef.current = nextCursor
+      dispatch({ type: 'SET_CURSOR', cursor: nextCursor })
       return
     }
 
