@@ -3,6 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { TodoWriteToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 describe('TodoWriteToolPresenter', () => {
   it('renders a checklist from input.todos', () => {
@@ -24,7 +25,7 @@ describe('TodoWriteToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<TodoWriteToolPresenter message={message} />)
+    const { lastFrame } = render(<ToolUiBlocks blocks={TodoWriteToolPresenter({ message }).blocks} />)
     const frame = lastFrame()
     expect(frame).toContain('TodoWrite')
     expect(frame).toContain('2 items')

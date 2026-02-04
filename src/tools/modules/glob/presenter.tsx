@@ -1,21 +1,22 @@
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import type { ToolPresenter } from '../../presenters/types'
-import { FallbackToolPresenter } from '../../presenters/fallback'
+import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { useUserInputManager } from '../../runtime/userInputContext'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
-import { FsReadApprovalPrompt } from '../../presenters/fsReadApprovalPrompt'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolSubline'
+import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
+import { FsReadApprovalToolBlock } from '../../presenters/FsReadApprovalToolBlock'
 
-export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const GlobToolPresenter = createToolBlocksPresenter(
+  ({ message }: { message: Msg }): ToolBlocksOutput => {
   const theme = getTheme()
-  const userInput = useUserInputManager()
 
-  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
+  if (!message.toolInfo) {
+    return {
+      blocks: [{ kind: 'header', status: 'completed', label: 'Unknown tool' }],
+    }
+  }
 
   const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
@@ -25,51 +26,48 @@ export const GlobToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
-  if (status === 'running' && userInput?.isPending(toolUseId)) {
-    const rawPath = String((input as any)?.path || '')
-    return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <ToolHeaderLine status="running" label={toolName} params={showParams ? params : null} />
+  const blocks: ToolBlocksOutput['blocks'] = [
+    { kind: 'header', status, label: toolName, params: showParams ? params : null },
+  ]
 
-        <FsReadApprovalPrompt
+  if (status === 'running') {
+    const rawPath = String((input as any)?.path || '')
+    blocks.push({
+      kind: 'custom',
+      node: (
+        <FsReadApprovalToolBlock
+          toolUseId={toolUseId}
           title={`Approve this ${toolName} call?`}
           directoryPath={rawPath || process.cwd()}
-          onDecision={(d) => {
-            if (!userInput) return
-            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
-            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-          }}
         />
-      </Box>
-    )
+      ),
+    })
+    return { blocks }
   }
 
-  return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
+  blocks.push({
+    kind: 'subline',
+    status: status === 'error' ? 'error' : 'completed',
+    children: renderGlobSummary({ theme, summary: message.content, status }),
+  })
 
-      {status !== 'running' && (
-        <Box flexDirection="column">
-          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
-            {renderGlobSummary({ theme, summary: message.content, status })}
-          </ToolSubline>
-          {status === 'error' ? (
-            compactErrorDetail ? (
-              <ToolIndentedLine tone="error" text={compactErrorDetail} />
-            ) : null
-          ) : (
-            <>
-              {middleLines && middleLines.map((line, i) => <ToolIndentedLine key={i} text={line} />)}
-              {expandInfo ? <ToolIndentedLine tone="muted" text={expandInfo} /> : null}
-            </>
-          )}
-        </Box>
-      )}
-    </Box>
-  )
-}
+  if (status === 'error') {
+    if (compactErrorDetail) {
+      blocks.push({
+        kind: 'lines',
+        lines: [{ tone: 'error', text: compactErrorDetail }],
+      })
+    }
+    return { blocks }
+  }
+
+  const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
+  if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
+  if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
+  if (lines.length > 0) blocks.push({ kind: 'lines', lines })
+
+  return { blocks }
+})
 
 function renderGlobSummary(args: {
   theme: ReturnType<typeof getTheme>

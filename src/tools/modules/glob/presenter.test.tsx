@@ -3,6 +3,7 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 type MockUserInput = {
   isPending: (toolUseId: string) => boolean
@@ -47,7 +48,7 @@ describe('GlobToolPresenter', () => {
       toolInfo: { name: 'Glob', status: 'running', input: { pattern: '*.ts', path: 'src' }, result: '' },
     }
 
-    const view = render(<GlobToolPresenter message={message} />)
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
     expect(stripAnsi(view.lastFrame() ?? '')).toContain('Approve this Search call?')
     expect(lastPrompt).not.toBe(null)
     if (!lastPrompt) throw new Error('Expected FsReadApprovalPrompt to render')
@@ -81,7 +82,7 @@ describe('GlobToolPresenter', () => {
       },
     }
 
-    const view = render(<GlobToolPresenter message={message} />)
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
     const frame = stripAnsi(view.lastFrame() ?? '')
 
     expect(frame).toContain('⎿')
@@ -91,4 +92,3 @@ describe('GlobToolPresenter', () => {
     expect(frame).toContain('more')
   })
 })
-
