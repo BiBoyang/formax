@@ -2,11 +2,11 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline } from '../../../components/tool/ToolSubline'
 
 export const SearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -17,26 +17,15 @@ export const SearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const showParams = Boolean(params && params.trim().length > 0)
 
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
-            {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
-          </Text>
-        </Box>
+        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
       {status !== 'running' && (
         <Box flexDirection="column">
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              {renderSearchSummary({ theme, summary: message.content, status })}
-            </Text>
-          </Box>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+            {renderSearchSummary({ theme, summary: message.content, status })}
+          </ToolSubline>
         </Box>
       )}
     </Box>

@@ -5,9 +5,8 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { TodoItem } from './handler'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD } from '../../../utils/toolUi'
 import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import { ToolIndented, ToolSubline } from '../../../components/tool/ToolSubline'
 
 export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -30,12 +29,9 @@ export const TodoWriteToolPresenter: ToolPresenter = ({ message }: { message: Ms
           {todos.length > 0 ? (
             <Box flexDirection="column" marginTop={1}>
               {todos.map((t, i) => (
-                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                  <Text>
-                    <Text color={theme.secondaryText}>{TOOL_SUBLINE_INDENT}</Text>
-                    <TodoLine todo={t} />
-                  </Text>
-                </Box>
+                <ToolIndented key={i}>
+                  <TodoLine todo={t} />
+                </ToolIndented>
               ))}
             </Box>
           ) : null}

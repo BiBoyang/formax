@@ -5,6 +5,14 @@ import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from 
 
 export type ToolSublineStatus = 'completed' | 'error'
 
+function stripWhitespaceTextNodes(children: React.ReactNode): React.ReactNode {
+  const parts = React.Children.toArray(children).filter(
+    (n) => !(typeof n === 'string' && n.trim() === ''),
+  )
+  if (parts.length === 0) return null
+  return parts.length === 1 ? parts[0] : parts
+}
+
 export function ToolSubline({
   status,
   text,
@@ -15,7 +23,8 @@ export function ToolSubline({
   children?: React.ReactNode
 }): React.ReactNode {
   const theme = getTheme()
-  const content = children ?? (
+  const cleanedChildren = children ? stripWhitespaceTextNodes(children) : null
+  const content = cleanedChildren ?? (
     <Text color={status === 'error' ? theme.error : undefined}>{text || ''}</Text>
   )
 
@@ -40,6 +49,26 @@ export function ToolIndentedLine({
   return (
     <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
       <Text color={color}>{TOOL_SUBLINE_INDENT}{text}</Text>
+    </Box>
+  )
+}
+
+export function ToolIndented({
+  tone = 'default',
+  children,
+}: {
+  tone?: 'default' | 'muted' | 'error'
+  children: React.ReactNode
+}): React.ReactNode {
+  const theme = getTheme()
+  const color =
+    tone === 'error' ? theme.error : tone === 'muted' ? theme.secondaryText : undefined
+
+  const cleanedChildren = stripWhitespaceTextNodes(children)
+
+  return (
+    <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+      <Text color={color}>{TOOL_SUBLINE_INDENT}{cleanedChildren}</Text>
     </Box>
   )
 }

@@ -4,14 +4,14 @@ import { getTheme } from '../../../utils/theme'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolSubline'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { BashToolPresenter } from '../bash/presenter'
 import { WriteToolPresenter } from '../write/presenter'
 import { EditToolPresenter } from '../edit/presenter'
 import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
 import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -20,9 +20,6 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { input, status } = message.toolInfo
-
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
   const subagentType = (input as any)?.subagent_type
   const description = (input as any)?.description
@@ -70,22 +67,12 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolLabel}</Text>
-          {showParams ? <Text color={theme.secondaryText}>({params})</Text> : null}
-        </Text>
-      </Box>
+      <ToolHeaderLine status={status} label={toolLabel} params={showParams ? params : null} />
 
       {nestedLines.length > 0 ? (
         <Box flexDirection="column">
           {nestedLines.map((line, i) => (
-            <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-              <Text>
-                {TOOL_SUBLINE_INDENT}
-                {line}
-              </Text>
-            </Box>
+            <ToolIndentedLine key={i} text={line} />
           ))}
         </Box>
       ) : null}
@@ -93,16 +80,13 @@ export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
       {nestedPrompt ? <Box marginTop={1}>{nestedPrompt}</Box> : null}
 
       {status !== 'running' ? (
-        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-          <Text>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            {status === 'error' ? (
-              <Text color={theme.error}>{message.content}</Text>
-            ) : (
-              <Text>{message.content}</Text>
-            )}
-          </Text>
-        </Box>
+        <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+          {status === 'error' ? (
+            <Text color={theme.error}>{message.content}</Text>
+          ) : (
+            <Text>{message.content}</Text>
+          )}
+        </ToolSubline>
       ) : null}
     </Box>
   )

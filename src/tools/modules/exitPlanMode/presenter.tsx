@@ -8,11 +8,11 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline } from '../../../components/tool/ToolSubline'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
-import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -65,21 +65,14 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={theme.success} /><Text bold color={theme.text}>{"User approved Claude's plan"}</Text>
-          </Text>
-        </Box>
+        <ToolHeaderLine status="completed" label={"User approved Claude's plan"} dotColor={theme.success} pulse={false} />
 
-        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-          <Text>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-            <Text color={theme.secondaryText}>
-              Plan saved to: {planPathDisplay}
-              {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit
-            </Text>
+        <ToolSubline status="completed">
+          <Text color={theme.secondaryText}>
+            Plan saved to: {planPathDisplay}
+            {modeLabel ? ` · mode: ${modeLabel}` : ''} · /plan to edit
           </Text>
-        </Box>
+        </ToolSubline>
 
         <Box>
           <Text>{indented}</Text>
@@ -94,11 +87,7 @@ export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message:
 
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text>
-          <PulsingDot color={dotColor} /><Text bold color={theme.text}>{headline}</Text>
-        </Text>
-      </Box>
+      <ToolHeaderLine status={status === 'error' ? 'error' : 'completed'} label={headline} dotColor={dotColor} pulse={false} />
       {firstLine ? (
         <Box marginLeft={2}>
           <Text color={theme.secondaryText}>{firstLine}</Text>

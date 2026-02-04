@@ -5,9 +5,9 @@ import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
-import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -21,17 +21,9 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
   const skillName = String((input as any)?.skill || '').trim()
 
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text>
-          <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>Skill</Text>
-          <Text color={theme.secondaryText}>{`(${skillName || 'unknown'})`}</Text>
-        </Text>
-      </Box>
+      <ToolHeaderLine status={status} label="Skill" params={skillName || 'unknown'} />
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
         <SkillApprovalPrompt
@@ -49,12 +41,9 @@ export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
       {status === 'error' && message.content ? (
         <Box flexDirection="column">
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              <Text color={theme.error}>{message.content}</Text>
-            </Text>
-          </Box>
+          <ToolSubline status="error">
+            <Text color={theme.error}>{message.content}</Text>
+          </ToolSubline>
         </Box>
       ) : null}
     </Box>

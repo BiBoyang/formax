@@ -3,7 +3,8 @@ import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
 import type { ToolPresenter } from '../../presenters/types'
@@ -15,7 +16,6 @@ import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
 import { PatchPreview } from '../../presenters/PatchPreview'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { stripCatNPrefixes } from '../../../utils/catN'
-import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -34,21 +34,13 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
   const planPath = planSession?.getPlanPath() ?? null
   const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
   if (isPlanFile) {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>Updated plan</Text>
-          </Text>
-        </Box>
+        <ToolHeaderLine status={status} label="Updated plan" />
 
       {status !== 'running' && (
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
             {status === 'error' ? (
               <Text color={theme.error}>{message.content}</Text>
             ) : (
@@ -56,7 +48,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
                 /plan to preview · {formatPlanPathForDisplay(planPath!)}
               </Text>
             )}
-          </Box>
+          </ToolSubline>
         )}
       </Box>
     )
@@ -73,12 +65,7 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
 
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
-            {showParams ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}
-          </Text>
-        </Box>
+        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
       {status === 'running' && userInput?.isPending(toolUseId) ? (
         <Box flexDirection="column" marginTop={1}>
@@ -106,12 +93,9 @@ export const EditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) 
         </Box>
       ) : status !== 'running' ? (
         <Box flexDirection="column">
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
-            </Text>
-          </Box>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+            <Text>{message.content || (filePath ? `Edited ${filePath}` : 'Edited')}</Text>
+          </ToolSubline>
 
           {typeof oldString === 'string' && typeof newString === 'string' ? (
             <Box flexDirection="column" marginTop={1}>

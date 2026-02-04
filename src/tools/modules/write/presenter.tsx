@@ -2,8 +2,9 @@ import React, { useMemo } from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
 import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline } from '../../../components/tool/ToolSubline'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -14,7 +15,6 @@ import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
 import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
-import { TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -33,30 +33,20 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
   const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
   if (isPlanFile) {
-    const dotColor =
-      status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>Updated plan</Text>
-          </Text>
-        </Box>
+        <ToolHeaderLine status={status} label="Updated plan" />
 
         {status !== 'running' && (
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              {status === 'error' ? (
-                <Text color={theme.error}>{message.content}</Text>
-              ) : (
-                <Text color={theme.secondaryText}>
-                  /plan to preview · {formatPlanPathForDisplay(planPath!)}
-                </Text>
-              )}
-            </Text>
-          </Box>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+            {status === 'error' ? (
+              <Text color={theme.error}>{message.content}</Text>
+            ) : (
+              <Text color={theme.secondaryText}>
+                /plan to preview · {formatPlanPathForDisplay(planPath!)}
+              </Text>
+            )}
+          </ToolSubline>
         )}
       </Box>
     )
@@ -71,12 +61,7 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={theme.secondaryText} pulse /><Text bold color={theme.text}>Write</Text>
-            <Text color={theme.secondaryText}>{`(${fileName})`}</Text>
-          </Text>
-        </Box>
+        <ToolHeaderLine status="running" label="Write" params={fileName} />
 
         <Box flexDirection="column" marginTop={1}>
           <ApprovalHeader title="Create file" />

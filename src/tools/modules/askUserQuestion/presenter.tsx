@@ -1,14 +1,14 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
-import { PulsingDot } from '../../../components/ui/PulsingDot'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolIndented, ToolSubline } from '../../../components/tool/ToolSubline'
 import type { ToolPresenter } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useReplUi } from '../../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../../utils/toolUi'
 
 export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -18,8 +18,6 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { input, status } = message.toolInfo
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
 
   const toolUseId =
     message.toolInfo.toolUseId ??
@@ -51,44 +49,28 @@ export const AskUserQuestionToolPresenter: ToolPresenter = ({ message }: { messa
     return null
   }
 
+  const questionsCount = questions.length || 1
+
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <Box>
-        <Text>
-          <PulsingDot color={dotColor} /><Text bold color={theme.text}>AskUserQuestion</Text>
-          <Text color={theme.secondaryText}>(</Text>
-          <Text color={theme.secondaryText}>{String(questions.length || 1)} questions</Text>
-          <Text color={theme.secondaryText}>)</Text>
-        </Text>
-      </Box>
+      <ToolHeaderLine status={status} label="AskUserQuestion" params={`${String(questionsCount)} questions`} />
 
       {answers ? (
         <Box flexDirection="column">
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              <Text>Answered</Text>
-            </Text>
-          </Box>
+          <ToolSubline status="completed">
+            <Text>Answered</Text>
+          </ToolSubline>
           {Object.entries(answers).map(([k, v]) => (
-            <Box key={k} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-              <Text>
-                <Text color={theme.secondaryText}>
-                  {TOOL_SUBLINE_INDENT}
-                  {k}:{' '}
-                </Text>
-                <Text>{v}</Text>
-              </Text>
-            </Box>
+            <ToolIndented key={k}>
+              <Text color={theme.secondaryText}>{k}:{' '}</Text>
+              <Text>{v}</Text>
+            </ToolIndented>
           ))}
         </Box>
       ) : (
-        <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-          <Text color={theme.secondaryText}>
-            {TOOL_SUBLINE_PREFIX}
-            No answers
-          </Text>
-        </Box>
+        <ToolSubline status="completed">
+          <Text color={theme.secondaryText}>No answers</Text>
+        </ToolSubline>
       )}
     </Box>
   )
