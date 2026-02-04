@@ -9,13 +9,13 @@
  */
 
 import React from 'react'
-import { Box, Text } from 'ink'
+import { Box } from 'ink'
 import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../utils/toolUi'
-import { PulsingDot } from '../ui/PulsingDot'
 import type { TokenUsage } from '../../streaming/types'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
+import { ToolHeaderLine } from './ToolHeaderLine'
+import { ToolIndentedLine, ToolSubline } from './ToolSubline'
 
 /**
  * Tool information attached to a message
@@ -124,11 +124,14 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   if (!message.toolInfo) {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <Box>
-          <Text>
-            <PulsingDot color={theme.secondaryText} /><Text color={theme.secondaryText}>Unknown tool</Text>
-          </Text>
-        </Box>
+        <ToolHeaderLine
+          status="completed"
+          label="Unknown tool"
+          labelColor={theme.secondaryText}
+          labelBold={false}
+          dotColor={theme.secondaryText}
+          pulse={false}
+        />
       </Box>
     )
   }
@@ -141,60 +144,32 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   
   // Determine dot color based on status
   // Only the dot changes color, tool name is always white
-  const dotColor =
-    status === 'error' ? theme.error : status === 'completed' ? theme.success : theme.secondaryText
-  
   return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
         {/* Tool call header: ⏺ ToolName(params) */}
-        <Box>
-          <Text>
-            <PulsingDot color={dotColor} pulse={status === 'running'} /><Text bold color={theme.text}>{toolName}</Text>
-            {showParams ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}
-          </Text>
-        </Box>
+        <ToolHeaderLine
+          status={status}
+          label={toolName}
+          params={showParams ? params : null}
+        />
       
       {/* Tool result (only shown when not running) */}
       {status !== 'running' && (
         <Box flexDirection="column">
           {/* First line with ⎿ prefix */}
-          <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-            <Text>
-              <Text color={theme.secondaryText}>{TOOL_SUBLINE_PREFIX}</Text>
-              <Text color={status === 'error' ? theme.error : undefined}>{message.content || ''}</Text>
-            </Text>
-          </Box>
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'} text={message.content || ''} />
           
           {status === 'error' ? (
             compactErrorDetail ? (
-              <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                <Text color={theme.error}>
-                  {TOOL_SUBLINE_INDENT}
-                  {compactErrorDetail}
-                </Text>
-              </Box>
+              <ToolIndentedLine tone="error" text={compactErrorDetail} />
             ) : null
           ) : (
             <>
               {/* Middle lines with 3-space indent (for Bash output) */}
-              {middleLines && middleLines.map((line, i) => (
-                <Box key={i} paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                  <Text>
-                    {TOOL_SUBLINE_INDENT}
-                    {line}
-                  </Text>
-                </Box>
-              ))}
+              {middleLines && middleLines.map((line, i) => <ToolIndentedLine key={i} text={line} />)}
 
               {/* Expand info (3-space indent to align with middle lines, gray color) */}
-              {expandInfo && (
-                <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
-                  <Text color={theme.secondaryText}>
-                    {TOOL_SUBLINE_INDENT}
-                    {expandInfo}
-                  </Text>
-                </Box>
-              )}
+              {expandInfo ? <ToolIndentedLine tone="muted" text={expandInfo} /> : null}
             </>
           )}
         </Box>
