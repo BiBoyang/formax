@@ -21,6 +21,14 @@ type QuestionState = {
   typingValue: string
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+}
+
+function getUnknownArray(value: unknown): unknown[] | null {
+  return Array.isArray(value) ? value : null
+}
+
 export function AskUserQuestionToolBlock({
   toolUseId,
   questions,
@@ -643,20 +651,27 @@ function formatAnswerForDisplay(q: AskQuestion, s: QuestionState | undefined): s
 }
 
 export function parseQuestions(input: unknown): AskQuestion[] {
-  const raw = Array.isArray((input as any)?.questions) ? ((input as any).questions as any[]) : []
-  return raw.map((q: any, i: number) => {
-    const header = String(q?.header || `Q${i + 1}`)
-    const opts = Array.isArray(q?.options)
-      ? q.options.map((o: any) => ({
-          label: String(o?.label ?? ''),
-          description: String(o?.description ?? ''),
-        }))
-      : []
+  const rec = asRecord(input)
+  const raw = getUnknownArray(rec?.questions) ?? []
+
+  return raw.map((q, i) => {
+    const qRec = asRecord(q)
+    const headerRaw = qRec?.header
+    const header = typeof headerRaw === 'string' && headerRaw.trim() ? headerRaw : `Q${i + 1}`
+
+    const optsRaw = getUnknownArray(qRec?.options) ?? []
+    const opts = optsRaw.map((o) => {
+      const oRec = asRecord(o)
+      const label = typeof oRec?.label === 'string' ? oRec.label : ''
+      const description = typeof oRec?.description === 'string' ? oRec.description : ''
+      return { label, description }
+    })
+
     return {
-      question: String(q?.question ?? ''),
+      question: typeof qRec?.question === 'string' ? qRec.question : '',
       header,
       options: opts,
-      multiSelect: Boolean(q?.multiSelect),
+      multiSelect: Boolean(qRec?.multiSelect),
     }
   })
 }

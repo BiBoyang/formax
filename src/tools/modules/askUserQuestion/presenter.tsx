@@ -29,7 +29,7 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
         kind: 'header',
         status,
         label: 'AskUserQuestion',
-        params: `${String(questions.length || 1)} questions`,
+        params: `${String(questions.length)} questions`,
       },
     ]
 

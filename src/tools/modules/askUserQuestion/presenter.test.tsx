@@ -12,30 +12,39 @@ type MockUserInput = {
 }
 
 let userInput: null | MockUserInput = null
-let lastBlockProps: null | { toolUseId: string; questions: any[] } = null
+let lastBlockProps: null | { toolUseId: string; questions: unknown[] } = null
 
 vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => userInput,
 }))
 
 vi.mock('../../presenters/AskUserQuestionToolBlock', () => ({
-  AskUserQuestionToolBlock: (props: any) => {
+  AskUserQuestionToolBlock: (props: { toolUseId: string; questions: unknown[] }) => {
     lastBlockProps = props
     return React.createElement(Text, null, 'AskUserQuestion Interactive')
   },
-  parseQuestions: (input: any) => {
-    const raw = Array.isArray(input?.questions) ? input.questions : []
-    return raw.map((q: any, i: number) => ({
-      question: String(q?.question ?? ''),
-      header: String(q?.header || `Q${i + 1}`),
-      options: Array.isArray(q?.options)
-        ? q.options.map((o: any) => ({
-            label: String(o?.label ?? ''),
-            description: String(o?.description ?? ''),
-          }))
-        : [],
-      multiSelect: Boolean(q?.multiSelect),
-    }))
+  parseQuestions: (input: unknown) => {
+    const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null
+    const raw = Array.isArray(rec?.questions) ? rec?.questions : []
+
+    return raw.map((q, i) => {
+      const qRec = typeof q === 'object' && q !== null ? (q as Record<string, unknown>) : null
+      const optionsRaw = Array.isArray(qRec?.options) ? (qRec?.options as unknown[]) : []
+      const options = optionsRaw.map((o) => {
+        const oRec = typeof o === 'object' && o !== null ? (o as Record<string, unknown>) : null
+        return {
+          label: typeof oRec?.label === 'string' ? oRec.label : '',
+          description: typeof oRec?.description === 'string' ? oRec.description : '',
+        }
+      })
+
+      return {
+        question: typeof qRec?.question === 'string' ? qRec.question : '',
+        header: typeof qRec?.header === 'string' && qRec.header ? qRec.header : `Q${i + 1}`,
+        options,
+        multiSelect: Boolean(qRec?.multiSelect),
+      }
+    })
   },
   parseAnswers: (raw: string) => {
     const trimmed = (raw || '').trim()
@@ -52,10 +61,6 @@ vi.mock('../../presenters/AskUserQuestionToolBlock', () => ({
     }
   },
 }))
-
-function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 5))
-}
 
 function createRunningAskMessage(): Msg {
   return {

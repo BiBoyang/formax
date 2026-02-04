@@ -9,6 +9,13 @@ import { BashApprovalToolBlock } from '../../presenters/BashApprovalToolBlock'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 
+function parseBashInput(input: unknown): { command: string; cwd: string | null } {
+  const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null
+  const command = typeof rec?.command === 'string' ? rec.command : ''
+  const cwd = typeof rec?.cwd === 'string' && rec.cwd.trim() ? rec.cwd : null
+  return { command, cwd }
+}
+
 export const BashToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {
     const theme = getTheme()
@@ -25,9 +32,9 @@ export const BashToolPresenter = createToolBlocksPresenter(
     const toolUseId =
       message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-    const command = String((input as any)?.command || '')
-    const cmdCwdRaw = String((input as any)?.cwd || '')
-    const cwd = cmdCwdRaw || process.cwd()
+    const parsedInput = parseBashInput(input)
+    const command = parsedInput.command
+    const cwd = parsedInput.cwd ?? process.cwd()
 
     const blocks: ToolBlocksOutput['blocks'] = [
       { kind: 'header', status, label: toolName, params: showParams ? params : null },
@@ -52,7 +59,7 @@ export const BashToolPresenter = createToolBlocksPresenter(
     const bg = parseBackgroundBashResult(rawResult)
     const fileExtract =
       status !== 'error' && !bg
-        ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
+        ? extractFilepathsFromCommandOutput({ command, output: rawResult })
         : null
     const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
     const compactErrorDetail =
