@@ -6,6 +6,17 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
 import { PlanProvider } from '../../../features/repl/planContext'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
+import { isToolBlocksPresenter } from '../../presenters/types'
+
+// Helper to render blocks presenter
+function renderBlocksPresenter(presenter: typeof WriteToolPresenter, message: Msg) {
+  if (isToolBlocksPresenter(presenter)) {
+    const out = presenter({ message })
+    return render(<ToolUiBlocks blocks={out.blocks} />)
+  }
+  return render(presenter({ message }))
+}
 
 describe('WriteToolPresenter', () => {
   it('renders a write approval prompt while a write call is pending user input', () => {
@@ -30,7 +41,7 @@ describe('WriteToolPresenter', () => {
 
     const { lastFrame } = render(
       <UserInputProvider userInput={userInput}>
-        <WriteToolPresenter message={message} />
+        <ToolUiBlocks blocks={(WriteToolPresenter as any)({ message }).blocks} />
       </UserInputProvider>,
     )
 
@@ -72,7 +83,7 @@ describe('WriteToolPresenter', () => {
 
     const { lastFrame } = render(
       <PlanProvider planSession={planSession}>
-        <WriteToolPresenter message={message} />
+        <ToolUiBlocks blocks={(WriteToolPresenter as any)({ message }).blocks} />
       </PlanProvider>,
     )
 

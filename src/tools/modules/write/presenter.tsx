@@ -1,37 +1,44 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import { ToolMessage } from '../../../components/tool/ToolMessage'
-import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { isSameFilePath, formatPlanPathForDisplay } from '../../../utils/planMode'
 import type { ToolPresenter } from '../../presenters/types'
-import { FallbackToolPresenter } from '../../presenters/fallback'
+import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
-import { ApprovalHeader } from '../../presenters/ApprovalHeader'
-import { ApprovalPreview } from '../../presenters/ApprovalPreview'
-import { useUserInputManager } from '../../runtime/userInputContext'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolSubline, ToolIndentedLine } from '../../../components/tool/ToolSubline'
+import { WriteApprovalToolBlock } from './WriteApprovalToolBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
-import { formatPlanPathForDisplay, isSameFilePath } from '../../../utils/planMode'
+import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 
-export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
-  const theme = getTheme()
-  const userInput = useUserInputManager()
+// Component that renders the complete write tool UI
+// Handles plan file detection internally since it needs usePlanSession hook
+function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   const planSession = usePlanSession()
-
-  if (!message.toolInfo) return <FallbackToolPresenter message={message} />
-
-  const { status, input } = message.toolInfo
-  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
-
-  const filePathRaw = String((input as any).file_path || (input as any).path || '')
-  const fileName = useMemo(() => path.basename(filePathRaw || 'file'), [filePathRaw])
-
   const planPath = planSession?.getPlanPath() ?? null
+  const theme = getTheme()
+
+  if (!message.toolInfo) {
+    return (
+      <Box flexDirection="column" marginTop={1} marginBottom={0}>
+        <ToolHeaderLine status="completed" label="Unknown tool" />
+      </Box>
+    )
+  }
+
+  const { name, input, status, middleLines, expandInfo } = message.toolInfo
+  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
+  const showParams = Boolean(params && params.trim().length > 0)
+
+  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+  const filePathRaw = String((input as any).file_path || (input as any).path || '')
+  const fileName = path.basename(filePathRaw || 'file')
+
   const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
+  // Plan file special case - render "Updated plan" header
   if (isPlanFile) {
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -52,57 +59,54 @@ export const WriteToolPresenter: ToolPresenter = ({ message }: { message: Msg })
     )
   }
 
-  if (status === 'running' && userInput?.isPending(toolUseId)) {
-    const cols = Math.max((process.stdout.columns || 80), 40)
+  const rawContent = (input as any).content
+  const content = typeof rawContent === 'string' ? rawContent : ''
+  const compactErrorDetail =
+    status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
-    const rawContent = (input as any).content
-    const content = typeof rawContent === 'string' ? rawContent : ''
-    const preview = buildPreviewMarkdown(content, 18)
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={0}>
+      <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
 
-    return (
-      <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <ToolHeaderLine status="running" label="Write" params={fileName} />
+      {status === 'running' ? (
+        <WriteApprovalToolBlock
+          toolUseId={toolUseId}
+          fileName={fileName}
+          content={content}
+        />
+      ) : (
+        <Box flexDirection="column">
+          <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
+            {message.content || ''}
+          </ToolSubline>
 
-        <Box flexDirection="column" marginTop={1}>
-          <ApprovalHeader title="Create file" />
-          <ApprovalPreview fileName={fileName} width={cols} remainingLines={preview.remaining}>
-            <MarkdownBlock markdown={preview.markdown} />
-          </ApprovalPreview>
-
-          <Text>
-            Do you want to create <Text bold>{fileName}</Text>?
-          </Text>
-
-          <FsWriteApprovalPrompt
-            title={`Do you want to create ${fileName}?`}
-            variant="inline"
-            onDecision={(d) => {
-              if (!userInput) return
-              if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-              else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
-              else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-              else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-            }}
-          />
+          {status === 'error' ? (
+            compactErrorDetail ? (
+              <ToolIndentedLine tone="error" text={compactErrorDetail} />
+            ) : null
+          ) : (
+            <>
+              {middleLines && middleLines.map((line, i) => (
+                <ToolIndentedLine key={i} text={line} />
+              ))}
+              {expandInfo ? <ToolIndentedLine tone="muted" text={expandInfo} /> : null}
+            </>
+          )}
         </Box>
-      </Box>
-    )
+      )}
+    </Box>
+  )
+}
+
+export const WriteToolPresenter: ToolPresenter = createToolBlocksPresenter(({ message }: { message: Msg }) => {
+  // Return a single custom block that handles all rendering internally
+  // This allows us to use hooks (usePlanSession) for plan file detection
+  return {
+    blocks: [
+      {
+        kind: 'custom',
+        node: <WriteToolBlock message={message} />,
+      },
+    ],
   }
-
-  return <ToolMessage message={message} />
-}
-
-function buildPreviewMarkdown(
-  raw: string,
-  maxLines: number,
-): {
-  markdown: string
-  remaining: number
-} {
-  const all = String(raw || '').split(/\r?\n/)
-  const slice = all.slice(0, maxLines)
-  const remaining = Math.max(0, all.length - slice.length)
-  const fenceCount = slice.filter((l) => String(l).trimStart().startsWith('```')).length
-  const maybeCloseFence = fenceCount % 2 === 1 ? [...slice, '```'] : slice
-  return { markdown: maybeCloseFence.join('\n'), remaining }
-}
+})
