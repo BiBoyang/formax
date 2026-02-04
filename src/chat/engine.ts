@@ -60,9 +60,9 @@ export function createChatEngine(deps: {
 
   const toolLoopLimit = (() => {
     const raw = String(process.env.FORMAX_TOOL_LOOP_LIMIT ?? '').trim()
-    if (!raw) return 200
+    if (!raw) return null
     const n = Number.parseInt(raw, 10)
-    if (!Number.isFinite(n) || n <= 0) return 200
+    if (!Number.isFinite(n) || n <= 0) return null
     return Math.min(2000, n)
   })()
 
@@ -324,10 +324,10 @@ export function createChatEngine(deps: {
           if (recentTools.length > 20) recentTools.splice(0, recentTools.length - 20)
 
           iteration++
-          if (iteration > toolLoopLimit) {
+          if (toolLoopLimit != null && iteration > toolLoopLimit) {
             const suffix = recentTools.length ? ` (recent: ${recentTools.join(', ')})` : ''
             throw new Error(
-              `Tool loop exceeded iteration limit (${toolLoopLimit})${suffix} — set FORMAX_TOOL_LOOP_LIMIT to increase (default 200)`,
+              `Tool loop exceeded iteration limit (${toolLoopLimit})${suffix} — set FORMAX_TOOL_LOOP_LIMIT to override (default unlimited)`,
             )
           }
         }

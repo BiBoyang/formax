@@ -22,15 +22,9 @@
 ---
 
 ### Phase A — 公共展示规则收敛（DONE）
-- [x] 单一事实来源：`⏺` 后严格 1 个空格（避免 `⏺  Read` / `⏺Read`）
-- [x] 单一事实来源：subline 前缀固定为 `  ⎿  `，且不会双缩进
-- [x] 把 header 抽到 `src/components/tool/ToolHeaderLine.tsx`（pulsing dot + toolName + params）
-- [x] 把 subline/缩进抽到 `src/components/tool/ToolSubline.tsx`（subline + indented lines）
-- [x] 把 prefix/indent 常量集中到 `src/utils/toolUi.ts`（避免 presenter 私下拼空格）
-- [x] 迁移 tool presenters 使用 `ToolHeaderLine` / `ToolSubline`（不改业务逻辑/上下文）
-- [x] 回归测试：锁住 header 不出现 `⏺  Read`（见 `src/components/tool/ToolMessage.test.tsx`）
-- [x] 回归测试：锁住 completed/error 具有 `⎿` 前缀（多处已有断言）
-- [x] 记录 CC 事实：`Update` 是 **Edit 的 UI 展示名**（不是合并）（已记入 `plans/ui/tool-ui-blocks.md`）
+- 完成内容已落地；为减少噪音，这里不再逐条列出 `[x]`。
+- 关键落点：`src/components/tool/ToolHeaderLine.tsx`、`src/components/tool/ToolSubline.tsx`、`src/utils/toolUi.ts`。
+- 回归点：`src/components/tool/ToolMessage.test.tsx`（`⏺` 单空格）、以及各 tool presenter 测试中的 `⎿` 断言。
 
 ### Phase B — 结构化 blocks（可选，暂不做）
 说明：如未来确实需要 `ToolUiBlock`（比如想做“更强的稳定渲染/序列化/跨视图复用”），再回头按 `plans/ui/tool-ui-blocks.md` 落地。
@@ -39,7 +33,7 @@
 
 ## Backlog / Follow-ups（不阻塞 Phase A）
 
-- [x] 去除 overlay 对 `src/tools/presenters/*` 的反向依赖：把 `ApprovalHeader` 抽到中立 UI 层（`src/components/ui/`），并由 tools/presenters 与 overlays 共用；原路径通过 re-export 过渡（见 `src/tools/presenters/ApprovalHeader.tsx`）。
+- `ApprovalHeader` 已抽到 `src/components/ui/`，并通过 `src/tools/presenters/ApprovalHeader.tsx` re-export 过渡。
 
 ---
 
