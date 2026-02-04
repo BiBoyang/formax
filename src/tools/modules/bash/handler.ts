@@ -105,7 +105,10 @@ async function runForeground(args: {
         signal: args.signal as any,
       },
       (err, stdout, stderr) => {
-        const content = formatShellOutput(appendLimited('', stdout), appendLimited('', stderr))
+        const content = formatShellOutput(
+          appendLimited('', sanitizeShellText(stdout)),
+          appendLimited('', sanitizeShellText(stderr)),
+        )
         if (err) {
           const exitCode = (err as any)?.code
           const msg = err instanceof Error ? err.message : String(err)
@@ -129,8 +132,8 @@ async function runBackground(args: {
   const { taskCtx } = args
   const { signal, setCancel, updateResult } = taskCtx
 
-  let stdout = ''
-  let stderr = ''
+  let stdoutRaw = ''
+  let stderrRaw = ''
   let timedOut = false
 
   const child = spawn(args.cmd, {
@@ -153,15 +156,20 @@ async function runBackground(args: {
   signal.addEventListener('abort', onAbort, { once: true })
 
   const scheduleUpdate = createThrottledUpdater(() => {
-    updateResult({ content: formatShellOutput(stdout, stderr) })
+    updateResult({
+      content: formatShellOutput(
+        sanitizeShellText(stdoutRaw),
+        sanitizeShellText(stderrRaw),
+      ),
+    })
   })
 
   child.stdout?.on('data', (buf: Buffer) => {
-    stdout = appendLimited(stdout, buf.toString('utf8'))
+    stdoutRaw = appendLimited(stdoutRaw, buf.toString('utf8'))
     scheduleUpdate()
   })
   child.stderr?.on('data', (buf: Buffer) => {
-    stderr = appendLimited(stderr, buf.toString('utf8'))
+    stderrRaw = appendLimited(stderrRaw, buf.toString('utf8'))
     scheduleUpdate()
   })
 
@@ -188,7 +196,10 @@ async function runBackground(args: {
     })
 
     child.on('close', (code, exitSignal) => {
-      const output = formatShellOutput(stdout, stderr)
+      const output = formatShellOutput(
+        sanitizeShellText(stdoutRaw),
+        sanitizeShellText(stderrRaw),
+      )
 
       if (signal.aborted) {
         finish({ content: output ? `Killed\n${output}` : 'Killed', is_error: true })
@@ -233,6 +244,23 @@ function formatShellOutput(stdout: string, stderr: string): string {
   if (!err.trim()) return out || '(no output)'
   if (!out.trim()) return `stderr:\n${err}`
   return `stderr:\n${err}\nstdout:\n${out}`
+}
+
+function sanitizeShellText(text: string): string {
+  const raw = String(text || '')
+
+  // Normalize carriage returns: many CLIs use `\r` for live-updating spinners/progress.
+  // If we keep raw `\r` in the transcript, it can corrupt Ink/terminal layout.
+  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+  // Strip common ANSI escape sequences (CSI + OSC), since we render via Ink components.
+  // CSI: ESC [ ... finalByte
+  const noCsi = normalized.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+  // OSC: ESC ] ... BEL or ESC \
+  const noOsc = noCsi.replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, '')
+
+  // Drop remaining control chars (except newline/tab).
+  return noOsc.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
 }
 
 function appendLimited(prev: string, nextChunk: string): string {

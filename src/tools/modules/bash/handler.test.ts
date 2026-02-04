@@ -102,6 +102,24 @@ describe('BashToolHandler', () => {
     expect(both.content).toContain('err')
     expect(both.content).toContain('out')
 
+    const controlChars = await handler.execute(
+      {
+        id: '1',
+        name: 'Bash',
+        input: {
+          command: nodeCommand("process.stdout.write('\\u001b[2Jhello\\rworld'); process.stderr.write('\\u001b[2Jerr\\rline')"),
+        },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+    expect(controlChars.is_error).not.toBe(true)
+    expect(controlChars.content).not.toContain('\u001b[')
+    expect(controlChars.content).not.toContain('\r')
+    expect(controlChars.content).toContain('hello')
+    expect(controlChars.content).toContain('world')
+    expect(controlChars.content).toContain('err')
+    expect(controlChars.content).toContain('line')
+
     const noOutput = await handler.execute(
       { id: '1', name: 'Bash', input: { command: nodeCommand('') } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
