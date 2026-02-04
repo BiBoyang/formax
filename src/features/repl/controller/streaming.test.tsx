@@ -13,6 +13,111 @@ function tick(): Promise<void> {
 }
 
 describe('useReplStreaming', () => {
+  it('resets thinking timer per thinking segment', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const thinkingStartedAtMsRef = { current: null as number | null }
+
+    let nowMs = 0
+    const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      useEffect(() => {
+        thinkingStartedAtMsRef.current = thinkingStartedAtMs
+      }, [thinkingStartedAtMs])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    nowMs = 1000
+    handleEvent!({ type: 'thinking_delta', thinking: 'a' })
+    await tick()
+    await tick()
+    expect(thinkingStartedAtMsRef.current).toBe(1000)
+
+    nowMs = 2000
+    handleEvent!({ type: 'thinking_delta', thinking: 'b' })
+    await tick()
+    await tick()
+    expect(thinkingStartedAtMsRef.current).toBe(1000)
+
+    nowMs = 2500
+    handleEvent!({ type: 'thinking_stop' })
+    await tick()
+    await tick()
+    expect(thinkingStartedAtMsRef.current).toBe(null)
+
+    nowMs = 9000
+    handleEvent!({ type: 'thinking_delta', thinking: 'c' })
+    await tick()
+    await tick()
+    expect(thinkingStartedAtMsRef.current).toBe(9000)
+
+    nowMs = 9500
+    handleEvent!({ type: 'thinking_stop' })
+    await tick()
+    await tick()
+    expect(thinkingStartedAtMsRef.current).toBe(null)
+
+    dateNowSpy.mockRestore()
+  })
+
   it('preserves tool input on tool_end (used by Edit presenter + patchStartLineNumber)', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-stream-'))
     try {
