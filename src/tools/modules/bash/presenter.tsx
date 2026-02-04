@@ -3,7 +3,6 @@ import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import { createToolBlocksPresenter } from '../../presenters/types'
-import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalToolBlock } from '../../presenters/BashApprovalToolBlock'
@@ -52,41 +51,39 @@ export const BashToolPresenter = createToolBlocksPresenter(
     const rawResult = typeof message.toolInfo.result === 'string' ? message.toolInfo.result : ''
     const bg = parseBackgroundBashResult(rawResult)
     const fileExtract =
-      status !== 'running' && status !== 'error' && !bg
+      status !== 'error' && !bg
         ? extractFilepathsFromCommandOutput({ command: String((input as any)?.command || ''), output: rawResult })
         : null
     const fileSummary = fileExtract && fileExtract.filepaths.length > 0 ? formatFileSummary(fileExtract.filepaths) : null
     const compactErrorDetail =
       status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
 
-    if (status !== 'running') {
-      blocks.push({
-        kind: 'subline',
-        status: status === 'error' ? 'error' : 'completed',
-        children: renderBashSummary({ theme, summary: message.content, status, bg }),
-      })
+    blocks.push({
+      kind: 'subline',
+      status: status === 'error' ? 'error' : 'completed',
+      children: renderBashSummary({ theme, summary: message.content, status, bg }),
+    })
 
-      if (!bg && fileSummary) {
+    if (!bg && fileSummary) {
+      blocks.push({
+        kind: 'lines',
+        lines: [{ tone: 'muted', text: fileSummary }],
+      })
+    }
+
+    if (!bg && status === 'error') {
+      if (compactErrorDetail) {
         blocks.push({
           kind: 'lines',
-          lines: [{ tone: 'muted', text: fileSummary }],
+          lines: [{ tone: 'error', text: compactErrorDetail }],
         })
       }
-
-      if (!bg && status === 'error') {
-        if (compactErrorDetail) {
-          blocks.push({
-            kind: 'lines',
-            lines: [{ tone: 'error', text: compactErrorDetail }],
-          })
-        }
-      } else if (!bg) {
-        const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
-        if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
-        if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
-        if (lines.length > 0) {
-          blocks.push({ kind: 'lines', lines })
-        }
+    } else if (!bg) {
+      const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
+      if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
+      if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
+      if (lines.length > 0) {
+        blocks.push({ kind: 'lines', lines })
       }
     }
 
