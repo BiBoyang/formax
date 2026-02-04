@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun run dev` - Run the CLI REPL interface
 - `bun run toole` - Run tool examples entrypoint
 - `bun run loade` - Run loading examples entrypoint
+- `bun run perf:transcript` - Run transcript performance playground (no network calls)
 - `bun run build` - Bundle CLI to `dist/cli.js` (requires Bun)
 - `bun run type-check` - Run TypeScript type checks (no emit) plus core + UI boundary checks
 - `bun run core:boundaries` - Run core module boundary checks
@@ -43,6 +44,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 - `src/entrypoints/cli.tsx` - Main CLI entry, parses args and dispatches to commands or REPL
 - `src/entrypoints/tool-examples.tsx` - Tool testing/demo entry point
 - `src/entrypoints/loading-examples.tsx` - Loading examples entry point
+- `src/entrypoints/perf-transcript.tsx` - Transcript performance playground
 
 **CLI Layer**
 - `src/cli/args.ts` - CLI argument parsing
@@ -67,9 +69,11 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 **Screens & UI**
 - `src/screens/REPL.tsx` - Main chat REPL interface with command input, streaming output, and tool execution visualization
 - `src/screens/ToolExamplesScreen.tsx` - Interactive tool testing UI
+- `src/screens/perf/TranscriptPerfScreen.tsx` - Transcript perf screen
 - `src/ui/SetupWizard.tsx` - First-run setup wizard UI
 - `src/ui/agents/` - Agent management UI components
 - `src/ui/permissions/` - Permission management UI components
+- `src/ui/config/` - Config overlay UI (WIP)
 - `src/components/` - Reusable Ink components (forms, inputs, status displays)
 
 **Feature Modules**
@@ -113,6 +117,11 @@ Tools follow a consistent module pattern in `src/tools/modules/<name>/`:
 - `presenter.tsx` (optional) - Custom Ink UI for result display
 
 Named as `createXToolModule()` where X is the tool name.
+
+**Tool Transcript UI Blocks (C-lite)**
+Some tools render via Tool UI Blocks instead of bespoke presenters. When adjusting common transcript formatting (⏺ spacing/indent, sublines, etc.), start at:
+- `src/components/tool/ToolUiBlocks.tsx` - block renderer
+- `src/tools/presenters/types.ts` - `createToolBlocksPresenter` helper
 
 **Tool Registry Flow**
 1. Registry initialized with spec source (proxy JSON or built-ins)

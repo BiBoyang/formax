@@ -7,13 +7,15 @@ This file is a “where to change what” index for quickly navigating the codeb
 - CLI arg parsing + dispatch: `src/cli/args.ts`, `src/cli/main.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
+- Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
 
 ## REPL UI (Ink)
 - Main screen: `src/screens/REPL.tsx`
 - Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/*`
-- REPL hotkeys / input routing (Ctrl+O Expanded Transcript, etc.): `src/screens/repl/hotkeys.ts`
+- REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `src/screens/repl/hotkeys.ts`
 - Prompt mode gating (overlays/prompt blocks disable hotkeys): `src/screens/repl/promptMode.ts`
 - Transcript renderers (Primary vs Expanded): `src/screens/repl/transcript.tsx`
+- Expanded Transcript tests: `src/screens/repl/expandedTranscript.test.tsx`
 - Input UI: `src/components/chat/InputBar.tsx`
 - Header: `src/components/chat/HeaderBanner.tsx`
 - Mode indicator: `src/components/chat/ModeIndicator.tsx`
@@ -26,6 +28,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Overlay manager (open/close dialogs): `src/features/repl/overlays/OverlayManager.ts`
 - Agents dialog (overlay UI): `src/ui/agents/AgentsDialog.tsx`
 - Permissions dialog (overlay UI): `src/ui/permissions/PermissionsDialog.tsx`
+- Config dialog (overlay UI, WIP): `src/ui/config/ConfigDialog.tsx`
 
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
@@ -102,7 +105,10 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ### Tool UI / presenters
 - Default tool renderer: `src/components/tool/ToolMessage.tsx`
+- Tool UI Blocks renderer (C-lite): `src/components/tool/ToolUiBlocks.tsx`
 - Presenter interface: `src/tools/presenters/types.ts`
+- Blocks presenter helper: `createToolBlocksPresenter` in `src/tools/presenters/types.ts`
+- FS read approval bridge (blocks presenter → runtime user input): `src/tools/presenters/FsReadApprovalToolBlock.tsx`
 - Shared approval prompt (Edit/Write/NotebookEdit): `src/tools/presenters/editApprovalPrompt.tsx`
 - Fallback presenter: `src/tools/presenters/fallback.tsx`
 
