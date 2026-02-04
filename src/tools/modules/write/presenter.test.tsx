@@ -40,7 +40,7 @@ describe('WriteToolPresenter', () => {
     const { lastFrame } = render(<ToolUiBlocks blocks={WriteToolPresenter({ message }).blocks} />)
     const frame = lastFrame() || ''
     expect(frame).toContain('Write')
-    expect(frame).toContain('(…)')
+    expect(frame).not.toContain('(…)')
     expect(frame).not.toContain('Create file')
   })
 

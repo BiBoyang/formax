@@ -37,11 +37,11 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   const fileName = path.basename(filePathRaw || 'file')
 
   // While tool input is still streaming, we may not have a file path/content yet.
-  // Render a stable running header (with placeholder params) but avoid showing the approval UI.
+  // Render a stable running header (no params) but avoid showing the approval UI.
   if (status === 'running' && !filePathRaw) {
     return (
       <Box flexDirection="column" marginBottom={0}>
-        <ToolHeaderLine status={status} label={toolName} params="…" />
+        <ToolHeaderLine status={status} label={toolName} />
       </Box>
     )
   }

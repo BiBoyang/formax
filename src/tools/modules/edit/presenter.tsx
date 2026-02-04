@@ -33,11 +33,11 @@ function EditToolBlock({ message }: { message: Msg }): React.ReactNode {
   const fileName = path.basename(filePathRaw || 'file')
 
   // While tool input is still streaming, we may not have file path / strings yet.
-  // Render a stable running header (with placeholder params) but avoid showing the approval UI.
+  // Render a stable running header (no params) but avoid showing the approval UI.
   if (status === 'running' && !filePathRaw) {
     return (
       <Box flexDirection="column">
-        <ToolHeaderLine status={status} label={toolName} params="…" />
+        <ToolHeaderLine status={status} label={toolName} />
       </Box>
     )
   }

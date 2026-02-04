@@ -40,7 +40,7 @@ describe('EditToolPresenter', () => {
     const { lastFrame } = render(<ToolUiBlocks blocks={EditToolPresenter({ message }).blocks} />)
     const frame = lastFrame() || ''
     expect(frame).toContain('Edit')
-    expect(frame).toContain('(…)')
+    expect(frame).not.toContain('(…)')
     expect(frame).not.toContain('Edit file')
   })
 
