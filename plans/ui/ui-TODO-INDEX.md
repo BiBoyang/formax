@@ -8,10 +8,9 @@
 - **已完成的 TODO 文件直接删除**（避免 `[x]` 噪音）
 - **不在 `plans/ui/` 留“大而全”的主线 TODO**；按主题分文件推进
 
-## Active TODOs（今天要清空这些 TODO 文件）
+## Active TODOs
 
-- `plans/ui/TODO-expanded-transcript.md`：Expanded Transcript（Ctrl+O）后续（剩余：Ctrl+E 折叠历史）
-- `plans/ui/TODO-tool-ui-blocks-migration.md`：Tool UI Blocks（C-lite）迁移清单（按 2–4 tools/commit 推进）
+No active UI TODO files.
 
 ## Reference / Backlog（不是 TODO 文件，不算“今日清空目标”）
 
@@ -20,3 +19,4 @@
 - `plans/ui/tool-ui-blocks.md`：Tool UI Blocks（C-lite）方案说明
 - `plans/ui/BACKLOG-command-subline-output.md`：更多 commands 扩展（后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 的后置增强项（后置）
+- `plans/ui/BACKLOG-tool-ui-blocks-migration.md`：Tool UI Blocks（C-lite）后续迁移清单（后置）
