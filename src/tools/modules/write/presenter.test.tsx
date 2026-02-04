@@ -39,9 +39,13 @@ describe('WriteToolPresenter', () => {
       },
     }
 
+    if (!isToolBlocksPresenter(WriteToolPresenter)) {
+      throw new Error('WriteToolPresenter expected to be a blocks presenter')
+    }
+
     const { lastFrame } = render(
       <UserInputProvider userInput={userInput}>
-        <ToolUiBlocks blocks={(WriteToolPresenter as any)({ message }).blocks} />
+        <ToolUiBlocks blocks={WriteToolPresenter({ message }).blocks} />
       </UserInputProvider>,
     )
 
@@ -81,9 +85,13 @@ describe('WriteToolPresenter', () => {
       },
     }
 
+    if (!isToolBlocksPresenter(WriteToolPresenter)) {
+      throw new Error('WriteToolPresenter expected to be a blocks presenter')
+    }
+
     const { lastFrame } = render(
       <PlanProvider planSession={planSession}>
-        <ToolUiBlocks blocks={(WriteToolPresenter as any)({ message }).blocks} />
+        <ToolUiBlocks blocks={WriteToolPresenter({ message }).blocks} />
       </PlanProvider>,
     )
 

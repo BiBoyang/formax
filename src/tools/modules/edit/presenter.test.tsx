@@ -104,15 +104,20 @@ describe('EditToolPresenter', () => {
       },
     }
 
+    if (!isToolBlocksPresenter(EditToolPresenter)) {
+      throw new Error('EditToolPresenter expected to be a blocks presenter')
+    }
+
     const { lastFrame } = render(
       <PlanProvider planSession={planSession}>
-        <ToolUiBlocks blocks={(EditToolPresenter as any)({ message }).blocks} />
+        <ToolUiBlocks blocks={EditToolPresenter({ message }).blocks} />
       </PlanProvider>,
     )
 
     const frame = lastFrame()
     expect(frame).toContain('Updated plan')
     expect(frame).toContain('/plan to preview')
+    expect(frame).not.toContain('Edit(')
   })
 
   it('shows an approval prompt when running and the tool use is pending', () => {
@@ -143,9 +148,13 @@ describe('EditToolPresenter', () => {
       },
     }
 
+    if (!isToolBlocksPresenter(EditToolPresenter)) {
+      throw new Error('EditToolPresenter expected to be a blocks presenter')
+    }
+
     const { lastFrame } = render(
       <UserInputProvider userInput={userInput}>
-        <ToolUiBlocks blocks={(EditToolPresenter as any)({ message }).blocks} />
+        <ToolUiBlocks blocks={EditToolPresenter({ message }).blocks} />
       </UserInputProvider>,
     )
 

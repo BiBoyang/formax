@@ -7,26 +7,28 @@ import type { ToolPresenter } from '../../presenters/types'
 import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { PatchPreview } from '../../presenters/PatchPreview'
+import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
 import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { stripCatNPrefixes } from '../../../utils/catN'
 import { EditApprovalToolBlock } from './EditApprovalToolBlock'
 import { EditPlanFileBlock } from './EditPlanFileBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
 
-// Component to handle plan file detection and render appropriate blocks
-function EditToolBlocks({ message }: { message: Msg }): React.ReactNode {
+// Component that renders the complete edit tool UI.
+// Handles plan file detection internally since it needs usePlanSession hook.
+function EditToolBlock({ message }: { message: Msg }): React.ReactNode {
   const planSession = usePlanSession()
   const planPath = planSession?.getPlanPath() ?? null
 
-  if (!message.toolInfo) {
-    return null
-  }
+  if (!message.toolInfo) return <ToolHeaderLine status="completed" label="Unknown tool" />
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const showParams = Boolean(params && params.trim().length > 0)
 
-  const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+  const toolUseId =
+    message.toolInfo.toolUseId ||
+    (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = path.basename(filePathRaw || 'file')
 
@@ -34,7 +36,12 @@ function EditToolBlocks({ message }: { message: Msg }): React.ReactNode {
 
   // Plan file special case - render the plan file block
   if (isPlanFile) {
-    return <EditPlanFileBlock message={message} />
+    return (
+      <Box flexDirection="column">
+        <ToolHeaderLine status={status} label="Updated plan" />
+        <EditPlanFileBlock message={message} />
+      </Box>
+    )
   }
 
   const filePath = String((input as any).file_path || (input as any).path || '')
@@ -48,6 +55,11 @@ function EditToolBlocks({ message }: { message: Msg }): React.ReactNode {
 
   return (
     <Box flexDirection="column">
+      <ToolHeaderLine
+        status={status}
+        label={toolName}
+        params={showParams ? params : null}
+      />
       {status === 'running' ? (
         <EditApprovalToolBlock
           toolUseId={toolUseId}
@@ -74,27 +86,11 @@ function EditToolBlocks({ message }: { message: Msg }): React.ReactNode {
 }
 
 export const EditToolPresenter: ToolPresenter = createToolBlocksPresenter(({ message }: { message: Msg }) => {
-  if (!message.toolInfo) {
-    // Fallback case - return header with "Unknown tool"
-    return {
-      blocks: [
-        { kind: 'header', status: 'completed', label: 'Unknown tool' },
-      ],
-    }
-  }
-
-  const { name, input, status } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
-  const showParams = Boolean(params && params.trim().length > 0)
-
-  // Return blocks with header first, then custom block for the rest
-  // The custom block handles plan file detection (needs usePlanSession hook)
   return {
     blocks: [
-      { kind: 'header', status, label: toolName, params: showParams ? params : null },
       {
         kind: 'custom',
-        node: <EditToolBlocks message={message} />,
+        node: <EditToolBlock message={message} />,
       },
     ],
   }

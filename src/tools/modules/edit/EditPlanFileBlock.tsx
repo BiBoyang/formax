@@ -1,6 +1,5 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
 import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
@@ -17,9 +16,7 @@ export function EditPlanFileBlock({ message }: { message: Msg }): React.ReactNod
   const status = message.toolInfo?.status ?? 'completed'
 
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={0}>
-      <ToolHeaderLine status={status} label="Updated plan" />
-
+    <Box flexDirection="column" marginTop={0} marginBottom={0}>
       {status !== 'running' && (
         <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
           {status === 'error' ? (
