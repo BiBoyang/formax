@@ -6,6 +6,17 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { PlanProvider } from '../../../features/repl/planContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
+import { isToolBlocksPresenter } from '../../presenters/types'
+
+// Helper to render blocks presenter
+function renderBlocksPresenter(presenter: typeof EditToolPresenter, message: Msg) {
+  if (isToolBlocksPresenter(presenter)) {
+    const out = presenter({ message })
+    return render(<ToolUiBlocks blocks={out.blocks} />)
+  }
+  return render(presenter({ message }))
+}
 
 describe('EditToolPresenter', () => {
   it('falls back to ToolMessage when toolInfo is missing', () => {
@@ -16,7 +27,7 @@ describe('EditToolPresenter', () => {
       timestamp: new Date(),
     }
 
-    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const { lastFrame } = renderBlocksPresenter(EditToolPresenter, message)
     expect(lastFrame()).toContain('Unknown tool')
   })
 
@@ -37,7 +48,7 @@ describe('EditToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const { lastFrame } = renderBlocksPresenter(EditToolPresenter, message)
     const frame = lastFrame()
     expect(frame).toContain('Edit')
     expect(frame).toContain('(a.ts)')
@@ -64,7 +75,7 @@ describe('EditToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const { lastFrame } = renderBlocksPresenter(EditToolPresenter, message)
     const frame = lastFrame()
     // The original line should still appear, but must not be marked as removed.
     expect(frame).toContain('console.log("hello")')
@@ -95,7 +106,7 @@ describe('EditToolPresenter', () => {
 
     const { lastFrame } = render(
       <PlanProvider planSession={planSession}>
-        <EditToolPresenter message={message} />
+        <ToolUiBlocks blocks={(EditToolPresenter as any)({ message }).blocks} />
       </PlanProvider>,
     )
 
@@ -134,7 +145,7 @@ describe('EditToolPresenter', () => {
 
     const { lastFrame } = render(
       <UserInputProvider userInput={userInput}>
-        <EditToolPresenter message={message} />
+        <ToolUiBlocks blocks={(EditToolPresenter as any)({ message }).blocks} />
       </UserInputProvider>,
     )
 
@@ -167,7 +178,7 @@ describe('EditToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const { lastFrame } = renderBlocksPresenter(EditToolPresenter, message)
     const frame = lastFrame()
     // PatchPreview truncates with an ellipsis row.
     expect(frame).toContain('…')
@@ -191,7 +202,7 @@ describe('EditToolPresenter', () => {
       },
     }
 
-    const { lastFrame } = render(<EditToolPresenter message={message} />)
+    const { lastFrame } = renderBlocksPresenter(EditToolPresenter, message)
     const frame = lastFrame()
     expect(frame).toContain('  22 ')
     expect(frame).toContain('alpha')
