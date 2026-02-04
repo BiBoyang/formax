@@ -36,6 +36,16 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = path.basename(filePathRaw || 'file')
 
+  // While tool input is still streaming, we may not have a file path/content yet.
+  // Render a stable running header (with placeholder params) but avoid showing the approval UI.
+  if (status === 'running' && !filePathRaw) {
+    return (
+      <Box flexDirection="column" marginBottom={0}>
+        <ToolHeaderLine status={status} label={toolName} params="…" />
+      </Box>
+    )
+  }
+
   const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
   // Plan file special case - render "Updated plan" header
@@ -99,13 +109,6 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
 }
 
 export const WriteToolPresenter: ToolPresenter = createToolBlocksPresenter(({ message }: { message: Msg }) => {
-  const status = message.toolInfo?.status
-  const input = message.toolInfo?.input
-  const filePathRaw = String((input as any)?.file_path || (input as any)?.path || '')
-  // Avoid briefly rendering an incomplete "⏺ Write" header while the tool input is still streaming.
-  if (status === 'running' && !filePathRaw) {
-    return { blocks: [] }
-  }
   // Return a single custom block that handles all rendering internally
   // This allows us to use hooks (usePlanSession) for plan file detection
   return {

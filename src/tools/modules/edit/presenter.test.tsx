@@ -19,7 +19,7 @@ function renderBlocksPresenter(presenter: typeof EditToolPresenter, message: Msg
 }
 
 describe('EditToolPresenter', () => {
-  it('does not render a partial header while tool input is still streaming', () => {
+  it('renders a stable running header while tool input is still streaming', () => {
     const message: Msg = {
       id: 'tool-edit',
       role: 'tool',
@@ -39,7 +39,9 @@ describe('EditToolPresenter', () => {
 
     const { lastFrame } = render(<ToolUiBlocks blocks={EditToolPresenter({ message }).blocks} />)
     const frame = lastFrame() || ''
-    expect(frame).not.toContain('Edit')
+    expect(frame).toContain('Edit')
+    expect(frame).toContain('(…)')
+    expect(frame).not.toContain('Edit file')
   })
 
   it('falls back to ToolMessage when toolInfo is missing', () => {

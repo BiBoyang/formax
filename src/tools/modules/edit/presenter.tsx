@@ -32,6 +32,16 @@ function EditToolBlock({ message }: { message: Msg }): React.ReactNode {
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = path.basename(filePathRaw || 'file')
 
+  // While tool input is still streaming, we may not have file path / strings yet.
+  // Render a stable running header (with placeholder params) but avoid showing the approval UI.
+  if (status === 'running' && !filePathRaw) {
+    return (
+      <Box flexDirection="column">
+        <ToolHeaderLine status={status} label={toolName} params="…" />
+      </Box>
+    )
+  }
+
   const isPlanFile = Boolean(planPath && isSameFilePath(filePathRaw, planPath))
 
   // Plan file special case - render the plan file block
@@ -86,13 +96,6 @@ function EditToolBlock({ message }: { message: Msg }): React.ReactNode {
 }
 
 export const EditToolPresenter: ToolPresenter = createToolBlocksPresenter(({ message }: { message: Msg }) => {
-  const status = message.toolInfo?.status
-  const input = message.toolInfo?.input
-  const filePathRaw = String((input as any)?.file_path || (input as any)?.path || '')
-  // Avoid briefly rendering an incomplete "⏺ Edit" header while the tool input is still streaming.
-  if (status === 'running' && !filePathRaw) {
-    return { blocks: [] }
-  }
   return {
     blocks: [
       {
