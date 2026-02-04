@@ -1,4 +1,5 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import path from 'node:path'
 import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -18,6 +19,18 @@ export type ExploreTaskBatch = {
   toolUseIds: Set<string>
   completedToolUseIds: Set<string>
   lastSeenAtMs: number
+}
+
+function truncateLabel(text: string, max: number): string {
+  const s = (text || '').trim()
+  return s.length > max ? s.slice(0, max) + '…' : s
+}
+
+function formatBasename(filePathRaw: unknown): string {
+  const raw = String(filePathRaw || '').trim()
+  if (!raw) return ''
+  const normalized = raw.replace(/\\/g, '/')
+  return path.basename(normalized)
 }
 
 function parseBackgroundTaskId(rawResult: string): string | null {
@@ -248,7 +261,15 @@ export function useReplStreaming(args: {
             args.taskKindByToolUseIdRef.current.set(ev.id, 'other')
           }
 
-          args.setLoadingText(ev.name === 'AskUserQuestion' ? 'Waiting' : 'Working')
+          args.setLoadingText(
+            ev.name === 'AskUserQuestion'
+              ? 'Waiting'
+              : ev.name === 'Write'
+                ? 'Preparing write'
+                : ev.name === 'Edit'
+                  ? 'Preparing edit'
+                  : 'Working',
+          )
 
           const toolMsgId = `tool-${ev.id}`
           args.setMessages((prev) => [
@@ -274,6 +295,15 @@ export function useReplStreaming(args: {
           const toolName = args.toolNameByIdRef.current.get(ev.id)
 
           args.toolInputByIdRef.current.set(ev.id, ev.input as any)
+
+          if (toolName === 'Write' || toolName === 'Edit') {
+            const filePathRaw = (ev.input as any)?.file_path ?? (ev.input as any)?.path
+            const fileName = formatBasename(filePathRaw)
+            if (fileName) {
+              const verb = toolName === 'Write' ? 'Writing' : 'Editing'
+              args.setLoadingText(`${verb} ${truncateLabel(fileName, 28)}`)
+            }
+          }
 
           if (toolName === 'Task') {
             const subagentType = (ev.input as any)?.subagent_type
@@ -353,6 +383,10 @@ export function useReplStreaming(args: {
         }
 
         case 'tool_end': {
+          // If we previously set a more specific activity label (e.g. "Writing foo.txt"),
+          // reset it to a generic value once the tool finishes so it doesn't linger.
+          args.setLoadingText('Working')
+
           const toolMsgId = `tool-${ev.id}`
           const toolNameFromStart = args.toolNameByIdRef.current.get(ev.id)
           args.toolNameByIdRef.current.delete(ev.id)

@@ -118,6 +118,98 @@ describe('useReplStreaming', () => {
     dateNowSpy.mockRestore()
   })
 
+  it('sets loadingText to a stable tool label while tool input is still streaming', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const loadingTextRef = { current: '' as string }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      useEffect(() => {
+        loadingTextRef.current = loadingText
+      }, [loadingText])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      // Keep eslint/ts from complaining about unused state setters in the harness.
+      void messages
+      void thinkingText
+      void thinkingStartedAtMs
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 't1', name: 'Write' })
+    await tick()
+    await tick()
+    expect(loadingTextRef.current).toBe('Preparing write')
+
+    handleEvent!({ type: 'tool_input', id: 't1', input: { file_path: '/tmp/minesweeper/style.css' } })
+    await tick()
+    await tick()
+    expect(loadingTextRef.current).toBe('Writing style.css')
+
+    handleEvent!({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: 'OK' } })
+    await tick()
+    await tick()
+    expect(loadingTextRef.current).toBe('Working')
+  })
+
   it('preserves tool input on tool_end (used by Edit presenter + patchStartLineNumber)', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-stream-'))
     try {

@@ -86,6 +86,13 @@ function EditToolBlock({ message }: { message: Msg }): React.ReactNode {
 }
 
 export const EditToolPresenter: ToolPresenter = createToolBlocksPresenter(({ message }: { message: Msg }) => {
+  const status = message.toolInfo?.status
+  const input = message.toolInfo?.input
+  const filePathRaw = String((input as any)?.file_path || (input as any)?.path || '')
+  // Avoid briefly rendering an incomplete "⏺ Edit" header while the tool input is still streaming.
+  if (status === 'running' && !filePathRaw) {
+    return { blocks: [] }
+  }
   return {
     blocks: [
       {

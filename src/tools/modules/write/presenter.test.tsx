@@ -19,6 +19,29 @@ function renderBlocksPresenter(presenter: typeof WriteToolPresenter, message: Ms
 }
 
 describe('WriteToolPresenter', () => {
+  it('does not render a partial header while tool input is still streaming', () => {
+    const message: Msg = {
+      id: 'tool-write',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        toolUseId: 't-write',
+        name: 'Write',
+        status: 'running',
+        input: {},
+      },
+    }
+
+    if (!isToolBlocksPresenter(WriteToolPresenter)) {
+      throw new Error('WriteToolPresenter expected to be a blocks presenter')
+    }
+
+    const { lastFrame } = render(<ToolUiBlocks blocks={WriteToolPresenter({ message }).blocks} />)
+    const frame = lastFrame() || ''
+    expect(frame).not.toContain('Write')
+  })
+
   it('renders a write approval prompt while a write call is pending user input', () => {
     const userInput = createUserInputManager()
     void userInput.requestAnswers({ toolUseId: 't-write', questions: [] })

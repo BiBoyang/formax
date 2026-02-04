@@ -422,6 +422,15 @@ export function REPL({
     return allMessages.slice(-20)
   }, [allMessages, expandedTranscriptHideHistory, expandedViewActive])
 
+  const loadingOverrideText = useMemo(() => {
+    const t = String(state.loadingText || '').trim()
+    if (!t) return null
+    // Keep the fun random loading words for generic states; only override when we
+    // have a more specific, user-facing activity label (e.g. "Preparing write").
+    if (t === 'Thinking' || t === 'Working' || t === 'Waiting') return null
+    return t
+  }, [state.loadingText])
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -496,7 +505,10 @@ export function REPL({
                     <Text dimColor>{state.thinkingText.trimEnd()}</Text>
                   </Box>
                 )}
-                <LoadingStatusLine cycleWords />
+                <LoadingStatusLine
+                  text={loadingOverrideText ?? undefined}
+                  cycleWords={!loadingOverrideText}
+                />
               </Box>
             )}
 

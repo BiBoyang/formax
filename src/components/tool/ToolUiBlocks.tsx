@@ -5,6 +5,7 @@ import { ToolIndentedLine, ToolSubline } from './ToolSubline'
 import type { ToolUiBlock } from './toolUiBlocksTypes'
 
 export function ToolUiBlocks({ blocks }: { blocks: ToolUiBlock[] }): React.ReactNode {
+  if (!blocks.length) return null
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       {blocks.map((block, idx) => {
