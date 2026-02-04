@@ -9,7 +9,6 @@
 ## 并行参考（不作为主线推进）
 
 - `plans/ui/TODO.md`：UI 稳定基座（已完成，可作为组件/测试参考）
-- `plans/ui/TODO-loading-thinking.md`：Loading/Thinking 状态对齐（thinking 由真实 delta 驱动 + Ctrl+O 回看）
 - `plans/ui/TODO-command-subline-output.md`：Slash command 子行输出对齐（/agents /permissions /hooks /todos）
 - `plans/ui/TODO-approval-preview.md`：Approval UI（顶线/标题/预览）+ Markdown 渲染（仅 UI，不改语义）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
