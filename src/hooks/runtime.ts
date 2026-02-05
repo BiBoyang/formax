@@ -43,12 +43,13 @@ function buildUserPromptSubmitPayload(args: {
 
 function buildSessionStartPayload(args: {
   sessionId: string
+  source: 'startup' | 'clear' | 'resume'
   cwd: string
 }): Record<string, unknown> {
   return {
     session_id: args.sessionId,
     hook_event_name: 'SessionStart',
-    source: 'startup',
+    source: args.source,
     cwd: args.cwd,
     permission_mode: 'default',
   }
@@ -113,7 +114,12 @@ export type HooksRuntime = {
     blocked: boolean
     blockedBy?: HookRun
   }>
-  runSessionStart: (args: { sessionId: string; cwd: string; signal?: AbortSignal }) => Promise<{
+  runSessionStart: (args: {
+    sessionId: string
+    source?: 'startup' | 'clear' | 'resume'
+    cwd: string
+    signal?: AbortSignal
+  }) => Promise<{
     runs: HookRun[]
     additionalContext: string[]
     blocked: boolean
@@ -248,7 +254,7 @@ export function createHooksRuntime(args: {
       return { runs, additionalContext, blocked: false, blockedBy: undefined }
     },
 
-    async runSessionStart({ sessionId, cwd, signal }) {
+    async runSessionStart({ sessionId, source, cwd, signal }) {
       if (isDisabledByEnv(env)) return { runs: [], additionalContext: [], blocked: false }
 
       const merged = await loadHooks(cwd)
@@ -257,7 +263,7 @@ export function createHooksRuntime(args: {
 
       const runs = await runCommandHooks({
         hooks: entries,
-        payload: buildSessionStartPayload({ sessionId, cwd }),
+        payload: buildSessionStartPayload({ sessionId, source: source ?? 'startup', cwd }),
         cwd,
         env: buildExecEnv(cwd),
         signal,

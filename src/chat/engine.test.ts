@@ -364,7 +364,7 @@ describe('ChatEngine', () => {
     expect(outJson).not.toContain('CTX_FROM_HOOK')
   })
 
-  it('injects SessionStart additionalContext once, as a text block after the initial user prompt (and does not persist it)', async () => {
+  it('injects SessionStart additionalContext once per session (and does not persist it)', async () => {
     const seenMessages: PromptMessage[][] = []
 
     const hooks: HooksRuntime = {
@@ -426,7 +426,17 @@ describe('ChatEngine', () => {
       cwd: '/tmp',
     })
 
-    expect(seenMessages).toHaveLength(2)
+    engine.beginNewSession?.()
+    const out3 = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go-3' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(seenMessages).toHaveLength(3)
 
     const firstLast = seenMessages[0]![seenMessages[0]!.length - 1]!
     expect(firstLast.role).toBe('user')
@@ -442,8 +452,17 @@ describe('ChatEngine', () => {
     expect(secondBlocks[0]?.type).toBe('text')
     expect(secondBlocks.length).toBe(1)
 
+    const thirdLast = seenMessages[2]![seenMessages[2]!.length - 1]!
+    expect(thirdLast.role).toBe('user')
+    const thirdBlocks = thirdLast.content as any[]
+    expect(thirdBlocks[0]?.type).toBe('text')
+    expect(thirdBlocks[1]?.type).toBe('text')
+    expect(String(thirdBlocks[1]?.text || '')).toContain('SessionStart hook additional context:')
+    expect(String(thirdBlocks[1]?.text || '')).toContain('CTX_SESSION')
+
     expect(JSON.stringify(out1)).not.toContain('SessionStart hook additional context:')
     expect(JSON.stringify(out2)).not.toContain('SessionStart hook additional context:')
+    expect(JSON.stringify(out3)).not.toContain('SessionStart hook additional context:')
   })
 
   it('injects Stop additionalContext on the next turn (and does not persist it)', async () => {

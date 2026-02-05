@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto'
 export type ChatHistory = PromptMessage[]
 
 export interface ChatEngine {
+  beginNewSession?: (args?: { source?: 'startup' | 'clear' | 'resume' }) => void
   runTurn(args: {
     history: ChatHistory
     user: PromptMessage
@@ -53,7 +54,8 @@ export function createChatEngine(deps: {
   hooks?: HooksRuntime
   audit?: AuditLog
 }): ChatEngine {
-  const sessionId = randomUUID()
+  let sessionId = randomUUID()
+  let sessionStartSource: 'startup' | 'clear' | 'resume' = 'startup'
   let pendingSessionStartText: string[] | null = null
   let pendingStopText: string[] | null = null
   let didAttemptSessionStart = false
@@ -67,6 +69,13 @@ export function createChatEngine(deps: {
   })()
 
   return {
+    beginNewSession: (args) => {
+      sessionId = randomUUID()
+      sessionStartSource = args?.source ?? 'startup'
+      pendingSessionStartText = null
+      pendingStopText = null
+      didAttemptSessionStart = false
+    },
     async runTurn({
       history,
       user,
@@ -109,7 +118,7 @@ export function createChatEngine(deps: {
         if (didAttemptSessionStart) return
         didAttemptSessionStart = true
 
-        const res = await deps.hooks.runSessionStart({ sessionId, cwd, signal })
+        const res = await deps.hooks.runSessionStart({ sessionId, cwd, signal, source: sessionStartSource })
 
         appendHookRunAuditEvents({
           audit,
