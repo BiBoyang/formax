@@ -61,6 +61,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -116,6 +118,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -196,6 +200,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -244,6 +250,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -298,6 +306,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -358,6 +368,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched: () => {},
         setSlashIndex: () => {},
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
       return <Text>ok</Text>
     }
@@ -469,6 +481,8 @@ describe('useReplHotkeys', () => {
         setSlashSelectionTouched,
         setSlashIndex,
         setInput: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
       })
 
       useScopedRoutedInput(

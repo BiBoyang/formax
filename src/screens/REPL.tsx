@@ -115,6 +115,7 @@ export function REPL({
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
   const [expandedTranscriptOpen, setExpandedTranscriptOpen] = useState(false)
   const [expandedTranscriptHideHistory, setExpandedTranscriptHideHistory] = useState(false)
+  const [ctrlCArmedUntilMs, setCtrlCArmedUntilMs] = useState<number | null>(null)
   const userInput = useUserInputManager()
   const planSession = useMemo(
     () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
@@ -234,6 +235,19 @@ export function REPL({
     if (!expandedTranscriptOpen) setExpandedTranscriptHideHistory(false)
   }, [expandedTranscriptOpen])
 
+  useEffect(() => {
+    if (ctrlCArmedUntilMs === null) return
+
+    const delayMs = ctrlCArmedUntilMs - Date.now()
+    if (delayMs <= 0) {
+      setCtrlCArmedUntilMs(null)
+      return
+    }
+
+    const timer = setTimeout(() => setCtrlCArmedUntilMs(null), delayMs)
+    return () => clearTimeout(timer)
+  }, [ctrlCArmedUntilMs])
+
   const {
     input,
     setInput,
@@ -274,6 +288,8 @@ export function REPL({
     setSlashSelectionTouched,
     setSlashIndex,
     setInput,
+    ctrlCArmedUntilMs,
+    setCtrlCArmedUntilMs,
   })
 
   const handleSend = useCallback(
@@ -554,7 +570,13 @@ export function REPL({
                 <Box flexDirection="column">
                   {contextLine ? <Text dimColor>{contextLine}</Text> : null}
                   <Box>
-                    {mode === 'normal' ? <Text dimColor>? for shortcuts</Text> : <ModeIndicator mode={mode} />}
+                    {ctrlCArmedUntilMs !== null ? (
+                      <Text dimColor>Press Ctrl-C again to exit</Text>
+                    ) : mode === 'normal' ? (
+                      <Text dimColor>? for shortcuts</Text>
+                    ) : (
+                      <ModeIndicator mode={mode} />
+                    )}
                   </Box>
                 </Box>
               )}

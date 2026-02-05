@@ -6,6 +6,32 @@ import type { Msg } from '../../components/tool/ToolMessage'
 import type { ToolRegistry } from '../../tools/registry'
 import type { UserInputManager } from '../../tools/runtime/userInputManager'
 
+export function handleCtrlCKeypress(args: {
+  onExit?: () => void
+  ctrlCArmedUntilMs: number | null
+  setCtrlCArmedUntilMs: (next: number | null) => void
+  setInput: (next: string) => void
+  setSlashIndex: (next: number | ((prev: number) => number)) => void
+  setSlashSelectionTouched: (next: boolean) => void
+  nowMs?: number
+  windowMs?: number
+}): 'armed' | 'exit' {
+  const windowMs = args.windowMs ?? 2000
+  const now = args.nowMs ?? Date.now()
+
+  if (args.ctrlCArmedUntilMs !== null && now < args.ctrlCArmedUntilMs) {
+    args.onExit ? args.onExit() : process.exit(0)
+    return 'exit'
+  }
+
+  // Clear prompt so suggestions disappear and the hint is visible (matches CC).
+  args.setInput('')
+  args.setSlashIndex(0)
+  args.setSlashSelectionTouched(false)
+  args.setCtrlCArmedUntilMs(now + windowMs)
+  return 'armed'
+}
+
 export function useReplHotkeys(args: {
   onExit?: () => void
   actions: ReplController['actions']
@@ -39,6 +65,9 @@ export function useReplHotkeys(args: {
   setSlashSelectionTouched: (next: boolean) => void
   setSlashIndex: (next: number | ((prev: number) => number)) => void
   setInput: (next: string) => void
+
+  ctrlCArmedUntilMs: number | null
+  setCtrlCArmedUntilMs: (next: number | null) => void
 }): void {
   const {
     onExit,
@@ -55,13 +84,24 @@ export function useReplHotkeys(args: {
     setSlashSelectionTouched,
     setSlashIndex,
     setInput,
+    ctrlCArmedUntilMs,
+    setCtrlCArmedUntilMs,
   } = args
 
   useInput(
     (inputKey, key) => {
       if (key.ctrl && inputKey === 'c') {
-        actions.abort()
-        onExit ? onExit() : process.exit(0)
+        // Match CC: first Ctrl+C arms exit (and clears the prompt), second exits.
+        // This does NOT change REPL mode (e.g. accept edits stays accept edits).
+        // NOTE: Intentionally does NOT abort the in-flight run; Esc remains the interrupt gesture.
+        handleCtrlCKeypress({
+          onExit,
+          ctrlCArmedUntilMs,
+          setCtrlCArmedUntilMs,
+          setInput,
+          setSlashIndex,
+          setSlashSelectionTouched,
+        })
         return
       }
     },
