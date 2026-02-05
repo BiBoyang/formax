@@ -28,6 +28,8 @@ function Harness({
   onChange,
   initialValue = '',
   overlayOpen = false,
+  inputMode,
+  onBackspaceAtStart,
   suggestions,
 }: {
   initialScope: React.ComponentProps<typeof InputScopeProvider>['initialScope']
@@ -35,6 +37,8 @@ function Harness({
   onChange?: (v: string) => void
   initialValue?: string
   overlayOpen?: boolean
+  inputMode?: React.ComponentProps<typeof InputBar>['inputMode']
+  onBackspaceAtStart?: React.ComponentProps<typeof InputBar>['onBackspaceAtStart']
   suggestions?: React.ComponentProps<typeof InputBar>['suggestions']
 }): React.ReactNode {
   const [value, setValue] = useState(initialValue)
@@ -51,6 +55,8 @@ function Harness({
           change(next)
         }}
         onSubmit={(next) => submit(next)}
+        inputMode={inputMode}
+        onBackspaceAtStart={onBackspaceAtStart}
         suggestions={suggestions}
       />
     </InputScopeProvider>
@@ -129,5 +135,33 @@ describe('InputBar', () => {
     const frame = view.lastFrame() ?? ''
     expect(frame).toContain('/help')
     expect(frame).toContain('desc')
+  })
+
+  it('renders bash prefix when inputMode=bash', async () => {
+    const view = render(<Harness initialScope="repl" inputMode="bash" initialValue="ls" />)
+    await tick()
+    const frame = view.lastFrame() ?? ''
+    expect(frame).toContain('! ls')
+    expect(frame).not.toContain('> ')
+  })
+
+  it('reserves ! in normal mode so it can be handled by higher-level bash mode hotkeys', async () => {
+    const onChange = vi.fn()
+    const { stdin } = render(<Harness initialScope="repl" onChange={onChange} />)
+    await tick()
+
+    stdin.write('!')
+    await tick()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('calls onBackspaceAtStart in bash mode when input is empty', async () => {
+    const onBackspaceAtStart = vi.fn()
+    const { stdin } = render(<Harness initialScope="repl" inputMode="bash" onBackspaceAtStart={onBackspaceAtStart} />)
+    await tick()
+
+    stdin.write('\b')
+    await tick()
+    expect(onBackspaceAtStart).toHaveBeenCalledTimes(1)
   })
 })

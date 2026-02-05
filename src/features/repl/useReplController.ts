@@ -20,7 +20,7 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import { isExactSlashCommand } from './controller/utils'
 import { partitionMessages } from './controller/messages'
-import { buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
+import { buildBashModeInjectedBlocks, buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
@@ -29,6 +29,7 @@ import {
   maybeHandleConsumedSlashCommand,
   runMainSendTurn,
 } from './controller/send'
+import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 
@@ -173,6 +174,8 @@ export function useReplController(deps: {
   const reminderServiceRef = useRef<ReminderService | null>(null)
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
   const sendSeqRef = useRef(0)
+  // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
+  const bashModeInFlightRef = useRef(false)
   const sessionWriterRef = useRef<SessionWriter | null>(null)
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
@@ -482,6 +485,7 @@ export function useReplController(deps: {
   const abort = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
+    bashModeInFlightRef.current = false
 
     userInput?.clearBufferedAnswers()
     userInput?.rejectAllPending(new Error('Request aborted'))
@@ -629,7 +633,7 @@ export function useReplController(deps: {
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
       const text = value.trim()
-      if (!text || isLoading) return
+      if (!text || isLoading || bashModeInFlightRef.current) return
 
       const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
 
@@ -638,6 +642,93 @@ export function useReplController(deps: {
       resetStreamingBuffers()
 
       await ensureSessionWriter()
+
+      // Bash mode (`!` prefix): run a local shell command without involving the LLM.
+      // The command + output are injected into the *next* real turn.
+      if (text.startsWith('!')) {
+        const command = text.replace(/^!\s*/, '').trim()
+        if (!command) {
+          setMessages((prev) => [
+            ...prev,
+            { id: `assistant-${Date.now()}`, role: 'assistant', content: 'Usage: ! <command>', timestamp: new Date() },
+          ])
+          return
+        }
+
+        // Treat bash-mode as an in-flight operation: prevent overlapping sends and allow Ctrl+C to abort.
+        // We intentionally avoid the LLM "isLoading" spinner here; the tool message itself is the UI.
+        bashModeInFlightRef.current = true
+        const bashAbort = new AbortController()
+        abortControllerRef.current = bashAbort
+
+        const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: msgId,
+            role: 'tool',
+            content: '',
+            timestamp: new Date(),
+            toolInfo: {
+              name: 'LocalBash',
+              input: { command },
+              status: 'running',
+            },
+          },
+        ])
+
+        try {
+          const res = await runBashModeCommand({ command, cwd: process.cwd(), signal: bashAbort.signal })
+
+          // If the user aborted, `abort()` already marked running tool messages as error; don't overwrite.
+          if (bashAbort.signal.aborted) return
+
+          const outputText = formatBashModeOutput({
+            stdout: res.stdout,
+            stderr: res.stderr,
+            timedOut: res.timedOut,
+            exitCode: res.exitCode,
+            exitSignal: res.exitSignal,
+          })
+
+          pendingInjectedBlocksRef.current.push(
+            ...buildBashModeInjectedBlocks({
+              input: command,
+              stdout: res.stdout,
+              stderr: res.stderr,
+            }),
+          )
+
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== msgId) return m
+              if (m.role !== 'tool' || m.toolInfo?.status !== 'running') return m
+
+              const isError =
+                res.timedOut ||
+                Boolean(res.exitSignal) ||
+                (typeof res.exitCode === 'number' && res.exitCode !== 0)
+
+              return {
+                ...m,
+                content: `$ ${command}`,
+                toolInfo: {
+                  ...(m.toolInfo || { name: 'LocalBash', input: { command } }),
+                  name: 'LocalBash',
+                  input: { command },
+                  status: isError ? 'error' : 'completed',
+                  result: outputText,
+                },
+              }
+            }),
+          )
+        } finally {
+          bashModeInFlightRef.current = false
+          if (abortControllerRef.current === bashAbort) abortControllerRef.current = null
+        }
+
+        return
+      }
 
       if (sessionSaveEnabled) {
         const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile

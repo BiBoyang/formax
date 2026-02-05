@@ -24,6 +24,15 @@ vi.mock('../../chat/context/estimate', () => ({
   estimatePromptTokens: estimatePromptTokensMock,
 }))
 
+const { runBashModeCommandMock } = vi.hoisted(() => ({
+  runBashModeCommandMock: vi.fn(),
+}))
+
+vi.mock('./controller/bashMode', async () => {
+  const actual = await vi.importActual<any>('./controller/bashMode')
+  return { ...actual, runBashModeCommand: runBashModeCommandMock }
+})
+
 const unmountFns: Array<() => void> = []
 
 function renderTracked(node: React.ReactElement): ReturnType<typeof render> {
@@ -130,6 +139,96 @@ beforeEach(() => {
 })
 
 describe('useReplController', () => {
+  it('bash mode: runs local command and injects into the next turn', async () => {
+    const captured: PromptBlock[][] = []
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        captured.push(user.content as PromptBlock[])
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    runBashModeCommandMock.mockResolvedValue({
+      stdout: 'a\nb\nc\nd',
+      stderr: '',
+      exitCode: 0,
+      exitSignal: null,
+      timedOut: false,
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('! ls -la')
+    expect(captured).toHaveLength(0)
+
+    await controller.actions.send('hi')
+    expect(captured).toHaveLength(1)
+
+    const injectedText = captured[0]
+      .filter(isTextPromptBlock)
+      .map((b) => b.text)
+      .join('\n')
+
+    expect(injectedText).toContain('<bash-input>ls -la</bash-input>')
+    expect(injectedText).toContain('<bash-stdout>')
+    expect(injectedText).toContain('<bash-stderr>')
+  })
+
+  it('bash mode: abort prevents injection and avoids overwriting aborted tool status', async () => {
+    const captured: PromptBlock[][] = []
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        captured.push(user.content as PromptBlock[])
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    runBashModeCommandMock.mockImplementation(async ({ signal }: any) => {
+      if (signal?.aborted) {
+        return { stdout: '', stderr: '', exitCode: null, exitSignal: 'SIGINT', timedOut: false }
+      }
+      await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+      return { stdout: '', stderr: '', exitCode: null, exitSignal: 'SIGINT', timedOut: false }
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    const bashPromise = controller.actions.send('! ls')
+    await tick(0)
+
+    // While bash-mode is in flight, new sends are ignored.
+    await controller.actions.send('hi-ignored')
+    expect(captured).toHaveLength(0)
+
+    controller.actions.abort()
+    await bashPromise
+
+    await controller.actions.send('hi')
+    expect(captured).toHaveLength(1)
+    const injectedText = captured[0]
+      .filter(isTextPromptBlock)
+      .map((b) => b.text)
+      .join('\n')
+    expect(injectedText).not.toContain('<bash-input>')
+  })
+
   it('injects /config into next turn only for Output style changes', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {

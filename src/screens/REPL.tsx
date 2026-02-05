@@ -116,6 +116,7 @@ export function REPL({
   const [expandedTranscriptOpen, setExpandedTranscriptOpen] = useState(false)
   const [expandedTranscriptHideHistory, setExpandedTranscriptHideHistory] = useState(false)
   const [ctrlCArmedUntilMs, setCtrlCArmedUntilMs] = useState<number | null>(null)
+  const [bashModeActive, setBashModeActive] = useState(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(
     () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
@@ -287,7 +288,10 @@ export function REPL({
     selectedSlash,
     setSlashSelectionTouched,
     setSlashIndex,
+    input,
     setInput,
+    bashModeActive,
+    setBashModeActive,
     ctrlCArmedUntilMs,
     setCtrlCArmedUntilMs,
   })
@@ -310,15 +314,25 @@ export function REPL({
       }
 
       clearPrompt()
+      if (bashModeActive) setBashModeActive(false)
       if (state.isLoading) return
+      const sendText = bashModeActive ? `! ${text}` : text
       await actions.send(
-        text,
+        sendText,
         text.startsWith('/') && slashSelectionTouched && selectedSlash?.id
           ? { preferredSlashSpecId: selectedSlash.id }
           : undefined,
       )
     },
-    [actions, clearPrompt, selectedSlash, slashSelectionTouched, slashSuggestions.length, state.isLoading],
+    [
+      actions,
+      bashModeActive,
+      clearPrompt,
+      selectedSlash,
+      slashSelectionTouched,
+      slashSuggestions.length,
+      state.isLoading,
+    ],
   )
 
   type TranscriptRenderMode = 'primary' | 'expanded'
@@ -558,6 +572,8 @@ export function REPL({
                 onSubmit={handleSend}
                 placeholder={`Try \"fix typecheck errors\"`}
                 disabled={state.isLoading}
+                inputMode={bashModeActive ? 'bash' : 'normal'}
+                onBackspaceAtStart={bashModeActive ? () => setBashModeActive(false) : undefined}
                 suggestions={slashSuggestions.map((s, i) => ({
                   id: s.id,
                   command: s.command,
@@ -573,7 +589,7 @@ export function REPL({
                     <ReplFooterHint
                       mode={mode}
                       ctrlCArmed={ctrlCArmedUntilMs !== null}
-                      isBashInput={input.trimStart().startsWith('!')}
+                      isBashInput={bashModeActive}
                     />
                   </Box>
                 </Box>

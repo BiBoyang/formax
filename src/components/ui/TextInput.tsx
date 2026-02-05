@@ -16,6 +16,7 @@ type TextInputProps = {
   cursorStyle?: 'block' | 'bar'
   cursorChar?: string
   reservedChars?: string[]
+  onBackspaceAtStart?: () => void
   scope?: InputScopeId
 }
 
@@ -76,6 +77,7 @@ export default function TextInput({
   cursorStyle = 'block',
   cursorChar = '▏',
   reservedChars,
+  onBackspaceAtStart,
   scope,
 }: TextInputProps) {
   const theme = getTheme()
@@ -241,6 +243,8 @@ export default function TextInput({
         cursorOffsetRef.current = nextCursorOffset
         setCursorOffset(nextCursorOffset)
       }
+      // Allow higher-level UIs (e.g. "! bash mode") to exit when Backspace is pressed on an empty input.
+      if (currentValue.length === 0 && onBackspaceAtStart) onBackspaceAtStart()
       return true
     }
 

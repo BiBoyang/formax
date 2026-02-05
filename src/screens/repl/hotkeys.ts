@@ -64,7 +64,10 @@ export function useReplHotkeys(args: {
   selectedSlash: { command?: string } | null
   setSlashSelectionTouched: (next: boolean) => void
   setSlashIndex: (next: number | ((prev: number) => number)) => void
+  input: string
   setInput: (next: string) => void
+  bashModeActive: boolean
+  setBashModeActive: (next: boolean) => void
 
   ctrlCArmedUntilMs: number | null
   setCtrlCArmedUntilMs: (next: number | null) => void
@@ -83,7 +86,10 @@ export function useReplHotkeys(args: {
     selectedSlash,
     setSlashSelectionTouched,
     setSlashIndex,
+    input,
     setInput,
+    bashModeActive,
+    setBashModeActive,
     ctrlCArmedUntilMs,
     setCtrlCArmedUntilMs,
   } = args
@@ -153,6 +159,15 @@ export function useReplHotkeys(args: {
           return next
         })
         return true
+      }
+
+      // CC-style: pressing `!` enters a one-shot bash mode for a single command.
+      // The `!` is a decoration (like `>`), not part of the input value.
+      if (!bashModeActive && inputKey === '!' && !key.ctrl && !key.meta && !key.shift && !key.alt) {
+        if (input.length === 0) {
+          setBashModeActive(true)
+          return true
+        }
       }
 
       return false

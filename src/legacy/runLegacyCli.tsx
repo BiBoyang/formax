@@ -33,6 +33,7 @@ import { createKillShellToolModule } from '../tools/modules/killShell/index.js'
 import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 import { findLatestSessionFile, readSessionFile } from '../features/repl/sessionSave/index.js'
+import { LocalBashPresenter } from '../tools/presenters/LocalBashPresenter.js'
 import type { App } from '../core/app/createApp.js'
 import { SetupWizard } from '../ui/SetupWizard.js'
 import { testSetupConnection } from '../adapters/setup/connectionTest.js'
@@ -137,6 +138,9 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const taskManager = new TaskManager()
   const userInputManager = createUserInputManager()
   registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager, cwd: process.cwd() })
+  // UI-only presenter used by "bash mode" (`!` prefix). This is not a tool spec:
+  // the model can't call it, but the transcript can still render it.
+  toolRegistry.register({ name: 'LocalBash', presenter: LocalBashPresenter })
   toolRegistry.register(
     createWebFetchToolModule({
       client: webFetchClient,
