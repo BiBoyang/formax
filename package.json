@@ -24,9 +24,11 @@
     "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:changed": "node ./scripts/test-changed.mjs",
     "test:coverage": "vitest run --coverage --testTimeout 30000",
     "test:coverage:watch": "vitest --coverage --testTimeout 30000",
-    "test:coverage:gate": "vitest run --coverage --testTimeout 30000 && node ./scripts/check-coverage-thresholds.mjs"
+    "test:coverage:gate": "vitest run --coverage --testTimeout 30000 && node ./scripts/check-coverage-thresholds.mjs",
+    "check:partial-stage": "node ./scripts/check-partial-stage.mjs"
   },
   "bin": {
     "formax": "bin/formax.js"
