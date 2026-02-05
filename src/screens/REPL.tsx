@@ -10,7 +10,7 @@ import { ToolRouter } from '../components/tool/ToolRouter'
 import type { Msg } from '../components/tool/ToolMessage'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
-import { ModeIndicator } from '../components/chat/ModeIndicator'
+import { ReplFooterHint } from '../components/chat/ReplFooterHint'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine'
@@ -570,13 +570,11 @@ export function REPL({
                 <Box flexDirection="column">
                   {contextLine ? <Text dimColor>{contextLine}</Text> : null}
                   <Box>
-                    {ctrlCArmedUntilMs !== null ? (
-                      <Text dimColor>Press Ctrl-C again to exit</Text>
-                    ) : mode === 'normal' ? (
-                      <Text dimColor>? for shortcuts</Text>
-                    ) : (
-                      <ModeIndicator mode={mode} />
-                    )}
+                    <ReplFooterHint
+                      mode={mode}
+                      ctrlCArmed={ctrlCArmedUntilMs !== null}
+                      isBashInput={input.trimStart().startsWith('!')}
+                    />
                   </Box>
                 </Box>
               )}
