@@ -6,7 +6,7 @@ import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
-import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../commands/registry'
+import type { SlashCommandEffect, SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
@@ -20,9 +20,22 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import { isExactSlashCommand } from './controller/utils'
 import { partitionMessages } from './controller/messages'
-import { buildBashModeInjectedBlocks, buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
+import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
+import {
+  buildPersistedSigMap,
+  ensureSessionWriter as ensureSessionWriterInternal,
+  openInitialSessionWriter as openInitialSessionWriterInternal,
+  shouldPersistUiMsg,
+  shutdownSessionWriter as shutdownSessionWriterInternal,
+  startNewSessionWriter as startNewSessionWriterInternal,
+  type SessionWriterRefs,
+} from './controller/sessionLifecycle'
+import {
+  applyConfigExitInjection,
+  getLocalCommandInjectionStats,
+} from './controller/localCommandInjection'
 import {
   maybeHandleClearCommand,
   maybeHandleCompactCommand,
@@ -32,37 +45,6 @@ import {
 import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
-
-function shouldPersistUiMsg(msg: Msg): boolean {
-  if (msg.isStreaming) return false
-  if (msg.role === 'tool' && msg.toolInfo?.status === 'running') return false
-  return true
-}
-
-function getLocalCommandInjectionStats(rec: LocalCommandRecord): {
-  stdoutChars: number
-  stdoutBytes: number
-  injectedChars: number
-  injectedBlocks: number
-} {
-  const blocks = buildLocalCommandInjectedBlocks(rec)
-  const injectedChars = blocks.reduce((sum, b) => sum + (typeof (b as any).text === 'string' ? (b as any).text.length : 0), 0)
-  return {
-    stdoutChars: rec.stdout.length,
-    stdoutBytes: Buffer.byteLength(rec.stdout, 'utf8'),
-    injectedChars,
-    injectedBlocks: blocks.length,
-  }
-}
-
-function buildPersistedSigMap(messages: Msg[]): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const msg of messages) {
-    if (!shouldPersistUiMsg(msg)) continue
-    map.set(msg.id, JSON.stringify(msg))
-  }
-  return map
-}
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -179,6 +161,11 @@ export function useReplController(deps: {
   const sessionWriterRef = useRef<SessionWriter | null>(null)
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
+  const sessionWriterRefs: SessionWriterRefs = {
+    sessionWriterRef,
+    sessionWriterInitPromiseRef,
+    lastPersistedSigByMsgIdRef,
+  }
   const prevIsLoadingRef = useRef(false)
   const lastClaudeMdMetaSigRef = useRef<string | null>(null)
 
@@ -194,40 +181,28 @@ export function useReplController(deps: {
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
   const startNewSessionWriter = useCallback(async (): Promise<void> => {
-    if (!sessionSaveEnabled) return
-    const { writer } = await SessionWriter.createNew({
+    await startNewSessionWriterInternal({
+      sessionSaveEnabled,
       cwd: process.cwd(),
       env: process.env,
       model: deps.cfg.llm.model,
+      historyRef,
+      refs: sessionWriterRefs,
     })
-    sessionWriterRef.current = writer
-    lastPersistedSigByMsgIdRef.current = new Map()
-    await writer.appendHistorySnapshot(historyRef.current)
   }, [deps.cfg.llm.model, sessionSaveEnabled])
 
   const openInitialSessionWriter = useCallback(async (): Promise<void> => {
-    if (!sessionSaveEnabled) return
-    if (sessionWriterRef.current) return
-    const filePath = deps.initialSession?.filePath
-    if (!filePath) {
-      await startNewSessionWriter()
-      return
-    }
-
-    const writer = await SessionWriter.openExisting({ filePath })
-    sessionWriterRef.current = writer
-    // Avoid duplicating the whole transcript when resuming: the messages state
-    // is already loaded from this session file, so mark them as already persisted.
-    lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(deps.initialSession?.messages ?? [])
-    await writer.appendEvent('resume')
-    await writer.appendHistorySnapshot(historyRef.current)
+    await openInitialSessionWriterInternal({
+      sessionSaveEnabled,
+      initialSession: deps.initialSession,
+      historyRef,
+      refs: sessionWriterRefs,
+      startNewWriter: startNewSessionWriter,
+    })
   }, [deps.initialSession?.filePath, deps.initialSession?.messages, sessionSaveEnabled, startNewSessionWriter])
 
   const shutdownSessionWriter = useCallback(async (): Promise<void> => {
-    const writer = sessionWriterRef.current
-    sessionWriterRef.current = null
-    if (!writer) return
-    await writer.shutdown()
+    await shutdownSessionWriterInternal(sessionWriterRefs)
   }, [])
 
   useEffect(() => {
@@ -238,58 +213,22 @@ export function useReplController(deps: {
   }, [sessionSaveEnabled, shutdownSessionWriter])
 
   const ensureSessionWriter = useCallback(async (): Promise<void> => {
-    if (!sessionSaveEnabled) return
-    if (sessionWriterRef.current) return
-    const inflight = sessionWriterInitPromiseRef.current
-    if (inflight) {
-      await inflight
-      return
-    }
-    const promise = openInitialSessionWriter().finally(() => {
-      if (sessionWriterInitPromiseRef.current === promise) sessionWriterInitPromiseRef.current = null
+    await ensureSessionWriterInternal({
+      sessionSaveEnabled,
+      refs: sessionWriterRefs,
+      openInitialWriter: openInitialSessionWriter,
     })
-    sessionWriterInitPromiseRef.current = promise
-    await promise
   }, [openInitialSessionWriter, sessionSaveEnabled])
 
   const closeConfigDialogWithInjection = useCallback(
     (exit: ConfigDialogExit) => {
       closeConfigDialog(exit)
-      if (sessionSaveEnabled) {
-        void sessionWriterRef.current?.appendEvent('config_exit', {
-          kind: exit.kind,
-          message: exit.message,
-        })
-      }
-
-      // `/config` only injects into the next request when the change affects prompt semantics.
-      // For v0, that's only Output style.
-      if (exit.kind === 'changed' && exit.message.startsWith('Set output style to ')) {
-        const rec: LocalCommandRecord = {
-          commandName: '/config',
-          commandMessage: 'config',
-          commandArgs: '',
-          stdout: exit.message,
-        }
-        const stats = getLocalCommandInjectionStats(rec)
-        const styleLabel = exit.message.replace(/^Set output style to\s+/, '').trim()
-        const styleId = styleLabel.toLowerCase()
-
-        if (sessionSaveEnabled) {
-          void sessionWriterRef.current?.appendEvent('output_style_changed', {
-            style: styleId,
-            label: styleLabel,
-            ...stats,
-          })
-          void sessionWriterRef.current?.appendEvent('local_command_injection', {
-            source: 'config_output_style',
-            commandName: rec.commandName,
-            ...stats,
-          })
-        }
-
-        pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(rec))
-      }
+      applyConfigExitInjection({
+        exit,
+        sessionSaveEnabled,
+        writer: sessionWriterRef.current,
+        pendingInjectedBlocksRef,
+      })
     },
     [closeConfigDialog, sessionSaveEnabled],
   )
