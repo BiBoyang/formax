@@ -629,7 +629,14 @@ export function REPL({
                 onSubmit={handleSend}
                 placeholder={`Try \"fix typecheck errors\"`}
                 inputMode={bashModeActive ? 'bash' : 'normal'}
-                onBackspaceAtStart={bashModeActive ? () => setBashModeActive(false) : undefined}
+                onBackspaceAtStart={
+                  bashModeActive
+                    ? () => {
+                        setInput('')
+                        setBashModeActive(false)
+                      }
+                    : undefined
+                }
                 suggestions={slashSuggestions.map((s, i) => ({
                   id: s.id,
                   command: s.command,

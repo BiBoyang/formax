@@ -67,6 +67,27 @@ function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): Rea
   )
 }
 
+function BackspaceAtStartWrapper({
+  initialValue,
+  onBackspaceAtStart,
+}: {
+  initialValue: string
+  onBackspaceAtStart: () => void
+}): React.ReactNode {
+  const [value, setValue] = useState(initialValue)
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput
+        value={value}
+        onChange={setValue}
+        onBackspaceAtStart={onBackspaceAtStart}
+        cursorStyle="bar"
+        cursorChar="▏"
+      />
+    </ReplUiProvider>
+  )
+}
+
 function ScopedConsumeWrapper({ onList }: { onList: (s: string) => void }): React.ReactNode {
   const [value, setValue] = useState('')
 
@@ -245,6 +266,31 @@ describe('TextInput', () => {
 
     expect(frameText()).toContain('1245')
     expect(frameText()).not.toContain('12345')
+  })
+
+  it('does not call onBackspaceAtStart when backspace only clears the last character', async () => {
+    const onBackspaceAtStart = vi.fn()
+    const { stdin } = render(<BackspaceAtStartWrapper initialValue="a" onBackspaceAtStart={onBackspaceAtStart} />)
+
+    await tick()
+    stdin.write('\x7f')
+    await tick()
+
+    expect(onBackspaceAtStart).not.toHaveBeenCalled()
+  })
+
+  it('calls onBackspaceAtStart when cursor is at start on transient ! value', async () => {
+    const onBackspaceAtStart = vi.fn()
+    const { stdin } = render(<BackspaceAtStartWrapper initialValue="!" onBackspaceAtStart={onBackspaceAtStart} />)
+
+    await tick()
+    // Move cursor to start then hit backspace.
+    stdin.write('\u001B[D')
+    await tick()
+    stdin.write('\x7f')
+    await tick()
+
+    expect(onBackspaceAtStart).toHaveBeenCalledTimes(1)
   })
 
   it('keeps cursor stable when deleting in the middle', async () => {

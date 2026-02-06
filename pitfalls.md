@@ -96,3 +96,21 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - When clearing the terminal, clear Ink’s buffer too: `instance.clear()` *then* `clearTerminal()` (ANSI).
 - **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/utils/terminal.ts`
 - **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
+
+## Bash-mode Backspace fails after toggling mode (stale callback closure)
+- **Problem**: after pressing `!` to enter bash mode, Backspace sometimes cannot exit bash mode.
+- **Repro**:
+  1) start in normal input mode (`onBackspaceAtStart` is undefined)
+  2) press `!` to switch to bash mode
+  3) press Backspace on empty/near-empty input
+  4) observe no mode exit
+- **Root cause**:
+  - `TextInput` handler is `useCallback`-memoized.
+  - callback dependencies only included `[focus, multiline]`, so `onBackspaceAtStart` stayed stale from normal mode.
+  - after toggling into bash mode, handler still captured `onBackspaceAtStart = undefined`.
+- **Fix**:
+  - include dynamic callback/guard props in the dependency list:
+    `useCallback(..., [focus, multiline, onBackspaceAtStart, reservedChars])`.
+  - add regression tests that switch `InputBar` mode normal→bash and assert Backspace invokes `onBackspaceAtStart`.
+- **Links**: `src/components/ui/TextInput.tsx`, `src/components/chat/InputBar.test.tsx`, `src/components/ui/TextInput.test.tsx`
+- **Keywords**: bash mode, backspace, useCallback, stale closure, dependency array, onBackspaceAtStart

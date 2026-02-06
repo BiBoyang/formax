@@ -164,4 +164,21 @@ describe('InputBar', () => {
     await tick()
     expect(onBackspaceAtStart).toHaveBeenCalledTimes(1)
   })
+
+  it('respects onBackspaceAtStart after switching from normal mode to bash mode', async () => {
+    const onBackspaceAtStart = vi.fn()
+    const view = render(
+      <Harness initialScope="repl" inputMode="normal" onBackspaceAtStart={onBackspaceAtStart} />,
+    )
+    await tick()
+
+    view.rerender(
+      <Harness initialScope="repl" inputMode="bash" onBackspaceAtStart={onBackspaceAtStart} />,
+    )
+    await tick()
+    view.stdin.write('\x7f')
+    await tick()
+
+    expect(onBackspaceAtStart).toHaveBeenCalledTimes(1)
+  })
 })

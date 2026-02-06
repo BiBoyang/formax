@@ -156,6 +156,29 @@ export function useReplHotkeys(args: {
 
       if (isPromptMode) return false
 
+      // Fallback for terminals/environments where TextInput-level onBackspaceAtStart
+      // doesn't fire reliably: allow Backspace/Delete to leave one-shot bash mode when
+      // the prompt is empty.
+      if (bashModeActive && (input.length === 0 || input === '!')) {
+        const seq = (key as { sequence?: string } | undefined)?.sequence ?? ''
+        const isBackspace =
+          Boolean(key.backspace) ||
+          key.name === 'backspace' ||
+          key.name === 'delete' ||
+          inputKey === '\b' ||
+          inputKey === '\x7f' ||
+          seq === '\b' ||
+          seq === '\x7f' ||
+          seq === '\u001B[3~' ||
+          (Boolean(key.delete) && inputKey === '') ||
+          inputKey === '\u001B[3~'
+        if (isBackspace) {
+          setInput('')
+          setBashModeActive(false)
+          return true
+        }
+      }
+
       if (key.shift && key.tab) {
         setMode((m) => {
           const next = nextReplMode(m)
@@ -169,6 +192,9 @@ export function useReplHotkeys(args: {
       // The `!` is a decoration (like `>`), not part of the input value.
       if (!bashModeActive && inputKey === '!' && !key.ctrl && !key.meta && !key.shift && !key.alt) {
         if (input.length === 0) {
+          // `!` is a mode trigger/decorator, not part of actual input text.
+          // Clear any inserted `!` so Backspace-on-empty can reliably exit bash mode.
+          setInput('')
           setBashModeActive(true)
           return true
         }

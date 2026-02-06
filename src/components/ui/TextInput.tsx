@@ -235,6 +235,13 @@ export default function TextInput({
 
     const deletion = classifyDeletionKey({ keyName, raw, key })
     if (deletion === 'backspace') {
+      // Special escape hatch for mode-style inputs (e.g. bash mode) where a
+      // leading decoration character may transiently exist while cursor is at 0.
+      if (currentCursorOffset === 0 && onBackspaceAtStart && (currentValue === '' || currentValue === '!')) {
+        onBackspaceAtStart()
+        return true
+      }
+
       if (currentValue.length > 0 && currentCursorOffset > 0) {
         const newValue = currentValue.slice(0, currentCursorOffset - 1) + currentValue.slice(currentCursorOffset)
         onChangeRef.current(newValue)
@@ -302,7 +309,7 @@ export default function TextInput({
       return true
     }
     return false
-  }, [focus, multiline])
+  }, [focus, multiline, onBackspaceAtStart, reservedChars])
 
   useScopedRoutedInput(scope ?? 'repl', handler, {
     enabled: Boolean(scope) && focus,

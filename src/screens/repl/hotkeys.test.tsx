@@ -33,6 +33,73 @@ describe('useReplHotkeys', () => {
   it('enters one-shot bash mode when ! is pressed on an empty prompt', async () => {
     const setBashModeActive = vi.fn()
     const setExpandedTranscriptHideHistory = vi.fn()
+    const setInput = vi.fn()
+
+    const Harness = ({ input }: { input: string }) => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        input,
+        setInput,
+        bashModeActive: false,
+        setBashModeActive,
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness input="" />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    ui.stdin.write('!')
+    await waitForCalls(setBashModeActive, 1)
+    expect(setBashModeActive).toHaveBeenCalledWith(true)
+    expect(setInput).toHaveBeenCalledWith('')
+
+    setBashModeActive.mockClear()
+    setInput.mockClear()
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        <Harness input="ls" />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('!')
+    await tick()
+    expect(setBashModeActive).not.toHaveBeenCalled()
+    expect(setInput).not.toHaveBeenCalled()
+  })
+
+  it('exits one-shot bash mode on backspace when prompt is empty', async () => {
+    const setBashModeActive = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
 
     const Harness = ({ input }: { input: string }) => {
       useReplHotkeys({
@@ -62,7 +129,7 @@ describe('useReplHotkeys', () => {
         setSlashIndex: () => {},
         input,
         setInput: () => {},
-        bashModeActive: false,
+        bashModeActive: true,
         setBashModeActive,
         ctrlCArmedUntilMs: null,
         setCtrlCArmedUntilMs: () => {},
@@ -77,9 +144,9 @@ describe('useReplHotkeys', () => {
     )
 
     await tick()
-    ui.stdin.write('!')
+    ui.stdin.write('\b')
     await waitForCalls(setBashModeActive, 1)
-    expect(setBashModeActive).toHaveBeenCalledWith(true)
+    expect(setBashModeActive).toHaveBeenCalledWith(false)
 
     setBashModeActive.mockClear()
     ui.rerender(
@@ -88,9 +155,61 @@ describe('useReplHotkeys', () => {
       </InputScopeProvider>,
     )
     await tick()
-    ui.stdin.write('!')
+    ui.stdin.write('\b')
     await tick()
     expect(setBashModeActive).not.toHaveBeenCalled()
+  })
+
+  it('exits one-shot bash mode on backspace when prompt contains only !', async () => {
+    const setBashModeActive = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
+
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        input: '!',
+        setInput: () => {},
+        bashModeActive: true,
+        setBashModeActive,
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    ui.stdin.write('\b')
+    await waitForCalls(setBashModeActive, 1)
+    expect(setBashModeActive).toHaveBeenCalledWith(false)
   })
 
   it('toggles Expanded Transcript on ctrl+o', async () => {
