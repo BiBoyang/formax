@@ -9,6 +9,7 @@ import { createSubagentRuntime } from './bootstrap/subagents.js'
 import { createChatRuntime } from './bootstrap/chatRuntime.js'
 import { resolveInitialSession } from './bootstrap/session.js'
 import { renderReplApp } from './bootstrap/renderReplApp.js'
+import { createRuntimeFlags } from '../env/runtimeFlags.js'
 
 export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const enableLogger = process.env.ENABLE_CONSOLE_LOGGER !== 'false'
@@ -67,6 +68,7 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     preflight: policyHooks.preflight,
     hooks: policyHooks.hooks,
     audit: policyHooks.audit,
+    runtimeFlags: createRuntimeFlags(bootstrap.env),
   })
 
   let replInstance: ReturnType<typeof renderReplApp> | null = null

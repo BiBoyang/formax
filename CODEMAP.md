@@ -35,6 +35,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
   - TodoWrite reminders (prompt injection): `src/prompts/reminders/todos.ts` + wiring in `src/chat/engine.ts`
+  - Runtime flags used by loop debug/limits: `src/env/runtimeFlags.ts`
 - Anthropic streaming client: `src/streaming/anthropic/StreamClient.ts`
 - SSE parser: `src/streaming/anthropic/sseParser.ts`
 - Stream events/types: `src/streaming/types.ts`
@@ -163,6 +164,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Config / Auth / Paths
 - Runtime config loader: `src/env/config.ts`
+- Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `src/env/runtimeFlags.ts`
 - Config directory default: `src/utils/env.ts` (`FORMAX_CONFIG_DIR`)
 - Config paths + migration/legacy behavior: `src/adapters/fs/configPaths.ts`
 - Reading config files (auth.json, etc): `src/adapters/fs/configFiles.ts`

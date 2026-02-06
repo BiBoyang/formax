@@ -8,6 +8,7 @@ import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditLog } from '../adapters/audit/auditLog.js'
 import { appendHookRunAuditEvents } from '../hooks/audit.js'
 import { randomUUID } from 'node:crypto'
+import { createRuntimeFlags, type RuntimeFlags } from '../env/runtimeFlags.js'
 
 export type ChatHistory = PromptMessage[]
 
@@ -53,20 +54,16 @@ export function createChatEngine(deps: {
   executor: ToolExecutor
   hooks?: HooksRuntime
   audit?: AuditLog
+  runtimeFlags?: RuntimeFlags
 }): ChatEngine {
   let sessionId = randomUUID()
   let sessionStartSource: 'startup' | 'clear' | 'resume' = 'startup'
   let pendingSessionStartText: string[] | null = null
   let pendingStopText: string[] | null = null
   let didAttemptSessionStart = false
-
-  const toolLoopLimit = (() => {
-    const raw = String(process.env.FORMAX_TOOL_LOOP_LIMIT ?? '').trim()
-    if (!raw) return null
-    const n = Number.parseInt(raw, 10)
-    if (!Number.isFinite(n) || n <= 0) return null
-    return Math.min(2000, n)
-  })()
+  const runtimeFlags = deps.runtimeFlags ?? createRuntimeFlags()
+  const toolLoopLimit = runtimeFlags.toolLoopLimit
+  const hooksDebugEnabled = runtimeFlags.hooksDebugEnabled
 
   return {
     beginNewSession: (args) => {
@@ -87,20 +84,16 @@ export function createChatEngine(deps: {
       promptBudget,
       thinkingEnabled,
       exec,
-	    }): Promise<ChatHistory> {
-	      const loopMessages: ChatHistory = [...history, user]
-	      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
-	      let pendingUserPromptSubmitText: string[] | null = null
-	      const audit = deps.audit
-	      const hooksDebugEnabled = (() => {
-	        const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
-	        return raw === '1' || raw === 'true' || raw === 'yes'
-	      })()
+    }): Promise<ChatHistory> {
+      const loopMessages: ChatHistory = [...history, user]
+      const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
+      let pendingUserPromptSubmitText: string[] | null = null
+      const audit = deps.audit
 
       const executorCtxBase: ExecutionContext = {
-	        cwd,
-	        signal,
-	        onEvent,
+        cwd,
+        signal,
+        onEvent,
         agentDepth: exec?.agentDepth ?? 0,
         interactive: exec?.interactive,
         replMode: exec?.replMode,
@@ -186,18 +179,18 @@ export function createChatEngine(deps: {
       }
 
       const executeTool = async (call: ToolCall): Promise<ToolResult> => {
-	        const res = await deps.executor(call, executorCtxBase)
+        const res = await deps.executor(call, executorCtxBase)
 
-	        if (deps.hooks) {
-	          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
-	          const post = await deps.hooks.runPostToolUse({
+        if (deps.hooks) {
+          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
+          const post = await deps.hooks.runPostToolUse({
             toolUseId: call.id,
             toolName: call.name,
             toolInput: call.input ?? {},
             toolResult: res,
             cwd,
-	            signal,
-	          })
+            signal,
+          })
 
           appendHookRunAuditEvents({
             audit,
@@ -208,7 +201,7 @@ export function createChatEngine(deps: {
             runs: post.runs,
           })
 
-	          const lines: string[] = []
+          const lines: string[] = []
 
           if (post.blockingErrors.length > 0) {
             onEvent({ type: 'tool_update', id: call.id, middleLines: [`PostToolUse:${call.name} hook returned blocking error`] })

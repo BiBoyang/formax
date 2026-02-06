@@ -38,6 +38,7 @@ import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
+import { createRuntimeFlags } from '../env/runtimeFlags'
 
 type Props = {
   onExit?: () => void
@@ -122,6 +123,7 @@ export function REPL({
   const wasLoadingRef = useRef(false)
   const isAutoFlushingQueueRef = useRef(false)
   const userInput = useUserInputManager()
+  const runtimeFlags = useMemo(() => createRuntimeFlags(process.env), [])
   const planSession = useMemo(
     () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
     [runtimeCfg.paths.planDir],
@@ -191,6 +193,9 @@ export function REPL({
     },
     commandRegistry,
     planSession,
+    env: process.env,
+    cwd: process.cwd(),
+    runtimeFlags,
   })
 
   const reloadCfg = useCallback(async () => {

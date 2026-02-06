@@ -45,6 +45,7 @@ import {
 import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
+import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -102,7 +103,13 @@ export function useReplController(deps: {
   onModeChange?: (mode: ReplMode) => void
   commandRegistry?: SlashCommandRegistry
   planSession?: PlanSessionManager
+  env?: NodeJS.ProcessEnv
+  cwd?: string
+  runtimeFlags?: RuntimeFlags
 }): ReplController {
+  const runtimeEnv = deps.env ?? process.env
+  const runtimeCwd = deps.cwd ?? process.cwd()
+  const runtimeFlags = deps.runtimeFlags ?? createRuntimeFlags(runtimeEnv)
   const [messages, setMessages] = useState<Msg[]>(() => deps.initialSession?.messages ?? [])
   const [transcriptSeq, setTranscriptSeq] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -129,7 +136,7 @@ export function useReplController(deps: {
     reloadSubagents: deps.reloadSubagents,
     setAllowedSubagents,
     setMessages,
-    initialOverlay: process.env.FORMAX_START_AGENTS_DIALOG === '1' ? { kind: 'agents' } : null,
+    initialOverlay: runtimeFlags.startAgentsDialog ? { kind: 'agents' } : null,
   })
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
@@ -169,27 +176,20 @@ export function useReplController(deps: {
   const prevIsLoadingRef = useRef(false)
   const lastClaudeMdMetaSigRef = useRef<string | null>(null)
 
-  const sessionSaveEnabled = useMemo(() => {
-    const raw = String(process.env.FORMAX_SESSION_SAVE ?? '').trim().toLowerCase()
-    const disabled = String(process.env.FORMAX_SESSION_SAVE_DISABLED ?? '').trim().toLowerCase()
-    if (disabled === '1' || disabled === 'true' || disabled === 'yes') return false
-    if (!raw) return true
-    if (raw === '0' || raw === 'false' || raw === 'no') return false
-    return true
-  }, [])
+  const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
   const startNewSessionWriter = useCallback(async (): Promise<void> => {
     await startNewSessionWriterInternal({
       sessionSaveEnabled,
-      cwd: process.cwd(),
-      env: process.env,
+      cwd: runtimeCwd,
+      env: runtimeEnv,
       model: deps.cfg.llm.model,
       historyRef,
       refs: sessionWriterRefs,
     })
-  }, [deps.cfg.llm.model, sessionSaveEnabled])
+  }, [deps.cfg.llm.model, runtimeCwd, runtimeEnv, sessionSaveEnabled])
 
   const openInitialSessionWriter = useCallback(async (): Promise<void> => {
     await openInitialSessionWriterInternal({
@@ -278,7 +278,7 @@ export function useReplController(deps: {
   useEffect(() => {
     if (!sessionSaveEnabled) return
     // Avoid altering Vitest's process-level behavior (it relies on these signals/exceptions).
-    if (String(process.env.VITEST || '').trim()) return
+    if (runtimeFlags.isVitest) return
 
     const flushBestEffort = async () => {
       try {
@@ -341,7 +341,7 @@ export function useReplController(deps: {
       process.off('uncaughtException', onUncaught)
       process.off('unhandledRejection', onUnhandled)
     }
-  }, [sessionSaveEnabled])
+  }, [runtimeFlags.isVitest, sessionSaveEnabled])
 
   const setReplMode = useCallback(
     (nextMode: ReplMode) => {
@@ -620,7 +620,13 @@ export function useReplController(deps: {
         ])
 
         try {
-          const res = await runBashModeCommand({ command, cwd: process.cwd(), signal: bashAbort.signal })
+          const res = await runBashModeCommand({
+            command,
+            cwd: runtimeCwd,
+            signal: bashAbort.signal,
+            env: runtimeEnv,
+            runtimeFlags,
+          })
 
           // If the user aborted, `abort()` already marked running tool messages as error; don't overwrite.
           if (bashAbort.signal.aborted) return
@@ -675,7 +681,7 @@ export function useReplController(deps: {
       if (sessionSaveEnabled) {
         const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
         if (promptProfile === 'full') {
-          const meta = getClaudeMdInjectionMeta({ cwd: process.cwd(), env: process.env })
+          const meta = getClaudeMdInjectionMeta({ cwd: runtimeCwd, env: runtimeEnv })
           if (meta.global || meta.project) {
             const sig = JSON.stringify(meta)
             if (lastClaudeMdMetaSigRef.current !== sig) {
@@ -822,6 +828,10 @@ export function useReplController(deps: {
       newSession,
       openOverlay,
       resetStreamingBuffers,
+      runtimeCwd,
+      runtimeEnv,
+      runtimeFlags,
+      sessionSaveEnabled,
       setReplMode,
       userInput,
     ],

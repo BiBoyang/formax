@@ -1,17 +1,18 @@
 import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { createRuntimeFlags, type RuntimeFlags } from '../../../env/runtimeFlags'
 
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000
 const MAX_OUTPUT_CHARS = 30000
 
-function pickBashShell(): string | undefined {
+function pickBashShell(args: { runtimeFlags: RuntimeFlags }): string | undefined {
   if (process.platform === 'win32') return undefined
 
   const candidates = [
-    process.env.FORMAX_BASH_MODE_SHELL,
+    args.runtimeFlags.bashModeShellOverride,
     '/bin/bash',
     '/usr/bin/bash',
-    process.env.SHELL,
+    args.runtimeFlags.userShellPath,
   ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
 
   for (const c of candidates) {
@@ -37,19 +38,23 @@ export async function runBashModeCommand(args: {
   cwd: string
   timeoutMs?: number
   signal?: AbortSignal
+  env?: NodeJS.ProcessEnv
+  runtimeFlags?: RuntimeFlags
 }): Promise<BashModeRunResult> {
   const cmd = String(args.command ?? '')
   const cwd = args.cwd
   const timeoutMs = args.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const runtimeEnv = args.env ?? process.env
+  const runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(runtimeEnv)
 
   return await new Promise((resolve) => {
     exec(
       cmd,
       {
         cwd,
-        env: { ...process.env },
+        env: { ...runtimeEnv },
         // Match the user-visible semantics of "bash mode": run under bash when available.
-        shell: pickBashShell(),
+        shell: pickBashShell({ runtimeFlags }),
         timeout: timeoutMs,
         // Keep high, but we also clamp below.
         maxBuffer: 10 * 1024 * 1024,
