@@ -4,8 +4,15 @@ import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPat
 import type { HookEventName, HookRuleEntry, HookSource, MergedHooks } from './types.js'
 
 export function eventUsesMatcher(eventName: HookEventName): boolean {
-  return eventName === 'PreToolUse' || eventName === 'PermissionRequest' || eventName === 'PostToolUse'
+  return (
+    eventName === 'PreToolUse' ||
+    eventName === 'PermissionRequest' ||
+    eventName === 'PostToolUse' ||
+    eventName === 'SessionStart'
+  )
 }
+
+const SESSION_START_MATCHERS = new Set(['startup', 'resume', 'clear', 'compact', '*'])
 
 function normalizeMatcher(args: {
   eventName: HookEventName
@@ -24,6 +31,15 @@ function normalizeMatcher(args: {
   }
 
   const matcher = typeof args.raw === 'string' ? args.raw.trim() : ''
+  if (args.eventName === 'SessionStart') {
+    if (!matcher) return '*'
+    const normalized = matcher.toLowerCase()
+    if (SESSION_START_MATCHERS.has(normalized)) return normalized
+    args.warnings.push(
+      `Ignoring matcher "${matcher}" for ${args.source} SessionStart hook rule (supported: startup|resume|clear|compact|*)`,
+    )
+    return '*'
+  }
   if (matcher) return matcher
 
   args.warnings.push(
@@ -118,15 +134,16 @@ function parseMatchersForEvent(args: {
 
   const out: HookMatcherSummary[] = []
   const seen = new Set<string>()
+  const warnings: string[] = []
 
   for (const rule of rawRules) {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue
-    const matcher =
-      typeof (rule as any).matcher === 'string'
-        ? String((rule as any).matcher).trim()
-        : eventUsesMatcher(args.eventName)
-          ? ''
-          : '*'
+    const matcher = normalizeMatcher({
+      eventName: args.eventName,
+      source: args.source,
+      raw: (rule as any).matcher,
+      warnings,
+    })
     if (!matcher) continue
     if (seen.has(matcher)) continue
     seen.add(matcher)

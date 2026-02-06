@@ -126,6 +126,80 @@ function ActiveScopeSpy({ onScope }: { onScope: (s: string) => void }): React.Re
 }
 
 describe('HooksDialog', () => {
+  it('uses matcher screen for SessionStart and normalizes matcher selection', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-sessionstart-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: {
+            SessionStart: [{ matcher: 'CLEAR', hooks: [{ type: 'command', command: 'echo clear-only' }] }],
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Hooks')
+      await moveCursorToItem(lastFrame, stdin, 'SessionStart')
+      stdin.write('\r')
+
+      await waitForText(lastFrame, 'SessionStart - Tool Matchers')
+      await waitForText(lastFrame, '[Local] clear')
+      await moveCursorToItem(lastFrame, stdin, '[Local] clear')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'SessionStart - Matcher: clear')
+
+      // Add a hook through save flow and ensure matcher is persisted.
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      for (let i = 0; i < 3; i += 1) await tick()
+      await typeText(stdin, 'echo sessionstart-new')
+      await waitForText(lastFrame, 'echo sessionstart-new')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Save hook configuration')
+      stdin.write('\r')
+
+      await waitForJsonContains(settingsPath, (parsed) => {
+        const rules = parsed?.hooks?.SessionStart
+        if (!Array.isArray(rules)) return false
+        const rule = rules.find((entry: any) => entry?.matcher === 'clear')
+        if (!rule) return false
+        const hooks = rule?.hooks
+        return Array.isArray(hooks) && hooks.some((hook: any) => hook?.command === 'echo sessionstart-new')
+      })
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
   it('shows wildcard (*) matcher rules even when hooks are empty', async () => {
     const originalCwd = process.cwd()
     const originalConfigDir = process.env.FORMAX_CONFIG_DIR

@@ -170,7 +170,7 @@ describe('loadMergedHooks', () => {
     expect(matchers).toEqual(['*'])
   })
 
-  it('treats missing matcher as "*" for matcher-less events (SessionStart)', async () => {
+  it('supports implicit wildcard matcher for SessionStart', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
     const home = path.join(tmp, 'home')
     const project = path.join(tmp, 'project')
@@ -199,6 +199,40 @@ describe('loadMergedHooks', () => {
     const bySource = await loadHooksBySource({ fileStore, cwd, homedir: home, platform: 'darwin' })
     const matchers = (bySource.matchersBySource.projectLocal.SessionStart ?? []).map((m) => m.matcher)
     expect(matchers).toEqual(['*'])
+  })
+
+  it('normalizes SessionStart matcher values consistently in merged hooks and matcher summaries', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        SessionStart: [
+          {
+            matcher: 'CLEAR',
+            hooks: [{ type: 'command', command: 'echo clear-hook' }],
+          },
+          {
+            matcher: 'NotSupported',
+            hooks: [{ type: 'command', command: 'echo fallback' }],
+          },
+        ],
+      },
+    })
+
+    const fileStore = createNodeFileStore()
+    const merged = await loadMergedHooks({ fileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(merged.SessionStart.map((entry) => entry.matcher)).toEqual(['clear', '*'])
+
+    const bySource = await loadHooksBySource({ fileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.matchersBySource.projectLocal.SessionStart.map((entry) => entry.matcher)).toEqual(['clear', '*'])
   })
 
   it('treats missing matcher as "*" for matcher-less events (Stop)', async () => {

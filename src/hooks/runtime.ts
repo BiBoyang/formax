@@ -43,7 +43,7 @@ function buildUserPromptSubmitPayload(args: {
 
 function buildSessionStartPayload(args: {
   sessionId: string
-  source: 'startup' | 'clear' | 'resume'
+  source: 'startup' | 'clear' | 'resume' | 'compact'
   cwd: string
 }): Record<string, unknown> {
   return {
@@ -116,7 +116,7 @@ export type HooksRuntime = {
   }>
   runSessionStart: (args: {
     sessionId: string
-    source?: 'startup' | 'clear' | 'resume'
+    source?: 'startup' | 'clear' | 'resume' | 'compact'
     cwd: string
     signal?: AbortSignal
   }) => Promise<{
@@ -186,13 +186,13 @@ export function createHooksRuntime(args: {
     const entries = filterHooksForToolName(merged[args2.eventName], args2.toolName)
     if (entries.length === 0) return []
 
-      const payload = buildHookPayload({
-        hookEventName: args2.eventName,
-        toolName: args2.toolName,
-        toolInput: args2.toolInput,
-        toolResponse: args2.toolResponse,
-        cwd: args2.cwd,
-      })
+    const payload = buildHookPayload({
+      hookEventName: args2.eventName,
+      toolName: args2.toolName,
+      toolInput: args2.toolInput,
+      toolResponse: args2.toolResponse,
+      cwd: args2.cwd,
+    })
 
     return await runCommandHooks({
       hooks: entries,
@@ -258,12 +258,13 @@ export function createHooksRuntime(args: {
       if (isDisabledByEnv(env)) return { runs: [], additionalContext: [], blocked: false }
 
       const merged = await loadHooks(cwd)
-      const entries = merged.SessionStart
+      const sessionSource = source ?? 'startup'
+      const entries = filterHooksForToolName(merged.SessionStart, sessionSource)
       if (entries.length === 0) return { runs: [], additionalContext: [], blocked: false }
 
       const runs = await runCommandHooks({
         hooks: entries,
-        payload: buildSessionStartPayload({ sessionId, source: source ?? 'startup', cwd }),
+        payload: buildSessionStartPayload({ sessionId, source: sessionSource, cwd }),
         cwd,
         env: buildExecEnv(cwd),
         signal,

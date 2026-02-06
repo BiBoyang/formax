@@ -362,6 +362,31 @@ describe('HooksRuntime', () => {
     expect(res.runs[0].exitCode).toBe(2)
   })
 
+  it('filters SessionStart hooks by source matcher', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue({
+      PreToolUse: [],
+      PermissionRequest: [],
+      PostToolUse: [],
+      UserPromptSubmit: [],
+      SessionStart: [
+        { source: 'projectLocal', matcher: 'clear', command: 'echo clear-only', timeoutMs: null },
+        { source: 'projectLocal', matcher: '*', command: 'echo always', timeoutMs: null },
+      ],
+      Stop: [],
+      warnings: [],
+    } satisfies MergedHooks)
+
+    ;(runCommandHooks as any).mockResolvedValue([])
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    await runtime.runSessionStart({ sessionId: 's1', source: 'resume', cwd: '/tmp' })
+
+    expect(runCommandHooks).toHaveBeenCalled()
+    const call = (runCommandHooks as any).mock.calls.at(-1)[0]
+    expect(call.hooks.map((hook: { command: string }) => hook.command)).toEqual(['echo always'])
+    expect(call.payload.source).toBe('resume')
+  })
+
   it('injects stdout as additionalContext for Stop (when stdout is not JSON)', async () => {
     ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
 
