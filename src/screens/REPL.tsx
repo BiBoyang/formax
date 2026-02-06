@@ -39,6 +39,7 @@ import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
 import { createRuntimeFlags } from '../env/runtimeFlags'
+import { partitionMessages } from '../features/repl/controller/messages'
 
 type Props = {
   onExit?: () => void
@@ -239,6 +240,25 @@ export function REPL({
     [state.staticMessages, state.transientMessages],
   )
 
+  const lastCompactBoundaryIndex = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      if (allMessages[i]?.ui?.kind === 'compact_boundary') return i
+    }
+    return -1
+  }, [allMessages])
+
+  const primaryTranscriptMessages = useMemo(
+    () => (lastCompactBoundaryIndex >= 0 ? allMessages.slice(lastCompactBoundaryIndex + 1) : allMessages),
+    [allMessages, lastCompactBoundaryIndex],
+  )
+
+  const primaryPartition = useMemo(() => partitionMessages(primaryTranscriptMessages), [primaryTranscriptMessages])
+
+  const primaryTranscriptSeq = useMemo(
+    () => state.transcriptSeq + Math.max(0, lastCompactBoundaryIndex + 1),
+    [lastCompactBoundaryIndex, state.transcriptSeq],
+  )
+
   const expandedViewActive = expandedTranscriptOpen && !isPromptMode
 
   useEffect(() => {
@@ -416,6 +436,9 @@ export function REPL({
           }
           return renderThinkingBlock({ content: msg.content, theme })
         }
+        if (msg.ui?.kind === 'compact_boundary') {
+          return null
+        }
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
             <Box>
@@ -511,6 +534,11 @@ export function REPL({
     return t
   }, [state.loadingText])
 
+  const isCompactLoading = useMemo(() => {
+    const text = String(state.loadingText || '').toLowerCase()
+    return text.startsWith('compacting conversation')
+  }, [state.loadingText])
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -526,12 +554,12 @@ export function REPL({
               />
             ) : (
               <ReplTranscript
-                transcriptSeq={state.transcriptSeq}
+                transcriptSeq={primaryTranscriptSeq}
                 version={(pkg as any).version || '0.0.0'}
                 modelLabel={modelLabel}
                 cwd={replCwd}
-                staticMessages={state.staticMessages}
-                transientMessages={state.transientMessages}
+                staticMessages={primaryPartition.staticMessages}
+                transientMessages={primaryPartition.transientMessages}
                 renderMessage={renderMessage}
               />
             )}
@@ -588,6 +616,8 @@ export function REPL({
                 <LoadingStatusLine
                   text={loadingOverrideText ?? undefined}
                   cycleWords={!loadingOverrideText}
+                  baseColor={isCompactLoading ? '#d6b15d' : undefined}
+                  highlightColor={isCompactLoading ? '#f2cf84' : undefined}
                 />
               </Box>
             )}

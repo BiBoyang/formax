@@ -4,7 +4,6 @@ import { computeContextStats, type ContextBudgetConfig } from '../../../chat/con
 import { estimatePromptTokens } from '../../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../../chat/context/prune'
-import { rebuildHistoryAfterCompaction } from '../../../chat/context/compact'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../../prompts'
 import { buildSystemPrompt, buildUserContent } from '../../../prompts'
@@ -21,11 +20,15 @@ import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } fro
 import { isConsumedCommandResult, type OverlaySpec } from '../../commands/contracts'
 import type { PlanSessionManager } from '../planSession'
 import { ReminderService } from '../reminders/ReminderService'
-import { countNonToolUserTurns, extractAssistantText, isAbortLikeError, isExactSlashCommand } from './utils'
+import { countNonToolUserTurns, isAbortLikeError, isExactSlashCommand } from './utils'
 import type { ExploreTaskBatch } from './streaming'
 import { buildLocalCommandInjectedBlocks } from '../injectedBlocks'
 import { buildOutputStyleInjectedBlocks } from '../../../prompts/reminders/outputStyle'
 import { makeMessageId } from './ids'
+import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
+
+const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
+const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
 
 export function maybeHandleClearCommand(args: {
   text: string
@@ -90,6 +93,7 @@ export async function maybeHandleCompactCommand(args: {
     >
   >
   handleEvent: (ev: StreamEvent) => void
+  onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
 }): Promise<boolean> {
   if (!isExactSlashCommand(args.text, '/compact')) return false
 
@@ -102,7 +106,7 @@ export async function maybeHandleCompactCommand(args: {
   args.setMessages((prev) => [...prev, userMsg])
 
   args.setIsLoading(true)
-  args.setLoadingText('Compacting')
+  args.setLoadingText('Compacting conversation')
   args.thinkingBufferRef.current = ''
   args.thinkingLastFlushAtRef.current = 0
   args.setThinkingText('')
@@ -140,73 +144,57 @@ export async function maybeHandleCompactCommand(args: {
       : null
 
     const instructions = args.text.replace(/^\/compact\b/i, '').trim()
-    const compactUser: ChatHistory[number] = {
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: buildCompactRequest(instructions),
-        },
-      ],
-    }
-
-    const compactSink = (ev: StreamEvent) => {
-      if (
-        ev.type === 'thinking_delta' ||
-        ev.type === 'thinking_stop' ||
-        ev.type === 'usage' ||
-        ev.type === 'error' ||
-        ev.type === 'complete'
-      ) {
-        args.handleEvent(ev)
-      }
-    }
-
-    const nextHistory = await args.engine.runTurn({
-      history: previousHistory,
-      user: compactUser,
+    const compactResult = await runCompactFlow({
+      source: 'manual',
+      instructions,
+      engine: args.engine,
+      previousHistory,
+      keepLastTurns: args.cfg.context.compactKeepLastTurns,
       system,
-      tools: [],
-      onEvent: compactSink,
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
       thinkingEnabled: args.cfg.llm.thinkingMode,
-      exec: {
-        replMode: args.mode,
-        getReplMode: args.getReplMode,
-        setReplMode: args.setReplMode,
-        getPlanPath: args.getPlanPath,
-      },
-    })
-
-    const summary = extractAssistantText(nextHistory).trim()
-    if (!summary) throw new Error('Compact failed: empty summary')
-
-    const compacted = rebuildHistoryAfterCompaction({
-      summary,
-      previousHistory,
-      keepLastTurns: args.cfg.context.compactKeepLastTurns,
+      mode: args.mode,
+      getReplMode: args.getReplMode,
+      setReplMode: args.setReplMode,
+      getPlanPath: args.getPlanPath,
+      onStreamEvent: args.handleEvent,
+      onLifecycle: args.onCompactLifecycle,
     })
 
     args.historyRef.current =
       contextWindowTokens
         ? pruneForPromptBudget({
             system,
-            messages: compacted,
+            messages: compactResult.compactedHistory,
             contextWindowTokens,
             effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
             autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
             baselineTokens: args.cfg.context.baselineTokens,
           }).messages
-        : compacted
+        : compactResult.compactedHistory
 
     args.setMessages((prev) => [
       ...prev,
       {
         id: makeMessageId('assistant'),
         role: 'assistant',
-        content: 'Conversation history compacted (summary kept for future turns).',
+        ui: { kind: 'compact_boundary' },
+        content: '',
+        timestamp: new Date(),
+      },
+      {
+        id: makeMessageId('assistant'),
+        role: 'assistant',
+        content: COMPACT_BANNER_TEXT,
+        timestamp: new Date(),
+      },
+      {
+        id: makeMessageId('assistant'),
+        role: 'assistant',
+        ui: { kind: 'command_subline' },
+        content: COMPACT_SUBLINE_TEXT,
         timestamp: new Date(),
       },
     ])
@@ -405,6 +393,7 @@ export async function runMainSendTurn(raw: {
     currentAssistantIdRef: { current: string | null }
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
+    onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   }
   state: {
     setMessages: Dispatch<SetStateAction<Msg[]>>
@@ -519,48 +508,29 @@ export async function runMainSendTurn(raw: {
 
       if (stats.shouldAutoCompact) {
         const previousHistory = args.historyRef.current
-        const compactUser: ChatHistory[number] = {
-          role: 'user',
-          content: [{ type: 'text', text: buildCompactRequest('') }],
-        }
-
-        const compactSink = (ev: StreamEvent) => {
-          // Auto-compact runs inside an active turn; forwarding complete/error into the main
-          // event handler would incorrectly reset loading state or surface irrelevant errors.
-          if (ev.type === 'thinking_delta' || ev.type === 'thinking_stop' || ev.type === 'usage') {
-            args.handleEvent(ev)
-          }
-        }
-
-        const compactedHistory = await args.engine.runTurn({
-          history: previousHistory,
-          user: compactUser,
-          system,
-          tools: [],
-          onEvent: compactSink,
-          cwd,
-          signal: abortController.signal,
-          promptBudget: args.contextBudgetConfigRef.current,
-          thinkingEnabled: args.cfg.llm.thinkingMode,
-          exec: {
-            replMode: args.mode,
+        try {
+          const compactResult = await runCompactFlow({
+            source: 'auto',
+            instructions: '',
+            engine: args.engine,
+            previousHistory,
+            keepLastTurns: args.cfg.context.compactKeepLastTurns,
+            system,
+            cwd,
+            signal: abortController.signal,
+            promptBudget: args.contextBudgetConfigRef.current,
+            thinkingEnabled: args.cfg.llm.thinkingMode,
+            mode: args.mode,
             getReplMode: args.getReplMode,
             setReplMode: args.setReplMode,
             getPlanPath: () => args.planSession?.getPlanPath() ?? null,
-          },
-        })
-
-        const summary = extractAssistantText(compactedHistory).trim()
-        if (summary) {
-          const compacted = rebuildHistoryAfterCompaction({
-            summary,
-            previousHistory,
-            keepLastTurns: args.cfg.context.compactKeepLastTurns,
+            onStreamEvent: args.handleEvent,
+            onLifecycle: args.onCompactLifecycle,
           })
 
           args.historyRef.current = pruneForPromptBudget({
             system,
-            messages: compacted,
+            messages: compactResult.compactedHistory,
             contextWindowTokens,
             effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
             autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
@@ -579,6 +549,8 @@ export async function runMainSendTurn(raw: {
               },
             ])
           }
+        } catch {
+          // Keep existing behavior: auto-compact is best-effort and should never fail the turn.
         }
       }
     }
@@ -682,7 +654,9 @@ export async function runMainSendTurn(raw: {
     if (!isAbortLikeError(e)) {
       args.setError(msg)
       args.setMessages((prev) => [
-        ...prev.filter((m) => !(m.role === 'assistant' && m.content === '')),
+        ...prev.filter(
+          (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),
+        ),
         {
           id: `error-${Date.now()}`,
           role: 'assistant',
@@ -695,22 +669,6 @@ export async function runMainSendTurn(raw: {
     args.setIsLoading(false)
     args.abortControllerRef.current = null
   }
-}
-
-function buildCompactRequest(instructions: string): string {
-  const extra = instructions.trim()
-  return (
-    'Summarize the conversation so far for future context.\n\n' +
-    'Requirements:\n' +
-    '- Preserve user goals, constraints, and preferences.\n' +
-    '- Preserve key technical decisions and trade-offs.\n' +
-    '- Preserve important file paths, commands, and APIs discussed.\n' +
-    '- Preserve open questions and next steps.\n' +
-    '- Keep it concise and structured (bullets or short sections).\n' +
-    '- Do NOT call tools.\n\n' +
-    (extra ? `Additional user instructions:\n${extra}\n\n` : '') +
-    'Output only the summary.'
-  )
 }
 
 function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): PromptBlock[] {

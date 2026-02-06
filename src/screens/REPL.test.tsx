@@ -220,16 +220,21 @@ describe('REPL', () => {
 	      stdin.write('/compact')
 	      await tick()
 	      stdin.write('\r')
-	      await waitForFrame(lastFrame, (f) => f.includes('Conversation history compacted'), 4000)
+	      await waitForFrame(lastFrame, (f) => f.includes('Conversation compacted · ctrl+o for history'), 4000)
+	      await waitForFrame(lastFrame, (f) => f.includes('Compacted (ctrl+o to see full summary)'), 4000)
 	      await sleep(25)
+	      const compactPrimary = lastFrame() || ''
+	      expect(compactPrimary).not.toContain('HISTLEN:0')
 
-      // Next message should see the compacted prompt history (summary + kept tail).
-      stdin.write('hi')
-      await tick()
-      stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:3'))
-    })
-  })
+	      stdin.write('\u000f') // ctrl+o
+	      await waitForFrame(lastFrame, (f) => f.includes('Showing detailed transcript · ctrl+o to toggle'), 4000)
+	      const compactExpanded = lastFrame() || ''
+	      expect(compactExpanded).toContain('HISTLEN:0')
+	      stdin.write('\u000f') // ctrl+o again
+	      await waitForFrame(lastFrame, (f) => !f.includes('Showing detailed transcript · ctrl+o to toggle'), 4000)
+
+	    }, 20000)
+	  })
 
   describe('/clear', () => {
     it('clears prompt history and continues the chat from a fresh context', async () => {

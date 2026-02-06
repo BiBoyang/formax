@@ -704,7 +704,15 @@ describe('useReplController', () => {
 
 	    const compactPromise = controller.actions.send('/compact because keep it short')
 	    await compactPromise
-	    await waitFor(() => lastAssistantText(controller).includes('Conversation history compacted'))
+	    await waitFor(() => lastAssistantText(controller).includes('Compacted (ctrl+o to see full summary)'))
+      expect(
+        controller.state.messages.some(
+          (m) => m.role === 'assistant' && m.content === 'Conversation compacted · ctrl+o for history',
+        ),
+      ).toBe(true)
+      expect(
+        controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'compact_boundary'),
+      ).toBe(true)
 
 	    await controller.actions.send('hello')
 	    await waitFor(() => lastAssistantText(controller).includes('OK'))

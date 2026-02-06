@@ -42,6 +42,7 @@ import {
   maybeHandleConsumedSlashCommand,
   runMainSendTurn,
 } from './controller/send'
+import type { CompactLifecycleEvent } from './controller/compactFlow'
 import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
@@ -242,6 +243,25 @@ export function useReplController(deps: {
     setThinkingText('')
     setThinkingStartedAtMs(null)
   }, [])
+
+  const onCompactLifecycle = useCallback(
+    (event: CompactLifecycleEvent) => {
+      if (!sessionSaveEnabled) return
+      if (event.type === 'compact_started') {
+        void sessionWriterRef.current?.appendEvent('compact_started', { source: event.source })
+        return
+      }
+      if (event.type === 'compact_succeeded') {
+        void sessionWriterRef.current?.appendEvent('compact_succeeded', { source: event.source })
+        return
+      }
+      void sessionWriterRef.current?.appendEvent('compact_failed', {
+        source: event.source,
+        error: event.error,
+      })
+    },
+    [sessionSaveEnabled],
+  )
 
   const resetSessionState = useCallback(() => {
     historyRef.current = []
@@ -730,6 +750,7 @@ export function useReplController(deps: {
           setError,
           setContext,
           handleEvent,
+          onCompactLifecycle,
         })
         return
       }
@@ -801,6 +822,7 @@ export function useReplController(deps: {
           currentAssistantIdRef,
           sendSeqRef,
           lastAutoCompactSeqRef,
+          onCompactLifecycle,
         },
         state: {
           setMessages,
@@ -834,6 +856,7 @@ export function useReplController(deps: {
       sessionSaveEnabled,
       setReplMode,
       userInput,
+      onCompactLifecycle,
     ],
   )
 

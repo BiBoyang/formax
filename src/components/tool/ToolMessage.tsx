@@ -70,7 +70,7 @@ export interface Msg {
    * Must NOT affect LLM messages/history.
    */
   ui?: {
-    kind: 'command_subline' | 'thinking_block'
+    kind: 'command_subline' | 'thinking_block' | 'compact_boundary'
   }
   /** Message content (formatted result summary) */
   content: string
