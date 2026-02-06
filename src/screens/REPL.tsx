@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import type { ChatEngine, ChatHistory } from '../chat/engine'
@@ -117,6 +117,10 @@ export function REPL({
   const [expandedTranscriptHideHistory, setExpandedTranscriptHideHistory] = useState(false)
   const [ctrlCArmedUntilMs, setCtrlCArmedUntilMs] = useState<number | null>(null)
   const [bashModeActive, setBashModeActive] = useState(false)
+  const [queuedDuringLoading, setQueuedDuringLoading] = useState<string[]>([])
+  const queuedDuringLoadingRef = useRef<string[]>([])
+  const wasLoadingRef = useRef(false)
+  const isAutoFlushingQueueRef = useRef(false)
   const userInput = useUserInputManager()
   const planSession = useMemo(
     () => createPlanSessionManager({ planDir: runtimeCfg.paths.planDir }),
@@ -262,6 +266,39 @@ export function REPL({
     clearPrompt,
   } = usePromptLine({ commandRegistry, isPromptMode })
 
+  useEffect(() => {
+    queuedDuringLoadingRef.current = queuedDuringLoading
+  }, [queuedDuringLoading])
+
+  const recallQueuedMessage = useCallback(() => {
+    const queue = queuedDuringLoadingRef.current
+    if (queue.length === 0) return
+    const recalled = queue[queue.length - 1] ?? ''
+    setQueuedDuringLoading(queue.slice(0, -1))
+    setInput(recalled)
+    setSlashIndex(0)
+    setSlashSelectionTouched(false)
+  }, [setInput, setSlashIndex, setSlashSelectionTouched])
+
+  useEffect(() => {
+    const wasLoading = wasLoadingRef.current
+    wasLoadingRef.current = state.isLoading
+    if (!wasLoading || state.isLoading) return
+    if (isAutoFlushingQueueRef.current) return
+    if (queuedDuringLoading.length === 0) return
+
+    const merged = queuedDuringLoading.join('\n')
+    setQueuedDuringLoading([])
+    isAutoFlushingQueueRef.current = true
+    void (async () => {
+      try {
+        await actions.send(merged)
+      } finally {
+        isAutoFlushingQueueRef.current = false
+      }
+    })()
+  }, [actions, queuedDuringLoading, state.isLoading])
+
   useReplHotkeys({
     onExit,
     actions,
@@ -290,6 +327,8 @@ export function REPL({
     setSlashIndex,
     input,
     setInput,
+    queuedMessageCount: queuedDuringLoading.length,
+    onRecallQueuedMessage: recallQueuedMessage,
     bashModeActive,
     setBashModeActive,
     ctrlCArmedUntilMs,
@@ -300,6 +339,13 @@ export function REPL({
     async (value: string) => {
       const text = value.trim()
       if (!text) return
+
+      if (state.isLoading) {
+        if (text.startsWith('/') || text.startsWith('!') || bashModeActive) return
+        setQueuedDuringLoading((prev) => [...prev, text])
+        clearPrompt()
+        return
+      }
 
       if (slashSuggestions.length > 0 && selectedSlash?.command) {
         const normalized = text.replace(/\s+$/, '')
@@ -315,7 +361,6 @@ export function REPL({
 
       clearPrompt()
       if (bashModeActive) setBashModeActive(false)
-      if (state.isLoading) return
       const sendText = bashModeActive ? `! ${text}` : text
       await actions.send(
         sendText,
@@ -566,12 +611,23 @@ export function REPL({
 
           {!isPromptMode && !expandedViewActive && (
             <Box flexDirection="column" flexShrink={0} marginTop={1}>
+              {queuedDuringLoading.length > 0 && (
+                <Box flexDirection="column">
+                  {queuedDuringLoading.map((queued, idx) => (
+                    <Box key={`queued-${idx}`}>
+                      <Text
+                        color={theme.replUserPromptFg}
+                        backgroundColor={theme.replUserPromptBg}
+                      >{`> ${queued} `}</Text>
+                    </Box>
+                  ))}
+                </Box>
+              )}
               <InputBar
                 value={input}
                 onChange={handleInputChange}
                 onSubmit={handleSend}
                 placeholder={`Try \"fix typecheck errors\"`}
-                disabled={state.isLoading}
                 inputMode={bashModeActive ? 'bash' : 'normal'}
                 onBackspaceAtStart={bashModeActive ? () => setBashModeActive(false) : undefined}
                 suggestions={slashSuggestions.map((s, i) => ({
@@ -585,13 +641,17 @@ export function REPL({
               {slashSuggestions.length === 0 && (
                 <Box flexDirection="column">
                   {contextLine ? <Text dimColor>{contextLine}</Text> : null}
-                  <Box>
-                    <ReplFooterHint
-                      mode={mode}
-                      ctrlCArmed={ctrlCArmedUntilMs !== null}
-                      isBashInput={bashModeActive}
-                    />
-                  </Box>
+                  {state.isLoading && queuedDuringLoading.length > 0 ? (
+                    <Text dimColor>{'> Press up to edit queued messages'}</Text>
+                  ) : (
+                    <Box>
+                      <ReplFooterHint
+                        mode={mode}
+                        ctrlCArmed={ctrlCArmedUntilMs !== null}
+                        isBashInput={bashModeActive}
+                      />
+                    </Box>
+                  )}
                 </Box>
               )}
             </Box>

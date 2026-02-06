@@ -595,4 +595,122 @@ describe('useReplHotkeys', () => {
     expect(setSlashIndex).toHaveBeenCalled()
     expect(lowerPriority).not.toHaveBeenCalled()
   })
+
+  it('recalls queued message on upArrow while loading before slash selector handling', async () => {
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const onRecallQueuedMessage = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
+
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: true,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [{ command: '/status' }],
+        selectedSlash: { command: '/status' },
+        setSlashSelectionTouched,
+        setSlashIndex,
+        input: '',
+        setInput: () => {},
+        queuedMessageCount: 2,
+        onRecallQueuedMessage,
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    ui.stdin.write('\u001B[A') // upArrow
+    await tick()
+
+    expect(onRecallQueuedMessage).toHaveBeenCalledTimes(1)
+    expect(setSlashSelectionTouched).not.toHaveBeenCalled()
+    expect(setSlashIndex).not.toHaveBeenCalled()
+  })
+
+  it('does not recall queued message when not loading and keeps slash upArrow behavior', async () => {
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const onRecallQueuedMessage = vi.fn()
+    const setExpandedTranscriptHideHistory = vi.fn()
+
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory,
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [{ command: '/status' }, { command: '/clear' }],
+        selectedSlash: { command: '/status' },
+        setSlashSelectionTouched,
+        setSlashIndex,
+        input: '',
+        setInput: () => {},
+        queuedMessageCount: 2,
+        onRecallQueuedMessage,
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    ui.stdin.write('\u001B[A') // upArrow
+    await tick()
+
+    expect(onRecallQueuedMessage).not.toHaveBeenCalled()
+    expect(setSlashSelectionTouched).toHaveBeenCalledWith(true)
+    expect(setSlashIndex).toHaveBeenCalled()
+  })
 })

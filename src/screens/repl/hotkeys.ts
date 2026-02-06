@@ -66,6 +66,8 @@ export function useReplHotkeys(args: {
   setSlashIndex: (next: number | ((prev: number) => number)) => void
   input: string
   setInput: (next: string) => void
+  queuedMessageCount?: number
+  onRecallQueuedMessage?: () => void
   bashModeActive: boolean
   setBashModeActive: (next: boolean) => void
 
@@ -88,6 +90,8 @@ export function useReplHotkeys(args: {
     setSlashIndex,
     input,
     setInput,
+    queuedMessageCount = 0,
+    onRecallQueuedMessage,
     bashModeActive,
     setBashModeActive,
     ctrlCArmedUntilMs,
@@ -179,6 +183,10 @@ export function useReplHotkeys(args: {
     'repl',
     (inputKey, key) => {
       if (isPromptMode) return false
+      if (state.isLoading && queuedMessageCount > 0 && input.length === 0 && key.upArrow) {
+        onRecallQueuedMessage?.()
+        return true
+      }
       if (slashSuggestions.length === 0) return false
 
       if (key.downArrow) {
