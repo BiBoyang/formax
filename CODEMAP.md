@@ -5,6 +5,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Entry Points
 - CLI entrypoint (main): `src/entrypoints/cli.tsx`
 - CLI arg parsing + dispatch: `src/cli/args.ts`, `src/cli/main.ts`
+- Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
+  - Runtime assembly slices: `src/legacy/bootstrap/*`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
 - Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
