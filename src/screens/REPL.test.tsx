@@ -41,6 +41,24 @@ describe('REPL', () => {
     throw new Error(`Timed out waiting for UI update.\n\nLast frame:\n${last}`)
   }
 
+  async function waitForCondition(predicate: () => boolean, timeoutMs = 10000): Promise<void> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      if (predicate()) return
+      await tick()
+    }
+    throw new Error('Timed out waiting for condition')
+  }
+
+  function getUserText(msg: PromptMessage): string {
+    const content = msg.content as any
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) return ''
+    return content
+      .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
+      .join('')
+  }
+
   const engine: ChatEngine = {
     async runTurn({ history }) {
       return history
@@ -273,6 +291,180 @@ describe('REPL', () => {
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
     })
+  })
+
+  describe('loading input queue', () => {
+    it('queues multiple entries during loading and auto-sends after current turn', async () => {
+      let releaseFirstTurn: (() => void) | null = null
+      const firstTurnGate = new Promise<void>((resolve) => {
+        releaseFirstTurn = resolve
+      })
+      const sentTexts: string[] = []
+
+      const queueEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          sentTexts.push(userText)
+          if (sentTexts.length === 1) await firstTurnGate
+          onEvent({ type: 'assistant_delta', text: `ACK:${userText}` })
+          onEvent({ type: 'complete' })
+          return [...history, user, { role: 'assistant', content: [{ type: 'text', text: `ACK:${userText}` }] as any }]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('start')
+      await tick()
+      stdin.write('\r')
+      await waitForCondition(() => sentTexts.length === 1)
+
+      stdin.write('one')
+      await tick()
+      stdin.write('\r')
+      await tick()
+      stdin.write('two')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('Press up to edit queued messages'))
+
+      releaseFirstTurn?.()
+      await waitForCondition(() => sentTexts.length >= 2, 15000)
+      expect(sentTexts[0]).toBe('start')
+      expect(sentTexts[1]).toBe('one\ntwo')
+    }, 20000)
+
+    it('joins queued entries using a single newline in FIFO order', async () => {
+      let releaseFirstTurn: (() => void) | null = null
+      const firstTurnGate = new Promise<void>((resolve) => {
+        releaseFirstTurn = resolve
+      })
+      const sentTexts: string[] = []
+
+      const queueEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          sentTexts.push(userText)
+          if (sentTexts.length === 1) await firstTurnGate
+          onEvent({ type: 'assistant_delta', text: `ACK:${userText}` })
+          onEvent({ type: 'complete' })
+          return [...history, user, { role: 'assistant', content: [{ type: 'text', text: `ACK:${userText}` }] as any }]
+        },
+      }
+
+      const { stdin } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('start')
+      await tick()
+      stdin.write('\r')
+      await waitForCondition(() => sentTexts.length === 1)
+
+      stdin.write('first')
+      await tick()
+      stdin.write('\r')
+      await tick()
+      stdin.write('second')
+      await tick()
+      stdin.write('\r')
+      await tick()
+      stdin.write('third')
+      await tick()
+      stdin.write('\r')
+
+      releaseFirstTurn?.()
+      await waitForCondition(() => sentTexts.length >= 2, 15000)
+      expect(sentTexts[1]).toBe('first\nsecond\nthird')
+    }, 20000)
+
+    it('upArrow recalls the latest queued message and removes it from auto-flush queue', async () => {
+      let releaseFirstTurn: (() => void) | null = null
+      const firstTurnGate = new Promise<void>((resolve) => {
+        releaseFirstTurn = resolve
+      })
+      const sentTexts: string[] = []
+
+      const queueEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          sentTexts.push(userText)
+          if (sentTexts.length === 1) await firstTurnGate
+          onEvent({ type: 'assistant_delta', text: `ACK:${userText}` })
+          onEvent({ type: 'complete' })
+          return [...history, user, { role: 'assistant', content: [{ type: 'text', text: `ACK:${userText}` }] as any }]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('start')
+      await tick()
+      stdin.write('\r')
+      await waitForCondition(() => sentTexts.length === 1)
+
+      stdin.write('recall-me')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('Press up to edit queued messages'))
+
+      stdin.write('\u001B[A') // upArrow
+      await waitForFrame(lastFrame, (f) => f.includes('> recall-me'))
+
+      releaseFirstTurn?.()
+      await waitForFrame(lastFrame, (f) => f.includes('ACK:start'), 15000)
+      await sleep(80)
+      expect(sentTexts).toEqual(['start'])
+    }, 20000)
+
+    it('keeps / and ! command input on Enter during loading without queuing or sending', async () => {
+      let releaseFirstTurn: (() => void) | null = null
+      const firstTurnGate = new Promise<void>((resolve) => {
+        releaseFirstTurn = resolve
+      })
+      const sentTexts: string[] = []
+
+      const queueEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          const userText = getUserText(user)
+          sentTexts.push(userText)
+          if (sentTexts.length === 1) await firstTurnGate
+          onEvent({ type: 'assistant_delta', text: `ACK:${userText}` })
+          onEvent({ type: 'complete' })
+          return [...history, user, { role: 'assistant', content: [{ type: 'text', text: `ACK:${userText}` }] as any }]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('start')
+      await tick()
+      stdin.write('\r')
+      await waitForCondition(() => sentTexts.length === 1)
+
+      stdin.write('/status')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('> /status'))
+
+      for (let i = 0; i < 12; i++) {
+        stdin.write('\x7f')
+        await tick()
+      }
+      stdin.write('!')
+      await tick()
+      stdin.write('ls')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('! ls'))
+
+      releaseFirstTurn?.()
+      await waitForFrame(lastFrame, (f) => f.includes('ACK:start'), 15000)
+      await sleep(80)
+      expect(sentTexts).toEqual(['start'])
+    }, 20000)
   })
 
   describe('auto-compact', () => {

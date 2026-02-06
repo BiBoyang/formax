@@ -4,6 +4,7 @@ import { createToolBlocksPresenter } from './types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { ToolBlocksOutput } from '../../components/tool/toolUiBlocksTypes'
 import { ToolIndentedLine, ToolSubline } from '../../components/tool/ToolSubline'
+import { getTheme } from '../../utils/theme'
 
 function parseCommand(input: unknown): string {
   const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null
@@ -19,6 +20,7 @@ function toLines(text: string): string[] {
 
 export const LocalBashPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {
+    const theme = getTheme()
     const toolInfo = message.toolInfo
     if (!toolInfo) return { blocks: [] }
 
@@ -39,7 +41,12 @@ export const LocalBashPresenter = createToolBlocksPresenter(
           kind: 'custom',
           node: (
             <Box flexDirection="column">
-              <Text>{`! ${command}`}</Text>
+              <Text
+                color={theme.replUserPromptFg}
+                backgroundColor={theme.replUserPromptBg}
+              >
+                {`! ${command} `}
+              </Text>
 
               {status === 'running' ? null : shownLines.length > 0 ? (
                 <>

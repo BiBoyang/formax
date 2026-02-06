@@ -777,6 +777,24 @@ describe('useReplController', () => {
 })
 
 describe('useReplController /clear', () => {
+  it('calls engine.beginNewSession() when clearing the session', async () => {
+    const beginNewSession = vi.fn()
+    const runTurn = vi.fn(async ({ history, user }: any) => [...(history ?? []), user])
+    const engine: ChatEngine = { beginNewSession, runTurn } as any
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/clear')
+    expect(beginNewSession).toHaveBeenCalledTimes(1)
+  })
+
   it('clears prompt history and replaces the UI message list', async () => {
     const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR

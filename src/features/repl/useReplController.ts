@@ -537,6 +537,7 @@ export function useReplController(deps: {
   }, [resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
+    deps.engine.beginNewSession?.({ source: 'clear' })
     if (sessionSaveEnabled) {
       const oldWriter = sessionWriterRef.current
       sessionWriterRef.current = null
@@ -566,7 +567,7 @@ export function useReplController(deps: {
       sessionWriterInitPromiseRef.current = promise
       void promise
     }
-  }, [deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
+  }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
   const resetTranscriptSurface = useCallback(() => {
     // Ink <Static> is append-only; forcing a remount gives us a fresh render surface.
@@ -588,6 +589,7 @@ export function useReplController(deps: {
       closeResumeDialog()
 
       const replay = await readSessionFile(filePath)
+      deps.engine.beginNewSession?.({ source: 'resume' })
 
       // Flush and close the current writer (if any) before switching to the resumed session file.
       if (sessionSaveEnabled) {
@@ -621,6 +623,7 @@ export function useReplController(deps: {
     [
       abort,
       closeResumeDialog,
+      deps.engine,
       deps.onClearTerminal,
       isLoading,
       resetSessionState,
