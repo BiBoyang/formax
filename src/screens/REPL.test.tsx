@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { REPL } from './REPL'
@@ -48,6 +48,17 @@ describe('REPL', () => {
       await tick()
     }
     throw new Error('Timed out waiting for condition')
+  }
+
+  async function withForcedInkStatic<T>(run: () => Promise<T>): Promise<T> {
+    const prev = process.env.FORMAX_FORCE_INK_STATIC
+    process.env.FORMAX_FORCE_INK_STATIC = '1'
+    try {
+      return await run()
+    } finally {
+      if (prev === undefined) delete process.env.FORMAX_FORCE_INK_STATIC
+      else process.env.FORMAX_FORCE_INK_STATIC = prev
+    }
   }
 
   function getUserText(msg: PromptMessage): string {
@@ -234,6 +245,113 @@ describe('REPL', () => {
 	      await waitForFrame(lastFrame, (f) => !f.includes('Showing detailed transcript · ctrl+o to toggle'), 4000)
 
 	    }, 20000)
+
+    it(
+      'keeps primary state interactive after compact plus repeated ctrl+o toggles in Static mode',
+      async () =>
+        withForcedInkStatic(async () => {
+          const onClearTerminal = vi.fn(async () => {})
+          const compactEngine: ChatEngine = {
+            async runTurn({ history, user, onEvent }) {
+              const userText = getUserText(user)
+              const isCompact = /Summarize the conversation/i.test(userText)
+              const assistantText = isCompact ? 'SUMMARY' : `HISTLEN:${history.length}`
+
+              onEvent({ type: 'assistant_delta', text: assistantText })
+              onEvent({ type: 'complete' })
+
+              return [
+                ...history,
+                user,
+                { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+              ]
+            },
+          }
+
+          const { stdin, lastFrame } = render(
+            <REPL engine={compactEngine} tools={[]} cfg={cfg} onClearTerminal={onClearTerminal} />,
+          )
+          await tick()
+
+          stdin.write('1')
+          await tick()
+          stdin.write('\r')
+          await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
+          await waitForFrame(lastFrame, (f) => f.includes('Try "fix typecheck errors"'), 4000)
+
+          stdin.write('2')
+          await tick()
+          stdin.write('\r')
+          await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:2'))
+          await waitForFrame(lastFrame, (f) => f.includes('Try "fix typecheck errors"'), 4000)
+
+          stdin.write('/compact')
+          await tick()
+          stdin.write('\r')
+          await waitForFrame(lastFrame, (f) => f.includes('Conversation compacted · ctrl+o for history'), 4000)
+          await waitForFrame(lastFrame, (f) => f.includes('Compacted (ctrl+o to see full summary)'), 4000)
+
+          for (let i = 0; i < 8; i++) {
+            stdin.write('\u000f')
+            await tick()
+          }
+
+          await waitForFrame(
+            lastFrame,
+            (f) => f.includes('? for shortcuts') && !f.includes('Showing detailed transcript · ctrl+o to toggle'),
+            10000,
+          )
+
+          const frame = lastFrame() || ''
+          expect(onClearTerminal.mock.calls.length).toBeGreaterThanOrEqual(9)
+          expect(frame).toContain('Conversation compacted · ctrl+o for history')
+          expect(frame).toContain('Compacted (ctrl+o to see full summary)')
+          expect(frame.trim().length).toBeGreaterThan(0)
+        }),
+      30000,
+    )
+
+    it(
+      'stays interactive after rapid ctrl+o toggles in Static mode',
+      async () =>
+        withForcedInkStatic(async () => {
+          const onClearTerminal = vi.fn(async () => {})
+          const echoEngine: ChatEngine = {
+            async runTurn({ history, user, onEvent }) {
+              const userText = getUserText(user)
+              const assistantText = `ECHO:${userText}`
+              onEvent({ type: 'assistant_delta', text: assistantText })
+              onEvent({ type: 'complete' })
+              return [
+                ...history,
+                user,
+                { role: 'assistant', content: [{ type: 'text', text: assistantText }] as any },
+              ]
+            },
+          }
+
+          const { stdin, lastFrame } = render(
+            <REPL engine={echoEngine} tools={[]} cfg={cfg} onClearTerminal={onClearTerminal} />,
+          )
+          await tick()
+
+          for (let i = 0; i < 12; i++) {
+            stdin.write('\u000f')
+            await tick()
+          }
+
+          await sleep(50)
+          const afterToggleFrame = lastFrame() || ''
+          expect(onClearTerminal.mock.calls.length).toBeGreaterThan(0)
+          expect(afterToggleFrame.trim().length).toBeGreaterThan(0)
+
+          stdin.write('after')
+          await tick()
+          stdin.write('\r')
+          await waitForFrame(lastFrame, (f) => f.includes('ECHO:after'), 10000)
+        }),
+      30000,
+    )
 	  })
 
   describe('/clear', () => {

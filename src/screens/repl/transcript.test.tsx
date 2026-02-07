@@ -60,6 +60,7 @@ describe('ReplTranscript memoization', () => {
 
     const ui = render(
       <ExpandedReplTranscript
+        transcriptSeq={0}
         version="0.0.0"
         modelLabel="Model: test"
         cwd="/tmp"
@@ -74,6 +75,7 @@ describe('ReplTranscript memoization', () => {
     const m3 = msg({ id: 'm3', role: 'assistant', content: 'C' })
     ui.rerender(
       <ExpandedReplTranscript
+        transcriptSeq={0}
         version="0.0.0"
         modelLabel="Model: test"
         cwd="/tmp"
