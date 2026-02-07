@@ -4,6 +4,7 @@ import TextInput from '../../components/ui/TextInput.js'
 import { ApprovalHeader } from '../../components/ui/ApprovalHeader.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
+import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import { getTheme } from '../../utils/theme.js'
 import type { SessionSummary } from '../../features/repl/sessionSave/reader.js'
 import { listRecentSessions, readSessionPreview } from '../../features/repl/sessionSave/reader.js'
@@ -149,22 +150,18 @@ export function ResumeDialog(args: {
 
     cleanupEscapeFallback()
 
-    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-    const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
-
-    const isUpArrow = keyName === 'up' || Boolean((key as any)?.upArrow)
-    const isDownArrow = keyName === 'down' || Boolean((key as any)?.downArrow)
+    const token = getInputToken({ input, key })
+    const keyDelta = getVerticalArrowKeyDelta(key)
+    const hasArrowKeyDelta = keyDelta !== 0
 
     let bufferedDelta = 0
-    if (!isUpArrow && !isDownArrow && token) {
+    if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
       if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
-    const keyDelta = isUpArrow ? -1 : isDownArrow ? 1 : 0
     const delta = keyDelta !== 0 ? keyDelta : bufferedDelta
 
     if (key.escape && !token) {
@@ -236,7 +233,7 @@ export function ResumeDialog(args: {
       return
     }
 
-    if (key.return || token === '\r' || token === '\n') {
+    if (isReturnKeyToken({ token, key })) {
       if (!selected) return
       void args.onResume(selected.filePath)
     }

@@ -5,6 +5,7 @@ import { RotatingStar } from '../../components/ui/RotatingStar'
 import { getTheme } from '../../utils/theme'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
+import { getInputToken, getKeyName, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import {
   Spacer,
   DialogFrame,
@@ -526,26 +527,25 @@ export function AgentsDialog({
   ])
 
   useScopedInput('overlay:agents', (input, key) => {
-    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-    const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
+    const token = getInputToken({ input, key })
+    const keyName = getKeyName(key)
 
     if (key.escape || keyName === 'escape') escapeBufferRef.current = ''
 
-    const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
-    const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
+    const keyDelta = getVerticalArrowKeyDelta(key)
+    const hasArrowKeyDelta = keyDelta !== 0
 
     // In some environments/tests, arrow escape sequences can arrive split or batched across
     // multiple `useInput` calls. Buffer ESC sequences so Up/Down always work reliably.
     let bufferedDelta = 0
-    if (!isUpArrowKey && !isDownArrowKey && token) {
+    if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
       if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
-    const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
+    const arrowDelta = keyDelta + bufferedDelta
 
     if (arrowDelta !== 0) {
       if (view.kind === 'list') {
@@ -604,7 +604,7 @@ export function AgentsDialog({
     if (handleListKeys(forwardedInput, patchedKey)) return
     if (handleChoiceCursorKeys(forwardedInput, patchedKey)) return
 
-    const isEnter = Boolean(patchedKey.return) || keyName === 'return' || token === '\r' || token === '\n'
+    const isEnter = isReturnKeyToken({ token, key: patchedKey })
     if (isEnter) {
       if (handleChoiceEnterKeys()) return
     }

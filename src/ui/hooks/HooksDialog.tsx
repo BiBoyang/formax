@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { useInputScope, useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
+import { getInputToken, getKeyName, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import { getTheme } from '../../utils/theme.js'
 import type { HookEventName, HookRuleEntry, HookSource } from '../../hooks/types.js'
 import type { HookMatcherSummary, HooksBySource } from '../../hooks/store.js'
@@ -230,10 +231,9 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     (input, key) => {
     const s = stateRef.current
 
-    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-    const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
-    const isEnter = Boolean(key.return) || keyName === 'return' || token === '\r' || token === '\n'
+    const token = getInputToken({ input, key })
+    const keyName = getKeyName(key)
+    const isEnter = isReturnKeyToken({ token, key })
 
     if (key.escape || keyName === 'escape') {
       if (s.view.kind === 'eventList') close()
@@ -241,18 +241,18 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
       return
     }
 
-    const isUpArrowKey = keyName === 'up' || Boolean((key as any)?.upArrow)
-    const isDownArrowKey = keyName === 'down' || Boolean((key as any)?.downArrow)
+    const keyDelta = getVerticalArrowKeyDelta(key)
+    const hasArrowKeyDelta = keyDelta !== 0
 
     let bufferedDelta = 0
-    if (!isUpArrowKey && !isDownArrowKey && token) {
+    if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
       if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
-    const arrowDelta = (isUpArrowKey ? -1 : 0) + (isDownArrowKey ? 1 : 0) + bufferedDelta
+    const arrowDelta = keyDelta + bufferedDelta
 
     if (s.view.kind === 'addMatcher' || s.view.kind === 'addHook') return
 

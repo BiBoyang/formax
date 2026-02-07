@@ -13,6 +13,7 @@ import {
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
+import { getInputToken, getVerticalArrowKeyDelta } from '../../features/repl/keys/keyTokens.js'
 import type { PermissionTab, SaveScope } from './constants.js'
 import { SAVE_SCOPE_OPTIONS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
@@ -131,6 +132,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
 
   useScopedInput(SCOPE, (input, key) => {
     const s = stateRef.current
+    const token = getInputToken({ input, key })
 
     if (key.escape) {
       escapeBufferRef.current = ''
@@ -139,30 +141,29 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
       return
     }
 
-    const isUpArrow = Boolean((key as any)?.upArrow)
-    const isDownArrow = Boolean((key as any)?.downArrow)
+    const keyDelta = getVerticalArrowKeyDelta(key)
+    const hasArrowKeyDelta = keyDelta !== 0
 
     // In some environments/tests, arrow escape sequences can arrive split across multiple
     // `useInput` calls, or multiple arrows can be batched into one chunk. Buffer/parse ESC
     // sequences so Up/Down work reliably.
     let bufferedDelta = 0
-    if (!isUpArrow && !isDownArrow && input) {
-      const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: input })
+    if (!hasArrowKeyDelta && token) {
+      const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
       if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
-    const keyDelta = isUpArrow ? -1 : isDownArrow ? 1 : 0
     const delta = keyDelta !== 0 ? keyDelta : bufferedDelta
 
     if (s.view === 'list') {
-      if (key.tab || input === '\t') {
+      if (key.tab || token === '\t') {
         dispatch({ type: 'SET_TAB', tab: nextTab(s.tab, 1) })
         return
       }
 
-      if (input === '/') {
+      if (token === '/') {
         dispatch({ type: 'TOGGLE_SEARCH' })
         return
       }
@@ -175,7 +176,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
         return
       }
 
-      if (key.return || input === '\r') {
+      if (key.return || token === '\r') {
         const cursor = listCursorRef.current
         const item = listItemsRef.current[cursor]
         if (!item) return
@@ -208,7 +209,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
         return
       }
 
-      if (key.return || input === '\r') {
+      if (key.return || token === '\r') {
         if (cursor === 1) {
           cancelToList()
           return
@@ -229,14 +230,14 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
     }
 
     if (s.view === 'addRule') {
-      if (key.return || input === '\r') {
+      if (key.return || token === '\r') {
         dispatch({ type: 'SUBMIT_RULE' })
       }
       return
     }
 
     if (s.view === 'addDirectory') {
-      if (key.return || input === '\r') {
+      if (key.return || token === '\r') {
         const dir = s.dirInput.trim()
         if (dir) void commitWorkspaceDir(dir)
         dispatch({ type: 'SUBMIT_DIR' })
@@ -253,7 +254,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
         return
       }
 
-      if (key.return || input === '\r') {
+      if (key.return || token === '\r') {
         const selected = SAVE_SCOPE_OPTIONS[cursor]?.scope ?? 'projectLocal'
         void commitRule(s.rule, s.kind, selected)
         cancelToList()

@@ -5,7 +5,14 @@ import { InlineTextEditorRow } from './InlineTextEditorRow.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
-import { isPrintableToken, isReturnKeyToken } from '../../features/repl/keys/keyTokens'
+import {
+  getInputToken,
+  getKeyName,
+  getVerticalArrowKeyDelta,
+  isPrintableToken,
+  isReturnKeyToken,
+  isShiftTabToken,
+} from '../../features/repl/keys/keyTokens'
 
 export type ConfirmMenuOption =
   | {
@@ -128,8 +135,7 @@ export function ConfirmMenu({
       // `ink-testing-library` and some terminals provide Shift+Tab as a raw escape sequence
       // (either "\u001B[Z" or "\u001BOZ") instead of `key.shift + key.tab`.
       // Support both so scope cycling is reliable and testable.
-      const isShiftTabSequence = token === '\u001B[Z' || token === '\u001BOZ'
-      if (((patchedKey.shift && patchedKey.tab) || isShiftTabSequence) && onShiftTab) {
+      if (isShiftTabToken({ token, key: patchedKey }) && onShiftTab) {
         if (isTyping) setTypingImmediate(false)
         onShiftTab()
         setCursorImmediate(clamp(shiftTabCursor, 0, options.length - 1))
@@ -259,11 +265,6 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
-function getInputToken(args: { input: string; key: unknown }): string {
-  const seq = (args.key as unknown as { sequence?: string } | undefined)?.sequence
-  return (typeof seq === 'string' && seq.length > 0 ? seq : args.input) || ''
-}
-
 function getTokenInfo(args: { token: string; key: any }): {
   token: string
   printable: boolean
@@ -272,9 +273,8 @@ function getTokenInfo(args: { token: string; key: any }): {
   isUpArrowKey: boolean
   isDownArrowKey: boolean
 } {
-  const keyName = typeof args.key?.name === 'string' ? String(args.key.name) : ''
-  const isUpArrowKey = keyName === 'up' || Boolean(args.key?.upArrow)
-  const isDownArrowKey = keyName === 'down' || Boolean(args.key?.downArrow)
+  const keyName = getKeyName(args.key)
+  const keyDelta = getVerticalArrowKeyDelta(args.key)
   const isEscape = Boolean(args.key?.escape) || keyName === 'escape'
 
   const token = args.token
@@ -285,8 +285,8 @@ function getTokenInfo(args: { token: string; key: any }): {
     printable,
     isEscape,
     isReturnKey: isReturnKeyToken({ token, key: args.key }),
-    isUpArrowKey,
-    isDownArrowKey,
+    isUpArrowKey: keyDelta < 0,
+    isDownArrowKey: keyDelta > 0,
   }
 }
 

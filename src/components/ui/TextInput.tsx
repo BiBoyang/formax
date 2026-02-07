@@ -4,6 +4,7 @@ import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences.js'
+import { getKeyName, isDeleteOrBackspaceToken } from '../../features/repl/keys/keyTokens'
 
 type TextInputProps = {
   value: string
@@ -29,24 +30,8 @@ export function classifyDeletionKey({
   raw: string
   key: any
 }): 'backspace' | null {
-  // In practice, terminals/keyboards vary wildly in how they report "delete".
-  // For Formax UI inputs, we keep semantics simple and consistent:
-  // treat both Backspace and Delete-like sequences as "delete previous char".
-  //
-  // This matches the "delete_or_backspace" expectation users have in the REPL/overlays,
-  // and avoids subtle differences across terminals (and across Ink versions).
-  if (raw === '\u001B[3~') return 'backspace'
-
-  const isBackspace =
-    keyName === 'backspace' ||
-    Boolean(key?.backspace) ||
-    raw === '\b' ||
-    raw === '\x7f' ||
-    // Ink often reports the Backspace key as "delete" with no printable sequence, especially on macOS.
-    // Treat that case as backspace (delete previous char), not forward-delete.
-    keyName === 'delete' ||
-    (Boolean(key?.delete) && raw === '')
-  if (isBackspace) return 'backspace'
+  const keyWithName = keyName && key?.name === undefined ? { ...key, name: keyName } : key
+  if (isDeleteOrBackspaceToken({ token: raw, key: keyWithName })) return 'backspace'
 
   return null
 }
@@ -135,7 +120,7 @@ export default function TextInput({
     const rawInput = typeof input === 'string' ? input : ''
     const rawSeq = typeof seq === 'string' ? seq : ''
     const raw = (rawInput.length > 0 ? rawInput : rawSeq) || ''
-    const keyName = typeof key?.name === 'string' ? (key.name as string) : ''
+    const keyName = getKeyName(key)
     const currentValue = valueRef.current
     const currentCursorOffset = cursorOffsetRef.current
     const isSubmit = key.return || input === '\r' || seq === '\r'

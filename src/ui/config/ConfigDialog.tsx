@@ -10,6 +10,7 @@ import { updateConfigPatchFile } from '../../core/config/persist.js'
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
+import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import type { ConfigState, ConfigTab } from './constants.js'
 import { CONFIG_ROWS, INITIAL_CONFIG_STATE, OUTPUT_STYLE_OPTIONS, TABS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
@@ -204,25 +205,21 @@ export function ConfigDialog(args: {
   useScopedInput(SCOPE, (input, key) => {
     const s = stateRef.current
 
-    const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-    const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
-    const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
-
-    const isUpArrow = keyName === 'up' || Boolean((key as any)?.upArrow)
-    const isDownArrow = keyName === 'down' || Boolean((key as any)?.downArrow)
+    const token = getInputToken({ input, key })
+    const keyDelta = getVerticalArrowKeyDelta(key)
+    const hasArrowKeyDelta = keyDelta !== 0
 
     // In some environments/tests, arrow escape sequences can arrive split across multiple
     // `useInput` calls, or multiple arrows can be batched into one chunk. Buffer/parse ESC
     // sequences so Up/Down work reliably.
     let bufferedDelta = 0
-    if (!isUpArrow && !isDownArrow && token) {
+    if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
       if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
-    const keyDelta = isUpArrow ? -1 : isDownArrow ? 1 : 0
     const delta = keyDelta !== 0 ? keyDelta : bufferedDelta
 
     // Important: handle `key.escape` after buffering ESC sequences, otherwise environments that
@@ -250,7 +247,7 @@ export function ConfigDialog(args: {
         return
       }
 
-      if (key.return || token === '\r' || token === '\n' || token === ' ') {
+      if (isReturnKeyToken({ token, key }) || token === ' ') {
         const rowItem = listRowsRef.current[listCursorRef.current]
         if (!rowItem) return
         const row = rowItem.row
@@ -282,7 +279,7 @@ export function ConfigDialog(args: {
         return
       }
 
-      if (key.return || token === '\r' || token === '\n' || token === ' ') {
+      if (isReturnKeyToken({ token, key }) || token === ' ') {
         const selected = OUTPUT_STYLE_OPTIONS[s.cursor]
         if (!selected) return
         void persistSetting('outputStyle', selected.id)
