@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { performance } from 'node:perf_hooks'
 import type { StreamEvent } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useReplStreaming } from './streaming'
@@ -12,10 +13,20 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForCondition(check: () => boolean, description = 'condition', timeoutMs = 10000): Promise<void> {
+  const start = performance.now()
+  while (performance.now() - start < timeoutMs) {
+    if (check()) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for ${description}`)
+}
+
 describe('useReplStreaming', () => {
   it('resets thinking timer per thinking segment', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const thinkingStartedAtMsRef = { current: null as number | null }
+    const thinkingTextRef = { current: '' as string }
 
     let nowMs = 0
     const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
@@ -31,6 +42,9 @@ describe('useReplStreaming', () => {
       useEffect(() => {
         thinkingStartedAtMsRef.current = thinkingStartedAtMs
       }, [thinkingStartedAtMs])
+      useEffect(() => {
+        thinkingTextRef.current = thinkingText
+      }, [thinkingText])
 
       const assistantBufferRef = useRef('')
       const thinkingBufferRef = useRef('')
@@ -82,40 +96,37 @@ describe('useReplStreaming', () => {
     await tick()
     await tick()
 
-    const handleEvent = handleEventRef.current
-    expect(handleEvent).not.toBeNull()
+    try {
+      const handleEvent = handleEventRef.current
+      expect(handleEvent).not.toBeNull()
 
-    nowMs = 1000
-    handleEvent!({ type: 'thinking_delta', thinking: 'a' })
-    await tick()
-    await tick()
-    expect(thinkingStartedAtMsRef.current).toBe(1000)
+      nowMs = 1000
+      handleEvent!({ type: 'thinking_delta', thinking: 'a' })
+      await waitForCondition(() => thinkingStartedAtMsRef.current === 1000, 'thinking timer start at first delta')
+      expect(thinkingStartedAtMsRef.current).toBe(1000)
 
-    nowMs = 2000
-    handleEvent!({ type: 'thinking_delta', thinking: 'b' })
-    await tick()
-    await tick()
-    expect(thinkingStartedAtMsRef.current).toBe(1000)
+      nowMs = 2000
+      handleEvent!({ type: 'thinking_delta', thinking: 'b' })
+      await waitForCondition(() => thinkingTextRef.current === 'ab', 'thinking text flush after second delta')
+      expect(thinkingStartedAtMsRef.current).toBe(1000)
 
-    nowMs = 2500
-    handleEvent!({ type: 'thinking_stop' })
-    await tick()
-    await tick()
-    expect(thinkingStartedAtMsRef.current).toBe(null)
+      nowMs = 2500
+      handleEvent!({ type: 'thinking_stop' })
+      await waitForCondition(() => thinkingStartedAtMsRef.current === null, 'thinking timer cleared on stop')
+      expect(thinkingStartedAtMsRef.current).toBe(null)
 
-    nowMs = 9000
-    handleEvent!({ type: 'thinking_delta', thinking: 'c' })
-    await tick()
-    await tick()
-    expect(thinkingStartedAtMsRef.current).toBe(9000)
+      nowMs = 9000
+      handleEvent!({ type: 'thinking_delta', thinking: 'c' })
+      await waitForCondition(() => thinkingStartedAtMsRef.current === 9000, 'thinking timer start at new segment')
+      expect(thinkingStartedAtMsRef.current).toBe(9000)
 
-    nowMs = 9500
-    handleEvent!({ type: 'thinking_stop' })
-    await tick()
-    await tick()
-    expect(thinkingStartedAtMsRef.current).toBe(null)
-
-    dateNowSpy.mockRestore()
+      nowMs = 9500
+      handleEvent!({ type: 'thinking_stop' })
+      await waitForCondition(() => thinkingStartedAtMsRef.current === null, 'thinking timer cleared on second stop')
+      expect(thinkingStartedAtMsRef.current).toBe(null)
+    } finally {
+      dateNowSpy.mockRestore()
+    }
   })
 
   it('sets loadingText to a stable tool label while tool input is still streaming', async () => {
@@ -300,7 +311,13 @@ describe('useReplStreaming', () => {
       await tick()
       await tick()
 
-      const toolMsg = messagesRef.current.find((m) => m.id === 'tool-t1')
+      let toolMsg = messagesRef.current.find((m) => m.id === 'tool-t1')
+      for (let i = 0; i < 40 && toolMsg?.toolInfo?.status !== 'completed'; i++) {
+        await tick()
+        toolMsg = messagesRef.current.find((m) => m.id === 'tool-t1')
+      }
+
+      expect(toolMsg?.toolInfo?.status).toBe('completed')
       expect(toolMsg?.toolInfo?.input).toMatchObject({ file_path: filePath })
       expect(toolMsg?.toolInfo?.patchStartLineNumber).toBe(22)
     } finally {

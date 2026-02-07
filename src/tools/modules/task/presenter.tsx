@@ -12,6 +12,8 @@ import { WriteToolPresenter } from '../write/presenter'
 import { EditToolPresenter } from '../edit/presenter'
 import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
 import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
+import { isToolBlocksPresenter } from '../../presenters/types'
+import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -122,11 +124,26 @@ function renderNestedPrompt(args: { id: string; name: string; input: Record<stri
     },
   }
 
-  if (args.name === 'Bash') return <BashToolPresenter message={msg} />
-  if (args.name === 'Write') return <WriteToolPresenter message={msg} />
-  if (args.name === 'Edit') return <EditToolPresenter message={msg} />
-  if (args.name === 'NotebookEdit') return <NotebookEditToolPresenter message={msg} />
-  if (args.name === 'AskUserQuestion') return <AskUserQuestionToolPresenter message={msg} />
+  const presenter =
+    args.name === 'Bash'
+      ? BashToolPresenter
+      : args.name === 'Write'
+        ? WriteToolPresenter
+        : args.name === 'Edit'
+          ? EditToolPresenter
+          : args.name === 'NotebookEdit'
+            ? NotebookEditToolPresenter
+            : args.name === 'AskUserQuestion'
+              ? AskUserQuestionToolPresenter
+              : null
+
+  if (presenter) {
+    if (isToolBlocksPresenter(presenter)) {
+      const out = presenter({ message: msg })
+      return <ToolUiBlocks blocks={out.blocks} />
+    }
+    return React.createElement(presenter, { message: msg })
+  }
 
   return (
     <Box flexDirection="column">

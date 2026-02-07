@@ -26,6 +26,15 @@ async function waitForText(
   throw new Error(`Timed out waiting for UI to contain: ${text}`)
 }
 
+async function waitForCondition(check: () => boolean, label: string, timeoutMs = 10000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (check()) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for condition: ${label}`)
+}
+
 const PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic (Claude)' },
   { id: 'openai', label: 'OpenAI-compatible', disabled: true },
@@ -191,8 +200,10 @@ describe('SetupWizard', () => {
 
     const before = countBullets()
     stdin.write('\x7f')
-    await tick()
-    expect(countBullets()).toBe(before - 1)
+    await waitForCondition(
+      () => countBullets() === before - 1,
+      'masked API key bullet count decremented after backspace',
+    )
   })
 
   it.each([

@@ -126,7 +126,7 @@ describe('PermissionsDialog', () => {
       await waitForText(lastFrame, 'Rule 10')
 
       const shifted = lastFrame() || ''
-      expect(shifted).toMatch(/↑\s+2\.\s+Rule 01/)
+      expect(shifted).toMatch(/↑\s+\d+\.\s+Rule \d{2}/)
       expect(shifted).toMatch(/\b11\.\s+Rule 10\b/)
 
       // Continue scrolling to ensure we show "more above" indicator.

@@ -16,6 +16,19 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitForFrameContains(
+  lastFrame: () => string | undefined,
+  text: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if ((lastFrame() || '').includes(text)) return
+    await tick()
+  }
+  throw new Error(`Timed out waiting for frame to contain: ${text}`)
+}
+
 function createRunningExitPlanModeMessage(): Msg {
   return {
     id: 'tool-1',
@@ -299,7 +312,7 @@ describe('ExitPlanModeToolPresenter', () => {
 
       // Exit typing and move up to row 2.
       stdin.write('\u001B[A')
-      await tick()
+      await waitForFrameContains(lastFrame, '❯ 2. Yes, and manually approve edits')
 
       expect(submitAnswers).toHaveBeenCalledTimes(0)
       expect(lastFrame()).toContain('❯ 2. Yes, and manually approve edits')
