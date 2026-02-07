@@ -100,6 +100,9 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
+- **Compact + Ctrl+O duplicated rows**: If `HeaderBanner`/compact banner repeats after toggles, do not “fix” by moving header/messages out of `Static`; treat it as surface-transition ownership/race first.
+- **Static test parity**: default Vitest can miss real TTY regressions; for compact/expanded changes, validate forced-Static + terminal-model smoke (`surfaceSmoke` and `test:surface-screen-model`).
+- **Clear vs reset on Static paths**: for view-return paths touching `Static`, avoid clear-only behavior; use reset-style clear+remount transactions to prevent stale append artifacts.
 
 ## Local Paths
 - Avoid hardcoding machine-specific absolute paths in repo docs.

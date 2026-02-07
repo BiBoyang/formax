@@ -114,3 +114,36 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - add regression tests that switch `InputBar` mode normal→bash and assert Backspace invokes `onBackspaceAtStart`.
 - **Links**: `src/components/ui/TextInput.tsx`, `src/components/chat/InputBar.test.tsx`, `src/components/ui/TextInput.test.tsx`
 - **Keywords**: bash mode, backspace, useCallback, stale closure, dependency array, onBackspaceAtStart
+
+## Compact + Ctrl+O duplicates header/banner in real terminal (symptom + handling)
+- **Problem**: after `/compact` and repeated `ctrl+o` toggles, real terminal may show duplicated `HeaderBanner` / compact banner / compact subline even when tests pass.
+- **Repro**:
+  1) run `bun run dev`
+  2) send a couple of turns, run `/compact`, then toggle `ctrl+o` back and forth (especially rapidly)
+  3) observe duplicated header/banner/subline in primary or expanded view
+- **Fix**:
+  - keep header/messages inside `Static` (do not move them out as a workaround)
+  - route view-transition resets through `useSurfaceTransitionManager` (single owner)
+  - keep compact projection deterministic (`compact_boundary` slicing + compact command fallback)
+  - always validate with forced-Static tests (`surfaceSmoke`) plus terminal-model smoke (`test:surface-screen-model`)
+- **Links**: `src/screens/repl/useSurfaceTransitionManager.ts`, `src/screens/repl/transcript.tsx`, `src/screens/repl/compactProjection.ts`, `src/screens/repl/surfaceSmoke.test.tsx`, `scripts/surface-screen-model-smoke.tsx`
+- **Keywords**: compact, ctrl+o, header duplicate, run dev, smoke tests
+
+## Compact surface drift root cause (Static append-only + reset race + test gap)
+- **Problem**: transcript slicing/state can be logically correct while the physical terminal still shows stale rows.
+- **Repro**:
+  1) run in real TTY (`bun run dev`) and trigger rapid view transitions (`ctrl+o`, `ctrl+e`, `/compact`)
+  2) compare with default Vitest run that does not force Static path
+  3) observe mismatch: tests green, terminal still duplicates rows
+- **Root cause**:
+  - Ink `<Static>` is append-only; remount/clear is required to remove old rows from the terminal surface
+  - reset operations are async and can race under rapid keypresses without a single transition owner
+  - clear-only paths (without remount) and fire-and-forget terminal clear can break expected `clear -> remount` ordering
+  - test/runtime mismatch: non-Static test paths can hide real Static regressions
+- **Fix**:
+  - keep one owner for surface transitions (`useSurfaceTransitionManager` + serialized reset queue)
+  - prefer reset transaction for view return paths that touch Static surface (not clear-only)
+  - treat clear/remount as a transaction, not independent effects
+  - maintain both fast logic tests (`compactProjection.test.ts`) and real-surface smoke (`surfaceSmoke`, `test:surface-screen-model`)
+- **Links**: `src/screens/repl/transcript.tsx`, `src/screens/repl/useSurfaceTransitionManager.ts`, `src/features/repl/useReplController.ts`, `src/screens/repl/compactProjection.test.ts`, `src/screens/repl/surfaceSmoke.test.tsx`
+- **Keywords**: Ink Static, append-only, reset race, remount transaction, test parity

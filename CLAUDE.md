@@ -251,6 +251,9 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/ui/`, `src/cli/`, or `src/screens/`. This is enforced by `bun run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
+- **Compact + Ctrl+O duplicate rows**: duplicated `HeaderBanner`/compact rows are usually surface ownership/race issues in Ink `Static`, not transcript-slice logic bugs. Do not move header/messages out of `Static` as a workaround.
+- **Static parity checks required**: for compact/expanded toggles, run forced-Static + terminal-model smoke (`surfaceSmoke`, `test:surface-screen-model`) in addition to regular Vitest paths.
+- **Prefer reset over clear-only on Static transitions**: for return/toggle paths touching `Static`, use clear+remount transaction semantics; clear-only flows can leave stale appended rows.
 
 ## Module Documentation
 
