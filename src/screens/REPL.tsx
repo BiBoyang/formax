@@ -39,6 +39,7 @@ import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
 import { useSurfaceTransitionManager } from './repl/useSurfaceTransitionManager'
+import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
 
@@ -53,10 +54,6 @@ type Props = {
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   toolRegistry?: ToolRegistry
   taskManager?: TaskManager
-}
-
-function isCompactSlashCommandText(text: string): boolean {
-  return /^\/compact(?:\s|$)/i.test(text.trim())
 }
 
 function usePromptLine(args: {
@@ -245,48 +242,9 @@ export function REPL({
     [state.staticMessages, state.transientMessages],
   )
 
-  const lastCompactBoundaryIndex = useMemo(() => {
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      if (allMessages[i]?.ui?.kind === 'compact_boundary') return i
-    }
-    return -1
-  }, [allMessages])
-
-  const primaryTranscriptStartIndex = useMemo(() => {
-    if (lastCompactBoundaryIndex < 0) return 0
-    return lastCompactBoundaryIndex + 1
-  }, [lastCompactBoundaryIndex])
-
-  const compactCommandMessageForPrimary = useMemo(() => {
-    if (lastCompactBoundaryIndex <= 0) return null
-
-    for (let index = lastCompactBoundaryIndex - 1; index >= 0; index -= 1) {
-      const candidate = allMessages[index]
-      if (!candidate || candidate.role !== 'user') continue
-      if (typeof candidate.content !== 'string') continue
-      if (isCompactSlashCommandText(candidate.content)) return candidate
-    }
-
-    return null
-  }, [allMessages, lastCompactBoundaryIndex])
-
-  const primaryTranscriptMessages = useMemo(
-    () => {
-      const base = allMessages.slice(primaryTranscriptStartIndex)
-
-      const hasCompactCommandInBase = base.some(
-        (msg) => msg.role === 'user' && typeof msg.content === 'string' && isCompactSlashCommandText(msg.content),
-      )
-      if (hasCompactCommandInBase || !compactCommandMessageForPrimary) return base
-
-      const bannerIndex = base.findIndex((msg) => msg.ui?.kind === 'compact_banner')
-      if (bannerIndex < 0) return base
-
-      const next = [...base]
-      next.splice(bannerIndex + 1, 0, compactCommandMessageForPrimary)
-      return next
-    },
-    [allMessages, compactCommandMessageForPrimary, primaryTranscriptStartIndex],
+  const { lastCompactBoundaryIndex, primaryTranscriptStartIndex, primaryTranscriptMessages } = useMemo(
+    () => projectCompactPrimaryTranscript(allMessages),
+    [allMessages],
   )
 
   const primaryPartition = useMemo(() => partitionMessages(primaryTranscriptMessages), [primaryTranscriptMessages])
