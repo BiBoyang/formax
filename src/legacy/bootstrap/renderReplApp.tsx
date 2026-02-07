@@ -10,6 +10,7 @@ import type { ToolDefinition } from '../../tools/types.js'
 import type { ChatEngine, ChatHistory } from '../../chat/engine.js'
 import type { UserInputManager } from '../../tools/runtime/userInputManager.js'
 import type { Msg } from '../../components/tool/ToolMessage.js'
+import { createSafeInkStdout } from '../../utils/inkStreams.js'
 
 export function renderReplApp(args: {
   engine: ChatEngine
@@ -47,6 +48,7 @@ export function renderReplApp(args: {
     </InputScopeProvider>,
     {
       exitOnCtrlC: false,
+      stdout: createSafeInkStdout(process.stdout),
     },
   )
 }

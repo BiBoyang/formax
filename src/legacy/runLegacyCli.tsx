@@ -10,6 +10,7 @@ import { createChatRuntime } from './bootstrap/chatRuntime.js'
 import { resolveInitialSession } from './bootstrap/session.js'
 import { renderReplApp } from './bootstrap/renderReplApp.js'
 import { createRuntimeFlags } from '../env/runtimeFlags.js'
+import { resetInkStaticOutputForStdout } from '../utils/inkStreams.js'
 
 export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
   const enableLogger = process.env.ENABLE_CONSOLE_LOGGER !== 'false'
@@ -73,7 +74,11 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
 
   let replInstance: ReturnType<typeof renderReplApp> | null = null
   const onClearTerminal = async () => {
-    replInstance?.clear()
+    // Keep Ink's frame state and terminal buffer in sync.
+    await resetInkStaticOutputForStdout(process.stdout)
+    if (replInstance) {
+      replInstance.clear()
+    }
     await clearTerminal()
   }
   const initialSession = await resolveInitialSession({ cwd: bootstrap.cwd, env: bootstrap.env })

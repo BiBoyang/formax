@@ -38,6 +38,7 @@ import { useReplHotkeys } from './repl/hotkeys'
 import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
+import { useSurfaceTransitionManager } from './repl/useSurfaceTransitionManager'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
 
@@ -262,10 +263,6 @@ export function REPL({
   const expandedViewActive = expandedTranscriptOpen && !isPromptMode
 
   useEffect(() => {
-    if (!expandedTranscriptOpen) setExpandedTranscriptHideHistory(false)
-  }, [expandedTranscriptOpen])
-
-  useEffect(() => {
     if (ctrlCArmedUntilMs === null) return
 
     const delayMs = ctrlCArmedUntilMs - Date.now()
@@ -324,6 +321,17 @@ export function REPL({
     })()
   }, [actions, queuedDuringLoading, state.isLoading])
 
+  const { handleToggleExpandedTranscript } = useSurfaceTransitionManager({
+    actions,
+    isPromptMode,
+    expandedTranscriptOpen,
+    setExpandedTranscriptOpen,
+    expandedTranscriptHideHistory,
+    setExpandedTranscriptHideHistory,
+    expandedViewActive,
+    lastCompactBoundaryIndex,
+  })
+
   useReplHotkeys({
     onExit,
     actions,
@@ -334,6 +342,7 @@ export function REPL({
     toolRegistry,
     allMessages,
     expandedTranscriptOpen,
+    onToggleExpandedTranscript: handleToggleExpandedTranscript,
     setExpandedTranscriptOpen,
     expandedTranscriptHideHistory,
     setExpandedTranscriptHideHistory,
@@ -546,6 +555,7 @@ export function REPL({
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
             {expandedViewActive ? (
               <ExpandedReplTranscript
+                transcriptSeq={state.transcriptSeq}
                 version={(pkg as any).version || '0.0.0'}
                 modelLabel={modelLabel}
                 cwd={replCwd}

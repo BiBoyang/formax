@@ -46,6 +46,7 @@ export function useReplHotkeys(args: {
   allMessages: Msg[]
 
   expandedTranscriptOpen: boolean
+  onToggleExpandedTranscript?: () => void
   setExpandedTranscriptOpen: (next: boolean | ((prev: boolean) => boolean)) => void
   expandedTranscriptHideHistory: boolean
   setExpandedTranscriptHideHistory: (next: boolean | ((prev: boolean) => boolean)) => void
@@ -81,6 +82,7 @@ export function useReplHotkeys(args: {
     setMode,
     isPromptMode,
     expandedTranscriptOpen,
+    onToggleExpandedTranscript,
     setExpandedTranscriptOpen,
     setExpandedTranscriptHideHistory,
     state,
@@ -128,8 +130,11 @@ export function useReplHotkeys(args: {
         if (state.configDialogOpen) return true
         if (isPromptMode) return true
 
-        setExpandedTranscriptOpen(!expandedTranscriptOpen)
-        actions.resetTranscriptSurface()
+        if (onToggleExpandedTranscript) {
+          onToggleExpandedTranscript()
+        } else {
+          setExpandedTranscriptOpen(!expandedTranscriptOpen)
+        }
         return true
       }
 

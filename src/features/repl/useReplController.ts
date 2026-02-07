@@ -48,6 +48,12 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
+function waitForNextMacrotask(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve)
+  })
+}
+
 export type ReplControllerState = {
   messages: Msg[]
   staticMessages: Msg[]
@@ -77,7 +83,7 @@ export type ReplController = {
   actions: {
     send: (text: string, opts?: { preferredSlashSpecId?: string }) => Promise<void>
     newSession: () => void
-    resetTranscriptSurface: () => void
+    resetTranscriptSurface: () => Promise<void>
     abort: () => void
     closeAgentsDialog: (args: { createdAgents: string[] }) => void
     closePermissionsDialog: () => void
@@ -176,6 +182,7 @@ export function useReplController(deps: {
   }
   const prevIsLoadingRef = useRef(false)
   const lastClaudeMdMetaSigRef = useRef<string | null>(null)
+  const surfaceOpQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const lastAutoCompactSeqRef = useRef(-1_000_000)
@@ -528,11 +535,21 @@ export function useReplController(deps: {
     }
   }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
+  const enqueueSurfaceOp = useCallback((op: () => Promise<void>) => {
+    const next = surfaceOpQueueRef.current.catch(() => undefined).then(op)
+    surfaceOpQueueRef.current = next.catch(() => undefined)
+    return next
+  }, [])
+
   const resetTranscriptSurface = useCallback(() => {
-    // Ink <Static> is append-only; forcing a remount gives us a fresh render surface.
-    setTranscriptSeq((n) => n + 1)
-    void deps.onClearTerminal?.()
-  }, [deps.onClearTerminal])
+    // Ink <Static> is append-only; clear + remount must be serialized to avoid
+    // rapid keypress races (Ctrl+O/Ctrl+E) that can leave stale frame artifacts.
+    return enqueueSurfaceOp(async () => {
+      await deps.onClearTerminal?.()
+      setTranscriptSeq((n) => n + 1)
+      await waitForNextMacrotask()
+    })
+  }, [deps.onClearTerminal, enqueueSurfaceOp])
 
   const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
     const writer = await SessionWriter.openExisting({ filePath })

@@ -3,6 +3,11 @@ import { Box, Static } from 'ink'
 import { HeaderBanner } from '../../components/chat/HeaderBanner'
 import type { Msg } from '../../components/tool/ToolMessage'
 
+function shouldEnableInkStatic(): boolean {
+  if (process.env.FORMAX_FORCE_INK_STATIC === '1') return true
+  return process.env.NODE_ENV !== 'test' && !process.env.VITEST
+}
+
 type TranscriptMessageRowProps = {
   message: Msg
   renderMessage: (msg: Msg) => React.ReactNode
@@ -33,7 +38,7 @@ export function ReplTranscript(props: {
 }): React.ReactNode {
   const { transcriptSeq, version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
 
-  const enableInkStatic = process.env.NODE_ENV !== 'test' && !process.env.VITEST
+  const enableInkStatic = shouldEnableInkStatic()
 
   const staticItems = useMemo<StaticTranscriptItem[]>(
     () => [
@@ -93,13 +98,24 @@ export function ReplTranscript(props: {
 }
 
 export function ExpandedReplTranscript(props: {
+  transcriptSeq: number
   version: string
   modelLabel: string
   cwd: string
   messages: Msg[]
   renderMessage: (msg: Msg) => React.ReactNode
 }): React.ReactNode {
-  const { version, modelLabel, cwd, messages, renderMessage } = props
+  const { transcriptSeq, version, modelLabel, cwd, messages, renderMessage } = props
+
+  const enableInkStatic = shouldEnableInkStatic()
+
+  const staticItems = useMemo<StaticTranscriptItem[]>(
+    () => [
+      { kind: 'header' as const },
+      ...messages.map((message) => ({ kind: 'message' as const, message })),
+    ],
+    [messages],
+  )
 
   const rows = useMemo(
     () =>
@@ -109,12 +125,32 @@ export function ExpandedReplTranscript(props: {
     [messages, renderMessage],
   )
 
+  if (!enableInkStatic) {
+    return (
+      <>
+        <Box>
+          <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+        </Box>
+        {rows}
+      </>
+    )
+  }
+
   return (
     <>
-      <Box>
-        <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
-      </Box>
-      {rows}
+      <Static key={transcriptSeq} items={staticItems}>
+        {(item) => {
+          if (item.kind === 'header') {
+            return (
+              <Box key="header">
+                <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+              </Box>
+            )
+          }
+
+          return <TranscriptMessageRow key={item.message.id} message={item.message} renderMessage={renderMessage} />
+        }}
+      </Static>
     </>
   )
 }
