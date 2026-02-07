@@ -8,6 +8,7 @@ type Props = {
   onChange: (v: string) => void
   onSubmit: (v: string) => void
   placeholder?: string
+  inputSuffixHint?: string
   disabled?: boolean
   inputMode?: 'normal' | 'bash'
   onBackspaceAtStart?: () => void
@@ -25,6 +26,7 @@ function InputBarImpl({
   onChange,
   onSubmit,
   placeholder,
+  inputSuffixHint,
   disabled = false,
   inputMode = 'normal',
   onBackspaceAtStart,
@@ -54,6 +56,7 @@ function InputBarImpl({
             onChange={onChange}
             onSubmit={onSubmit}
             placeholder={placeholder}
+            suffixHint={inputSuffixHint}
             focus={!disabled}
             scope="repl"
             multiline

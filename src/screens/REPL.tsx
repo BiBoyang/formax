@@ -39,6 +39,7 @@ import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
 import { useSurfaceTransitionManager } from './repl/useSurfaceTransitionManager'
+import { createSlashCommandSpecMap, resolveSlashCommandInputHint } from './repl/inputHint'
 import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
@@ -281,6 +282,15 @@ export function REPL({
     handleInputChange,
     clearPrompt,
   } = usePromptLine({ commandRegistry, isPromptMode })
+
+  const slashSpecByCommand = useMemo(() => {
+    return createSlashCommandSpecMap(commandRegistry.list())
+  }, [commandRegistry])
+
+  const inputSuffixHint = useMemo(() => {
+    if (isPromptMode || bashModeActive) return null
+    return resolveSlashCommandInputHint({ input, slashSpecByCommand })
+  }, [bashModeActive, input, isPromptMode, slashSpecByCommand])
 
   useEffect(() => {
     queuedDuringLoadingRef.current = queuedDuringLoading
@@ -689,6 +699,7 @@ export function REPL({
                 onChange={handleInputChange}
                 onSubmit={handleSend}
                 placeholder={`Try \"fix typecheck errors\"`}
+                inputSuffixHint={inputSuffixHint}
                 inputMode={bashModeActive ? 'bash' : 'normal'}
                 onBackspaceAtStart={
                   bashModeActive

@@ -11,6 +11,7 @@ type TextInputProps = {
   onChange: (value: string) => void
   onSubmit?: (value: string) => void
   placeholder?: string
+  suffixHint?: string
   mask?: string
   focus?: boolean
   multiline?: boolean
@@ -56,6 +57,7 @@ export default function TextInput({
   onChange,
   onSubmit,
   placeholder = '',
+  suffixHint,
   mask,
   focus = true,
   multiline = false,
@@ -305,6 +307,7 @@ export default function TextInput({
 
   const displayValue = mask ? value.replace(/./g, mask) : value
   const showPlaceholder = value.length === 0 && placeholder
+  const showSuffixHint = Boolean(suffixHint && !showPlaceholder && focus && cursorOffset === displayValue.length)
 
   // Ensure cursor offset is within bounds
   const safeCursorOffset = Math.max(0, Math.min(cursorOffset, displayValue.length))
@@ -333,12 +336,14 @@ export default function TextInput({
                 ''
               )}
               {safeCursorOffset + 1 <= displayValue.length ? displayValue.slice(safeCursorOffset + 1) : ''}
+              {showSuffixHint ? <Text color={theme.secondaryText}>{suffixHint}</Text> : null}
             </>
           ) : (
             <>
               {beforeCursor}
               {focus ? <Text color={theme.text}>{cursorChar}</Text> : null}
               {afterCursorBar}
+              {showSuffixHint ? <Text color={theme.secondaryText}>{suffixHint}</Text> : null}
             </>
           )}
         </>

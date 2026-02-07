@@ -16,6 +16,7 @@ export type SlashCommandSpec = {
   source: 'builtin' | 'user' | 'project'
   command: string
   description: string
+  argHint?: string
   implemented?: boolean
 }
 
@@ -98,6 +99,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
     source: 'builtin',
     command: '/compact',
     description: 'Clear conversation history but keep a summary in context. Optional: /compact <instructions>',
+    argHint: '<optional custom summarization instructions>',
     implemented: true,
   },
   {

@@ -23,6 +23,14 @@ const commandSuggestions: SlashCommandSpec[] = [
     description: 'Custom command (user) — Show status',
     implemented: true,
   },
+  {
+    id: 'builtin:/compact',
+    source: 'builtin',
+    command: '/compact',
+    description: 'Clear conversation history but keep a summary in context.',
+    argHint: '<optional custom summarization instructions>',
+    implemented: true,
+  },
 ]
 
 const mockCommandRegistry: SlashCommandRegistry = {
@@ -220,6 +228,49 @@ describe('REPL slash suggestions', () => {
 
       await waitForFrame(lastFrame, (f) => f.includes('> '))
       expect(sendSpy).toHaveBeenCalledWith('/status', { preferredSlashSpecId: 'user:/status' })
+    } finally {
+      unmount()
+    }
+  }, 20000)
+
+  it('shows compact arg hint when /compact has no args', async () => {
+    const { REPL } = await import('./REPL')
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="repl">
+        <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />
+      </InputScopeProvider>,
+    )
+
+    try {
+      for (let i = 0; i < 3; i++) await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('> '))
+
+      stdin.write('/compact')
+      await waitForFrame(lastFrame, (f) => f.includes('> /compact'))
+      await waitForFrame(lastFrame, (f) => f.includes('<optional custom summarization instructions>'))
+    } finally {
+      unmount()
+    }
+  }, 20000)
+
+  it('hides compact arg hint when args are present', async () => {
+    const { REPL } = await import('./REPL')
+    const { stdin, lastFrame, unmount } = render(
+      <InputScopeProvider initialScope="repl">
+        <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={cfg} />
+      </InputScopeProvider>,
+    )
+
+    try {
+      for (let i = 0; i < 3; i++) await tick()
+      await waitForFrame(lastFrame, (f) => f.includes('> '))
+
+      stdin.write('/compact custom')
+      await waitForFrame(lastFrame, (f) => f.includes('> /compact custom'))
+      await tick()
+
+      const frame = lastFrame() || ''
+      expect(frame).not.toContain('<optional custom summarization instructions>')
     } finally {
       unmount()
     }
