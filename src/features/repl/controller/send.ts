@@ -29,6 +29,7 @@ import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
+const MANUAL_COMPACT_KEEP_LAST_TURNS = 0
 
 export function maybeHandleClearCommand(args: {
   text: string
@@ -97,13 +98,16 @@ export async function maybeHandleCompactCommand(args: {
 }): Promise<boolean> {
   if (!isExactSlashCommand(args.text, '/compact')) return false
 
-  const userMsg: Msg = {
-    id: makeMessageId('user'),
-    role: 'user',
-    content: args.text,
-    timestamp: new Date(),
-  }
-  args.setMessages((prev) => [...prev, userMsg])
+  const pendingCompactCommandMessageId = makeMessageId('user')
+  args.setMessages((prev) => [
+    ...prev,
+    {
+      id: pendingCompactCommandMessageId,
+      role: 'user',
+      content: args.text,
+      timestamp: new Date(),
+    },
+  ])
 
   args.setIsLoading(true)
   args.setLoadingText('Compacting conversation')
@@ -149,7 +153,7 @@ export async function maybeHandleCompactCommand(args: {
       instructions,
       engine: args.engine,
       previousHistory,
-      keepLastTurns: args.cfg.context.compactKeepLastTurns,
+      keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
       system,
       cwd,
       signal: abortController.signal,
@@ -159,7 +163,9 @@ export async function maybeHandleCompactCommand(args: {
       getReplMode: args.getReplMode,
       setReplMode: args.setReplMode,
       getPlanPath: args.getPlanPath,
-      onStreamEvent: args.handleEvent,
+      onStreamEvent: (ev) => {
+        if (ev.type === 'usage') args.handleEvent(ev)
+      },
       onLifecycle: args.onCompactLifecycle,
     })
 
@@ -175,29 +181,46 @@ export async function maybeHandleCompactCommand(args: {
           }).messages
         : compactResult.compactedHistory
 
-    args.setMessages((prev) => [
-      ...prev,
-      {
-        id: makeMessageId('assistant'),
-        role: 'assistant',
-        ui: { kind: 'compact_boundary' },
-        content: '',
-        timestamp: new Date(),
-      },
-      {
-        id: makeMessageId('assistant'),
-        role: 'assistant',
-        content: COMPACT_BANNER_TEXT,
-        timestamp: new Date(),
-      },
-      {
-        id: makeMessageId('assistant'),
-        role: 'assistant',
-        ui: { kind: 'command_subline' },
-        content: COMPACT_SUBLINE_TEXT,
-        timestamp: new Date(),
-      },
-    ])
+    args.setMessages((prev) => {
+      const withoutPendingCompactCommand = prev.filter((msg) => msg.id !== pendingCompactCommandMessageId)
+      return [
+        ...withoutPendingCompactCommand,
+        {
+          id: makeMessageId('assistant'),
+          role: 'assistant',
+          ui: { kind: 'compact_boundary' },
+          content: '',
+          timestamp: new Date(),
+        },
+        {
+          id: makeMessageId('assistant'),
+          role: 'assistant',
+          ui: { kind: 'compact_banner' },
+          content: COMPACT_BANNER_TEXT,
+          timestamp: new Date(),
+        },
+        {
+          id: makeMessageId('user'),
+          role: 'user',
+          ui: { kind: 'compact_summary' },
+          content: compactResult.summary,
+          timestamp: new Date(),
+        },
+        {
+          id: makeMessageId('user'),
+          role: 'user',
+          content: args.text,
+          timestamp: new Date(),
+        },
+        {
+          id: makeMessageId('assistant'),
+          role: 'assistant',
+          ui: { kind: 'command_subline' },
+          content: COMPACT_SUBLINE_TEXT,
+          timestamp: new Date(),
+        },
+      ]
+    })
 
     if (contextWindowTokens) {
       const usedTokens = estimatePromptTokens({ system, messages: args.historyRef.current })

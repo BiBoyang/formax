@@ -341,6 +341,11 @@ async function main() {
       const isCompact = /Summarize the conversation/i.test(userText)
       const assistantText = isCompact ? 'SUMMARY' : `ECHO:${userText}`
 
+      if (isCompact) {
+        onEvent({ type: 'thinking_delta', thinking: 'compact-thought' })
+        onEvent({ type: 'thinking_stop' })
+        await new Promise((resolve) => setTimeout(resolve, 30))
+      }
       onEvent({ type: 'assistant_delta', text: assistantText })
       onEvent({ type: 'complete' })
 
@@ -398,14 +403,75 @@ async function main() {
     await sendAndWaitEcho('1', 'echo 1')
     await sendAndWaitEcho('2', 'echo 2')
 
-    stdin.write('/compact')
+    const compactCommand = '/compact summarize this briefly'
+    stdin.write(compactCommand)
     await new Promise((resolve) => setTimeout(resolve, 15))
     stdin.write('\r')
-    await waitForScreen(screen, (text) => text.includes('Conversation compacted · ctrl+o for history'), 'compact banner', 12000)
-    await waitForScreen(screen, (text) => text.includes('Compacted (ctrl+o to see full summary)'), 'compact subline', 12000)
+    await waitForScreen(
+      screen,
+      (text) => text.includes(`> ${compactCommand}`) && text.includes('Compacting conversation'),
+      'compact in progress',
+      12000,
+    )
+    const compactScreen = await waitForScreen(
+      screen,
+      (text) =>
+        text.includes('Conversation compacted · ctrl+o for history') &&
+        text.includes(`> ${compactCommand}`) &&
+        text.includes('Compacted (ctrl+o to see full summary)'),
+      'compact layout',
+      12000,
+    )
+    const compactBannerIndex = compactScreen.indexOf('Conversation compacted · ctrl+o for history')
+    const compactCommandIndex = compactScreen.indexOf(`> ${compactCommand}`, compactBannerIndex)
+    const compactFinalSublineIndex = compactScreen.indexOf(
+      'Compacted (ctrl+o to see full summary)',
+      compactCommandIndex,
+    )
+    if (
+      compactBannerIndex < 0 ||
+      compactCommandIndex < 0 ||
+      compactFinalSublineIndex < 0 ||
+      compactBannerIndex > compactCommandIndex ||
+      compactCommandIndex > compactFinalSublineIndex
+    ) {
+      throw new Error(`[compact-layout-order] Expected banner -> /compact -> compact subline order\n\n${compactScreen}`)
+    }
 
     stdin.write('\u000f')
-    await waitForScreen(screen, (text) => text.includes('Showing detailed transcript · ctrl+o to toggle'), 'open expanded after compact')
+    const expandedAfterCompactScreen = await waitForScreen(
+      screen,
+      (text) =>
+        text.includes('Showing detailed transcript · ctrl+o to toggle') &&
+        text.includes('Conversation compacted · ctrl+o for history') &&
+        text.includes('SUMMARY') &&
+        text.includes(`> ${compactCommand}`) &&
+        text.includes('Compacted (ctrl+o to see full summary)'),
+      'open expanded after compact',
+    )
+    if (expandedAfterCompactScreen.includes('compact-thought')) {
+      throw new Error(`[expanded-after-compact] compact thinking should not be rendered\n\n${expandedAfterCompactScreen}`)
+    }
+    const bannerIndex = expandedAfterCompactScreen.indexOf('Conversation compacted · ctrl+o for history')
+    const summaryIndex = expandedAfterCompactScreen.indexOf('SUMMARY', bannerIndex)
+    const compactCmdIndex = expandedAfterCompactScreen.indexOf(`> ${compactCommand}`, summaryIndex)
+    const compactSublineIndex = expandedAfterCompactScreen.indexOf(
+      'Compacted (ctrl+o to see full summary)',
+      compactCmdIndex,
+    )
+    if (
+      bannerIndex < 0 ||
+      summaryIndex < 0 ||
+      compactCmdIndex < 0 ||
+      compactSublineIndex < 0 ||
+      bannerIndex > summaryIndex ||
+      summaryIndex > compactCmdIndex ||
+      compactCmdIndex > compactSublineIndex
+    ) {
+      throw new Error(
+        `[expanded-after-compact-order] Expected banner -> summary -> /compact -> compact subline order\n\n${expandedAfterCompactScreen}`,
+      )
+    }
 
     stdin.write('\u000f')
     await waitForScreen(

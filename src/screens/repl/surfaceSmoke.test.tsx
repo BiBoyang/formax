@@ -104,6 +104,11 @@ describe('surface smoke', () => {
             const isCompact = /Summarize the conversation/i.test(userText)
             const assistantText = isCompact ? 'SUMMARY' : `ECHO:${userText}`
 
+            if (isCompact) {
+              onEvent({ type: 'thinking_delta', thinking: 'compact-thought' })
+              onEvent({ type: 'thinking_stop' })
+              await tick(30)
+            }
             onEvent({ type: 'assistant_delta', text: assistantText })
             onEvent({ type: 'complete' })
 
@@ -137,14 +142,58 @@ describe('surface smoke', () => {
         await sendAndWaitEcho('1')
         await sendAndWaitEcho('2')
 
-        ui.stdin.write('/compact')
+        const compactCommand = '/compact summarize this briefly'
+        ui.stdin.write(compactCommand)
         await tick()
         ui.stdin.write('\r')
-        await waitForFrame(ui.lastFrame, (frame) => frame.includes('Conversation compacted · ctrl+o for history'))
-        await waitForFrame(ui.lastFrame, (frame) => frame.includes('Compacted (ctrl+o to see full summary)'))
+        await waitForFrame(
+          ui.lastFrame,
+          (frame) => frame.includes(`> ${compactCommand}`) && frame.includes('Compacting conversation'),
+        )
+        const compactFrame = await waitForFrame(
+          ui.lastFrame,
+          (frame) =>
+            frame.includes('Conversation compacted · ctrl+o for history') &&
+            frame.includes(`> ${compactCommand}`) &&
+            frame.includes('Compacted (ctrl+o to see full summary)'),
+        )
+        const bannerIndex = compactFrame.indexOf('Conversation compacted · ctrl+o for history')
+        const compactCommandIndex = compactFrame.indexOf(`> ${compactCommand}`, bannerIndex)
+        const compactFinalSublineIndex = compactFrame.indexOf(
+          'Compacted (ctrl+o to see full summary)',
+          compactCommandIndex,
+        )
+        expect(bannerIndex).toBeGreaterThanOrEqual(0)
+        expect(compactCommandIndex).toBeGreaterThanOrEqual(0)
+        expect(compactFinalSublineIndex).toBeGreaterThanOrEqual(0)
+        expect(bannerIndex).toBeLessThan(compactCommandIndex)
+        expect(compactCommandIndex).toBeLessThan(compactFinalSublineIndex)
 
         ui.stdin.write('\u000f') // ctrl+o
-        await waitForFrame(ui.lastFrame, (frame) => frame.includes('Showing detailed transcript · ctrl+o to toggle'))
+        const expandedAfterCompactFrame = await waitForFrame(
+          ui.lastFrame,
+          (frame) =>
+            frame.includes('Showing detailed transcript · ctrl+o to toggle') &&
+            frame.includes('Conversation compacted · ctrl+o for history') &&
+            frame.includes('SUMMARY') &&
+            frame.includes(`> ${compactCommand}`) &&
+            frame.includes('Compacted (ctrl+o to see full summary)'),
+        )
+        expect(expandedAfterCompactFrame.includes('compact-thought')).toBe(false)
+        const expandedBannerIndex = expandedAfterCompactFrame.indexOf('Conversation compacted · ctrl+o for history')
+        const summaryIndex = expandedAfterCompactFrame.indexOf('SUMMARY', expandedBannerIndex)
+        const compactCmdIndex = expandedAfterCompactFrame.indexOf(`> ${compactCommand}`, summaryIndex)
+        const compactSublineIndex = expandedAfterCompactFrame.indexOf(
+          'Compacted (ctrl+o to see full summary)',
+          compactCmdIndex,
+        )
+        expect(expandedBannerIndex).toBeGreaterThanOrEqual(0)
+        expect(summaryIndex).toBeGreaterThanOrEqual(0)
+        expect(compactCmdIndex).toBeGreaterThanOrEqual(0)
+        expect(compactSublineIndex).toBeGreaterThanOrEqual(0)
+        expect(expandedBannerIndex).toBeLessThan(summaryIndex)
+        expect(summaryIndex).toBeLessThan(compactCmdIndex)
+        expect(compactCmdIndex).toBeLessThan(compactSublineIndex)
 
         ui.stdin.write('\u000f') // ctrl+o
         await waitForFrame(

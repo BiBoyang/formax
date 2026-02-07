@@ -55,6 +55,10 @@ type Props = {
   taskManager?: TaskManager
 }
 
+function isCompactSlashCommandText(text: string): boolean {
+  return /^\/compact(?:\s|$)/i.test(text.trim())
+}
+
 function usePromptLine(args: {
   commandRegistry: ReturnType<typeof createReplCommandRegistry>
   isPromptMode: boolean
@@ -248,16 +252,48 @@ export function REPL({
     return -1
   }, [allMessages])
 
+  const primaryTranscriptStartIndex = useMemo(() => {
+    if (lastCompactBoundaryIndex < 0) return 0
+    return lastCompactBoundaryIndex + 1
+  }, [lastCompactBoundaryIndex])
+
+  const compactCommandMessageForPrimary = useMemo(() => {
+    if (lastCompactBoundaryIndex <= 0) return null
+
+    for (let index = lastCompactBoundaryIndex - 1; index >= 0; index -= 1) {
+      const candidate = allMessages[index]
+      if (!candidate || candidate.role !== 'user') continue
+      if (typeof candidate.content !== 'string') continue
+      if (isCompactSlashCommandText(candidate.content)) return candidate
+    }
+
+    return null
+  }, [allMessages, lastCompactBoundaryIndex])
+
   const primaryTranscriptMessages = useMemo(
-    () => (lastCompactBoundaryIndex >= 0 ? allMessages.slice(lastCompactBoundaryIndex + 1) : allMessages),
-    [allMessages, lastCompactBoundaryIndex],
+    () => {
+      const base = allMessages.slice(primaryTranscriptStartIndex)
+
+      const hasCompactCommandInBase = base.some(
+        (msg) => msg.role === 'user' && typeof msg.content === 'string' && isCompactSlashCommandText(msg.content),
+      )
+      if (hasCompactCommandInBase || !compactCommandMessageForPrimary) return base
+
+      const bannerIndex = base.findIndex((msg) => msg.ui?.kind === 'compact_banner')
+      if (bannerIndex < 0) return base
+
+      const next = [...base]
+      next.splice(bannerIndex + 1, 0, compactCommandMessageForPrimary)
+      return next
+    },
+    [allMessages, compactCommandMessageForPrimary, primaryTranscriptStartIndex],
   )
 
   const primaryPartition = useMemo(() => partitionMessages(primaryTranscriptMessages), [primaryTranscriptMessages])
 
   const primaryTranscriptSeq = useMemo(
-    () => state.transcriptSeq + Math.max(0, lastCompactBoundaryIndex + 1),
-    [lastCompactBoundaryIndex, state.transcriptSeq],
+    () => state.transcriptSeq + Math.max(0, primaryTranscriptStartIndex),
+    [primaryTranscriptStartIndex, state.transcriptSeq],
   )
 
   const expandedViewActive = expandedTranscriptOpen && !isPromptMode
@@ -418,6 +454,10 @@ export function REPL({
 
   const renderReplMessage = useCallback(
     (msg: Msg, mode: TranscriptRenderMode) => {
+      if (msg.ui?.kind === 'compact_summary' && mode !== 'expanded') {
+        return null
+      }
+
       if (msg.role === 'tool') {
         const toolMsg =
           mode === 'expanded' && msg.toolInfo ? { ...msg, toolInfo: { ...msg.toolInfo, expanded: true } } : msg
@@ -435,6 +475,24 @@ export function REPL({
             <Box flexDirection="column" marginTop={0} marginBottom={0}>
               <Box>
                 <Text>{`  ⎿  ${msg.content}`}</Text>
+              </Box>
+            </Box>
+          )
+        }
+        if (msg.ui?.kind === 'compact_banner') {
+          const label = String(msg.content || '').trim()
+          const totalCols = Math.max(process.stdout.columns || 80, 40)
+          const inner = ` ${label} `
+          const sideTotal = Math.max(0, totalCols - inner.length)
+          const left = '═'.repeat(Math.floor(sideTotal / 2))
+          const right = '═'.repeat(Math.ceil(sideTotal / 2))
+
+          return (
+            <Box flexDirection="column" marginTop={0} marginBottom={0}>
+              <Box>
+                <Text dimColor>{left}</Text>
+                <Text color={theme.secondaryText}>{inner}</Text>
+                <Text dimColor>{right}</Text>
               </Box>
             </Box>
           )

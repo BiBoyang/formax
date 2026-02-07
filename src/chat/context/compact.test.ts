@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
-import { rebuildHistoryAfterCompaction, selectTailForCompaction } from './compact'
+import {
+  buildCompactionSummaryUserText,
+  isCompactionSummaryUserMessage,
+  rebuildHistoryAfterCompaction,
+  selectTailForCompaction,
+} from './compact'
 
 function txt(role: PromptMessage['role'], text: string): PromptMessage {
   return { role, content: [{ type: 'text', text }] as any }
@@ -50,9 +55,29 @@ describe('rebuildHistoryAfterCompaction', () => {
     const previous: PromptMessage[] = [txt('user', 'u1'), txt('assistant', 'a1'), txt('user', 'u2'), txt('assistant', 'a2')]
     const next = rebuildHistoryAfterCompaction({ summary: 'S', previousHistory: previous, keepLastTurns: 1 })
     expect(next.length).toBe(3)
-    expect((next[0]!.content as any[])[0]!.text).toBe('S')
+    expect(next[0]!.role).toBe('user')
+    expect((next[0]!.content as any[])[0]!.text).toContain('This session is being continued from a previous conversation')
+    expect((next[0]!.content as any[])[0]!.text).toContain('S')
     expect((next[1]!.content as any[])[0]!.text).toBe('u2')
     expect((next[2]!.content as any[])[0]!.text).toBe('a2')
   })
 })
 
+describe('compaction summary helpers', () => {
+  it('builds a user-summary preamble text block', () => {
+    const text = buildCompactionSummaryUserText('hello')
+    expect(text.startsWith('<system-reminder>')).toBe(true)
+    expect(text).toContain('This session is being continued from a previous conversation')
+    expect(text).toContain('hello')
+    expect(text.endsWith('</system-reminder>')).toBe(true)
+  })
+
+  it('detects compact summary user messages', () => {
+    const msg: PromptMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: buildCompactionSummaryUserText('S') }] as any,
+    }
+    expect(isCompactionSummaryUserMessage(msg)).toBe(true)
+    expect(isCompactionSummaryUserMessage(txt('user', 'normal user text'))).toBe(false)
+  })
+})

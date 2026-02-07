@@ -1,5 +1,6 @@
 import type { ChatHistory } from '../../../chat/engine'
 import type { TokenUsage } from '../../../streaming/types'
+import { isCompactionSummaryUserMessage } from '../../../chat/context/compact'
 
 export function isAbortLikeError(err: unknown): boolean {
   if (!err) return false
@@ -75,6 +76,7 @@ export function countNonToolUserTurns(history: ChatHistory): number {
   let n = 0
   for (const msg of history) {
     if (!msg || msg.role !== 'user') continue
+    if (isCompactionSummaryUserMessage(msg)) continue
     const content = (msg as any).content
     if (!Array.isArray(content)) {
       n++

@@ -675,8 +675,14 @@ describe('useReplController', () => {
 	      }
 
       const hasSummaryInHistory = (args.history ?? []).some((m: any) => {
-        if (m?.role !== 'assistant' || !Array.isArray(m?.content)) return false
-        return m.content.some((b: any) => b?.type === 'text' && b?.text === 'SUMMARY')
+        if (m?.role !== 'user' || !Array.isArray(m?.content)) return false
+        const textBlocks = m.content.filter((b: any) => b?.type === 'text' && typeof b?.text === 'string')
+        if (textBlocks.length === 0) return false
+        const text = String(textBlocks[0]?.text ?? '')
+        return (
+          text.includes('This session is being continued from a previous conversation') &&
+          text.includes('SUMMARY')
+        )
 	      })
 	      expect(hasSummaryInHistory).toBe(true)
 

@@ -1,8 +1,21 @@
 import type { PromptMessage } from '../../prompts'
 
+const CONTINUED_SESSION_SUMMARY_PREFIX =
+  'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
+
 function isToolResultMessage(msg: PromptMessage): boolean {
   if (msg.role !== 'user' || !Array.isArray(msg.content)) return false
   return msg.content.some((b: any) => b?.type === 'tool_result')
+}
+
+function extractLeadingText(msg: PromptMessage): string {
+  if (!Array.isArray(msg.content)) return ''
+  for (const block of msg.content) {
+    if (block?.type === 'text' && typeof (block as any).text === 'string') {
+      return String((block as any).text)
+    }
+  }
+  return ''
 }
 
 function findLastNonToolUserIndices(messages: PromptMessage[]): number[] {
@@ -26,14 +39,32 @@ export function selectTailForCompaction(messages: PromptMessage[], keepLastTurns
   return messages.slice(startUserIndex)
 }
 
+export function buildCompactionSummaryUserText(summary: string): string {
+  const trimmed = String(summary || '').trim()
+  return (
+    '<system-reminder>\n' +
+    `${CONTINUED_SESSION_SUMMARY_PREFIX}\n` +
+    `${trimmed}\n` +
+    '</system-reminder>'
+  )
+}
+
+export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
+  if (!msg || msg.role !== 'user') return false
+  if (isToolResultMessage(msg)) return false
+  const raw = extractLeadingText(msg)
+  const text = unwrapSystemReminder(raw)
+  return text.startsWith(CONTINUED_SESSION_SUMMARY_PREFIX)
+}
+
 export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
   keepLastTurns: number
 }): PromptMessage[] {
-  const summaryText = (args.summary || '').trim()
+  const summaryText = buildCompactionSummaryUserText(args.summary)
   const summaryMsg: PromptMessage = {
-    role: 'assistant',
+    role: 'user',
     content: [{ type: 'text', text: summaryText }] as any,
   }
 
@@ -41,3 +72,9 @@ export function rebuildHistoryAfterCompaction(args: {
   return [summaryMsg, ...tail]
 }
 
+function unwrapSystemReminder(text: string): string {
+  const raw = String(text || '').trim()
+  const match = /^<system-reminder>\s*([\s\S]*?)\s*<\/system-reminder>$/.exec(raw)
+  if (!match) return raw
+  return String(match[1] || '').trim()
+}
