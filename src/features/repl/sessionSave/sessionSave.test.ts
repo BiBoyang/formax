@@ -127,7 +127,7 @@ describe('sessionSave (jsonl)', () => {
       id: 'tool-running',
       role: 'tool',
       content: 'running',
-      toolInfo: { name: 'Bash', status: 'running', result: '' },
+      toolInfo: { name: 'Bash', status: 'running', input: {}, result: '' },
       timestamp: new Date('2026-02-02T00:00:00.000Z'),
     })
     await writer.appendStableMsg({
@@ -159,6 +159,7 @@ describe('sessionSave (jsonl)', () => {
       toolInfo: {
         name: 'Read',
         status: 'completed',
+        input: {},
         result: 'x'.repeat(10_000),
       },
       timestamp: new Date('2026-02-02T00:00:00.000Z'),

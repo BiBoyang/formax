@@ -33,9 +33,16 @@ async function moveUpUntilActiveRow(
   rowText: string,
   maxMoves = 20,
 ): Promise<void> {
+  const gtRe = new RegExp(`>\\s*(?:\\d+\\.)?\\s*${escapeRegExp(rowText)}\\b`)
+  const isActive = (frame: string): boolean =>
+    gtRe.test(frame) ||
+    frame
+      .split('\n')
+      .some((line) => line.includes(rowText) && line.includes('❯'))
+
   for (let i = 0; i < maxMoves; i++) {
     const frame = lastFrame() || ''
-    if (frame.includes(`> ${rowText}`)) return
+    if (isActive(frame)) return
     stdin.write('\u001B[A')
     await tick()
   }
@@ -62,6 +69,16 @@ async function moveDownUntilActiveRow(
     await tick()
   }
   throw new Error(`Failed to move selection to row: ${rowText}`)
+}
+
+async function pressEscUntilText(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  text: string,
+  timeoutMs = 15000,
+): Promise<void> {
+  stdin.write('\u001b')
+  await waitForText(lastFrame, text, timeoutMs)
 }
 
 async function makeTempDir(prefix: string): Promise<string> {
@@ -109,9 +126,7 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Agent', 5000)
     expect(lastFrame()).toContain('design-planner')
 
-    stdin.write('\u001b')
-    await tick()
-    await waitForText(lastFrame, 'Agents')
+    await pressEscUntilText(lastFrame, stdin, 'Agents')
 
     expect(onExit).not.toHaveBeenCalled()
     unmount()
@@ -357,9 +372,7 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Choose location')
 
     // Cancel with Esc
-    stdin.write('\u001b')
-    await tick()
-    await waitForText(lastFrame, 'Agents')
+    await pressEscUntilText(lastFrame, stdin, 'Agents')
 
     // Should be back at list view
     expect(lastFrame()).toContain('Create new agent')
@@ -604,17 +617,13 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Agents')
 
     // Open first agent
-    stdin.write('\u001B[B')
-    await tick()
-    await waitForText(lastFrame, '> design-planner')
+    await moveDownUntilActiveRow(lastFrame, stdin, 'design-planner')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'design-planner')
 
     // Go back to list
-    stdin.write('\u001b')
-    await tick()
-    await waitForText(lastFrame, 'Agents')
+    await pressEscUntilText(lastFrame, stdin, 'Agents')
 
     // Navigate back to "Create new agent" (cursor is still on design-planner)
     for (let i = 0; i < 2; i++) await tick()
@@ -626,9 +635,7 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Choose location')
 
     // Cancel create flow
-    stdin.write('\u001b')
-    await tick()
-    await waitForText(lastFrame, 'Agents')
+    await pressEscUntilText(lastFrame, stdin, 'Agents')
 
     // Should still be at list, verify state is clean
     expect(lastFrame()).toContain('> Create new agent')

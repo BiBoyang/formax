@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render } from 'ink-testing-library'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
@@ -206,18 +206,15 @@ describe('useReplStreaming', () => {
     expect(handleEvent).not.toBeNull()
 
     handleEvent!({ type: 'tool_start', id: 't1', name: 'Write' })
-    await tick()
-    await tick()
+    await waitForCondition(() => loadingTextRef.current === 'Preparing write', 'loading text after tool_start')
     expect(loadingTextRef.current).toBe('Preparing write')
 
     handleEvent!({ type: 'tool_input', id: 't1', input: { file_path: '/tmp/minesweeper/style.css' } })
-    await tick()
-    await tick()
+    await waitForCondition(() => loadingTextRef.current === 'Writing style.css', 'loading text after tool_input')
     expect(loadingTextRef.current).toBe('Writing style.css')
 
     handleEvent!({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: 'OK' } })
-    await tick()
-    await tick()
+    await waitForCondition(() => loadingTextRef.current === 'Working', 'loading text after tool_end')
     expect(loadingTextRef.current).toBe('Working')
   })
 

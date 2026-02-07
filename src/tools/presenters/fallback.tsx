@@ -1,8 +1,7 @@
 import React from 'react'
 import { ToolMessage, type Msg } from '../../components/tool/ToolMessage'
-import type { ToolPresenter } from './types'
+import type { ToolPresenterComponent } from './types'
 
-export const FallbackToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const FallbackToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   return <ToolMessage message={message} />
 }
-

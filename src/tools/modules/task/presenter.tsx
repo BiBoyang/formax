@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
@@ -15,7 +15,7 @@ import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
 import { isToolBlocksPresenter } from '../../presenters/types'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
-export const TaskToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const TaskToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
 

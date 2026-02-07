@@ -3,14 +3,14 @@ import { Box } from 'ink'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
 
-export const WebSearchToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const WebSearchToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
 

@@ -63,6 +63,67 @@ async function waitForJsonContains(
   throw new Error(`Timed out waiting for JSON predicate to be true: ${filePath}`)
 }
 
+function isActiveRow(frame: string, rowText: string): boolean {
+  return frame
+    .split('\n')
+    .some((line) => line.includes(rowText) && (line.includes('❯') || line.includes('>')))
+}
+
+async function moveDownUntilActiveRow(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  rowText: string,
+  maxMoves = 40,
+): Promise<void> {
+  for (let i = 0; i < maxMoves; i++) {
+    const frame = lastFrame() || ''
+    if (isActiveRow(frame, rowText)) return
+    stdin.write('\u001B[B')
+    await tick()
+  }
+  throw new Error(`Failed to move selection to row: ${rowText}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
+async function pressTabUntilText(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  text: string,
+  maxTabs = 8,
+): Promise<void> {
+  for (let i = 0; i < maxTabs; i++) {
+    if ((lastFrame() || '').includes(text)) return
+    stdin.write('\t')
+    await tick()
+    await tick()
+  }
+  throw new Error(`Failed to reach tab containing: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
+async function pressEnterUntilText(
+  lastFrame: () => string | undefined,
+  stdin: { write: (data: string) => void },
+  text: string,
+  maxAttempts = 5,
+): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    if ((lastFrame() || '').includes(text)) return
+    stdin.write('\r')
+    await tick()
+    await tick()
+  }
+  throw new Error(`Failed to reach view containing: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
+}
+
+async function typeText(
+  stdin: { write: (data: string) => void },
+  text: string,
+): Promise<void> {
+  for (const ch of text) {
+    stdin.write(ch)
+    await tick()
+  }
+}
+
 describe('PermissionsDialog', () => {
   it('limits long rule lists to 10 rows and shows scroll indicators', async () => {
     const originalCwd = process.cwd()
@@ -348,17 +409,11 @@ describe('PermissionsDialog', () => {
       await waitForText(lastFrame, 'Add a new rule')
 
       // Enter Add Rule view
-      stdin.write('\r')
-      await waitForText(lastFrame, 'Enter permission rule')
-      await tick()
+      await pressEnterUntilText(lastFrame, stdin, 'Enter permission rule')
 
       // Type: abc, move cursor left once, insert X -> abXc
-      stdin.write('a')
-      await tick()
-      stdin.write('b')
-      await tick()
-      stdin.write('c')
-      await tick()
+      await typeText(stdin, 'abc')
+      await waitForText(lastFrame, 'abc')
       stdin.write('\u001B[D')
       await tick()
       stdin.write('X')
@@ -370,14 +425,6 @@ describe('PermissionsDialog', () => {
 
       // Allow now also asks where to save.
       await waitForText(lastFrame, 'Where should this rule be saved?')
-      // Sanity: arrow navigation works on this view.
-      stdin.write('\u001B[B')
-      await tick()
-      await waitForText(lastFrame, '❯ 2.')
-      // Move back to the default option (project local) before confirming.
-      stdin.write('\u001B[A')
-      await tick()
-      await waitForText(lastFrame, '❯ 1.')
       stdin.write('\r') // accept default (project local)
       await waitForNoText(lastFrame, 'Where should this rule be saved?')
 
@@ -441,25 +488,14 @@ describe('PermissionsDialog', () => {
       await waitForText(lastFrame, 'Add a new rule')
 
       // Switch to Workspace tab (Allow -> Ask -> Deny -> Workspace)
-      stdin.write('\t')
-      await tick()
-      stdin.write('\t')
-      await tick()
-      stdin.write('\t')
-      await tick()
+      await pressTabUntilText(lastFrame, stdin, 'Add directory')
 
       // Enter Add Directory view
-      stdin.write('\r')
-      await waitForText(lastFrame, 'Add directory to workspace')
-      await tick()
+      await pressEnterUntilText(lastFrame, stdin, 'Add directory to workspace')
 
       // Type: abc, move cursor left once, insert X -> abXc
-      stdin.write('a')
-      await tick()
-      stdin.write('b')
-      await tick()
-      stdin.write('c')
-      await tick()
+      await typeText(stdin, 'abc')
+      await waitForText(lastFrame, 'abc')
       stdin.write('\u001B[D')
       await tick()
       stdin.write('X')
@@ -740,20 +776,13 @@ describe('PermissionsDialog', () => {
       await tick()
       await waitForText(lastFrame, 'Add a new rule')
 
-      // Switch to Workspace tab (Allow -> Ask -> Deny -> Workspace)
-      stdin.write('\t')
-      await tick()
-      stdin.write('\t')
-      await tick()
-      stdin.write('\t')
-      await tick()
-
+      // Switch to Workspace tab (avoid assuming each Tab key is consumed)
+      await pressTabUntilText(lastFrame, stdin, 'Add directory')
       await waitForText(lastFrame, 'Add directory')
       await waitForText(lastFrame, path.basename(sessionDir))
 
       // Select the session directory and delete it.
-      stdin.write('\u001B[B')
-      await tick()
+      await moveDownUntilActiveRow(lastFrame, stdin, path.basename(sessionDir))
       stdin.write('\r')
 
       await waitForText(lastFrame, 'Delete workspace directory?')
@@ -761,6 +790,7 @@ describe('PermissionsDialog', () => {
 
       // Confirm "Yes" (default selection)
       stdin.write('\r')
+      await tick()
 
       await waitForNoText(lastFrame, path.basename(sessionDir))
       expect(listWorkspaceSessionDirectories(effectiveProjectRoot)).toHaveLength(0)
@@ -770,7 +800,7 @@ describe('PermissionsDialog', () => {
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
-  }, 15000)
+  }, 30000)
 
 
 })

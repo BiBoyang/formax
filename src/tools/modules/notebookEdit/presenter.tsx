@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react'
 import path from 'node:path'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
-export const NotebookEditToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const NotebookEditToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />

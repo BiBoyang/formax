@@ -50,6 +50,28 @@ describe('REPL', () => {
     throw new Error('Timed out waiting for condition')
   }
 
+  async function clearPromptInput(stdin: { write: (value: string) => void }, maxBackspaces = 64): Promise<void> {
+    // Some CI/coverage runs can lag prompt-clear commits; sweep stale input chars defensively.
+    for (let i = 0; i < maxBackspaces; i++) stdin.write('\u007f')
+    await tick()
+  }
+
+  async function queueMessageWhileLoading(args: {
+    stdin: { write: (value: string) => void }
+    lastFrame: () => string | undefined
+    text: string
+  }): Promise<void> {
+    const { stdin, lastFrame, text } = args
+    stdin.write(text)
+    await tick()
+    stdin.write('\r')
+    await waitForFrame(
+      lastFrame,
+      (frame) => frame.includes('Press up to edit queued messages') && frame.includes('Try "fix typecheck errors"'),
+      15000,
+    )
+  }
+
   async function withForcedInkStatic<T>(run: () => Promise<T>): Promise<T> {
     const prev = process.env.FORMAX_FORCE_INK_STATIC
     process.env.FORMAX_FORCE_INK_STATIC = '1'
@@ -389,26 +411,31 @@ describe('REPL', () => {
         // Under Ink 6 + React 19 batching (especially with coverage), it can take a couple ticks
         // for the input field to clear after pressing Enter.
         await waitForFrame(lastFrame, (f) => f.includes('Try "fix typecheck errors"'), 15000)
+        await tick()
       }
 
+      await clearPromptInput(stdin)
       stdin.write('hi')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:0'))
       await waitForIdlePrompt()
 
+      await clearPromptInput(stdin)
       stdin.write('hi2')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => f.includes('HISTLEN:2'))
       await waitForIdlePrompt()
 
+      await clearPromptInput(stdin)
       stdin.write('/clear')
       await tick()
       stdin.write('\r')
       await waitForFrame(lastFrame, (f) => !f.includes('HISTLEN:2'))
       await waitForIdlePrompt()
 
+      await clearPromptInput(stdin)
       stdin.write('hi3')
       await tick()
       stdin.write('\r')
@@ -443,14 +470,8 @@ describe('REPL', () => {
       stdin.write('\r')
       await waitForCondition(() => sentTexts.length === 1)
 
-      stdin.write('one')
-      await tick()
-      stdin.write('\r')
-      await tick()
-      stdin.write('two')
-      await tick()
-      stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('Press up to edit queued messages'))
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'one' })
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'two' })
 
       releaseFirstTurn?.()
       await waitForCondition(() => sentTexts.length >= 2, 15000)
@@ -476,7 +497,7 @@ describe('REPL', () => {
         },
       }
 
-      const { stdin } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
+      const { stdin, lastFrame } = render(<REPL engine={queueEngine} tools={[]} cfg={cfg} />)
       await tick()
 
       stdin.write('start')
@@ -484,17 +505,9 @@ describe('REPL', () => {
       stdin.write('\r')
       await waitForCondition(() => sentTexts.length === 1)
 
-      stdin.write('first')
-      await tick()
-      stdin.write('\r')
-      await tick()
-      stdin.write('second')
-      await tick()
-      stdin.write('\r')
-      await tick()
-      stdin.write('third')
-      await tick()
-      stdin.write('\r')
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'first' })
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'second' })
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'third' })
 
       releaseFirstTurn?.()
       await waitForCondition(() => sentTexts.length >= 2, 15000)
@@ -527,17 +540,19 @@ describe('REPL', () => {
       stdin.write('\r')
       await waitForCondition(() => sentTexts.length === 1)
 
-      stdin.write('recall-me')
-      await tick()
-      stdin.write('\r')
-      await waitForFrame(lastFrame, (f) => f.includes('Press up to edit queued messages'))
+      await queueMessageWhileLoading({ stdin, lastFrame, text: 'recall-me' })
 
       stdin.write('\u001B[A') // upArrow
-      await waitForFrame(lastFrame, (f) => f.includes('> recall-me'))
+      await waitForFrame(
+        lastFrame,
+        (f) => f.includes('> recall-me') && !f.includes('Press up to edit queued messages'),
+        15000,
+      )
 
       releaseFirstTurn?.()
       await waitForFrame(lastFrame, (f) => f.includes('ACK:start'), 15000)
-      await sleep(80)
+      await waitForCondition(() => sentTexts.length === 1, 5000)
+      await sleep(120)
       expect(sentTexts).toEqual(['start'])
     }, 20000)
 

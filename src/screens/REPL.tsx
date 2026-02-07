@@ -300,7 +300,9 @@ export function REPL({
     const queue = queuedDuringLoadingRef.current
     if (queue.length === 0) return
     const recalled = queue[queue.length - 1] ?? ''
-    setQueuedDuringLoading(queue.slice(0, -1))
+    const nextQueue = queue.slice(0, -1)
+    queuedDuringLoadingRef.current = nextQueue
+    setQueuedDuringLoading(nextQueue)
     setInput(recalled)
     setSlashIndex(0)
     setSlashSelectionTouched(false)
@@ -311,9 +313,11 @@ export function REPL({
     wasLoadingRef.current = state.isLoading
     if (!wasLoading || state.isLoading) return
     if (isAutoFlushingQueueRef.current) return
-    if (queuedDuringLoading.length === 0) return
+    const queueSnapshot = queuedDuringLoadingRef.current
+    if (queueSnapshot.length === 0) return
 
-    const merged = queuedDuringLoading.join('\n')
+    const merged = queueSnapshot.join('\n')
+    queuedDuringLoadingRef.current = []
     setQueuedDuringLoading([])
     isAutoFlushingQueueRef.current = true
     void (async () => {
@@ -380,7 +384,11 @@ export function REPL({
 
       if (state.isLoading) {
         if (text.startsWith('/') || text.startsWith('!') || bashModeActive) return
-        setQueuedDuringLoading((prev) => [...prev, text])
+        setQueuedDuringLoading((prev) => {
+          const nextQueue = [...prev, text]
+          queuedDuringLoadingRef.current = nextQueue
+          return nextQueue
+        })
         clearPrompt()
         return
       }

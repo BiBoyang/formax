@@ -25,6 +25,14 @@ async function waitForFrame(
   throw new Error('Timed out waiting for UI update')
 }
 
+async function waitForFrameChange(
+  lastFrame: () => string | undefined,
+  previousFrame: string,
+  timeoutMs = 15000,
+): Promise<void> {
+  await waitForFrame(lastFrame, (frame) => frame !== previousFrame, timeoutMs)
+}
+
 describe('BashApprovalPrompt', () => {
   it('renders header and options', async () => {
     const onDecision = vi.fn()
@@ -120,8 +128,9 @@ describe('BashApprovalPrompt', () => {
     stdin.write('b')
     await tick()
 
+    const beforeCursorMove = lastFrame() || ''
     stdin.write('\u001B[D')
-    await waitForFrame(lastFrame, (frame) => frame.includes('a▏b'), 15000)
+    await waitForFrameChange(lastFrame, beforeCursorMove, 15000)
     stdin.write('X')
     await tick()
     stdin.write('\r')

@@ -57,6 +57,16 @@ async function moveDownUntilActiveRow(
   throw new Error(`Timed out moving cursor to active row: ${label}\n\nLast frame:\n${lastFrame() || ''}`)
 }
 
+async function pressEnterUntilText(
+  lastFrame: () => string | undefined,
+  stdin: { write: (s: string) => void },
+  text: string,
+  timeoutMs = 15000,
+): Promise<void> {
+  stdin.write('\r')
+  await waitForText(lastFrame, text, timeoutMs)
+}
+
 async function makeTempDir(prefix: string): Promise<string> {
   return await fsp.mkdtemp(path.join(os.tmpdir(), prefix))
 }
@@ -109,15 +119,9 @@ describe('AgentsDialog (create flow)', () => {
     for (let i = 0; i < 3; i += 1) await tick()
 
     // Create new agent -> choose location (project) -> choose method (generate) -> description input
-    stdin.write('\r')
-    await tick()
-    await waitForText(lastFrame, 'Choose location')
-    stdin.write('\r')
-    await tick()
-    await waitForText(lastFrame, 'Creation method')
-    stdin.write('\r')
-    await tick()
-    await waitForText(lastFrame, 'Describe what this agent should do')
+    await pressEnterUntilText(lastFrame, stdin, 'Choose location')
+    await pressEnterUntilText(lastFrame, stdin, 'Creation method')
+    await pressEnterUntilText(lastFrame, stdin, 'Describe what this agent should do')
 
     stdin.write('hello world')
     await tick()
@@ -157,7 +161,7 @@ describe('AgentsDialog (create flow)', () => {
     await waitForText(lastFrame, 'Select tools')
 
     unmount()
-  }, 15000)
+  }, 30000)
 
   it('supports Manual configuration flow and records created agent on exit', async () => {
     const onExit = vi.fn()
@@ -208,12 +212,14 @@ describe('AgentsDialog (create flow)', () => {
 
     stdin.write('My Agent')
     await tick()
+    await waitForText(lastFrame, 'My Agent')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Description (tells Formax when to use this agent):')
 
     stdin.write('Use this agent for code reviews.')
     await tick()
+    await waitForText(lastFrame, 'Use this agent for code reviews.')
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Select tools')

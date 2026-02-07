@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useUserInputManager } from '../../runtime/userInputContext'
@@ -9,7 +9,7 @@ import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
 import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
 
-export const SkillToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const SkillToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
 

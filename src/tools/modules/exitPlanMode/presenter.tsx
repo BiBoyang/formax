@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
@@ -14,7 +14,7 @@ import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
 
-export const ExitPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
   const planSession = usePlanSession()

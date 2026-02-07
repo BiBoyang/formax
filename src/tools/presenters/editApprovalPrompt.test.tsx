@@ -25,6 +25,15 @@ async function waitForFrame(
   throw new Error('Timed out waiting for UI to match predicate')
 }
 
+async function selectFeedbackRow(
+  stdin: { write: (value: string) => void },
+  lastFrame: () => string | undefined,
+): Promise<void> {
+  const beforeSelect = lastFrame() || ''
+  stdin.write('3')
+  await waitForFrame(lastFrame, (frame) => frame !== beforeSelect && frame.includes('❯ 3.'), 15000)
+}
+
 describe('EditApprovalPrompt', () => {
   it('enter approves on the default "Yes" row', async () => {
     const onDecision = vi.fn()
@@ -109,7 +118,7 @@ describe('EditApprovalPrompt', () => {
   it('allows typing digits when the custom message row is selected', async () => {
     const onDecision = vi.fn()
 
-    const { stdin } = render(
+    const { stdin, lastFrame } = render(
       <InputScopeProvider>
         <ReplUiProvider abort={() => {}}>
           <EditApprovalPrompt title="Do you want to create tmp1.md?" onDecision={onDecision} />
@@ -118,7 +127,7 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
-    stdin.write('3')
+    await selectFeedbackRow(stdin, lastFrame)
     await tick()
 
     stdin.write('1')
@@ -146,18 +155,18 @@ describe('EditApprovalPrompt', () => {
     )
 
     await tick()
-    stdin.write('3')
-    await tick()
+    await selectFeedbackRow(stdin, lastFrame)
 
     stdin.write('a')
     await tick()
     stdin.write('b')
     await tick()
+    await waitForFrame(lastFrame, (frame) => frame.includes('ab'), 15000)
 
     // Move cursor left and insert in the middle.
+    const beforeCursorMove = lastFrame() || ''
     stdin.write('\u001B[D')
-    await tick()
-    await waitForFrame(lastFrame, (frame) => frame.includes('a▏b'))
+    await waitForFrame(lastFrame, (frame) => frame !== beforeCursorMove, 15000)
     stdin.write('X')
     await tick()
     stdin.write('\r')

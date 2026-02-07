@@ -1,13 +1,13 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
-import type { ToolPresenter } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 
-export const EnterPlanModeToolPresenter: ToolPresenter = ({ message }: { message: Msg }) => {
+export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
 

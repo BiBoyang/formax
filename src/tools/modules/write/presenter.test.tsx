@@ -15,7 +15,7 @@ function renderBlocksPresenter(presenter: typeof WriteToolPresenter, message: Ms
     const out = presenter({ message })
     return render(<ToolUiBlocks blocks={out.blocks} />)
   }
-  return render(presenter({ message }))
+  return render(<>{presenter({ message })}</>)
 }
 
 describe('WriteToolPresenter', () => {

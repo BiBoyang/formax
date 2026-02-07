@@ -70,7 +70,7 @@ describe('ResumeDialog', () => {
 
       const onExit = vi.fn()
       const onResume = vi.fn()
-      const onRename = vi.fn(async () => {})
+      const onRename = vi.fn<(filePath: string, label: string) => Promise<void>>(async () => {})
 
       const { lastFrame } = render(
         <InputScopeProvider>
@@ -94,7 +94,7 @@ describe('ResumeDialog', () => {
 
       const onExit = vi.fn()
       const onResume = vi.fn()
-      const onRename = vi.fn(async () => {})
+      const onRename = vi.fn<(filePath: string, label: string) => Promise<void>>(async () => {})
 
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
@@ -130,7 +130,7 @@ describe('ResumeDialog', () => {
 
       const onExit = vi.fn()
       const onResume = vi.fn()
-      const onRename = vi.fn(async () => {})
+      const onRename = vi.fn<(filePath: string, label: string) => Promise<void>>(async () => {})
 
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
@@ -172,7 +172,7 @@ describe('ResumeDialog', () => {
 
       const onExit = vi.fn()
       const onResume = vi.fn()
-      const onRename = vi.fn(async () => {})
+      const onRename = vi.fn<(filePath: string, label: string) => Promise<void>>(async () => {})
 
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
@@ -198,7 +198,7 @@ describe('ResumeDialog', () => {
 
       const onExit = vi.fn()
       const onResume = vi.fn()
-      const onRename = vi.fn(async () => {})
+      const onRename = vi.fn<(filePath: string, label: string) => Promise<void>>(async () => {})
 
       const { lastFrame, stdin } = render(
         <InputScopeProvider>

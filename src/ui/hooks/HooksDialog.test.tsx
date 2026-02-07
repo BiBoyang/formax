@@ -235,10 +235,8 @@ describe('HooksDialog', () => {
 
     try {
       const onExit = vi.fn()
-      const scopes: string[] = []
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
-          <ActiveScopeSpy onScope={(s) => scopes.push(s)} />
           <HooksDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -325,9 +323,10 @@ describe('HooksDialog', () => {
       stdin.write('\r')
       await waitForText(lastFrame, 'Add new hook')
       await tick()
+      await waitForScope(scopes, 'prompt:hooks-input')
 
-      stdin.write('12345')
-      await tick()
+      await typeText(stdin, '12345')
+      await waitForText(lastFrame, '12345')
       stdin.write('\u001B[D')
       stdin.write('\u001B[D')
       await tick()
@@ -416,9 +415,8 @@ describe('HooksDialog', () => {
       await waitForText(lastFrame, '[Local] Bash')
       await tick()
 
-      // Enter Bash matcher (cursor 0 is "+ Add new matcher…")
-      stdin.write('\u001B[B')
-      await tick()
+      // Enter Bash matcher (avoid assuming a single ↓ is always consumed under load)
+      await moveCursorToItem(lastFrame, stdin, '[Local] Bash')
       stdin.write('\r')
       await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
       await tick()
@@ -716,8 +714,10 @@ describe('HooksDialog', () => {
 
     try {
       const onExit = vi.fn()
+      const scopes: string[] = []
       const { lastFrame, stdin } = render(
         <InputScopeProvider>
+          <ActiveScopeSpy onScope={(s) => scopes.push(s)} />
           <HooksDialog onExit={onExit} />
         </InputScopeProvider>,
       )
@@ -735,9 +735,11 @@ describe('HooksDialog', () => {
       await waitForText(lastFrame, 'Add new hook')
       expect(lastFrame() || '').not.toContain('Matcher:')
       await tick()
+      await waitForScope(scopes, 'prompt:hooks-input')
 
       const cmd = 'python3 .formax/hooks/stop_probe.py'
       await typeText(stdin, cmd)
+      await waitForText(lastFrame, cmd)
       stdin.write('\r')
 
       await waitForText(lastFrame, 'Save hook configuration')

@@ -30,15 +30,17 @@ describe('useInput audit', () => {
     const root = path.join(process.cwd(), 'src')
     const files = await listSourceFiles(root)
 
-    const matches: Match[] = []
     const re = /\buseInput\s*\(/g
-    for (const file of files) {
-      const text = await fs.readFile(file, 'utf8')
-      const count = Array.from(text.matchAll(re)).length
-      if (count > 0) {
-        matches.push({ file: normalizeRel(path.relative(process.cwd(), file)), count })
-      }
-    }
+    const maybeMatches = await Promise.all(
+      files.map(async (file): Promise<Match | null> => {
+        const text = await fs.readFile(file, 'utf8')
+        if (!text.includes('useInput')) return null
+        const count = Array.from(text.matchAll(re)).length
+        if (count === 0) return null
+        return { file: normalizeRel(path.relative(process.cwd(), file)), count }
+      }),
+    )
+    const matches = maybeMatches.filter((m): m is Match => m !== null)
 
     const allowed = new Set([
       'src/components/ui/TextInput.tsx',
@@ -54,5 +56,5 @@ describe('useInput audit', () => {
     const present = matches.map((m) => m.file).sort()
     const expectedPresent = Array.from(allowed).sort()
     expect(present).toEqual(expectedPresent)
-  })
+  }, 120000)
 })
