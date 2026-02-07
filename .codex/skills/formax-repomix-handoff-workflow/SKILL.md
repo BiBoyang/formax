@@ -1,6 +1,6 @@
 ---
 name: formax-repomix-handoff-workflow
-description: Use when preparing a Formax code handoff: selecting files, generating repomix bundles, and writing a high-quality prompt for WebGPT or another coding agent with clear constraints and validation scope.
+description: "Use when preparing a Formax code handoff: selecting files, generating repomix bundles, and writing a high-quality prompt for WebGPT or another coding agent with clear constraints and validation scope."
 ---
 
 # formax-repomix-handoff-workflow
