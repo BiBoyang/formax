@@ -129,11 +129,11 @@
   - [x] 线程列表
   - [x] 消息流
   - [x] 审批/提问弹层
-- [ ] 打通最小闭环演示。
+- [x] 打通最小闭环演示。
 
 验收：
 
-- [ ] 一次演示流程全通（start thread -> run turn -> approval -> completed）。
+- [x] 一次演示流程全通（start thread -> run turn -> approval -> completed）。
 
 ## Phase 8 — 文档与索引
 
@@ -266,7 +266,7 @@
   - 风险点：CLI 参数回归、错误码与 limits 文档不一致。
   - 合并前断言：`formax app-server` 可启动；文档与实现字段一致。
 
-- [ ] PR9: Web reference client（开发验证）
+- [x] PR9: Web reference client（开发验证）
   - 目标：验证 thread/turn/input 协议闭环，不作为生产客户端。
   - 主要文件：按选定目录新增（建议独立于核心 runtime 目录）。
   - 风险点：demo 代码反向污染核心协议实现。

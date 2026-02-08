@@ -366,6 +366,148 @@ describe('AppServer', () => {
     )
   })
 
+  it('supports approval then ask_user_question in one turn integration flow', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const userInput = createUserInputManager()
+    const threadStore = new ThreadStore({ cwd, env })
+
+    let runner: TurnRunner | null = null
+    let server: AppServer
+    server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore,
+      resolveTurnRunner: async () => {
+        if (runner) return runner
+        runner = new TurnRunner({
+          engine: {
+            async runTurn(args) {
+              args.onEvent({
+                type: 'approval_request',
+                toolUseId: 'approval-1',
+                toolName: 'Bash',
+                action: { kind: 'bash.exec', command: 'echo hello' },
+                effectiveDecision: { decision: 'ask' },
+              })
+              const approvalAnswers = await userInput.requestAnswers({
+                toolUseId: 'approval-1',
+                questions: [],
+                signal: args.signal,
+              })
+
+              const questions = [
+                {
+                  question: 'Pick one?',
+                  header: 'Choice',
+                  options: [{ label: 'A', description: 'Option A' }],
+                  multiSelect: false,
+                },
+              ]
+              args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-1', questions })
+              const askAnswers = await userInput.requestAnswers({ toolUseId: 'ask-1', questions, signal: args.signal })
+
+              args.onEvent({
+                type: 'assistant_delta',
+                text: `approval=${String(approvalAnswers.decision ?? 'none')} choice=${String(askAnswers.Choice ?? '')}`,
+              })
+              args.onEvent({ type: 'complete' })
+              return [
+                ...args.history,
+                args.user,
+                {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `approval=${String(approvalAnswers.decision ?? 'none')} choice=${String(askAnswers.Choice ?? '')}`,
+                    },
+                  ],
+                },
+              ] as ChatHistory
+            },
+          },
+          tools: [],
+          allowedSubagents: [],
+          model: 'test-model',
+          promptProfile: 'lite',
+          cwd,
+          env,
+          userInputManager: userInput,
+          emitNotification: server.createTurnNotificationEmitter(),
+        })
+        return runner
+      },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const threadStart = await server.handleMessage(request(2, 'thread/start'))
+    const threadId = (threadStart[0] as any).result.thread.id as string
+    const turnStart = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId,
+        input: { text: 'hello' },
+      }),
+    )
+    const turnId = (turnStart[0] as any).result.turn.id as string
+
+    const approvalRequested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && (n.params as any)?.input?.toolUseId === 'approval-1',
+    )
+    const approvalInputId = (approvalRequested.params as any).input.inputId as string
+    const submitApproval = await server.handleMessage(
+      request(4, 'turn/input/submit', {
+        threadId,
+        turnId,
+        inputId: approvalInputId,
+        answers: { decision: 'approve' },
+        submissionId: 'submission-approval-1',
+      }),
+    )
+    expect((submitApproval[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
+
+    await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        (n.params as any)?.input?.status === 'submitted' &&
+        (n.params as any)?.input?.toolUseId === 'approval-1',
+    )
+
+    const askRequested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && (n.params as any)?.input?.toolUseId === 'ask-1',
+    )
+    const askInputId = (askRequested.params as any).input.inputId as string
+    const submitAsk = await server.handleMessage(
+      request(5, 'turn/input/submit', {
+        threadId,
+        turnId,
+        inputId: askInputId,
+        answers: { Choice: 'A' },
+        submissionId: 'submission-ask-1',
+      }),
+    )
+    expect((submitAsk[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
+
+    await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        (n.params as any)?.input?.status === 'submitted' &&
+        (n.params as any)?.input?.toolUseId === 'ask-1',
+    )
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && (n.params as any)?.turn?.id === turnId,
+    )
+  })
+
   it('coalesces duplicate/conflicting submissions for the same inputId', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
