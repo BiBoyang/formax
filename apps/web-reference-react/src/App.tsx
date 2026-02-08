@@ -72,6 +72,16 @@ export function App() {
               text: String(params?.event?.text ?? ''),
             })
           }
+          if (eventType === 'thinking_delta') {
+            const text = String(params?.event?.thinking ?? params?.event?.text ?? params?.event?.delta ?? '')
+            if (text) {
+              dispatch({
+                type: 'append_thinking_delta',
+                turnId: String(params?.turnId ?? ''),
+                text,
+              })
+            }
+          }
           if (eventType === 'error') {
             log(String(params?.event?.error ?? 'Stream error'), 'error')
           }

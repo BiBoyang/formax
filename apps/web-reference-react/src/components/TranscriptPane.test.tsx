@@ -46,4 +46,26 @@ describe('TranscriptPane', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Send' }).closest('form')!)
     expect(onSend).toHaveBeenCalledTimes(1)
   })
+
+  it('renders thinking deltas as one collapsible block', () => {
+    render(
+      <TranscriptPane
+        activeThreadId="thread-1"
+        activeTurnId="turn-1"
+        logs={[{ id: 'thinking-1', kind: 'thinking', text: 'Step A. Step B.', turnId: 'turn-1' }]}
+        inputText=""
+        connectionStatus="connected"
+        onInputTextChange={vi.fn()}
+        onSend={vi.fn((event) => event.preventDefault())}
+        onInterrupt={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show/i })).toBeInTheDocument()
+    expect(screen.getByText('Step A. Step B.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /show/i }))
+    expect(screen.getByRole('button', { name: /hide/i })).toBeInTheDocument()
+  })
 })

@@ -48,4 +48,5 @@ export type PendingInput = {
 
 export type TranscriptItem =
   | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error' }
+  | { id: string; kind: 'thinking'; text: string; turnId?: string }
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }

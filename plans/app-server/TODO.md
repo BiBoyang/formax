@@ -76,6 +76,7 @@
 - [ ] 增加 resume 流程入口（输入 threadId -> `thread/resume` -> 应用 staleInputs）。
 - [ ] 增加错误详情抽屉（展示 JSON-RPC `code/message/data`）。
 - [ ] transcript 渲染类型化：显式区分 `user/assistant/tool/system`。
+- [x] 修复 `thinking_delta`（thinkultra）渲染异常：避免大量重复行挤压主对话区，改为可折叠的 thinking 块并支持增量合并。
 - [ ] tool 事件最小展示：`tool_start/tool_update/tool_end` 按序可追踪。
 
 验收标准（可观察断言）：
@@ -83,6 +84,7 @@
 - [ ] 无需查看源码，仅通过 UI 可完成：new thread -> turn -> input submit -> completed。
 - [ ] stale input 情况下，UI 明确显示“已失效且不可再提交”。
 - [ ] 同一 turn 的 tool 流程在 transcript 可还原顺序。
+- [ ] 长链路 `thinking_delta` 不会淹没 user/assistant 主消息，且可按 turn 定位查看。
 
 ---
 
@@ -107,18 +109,23 @@
 目标：提升“长时间调试可用性”，不追求高保真视觉。
 
 - [ ] 固化三区域独立滚动，防止输入区被内容挤出可视区。
+- [x] 三栏布局重构（左侧导航/中间会话/右侧 input 工作台）并统一间距、层级、面板分割；参考 `formax-clone` 的结构与输入区层次，仅借鉴布局不复用业务内容。
 - [ ] transcript 增加粘底开关（auto-scroll on/off）。
 - [ ] 增加日志级别过滤（info/warn/error）。
 - [ ] 增加最小空态文案规范（线程空态、转录空态、input 空态）。
 - [ ] 增加窄屏布局规范实现（<900px 时上下结构）。
 - [ ] 为关键动作增加忙碌态（发送中、提交中、中断中）。
 - [ ] approval 表单显示完整上下文（toolName/action/effectiveDecision/workspaceRequest）。
+- [ ] 样式实现统一迁移到 `shadcn/ui` 组件层（Card/Badge/Button/Input/ScrollArea 等）；停止新增“纯手写散样式”。
+- [ ] 建立样式约束：业务组件仅组合 `shadcn/ui` + 主题 token（`src/css/theme.css`），避免组件内直接堆叠临时视觉规则。
 
 验收标准（可观察断言）：
 
 - [ ] 在大量事件流下，输入框始终可见并可操作。
+- [ ] 三栏在桌面端保持稳定信息层级，移动端按优先级折叠，不出现主会话区被侧栏挤压的情况。
 - [ ] 用户能在不滚屏找日志的情况下定位最近一次失败原因。
 - [ ] approval 提交前用户可见完整决策上下文，不依赖开发者工具。
+- [ ] 新增 UI 页面/组件默认复用 `shadcn/ui` 组件与主题变量，不再引入第二套视觉体系。
 
 ---
 

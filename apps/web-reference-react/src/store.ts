@@ -19,6 +19,7 @@ export type AppAction =
   | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error' }
   | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string }
   | { type: 'append_assistant_delta'; turnId: string; text: string }
+  | { type: 'append_thinking_delta'; turnId: string; text: string }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string }
   | { type: 'set_selected_input'; inputId: string | null }
@@ -84,6 +85,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         id: itemId(),
         kind: 'message',
         role: 'assistant',
+        text: action.text,
+        turnId: action.turnId,
+      }
+      return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'append_thinking_delta': {
+      const last = state.logs[state.logs.length - 1]
+      if (last && last.kind === 'thinking' && last.turnId === action.turnId) {
+        const updated = state.logs.slice()
+        updated[updated.length - 1] = { ...last, text: last.text + action.text }
+        return { ...state, logs: updated }
+      }
+
+      const next: TranscriptItem = {
+        id: itemId(),
+        kind: 'thinking',
         text: action.text,
         turnId: action.turnId,
       }

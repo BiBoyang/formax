@@ -39,6 +39,27 @@ describe('appReducer', () => {
     expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'Hello' })
   })
 
+  it('merges thinking deltas into one collapsible transcript block', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: 'Need to inspect files. ',
+    })
+
+    state = appReducer(state, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: 'Then propose patch.',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'thinking',
+      turnId: 'turn-1',
+      text: 'Need to inspect files. Then propose patch.',
+    })
+  })
+
   it('tracks input requested -> resolved and clears selected input', () => {
     const input = createPendingInput()
 
