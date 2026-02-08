@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { TurnRunner } from './turnRunner.js'
 
 type Notification = { method: string; params?: any }
@@ -146,5 +147,36 @@ describe('TurnRunner', () => {
       notifications,
       (n) => n.method === 'turn/completed' && n.params?.turn?.id === turn2.turn.id,
     )
+  })
+
+  it('submits answers through userInputManager', async () => {
+    const userInput = createUserInputManager()
+    const pending = userInput.requestAnswers({
+      toolUseId: 'ask-1',
+      questions: [],
+    })
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      userInputManager: userInput,
+      emitNotification() {},
+    })
+
+    const out = await runner.submitInput({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      inputId: 'ask-1',
+      answers: { Choice: 'A' },
+    })
+    expect(out).toEqual({ accepted: true })
+    await expect(pending).resolves.toEqual({ Choice: 'A' })
   })
 })

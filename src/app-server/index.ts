@@ -14,7 +14,7 @@ export async function runAppServer(args?: {
   platform?: string
   homedir?: string
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
-  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn'>
+  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
 }): Promise<void> {
   const cwd = args?.cwd ?? process.cwd()
   const env = args?.env ?? process.env
@@ -30,7 +30,7 @@ export async function runAppServer(args?: {
       platform: args?.platform,
       homedir: args?.homedir,
     })
-  let lazyTurnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn'> | null = args?.turnRunner ?? null
+  let lazyTurnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null = args?.turnRunner ?? null
   const server = new AppServer({
     info: {
       name: 'formax',
@@ -52,6 +52,7 @@ export async function runAppServer(args?: {
         env,
         platform: args?.platform,
         homedir: args?.homedir,
+        userInputManager: runtime.userInputManager,
         emitNotification: server.createTurnNotificationEmitter(),
       })
       return lazyTurnRunner

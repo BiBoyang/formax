@@ -100,6 +100,9 @@ describe('AppServer', () => {
         async interruptTurn() {
           return {}
         },
+        async submitInput() {
+          return { accepted: true }
+        },
       },
       emitNotification(message) {
         notifications.push(message)
@@ -120,6 +123,16 @@ describe('AppServer', () => {
       request(3, 'turn/interrupt', { threadId: 'thread-1', turnId: 'turn-1' }),
     )
     expect((interruptOut[0] as any).result).toEqual({})
+
+    const submitOut = await server.handleMessage(
+      request(4, 'turn/input/submit', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        inputId: 'ask-1',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect((submitOut[0] as any).result).toEqual({ accepted: true })
 
     const emit = server.createTurnNotificationEmitter()
     emit('turn/event', { threadId: 'thread-1' })

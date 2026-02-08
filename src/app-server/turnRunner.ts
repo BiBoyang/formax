@@ -7,7 +7,8 @@ import type { Msg } from '../components/tool/ToolMessage.js'
 import type { StreamEvent } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
-import type { TurnInterruptParams, TurnStartParams } from './protocol.js'
+import type { UserInputManager } from '../tools/runtime/userInputManager.js'
+import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -24,6 +25,7 @@ export type TurnRunnerOptions = {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  userInputManager?: UserInputManager | null
   emitNotification: TurnRunnerNotificationEmitter
 }
 
@@ -51,6 +53,7 @@ export class TurnRunner {
   private readonly env?: NodeJS.ProcessEnv
   private readonly platform?: string
   private readonly homedir?: string
+  private readonly userInputManager: UserInputManager | null
   private readonly emitNotification: TurnRunnerNotificationEmitter
   private readonly runningByThreadId = new Map<string, RunningTurn>()
 
@@ -65,6 +68,7 @@ export class TurnRunner {
     this.env = args.env
     this.platform = args.platform
     this.homedir = args.homedir
+    this.userInputManager = args.userInputManager ?? null
     this.emitNotification = args.emitNotification
   }
 
@@ -122,6 +126,14 @@ export class TurnRunner {
     }
     running.abortController.abort()
     return {}
+  }
+
+  async submitInput(params: TurnInputSubmitParams): Promise<{ accepted: boolean }> {
+    if (!this.userInputManager) {
+      throw new Error('Input submission unavailable: user input manager is not configured')
+    }
+    const accepted = this.userInputManager.submitAnswers(params.inputId, params.answers)
+    return { accepted }
   }
 
   private async runTurnInBackground(running: RunningTurn): Promise<void> {

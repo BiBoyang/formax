@@ -56,6 +56,13 @@ export type TurnInterruptParams = {
   turnId: string
 }
 
+export type TurnInputSubmitParams = {
+  threadId: string
+  turnId: string
+  inputId: string
+  answers: Record<string, string>
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
 }
@@ -144,4 +151,21 @@ export function parseTurnInterruptParams(params: unknown): TurnInterruptParams {
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   const turnId = parseRequiredNonEmptyString(params.turnId, 'params.turnId')
   return { threadId, turnId }
+}
+
+export function parseTurnInputSubmitParams(params: unknown): TurnInputSubmitParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const turnId = parseRequiredNonEmptyString(params.turnId, 'params.turnId')
+  const inputId =
+    parseOptionalNonEmptyString(params.inputId, 'params.inputId') ??
+    parseRequiredNonEmptyString((params as any).toolUseId, 'params.toolUseId')
+
+  if (!isObject(params.answers)) throw new Error('Invalid params.answers: expected object')
+  const answers: Record<string, string> = {}
+  for (const [k, v] of Object.entries(params.answers)) {
+    answers[String(k)] = String(v)
+  }
+
+  return { threadId, turnId, inputId, answers }
 }

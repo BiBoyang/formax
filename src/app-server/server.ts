@@ -12,6 +12,7 @@ import {
   parseThreadByIdParams,
   parseThreadListParams,
   parseThreadStartParams,
+  parseTurnInputSubmitParams,
   parseTurnInterruptParams,
   parseTurnStartParams,
 } from './protocol.js'
@@ -31,16 +32,16 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
-  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn'>
-  resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>>
+  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
+  resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
 }
 
 export class AppServer {
   private readonly info: AppServerInfo
   private readonly threadStore: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
-  private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn'> | null
-  private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>>
+  private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
+  private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
 
   private state: AppServerState = {
@@ -172,6 +173,17 @@ export class AppServer {
       }
     }
 
+    if (req.method === 'turn/input/submit') {
+      try {
+        const params = parseTurnInputSubmitParams(req.params)
+        const runner = await this.getTurnRunner()
+        const result = await runner.submitInput(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
     return [
       makeErrorResponse(req.id, {
         code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
@@ -193,7 +205,7 @@ export class AppServer {
     return { code: JSON_RPC_ERRORS.INTERNAL_ERROR, message }
   }
 
-  private async getTurnRunner(): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>> {
+  private async getTurnRunner(): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>> {
     if (this.turnRunner) return this.turnRunner
     if (!this.resolveTurnRunner) {
       throw new Error('Turn runner is not configured')
