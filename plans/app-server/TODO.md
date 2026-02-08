@@ -91,7 +91,7 @@
 - [x] `approvalService.ensureApproved()` 在等待答案前发 `approval_request`。
 - [x] `AskUserQuestion` handler 在等待答案前发 `ask_user_question`。
 - [x] app-server 转发为 `turn/inputRequested` 通知。
-- [ ] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
+- [x] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
 - [ ] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
 - [ ] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
 - [ ] 明确 `multiSelect` 的字符串编码规则（逗号拼接 label），并写入协议文档。
@@ -153,7 +153,7 @@
 - [ ] 在 `turnRunner` 内维护 `seq` 计数器，并统一封装 `turn/event` envelope（含 `traceId/seq/ts/eventId/source`）。
 - [x] 在 `approvalService.ensureApproved()` 的 `requestAnswers()` 前发 `approval_request` 事件（携带 action/effectiveDecision/workspaceRequest）。
 - [x] 在 `AskUserQuestion` handler 的 `requestAnswers()` 前发 `ask_user_question` 事件（questions + optional fieldId）。
-- [ ] Router 实现 `turn/input/submit` 新入参校验：`threadId/turnId/inputId/answers`，可选 `submissionId`。
+- [x] Router 实现 `turn/input/submit` 新入参校验：`threadId/turnId/inputId/answers`，可选 `submissionId`。
 - [ ] Router 实现提交幂等：同 `submissionId` + 同答案返回 `already_submitted_same`。
 - [ ] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
 - [ ] `turn/interrupt` 路径先 cancel all pending inputs（逐个发 `turn/inputResolved(canceled)`）再结束 turn。
