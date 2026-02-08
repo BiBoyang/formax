@@ -4,10 +4,11 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（优先做基座，UI 后接线）
+- `plans/app-server/TODO.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
 
 ## 并行参考（不作为主线推进）
 
+- `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（既有基座，后续与 app-server 交互会有交叉）
 - `plans/ui/ui-TODO-INDEX.md`：UI TODO 索引（串联 `plans/ui/` 下各 TODO）
 - `plans/ui/BACKLOG-command-subline-output.md`：Slash command 子行输出（扩展范围 / 后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 后置增强项（不作为执行清单）

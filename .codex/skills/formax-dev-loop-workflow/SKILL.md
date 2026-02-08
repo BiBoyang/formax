@@ -1,6 +1,6 @@
 ---
 name: formax-dev-loop-workflow
-description: "Use when working on Formax code changes and you need a disciplined dev loop: keep a single mainline task, avoid scope drift, run only targeted tests (no coverage), avoid partial staging (MM), run `codex review --uncommitted` before commit, and keep commits small and reviewable."
+description: "Use when working on Formax code changes and you need a disciplined dev loop: keep a single mainline task, avoid scope drift, run only targeted tests (no coverage), avoid partial staging (MM), run review with `gpt-5.2` + `high` reasoning before commit, include an incremental optimization check, and keep commits small and reviewable."
 ---
 
 # Formax Dev Loop (Mainline Discipline)
@@ -14,19 +14,28 @@ description: "Use when working on Formax code changes and you need a disciplined
 
 3) **Implement** the smallest change that satisfies the item.
 
-4) **Run only targeted tests** (never `bun run test:coverage` unless explicitly asked).
+4) **Incremental optimization check (required)**
+   - After implementation, do a quick pass:
+     - Is there newly-dead/unused logic introduced by this increment?
+     - Is there a low-risk simplification that reduces branching/duplication?
+   - If yes, include a **small** optimization in the same item (no scope drift, no behavior change).
+   - If no, explicitly proceed without optimization.
+
+5) **Run only targeted tests** (never `bun run test:coverage` unless explicitly asked).
    - Preferred: `bun run test -- <changed-test-files...>`
    - Helper (repo): `bun run test:changed`
      - Use default (staged only) for the commit you are about to make.
      - Use `bun run test:changed -- --all` only when you intentionally want staged + unstaged + untracked.
 
-5) **Pre-commit hygiene**
+6) **Pre-commit hygiene**
    - Avoid partial staging (“MM” state). If needed, check with:
      - `bun run check:partial-stage`
-   - Run review before every commit:
-     - `codex review --uncommitted`
+   - Run review before every commit (required profile):
+     - `codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"`
+   - If review returns findings: fix -> re-run targeted tests -> re-run review.
+   - Use a longer timeout in automation/scripting contexts to avoid 2-minute interruptions.
 
-6) **Commit**
+7) **Commit**
    - Keep it small (2–4 files ideally, unless refactor forces more).
    - Prefer one concern per commit (tests + implementation together for that concern).
 
@@ -49,6 +58,6 @@ bun run test:changed
 # Include unstaged + untracked (when explicitly intended)
 bun run test:changed -- --all
 
-# Required before commit
-codex review --uncommitted
+# Required before commit (review profile)
+codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"
 ```
