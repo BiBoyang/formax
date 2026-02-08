@@ -90,6 +90,7 @@ export async function runAppServer(args?: {
       return lazyTurnRunner
     },
     limits: {
+      // Exposed verbatim via initialize.result.limits for client-side guardrails.
       maxRequestBytes,
       maxEventBytes,
       maxPendingInputsPerThread,

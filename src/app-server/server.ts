@@ -75,6 +75,8 @@ export class AppServer {
     this.resolveTurnRunner = args.resolveTurnRunner
     this.emitNotification = args.emitNotification
     this.serverInstanceId = args.serverInstanceId ?? randomUUID()
+    // initialize.result.limits is sourced from runAppServer() wiring (index.ts):
+    // transport limits + input lifecycle limits + in-flight turn policy.
     this.limits = args.limits ?? {
       maxRequestBytes: 1024 * 1024,
       maxEventBytes: 1024 * 1024,
