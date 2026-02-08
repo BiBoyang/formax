@@ -104,7 +104,7 @@
 - [x] 单测：approval/ask_user_question 桥接。
 - [x] 集成：可完成“服务端发请求 -> 客户端回答案 -> turn 继续并完成”。
 - [x] 对同一 `inputId` 重复提交，能稳定收敛到“same/conflict”之一，且无重复执行。
-- [ ] turn 结束后 GUI 不存在悬挂 pending input（必须收到 `turn/inputResolved`）。
+- [x] turn 结束后 GUI 不存在悬挂 pending input（必须收到 `turn/inputResolved`）。
 
 ## Phase 6 — CLI 接入与帮助信息
 

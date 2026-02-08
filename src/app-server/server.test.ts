@@ -391,4 +391,104 @@ describe('AppServer', () => {
     ).length
     expect(resolvedSubmittedCount).toBe(1)
   })
+
+  it('interrupt resolves pending input before turn end', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const userInput = createUserInputManager()
+    const threadStore = new ThreadStore({ cwd, env })
+
+    let runner: TurnRunner | null = null
+    let server: AppServer
+    server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore,
+      resolveTurnRunner: async () => {
+        if (runner) return runner
+        runner = new TurnRunner({
+          engine: {
+            async runTurn(args) {
+              const questions = [
+                {
+                  question: 'Pick one?',
+                  header: 'Choice',
+                  options: [{ label: 'A', description: 'Option A' }],
+                  multiSelect: false,
+                },
+              ]
+              args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-1', questions })
+              await userInput.requestAnswers({ toolUseId: 'ask-1', questions, signal: args.signal })
+              return [...args.history, args.user] as ChatHistory
+            },
+          },
+          tools: [],
+          allowedSubagents: [],
+          model: 'test-model',
+          promptProfile: 'lite',
+          cwd,
+          env,
+          userInputManager: userInput,
+          emitNotification: server.createTurnNotificationEmitter(),
+        })
+        return runner
+      },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const threadStart = await server.handleMessage(request(2, 'thread/start'))
+    const threadId = (threadStart[0] as any).result.thread.id as string
+    const turnStart = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId,
+        input: { text: 'hello' },
+      }),
+    )
+    const turnId = (turnStart[0] as any).result.turn.id as string
+
+    const requested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && (n.params as any)?.input?.kind === 'ask_user_question',
+    )
+    const inputId = (requested.params as any).input.inputId as string
+
+    const interrupted = await server.handleMessage(
+      request(4, 'turn/interrupt', {
+        threadId,
+        turnId,
+      }),
+    )
+    expect((interrupted[0] as any).result).toEqual({})
+
+    const resolved = await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        (n.params as any)?.input?.status === 'canceled' &&
+        (n.params as any)?.input?.inputId === inputId,
+    )
+    expect((resolved.params as any)?.input?.reason).toBe('turn_interrupted')
+
+    const failed = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/failed' && (n.params as any)?.turn?.id === turnId,
+    )
+    expect((failed.params as any)?.turn?.status).toBe('interrupted')
+
+    const resolvedIndex = notifications.findIndex(
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        (n.params as any)?.input?.status === 'canceled' &&
+        (n.params as any)?.input?.inputId === inputId,
+    )
+    const failedIndex = notifications.findIndex(
+      (n) => n.method === 'turn/failed' && (n.params as any)?.turn?.id === turnId,
+    )
+    expect(resolvedIndex).toBeGreaterThanOrEqual(0)
+    expect(failedIndex).toBeGreaterThan(resolvedIndex)
+  })
 })
