@@ -167,8 +167,8 @@
 验收：
 
 - [x] approval 与 ask_user_question 均能观测到 `inputRequested -> inputResolved` 成对事件。
-- [ ] 任意异常路径（interrupt、timeout、restart）不会残留 pending input。
-- [ ] 断线重连后 `thread/resume` 可清理旧 pending UI，且错误码语义一致。
+- [x] 任意异常路径（interrupt、timeout、restart）不会残留 pending input。
+- [x] 断线重连后 `thread/resume` 可清理旧 pending UI，且错误码语义一致。
 
 ## 建议 PR 切分（小步可回滚）
 

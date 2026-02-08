@@ -8,7 +8,13 @@ import type { StreamEvent } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
-import type { InputEnvelopeMeta, InputKind, InputResolvedPayload, TurnInputSubmitResult } from './protocol/input.js'
+import type {
+  InputEnvelopeMeta,
+  InputKind,
+  InputRequestedPayload,
+  InputResolvedPayload,
+  TurnInputSubmitResult,
+} from './protocol/input.js'
 import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 import { TurnInputStore } from './turn/inputStore.js'
 
@@ -45,6 +51,7 @@ type RunningTurn = {
   inputStore: TurnInputStore
   writer: SessionWriter | null
   pendingEventWrites: Array<Promise<void>>
+  inputExpiryTimers: Map<string, ReturnType<typeof setTimeout>>
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -134,6 +141,7 @@ export class TurnRunner {
       }),
       writer: null,
       pendingEventWrites: [],
+      inputExpiryTimers: new Map(),
     }
     this.runningByThreadId.set(params.threadId, running)
 
@@ -266,6 +274,7 @@ export class TurnRunner {
               ...(event.workspaceRequest !== undefined ? { workspaceRequest: event.workspaceRequest } : {}),
             },
           })
+          this.armInputExpiryTimer(running, input)
           this.emitTurnNotification(running, 'turn/inputRequested', 'policy', {
             threadId: running.threadId,
             turnId: running.turnId,
@@ -283,6 +292,7 @@ export class TurnRunner {
               questions: event.questions,
             },
           })
+          this.armInputExpiryTimer(running, input)
           this.emitTurnNotification(running, 'turn/inputRequested', 'tool', {
             threadId: running.threadId,
             turnId: running.turnId,
@@ -361,6 +371,7 @@ export class TurnRunner {
       if (writer) {
         await writer.shutdown().catch(() => undefined)
       }
+      this.clearAllInputExpiryTimers(running)
       running.writer = null
       this.runningByThreadId.delete(running.threadId)
     }
@@ -397,6 +408,7 @@ export class TurnRunner {
   }
 
   private emitResolvedInput(running: RunningTurn, input: InputResolvedPayload): void {
+    this.clearInputExpiryTimer(running, input.inputId)
     this.emitTurnNotification(running, 'turn/inputResolved', sourceFromInputKind(input.kind), {
       threadId: running.threadId,
       turnId: running.turnId,
@@ -439,5 +451,50 @@ export class TurnRunner {
     if (!running.writer) return
     const write = running.writer.appendEvent(name, data).catch(() => undefined)
     running.pendingEventWrites.push(write)
+  }
+
+  private armInputExpiryTimer(running: RunningTurn, input: InputRequestedPayload): void {
+    this.clearInputExpiryTimer(running, input.inputId)
+    const expiresAt = Date.parse(input.expiresAt)
+    if (!Number.isFinite(expiresAt)) return
+    const delayMs = Math.max(0, expiresAt - Date.now() + 1)
+    const timer = setTimeout(() => {
+      running.inputExpiryTimers.delete(input.inputId)
+      this.expirePendingInput(running, input)
+    }, delayMs)
+    if (typeof timer.unref === 'function') timer.unref()
+    running.inputExpiryTimers.set(input.inputId, timer)
+  }
+
+  private clearInputExpiryTimer(running: RunningTurn, inputId: string): void {
+    const timer = running.inputExpiryTimers.get(inputId)
+    if (!timer) return
+    clearTimeout(timer)
+    running.inputExpiryTimers.delete(inputId)
+  }
+
+  private clearAllInputExpiryTimers(running: RunningTurn): void {
+    for (const timer of running.inputExpiryTimers.values()) {
+      clearTimeout(timer)
+    }
+    running.inputExpiryTimers.clear()
+  }
+
+  private expirePendingInput(running: RunningTurn, input: InputRequestedPayload): void {
+    const active = this.runningByThreadId.get(running.threadId)
+    if (!active || active.turnId !== running.turnId) return
+
+    const now = new Date(Date.parse(input.expiresAt) + 1).toISOString()
+    const out = running.inputStore.submitInput({
+      inputId: input.inputId,
+      answers: {},
+      now,
+    })
+    if (out.transition) {
+      this.emitResolvedInput(running, out.transition)
+    }
+    if (out.status === 'expired' && out.toolUseId && this.userInputManager) {
+      this.userInputManager.reject(out.toolUseId, new Error('Input expired'))
+    }
   }
 }

@@ -219,6 +219,73 @@ describe('TurnRunner', () => {
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
   })
 
+  it('expires pending input by TTL and emits expired resolution', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const userInput = createUserInputManager()
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const questions = [
+            {
+              question: 'Pick one?',
+              header: 'Choice',
+              options: [{ label: 'A', description: 'Option A' }],
+              multiSelect: false,
+            },
+          ]
+          args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-expire-1', questions })
+          await userInput.requestAnswers({ toolUseId: 'ask-expire-1', questions, signal: args.signal })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      userInputManager: userInput,
+      defaultInputTtlMs: 20,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'expire me' } })
+
+    const requested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && n.params?.input?.toolUseId === 'ask-expire-1',
+    )
+    const expired = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputResolved' && n.params?.input?.status === 'expired',
+      3000,
+    )
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+
+    expect(expired.params?.input?.inputId).toBe(requested.params?.input?.inputId)
+    expect(String(failed.params?.error ?? '')).toContain('Input expired')
+
+    const requestedAt = notifications.findIndex((n) => n === requested)
+    const expiredAt = notifications.findIndex((n) => n === expired)
+    const failedAt = notifications.findIndex((n) => n === failed)
+    expect(requestedAt).toBeGreaterThanOrEqual(0)
+    expect(expiredAt).toBeGreaterThan(requestedAt)
+    expect(failedAt).toBeGreaterThan(expiredAt)
+
+    const submit = await runner.submitInput({
+      threadId: fixture.threadId,
+      turnId: started.turn.id,
+      inputId: requested.params?.input?.inputId,
+      answers: { Choice: 'A' },
+      submissionId: 'late-submit',
+    })
+    expect(submit).toEqual({ accepted: false, status: 'not_pending' })
+  })
+
   it('emits failed when engine runTurn throws', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
