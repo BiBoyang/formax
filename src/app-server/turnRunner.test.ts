@@ -85,7 +85,12 @@ describe('TurnRunner', () => {
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
     expect(
       notifications.some(
-        (n) => n.method === 'turn/inputRequested' && n.params?.input?.type === 'ask_user_question',
+        (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'ask_user_question',
+      ),
+    ).toBe(true)
+    expect(
+      notifications.some(
+        (n) => n.method === 'turn/inputResolved' && n.params?.input?.status === 'failed',
       ),
     ).toBe(true)
 
@@ -102,6 +107,8 @@ describe('TurnRunner', () => {
 
     expect(notifications.some((n) => n.method === 'turn/started')).toBe(true)
     expect(notifications.some((n) => n.method === 'turn/event')).toBe(true)
+    expect(notifications.every((n) => typeof n.params?.seq === 'number')).toBe(true)
+    expect(notifications.every((n) => typeof n.params?.traceId === 'string')).toBe(true)
   })
 
   it('supports interrupt and clears in-flight lock for next turn', async () => {
@@ -149,16 +156,84 @@ describe('TurnRunner', () => {
     )
   })
 
-  it('submits answers through userInputManager', async () => {
+  it('submits answers through userInputManager and emits inputResolved', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
     const userInput = createUserInputManager()
-    const pending = userInput.requestAnswers({
-      toolUseId: 'ask-1',
-      questions: [],
-    })
 
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
+          const questions = [
+            {
+              question: 'Pick one?',
+              header: 'Choice',
+              options: [{ label: 'A', description: 'Option A' }],
+              multiSelect: false,
+            },
+          ]
+          args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-1', questions })
+          const answers = await userInput.requestAnswers({ toolUseId: 'ask-1', questions, signal: args.signal })
+          args.onEvent({ type: 'assistant_delta', text: String(answers.Choice ?? '') })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: String(answers.Choice ?? '') }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      userInputManager: userInput,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'question' } })
+    const requested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'ask_user_question',
+    )
+
+    const out = await runner.submitInput({
+      threadId: fixture.threadId,
+      turnId: started.turn.id,
+      inputId: 'ask-1',
+      answers: { Choice: 'A' },
+      submissionId: 'sub-1',
+    })
+    expect(out).toEqual({ accepted: true, status: 'accepted' })
+
+    const resolved = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputResolved' && n.params?.input?.status === 'submitted',
+    )
+    expect(resolved.params?.input?.inputId).toBe(requested.params.input.inputId)
+
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+  })
+
+  it('keeps approval toolName in input payload', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({
+            type: 'approval_request',
+            toolUseId: 'approval-1',
+            toolName: 'Bash',
+            action: { kind: 'bash.exec' },
+            effectiveDecision: { decision: 'ask' },
+          })
+          args.onEvent({ type: 'complete' })
           return [...args.history, args.user] as ChatHistory
         },
       },
@@ -166,17 +241,18 @@ describe('TurnRunner', () => {
       allowedSubagents: [],
       model: 'test-model',
       promptProfile: 'lite',
-      userInputManager: userInput,
-      emitNotification() {},
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
     })
 
-    const out = await runner.submitInput({
-      threadId: 'thread-1',
-      turnId: 'turn-1',
-      inputId: 'ask-1',
-      answers: { Choice: 'A' },
-    })
-    expect(out).toEqual({ accepted: true })
-    await expect(pending).resolves.toEqual({ Choice: 'A' })
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'check' } })
+    const approvalRequested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'approval',
+    )
+    expect(approvalRequested.params?.input?.payload?.toolName).toBe('Bash')
   })
 })

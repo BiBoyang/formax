@@ -6,6 +6,7 @@ export type AskUserQuestionOption = {
 export type AskUserQuestion = {
   question: string
   header: string
+  fieldId?: string
   options: AskUserQuestionOption[]
   multiSelect: boolean
 }

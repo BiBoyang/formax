@@ -114,4 +114,39 @@ describe('AskUserQuestionToolHandler', () => {
     const parsed = JSON.parse(res.content)
     expect(parsed.answers).toEqual({ Choice: 'B' })
   })
+
+  it('passes through optional fieldId for compatibility', async () => {
+    const userInput = createUserInputManager()
+    const handler = createAskUserQuestionToolHandler(userInput)
+    const onEvent = vi.fn()
+
+    const exec = handler.execute(
+      {
+        id: 'ask-3',
+        name: 'AskUserQuestion',
+        input: {
+          questions: [
+            {
+              question: 'Pick one?',
+              header: 'Choice',
+              fieldId: 'choice_id',
+              options: [{ label: 'A', description: 'Option A' }],
+              multiSelect: false,
+            },
+          ],
+        },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, onEvent },
+    )
+
+    userInput.submitAnswers('ask-3', { choice_id: 'A' })
+    await exec
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ask_user_question',
+        questions: [expect.objectContaining({ fieldId: 'choice_id', header: 'Choice' })],
+      }),
+    )
+  })
 })

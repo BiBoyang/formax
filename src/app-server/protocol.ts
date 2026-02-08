@@ -1,4 +1,4 @@
-export const APP_SERVER_PROTOCOL_VERSION = '0.1'
+export const APP_SERVER_PROTOCOL_VERSION = '0.2'
 
 export type ClientInfo = {
   name: string
@@ -61,6 +61,8 @@ export type TurnInputSubmitParams = {
   turnId: string
   inputId: string
   answers: Record<string, string>
+  submissionId?: string
+  toolUseId?: string
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -167,5 +169,15 @@ export function parseTurnInputSubmitParams(params: unknown): TurnInputSubmitPara
     answers[String(k)] = String(v)
   }
 
-  return { threadId, turnId, inputId, answers }
+  const submissionId = parseOptionalNonEmptyString(params.submissionId, 'params.submissionId')
+  const toolUseId = parseOptionalNonEmptyString(params.toolUseId, 'params.toolUseId')
+
+  return {
+    threadId,
+    turnId,
+    inputId,
+    answers,
+    ...(submissionId ? { submissionId } : {}),
+    ...(toolUseId ? { toolUseId } : {}),
+  }
 }

@@ -92,12 +92,12 @@
 - [x] `AskUserQuestion` handler 在等待答案前发 `ask_user_question`。
 - [x] app-server 转发为 `turn/inputRequested` 通知。
 - [x] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
-- [ ] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
-- [ ] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
+- [x] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
+- [x] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
 - [ ] 明确 `multiSelect` 的字符串编码规则（逗号拼接 label），并写入协议文档。
-- [ ] 新增 `turn/inputResolved` 通知（`submitted/canceled/expired/failed`）。
-- [ ] `turn/input/submit` 返回状态扩展：`accepted | already_submitted_same | conflict_already_submitted | not_pending | expired | canceled`。
-- [ ] 支持 `submissionId` 幂等键与 `answersHash` 冲突判断。
+- [x] 新增 `turn/inputResolved` 通知（`submitted/canceled/expired/failed`）。
+- [x] `turn/input/submit` 返回状态扩展：`accepted | already_submitted_same | conflict_already_submitted | not_pending | expired | canceled`。
+- [x] 支持 `submissionId` 幂等键与 `answersHash` 冲突判断。
 
 验收：
 
@@ -147,17 +147,17 @@
 ## Approval Hardening（增量补充）
 
 - [ ] 在 `src/app-server/protocol/input.ts` 写入“语义边界注释”：统一状态机，不统一业务决策逻辑。
-- [ ] 新增 `src/app-server/protocol/input.ts`（或等价模块）：定义 `InputRequest/InputStatus/InputResolved` 类型。
-- [ ] 新增 `src/app-server/turn/inputId.ts`：统一 `inputId` 生成（`${turnId}:${toolUseId}:${kind}`）。
-- [ ] 新增 `src/app-server/turn/inputStore.ts`：维护 per-turn input 生命周期与索引。
-- [ ] 在 `turnRunner` 内维护 `seq` 计数器，并统一封装 `turn/event` envelope（含 `traceId/seq/ts/eventId/source`）。
+- [x] 新增 `src/app-server/protocol/input.ts`（或等价模块）：定义 `InputRequest/InputStatus/InputResolved` 类型。
+- [x] 新增 `src/app-server/turn/inputId.ts`：统一 `inputId` 生成（`${turnId}:${toolUseId}:${kind}`）。
+- [x] 新增 `src/app-server/turn/inputStore.ts`：维护 per-turn input 生命周期与索引。
+- [x] 在 `turnRunner` 内维护 `seq` 计数器，并统一封装 `turn/event` envelope（含 `traceId/seq/ts/eventId/source`）。
 - [x] 在 `approvalService.ensureApproved()` 的 `requestAnswers()` 前发 `approval_request` 事件（携带 action/effectiveDecision/workspaceRequest）。
 - [x] 在 `AskUserQuestion` handler 的 `requestAnswers()` 前发 `ask_user_question` 事件（questions + optional fieldId）。
 - [x] Router 实现 `turn/input/submit` 新入参校验：`threadId/turnId/inputId/answers`，可选 `submissionId`。
-- [ ] Router 实现提交幂等：同 `submissionId` + 同答案返回 `already_submitted_same`。
-- [ ] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
-- [ ] `turn/interrupt` 路径先 cancel all pending inputs（逐个发 `turn/inputResolved(canceled)`）再结束 turn。
-- [ ] turn 正常 `completed/failed` 前执行 pending 清理，确保无 input 泄漏。
+- [x] Router 实现提交幂等：同 `submissionId` + 同答案返回 `already_submitted_same`。
+- [x] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
+- [x] `turn/interrupt` 路径先 cancel all pending inputs（逐个发 `turn/inputResolved(canceled)`）再结束 turn。
+- [x] turn 正常 `completed/failed` 前执行 pending 清理，确保无 input 泄漏。
 - [ ] 新增 `src/app-server/store/sessionEventReader.ts`：读取 `event` 记录恢复 `staleInputs`。
 - [ ] `thread/resume` 返回 stale inputs（server restart 后统一 expired），并保证后续 submit 返回 `INPUT_EXPIRED`。
 - [ ] 为 transport 增加 `maxRequestBytes/maxEventBytes`，超限返回 `PAYLOAD_TOO_LARGE`。
@@ -165,7 +165,7 @@
 
 验收：
 
-- [ ] approval 与 ask_user_question 均能观测到 `inputRequested -> inputResolved` 成对事件。
+- [x] approval 与 ask_user_question 均能观测到 `inputRequested -> inputResolved` 成对事件。
 - [ ] 任意异常路径（interrupt、timeout、restart）不会残留 pending input。
 - [ ] 断线重连后 `thread/resume` 可清理旧 pending UI，且错误码语义一致。
 

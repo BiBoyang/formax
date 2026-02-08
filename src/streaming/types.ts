@@ -49,6 +49,7 @@ export type StreamEvent =
       questions: Array<{
         question: string
         header: string
+        fieldId?: string
         options: Array<{ label: string; description: string }>
         multiSelect: boolean
       }>

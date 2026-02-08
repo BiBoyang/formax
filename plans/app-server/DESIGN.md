@@ -298,7 +298,7 @@
 `initialize` result 增补：
 
 - `serverInstanceId: string`（进程级实例 ID，重启变化）
-- `protocolVersion: "0.1"`
+- `protocolVersion: "0.2"`（本次 input 生命周期协议为非兼容变更，显式升版）
 - `limits`:
   - `maxRequestBytes`
   - `maxEventBytes`
@@ -336,6 +336,7 @@ approval payload（一期最小）：
 - `decision` 选项：`approve | approve_remember | cancel | feedback`
 - `scope` 选项：`session | project`（一期先不强加 global）
 - `action` / `effectiveDecision` / `workspaceRequest?` / `suggestions?`
+- `toolName`（供 GUI 明确展示审批来源工具）
 
 ask_user_question payload（兼容现状）：
 

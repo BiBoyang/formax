@@ -27,7 +27,7 @@ describe('AppServer', () => {
     const init = await server.handleMessage(request(1, 'initialize', { clientInfo: { name: 'web', version: '1.0.0' } }))
     expect(init).toHaveLength(1)
     expect((init[0] as any).result.serverInfo).toEqual({ name: 'formax', version: 'test' })
-    expect((init[0] as any).result.protocolVersion).toBe('0.1')
+    expect((init[0] as any).result.protocolVersion).toBe('0.2')
 
     const unknown = await server.handleMessage(request(2, 'unknown/method'))
     expect(unknown).toHaveLength(1)
@@ -101,7 +101,7 @@ describe('AppServer', () => {
           return {}
         },
         async submitInput() {
-          return { accepted: true }
+          return { accepted: true, status: 'accepted' as const }
         },
       },
       emitNotification(message) {
@@ -132,7 +132,7 @@ describe('AppServer', () => {
         answers: { Choice: 'A' },
       }),
     )
-    expect((submitOut[0] as any).result).toEqual({ accepted: true })
+    expect((submitOut[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
 
     const emit = server.createTurnNotificationEmitter()
     emit('turn/event', { threadId: 'thread-1' })

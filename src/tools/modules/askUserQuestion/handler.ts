@@ -27,6 +27,7 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
         const questions: AskUserQuestion[] = questionsRaw.map((q: any) => ({
           question: String(q?.question ?? ''),
           header: String(q?.header ?? ''),
+          ...(typeof q?.fieldId === 'string' && q.fieldId.trim().length > 0 ? { fieldId: q.fieldId.trim() } : {}),
           options: Array.isArray(q?.options)
             ? q.options.map((o: any) => ({
                 label: String(o?.label ?? ''),
