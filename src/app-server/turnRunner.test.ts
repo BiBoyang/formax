@@ -219,6 +219,35 @@ describe('TurnRunner', () => {
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
   })
 
+  it('emits failed when engine runTurn throws', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn() {
+          throw new Error('boom')
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'explode' } })
+    expect(started.turn.status).toBe('running')
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(failed.params?.turn?.status).toBe('failed')
+    expect(String(failed.params?.error ?? '')).toContain('boom')
+  })
+
   it('keeps approval toolName in input payload', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

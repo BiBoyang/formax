@@ -78,7 +78,7 @@
 验收：
 
 - [x] 新增 `turnRunner.test.ts`（事件顺序 + interrupt）。
-- [ ] 集成测试覆盖 start/completed/failed 路径。
+- [x] 集成测试覆盖 start/completed/failed 路径。
 
 ## Phase 5 — 审批与 AskUserQuestion 交互闭环
 
