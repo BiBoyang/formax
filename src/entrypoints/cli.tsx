@@ -26,6 +26,12 @@ async function main(): Promise<void> {
     return
   }
 
+  if (res.kind === 'app-server') {
+    const { runAppServer } = await import('../app-server/index.js')
+    await runAppServer()
+    return
+  }
+
   const { createApp } = await import('../core/app/createApp.js')
   const { runLegacyCli } = await import('../legacy/runLegacyCli.js')
   const app = createApp()

@@ -9,6 +9,7 @@ describe('formatCliHelp', () => {
       Usage:
         formax                     Start the REPL
         formax repl                Start the REPL
+        formax app-server          Start JSON-RPC app server over stdio
         formax --version
         formax version [--json]
         formax help

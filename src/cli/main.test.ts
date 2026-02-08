@@ -32,6 +32,11 @@ describe('dispatchCli', () => {
     expect(res.kind).toBe('repl')
   })
 
+  it('dispatches app-server subcommand', async () => {
+    const res = await dispatchCli(['app-server'])
+    expect(res.kind).toBe('app-server')
+  })
+
   it('shows help for --help', async () => {
     const res = await dispatchCli(['--help'])
     expect(res.kind).toBe('handled')

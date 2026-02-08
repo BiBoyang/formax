@@ -31,6 +31,7 @@ import pkg from '../../package.json'
 
 export type CliDispatchResult =
   | { kind: 'repl' }
+  | { kind: 'app-server' }
   | { kind: 'handled'; exitCode: number; stdout: string; stderr: string }
 
 type ConnectionTester = (args: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
@@ -313,6 +314,7 @@ export async function dispatchCli(
   }
 
   if (args.length === 0 || args[0] === 'repl') return { kind: 'repl' }
+  if (args[0] === 'app-server') return { kind: 'app-server' }
 
   if (args[0] === 'help') {
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }

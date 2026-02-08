@@ -4,6 +4,7 @@ export function formatCliHelp(): string {
     `Usage:\n` +
     `  formax                     Start the REPL\n` +
     `  formax repl                Start the REPL\n` +
+    `  formax app-server          Start JSON-RPC app server over stdio\n` +
     `  formax --version\n` +
     `  formax version [--json]\n` +
     `  formax help\n` +
