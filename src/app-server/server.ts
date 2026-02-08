@@ -16,7 +16,7 @@ import {
   parseTurnInterruptParams,
   parseTurnStartParams,
 } from './protocol.js'
-import { ThreadStore, type ThreadListResult, type ThreadReadResult } from './threadStore.js'
+import { ThreadStore, type ThreadListResult, type ThreadReadResult, type ThreadResumeResult } from './threadStore.js'
 import { TurnRunner } from './turnRunner.js'
 
 export type AppServerInfo = {
@@ -124,8 +124,8 @@ export class AppServer {
     if (req.method === 'thread/resume') {
       try {
         const params = parseThreadByIdParams(req.params)
-        const thread = await this.threadStore.resumeThread(params.threadId)
-        return [makeSuccessResponse(req.id, { thread })]
+        const result: ThreadResumeResult = await this.threadStore.resumeThread(params.threadId)
+        return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }

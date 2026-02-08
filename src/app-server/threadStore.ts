@@ -8,7 +8,9 @@ import {
   SessionWriter,
   type SessionSummary,
 } from '../features/repl/sessionSave/index.js'
+import type { InputResolvedPayload } from './protocol/input.js'
 import type { Thread, ThreadListParams, ThreadStartParams, ThreadSummary } from './protocol.js'
+import { readStaleInputsFromSession } from './store/sessionEventReader.js'
 
 export type ThreadStoreOptions = {
   cwd?: string
@@ -25,6 +27,11 @@ export type ThreadListResult = {
 export type ThreadReadResult = {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+}
+
+export type ThreadResumeResult = {
+  thread: Thread
+  staleInputs: InputResolvedPayload[]
 }
 
 function toThreadSummary(summary: SessionSummary): ThreadSummary {
@@ -90,10 +97,24 @@ export class ThreadStore {
     }
   }
 
-  async resumeThread(threadId: string): Promise<Thread> {
-    const summary = await this.readThreadSummaryById(threadId)
-    if (!summary) throw new Error(`Thread not found: ${threadId}`)
-    return toThread(summary)
+  async resumeThread(threadId: string): Promise<ThreadResumeResult> {
+    const filePath = await findSessionFileBySessionId({
+      cwd: this.cwd,
+      sessionId: threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    if (!filePath) throw new Error(`Thread not found: ${threadId}`)
+
+    const [summary, staleInputs] = await Promise.all([
+      readSessionSummary(filePath),
+      readStaleInputsFromSession({ filePath }),
+    ])
+    return {
+      thread: toThread(summary),
+      staleInputs,
+    }
   }
 
   async listThreads(params: ThreadListParams): Promise<ThreadListResult> {
@@ -134,17 +155,5 @@ export class ThreadStore {
       thread: toThread(summary),
       transcriptPreview,
     }
-  }
-
-  private async readThreadSummaryById(threadId: string): Promise<SessionSummary | null> {
-    const filePath = await findSessionFileBySessionId({
-      cwd: this.cwd,
-      sessionId: threadId,
-      env: this.env,
-      platform: this.platform,
-      homedir: this.homedir,
-    })
-    if (!filePath) return null
-    return readSessionSummary(filePath).catch(() => null)
   }
 }

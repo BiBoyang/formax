@@ -41,6 +41,8 @@ type RunningTurn = {
   inputText: string
   abortController: AbortController
   inputStore: TurnInputStore
+  writer: SessionWriter | null
+  pendingEventWrites: Array<Promise<void>>
 }
 
 const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -113,6 +115,8 @@ export class TurnRunner {
         turnId,
         defaultInputTtlMs: DEFAULT_INPUT_TTL_MS,
       }),
+      writer: null,
+      pendingEventWrites: [],
     }
     this.runningByThreadId.set(params.threadId, running)
 
@@ -202,6 +206,12 @@ export class TurnRunner {
 
     try {
       writer = await SessionWriter.openExisting({ filePath: running.filePath })
+      running.writer = writer
+      await writer.appendEvent('app_turn_started', {
+        traceId: running.traceId,
+        threadId: running.threadId,
+        turnId: running.turnId,
+      })
       const replay = await readSessionFile(running.filePath)
       const history = replay.history
 
@@ -244,6 +254,7 @@ export class TurnRunner {
             turnId: running.turnId,
             input,
           })
+          this.appendAppEvent(running, 'app_input_requested', input)
           return
         }
 
@@ -260,6 +271,7 @@ export class TurnRunner {
             turnId: running.turnId,
             input,
           })
+          this.appendAppEvent(running, 'app_input_requested', input)
           return
         }
 
@@ -303,14 +315,6 @@ export class TurnRunner {
       status = running.abortController.signal.aborted ? 'interrupted' : 'failed'
       errorMessage = err instanceof Error ? err.message : String(err)
     } finally {
-      if (writer) {
-        const shutdownError = await writer.shutdown().then(() => null).catch((err) => err)
-        if (shutdownError && status === 'completed') {
-          status = 'failed'
-          errorMessage = shutdownError instanceof Error ? shutdownError.message : String(shutdownError)
-        }
-      }
-
       if (status === 'interrupted') {
         this.resolvePendingInputs(running, { status: 'canceled', reason: 'turn_interrupted' })
       } else if (status !== 'completed') {
@@ -319,6 +323,28 @@ export class TurnRunner {
         this.resolvePendingInputs(running, { status: 'failed', reason: 'turn_completed_with_pending_input' })
       }
 
+      if (writer) {
+        const flushError = await writer.flush().then(() => null).catch((err) => err)
+        if (flushError && status === 'completed') {
+          status = 'failed'
+          errorMessage = flushError instanceof Error ? flushError.message : String(flushError)
+        }
+      }
+
+      this.appendAppEvent(running, 'app_turn_ended', {
+        traceId: running.traceId,
+        threadId: running.threadId,
+        turnId: running.turnId,
+        status,
+        endedAt: new Date().toISOString(),
+        ...(errorMessage ? { error: errorMessage } : {}),
+      })
+      await Promise.all(running.pendingEventWrites)
+
+      if (writer) {
+        await writer.shutdown().catch(() => undefined)
+      }
+      running.writer = null
       this.runningByThreadId.delete(running.threadId)
     }
 
@@ -359,6 +385,7 @@ export class TurnRunner {
       turnId: running.turnId,
       input,
     })
+    this.appendAppEvent(running, 'app_input_resolved', input)
   }
 
   private emitTurnNotification(
@@ -389,5 +416,11 @@ export class TurnRunner {
       platform: this.platform,
       homedir: this.homedir,
     })
+  }
+
+  private appendAppEvent(running: RunningTurn, name: string, data: Record<string, unknown>): void {
+    if (!running.writer) return
+    const write = running.writer.appendEvent(name, data).catch(() => undefined)
+    running.pendingEventWrites.push(write)
   }
 }

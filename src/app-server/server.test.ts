@@ -84,7 +84,7 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread(threadId) {
-          return { ...baseThread, id: threadId }
+          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
         },
         async listThreads() {
           return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }

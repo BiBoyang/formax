@@ -158,8 +158,9 @@
 - [x] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
 - [x] `turn/interrupt` 路径先 cancel all pending inputs（逐个发 `turn/inputResolved(canceled)`）再结束 turn。
 - [x] turn 正常 `completed/failed` 前执行 pending 清理，确保无 input 泄漏。
-- [ ] 新增 `src/app-server/store/sessionEventReader.ts`：读取 `event` 记录恢复 `staleInputs`。
-- [ ] `thread/resume` 返回 stale inputs（server restart 后统一 expired），并保证后续 submit 返回 `INPUT_EXPIRED`。
+- [x] 新增 `src/app-server/store/sessionEventReader.ts`：读取 `event` 记录恢复 `staleInputs`。
+- [x] `thread/resume` 返回 stale inputs（server restart 后统一 expired）。
+- [ ] stale input 的后续 submit 返回 `INPUT_EXPIRED`（typed error/data）。
 - [ ] 为 transport 增加 `maxRequestBytes/maxEventBytes`，超限返回 `PAYLOAD_TOO_LARGE`。
 - [ ] 为 inputStore 增加 `maxPendingInputsPerThread`，超限拒绝并打点。
 
