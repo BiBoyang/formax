@@ -12,17 +12,24 @@ const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const distCli = path.join(repoRoot, 'dist', 'cli.js')
 const tsEntry = path.join(repoRoot, 'src', 'entrypoints', 'cli.tsx')
+const defaultDotenvPath = path.join(repoRoot, '.env')
 
 const rawArgs = process.argv.slice(2)
 const useDist = process.env.FORMAX_DEV_USE_DIST === '1' || rawArgs.includes('--use-dist')
 const args = rawArgs.filter((arg) => arg !== '--use-dist')
+const childEnv = {
+  ...process.env,
+  ...(process.env.DOTENV_CONFIG_PATH || !fs.existsSync(defaultDotenvPath)
+    ? {}
+    : { DOTENV_CONFIG_PATH: defaultDotenvPath }),
+}
 
 if (!useDist && fs.existsSync(tsEntry)) {
   const tsxCli = resolveTsxCli()
-  const child = spawn(process.execPath, [tsxCli, tsEntry, ...args], { stdio: 'inherit' })
+  const child = spawn(process.execPath, [tsxCli, tsEntry, ...args], { stdio: 'inherit', env: childEnv })
   wireChildProcess(child)
 } else if (fs.existsSync(distCli)) {
-  const child = spawn(process.execPath, [distCli, ...args], { stdio: 'inherit' })
+  const child = spawn(process.execPath, [distCli, ...args], { stdio: 'inherit', env: childEnv })
   wireChildProcess(child)
 } else {
   console.error('[formax] Could not find CLI entrypoint.')
