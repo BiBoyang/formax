@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import 'dotenv/config'
+import { spawn, type ChildProcess } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { startAppServerDevBridge } from '../app-server/devBridge.js'
-import { startWebReferenceServer } from '../app-server/web-reference/server.js'
 
 type CliOptions = {
   host?: string
@@ -46,9 +48,9 @@ function parseArgs(argv: string[]): CliOptions {
     if (token === '-h' || token === '--help') {
       process.stdout.write(
         [
-          'Usage: formax-web-reference [--host 127.0.0.1] [--bridge-port 3777] [--ui-port 3780]',
+          'Usage: formax-web-reference [--host 127.0.0.1] [--bridge-port 3777] [--ui-port 3781]',
           '',
-          'Starts app-server WebSocket dev bridge and static web reference UI.',
+          'Starts app-server WebSocket dev bridge and the React web reference client (Vite).',
         ].join('\n') + '\n',
       )
       process.exit(0)
@@ -61,26 +63,35 @@ function parseArgs(argv: string[]): CliOptions {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
   const host = args.host ?? '127.0.0.1'
+  const uiPort = args.uiPort ?? 3781
 
   const bridge = await startAppServerDevBridge({
     host,
     ...(args.bridgePort !== undefined ? { port: args.bridgePort } : {}),
   })
 
-  const web = await startWebReferenceServer({
-    host,
-    ...(args.uiPort !== undefined ? { port: args.uiPort } : {}),
-    bridgeUrl: bridge.url,
+  const entrypointDir = path.dirname(fileURLToPath(import.meta.url))
+  const repoRoot = path.resolve(entrypointDir, '..', '..')
+  const webCwd = path.join(repoRoot, 'apps', 'web-reference-react')
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const web: ChildProcess = spawn(npmCmd, ['run', 'dev', '--', '--host', host, '--port', String(uiPort)], {
+    cwd: webCwd,
+    stdio: 'inherit',
   })
 
   process.stderr.write(`[formax] app-server bridge: ${bridge.url}\n`)
-  process.stderr.write(`[formax] web reference ui: ${web.url}\n`)
+  process.stderr.write(`[formax] web reference ui: http://${host}:${uiPort}\n`)
 
   let shuttingDown = false
   const shutdown = async () => {
     if (shuttingDown) return
     shuttingDown = true
-    await Promise.all([web.close(), bridge.close()])
+
+    if (web.exitCode == null && !web.killed) {
+      web.kill('SIGTERM')
+    }
+
+    await bridge.close()
   }
 
   process.on('SIGINT', () => {
@@ -88,6 +99,14 @@ async function main(): Promise<void> {
   })
   process.on('SIGTERM', () => {
     void shutdown().finally(() => process.exit(0))
+  })
+
+  web.on('exit', (code, signal) => {
+    if (shuttingDown) return
+    void shutdown().finally(() => {
+      if (code != null) process.exit(code)
+      process.exit(signal ? 1 : 0)
+    })
   })
 }
 

@@ -60,7 +60,7 @@
 
 - `bun run test -- src/app-server/**/*.test.ts`
 - `bun run test -- src/app-server/server.test.ts`
-- `bun run test -- src/app-server/devBridge.test.ts src/app-server/web-reference/server.test.ts`
+- `bun run test -- src/app-server/devBridge.test.ts`
 - `bun run test -- src/legacy/bootstrap/runtimeConfig.test.tsx src/screens/REPL.test.tsx`
 - `bun run type-check`
 - `codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"`（按批次执行）
@@ -84,7 +84,7 @@ bun run app-server:bridge -- --host 127.0.0.1 --port 3777
 ### 5.3 web reference client
 
 ```bash
-bun run app-server:web-reference -- --host 127.0.0.1 --bridge-port 3777 --ui-port 3780
+bun run app-server:web-reference -- --host 127.0.0.1 --bridge-port 3777 --ui-port 3781
 ```
 
 ## 6. 非目标与后续建议
