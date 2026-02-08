@@ -1,7 +1,14 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { ChatHistory } from '../chat/engine.js'
+import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { classifyRpcMessage, JSON_RPC_ERRORS } from './jsonrpc.js'
 import type { Thread } from './protocol.js'
 import { AppServer } from './server.js'
+import { ThreadStore } from './threadStore.js'
+import { TurnRunner } from './turnRunner.js'
 
 function request(id: string | number | null, method: string, params?: unknown) {
   return classifyRpcMessage({
@@ -10,6 +17,20 @@ function request(id: string | number | null, method: string, params?: unknown) {
     method,
     ...(params === undefined ? {} : { params }),
   })
+}
+
+async function waitForNotification(
+  notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }>,
+  predicate: (n: { jsonrpc: '2.0'; method: string; params?: unknown }) => boolean,
+  timeoutMs = 2500,
+): Promise<{ jsonrpc: '2.0'; method: string; params?: unknown }> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const found = notifications.find(predicate)
+    if (found) return found
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error('Timed out waiting for notification')
 }
 
 describe('AppServer', () => {
@@ -153,5 +174,96 @@ describe('AppServer', () => {
       }),
     )
     expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+  })
+
+  it('supports ask_user_question request -> submit -> completed integration flow', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const userInput = createUserInputManager()
+    const threadStore = new ThreadStore({ cwd, env })
+
+    let runner: TurnRunner | null = null
+    let server: AppServer
+    server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore,
+      resolveTurnRunner: async () => {
+        if (runner) return runner
+        runner = new TurnRunner({
+          engine: {
+            async runTurn(args) {
+              const questions = [
+                {
+                  question: 'Pick one?',
+                  header: 'Choice',
+                  options: [{ label: 'A', description: 'Option A' }],
+                  multiSelect: false,
+                },
+              ]
+              args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-1', questions })
+              const answers = await userInput.requestAnswers({ toolUseId: 'ask-1', questions, signal: args.signal })
+              args.onEvent({ type: 'assistant_delta', text: String(answers.Choice ?? '') })
+              args.onEvent({ type: 'complete' })
+              return [
+                ...args.history,
+                args.user,
+                { role: 'assistant', content: [{ type: 'text', text: String(answers.Choice ?? '') }] },
+              ] as ChatHistory
+            },
+          },
+          tools: [],
+          allowedSubagents: [],
+          model: 'test-model',
+          promptProfile: 'lite',
+          cwd,
+          env,
+          userInputManager: userInput,
+          emitNotification: server.createTurnNotificationEmitter(),
+        })
+        return runner
+      },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const threadStart = await server.handleMessage(request(2, 'thread/start'))
+    const threadId = (threadStart[0] as any).result.thread.id as string
+    const turnStart = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId,
+        input: { text: 'hello' },
+      }),
+    )
+    const turnId = (turnStart[0] as any).result.turn.id as string
+
+    const requested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && (n.params as any)?.input?.kind === 'ask_user_question',
+    )
+    const inputId = (requested.params as any).input.inputId as string
+
+    const submit = await server.handleMessage(
+      request(4, 'turn/input/submit', {
+        threadId,
+        turnId,
+        inputId,
+        answers: { Choice: 'A' },
+        submissionId: 'submission-1',
+      }),
+    )
+    expect((submit[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
+
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputResolved' && (n.params as any)?.input?.status === 'submitted',
+    )
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && (n.params as any)?.turn?.id === turnId,
+    )
   })
 })
