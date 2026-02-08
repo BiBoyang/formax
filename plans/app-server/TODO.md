@@ -32,35 +32,35 @@
 
 目标：建立可运行的 `formax app-server` 基础进程。
 
-- [ ] 新增 `src/app-server/` 子系统：
-  - [ ] `index.ts`
-  - [ ] `server.ts`
-  - [ ] `jsonrpc.ts`
-  - [ ] `protocol.ts`
-  - [ ] `transport/stdio.ts`
-- [ ] 协议握手：`initialize` / `initialized`。
-- [ ] 初始化前拦截：除 `initialize` 外请求返回 `Not initialized`。
+- [x] 新增 `src/app-server/` 子系统：
+  - [x] `index.ts`
+  - [x] `server.ts`
+  - [x] `jsonrpc.ts`
+  - [x] `protocol.ts`
+  - [x] `transport/stdio.ts`
+- [x] 协议握手：`initialize` / `initialized`。
+- [x] 初始化前拦截：除 `initialize` 外请求返回 `Not initialized`。
 
 验收：
 
-- [ ] 新增测试：`src/app-server/*.test.ts`（握手/错误码/坏消息）。
+- [x] 新增测试：`src/app-server/*.test.ts`（握手/错误码/坏消息）。
 - [ ] 手工：`formax app-server` 启动后可读写 JSONL。
 
 ## Phase 3 — 线程 API（复用 sessionSave）
 
 目标：可创建、恢复、浏览线程。
 
-- [ ] 新增 `src/app-server/threadStore.ts`。
-- [ ] 实现 `thread/start`。
-- [ ] 实现 `thread/resume`。
-- [ ] 实现 `thread/list`（支持 `limit/cursor`）。
-- [ ] 实现 `thread/read`（含最小 transcript 预览）。
-- [ ] `threadId` 与 `session_meta.sessionId` 对齐。
-- [ ] 需要时补充 `findSessionFileBySessionId(sessionId)` 到 `sessionSave/reader.ts`。
+- [x] 新增 `src/app-server/threadStore.ts`。
+- [x] 实现 `thread/start`。
+- [x] 实现 `thread/resume`。
+- [x] 实现 `thread/list`（支持 `limit/cursor`）。
+- [x] 实现 `thread/read`（含最小 transcript 预览）。
+- [x] `threadId` 与 `session_meta.sessionId` 对齐。
+- [x] 需要时补充 `findSessionFileBySessionId(sessionId)` 到 `sessionSave/reader.ts`。
 
 验收：
 
-- [ ] 新增 `threadStore.test.ts`。
+- [x] 新增 `threadStore.test.ts`。
 - [ ] 重启进程后 `thread/resume` 成功。
 
 ## Phase 4 — turn/start + 流式事件桥接
@@ -110,15 +110,15 @@
 
 目标：正式暴露 `formax app-server` 命令。
 
-- [ ] 更新 `src/cli/main.ts` 增加 `app-server` 分支。
-- [ ] 更新 `src/cli/help.ts` 显示新命令用法。
-- [ ] 更新 `src/entrypoints/cli.tsx` 调度。
-- [ ] 补 CLI 测试。
+- [x] 更新 `src/cli/main.ts` 增加 `app-server` 分支。
+- [x] 更新 `src/cli/help.ts` 显示新命令用法。
+- [x] 更新 `src/entrypoints/cli.tsx` 调度。
+- [x] 补 CLI 测试。
 
 验收：
 
-- [ ] `src/cli/main.test.ts` 增加 app-server 用例。
-- [ ] `src/cli/help.test.ts` 快照更新通过。
+- [x] `src/cli/main.test.ts` 增加 app-server 用例。
+- [x] `src/cli/help.test.ts` 快照更新通过。
 
 ## Phase 7 — Web 参考客户端（开发验证）
 
@@ -184,7 +184,7 @@
   - 风险点：REPL wiring 回归（工具注册/策略钩子/subagent 装配）。
   - 合并前断言：现有 REPL 行为无变化，`runtimeConfig` 与 REPL 关键测试通过。
 
-- [ ] PR2: app-server 骨架 + JSON-RPC 握手
+- [x] PR2: app-server 骨架 + JSON-RPC 握手
   - 目标：跑通 `initialize/initialized` 与未初始化拦截。
   - 主要文件：
     - `src/app-server/index.ts`（new）
@@ -196,7 +196,7 @@
   - 风险点：JSONL 解码鲁棒性、错误码一致性。
   - 合并前断言：坏行/坏 JSON/握手前调用都返回稳定错误。
 
-- [ ] PR3: thread API + sessionSave 映射
+- [x] PR3: thread API + sessionSave 映射
   - 目标：实现 `thread/start|resume|list|read` 最小闭环。
   - 主要文件：
     - `src/app-server/threadStore.ts`（new）
