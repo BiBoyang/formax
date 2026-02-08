@@ -3,12 +3,7 @@ import type { RuntimeConfig } from '../env/config.js'
 
 const clearTerminal = vi.fn(async () => {})
 const stopConsoleLogger = vi.fn()
-const createRuntimeConfigContext = vi.fn()
-const createLlmClients = vi.fn()
-const createToolingRuntime = vi.fn()
-const createPolicyAndHooksRuntime = vi.fn()
-const createSubagentRuntime = vi.fn()
-const createChatRuntime = vi.fn()
+const createRuntime = vi.fn()
 const resolveInitialSession = vi.fn()
 const renderReplApp = vi.fn()
 
@@ -21,28 +16,8 @@ vi.mock('../utils/consoleLogger.js', () => ({
   stopConsoleLogger,
 }))
 
-vi.mock('./bootstrap/runtimeConfig.js', () => ({
-  createRuntimeConfigContext,
-}))
-
-vi.mock('./bootstrap/llmClients.js', () => ({
-  createLlmClients,
-}))
-
-vi.mock('./bootstrap/tooling.js', () => ({
-  createToolingRuntime,
-}))
-
-vi.mock('./bootstrap/policyHooks.js', () => ({
-  createPolicyAndHooksRuntime,
-}))
-
-vi.mock('./bootstrap/subagents.js', () => ({
-  createSubagentRuntime,
-}))
-
-vi.mock('./bootstrap/chatRuntime.js', () => ({
-  createChatRuntime,
+vi.mock('../runtime/createRuntime.js', () => ({
+  createRuntime,
 }))
 
 vi.mock('./bootstrap/session.js', () => ({
@@ -99,34 +74,25 @@ describe('runLegacyCli', () => {
     process.env = { ...originalEnv }
 
     const cfg = createCfg()
-    createRuntimeConfigContext.mockResolvedValue({
+    createRuntime.mockResolvedValue({
       cwd: '/repo',
       env: process.env,
       fileStore: {},
       cfg,
-    })
-    createLlmClients.mockReturnValue({
       model: cfg.llm.model,
       client: { kind: 'main-client' },
       webFetchClient: { kind: 'web-fetch-client' },
-    })
-    createToolingRuntime.mockReturnValue({
       toolRegistry: { kind: 'tool-registry' },
       taskManager: { kind: 'task-manager' },
       userInputManager: { kind: 'user-input-manager' },
-    })
-    createPolicyAndHooksRuntime.mockReturnValue({
       audit: { kind: 'audit' },
       hooks: { kind: 'hooks' },
       preflight: vi.fn(),
       createExecutor: vi.fn(() => ({ kind: 'executor' })),
-    })
-    createSubagentRuntime.mockResolvedValue({
       allowedSubagents: [{ name: 'design-planner', description: 'planner' }],
       reloadSubagents: vi.fn(async () => [{ name: 'design-planner', description: 'planner' }]),
       tools: [],
-    })
-    createChatRuntime.mockReturnValue({
+      runtimeFlags: {},
       executor: { kind: 'chat-executor' },
       engine: { kind: 'chat-engine' },
     })
@@ -147,14 +113,9 @@ describe('runLegacyCli', () => {
     await runLegacyCli()
 
     expect(clearTerminal).toHaveBeenCalledTimes(1)
-    expect(createRuntimeConfigContext).toHaveBeenCalledWith(
+    expect(createRuntime).toHaveBeenCalledWith(
       expect.objectContaining({
         cwd: process.cwd(),
-        env: process.env,
-      }),
-    )
-    expect(createSubagentRuntime).toHaveBeenCalledWith(
-      expect.objectContaining({
         env: process.env,
       }),
     )
@@ -193,7 +154,7 @@ describe('runLegacyCli', () => {
   })
 
   it('prints error and exits when setup/bootstrap fails', async () => {
-    createRuntimeConfigContext.mockRejectedValueOnce(new Error('Setup canceled'))
+    createRuntime.mockRejectedValueOnce(new Error('Setup canceled'))
 
     const { runLegacyCli } = await import('./runLegacyCli.js')
     await runLegacyCli()

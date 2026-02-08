@@ -1,15 +1,9 @@
 import { clearTerminal } from '../utils/terminal.js'
 import { startConsoleLogger, stopConsoleLogger } from '../utils/consoleLogger.js'
 import type { App } from '../core/app/createApp.js'
-import { createRuntimeConfigContext } from './bootstrap/runtimeConfig.js'
-import { createLlmClients } from './bootstrap/llmClients.js'
-import { createToolingRuntime } from './bootstrap/tooling.js'
-import { createPolicyAndHooksRuntime } from './bootstrap/policyHooks.js'
-import { createSubagentRuntime } from './bootstrap/subagents.js'
-import { createChatRuntime } from './bootstrap/chatRuntime.js'
+import { createRuntime } from '../runtime/createRuntime.js'
 import { resolveInitialSession } from './bootstrap/session.js'
 import { renderReplApp } from './bootstrap/renderReplApp.js'
-import { createRuntimeFlags } from '../env/runtimeFlags.js'
 import { resetInkStaticOutputForStdout } from '../utils/inkStreams.js'
 
 export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
@@ -22,9 +16,9 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
 
   await clearTerminal()
 
-  let bootstrap: Awaited<ReturnType<typeof createRuntimeConfigContext>>
+  let runtime: Awaited<ReturnType<typeof createRuntime>>
   try {
-    bootstrap = await createRuntimeConfigContext({
+    runtime = await createRuntime({
       cwd: process.cwd(),
       env: process.env,
       onAfterSetupCompleted: async () => {
@@ -40,38 +34,6 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     return
   }
 
-  const { client, webFetchClient } = createLlmClients({ cfg: bootstrap.cfg, env: bootstrap.env })
-  const tooling = createToolingRuntime({
-    cwd: bootstrap.cwd,
-    env: bootstrap.env,
-    webFetchClient,
-  })
-  const policyHooks = createPolicyAndHooksRuntime({
-    cfgPathsLogsDir: bootstrap.cfg.paths.logsDir,
-    fileStore: bootstrap.fileStore,
-    userInputManager: tooling.userInputManager,
-    toolRegistry: tooling.toolRegistry,
-    env: bootstrap.env,
-  })
-  const subagent = await createSubagentRuntime({
-    cfg: bootstrap.cfg,
-    env: bootstrap.env,
-    cwd: bootstrap.cwd,
-    client,
-    toolRegistry: tooling.toolRegistry,
-    taskManager: tooling.taskManager,
-    preflight: policyHooks.preflight,
-    createLocalExecutor: policyHooks.createExecutor,
-  })
-  const chatRuntime = createChatRuntime({
-    client,
-    toolRegistry: tooling.toolRegistry,
-    preflight: policyHooks.preflight,
-    hooks: policyHooks.hooks,
-    audit: policyHooks.audit,
-    runtimeFlags: createRuntimeFlags(bootstrap.env),
-  })
-
   let replInstance: ReturnType<typeof renderReplApp> | null = null
   const onClearTerminal = async () => {
     // Keep Ink's frame state and terminal buffer in sync.
@@ -81,17 +43,17 @@ export async function runLegacyCli(_opts: { app?: App } = {}): Promise<void> {
     }
     await clearTerminal()
   }
-  const initialSession = await resolveInitialSession({ cwd: bootstrap.cwd, env: bootstrap.env })
+  const initialSession = await resolveInitialSession({ cwd: runtime.cwd, env: runtime.env })
   replInstance = renderReplApp({
-    engine: chatRuntime.engine,
-    tools: subagent.tools,
-    cfg: bootstrap.cfg,
+    engine: runtime.engine,
+    tools: runtime.tools,
+    cfg: runtime.cfg,
     initialSession,
-    allowedSubagents: subagent.allowedSubagents,
-    reloadSubagents: subagent.reloadSubagents,
-    toolRegistry: tooling.toolRegistry,
-    taskManager: tooling.taskManager,
-    userInputManager: tooling.userInputManager,
+    allowedSubagents: runtime.allowedSubagents,
+    reloadSubagents: runtime.reloadSubagents,
+    toolRegistry: runtime.toolRegistry,
+    taskManager: runtime.taskManager,
+    userInputManager: runtime.userInputManager,
     onClearTerminal,
     onExit: () => {
       // stopConsoleLogger()
