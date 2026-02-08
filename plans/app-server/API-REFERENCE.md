@@ -1,0 +1,581 @@
+# Formax App Server API Reference（v0.2）
+
+本文档基于当前实现代码整理，目标是给 Web/GUI 客户端提供可直接对接的接口手册。
+
+- 传输：`stdio` + `JSONL`（每行一个 JSON）
+- 协议：`JSON-RPC 2.0`
+- 协议版本：`0.2`
+- 代码来源：
+  - `src/app-server/protocol.ts`
+  - `src/app-server/protocol/input.ts`
+  - `src/app-server/server.ts`
+  - `src/app-server/turnRunner.ts`
+  - `src/app-server/jsonrpc.ts`
+  - `src/app-server/transport/stdio.ts`
+
+## 0. UI 对接阅读顺序（推荐）
+
+前端开发时建议按以下顺序阅读，先定协议边界，再看实现细节：
+
+1. `plans/app-server/API-REFERENCE.md`
+2. `src/app-server/protocol.ts`
+3. `src/app-server/protocol/input.ts`
+4. `src/app-server/server.ts`
+5. `src/app-server/turnRunner.ts`
+6. `src/app-server/threadStore.ts`
+7. `src/app-server/jsonrpc.ts`
+8. `src/app-server/transport/stdio.ts`
+
+说明：
+
+- 1-3：先确认方法、字段和 input 生命周期，避免 UI 先写后改。
+- 4-6：确认 thread/turn 的真实行为与状态流。
+- 7-8：确认 JSON-RPC 解析、错误码和传输边界（如 payload 限制）。
+
+## 1. 快速集成流程
+
+1. 启动服务：`formax app-server`
+2. 发送 `initialize` 请求
+3. 发送 `initialized` 通知
+4. 调 `thread/start`（或 `thread/resume`）
+5. 调 `turn/start`
+6. 持续监听通知：`turn/*`
+7. 如收到 `turn/inputRequested`，调用 `turn/input/submit`
+8. 直到收到 `turn/completed` 或 `turn/failed`
+
+## 2. 传输与消息格式
+
+## 2.1 JSONL 规则
+
+- 每一行必须是完整 JSON。
+- 空行会被忽略。
+- 请求与通知都使用 `jsonrpc: "2.0"`。
+
+## 2.2 请求 / 响应 / 通知
+
+请求：
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"thread/start","params":{"cwd":"/repo"}}
+```
+
+成功响应：
+
+```json
+{"jsonrpc":"2.0","id":"1","result":{"thread":{"id":"...","cwd":"...","createdAt":"...","updatedAt":"..."}}}
+```
+
+错误响应：
+
+```json
+{"jsonrpc":"2.0","id":"1","error":{"code":-32602,"message":"Invalid params.threadId: expected non-empty string"}}
+```
+
+通知（服务端推送）：
+
+```json
+{"jsonrpc":"2.0","method":"turn/started","params":{"traceId":"...","seq":1,"ts":"...","eventId":"turnId:1","source":"system","turn":{"id":"...","threadId":"...","status":"running"}}}
+```
+
+## 2.3 大小限制
+
+`initialize.result.limits` 会返回限制值：
+
+- `maxRequestBytes`
+- `maxEventBytes`
+- `maxPendingInputsPerThread`
+- `defaultInputTtlMs`
+- `maxInFlightTurnsPerThread`（当前固定 `1`）
+
+注意：
+
+- 请求超过 `maxRequestBytes`：返回 `PAYLOAD_TOO_LARGE`（`-32002`）。
+- 响应超过 `maxEventBytes`：返回 `PAYLOAD_TOO_LARGE`（`-32002`）。
+- 通知超过 `maxEventBytes`：当前实现会发送失败并被吞掉（客户端收不到该条通知），UI 侧要做超时/兜底策略。
+
+## 3. 握手与会话状态
+
+## 3.1 initialize
+
+### Request
+
+`method: "initialize"`
+
+`params`（可选）：
+
+```ts
+{
+  clientInfo?: {
+    name: string
+    version: string
+  }
+}
+```
+
+### Response
+
+```ts
+{
+  serverInfo: {
+    name: 'formax'
+    version: string
+  }
+  protocolVersion: '0.2'
+  serverInstanceId: string
+  limits: {
+    maxRequestBytes: number
+    maxEventBytes: number
+    maxPendingInputsPerThread: number
+    defaultInputTtlMs: number
+    maxInFlightTurnsPerThread: number
+  }
+}
+```
+
+## 3.2 initialized（notification）
+
+- `method: "initialized"`（notification，无 `id`）
+- 当前实现不强制要求先收到它才可调用业务方法，但推荐发送，后续版本可能加强校验。
+
+## 3.3 未初始化错误
+
+除 `initialize` 外，所有请求在未初始化时返回：
+
+```json
+{"code":-32001,"message":"Not initialized"}
+```
+
+## 4. 核心数据结构
+
+## 4.1 Thread
+
+```ts
+type Thread = {
+  id: string
+  cwd: string
+  createdAt: string // ISO
+  updatedAt: string // ISO
+}
+```
+
+`ThreadSummary` 额外字段：
+
+```ts
+{
+  messageCount: number | null
+  lastUserPrompt: string | null
+  label: string | null
+}
+```
+
+## 4.2 Turn 状态
+
+```ts
+type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
+```
+
+## 4.3 Input（approval / ask_user_question）
+
+### kind
+
+```ts
+type InputKind = 'approval' | 'ask_user_question'
+```
+
+### status
+
+```ts
+type InputStatus = 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+```
+
+### InputRequestedPayload
+
+```ts
+{
+  inputId: string
+  threadId: string
+  turnId: string
+  toolUseId: string
+  kind: 'approval' | 'ask_user_question'
+  status: 'pending'
+  createdAt: string
+  expiresAt: string
+  payload: ApprovalInputPayload | AskUserQuestionInputPayload
+}
+```
+
+Approval payload：
+
+```ts
+{
+  toolName: string
+  action: unknown
+  effectiveDecision: unknown
+  suggestions?: string[]
+  workspaceRequest?: { dir: string } | null
+}
+```
+
+AskUserQuestion payload：
+
+```ts
+{
+  questions: Array<{
+    question: string
+    header: string
+    fieldId?: string
+    options: Array<{ label: string; description: string }>
+    multiSelect: boolean
+  }>
+}
+```
+
+### InputResolvedPayload
+
+```ts
+{
+  inputId: string
+  threadId: string
+  turnId: string
+  toolUseId: string
+  kind: 'approval' | 'ask_user_question'
+  status: 'submitted' | 'canceled' | 'expired' | 'failed'
+  createdAt: string
+  expiresAt: string
+  resolvedAt: string
+  reason?: string
+}
+```
+
+## 4.4 通知 envelope（turn 事件统一元信息）
+
+以下通知统一带：
+
+```ts
+{
+  traceId: string
+  seq: number
+  ts: string
+  eventId: string // "${turnId}:${seq}"
+  source: 'engine' | 'tool' | 'policy' | 'system'
+  ...
+}
+```
+
+## 5. JSON-RPC 方法
+
+## 5.1 `thread/start`
+
+### Params
+
+```ts
+{
+  cwd?: string
+}
+```
+
+### Result
+
+```ts
+{
+  thread: Thread
+}
+```
+
+## 5.2 `thread/resume`
+
+### Params
+
+```ts
+{
+  threadId: string
+}
+```
+
+### Result
+
+```ts
+{
+  thread: Thread
+  staleInputs: InputResolvedPayload[]
+}
+```
+
+说明：
+
+- `staleInputs` 表示服务重启后恢复出的“过期输入”（`status = "expired"`，`reason = "server_restart"`）。
+- 客户端应在恢复线程后把这些输入标记为不可提交。
+
+## 5.3 `thread/list`
+
+### Params
+
+```ts
+{
+  limit?: number // 默认 20，最大 200
+  cursor?: string // 数字偏移量字符串，如 "20"
+}
+```
+
+### Result
+
+```ts
+{
+  data: ThreadSummary[]
+  nextCursor: string | null
+}
+```
+
+## 5.4 `thread/read`
+
+### Params
+
+```ts
+{
+  threadId: string
+}
+```
+
+### Result
+
+```ts
+{
+  thread: Thread
+  transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+}
+```
+
+## 5.5 `turn/start`
+
+### Params
+
+```ts
+{
+  threadId: string
+  input: { text: string }
+  cwd?: string
+}
+```
+
+### Result
+
+```ts
+{
+  turn: {
+    id: string
+    threadId: string
+    status: 'running'
+  }
+}
+```
+
+约束：
+
+- 单线程仅允许一个 in-flight turn。重复启动会返回 `Invalid params`（`Turn already running...`）。
+
+## 5.6 `turn/interrupt`
+
+### Params
+
+```ts
+{
+  threadId: string
+  turnId: string
+}
+```
+
+### Result
+
+```ts
+{}
+```
+
+## 5.7 `turn/input/submit`
+
+### Params
+
+```ts
+{
+  threadId: string
+  turnId: string
+  inputId?: string
+  toolUseId?: string // 若 inputId 缺失，可用 toolUseId 回填
+  answers: Record<string, string>
+  submissionId?: string // 用于幂等
+}
+```
+
+### Result
+
+```ts
+{
+  accepted: boolean
+  status:
+    | 'accepted'
+    | 'already_submitted_same'
+    | 'conflict_already_submitted'
+    | 'not_pending'
+    | 'expired'
+    | 'canceled'
+}
+```
+
+幂等建议：
+
+- 同一业务提交请复用 `submissionId`。
+- 返回 `already_submitted_same` 可按成功处理。
+- 返回 `conflict_already_submitted` 说明已提交过不同答案，应提示用户冲突。
+
+## 6. 服务端通知（`turn/*`）
+
+## 6.1 `turn/started`
+
+```ts
+{
+  ...envelopeMeta,
+  turn: { id: string; threadId: string; status: 'running' }
+}
+```
+
+## 6.2 `turn/event`
+
+```ts
+{
+  ...envelopeMeta,
+  threadId: string
+  turnId: string
+  event: StreamEvent
+}
+```
+
+`event` 类型来自 `src/streaming/types.ts`，典型值：
+
+- `assistant_delta`
+- `thinking_delta` / `thinking_stop`
+- `tool_start` / `tool_input` / `tool_update` / `tool_end`
+- `usage`
+- `approval_request`
+- `ask_user_question`
+- `error`
+- `complete`
+
+## 6.3 `turn/inputRequested`
+
+```ts
+{
+  ...envelopeMeta,
+  threadId: string
+  turnId: string
+  input: InputRequestedPayload
+}
+```
+
+## 6.4 `turn/inputResolved`
+
+```ts
+{
+  ...envelopeMeta,
+  threadId: string
+  turnId: string
+  input: InputResolvedPayload
+}
+```
+
+## 6.5 `turn/completed`
+
+```ts
+{
+  ...envelopeMeta,
+  turn: { id: string; threadId: string; status: 'completed' }
+}
+```
+
+## 6.6 `turn/failed`
+
+```ts
+{
+  ...envelopeMeta,
+  turn: { id: string; threadId: string; status: 'failed' | 'interrupted' }
+  error: string
+}
+```
+
+## 7. 输入状态机（客户端实现建议）
+
+状态迁移（简化）：
+
+1. `turn/inputRequested` -> `pending`
+2. 客户端 `turn/input/submit`
+3. 成功时收到 `turn/inputResolved(status='submitted')`
+4. 其他终止路径：
+   - turn 被中断 -> `canceled`（reason: `turn_interrupted`）
+   - 输入 TTL 到期 -> `expired`（reason: `input_expired`）
+   - turn 失败/完成但仍挂起输入 -> `failed`
+   - 服务重启后恢复 -> `expired`（reason: `server_restart`）
+
+UI 建议：
+
+- 以 `inputId` 为主键，`toolUseId` 为辅助索引。
+- 收到 `turn/completed|turn/failed` 后，将该 turn 的 pending 输入全部冻结为不可提交。
+- 若 `thread/resume` 返回 `staleInputs`，本地直接标记为已过期。
+
+## 8. 错误模型
+
+## 8.1 JSON-RPC 标准/扩展错误码
+
+- `-32700` `PARSE_ERROR`
+- `-32600` `INVALID_REQUEST`
+- `-32601` `METHOD_NOT_FOUND`
+- `-32602` `INVALID_PARAMS`
+- `-32603` `INTERNAL_ERROR`
+- `-32001` `NOT_INITIALIZED`
+- `-32002` `PAYLOAD_TOO_LARGE`
+
+## 8.2 业务错误（当前实现）
+
+### INPUT_EXPIRED
+
+`turn/input/submit` 命中过期输入会返回：
+
+```json
+{
+  "code": -32602,
+  "message": "INPUT_EXPIRED",
+  "data": {
+    "kind": "INPUT_EXPIRED",
+    "recoverable": false,
+    "retryable": false,
+    "inputId": "..."
+  }
+}
+```
+
+处理建议：
+
+- 不要重试同一 input；
+- 引导用户发起新 turn 或恢复线程后继续。
+
+## 9. 前端对接最小实现清单
+
+1. 建立 JSONL 通道（每行 JSON）。
+2. 完成 `initialize` + `initialized`。
+3. 实现请求-响应关联（`id` 维度）。
+4. 实现通知分发（`turn/*`）。
+5. 用 `threadId + turnId + inputId` 做输入状态管理。
+6. `turn/input/submit` 携带稳定 `submissionId`（幂等）。
+7. 对 `PAYLOAD_TOO_LARGE`、`NOT_INITIALIZED`、`INPUT_EXPIRED` 做明确 UI 提示。
+8. 为通知丢失设计兜底：
+   - turn 长时间无事件时给“连接可能异常”提示；
+   - 允许用户手动 `thread/read` 或重开 turn。
+
+## 10. 端到端示例（JSONL）
+
+```json
+{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"clientInfo":{"name":"web-ref","version":"0.1.0"}}}
+{"jsonrpc":"2.0","method":"initialized"}
+{"jsonrpc":"2.0","id":"2","method":"thread/start","params":{"cwd":"/path/to/repo"}}
+{"jsonrpc":"2.0","id":"3","method":"turn/start","params":{"threadId":"<thread-id>","input":{"text":"请先读取 README"}}}
+{"jsonrpc":"2.0","id":"4","method":"turn/input/submit","params":{"threadId":"<thread-id>","turnId":"<turn-id>","inputId":"<input-id>","answers":{"decision":"approve"},"submissionId":"sub-001"}}
+```
+
+上面的第 4 条只在收到 `turn/inputRequested` 后发送。

@@ -43,6 +43,7 @@ formax app-server
 
 - 传输为 **stdio + JSONL + JSON-RPC 2.0**。
 - 一期重点覆盖 thread/turn 流程、approval 与 ask_user_question 的 input 生命周期闭环。
+- 详细接口文档：`plans/app-server/API-REFERENCE.md`
 
 开发期也可通过 WebSocket dev bridge 调试 GUI 客户端（非生产传输）：
 
