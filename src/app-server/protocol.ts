@@ -15,6 +15,14 @@ export type InitializeResult = {
     version: string
   }
   protocolVersion: typeof APP_SERVER_PROTOCOL_VERSION
+  serverInstanceId: string
+  limits: {
+    maxRequestBytes: number
+    maxEventBytes: number
+    maxPendingInputsPerThread: number
+    defaultInputTtlMs: number
+    maxInFlightTurnsPerThread: number
+  }
 }
 
 export type Thread = {

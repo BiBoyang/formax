@@ -34,6 +34,7 @@ export type InputStoreOptions = {
   threadId: string
   turnId: string
   defaultInputTtlMs?: number
+  maxPendingInputs?: number
 }
 
 type SubmitInputResult = {
@@ -45,6 +46,12 @@ type SubmitInputResult = {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+function normalizePositiveLimit(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const rounded = Math.floor(value)
+  return rounded >= 1 ? rounded : fallback
 }
 
 function expiresAtFrom(createdAtIso: string, ttlMs: number): string {
@@ -83,6 +90,7 @@ export class TurnInputStore {
   private readonly threadId: string
   private readonly turnId: string
   private readonly defaultInputTtlMs: number
+  private readonly maxPendingInputs: number
   private readonly byInputId = new Map<string, InputRecord>()
   private readonly inputIdByToolUseId = new Map<string, string[]>()
   private readonly collisionCounter = new Map<string, number>()
@@ -90,7 +98,8 @@ export class TurnInputStore {
   constructor(args: InputStoreOptions) {
     this.threadId = args.threadId
     this.turnId = args.turnId
-    this.defaultInputTtlMs = Math.max(1, args.defaultInputTtlMs ?? 5 * 60_000)
+    this.defaultInputTtlMs = normalizePositiveLimit(args.defaultInputTtlMs, 5 * 60_000)
+    this.maxPendingInputs = normalizePositiveLimit(args.maxPendingInputs, 32)
   }
 
   createPendingInput(args: {
@@ -98,6 +107,10 @@ export class TurnInputStore {
     kind: InputKind
     payload: ApprovalInputPayload | AskUserQuestionInputPayload
   }): InputRequestedPayload {
+    if (this.getPendingInputCount() >= this.maxPendingInputs) {
+      throw new Error(`Pending input limit exceeded (${this.maxPendingInputs})`)
+    }
+
     const baseId = createInputId({
       turnId: this.turnId,
       toolUseId: args.toolUseId,
@@ -225,6 +238,14 @@ export class TurnInputStore {
       resolved.push(this.resolveRecord(record, args.status, at, args.reason))
     }
     return resolved
+  }
+
+  private getPendingInputCount(): number {
+    let count = 0
+    for (const record of this.byInputId.values()) {
+      if (record.status === 'pending') count += 1
+    }
+    return count
   }
 
   private resolveRecord(

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   JSON_RPC_ERRORS,
   type JsonRpcErrorResponse,
@@ -17,7 +18,7 @@ import {
   parseTurnStartParams,
 } from './protocol.js'
 import { ThreadStore, type ThreadListResult, type ThreadReadResult, type ThreadResumeResult } from './threadStore.js'
-import { TurnRunner } from './turnRunner.js'
+import { DEFAULT_INPUT_TTL_MS, DEFAULT_MAX_PENDING_INPUTS_PER_THREAD, TurnRunner } from './turnRunner.js'
 
 export type AppServerInfo = {
   name: 'formax'
@@ -35,6 +36,14 @@ export type AppServerOptions = {
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
+  serverInstanceId?: string
+  limits?: {
+    maxRequestBytes: number
+    maxEventBytes: number
+    maxPendingInputsPerThread: number
+    defaultInputTtlMs: number
+    maxInFlightTurnsPerThread: number
+  }
 }
 
 export class AppServer {
@@ -43,6 +52,14 @@ export class AppServer {
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
+  private readonly serverInstanceId: string
+  private readonly limits: {
+    maxRequestBytes: number
+    maxEventBytes: number
+    maxPendingInputsPerThread: number
+    defaultInputTtlMs: number
+    maxInFlightTurnsPerThread: number
+  }
   private readonly staleInputIds = new Set<string>()
   private readonly staleInputIdsByToolUseId = new Map<string, string>()
 
@@ -57,6 +74,14 @@ export class AppServer {
     this.turnRunner = args.turnRunner ?? null
     this.resolveTurnRunner = args.resolveTurnRunner
     this.emitNotification = args.emitNotification
+    this.serverInstanceId = args.serverInstanceId ?? randomUUID()
+    this.limits = args.limits ?? {
+      maxRequestBytes: 1024 * 1024,
+      maxEventBytes: 1024 * 1024,
+      maxPendingInputsPerThread: DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
+      defaultInputTtlMs: DEFAULT_INPUT_TTL_MS,
+      maxInFlightTurnsPerThread: 1,
+    }
   }
 
   getState(): AppServerState {
@@ -100,6 +125,8 @@ export class AppServer {
         makeSuccessResponse(req.id, {
           serverInfo: this.info,
           protocolVersion: APP_SERVER_PROTOCOL_VERSION,
+          serverInstanceId: this.serverInstanceId,
+          limits: this.limits,
         }),
       ]
     }

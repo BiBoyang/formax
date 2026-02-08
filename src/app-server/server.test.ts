@@ -49,6 +49,16 @@ describe('AppServer', () => {
     expect(init).toHaveLength(1)
     expect((init[0] as any).result.serverInfo).toEqual({ name: 'formax', version: 'test' })
     expect((init[0] as any).result.protocolVersion).toBe('0.2')
+    expect((init[0] as any).result.serverInstanceId).toBeTypeOf('string')
+    expect((init[0] as any).result.limits).toEqual(
+      expect.objectContaining({
+        maxRequestBytes: expect.any(Number),
+        maxEventBytes: expect.any(Number),
+        maxPendingInputsPerThread: expect.any(Number),
+        defaultInputTtlMs: expect.any(Number),
+        maxInFlightTurnsPerThread: 1,
+      }),
+    )
 
     const unknown = await server.handleMessage(request(2, 'unknown/method'))
     expect(unknown).toHaveLength(1)

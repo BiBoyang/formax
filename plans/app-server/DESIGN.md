@@ -434,8 +434,5 @@ JSON-RPC `error.data` 增补：
 - `turn/input/submit` 幂等与冲突状态：`accepted/already_submitted_same/conflict_already_submitted`。
 - `thread/resume` 返回 `staleInputs`（基于 session event 恢复，统一 `expired/server_restart`）。
 - stale input 二次提交返回 typed `INPUT_EXPIRED`（含 `toolUseId` 提交路径）。
-
-待落地（PR8）：
-
 - transport `maxRequestBytes/maxEventBytes` 上限与 `PAYLOAD_TOO_LARGE`。
 - `maxPendingInputsPerThread` 限流与拒绝策略。

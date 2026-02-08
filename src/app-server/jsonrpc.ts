@@ -43,6 +43,7 @@ export const JSON_RPC_ERRORS = {
   INVALID_PARAMS: -32602,
   INTERNAL_ERROR: -32603,
   NOT_INITIALIZED: -32001,
+  PAYLOAD_TOO_LARGE: -32002,
 } as const
 
 function isObject(value: unknown): value is Record<string, unknown> {

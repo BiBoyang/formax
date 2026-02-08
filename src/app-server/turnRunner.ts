@@ -29,6 +29,8 @@ export type TurnRunnerOptions = {
   homedir?: string
   userInputManager?: UserInputManager | null
   emitNotification: TurnRunnerNotificationEmitter
+  defaultInputTtlMs?: number
+  maxPendingInputsPerThread?: number
 }
 
 type RunningTurn = {
@@ -45,7 +47,8 @@ type RunningTurn = {
   pendingEventWrites: Array<Promise<void>>
 }
 
-const DEFAULT_INPUT_TTL_MS = 5 * 60_000
+export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
+export const DEFAULT_MAX_PENDING_INPUTS_PER_THREAD = 32
 
 function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
   return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
@@ -63,6 +66,12 @@ function sourceFromInputKind(kind: InputKind): InputEnvelopeMeta['source'] {
   return kind === 'approval' ? 'policy' : 'tool'
 }
 
+function normalizePositiveLimit(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const rounded = Math.floor(value)
+  return rounded >= 1 ? rounded : fallback
+}
+
 export class TurnRunner {
   private readonly engine: Pick<ChatEngine, 'runTurn'>
   private readonly tools: ToolDefinition[]
@@ -76,6 +85,8 @@ export class TurnRunner {
   private readonly homedir?: string
   private readonly userInputManager: UserInputManager | null
   private readonly emitNotification: TurnRunnerNotificationEmitter
+  private readonly defaultInputTtlMs: number
+  private readonly maxPendingInputsPerThread: number
   private readonly runningByThreadId = new Map<string, RunningTurn>()
 
   constructor(args: TurnRunnerOptions) {
@@ -91,6 +102,11 @@ export class TurnRunner {
     this.homedir = args.homedir
     this.userInputManager = args.userInputManager ?? null
     this.emitNotification = args.emitNotification
+    this.defaultInputTtlMs = normalizePositiveLimit(args.defaultInputTtlMs, DEFAULT_INPUT_TTL_MS)
+    this.maxPendingInputsPerThread = normalizePositiveLimit(
+      args.maxPendingInputsPerThread,
+      DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
+    )
   }
 
   async startTurn(params: TurnStartParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
@@ -113,7 +129,8 @@ export class TurnRunner {
       inputStore: new TurnInputStore({
         threadId: params.threadId,
         turnId,
-        defaultInputTtlMs: DEFAULT_INPUT_TTL_MS,
+        defaultInputTtlMs: this.defaultInputTtlMs,
+        maxPendingInputs: this.maxPendingInputsPerThread,
       }),
       writer: null,
       pendingEventWrites: [],

@@ -109,4 +109,21 @@ describe('TurnInputStore', () => {
     expect(first.inputId).toBe('turn-1:ask-1:ask_user_question')
     expect(second.inputId).toBe('turn-1:ask-1:ask_user_question:2')
   })
+
+  it('rejects new pending input when max pending limit is reached', () => {
+    const store = new TurnInputStore({ threadId: 'thread-1', turnId: 'turn-1', maxPendingInputs: 1 })
+    store.createPendingInput({
+      toolUseId: 'ask-1',
+      kind: 'ask_user_question',
+      payload: { questions: [] },
+    })
+
+    expect(() =>
+      store.createPendingInput({
+        toolUseId: 'ask-2',
+        kind: 'ask_user_question',
+        payload: { questions: [] },
+      }),
+    ).toThrow('Pending input limit exceeded')
+  })
 })
