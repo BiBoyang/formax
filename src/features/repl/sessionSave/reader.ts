@@ -136,6 +136,56 @@ export async function findLatestSessionFile(args: {
   return null
 }
 
+export async function findSessionFileBySessionId(args: {
+  cwd: string
+  sessionId: string
+  env?: NodeJS.ProcessEnv
+  platform?: string
+  homedir?: string
+}): Promise<string | null> {
+  const sessionsRoot = getSessionsRoot(args)
+  const sessionId = String(args.sessionId ?? '').trim()
+  if (!sessionId) return null
+
+  const candidates: string[] = []
+
+  const years = await fsp.readdir(sessionsRoot, { withFileTypes: true }).catch(() => [])
+  for (const y of years) {
+    if (!y.isDirectory()) continue
+    const yearDir = path.join(sessionsRoot, y.name)
+    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
+    for (const m of months) {
+      if (!m.isDirectory()) continue
+      const monthDir = path.join(yearDir, m.name)
+      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
+      for (const d of days) {
+        if (!d.isDirectory()) continue
+        const dayDir = path.join(monthDir, d.name)
+        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
+        for (const f of files) {
+          if (!f.isFile()) continue
+          if (!f.name.endsWith('.jsonl')) continue
+          candidates.push(path.join(dayDir, f.name))
+        }
+      }
+    }
+  }
+
+  // Newer files first, in case duplicate session ids exist due to manual edits.
+  candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+
+  for (const filePath of candidates) {
+    try {
+      const meta = await readSessionMetaOnly(filePath)
+      if (meta.sessionId === sessionId) return filePath
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord> {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })

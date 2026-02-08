@@ -167,12 +167,19 @@ export class SessionWriter {
   static async createNew(args: {
     cwd: string
     env?: NodeJS.ProcessEnv
+    platform?: string
+    homedir?: string
     model?: string
     maxLineBytes?: number
   }): Promise<{ writer: SessionWriter; meta: SessionMetaRecord; filePath: string }> {
     const now = new Date()
     const sessionId = randomUUID()
-    const sessionsRoot = getSessionsRoot({ cwd: args.cwd, env: args.env })
+    const sessionsRoot = getSessionsRoot({
+      cwd: args.cwd,
+      env: args.env,
+      platform: args.platform,
+      homedir: args.homedir,
+    })
     const filePath = getSessionFilePath({ sessionsRoot, now, sessionId })
     await fs.mkdir(path.dirname(filePath), { recursive: true })
 

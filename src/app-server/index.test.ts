@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { runAppServer } from './index.js'
@@ -6,6 +9,9 @@ import { JSON_RPC_ERRORS } from './jsonrpc.js'
 async function runWithLines(lines: string[]): Promise<any[]> {
   const input = new PassThrough()
   const output = new PassThrough()
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-run-cwd-'))
+  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-run-config-'))
+  const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
   const responses: any[] = []
   let buffer = ''
 
@@ -21,7 +27,7 @@ async function runWithLines(lines: string[]): Promise<any[]> {
     }
   })
 
-  const runPromise = runAppServer({ input, output })
+  const runPromise = runAppServer({ input, output, cwd, env })
   for (const line of lines) {
     input.write(line + '\n')
   }
@@ -47,6 +53,6 @@ describe('runAppServer', () => {
     expect(responses).toHaveLength(3)
     expect(responses[0]?.error?.code).toBe(JSON_RPC_ERRORS.NOT_INITIALIZED)
     expect(responses[1]?.result?.serverInfo?.name).toBe('formax')
-    expect(responses[2]?.error?.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
+    expect(responses[2]?.result?.thread?.id).toBeTypeOf('string')
   })
 })

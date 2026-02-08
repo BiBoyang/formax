@@ -17,6 +17,32 @@ export type InitializeResult = {
   protocolVersion: typeof APP_SERVER_PROTOCOL_VERSION
 }
 
+export type Thread = {
+  id: string
+  cwd: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ThreadSummary = Thread & {
+  messageCount: number | null
+  lastUserPrompt: string | null
+  label: string | null
+}
+
+export type ThreadStartParams = {
+  cwd?: string
+}
+
+export type ThreadByIdParams = {
+  threadId: string
+}
+
+export type ThreadListParams = {
+  limit: number
+  cursor?: string
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
 }
@@ -37,4 +63,50 @@ export function parseInitializeParams(params: unknown): InitializeParams {
   }
 
   return out
+}
+
+function parseOptionalNonEmptyString(value: unknown, fieldName: string): string | undefined {
+  if (value == null) return undefined
+  if (typeof value !== 'string') throw new Error(`Invalid ${fieldName}: expected string`)
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error(`Invalid ${fieldName}: expected non-empty string`)
+  return trimmed
+}
+
+function parseRequiredNonEmptyString(value: unknown, fieldName: string): string {
+  const parsed = parseOptionalNonEmptyString(value, fieldName)
+  if (!parsed) throw new Error(`Invalid ${fieldName}: expected non-empty string`)
+  return parsed
+}
+
+function parsePositiveInt(value: unknown, fieldName: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid ${fieldName}: expected positive integer`)
+  }
+  return value
+}
+
+export function parseThreadStartParams(params: unknown): ThreadStartParams {
+  if (params == null) return {}
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+
+  const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
+  return cwd ? { cwd } : {}
+}
+
+export function parseThreadByIdParams(params: unknown): ThreadByIdParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  return { threadId }
+}
+
+export function parseThreadListParams(params: unknown): ThreadListParams {
+  if (params == null) return { limit: 20 }
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+
+  const limit = 'limit' in params ? parsePositiveInt(params.limit, 'params.limit') : 20
+  if (limit > 200) throw new Error('Invalid params.limit: max 200')
+  const cursor = parseOptionalNonEmptyString(params.cursor, 'params.cursor')
+
+  return cursor ? { limit, cursor } : { limit }
 }

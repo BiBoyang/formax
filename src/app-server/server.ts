@@ -6,7 +6,14 @@ import {
   makeSuccessResponse,
   type ParsedRpcMessage,
 } from './jsonrpc.js'
-import { APP_SERVER_PROTOCOL_VERSION, parseInitializeParams } from './protocol.js'
+import {
+  APP_SERVER_PROTOCOL_VERSION,
+  parseInitializeParams,
+  parseThreadByIdParams,
+  parseThreadListParams,
+  parseThreadStartParams,
+} from './protocol.js'
+import { ThreadStore, type ThreadListResult, type ThreadReadResult } from './threadStore.js'
 
 export type AppServerInfo = {
   name: 'formax'
@@ -20,10 +27,12 @@ export type AppServerState = {
 
 export type AppServerOptions = {
   info: AppServerInfo
+  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
 }
 
 export class AppServer {
   private readonly info: AppServerInfo
+  private readonly threadStore: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
 
   private state: AppServerState = {
     initializeCompleted: false,
@@ -32,13 +41,14 @@ export class AppServer {
 
   constructor(args: AppServerOptions) {
     this.info = args.info
+    this.threadStore = args.threadStore ?? new ThreadStore()
   }
 
   getState(): AppServerState {
     return { ...this.state }
   }
 
-  handleMessage(msg: ParsedRpcMessage): Array<JsonRpcSuccessResponse | JsonRpcErrorResponse> {
+  async handleMessage(msg: ParsedRpcMessage): Promise<Array<JsonRpcSuccessResponse | JsonRpcErrorResponse>> {
     if (msg.kind === 'invalid') {
       return [
         makeErrorResponse(msg.id, {
@@ -88,11 +98,59 @@ export class AppServer {
       ]
     }
 
+    if (req.method === 'thread/start') {
+      try {
+        const params = parseThreadStartParams(req.params)
+        const thread = await this.threadStore.startThread(params)
+        return [makeSuccessResponse(req.id, { thread })]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/resume') {
+      try {
+        const params = parseThreadByIdParams(req.params)
+        const thread = await this.threadStore.resumeThread(params.threadId)
+        return [makeSuccessResponse(req.id, { thread })]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/list') {
+      try {
+        const params = parseThreadListParams(req.params)
+        const result: ThreadListResult = await this.threadStore.listThreads(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/read') {
+      try {
+        const params = parseThreadByIdParams(req.params)
+        const result: ThreadReadResult = await this.threadStore.readThread(params.threadId)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
     return [
       makeErrorResponse(req.id, {
         code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
         message: `Method not found: ${req.method}`,
       }),
     ]
+  }
+
+  private toRpcError(err: unknown): { code: number; message: string } {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    if (message.startsWith('Invalid params') || message.startsWith('Thread not found')) {
+      return { code: JSON_RPC_ERRORS.INVALID_PARAMS, message }
+    }
+    return { code: JSON_RPC_ERRORS.INTERNAL_ERROR, message }
   }
 }
