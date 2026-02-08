@@ -67,30 +67,30 @@
 
 目标：客户端能驱动一轮完整对话并实时消费事件。
 
-- [ ] 新增 `src/app-server/turnRunner.ts`。
-- [ ] 实现 `turn/start`：
-  - [ ] 发 `turn/started`
-  - [ ] 转发 stream 事件到 `turn/event`
-  - [ ] 结束发 `turn/completed` 或 `turn/failed`
-- [ ] 并发限制：同线程仅允许一个 in-flight turn。
-- [ ] 实现 `turn/interrupt`。
+- [x] 新增 `src/app-server/turnRunner.ts`。
+- [x] 实现 `turn/start`：
+  - [x] 发 `turn/started`
+  - [x] 转发 stream 事件到 `turn/event`
+  - [x] 结束发 `turn/completed` 或 `turn/failed`
+- [x] 并发限制：同线程仅允许一个 in-flight turn。
+- [x] 实现 `turn/interrupt`。
 
 验收：
 
-- [ ] 新增 `turnRunner.test.ts`（事件顺序 + interrupt）。
+- [x] 新增 `turnRunner.test.ts`（事件顺序 + interrupt）。
 - [ ] 集成测试覆盖 start/completed/failed 路径。
 
 ## Phase 5 — 审批与 AskUserQuestion 交互闭环
 
 目标：GUI 可处理审批/提问，不依赖 TUI 弹层。
 
-- [ ] 边界锁定：本期只统一 input 协议状态机，不合并 approval 与 AskUserQuestion 业务语义。
-- [ ] 扩展 `StreamEvent`：新增
-  - [ ] `approval_request`
-  - [ ] `ask_user_question`
-- [ ] `approvalService.ensureApproved()` 在等待答案前发 `approval_request`。
-- [ ] `AskUserQuestion` handler 在等待答案前发 `ask_user_question`。
-- [ ] app-server 转发为 `turn/inputRequested` 通知。
+- [x] 边界锁定：本期只统一 input 协议状态机，不合并 approval 与 AskUserQuestion 业务语义。
+- [x] 扩展 `StreamEvent`：新增
+  - [x] `approval_request`
+  - [x] `ask_user_question`
+- [x] `approvalService.ensureApproved()` 在等待答案前发 `approval_request`。
+- [x] `AskUserQuestion` handler 在等待答案前发 `ask_user_question`。
+- [x] app-server 转发为 `turn/inputRequested` 通知。
 - [ ] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
 - [ ] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
 - [ ] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
@@ -101,7 +101,7 @@
 
 验收：
 
-- [ ] 单测：approval/ask_user_question 桥接。
+- [x] 单测：approval/ask_user_question 桥接。
 - [ ] 集成：可完成“服务端发请求 -> 客户端回答案 -> turn 继续并完成”。
 - [ ] 对同一 `inputId` 重复提交，能稳定收敛到“same/conflict”之一，且无重复执行。
 - [ ] turn 结束后 GUI 不存在悬挂 pending input（必须收到 `turn/inputResolved`）。
@@ -151,8 +151,8 @@
 - [ ] 新增 `src/app-server/turn/inputId.ts`：统一 `inputId` 生成（`${turnId}:${toolUseId}:${kind}`）。
 - [ ] 新增 `src/app-server/turn/inputStore.ts`：维护 per-turn input 生命周期与索引。
 - [ ] 在 `turnRunner` 内维护 `seq` 计数器，并统一封装 `turn/event` envelope（含 `traceId/seq/ts/eventId/source`）。
-- [ ] 在 `approvalService.ensureApproved()` 的 `requestAnswers()` 前发 `approval_request` 事件（携带 action/effectiveDecision/workspaceRequest）。
-- [ ] 在 `AskUserQuestion` handler 的 `requestAnswers()` 前发 `ask_user_question` 事件（questions + optional fieldId）。
+- [x] 在 `approvalService.ensureApproved()` 的 `requestAnswers()` 前发 `approval_request` 事件（携带 action/effectiveDecision/workspaceRequest）。
+- [x] 在 `AskUserQuestion` handler 的 `requestAnswers()` 前发 `ask_user_question` 事件（questions + optional fieldId）。
 - [ ] Router 实现 `turn/input/submit` 新入参校验：`threadId/turnId/inputId/answers`，可选 `submissionId`。
 - [ ] Router 实现提交幂等：同 `submissionId` + 同答案返回 `already_submitted_same`。
 - [ ] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
@@ -205,7 +205,7 @@
   - 风险点：会话文件扫描性能与 threadId 映射正确性。
   - 合并前断言：threadId 与 `session_meta.sessionId` 一致，重启后可 resume。
 
-- [ ] PR4: turnRunner 基础链路（不含 input 状态机）
+- [x] PR4: turnRunner 基础链路（不含 input 状态机）
   - 目标：实现 `turn/start`、`turn/interrupt`、`turn/event` 转发与单线程单 in-flight 约束。
   - 主要文件：
     - `src/app-server/turnRunner.ts`（new）
@@ -215,7 +215,7 @@
   - 风险点：事件顺序与 interrupt 竞态。
   - 合并前断言：`turn/started -> turn/event* -> turn/completed|failed` 顺序稳定。
 
-- [ ] PR5: approval / ask_user_question 事件桥接（语义不合并）
+- [x] PR5: approval / ask_user_question 事件桥接（语义不合并）
   - 目标：让 app-server 能观测到两类 input 请求来源，但保持业务语义分离。
   - 主要文件：
     - `src/streaming/types.ts`
