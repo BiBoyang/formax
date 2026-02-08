@@ -44,7 +44,7 @@
 验收：
 
 - [x] 新增测试：`src/app-server/*.test.ts`（握手/错误码/坏消息）。
-- [ ] 手工：`formax app-server` 启动后可读写 JSONL。
+- [x] 手工：`formax app-server` 启动后可读写 JSONL。
 
 ## Phase 3 — 线程 API（复用 sessionSave）
 
@@ -61,7 +61,7 @@
 验收：
 
 - [x] 新增 `threadStore.test.ts`。
-- [ ] 重启进程后 `thread/resume` 成功。
+- [x] 重启进程后 `thread/resume` 成功。
 
 ## Phase 4 — turn/start + 流式事件桥接
 
@@ -226,7 +226,7 @@
   - 风险点：影响现有 TUI 工具展示；误把语义层做“强合并”。
   - 合并前断言：仅新增事件，不改变 approval/ask_user_question 原有决策语义。
 
-- [ ] PR6: input 协议状态机 + submit 幂等
+- [x] PR6: input 协议状态机 + submit 幂等
   - 目标：落地 `inputId`、`turn/inputRequested`、`turn/inputResolved`、`turn/input/submit` 幂等冲突策略。
   - 主要文件：
     - `src/app-server/protocol/input.ts`（new）
@@ -238,7 +238,7 @@
   - 风险点：submit 重复提交/冲突与 turn 终局并发竞态。
   - 合并前断言：同一 input 重复提交可收敛为 same/conflict；无悬挂 pending。
 
-- [ ] PR7: sessionSave 元事件恢复 + staleInputs
+- [x] PR7: sessionSave 元事件恢复 + staleInputs
   - 目标：服务端重启后通过 event 记录识别 stale pending inputs 并统一 expired。
   - 主要文件：
     - `src/app-server/store/sessionEventReader.ts`（new）
@@ -248,7 +248,7 @@
   - 风险点：event 解析兼容性与恢复一致性。
   - 合并前断言：resume 后旧 pending input 会被清理并返回一致错误语义。
 
-- [ ] PR8: 安全上限 + CLI 接入 + 文档同步
+- [x] PR8: 安全上限 + CLI 接入 + 文档同步
   - 目标：补全传输/资源边界并正式暴露 `formax app-server`。
   - 主要文件：
     - `src/app-server/transport/stdio.ts`
@@ -274,8 +274,8 @@
 
 ## DoD（一期完成定义）
 
-- [ ] CLI 可运行 `formax app-server`。
-- [ ] GUI 客户端可通过 stdio JSON-RPC 驱动完整回合。
-- [ ] 审批与提问交互可回传并继续执行。
-- [ ] sessionSave 可恢复 thread。
+- [x] CLI 可运行 `formax app-server`。
+- [x] GUI 客户端可通过 stdio JSON-RPC 驱动完整回合。
+- [x] 审批与提问交互可回传并继续执行。
+- [x] sessionSave 可恢复 thread。
 - [ ] 现有 REPL 路径无行为回归。
