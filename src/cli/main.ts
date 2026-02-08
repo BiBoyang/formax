@@ -193,6 +193,11 @@ function parsePolicyActionFromArgs(args: string[]): { action: PolicyAction } | {
       if (!query) return { error: 'Missing --query for net.search' }
       return { action: { kind: 'net.search', query } }
     }
+    case 'tool.install': {
+      const tool = getFlagValue(args, '--tool')
+      if (!tool) return { error: 'Missing --tool for tool.install' }
+      return { action: { kind: 'tool.install', tool } }
+    }
     default:
       return { error: `Invalid --action: ${kind}` }
   }

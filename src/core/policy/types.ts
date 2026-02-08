@@ -6,6 +6,7 @@ export type PolicyAction =
   | { kind: 'bash.exec'; command: string }
   | { kind: 'net.fetch'; url: string }
   | { kind: 'net.search'; query: string }
+  | { kind: 'tool.install'; tool: string }
 
 export type PolicyDecision = 'allow' | 'prompt' | 'deny'
 
@@ -14,4 +15,3 @@ export type PolicyContext = {
   workspaceRoots: string[]
   provider: ProviderId
 }
-

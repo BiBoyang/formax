@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { createApprovalService, type ApprovalService } from './approvalService.js'
 import { createPolicyPreflight } from './policyPreflight.js'
+import * as ripgrepBinary from '../modules/grep/ripgrepBinary.js'
 import { loadProjectPermissionsAllowList } from '../../adapters/permissions/permissionsStore.js'
 import {
   addWorkspaceSessionDirectory,
@@ -186,6 +187,49 @@ describe('createPolicyPreflight', () => {
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Permission denied WebFetch')
     } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies Grep binary installation when tool.install is denied', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-grep-install-deny-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'g1', name: 'Grep', input: { pattern: 'hello', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Policy denied tool.install')
+    } finally {
+      probeSpy.mockRestore()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
@@ -414,6 +458,202 @@ describe('createPolicyPreflight', () => {
       expect(requests).toBe(1)
     } finally {
       resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts for Grep when workspace symlink escapes and approve_remember stores the target directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-grep-symlink-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      const nestedDir = path.join(projectDir, 'nested')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+      await fs.mkdir(nestedDir, { recursive: true })
+      await fs.writeFile(path.join(outsideDir, 'a.txt'), 'hello', 'utf8')
+      await fs.symlink(outsideDir, path.join(nestedDir, 'escape'), 'dir')
+
+      resetWorkspaceSessionForTests()
+
+      const canonicalOutsideDir = await fs.realpath(outsideDir)
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      baseUserInput.submitAnswers('t1', { decision: 'approve_remember' })
+      const res1 = await preflight({ id: 't1', name: 'Grep', input: { path: projectDir, pattern: 'hello' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(listWorkspaceSessionDirectories(projectDir).map((e) => e.dir)).toContain(canonicalOutsideDir)
+
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight({ id: 't2', name: 'Grep', input: { path: projectDir, pattern: 'hello' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res2).toBeNull()
+      expect(requests).toBe(1)
+    } finally {
+      resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts for nested Grep symlink escapes under an in-workspace symlink directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-grep-nested-symlink-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const linkedTargetDir = path.join(projectDir, 'linked-target')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(linkedTargetDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+      await fs.writeFile(path.join(outsideDir, 'a.txt'), 'hello', 'utf8')
+
+      await fs.symlink(linkedTargetDir, path.join(projectDir, 'linked'), 'dir')
+      await fs.symlink(outsideDir, path.join(linkedTargetDir, 'escape'), 'dir')
+
+      resetWorkspaceSessionForTests()
+
+      const canonicalOutsideDir = await fs.realpath(outsideDir)
+      const baseUserInput = createUserInputManager()
+      let requests = 0
+      const userInput = {
+        ...baseUserInput,
+        requestAnswers: (args: any) => {
+          requests += 1
+          return baseUserInput.requestAnswers(args)
+        },
+      }
+
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      baseUserInput.submitAnswers('t1', { decision: 'approve_remember' })
+      const res1 = await preflight({ id: 't1', name: 'Grep', input: { path: projectDir, pattern: 'hello' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res1).toBeNull()
+      expect(requests).toBe(1)
+      expect(listWorkspaceSessionDirectories(projectDir).map((e) => e.dir)).toContain(canonicalOutsideDir)
+
+      baseUserInput.submitAnswers('t2', { decision: 'approve' })
+      const res2 = await preflight({ id: 't2', name: 'Grep', input: { path: projectDir, pattern: 'hello' } }, { cwd: projectDir, agentDepth: 0 })
+      expect(res2).toBeNull()
+      expect(requests).toBe(1)
+    } finally {
+      resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('caches Grep symlink scan results across repeated preflights', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-grep-scan-cache-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue('/mock/rg')
+    const readdirSpy = vi.spyOn(fs, 'readdir')
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.writeFile(path.join(projectDir, 'a.txt'), 'hello', 'utf8')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res1 = await preflight(
+        { id: 't1', name: 'Grep', input: { path: projectDir, pattern: 'hello' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res1).toBeNull()
+      const afterFirst = readdirSpy.mock.calls.length
+      expect(afterFirst).toBeGreaterThan(0)
+
+      const res2 = await preflight(
+        { id: 't2', name: 'Grep', input: { path: projectDir, pattern: 'hello' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res2).toBeNull()
+      const afterSecond = readdirSpy.mock.calls.length
+
+      expect(afterSecond).toBe(afterFirst)
+    } finally {
+      readdirSpy.mockRestore()
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('deduplicates concurrent Grep symlink scans with an inflight promise', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-grep-scan-inflight-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue('/mock/rg')
+    let readdirSpy: ReturnType<typeof vi.spyOn> | null = null
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.writeFile(path.join(projectDir, 'a.txt'), 'hello', 'utf8')
+
+      const originalReaddir = fs.readdir.bind(fs)
+      readdirSpy = vi.spyOn(fs, 'readdir').mockImplementation(async (p: any, options?: any) => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return await (originalReaddir as any)(p, options)
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const [res1, res2] = await Promise.all([
+        preflight(
+          { id: 't1', name: 'Grep', input: { path: projectDir, pattern: 'hello' } },
+          { cwd: projectDir, agentDepth: 0 },
+        ),
+        preflight(
+          { id: 't2', name: 'Grep', input: { path: projectDir, pattern: 'hello' } },
+          { cwd: projectDir, agentDepth: 0 },
+        ),
+      ])
+
+      expect(res1).toBeNull()
+      expect(res2).toBeNull()
+      expect(readdirSpy.mock.calls.length).toBe(1)
+    } finally {
+      readdirSpy?.mockRestore()
+      probeSpy.mockRestore()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })

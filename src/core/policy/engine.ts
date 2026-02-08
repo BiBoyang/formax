@@ -38,6 +38,7 @@ const DEFAULT_DECISIONS: Record<PolicyAction['kind'], PolicyDecision> = {
   'bash.exec': 'allow',
   'net.fetch': 'deny',
   'net.search': 'deny',
+  'tool.install': 'allow',
 }
 
 export function evaluatePolicy(args: { action: PolicyAction; rules: PolicyRule[] }): PolicyDecision {
@@ -140,6 +141,8 @@ function matchSpecificity(rule: PolicyRule, action: PolicyAction): number | null
       return action.kind === 'net.fetch' && action.url.startsWith(match.urlPrefix) ? match.urlPrefix.length : null
     case 'net.search':
       return action.kind === 'net.search' && action.query.startsWith(match.queryPrefix) ? match.queryPrefix.length : null
+    case 'tool.install':
+      return action.kind === 'tool.install' && action.tool === match.tool ? match.tool.length : null
   }
 }
 

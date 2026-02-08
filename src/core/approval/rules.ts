@@ -20,6 +20,8 @@ function shortId(action: PolicyAction): string {
       return sanitizeIdPart(new URL(action.url).hostname || action.kind)
     case 'net.search':
       return 'search'
+    case 'tool.install':
+      return sanitizeIdPart(action.tool || action.kind)
   }
 }
 
@@ -58,9 +60,10 @@ export function createAllowRuleFromAction(args: {
         return { kind: 'net.fetch' as const, urlPrefix: args.action.url }
       case 'net.search':
         return { kind: 'net.search' as const, queryPrefix: args.action.query }
+      case 'tool.install':
+        return { kind: 'tool.install' as const, tool: args.action.tool }
     }
   })()
 
   return PolicyRuleSchema.parse({ ...common, match })
 }
-

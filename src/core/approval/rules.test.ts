@@ -76,6 +76,18 @@ describe('createAllowRuleFromAction', () => {
     expect(rule.match).toEqual({ kind: 'net.search', queryPrefix: 'hello world' })
   })
 
+  it('uses tool.install shortId from tool name and matches tool', () => {
+    const createdAt = '2026-01-27T00:00:00.000Z'
+    const rule = createAllowRuleFromAction({
+      scope: 'project',
+      createdAt,
+      action: { kind: 'tool.install', tool: 'ripgrep' },
+    })
+
+    expect(rule.ruleId).toBe('remember-tool-install-ripgrep-2026-01-27t00-00-00-000z')
+    expect(rule.match).toEqual({ kind: 'tool.install', tool: 'ripgrep' })
+  })
+
   it('respects explicit createdAt/ruleId/reason/template and sanitizes id parts', () => {
     const rule = createAllowRuleFromAction({
       scope: 'global',
@@ -93,4 +105,3 @@ describe('createAllowRuleFromAction', () => {
     expect(rule.match).toEqual({ kind: 'fs.write', path: '/x/y/z.txt' })
   })
 })
-

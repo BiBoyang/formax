@@ -1,105 +1,189 @@
-import { describe, expect, it } from 'vitest'
-import os from 'node:os'
+import { describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
-import fsp from 'node:fs/promises'
-import { GrepToolHandler } from './handler'
+import { createGrepToolHandler } from './handler'
 
-async function writeFileEnsuringDir(filePath: string, content: string) {
-  await fsp.mkdir(path.dirname(filePath), { recursive: true })
-  await fsp.writeFile(filePath, content, 'utf8')
-}
-
-describe('GrepToolHandler', () => {
-  it('defaults head_limit to 0 (unlimited) per spec', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-default-limit-'))
-    try {
-      const total = 60
-      for (let i = 0; i < total; i++) {
-        await writeFileEnsuringDir(path.join(tmpDir, `f-${String(i).padStart(3, '0')}.txt`), 'hello\n')
+describe('createGrepToolHandler', () => {
+  it('maps files_with_matches args to rg and returns lines', async () => {
+    let capturedArgs: string[] = []
+    const runCommand = vi.fn(async (_command: string, args: string[]) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: '/repo/a.ts\n/repo/b.ts\n',
+        stderr: '',
       }
+    })
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand,
+    })
 
-      const result = await GrepToolHandler.execute(
-        { id: '0', name: 'Grep', input: { pattern: 'hello', path: tmpDir, glob: '**/*' } },
-        { cwd: tmpDir, agentDepth: 0 },
-      )
+    const result = await handler.execute(
+      {
+        id: '1',
+        name: 'Grep',
+        input: {
+          pattern: 'foo',
+          path: '.',
+          glob: '**/*.ts',
+          output_mode: 'files_with_matches',
+          '-i': true,
+          type: 'ts',
+        },
+      } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
 
-      expect(result.is_error).toBeUndefined()
-      const lines = result.content.split('\n').filter(Boolean)
-      expect(lines.length).toBe(total)
-    } finally {
-      await fsp.rm(tmpDir, { recursive: true, force: true })
-    }
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/a.ts\n/repo/b.ts')
+    expect(runCommand).toHaveBeenCalledTimes(1)
+    expect(runCommand).toHaveBeenCalledWith(
+      '/mock/rg',
+      expect.arrayContaining([
+        '--files-with-matches',
+        '--ignore-case',
+        '--type',
+        'ts',
+        '--glob',
+        '**/*.ts',
+        '--regexp',
+        'foo',
+        '--',
+        path.resolve('/repo', '.'),
+      ]),
+      { cwd: '/repo' },
+    )
+    expect(capturedArgs).toContain('--follow')
   })
 
-  it('defaults to files_with_matches and skips .git/node_modules', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-'))
-    try {
-      const rootReadme = path.join(tmpDir, 'README.md')
-      const dotRules = path.join(tmpDir, '.cursorrules')
-      const gitConfig = path.join(tmpDir, '.git', 'config')
-      const nodeModFile = path.join(tmpDir, 'node_modules', 'pkg', 'index.js')
+  it('maps content mode context flags and line-number toggle', async () => {
+    let capturedArgs: string[] = []
+    const runCommand = vi.fn(async (_command: string, args: string[]) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: '/repo/a.ts:3:foo\n',
+        stderr: '',
+      }
+    })
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand,
+    })
 
-      await writeFileEnsuringDir(rootReadme, 'hello\n')
-      await writeFileEnsuringDir(dotRules, 'hello\n')
-      await writeFileEnsuringDir(gitConfig, 'hello\n')
-      await writeFileEnsuringDir(nodeModFile, 'hello\n')
+    const result = await handler.execute(
+      {
+        id: '2',
+        name: 'Grep',
+        input: {
+          pattern: 'foo',
+          path: '/repo',
+          output_mode: 'content',
+          '-C': 2,
+          '-n': false,
+          multiline: true,
+        },
+      } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
 
-      const result = await GrepToolHandler.execute(
-        { id: '1', name: 'Grep', input: { pattern: 'hello', path: tmpDir, glob: '**/*' } },
-        { cwd: tmpDir, agentDepth: 0 },
-      )
-
-      expect(result.is_error).toBeUndefined()
-      const lines = result.content.split('\n').filter(Boolean)
-      expect(lines).toEqual(
-        expect.arrayContaining([rootReadme, dotRules]),
-      )
-      expect(lines.some((l) => l.includes(`${path.sep}.git${path.sep}`))).toBe(false)
-      expect(lines.some((l) => l.includes(`${path.sep}node_modules${path.sep}`))).toBe(false)
-    } finally {
-      await fsp.rm(tmpDir, { recursive: true, force: true })
-    }
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/a.ts:3:foo')
+    expect(capturedArgs).toContain('--multiline')
+    expect(capturedArgs).toContain('--multiline-dotall')
+    expect(capturedArgs).toContain('--before-context')
+    expect(capturedArgs).toContain('--after-context')
+    expect(capturedArgs).not.toContain('--line-number')
   })
 
-  it('supports searching a single file path', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-file-'))
-    try {
-      const filePath = path.join(tmpDir, 'only.txt')
-      await writeFileEnsuringDir(filePath, 'a\nhello\nb\n')
+  it('returns No matches found on rg exit code 1', async () => {
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 1, stdout: '', stderr: '' }),
+    })
 
-      const result = await GrepToolHandler.execute(
-        { id: '2', name: 'Grep', input: { pattern: 'hello', path: filePath, glob: '**/*', output_mode: 'content' } },
-        { cwd: tmpDir, agentDepth: 0 },
-      )
+    const result = await handler.execute(
+      { id: '3', name: 'Grep', input: { pattern: 'none' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
 
-      expect(result.is_error).toBeUndefined()
-      expect(result.content.split('\n').filter(Boolean)).toEqual([`${filePath}:2:hello`])
-    } finally {
-      await fsp.rm(tmpDir, { recursive: true, force: true })
-    }
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('No matches found')
   })
 
-  it('supports offset/head_limit for files_with_matches', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-grep-head-'))
-    try {
-      const a = path.join(tmpDir, 'a.txt')
-      const b = path.join(tmpDir, 'b.txt')
-      const c = path.join(tmpDir, 'c.txt')
-      await writeFileEnsuringDir(a, 'hello\n')
-      await writeFileEnsuringDir(b, 'hello\n')
-      await writeFileEnsuringDir(c, 'hello\n')
+  it('keeps partial results when rg exits 2 with stdout', async () => {
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 2,
+        stdout: '/repo/a.ts:1:foo\n/repo/b.ts:2:foo\n',
+        stderr: 'permission denied',
+      }),
+    })
 
-      const result = await GrepToolHandler.execute(
-        { id: '3', name: 'Grep', input: { pattern: 'hello', path: tmpDir, glob: '**/*', head_limit: 1, offset: 1 } },
-        { cwd: tmpDir, agentDepth: 0 },
-      )
+    const result = await handler.execute(
+      { id: '4', name: 'Grep', input: { pattern: 'foo', output_mode: 'content', head_limit: 1 } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
 
-      expect(result.is_error).toBeUndefined()
-      const lines = result.content.split('\n').filter(Boolean)
-      expect(lines).toHaveLength(1)
-      expect([a, b, c]).toContain(lines[0])
-    } finally {
-      await fsp.rm(tmpDir, { recursive: true, force: true })
-    }
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/a.ts:1:foo')
+  })
+
+  it('returns error when rg exits 2 without stdout', async () => {
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 2,
+        stdout: '',
+        stderr: 'path not found',
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '5', name: 'Grep', input: { pattern: 'foo', path: '/missing' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('Error: ripgrep failed')
+  })
+
+  it('applies offset/head_limit after rg output', async () => {
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 0,
+        stdout: '/repo/a\n/repo/b\n/repo/c\n',
+        stderr: '',
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '6', name: 'Grep', input: { pattern: 'foo', head_limit: 1, offset: 1 } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/b')
+  })
+
+  it('preserves trailing spaces in rg output lines', async () => {
+    const handler = createGrepToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 0,
+        stdout: '/repo/a.ts:1:foo  \n',
+        stderr: '',
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '7', name: 'Grep', input: { pattern: 'foo', output_mode: 'content' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/a.ts:1:foo  ')
   })
 })

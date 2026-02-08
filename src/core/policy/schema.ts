@@ -41,12 +41,20 @@ const NetSearchMatchSchema = z
   })
   .strict()
 
+const ToolInstallMatchSchema = z
+  .object({
+    kind: z.literal('tool.install'),
+    tool: z.string().min(1),
+  })
+  .strict()
+
 export const PolicyRuleMatchSchema = z.discriminatedUnion('kind', [
   FsReadMatchSchema,
   FsWriteMatchSchema,
   BashExecMatchSchema,
   NetFetchMatchSchema,
   NetSearchMatchSchema,
+  ToolInstallMatchSchema,
 ])
 export type PolicyRuleMatch = z.infer<typeof PolicyRuleMatchSchema>
 
@@ -71,4 +79,3 @@ export const PolicyRulesFileSchema = z
   })
   .strict()
 export type PolicyRulesFile = z.infer<typeof PolicyRulesFileSchema>
-

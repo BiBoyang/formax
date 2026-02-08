@@ -9,6 +9,7 @@ import type { ExecutionContext, ToolPreflight } from './index.js'
 import type { ApprovalService } from './approvalService.js'
 import type { WorkspaceAccessRequest } from './approvalService.js'
 import { classifyBashCommand } from '../modules/bash/policy.js'
+import { probeRipgrepExecutable } from '../modules/grep/ripgrepBinary.js'
 import { isSameFilePath } from '../../utils/planMode.js'
 import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
@@ -82,6 +83,92 @@ function isPathWithinRoots(target: string, roots: string[]): boolean {
   return roots.some((root) => isPathWithinRoot(target, root))
 }
 
+const GREP_SYMLINK_SCAN_CACHE_TTL_MS = 5000
+
+type GrepSymlinkScanCacheEntry = {
+  escapedDir: string | null
+  expiresAt: number
+}
+
+function createGrepSymlinkScanCacheKey(args: {
+  rootDir: string
+  workspaceRoots: string[]
+}): string {
+  const normalizedRoots = [...args.workspaceRoots].sort((a, b) => a.localeCompare(b))
+  return `${args.rootDir}\n${normalizedRoots.join('\n')}`
+}
+
+async function findFirstExternalSymlinkDirectory(args: {
+  rootDir: string
+  workspaceRoots: string[]
+}): Promise<string | null> {
+  const visitedDirs = new Set<string>()
+  const skipDirNames = new Set(['.git', 'node_modules'])
+
+  async function inspectSymlinkTarget(linkPath: string): Promise<{
+    escapedDir: string | null
+    isDirectory: boolean
+  }> {
+    const realTarget = await tryRealpath(linkPath)
+    if (!realTarget) {
+      return { escapedDir: null, isDirectory: false }
+    }
+
+    let targetDir = realTarget
+    let isDirectory = true
+    try {
+      const st = await fs.stat(realTarget)
+      isDirectory = st.isDirectory()
+      if (!isDirectory) targetDir = path.dirname(realTarget)
+    } catch {
+      isDirectory = false
+      targetDir = path.dirname(realTarget)
+    }
+
+    const canonicalTargetDir = path.resolve(targetDir)
+    if (!isPathWithinRoots(canonicalTargetDir, args.workspaceRoots)) {
+      return { escapedDir: canonicalTargetDir, isDirectory }
+    }
+    return { escapedDir: null, isDirectory }
+  }
+
+  async function walk(dirPath: string): Promise<string | null> {
+    const canonicalDir = (await tryRealpath(dirPath)) ?? path.resolve(dirPath)
+    if (visitedDirs.has(canonicalDir)) return null
+    visitedDirs.add(canonicalDir)
+
+    let entries: Array<{ name: string; isDirectory: () => boolean; isSymbolicLink: () => boolean }> = []
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true })
+    } catch {
+      return null
+    }
+
+    for (const entry of entries) {
+      if (skipDirNames.has(entry.name)) continue
+
+      const fullPath = path.join(dirPath, entry.name)
+      if (entry.isSymbolicLink()) {
+        const symlink = await inspectSymlinkTarget(fullPath)
+        if (symlink.escapedDir) return symlink.escapedDir
+        if (symlink.isDirectory) {
+          const nestedEscapedDir = await walk(fullPath)
+          if (nestedEscapedDir) return nestedEscapedDir
+        }
+        continue
+      }
+      if (entry.isDirectory()) {
+        const escapedDir = await walk(fullPath)
+        if (escapedDir) return escapedDir
+      }
+    }
+
+    return null
+  }
+
+  return await walk(args.rootDir)
+}
+
 export function createPolicyPreflight(args: {
   fileStore: FileStore
   approval?: ApprovalService
@@ -91,6 +178,36 @@ export function createPolicyPreflight(args: {
   homedir?: string
 }): ToolPreflight {
   const env = args.env ?? process.env
+  const grepSymlinkScanCache = new Map<string, GrepSymlinkScanCacheEntry>()
+  const grepSymlinkScanInFlight = new Map<string, Promise<string | null>>()
+  const resolveFirstEscapedGrepSymlinkDir = async (scanArgs: {
+    rootDir: string
+    workspaceRoots: string[]
+  }): Promise<string | null> => {
+    const cacheKey = createGrepSymlinkScanCacheKey(scanArgs)
+    const now = Date.now()
+    const cached = grepSymlinkScanCache.get(cacheKey)
+    if (cached && cached.expiresAt > now) return cached.escapedDir
+
+    const inFlight = grepSymlinkScanInFlight.get(cacheKey)
+    if (inFlight) return await inFlight
+
+    const scanPromise = findFirstExternalSymlinkDirectory(scanArgs)
+      .then((escapedDir) => {
+        grepSymlinkScanCache.set(cacheKey, {
+          escapedDir,
+          expiresAt: Date.now() + GREP_SYMLINK_SCAN_CACHE_TTL_MS,
+        })
+        return escapedDir
+      })
+      .finally(() => {
+        grepSymlinkScanInFlight.delete(cacheKey)
+      })
+
+    grepSymlinkScanInFlight.set(cacheKey, scanPromise)
+    return await scanPromise
+  }
+
   return async (call, ctx): Promise<ToolResult | null> => {
     const action: PolicyAction | null = toolCallToPolicyAction(call, ctx)
     if (!action) return null
@@ -140,6 +257,76 @@ export function createPolicyPreflight(args: {
       return null
     }
 
+    const loaded = await loadPolicyRules({
+      fileStore: args.fileStore,
+      cwd: ctx.cwd,
+      env,
+      platform: args.platform,
+      homedir: args.homedir,
+    })
+
+    if (call.name === 'Grep') {
+      const rgPath = await probeRipgrepExecutable()
+      if (!rgPath) {
+        const installAction: PolicyAction = { kind: 'tool.install', tool: 'ripgrep' }
+        const sessionRules = args.approval?.getSessionRules() ?? []
+        const installExplained = explainPolicy({ action: installAction, rules: [...sessionRules, ...loaded.mergedRules] })
+        const installDecision = installExplained.decision
+
+        if (args.audit) {
+          void args.audit.append({
+            schemaVersion: 1,
+            ts: nowIso(),
+            kind: 'policy.decision',
+            agentDepth: ctx.agentDepth,
+            tool: { name: call.name, toolUseId: call.id },
+            replMode: replMode ?? undefined,
+            action: installAction,
+            decision: {
+              raw: installExplained.decision,
+              effective: installDecision,
+              matchedRule: installExplained.matchedRule,
+              suggestions: installExplained.suggestions,
+            },
+          })
+        }
+
+        if (installDecision === 'deny') {
+          const reason = installExplained.matchedRule?.reason?.trim()
+          if (reason) {
+            return {
+              tool_use_id: call.id,
+              content: `Error: Policy denied ${installAction.kind}\nReason: ${reason}`,
+              is_error: true,
+            }
+          }
+          return { tool_use_id: call.id, content: `Error: Policy denied ${installAction.kind}`, is_error: true }
+        }
+
+        if (installDecision === 'prompt') {
+          if (ctx.agentDepth > 0) {
+            return { tool_use_id: call.id, content: 'Error: Approval required', is_error: true }
+          }
+          if (ctx.interactive === false) {
+            return { tool_use_id: call.id, content: `Error: Approval required for ${installAction.kind}`, is_error: true }
+          }
+          if (!args.approval) {
+            return { tool_use_id: call.id, content: `Error: Approval required for ${installAction.kind}`, is_error: true }
+          }
+
+          const approved = await args.approval.ensureApproved({
+            call,
+            ctx,
+            action: installAction,
+            effectiveDecision: installDecision,
+            explained: installExplained,
+            loaded,
+          })
+          if (approved.ok !== true) return approved.result
+        }
+      }
+    }
+
     if (action.kind === 'fs.read' || action.kind === 'fs.write') {
       const rootsResult = await detectWorkspaceRoots({ fileStore: args.fileStore, cwd })
       const permissions = await getMergedPermissions()
@@ -171,34 +358,52 @@ export function createPolicyPreflight(args: {
         cwd,
       })
 
-	      if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
-	        const isInteractiveMain = ctx.agentDepth === 0 && ctx.interactive !== false && Boolean(args.approval)
-	        if (!isInteractiveMain) {
-	          return {
-	            tool_use_id: call.id,
-	            content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(canonicalTargetPath)}`,
-	            is_error: true,
-	          }
-	        }
+      if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
+        const isInteractiveMain = ctx.agentDepth === 0 && ctx.interactive !== false && Boolean(args.approval)
+        if (!isInteractiveMain) {
+          return {
+            tool_use_id: call.id,
+            content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(canonicalTargetPath)}`,
+            is_error: true,
+          }
+        }
 
-	        let dir = canonicalTargetPath
-	        if (action.kind === 'fs.write') {
-	          dir = path.dirname(canonicalTargetPath)
-	        } else if (!(await isExistingDirectory(canonicalTargetPath))) {
-	          dir = path.dirname(canonicalTargetPath)
-	        }
+        let dir = canonicalTargetPath
+        if (action.kind === 'fs.write') {
+          dir = path.dirname(canonicalTargetPath)
+        } else if (!(await isExistingDirectory(canonicalTargetPath))) {
+          dir = path.dirname(canonicalTargetPath)
+        }
 
-	        workspaceRequest = { dir }
-	      }
-	    }
+        workspaceRequest = { dir }
+      }
 
-    const loaded = await loadPolicyRules({
-      fileStore: args.fileStore,
-      cwd: ctx.cwd,
-      env,
-      platform: args.platform,
-      homedir: args.homedir,
-    })
+      if (
+        !workspaceRequest &&
+        call.name === 'Grep' &&
+        action.kind === 'fs.read' &&
+        canonicalTargetPath &&
+        canonicalRoots.length &&
+        (await isExistingDirectory(canonicalTargetPath))
+      ) {
+        const firstEscapedDir = await resolveFirstEscapedGrepSymlinkDir({
+          rootDir: canonicalTargetPath,
+          workspaceRoots: canonicalRoots,
+        })
+
+        if (firstEscapedDir) {
+          const isInteractiveMain = ctx.agentDepth === 0 && ctx.interactive !== false && Boolean(args.approval)
+          if (!isInteractiveMain) {
+            return {
+              tool_use_id: call.id,
+              content: `Error: Path is outside the workspace\nPath: ${formatPathForDisplay(firstEscapedDir)}`,
+              is_error: true,
+            }
+          }
+          workspaceRequest = { dir: firstEscapedDir }
+        }
+      }
+    }
 
     const sessionRules = args.approval?.getSessionRules() ?? []
     const explained = explainPolicy({ action, rules: [...sessionRules, ...loaded.mergedRules] })

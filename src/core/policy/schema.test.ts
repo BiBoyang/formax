@@ -16,6 +16,17 @@ describe('policy schema', () => {
     expect(res.template).toBe('')
   })
 
+  it('parses tool.install match entries', () => {
+    const res = PolicyRuleSchema.parse({
+      ruleId: 'r-install',
+      createdAt: '2026-01-01T00:00:00Z',
+      scope: 'global',
+      decision: 'deny',
+      match: { kind: 'tool.install', tool: 'ripgrep' },
+    })
+    expect(res.match).toEqual({ kind: 'tool.install', tool: 'ripgrep' })
+  })
+
   it('requires action-specific match fields', () => {
     expect(() =>
       PolicyRuleSchema.parse({
@@ -46,4 +57,3 @@ describe('policy schema', () => {
     expect(parsed.rules).toEqual([])
   })
 })
-

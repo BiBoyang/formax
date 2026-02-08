@@ -19,6 +19,7 @@ describe('policy engine', () => {
     expect(evaluatePolicy({ action: { kind: 'bash.exec', command: 'ls -la' }, rules: [] })).toBe('allow')
     expect(evaluatePolicy({ action: { kind: 'net.fetch', url: 'https://example.com' }, rules: [] })).toBe('deny')
     expect(evaluatePolicy({ action: { kind: 'net.search', query: 'hello' }, rules: [] })).toBe('deny')
+    expect(evaluatePolicy({ action: { kind: 'tool.install', tool: 'ripgrep' }, rules: [] })).toBe('allow')
   })
 
   it('prefers deny over allow even across scopes', () => {
