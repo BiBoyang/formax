@@ -8,6 +8,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
   - Runtime assembly slices: `src/legacy/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
+- App-server dev bridge entrypoint (WebSocket -> stdio loop): `src/entrypoints/app-server-bridge.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
 - Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
@@ -20,6 +21,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Turn execution + streaming forwarding: `src/app-server/turnRunner.ts`
 - Input lifecycle helpers: `src/app-server/turn/inputId.ts`, `src/app-server/turn/inputStore.ts`
 - Stdio JSONL transport: `src/app-server/transport/stdio.ts`
+- Dev bridge (WebSocket fan-in/fan-out to app-server loop): `src/app-server/devBridge.ts`
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
 - Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`
 

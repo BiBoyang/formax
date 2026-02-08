@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "dev": "tsx ./src/entrypoints/cli.tsx",
+    "app-server:bridge": "tsx ./src/entrypoints/app-server-bridge.ts",
     "toole": "tsx ./src/entrypoints/tool-examples.tsx",
     "loade": "tsx ./src/entrypoints/loading-examples.tsx",
     "perf:transcript": "tsx ./src/entrypoints/perf-transcript.tsx",
