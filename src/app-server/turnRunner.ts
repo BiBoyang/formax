@@ -156,6 +156,14 @@ export class TurnRunner {
 
       let assistantText = ''
       const onEvent = (event: StreamEvent) => {
+        if (event.type === 'approval_request' || event.type === 'ask_user_question') {
+          this.emitNotification('turn/inputRequested', {
+            turnId: running.turnId,
+            threadId: running.threadId,
+            input: event,
+          })
+          return
+        }
         if (event.type === 'assistant_delta') assistantText += event.text
         this.emitNotification('turn/event', {
           turnId: running.turnId,

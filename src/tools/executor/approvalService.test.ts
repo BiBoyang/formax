@@ -53,6 +53,7 @@ describe('ApprovalService', () => {
   it('logs audit prompt + approve outcome', async () => {
     const auditEntries: any[] = []
     const audit: AuditLog = { append: async (e) => void auditEntries.push(e) }
+    const onEvent = vi.fn()
 
     const approval = createApprovalService({
       fileStore: createNodeFileStore(),
@@ -65,7 +66,7 @@ describe('ApprovalService', () => {
     const call: ToolCall = { id: 't1', name: 'WebSearch', input: { query: 'x' } } as any
     const res = await approval.ensureApproved({
       call,
-      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
       action: { kind: 'net.search', query: 'hello' },
       effectiveDecision: 'prompt',
       explained: { decision: 'prompt' } as any,
@@ -75,6 +76,13 @@ describe('ApprovalService', () => {
     expect(res.ok).toBe(true)
     expect(auditEntries.map((e) => e.kind)).toEqual(['approval.prompt', 'approval.result'])
     expect(auditEntries[1].outcome).toBe('approve')
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'approval_request',
+        toolUseId: 't1',
+        toolName: 'WebSearch',
+      }),
+    )
   })
 
   it('approve_remember + fs.write switches REPL to acceptEdits (no policy persistence)', async () => {

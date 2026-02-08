@@ -43,6 +43,18 @@ describe('TurnRunner', () => {
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
+          args.onEvent({
+            type: 'ask_user_question',
+            toolUseId: 'ask-1',
+            questions: [
+              {
+                question: 'Pick one?',
+                header: 'Choice',
+                options: [{ label: 'A', description: 'Option A' }],
+                multiSelect: false,
+              },
+            ],
+          })
           args.onEvent({ type: 'assistant_delta', text: 'hello' })
           args.onEvent({ type: 'complete' })
           return [
@@ -70,6 +82,11 @@ describe('TurnRunner', () => {
     expect(started.turn.status).toBe('running')
 
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    expect(
+      notifications.some(
+        (n) => n.method === 'turn/inputRequested' && n.params?.input?.type === 'ask_user_question',
+      ),
+    ).toBe(true)
 
     const filePath = await findSessionFileBySessionId({
       cwd: fixture.cwd,

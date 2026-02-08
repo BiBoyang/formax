@@ -134,6 +134,20 @@ export function createApprovalService(args: {
       })
     }
 
+    const suggestions = formatPolicyExplainLines({
+      effectiveDecision: args2.effectiveDecision,
+      explained: args2.explained,
+    })
+    ctx.onEvent?.({
+      type: 'approval_request',
+      toolUseId: call.id,
+      toolName: call.name,
+      action: args2.action,
+      effectiveDecision: args2.effectiveDecision,
+      ...(suggestions.length > 0 ? { suggestions } : {}),
+      ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
+    })
+
     const answersPromise = args.userInput.requestAnswers({
       toolUseId: call.id,
       questions: [],

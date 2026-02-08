@@ -34,6 +34,25 @@ export type StreamEvent =
     }
   | { type: 'usage'; usage: TokenUsage; model?: string }
   | { type: 'tool_end'; id: string; result: ToolResult }
+  | {
+      type: 'approval_request'
+      toolUseId: string
+      toolName: string
+      action: unknown
+      effectiveDecision: unknown
+      suggestions?: string[]
+      workspaceRequest?: { dir: string } | null
+    }
+  | {
+      type: 'ask_user_question'
+      toolUseId: string
+      questions: Array<{
+        question: string
+        header: string
+        options: Array<{ label: string; description: string }>
+        multiSelect: boolean
+      }>
+    }
   | { type: 'error'; error: Error }
   | { type: 'complete' }
 

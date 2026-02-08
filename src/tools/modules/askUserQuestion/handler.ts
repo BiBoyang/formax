@@ -47,6 +47,12 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
           }
         }
 
+        ctx.onEvent?.({
+          type: 'ask_user_question',
+          toolUseId: call.id,
+          questions,
+        })
+
         const answers = await userInput.requestAnswers({
           toolUseId: call.id,
           questions,

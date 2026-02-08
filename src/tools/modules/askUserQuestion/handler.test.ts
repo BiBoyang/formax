@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createUserInputManager } from '../../runtime/userInputManager'
 import { createAskUserQuestionToolHandler } from './handler'
 
@@ -6,6 +6,7 @@ describe('AskUserQuestionToolHandler', () => {
   it('returns collected answers', async () => {
     const userInput = createUserInputManager()
     const handler = createAskUserQuestionToolHandler(userInput)
+    const onEvent = vi.fn()
 
     const call = {
       id: 'ask-1',
@@ -25,12 +26,18 @@ describe('AskUserQuestionToolHandler', () => {
       },
     } as any
 
-    const exec = handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    const exec = handler.execute(call, { cwd: process.cwd(), agentDepth: 0, onEvent })
     userInput.submitAnswers('ask-1', { Choice: 'A' })
 
     const res = await exec
     const parsed = JSON.parse(res.content)
     expect(parsed).toEqual({ answers: { Choice: 'A' } })
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ask_user_question',
+        toolUseId: 'ask-1',
+      }),
+    )
   })
 
   it('accepts prefilled answers in input', async () => {
