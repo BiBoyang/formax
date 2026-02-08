@@ -1,3 +1,10 @@
+/**
+ * App-server input protocol only unifies lifecycle and transport shape.
+ *
+ * It intentionally does not merge business semantics:
+ * - approval keeps permission/policy side effects.
+ * - ask_user_question keeps tool question/answer semantics.
+ */
 export type InputKind = 'approval' | 'ask_user_question'
 
 export type InputPendingStatus = 'pending'

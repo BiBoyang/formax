@@ -94,7 +94,7 @@
 - [x] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
 - [x] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
 - [x] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
-- [ ] 明确 `multiSelect` 的字符串编码规则（逗号拼接 label），并写入协议文档。
+- [x] 明确 `multiSelect` 的字符串编码规则（逗号拼接 label），并写入协议文档。
 - [x] 新增 `turn/inputResolved` 通知（`submitted/canceled/expired/failed`）。
 - [x] `turn/input/submit` 返回状态扩展：`accepted | already_submitted_same | conflict_already_submitted | not_pending | expired | canceled`。
 - [x] 支持 `submissionId` 幂等键与 `answersHash` 冲突判断。
@@ -146,7 +146,7 @@
 
 ## Approval Hardening（增量补充）
 
-- [ ] 在 `src/app-server/protocol/input.ts` 写入“语义边界注释”：统一状态机，不统一业务决策逻辑。
+- [x] 在 `src/app-server/protocol/input.ts` 写入“语义边界注释”：统一状态机，不统一业务决策逻辑。
 - [x] 新增 `src/app-server/protocol/input.ts`（或等价模块）：定义 `InputRequest/InputStatus/InputResolved` 类型。
 - [x] 新增 `src/app-server/turn/inputId.ts`：统一 `inputId` 生成（`${turnId}:${toolUseId}:${kind}`）。
 - [x] 新增 `src/app-server/turn/inputStore.ts`：维护 per-turn input 生命周期与索引。

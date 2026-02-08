@@ -342,7 +342,10 @@ ask_user_question payload（兼容现状）：
 
 - 仍以 `Record<string,string>` 回答，不破坏现有 `header -> answer` 约定。
 - 可选补充 `fieldId`（新客户端优先用 `fieldId`，旧客户端可继续回传 `header`）。
-- `multiSelect` 一期维持字符串编码（当前 UI 为逗号拼接 label），在文档中显式约定该编码。
+- `multiSelect` 一期维持字符串编码（当前 UI 为逗号拼接 label）。
+  - 单选：值为单个 label（例如 `"A"`）。
+  - 多选：值为按勾选顺序拼接的 label 字符串，分隔符固定 `,`（例如 `"A,B,C"`）。
+  - 一期不做转义协议扩展；客户端需要将该字段视作“展示 label 串”，避免在一期做 label 反解析。
 
 ### 13.4 turn/input/submit 语义增强
 
