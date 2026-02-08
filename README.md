@@ -50,6 +50,12 @@ formax app-server
 bun run app-server:bridge -- --host 127.0.0.1 --port 3777
 ```
 
+也可直接启动 Web 参考客户端（本地静态页面 + bridge，开发验证用途）：
+
+```bash
+bun run app-server:web-reference -- --host 127.0.0.1 --bridge-port 3777 --ui-port 3780
+```
+
 ## Configuration
 
 Formax will prompt you to configure missing credentials on first run.
