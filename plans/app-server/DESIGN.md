@@ -2,6 +2,17 @@
 
 更新时间：2026-02-08
 
+## 0. 文档优先级（重要）
+
+为避免后续继续“边改边补”，本文件在当前阶段作为实现设计说明，不再是唯一规范源。  
+发生冲突时，按以下优先级处理：
+
+1. `plans/app-server/PRODUCT-SPEC.md`（产品边界与发布门槛）
+2. `plans/app-server/INTERACTION-CONTRACT.md`（协议与状态机合同）
+3. `plans/app-server/UI-SPEC.md`（UI 功能行为规范）
+4. `plans/app-server/API-REFERENCE.md`（实现参考与示例）
+5. 本文件 `plans/app-server/DESIGN.md`
+
 ## 1. 背景与目标
 
 `formax` 当前核心交互是 Ink REPL（TUI），尚无可供桌面 GUI/IDE 客户端复用的稳定服务层。目标是在不破坏现有 REPL 行为前提下，新增一个 `formax app-server`，让 GUI 通过标准化双向协议驱动同一套运行时能力。

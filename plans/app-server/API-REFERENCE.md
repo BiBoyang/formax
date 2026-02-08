@@ -2,6 +2,11 @@
 
 本文档基于当前实现代码整理，目标是给 Web/GUI 客户端提供可直接对接的接口手册。
 
+优先级说明：
+
+- 若与产品/合同文档冲突，以 `PRODUCT-SPEC.md` 与 `INTERACTION-CONTRACT.md` 为准。
+- 本文档主要用于“对接与实现参考”，不作为协议决策源。
+
 - 传输：`stdio` + `JSONL`（每行一个 JSON）
 - 协议：`JSON-RPC 2.0`
 - 协议版本：`0.2`
@@ -426,6 +431,40 @@ AskUserQuestion payload：
 - 返回 `already_submitted_same` 可按成功处理。
 - 返回 `conflict_already_submitted` 说明已提交过不同答案，应提示用户冲突。
 
+`inputId` / `toolUseId` fallback 规则：
+
+- 优先使用 `inputId`。
+- 当 `inputId` 缺失时，服务端会尝试使用 `toolUseId` 反查当前 turn 的 input。
+- 若 `toolUseId` 对应多个 input，服务端优先当前仍 `pending` 的 input；若无 pending，则回落到该 `toolUseId` 的最后一个记录。
+
+正例（推荐）：
+
+```json
+{"jsonrpc":"2.0","id":"4","method":"turn/input/submit","params":{"threadId":"t1","turnId":"u1","inputId":"u1:ask-1:ask_user_question","answers":{"Choice":"A"},"submissionId":"sub-001"}}
+```
+
+正例（兼容）：
+
+```json
+{"jsonrpc":"2.0","id":"5","method":"turn/input/submit","params":{"threadId":"t1","turnId":"u1","toolUseId":"ask-1","answers":{"Choice":"A"},"submissionId":"sub-002"}}
+```
+
+负例（`inputId` 与 `toolUseId` 都缺失）：
+
+```json
+{"jsonrpc":"2.0","id":"6","method":"turn/input/submit","params":{"threadId":"t1","turnId":"u1","answers":{"Choice":"A"}}}
+```
+
+结果：`INVALID_PARAMS`（缺少 `params.inputId` 或 `params.toolUseId`）。
+
+负例（`toolUseId` 指向已 stale/expired 输入）：
+
+```json
+{"jsonrpc":"2.0","id":"7","method":"turn/input/submit","params":{"threadId":"t1","turnId":"u1","toolUseId":"ask-1","answers":{"Choice":"A"}}}
+```
+
+结果：`INPUT_EXPIRED`（`error.data.kind = INPUT_EXPIRED`）。
+
 ## 6. 服务端通知（`turn/*`）
 
 ## 6.1 `turn/started`
@@ -458,6 +497,11 @@ AskUserQuestion payload：
 - `ask_user_question`
 - `error`
 - `complete`
+
+兼容性约束：
+
+- 服务端会透传未知 `event.type`。
+- 客户端应以“unknown event fallback”处理（展示原始 payload），不要因未知类型中断渲染。
 
 ## 6.3 `turn/inputRequested`
 
@@ -498,6 +542,11 @@ AskUserQuestion payload：
   turn: { id: string; threadId: string; status: 'failed' | 'interrupted' }
   error: string
 }
+
+说明：
+
+- `error` 字段是可读错误信息，不是稳定 machine code。
+- 需要机器分支时，应优先依赖 JSON-RPC `error.code` 与 `error.data.kind`。
 ```
 
 ## 7. 输入状态机（客户端实现建议）
@@ -554,6 +603,30 @@ UI 建议：
 
 - 不要重试同一 input；
 - 引导用户发起新 turn 或恢复线程后继续。
+
+### PAYLOAD_TOO_LARGE
+
+请求或事件超出 `limits.maxRequestBytes/maxEventBytes` 时返回：
+
+```json
+{
+  "code": -32002,
+  "message": "PAYLOAD_TOO_LARGE",
+  "data": {
+    "kind": "PAYLOAD_TOO_LARGE",
+    "recoverable": true,
+    "retryable": true,
+    "direction": "request | event",
+    "maxBytes": 1048576,
+    "actualBytes": 1234567
+  }
+}
+```
+
+客户端建议：
+
+- `direction = request`：裁剪 payload 后重试（例如缩短输入、减少附加字段）。
+- `direction = event`：提示“输出过大已被截断/拒绝”，允许用户改用更小粒度操作重试。
 
 ## 9. 前端对接最小实现清单
 

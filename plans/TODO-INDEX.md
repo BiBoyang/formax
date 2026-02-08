@@ -5,7 +5,7 @@
 ## 当前主线（只盯这一份）
 
 - `plans/app-server/TODO.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
-  - 当前状态：Phase 0-8 与 PR1-PR9 已完成（含 Web reference client 开发验证闭环）。
+  - 当前状态：已进入 Spec-Driven v2（`PRODUCT-SPEC` / `INTERACTION-CONTRACT` / `UI-SPEC` 已建立，进入执行阶段）。
 
 ## 并行参考（不作为主线推进）
 

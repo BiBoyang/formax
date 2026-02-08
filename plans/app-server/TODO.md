@@ -1,281 +1,164 @@
-# TODO：Formax App Server（MVP）
+# TODO：Formax App Server（Spec-Driven v2）
 
-说明：本清单对应 `plans/app-server/DESIGN.md`，聚焦“一期可用闭环”。
+更新时间：2026-02-09  
+主线目标：从“功能已可用”升级到“规格稳定、实现可验证、UI 可持续迭代”。
 
-## Phase 0 — 目录与文档基线
+文档真相源（必须保持一致）：
 
-- [x] 新增 `plans/app-server/DESIGN.md` 与本 TODO（已建立，后续持续维护）。
-- [x] 在 `CODEMAP.md` 预留 app-server 入口索引（先标注 WIP）。
+- 产品规格：`plans/app-server/PRODUCT-SPEC.md`
+- 交互合同：`plans/app-server/INTERACTION-CONTRACT.md`
+- UI 规格：`plans/app-server/UI-SPEC.md`
+- 接口参考：`plans/app-server/API-REFERENCE.md`
 
-## Phase 1 — 抽取共享 runtime（零行为变化）
+---
 
-目标：让 TUI 与 app-server 共用同一装配链，避免重复 wiring。
+## Baseline（已完成）
 
-- [x] 新增 `src/runtime/createRuntime.ts`，封装运行时构造：
-  - [x] `cfg`
-  - [x] `engine`
-  - [x] `toolRegistry`
-  - [x] `taskManager`
-  - [x] `userInputManager`
-  - [x] `tools`
-  - [x] `allowedSubagents/reloadSubagents`
-- [x] `src/legacy/runLegacyCli.tsx` 切换为调用 `createRuntime()`。
-- [x] 保持现有 REPL 行为完全不变。
+说明：以下代表此前主线交付已完成，作为 v2 起点，不再重复拆分实现任务。
 
-验收：
+- [x] 共享 runtime 抽取，TUI 与 app-server 共用运行时装配。
+- [x] app-server 骨架（JSON-RPC + stdio JSONL）与握手上线。
+- [x] `thread/start|resume|list|read` 完成并映射 sessionSave。
+- [x] `turn/start|interrupt` 与流式事件桥接完成。
+- [x] approval + ask_user_question 已接入统一 input 生命周期。
+- [x] `turn/input/submit` 幂等与冲突状态已落地。
+- [x] stale input 恢复策略（resume 返回 + submit 过期错误）已落地。
+- [x] CLI、README、CODEMAP、Design Addendum 已同步。
 
-- [x] `bun run test -- src/legacy/bootstrap/runtimeConfig.test.tsx`
-- [x] `bun run test -- src/screens/REPL.test.tsx`
-- [x] `bun run type-check`
+---
 
-## Phase 2 — app-server 骨架 + stdio 传输
+## Phase 0 — 规格固化（本轮优先）
 
-目标：建立可运行的 `formax app-server` 基础进程。
+目标：建立可执行的“产品/合同/UI”三层规范，停止无目标修补。
 
-- [x] 新增 `src/app-server/` 子系统：
-  - [x] `index.ts`
-  - [x] `server.ts`
-  - [x] `jsonrpc.ts`
-  - [x] `protocol.ts`
-  - [x] `transport/stdio.ts`
-- [x] 协议握手：`initialize` / `initialized`。
-- [x] 初始化前拦截：除 `initialize` 外请求返回 `Not initialized`。
+- [x] 新增 `plans/app-server/PRODUCT-SPEC.md`。
+- [x] 新增 `plans/app-server/INTERACTION-CONTRACT.md`。
+- [x] 新增 `plans/app-server/UI-SPEC.md`。
+- [x] 将 `plans/app-server/DESIGN.md` 增加“以 Product/Contract/UI 为上位规范”的指引段。
+- [x] 在 `plans/app-server/API-REFERENCE.md` 增加“合同优先级说明”（参考性质，非决策源）。
 
-验收：
+验收标准（可观察断言）：
 
-- [x] 新增测试：`src/app-server/*.test.ts`（握手/错误码/坏消息）。
-- [x] 手工：`formax app-server` 启动后可读写 JSONL。
+- [ ] 新成员只阅读 4 份文档（Product/Contract/UI/API）即可完整描述 thread/turn/input 闭环。
+- [ ] 文档中不存在互相冲突的字段命名与状态枚举。
 
-## Phase 3 — 线程 API（复用 sessionSave）
+---
 
-目标：可创建、恢复、浏览线程。
+## Phase 1 — Contract Conformance（协议一致性收敛）
 
-- [x] 新增 `src/app-server/threadStore.ts`。
-- [x] 实现 `thread/start`。
-- [x] 实现 `thread/resume`。
-- [x] 实现 `thread/list`（支持 `limit/cursor`）。
-- [x] 实现 `thread/read`（含最小 transcript 预览）。
-- [x] `threadId` 与 `session_meta.sessionId` 对齐。
-- [x] 需要时补充 `findSessionFileBySessionId(sessionId)` 到 `sessionSave/reader.ts`。
+目标：把当前实现和合同逐项对齐，显式处理不一致。
 
-验收：
+- [x] 建立“合同条目 -> 代码位置”映射表（附在 `INTERACTION-CONTRACT.md` 末尾）。
+- [x] 对 `initialize.result.limits` 的字段来源做实现注释与文档对齐。
+- [x] 明确 `turn/event` 中 `event` 字段的最小保证（允许未知事件透传）。
+- [x] 明确并记录 `turn/failed` 中 `error` 的稳定性级别（面向展示，非 machine code）。
+- [x] 对 `turn/input/submit` 的 `toolUseId` fallback 规则补示例与负例说明。
+- [x] 对 `PAYLOAD_TOO_LARGE`（request/event）分别补客户端处理建议。
 
-- [x] 新增 `threadStore.test.ts`。
-- [x] 重启进程后 `thread/resume` 成功。
+验收标准（可观察断言）：
 
-## Phase 4 — turn/start + 流式事件桥接
+- [x] 任何一个合同条目都能定位到具体实现文件与测试点。
+- [x] 合同中列出的错误码都能在实现中找到对应分支。
 
-目标：客户端能驱动一轮完整对话并实时消费事件。
+---
 
-- [x] 新增 `src/app-server/turnRunner.ts`。
-- [x] 实现 `turn/start`：
-  - [x] 发 `turn/started`
-  - [x] 转发 stream 事件到 `turn/event`
-  - [x] 结束发 `turn/completed` 或 `turn/failed`
-- [x] 并发限制：同线程仅允许一个 in-flight turn。
-- [x] 实现 `turn/interrupt`。
+## Phase 2 — Reference Client 功能可用性
 
-验收：
+目标：React reference client 达到“协议调试工具”级别可用，而非仅演示。
 
-- [x] 新增 `turnRunner.test.ts`（事件顺序 + interrupt）。
-- [x] 集成测试覆盖 start/completed/failed 路径。
+- [x] 建立独立子项目（不混用根 `package.json`）：`apps/web-reference-react/`。
+- [x] 拆分基础结构：`rpcClient + store + 视图组件`。
+- [x] 接入 Tailwind v4 + `shadcn/ui` 基线（保留 `src/css/theme.css` 作为主题源）。
+- [x] 增加“连接生命周期提示”（connecting/connected/disconnected 时间戳）。
+- [ ] 增加 turn 过滤视图（只看当前 turn / 看全部）。
+- [ ] 在 input 面板展示 `expiresAt` 倒计时。
+- [ ] 在 submit 结果上区分 `already_submitted_same` 与 `conflict_already_submitted` 的视觉等级。
+- [ ] 增加 resume 流程入口（输入 threadId -> `thread/resume` -> 应用 staleInputs）。
+- [ ] 增加错误详情抽屉（展示 JSON-RPC `code/message/data`）。
+- [ ] transcript 渲染类型化：显式区分 `user/assistant/tool/system`。
+- [ ] tool 事件最小展示：`tool_start/tool_update/tool_end` 按序可追踪。
 
-## Phase 5 — 审批与 AskUserQuestion 交互闭环
+验收标准（可观察断言）：
 
-目标：GUI 可处理审批/提问，不依赖 TUI 弹层。
+- [ ] 无需查看源码，仅通过 UI 可完成：new thread -> turn -> input submit -> completed。
+- [ ] stale input 情况下，UI 明确显示“已失效且不可再提交”。
+- [ ] 同一 turn 的 tool 流程在 transcript 可还原顺序。
 
-- [x] 边界锁定：本期只统一 input 协议状态机，不合并 approval 与 AskUserQuestion 业务语义。
-- [x] 扩展 `StreamEvent`：新增
-  - [x] `approval_request`
-  - [x] `ask_user_question`
-- [x] `approvalService.ensureApproved()` 在等待答案前发 `approval_request`。
-- [x] `AskUserQuestion` handler 在等待答案前发 `ask_user_question`。
-- [x] app-server 转发为 `turn/inputRequested` 通知。
-- [x] 新增 `turn/input/submit` 方法并接 `userInputManager.submitAnswers()`。
-- [x] `turn/inputRequested` 增补统一字段：`inputId/status/createdAt/expiresAt/traceId/seq/ts`。
-- [x] AskUserQuestion 兼容策略：保留 `header -> answer`，并新增可选 `fieldId`（新客户端优先）。
-- [x] 明确 `multiSelect` 的字符串编码规则（逗号拼接 label），并写入协议文档。
-- [x] 新增 `turn/inputResolved` 通知（`submitted/canceled/expired/failed`）。
-- [x] `turn/input/submit` 返回状态扩展：`accepted | already_submitted_same | conflict_already_submitted | not_pending | expired | canceled`。
-- [x] 支持 `submissionId` 幂等键与 `answersHash` 冲突判断。
+---
 
-验收：
+## Phase 2.5 — Commander 子集接入（P1）
 
-- [x] 单测：approval/ask_user_question 桥接。
-- [x] 集成：可完成“服务端发请求 -> 客户端回答案 -> turn 继续并完成”。
-- [x] 对同一 `inputId` 重复提交，能稳定收敛到“same/conflict”之一，且无重复执行。
-- [x] turn 结束后 GUI 不存在悬挂 pending input（必须收到 `turn/inputResolved`）。
+目标：先实现“可执行 + 可追踪”的 command 能力，不做 overlay 对齐。
 
-## Phase 6 — CLI 接入与帮助信息
+- [ ] 定义一期 commander 子集（建议先 `/permissions`、`/agents`、`/hooks` 中可输出项）。
+- [ ] UI 增加 command 输入路径（可与 composer 共用，保留前缀 `/`）。
+- [ ] command 请求结果写入 transcript（成功/失败均可见）。
+- [ ] command 错误统一映射为可读日志（message + 可选 code）。
 
-目标：正式暴露 `formax app-server` 命令。
+验收标准（可观察断言）：
 
-- [x] 更新 `src/cli/main.ts` 增加 `app-server` 分支。
-- [x] 更新 `src/cli/help.ts` 显示新命令用法。
-- [x] 更新 `src/entrypoints/cli.tsx` 调度。
-- [x] 补 CLI 测试。
+- [ ] 至少 2 个 command 子集在 GUI 端可执行并返回可读结果。
+- [ ] command 异常不会破坏普通 turn 流程。
 
-验收：
+---
 
-- [x] `src/cli/main.test.ts` 增加 app-server 用例。
-- [x] `src/cli/help.test.ts` 快照更新通过。
+## Phase 3 — UI 可操作性硬化（非品牌美化）
 
-## Phase 7 — Web 参考客户端（开发验证）
+目标：提升“长时间调试可用性”，不追求高保真视觉。
 
-目标：快速验证协议可用，不作为生产传输方案。
+- [ ] 固化三区域独立滚动，防止输入区被内容挤出可视区。
+- [ ] transcript 增加粘底开关（auto-scroll on/off）。
+- [ ] 增加日志级别过滤（info/warn/error）。
+- [ ] 增加最小空态文案规范（线程空态、转录空态、input 空态）。
+- [ ] 增加窄屏布局规范实现（<900px 时上下结构）。
+- [ ] 为关键动作增加忙碌态（发送中、提交中、中断中）。
+- [ ] approval 表单显示完整上下文（toolName/action/effectiveDecision/workspaceRequest）。
 
-- [x] 新增 dev bridge（本地进程 -> WebSocket，仅开发用途）。
-- [x] 新增 Web 参考 UI：
-  - [x] 线程列表
-  - [x] 消息流
-  - [x] 审批/提问弹层
-- [x] 打通最小闭环演示。
+验收标准（可观察断言）：
 
-验收：
+- [ ] 在大量事件流下，输入框始终可见并可操作。
+- [ ] 用户能在不滚屏找日志的情况下定位最近一次失败原因。
+- [ ] approval 提交前用户可见完整决策上下文，不依赖开发者工具。
 
-- [x] 一次演示流程全通（start thread -> run turn -> approval -> completed）。
+---
 
-## Phase 8 — 文档与索引
+## Phase T — Web 测试基线（新增）
 
-- [x] 更新 `CODEMAP.md`：新增 app-server 模块索引。
-- [x] 更新 `README.md`：新增 `formax app-server` 用法。
-- [x] 更新 `src/streaming/README.md`：新增桥接事件说明。
-- [x] 更新 `plans/TODO-INDEX.md`：纳入本主线。
-- [x] 更新 `plans/app-server/DESIGN.md`：同步 v2 addendum（input 状态机、错误码、恢复策略）。
-- [x] 在文档中显式声明 `StreamEvent` 命名沿用现状（`tool_end` 等），避免实现偏差。
+目标：建立前端可持续测试机制，避免 UI 迭代破坏协议行为。
 
-## Approval Hardening（增量补充）
+- [x] 建立 React 测试基础设施：Vitest + Testing Library + jsdom。
+- [x] 为 `store` 增加状态机测试（input requested/resolved、assistant delta 合并）。
+- [x] 为 `LeftRail` 增加交互测试（新建线程、刷新、切换线程、bridge 输入）。
+- [x] 为 `TranscriptPane` 增加行为测试（Send/Interrupt disabled 条件、提交事件）。
+- [x] 为 `PendingInputPane` 增加表单测试（approval/ask_user_question 提交 payload）。
+- [x] 在 `apps/web-reference-react/README.md` 增加测试命令与最小测试策略说明。
 
-- [x] 在 `src/app-server/protocol/input.ts` 写入“语义边界注释”：统一状态机，不统一业务决策逻辑。
-- [x] 新增 `src/app-server/protocol/input.ts`（或等价模块）：定义 `InputRequest/InputStatus/InputResolved` 类型。
-- [x] 新增 `src/app-server/turn/inputId.ts`：统一 `inputId` 生成（`${turnId}:${toolUseId}:${kind}`）。
-- [x] 新增 `src/app-server/turn/inputStore.ts`：维护 per-turn input 生命周期与索引。
-- [x] 在 `turnRunner` 内维护 `seq` 计数器，并统一封装 `turn/event` envelope（含 `traceId/seq/ts/eventId/source`）。
-- [x] 在 `approvalService.ensureApproved()` 的 `requestAnswers()` 前发 `approval_request` 事件（携带 action/effectiveDecision/workspaceRequest）。
-- [x] 在 `AskUserQuestion` handler 的 `requestAnswers()` 前发 `ask_user_question` 事件（questions + optional fieldId）。
-- [x] Router 实现 `turn/input/submit` 新入参校验：`threadId/turnId/inputId/answers`，可选 `submissionId`。
-- [x] Router 实现提交幂等：同 `submissionId` + 同答案返回 `already_submitted_same`。
-- [x] Router 实现冲突检测：同 `inputId` 不同答案返回 `conflict_already_submitted` + typed error。
-- [x] `turn/interrupt` 路径先 cancel all pending inputs（逐个发 `turn/inputResolved(canceled)`）再结束 turn。
-- [x] turn 正常 `completed/failed` 前执行 pending 清理，确保无 input 泄漏。
-- [x] 新增 `src/app-server/store/sessionEventReader.ts`：读取 `event` 记录恢复 `staleInputs`。
-- [x] `thread/resume` 返回 stale inputs（server restart 后统一 expired）。
-- [x] stale input 的后续 submit 返回 `INPUT_EXPIRED`（typed error/data）。
-- [x] 为 transport 增加 `maxRequestBytes/maxEventBytes`，超限返回 `PAYLOAD_TOO_LARGE`。
-- [x] 为 inputStore 增加 `maxPendingInputsPerThread`，超限拒绝并打点。
+验收标准（可观察断言）：
 
-验收：
+- [x] `npm run test` 可在子项目独立通过。
+- [ ] 修改 UI 组件时，若破坏交互 contract，至少有 1 条测试失败提示。
 
-- [x] approval 与 ask_user_question 均能观测到 `inputRequested -> inputResolved` 成对事件。
-- [x] 任意异常路径（interrupt、timeout、restart）不会残留 pending input。
-- [x] 断线重连后 `thread/resume` 可清理旧 pending UI，且错误码语义一致。
+---
 
-## 建议 PR 切分（小步可回滚）
+## Phase 4 — 最终验收与发布门槛
 
-- [x] PR1: shared runtime 抽取（零行为变化）
-  - 目标：引入 `createRuntime()`，让 TUI 与 app-server 共享同一装配链。
-  - 主要文件：
-    - `src/runtime/createRuntime.ts`（new）
-    - `src/legacy/bootstrap/chatRuntime.ts`
-    - `src/legacy/bootstrap/llmClients.ts`
-    - `src/legacy/bootstrap/tooling.ts`
-    - `src/legacy/bootstrap/policyHooks.ts`
-    - `src/legacy/bootstrap/subagents.ts`
-    - `src/legacy/runLegacyCli.tsx`
-  - 风险点：REPL wiring 回归（工具注册/策略钩子/subagent 装配）。
-  - 合并前断言：现有 REPL 行为无变化，`runtimeConfig` 与 REPL 关键测试通过。
+目标：达到可持续迭代的 MVP 质量门槛。
 
-- [x] PR2: app-server 骨架 + JSON-RPC 握手
-  - 目标：跑通 `initialize/initialized` 与未初始化拦截。
-  - 主要文件：
-    - `src/app-server/index.ts`（new）
-    - `src/app-server/server.ts`（new）
-    - `src/app-server/jsonrpc.ts`（new）
-    - `src/app-server/protocol.ts`（new）
-    - `src/app-server/transport/stdio.ts`（new）
-    - `src/app-server/*.test.ts`（new）
-  - 风险点：JSONL 解码鲁棒性、错误码一致性。
-  - 合并前断言：坏行/坏 JSON/握手前调用都返回稳定错误。
+- [ ] 生成最终验收报告：`plans/app-server/FINAL-ACCEPTANCE.md`（补齐 v2 条目）。
+- [ ] 完成“20 次 thread/turn 闭环 + 10 次 approval + 10 次 ask_user_question”手工记录模板。
+- [ ] 完成“重启恢复 + stale input 提交失败”手工记录模板。
+- [ ] 文档索引更新：`plans/TODO-INDEX.md`、`README.md`（reference client 路径说明）。
 
-- [x] PR3: thread API + sessionSave 映射
-  - 目标：实现 `thread/start|resume|list|read` 最小闭环。
-  - 主要文件：
-    - `src/app-server/threadStore.ts`（new）
-    - `src/features/repl/sessionSave/reader.ts`（新增 `findSessionFileBySessionId`）
-    - `src/app-server/threadStore.test.ts`（new）
-  - 风险点：会话文件扫描性能与 threadId 映射正确性。
-  - 合并前断言：threadId 与 `session_meta.sessionId` 一致，重启后可 resume。
+验收标准（可观察断言）：
 
-- [x] PR4: turnRunner 基础链路（不含 input 状态机）
-  - 目标：实现 `turn/start`、`turn/interrupt`、`turn/event` 转发与单线程单 in-flight 约束。
-  - 主要文件：
-    - `src/app-server/turnRunner.ts`（new）
-    - `src/app-server/server.ts`
-    - `src/app-server/protocol.ts`
-    - `src/app-server/turnRunner.test.ts`（new）
-  - 风险点：事件顺序与 interrupt 竞态。
-  - 合并前断言：`turn/started -> turn/event* -> turn/completed|failed` 顺序稳定。
+- [ ] 产品目标（`PRODUCT-SPEC.md` §7）中的门槛全部具备对应证据。
+- [ ] TODO 中未完成项可解释为“明确后续范围”，而非遗漏。
 
-- [x] PR5: approval / ask_user_question 事件桥接（语义不合并）
-  - 目标：让 app-server 能观测到两类 input 请求来源，但保持业务语义分离。
-  - 主要文件：
-    - `src/streaming/types.ts`
-    - `src/tools/executor/approvalService.ts`
-    - `src/tools/modules/askUserQuestion/handler.ts`
-    - 对应测试文件（approval / ask_user_question）
-  - 风险点：影响现有 TUI 工具展示；误把语义层做“强合并”。
-  - 合并前断言：仅新增事件，不改变 approval/ask_user_question 原有决策语义。
+---
 
-- [x] PR6: input 协议状态机 + submit 幂等
-  - 目标：落地 `inputId`、`turn/inputRequested`、`turn/inputResolved`、`turn/input/submit` 幂等冲突策略。
-  - 主要文件：
-    - `src/app-server/protocol/input.ts`（new）
-    - `src/app-server/turn/inputId.ts`（new）
-    - `src/app-server/turn/inputStore.ts`（new）
-    - `src/app-server/server.ts`
-    - `src/app-server/turnRunner.ts`
-    - `src/app-server/*.test.ts`
-  - 风险点：submit 重复提交/冲突与 turn 终局并发竞态。
-  - 合并前断言：同一 input 重复提交可收敛为 same/conflict；无悬挂 pending。
+## 执行规则（避免重新变成补丁式开发）
 
-- [x] PR7: sessionSave 元事件恢复 + staleInputs
-  - 目标：服务端重启后通过 event 记录识别 stale pending inputs 并统一 expired。
-  - 主要文件：
-    - `src/app-server/store/sessionEventReader.ts`（new）
-    - `src/app-server/threadStore.ts`
-    - `src/features/repl/sessionSave/records.ts`（仅在需要类型补充时）
-    - `src/features/repl/sessionSave/reader.ts`（保持旧回放语义）
-  - 风险点：event 解析兼容性与恢复一致性。
-  - 合并前断言：resume 后旧 pending input 会被清理并返回一致错误语义。
-
-- [x] PR8: 安全上限 + CLI 接入 + 文档同步
-  - 目标：补全传输/资源边界并正式暴露 `formax app-server`。
-  - 主要文件：
-    - `src/app-server/transport/stdio.ts`
-    - `src/app-server/server.ts`
-    - `src/cli/main.ts`
-    - `src/cli/help.ts`
-    - `src/entrypoints/cli.tsx`
-    - `src/cli/main.test.ts`
-    - `src/cli/help.test.ts`
-    - `CODEMAP.md`
-    - `README.md`
-    - `src/streaming/README.md`
-    - `plans/app-server/DESIGN.md`
-    - `plans/app-server/TODO.md`
-  - 风险点：CLI 参数回归、错误码与 limits 文档不一致。
-  - 合并前断言：`formax app-server` 可启动；文档与实现字段一致。
-
-- [x] PR9: Web reference client（开发验证）
-  - 目标：验证 thread/turn/input 协议闭环，不作为生产客户端。
-  - 主要文件：按选定目录新增（建议独立于核心 runtime 目录）。
-  - 风险点：demo 代码反向污染核心协议实现。
-  - 合并前断言：完整演示链路一次跑通（含 approval 与 ask_user_question）。
-
-## DoD（一期完成定义）
-
-- [x] CLI 可运行 `formax app-server`。
-- [x] GUI 客户端可通过 stdio JSON-RPC 驱动完整回合。
-- [x] 审批与提问交互可回传并继续执行。
-- [x] sessionSave 可恢复 thread。
-- [x] 现有 REPL 路径无行为回归。
+- 每次实现前先更新至少一份规格文档（Product/Contract/UI）。
+- 代码 PR 必须附“对应 TODO 条目 + 验收断言”。
+- 发现需求不清时先改文档，不直接改实现。
+- React reference client 仅作开发验证，不向核心 runtime 反向引入耦合。

@@ -1,0 +1,182 @@
+# Formax App Server UI Spec（功能型规范）
+
+更新时间：2026-02-09
+
+本文件规定 reference client 的功能行为规范，不定义品牌视觉。  
+目标是：任何实现者都能做出“行为一致”的调试 UI。
+
+相关文档：
+
+- 产品边界：`plans/app-server/PRODUCT-SPEC.md`
+- 协议合同：`plans/app-server/INTERACTION-CONTRACT.md`
+- 执行清单：`plans/app-server/TODO.md`
+
+## 1. UI 目标
+
+1. 可执行：可独立完成 thread/turn/input 的完整链路。
+2. 可诊断：出现错误时能判断“协议错误、状态错误、连接错误”。
+3. 可恢复：断连/重启后，用户可通过 UI 明确恢复流程。
+
+## 2. 信息架构（三区域）
+
+## 2.1 左栏（线程与连接）
+
+必须包含：
+
+- 连接状态（`connected/connecting/disconnected`）
+- Bridge URL 输入
+- `New Thread` 按钮
+- `Refresh` 按钮
+- 线程列表（`threadId`、标题）
+
+行为：
+
+1. 点击线程项切换 `activeThreadId`。
+2. `New Thread` 成功后自动刷新列表并选中新线程。
+3. 未连接时按钮可点击但应给出明确错误提示。
+
+## 2.2 中栏（转录与发送）
+
+必须包含：
+
+- 当前 active thread 展示
+- `Interrupt` 按钮
+- Transcript 区（日志 + user/assistant 消息）
+- Composer 输入框与 `Send` 按钮
+
+行为：
+
+1. `Send` 仅在已连接且存在 active thread 时可用。
+2. 发送前将用户输入追加到 transcript。
+3. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
+4. `turn/completed` 与 `turn/failed` 必须写入可见日志。
+5. `Interrupt` 仅在 active turn 存在时可用。
+
+Transcript 类型要求（必须可区分）：
+
+1. `user`
+2. `assistant`
+3. `tool`（至少 start/update/end 可追踪）
+4. `system`（握手、错误、状态变更）
+
+## 2.3 右栏（Pending Inputs）
+
+必须包含：
+
+- pending input 列表（至少显示 `kind`、`toolUseId`）
+- 选中态
+- input 详情与提交表单
+
+行为：
+
+1. `turn/inputRequested` 到达后加入列表。
+2. `turn/inputResolved` 到达后从列表移除。
+3. 无 pending input 时显示空状态文案。
+4. `approval` 与 `ask_user_question` 使用不同表单渲染，但统一调用 `turn/input/submit`。
+
+## 3. 关键交互规范
+
+## 3.1 连接与握手
+
+1. 建立连接后自动执行：
+   - `initialize`
+   - `initialized`
+2. 握手失败必须在 transcript 中输出错误。
+3. 切换 Bridge URL 必须触发重连。
+
+## 3.2 Thread 工作流
+
+1. `thread/list` 返回为空时展示空状态。
+2. thread 切换不清空 transcript（保留当前客户端视图日志）。
+3. thread 不存在或参数错误需展示服务端错误原文。
+
+## 3.3 Turn 工作流
+
+1. 一次 `Send` 对应一次 `turn/start`。
+2. 收到 `turn/started` 后写入 `activeTurnId`。
+3. 收到 `turn/completed|failed` 后清空 `activeTurnId`。
+4. `turn/failed` 必须展示错误原因文本。
+
+## 3.4 Input 工作流
+
+1. 表单提交必须带 `submissionId`（客户端生成）。
+2. `turn/input/submit` 返回状态要可见：
+   - `accepted`
+   - `already_submitted_same`
+   - `conflict_already_submitted`
+   - `not_pending`
+   - `expired`
+   - `canceled`
+3. 对 `INPUT_EXPIRED` 错误要展示“该输入已失效，需重新发起流程”。
+
+## 3.5 Commander（Slash Command）工作流（P1）
+
+一期目标：提供“可执行 + 可追踪输出”的命令能力，不追求 TUI overlay 形态一致。
+
+要求：
+
+1. UI 可提交 command 文本（如 `/permissions`、`/agents` 的可用子集）。
+2. command 结果必须进入 transcript，且标记为 system/tool 输出。
+3. command 失败时必须展示错误 message（建议附 code）。
+
+## 4. 必须保留的操作可见性
+
+以下信息必须可见（至少日志级）：
+
+1. handshake 成功/失败
+2. thread 创建结果
+3. turn 开始/结束状态
+4. input 请求与解决状态
+5. submit 返回状态或错误码
+
+## 5. 禁用态规范
+
+1. `Send` disabled 条件：
+   - `connectionStatus !== connected`
+   - `activeThreadId == null`
+2. `Interrupt` disabled 条件：
+   - `activeTurnId == null`
+3. input 提交按钮 disabled 条件（推荐）：
+   - 当前无 selected input
+   - 当前 input 已在本地标记 resolved
+
+## 6. 错误展示规范
+
+错误文案分级：
+
+- `info`: 正常状态变化（如 completed）
+- `warn`: 可恢复但需要用户动作（如 input requested）
+- `error`: 失败或异常（如 turn failed、invalid params）
+
+要求：
+
+1. 错误至少展示 message。
+2. 若有 code/data（如 JSON-RPC error），建议同时展示 code/kind。
+
+## 7. 响应式与滚动规范（功能优先）
+
+1. 页面高度固定为视口高度，禁止出现“输入框被推到页面底部外”的布局。
+2. Transcript 区必须独立滚动。
+3. 左栏线程列表与右栏 pending 列表必须独立滚动。
+4. 移动/窄屏可改为上下布局，但三区域信息不可缺失。
+
+## 8. 与逻辑层的职责边界
+
+1. UI 层只消费状态与 action，不直接管理 WebSocket 请求映射。
+2. 协议请求/响应管理在 `rpcClient` 层。
+3. 状态迁移与日志追加在 `store/reducer` 层。
+4. 组件只做展示与事件派发，不持有业务状态机。
+
+## 9. 验收清单（UI）
+
+以下全部通过，UI 视为达到“功能完整”：
+
+1. 可创建线程并在左栏看到新线程。
+2. 可发起 turn 并流式看到 assistant 文本。
+3. 可中断 turn 并看到 `interrupted` 结果。
+4. approval 请求可提交并推进 turn。
+5. ask_user_question 请求可提交并推进 turn。
+6. 过期输入提交会显示 `INPUT_EXPIRED` 或 `expired` 状态。
+7. 在窄屏和宽屏下输入框始终可见。
+8. transcript 中能区分 user/assistant/tool/system 四类输出。
+9. commander 子集命令可提交并在 transcript 中看到结果或错误。
