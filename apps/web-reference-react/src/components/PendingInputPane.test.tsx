@@ -2,6 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { PendingInputPane } from './PendingInputPane'
 
+function selectOption(name: string, value: string) {
+  fireEvent.click(screen.getByRole('combobox', { name }))
+  const candidates = screen.getAllByText(value)
+  fireEvent.click(candidates[candidates.length - 1]!)
+}
+
 describe('PendingInputPane', () => {
   it('submits approval answers with remember scope', () => {
     const onSelectInput = vi.fn()
@@ -32,8 +38,8 @@ describe('PendingInputPane', () => {
       />,
     )
 
-    fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'approve_remember' } })
-    fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'workspace' } })
+    selectOption('Decision', 'approve_remember')
+    selectOption('Scope', 'workspace')
     fireEvent.click(screen.getByRole('button', { name: 'Submit Input' }))
 
     expect(onSubmitInput).toHaveBeenCalledWith({
@@ -80,7 +86,7 @@ describe('PendingInputPane', () => {
       />,
     )
 
-    fireEvent.change(screen.getByLabelText('Choice'), { target: { value: 'B' } })
+    selectOption('Choice', 'B')
     fireEvent.click(screen.getByRole('button', { name: 'Submit Input' }))
 
     expect(onSubmitInput).toHaveBeenCalledWith({ choice: 'B' })
