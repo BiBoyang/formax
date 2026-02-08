@@ -5,6 +5,7 @@
 ## 当前主线（只盯这一份）
 
 - `plans/app-server/TODO.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
+  - 当前状态：Phase 0-6 已基本落地，正在收尾 PR8（安全上限 + 文档同步）与 PR9（Web 参考客户端）。
 
 ## 并行参考（不作为主线推进）
 

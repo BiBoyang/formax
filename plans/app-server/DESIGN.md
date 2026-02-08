@@ -424,3 +424,18 @@ JSON-RPC `error.data` 增补：
 - 本补丁不改现有 REPL UI 交互路径。
 - `StreamEvent` 现有命名保持不变（例如 `tool_end`，不是 `tool_result`）。
 - 新字段均按向后兼容新增处理，老客户端可忽略未知字段。
+
+### 13.10 当前落地状态（2026-02-08）
+
+已落地：
+
+- `turn/inputRequested` 统一 envelope 与 input 字段（含 `traceId/seq/ts/eventId/source`）。
+- `turn/inputResolved` 终局通知与 interrupt/cancel 清理。
+- `turn/input/submit` 幂等与冲突状态：`accepted/already_submitted_same/conflict_already_submitted`。
+- `thread/resume` 返回 `staleInputs`（基于 session event 恢复，统一 `expired/server_restart`）。
+- stale input 二次提交返回 typed `INPUT_EXPIRED`（含 `toolUseId` 提交路径）。
+
+待落地（PR8）：
+
+- transport `maxRequestBytes/maxEventBytes` 上限与 `PAYLOAD_TOO_LARGE`。
+- `maxPendingInputsPerThread` 限流与拒绝策略。

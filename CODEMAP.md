@@ -7,9 +7,21 @@ This file is a “where to change what” index for quickly navigating the codeb
 - CLI arg parsing + dispatch: `src/cli/args.ts`, `src/cli/main.ts`
 - Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
   - Runtime assembly slices: `src/legacy/bootstrap/*`
+- App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
 - Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
+
+## App Server (GUI Bridge)
+- JSON-RPC server/router: `src/app-server/server.ts`
+- Protocol parsing + param validation: `src/app-server/protocol.ts`, `src/app-server/protocol/input.ts`
+- JSON-RPC message classification/encoding: `src/app-server/jsonrpc.ts`
+- Thread/session mapping (sessionSave-backed): `src/app-server/threadStore.ts`
+- Turn execution + streaming forwarding: `src/app-server/turnRunner.ts`
+- Input lifecycle helpers: `src/app-server/turn/inputId.ts`, `src/app-server/turn/inputStore.ts`
+- Stdio JSONL transport: `src/app-server/transport/stdio.ts`
+- Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
+- Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)
 - Main screen: `src/screens/REPL.tsx`

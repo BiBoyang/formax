@@ -5,7 +5,7 @@
 ## Phase 0 — 目录与文档基线
 
 - [x] 新增 `plans/app-server/DESIGN.md` 与本 TODO（已建立，后续持续维护）。
-- [ ] 在 `CODEMAP.md` 预留 app-server 入口索引（先标注 WIP）。
+- [x] 在 `CODEMAP.md` 预留 app-server 入口索引（先标注 WIP）。
 
 ## Phase 1 — 抽取共享 runtime（零行为变化）
 
@@ -137,12 +137,12 @@
 
 ## Phase 8 — 文档与索引
 
-- [ ] 更新 `CODEMAP.md`：新增 app-server 模块索引。
-- [ ] 更新 `README.md`：新增 `formax app-server` 用法。
-- [ ] 更新 `src/streaming/README.md`：新增桥接事件说明。
-- [ ] 更新 `plans/TODO-INDEX.md`：纳入本主线。
-- [ ] 更新 `plans/app-server/DESIGN.md`：同步 v2 addendum（input 状态机、错误码、恢复策略）。
-- [ ] 在文档中显式声明 `StreamEvent` 命名沿用现状（`tool_end` 等），避免实现偏差。
+- [x] 更新 `CODEMAP.md`：新增 app-server 模块索引。
+- [x] 更新 `README.md`：新增 `formax app-server` 用法。
+- [x] 更新 `src/streaming/README.md`：新增桥接事件说明。
+- [x] 更新 `plans/TODO-INDEX.md`：纳入本主线。
+- [x] 更新 `plans/app-server/DESIGN.md`：同步 v2 addendum（input 状态机、错误码、恢复策略）。
+- [x] 在文档中显式声明 `StreamEvent` 命名沿用现状（`tool_end` 等），避免实现偏差。
 
 ## Approval Hardening（增量补充）
 

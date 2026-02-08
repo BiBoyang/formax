@@ -25,6 +25,25 @@ cd /path/to/your/project
 formax
 ```
 
+## App Server (GUI 集成入口)
+
+Formax 支持以本地子进程方式启动 JSON-RPC 服务（stdio JSONL 传输），用于 IDE / GUI 客户端驱动：
+
+```bash
+formax app-server
+```
+
+握手顺序：
+
+1. 客户端发送 `initialize`
+2. 客户端发送 `initialized`（notification）
+3. 调用 `thread/*`、`turn/*`、`turn/input/submit`
+
+说明：
+
+- 传输为 **stdio + JSONL + JSON-RPC 2.0**。
+- 一期重点覆盖 thread/turn 流程、approval 与 ask_user_question 的 input 生命周期闭环。
+
 ## Configuration
 
 Formax will prompt you to configure missing credentials on first run.

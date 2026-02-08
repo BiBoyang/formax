@@ -10,6 +10,7 @@ Anthropic API 流式通信层：处理 SSE 解析、tool 并行执行与事件�
   - StreamClient：发起 HTTP 请求、管理 timeout、执行 tool 并收集结果
   - SSE Parser：解析 Anthropic 的 Server-Sent Events（text_delta / tool_use_start / content_block_stop 等）
   - StreamEvent：统一的事件类型（assistant_delta / tool_start / tool_end / error / complete）
+  - 为 app-server 提供可桥接事件（`approval_request` / `ask_user_question`）
 - **不做什么**：
   - 不定义 tool 行为（由 `tools/` 负责）
   - 不持久化对话（由上层 chat engine 管理 history）
@@ -110,3 +111,9 @@ sequenceDiagram
 
 - [CODEMAP.md#chat-loop--streaming](../../CODEMAP.md#chat-loop--streaming)
 - [types.ts](./types.ts)
+
+## 8) App-server 桥接说明
+
+- `StreamEvent` 中的 `approval_request` 与 `ask_user_question` 会由 app-server 转成 `turn/inputRequested`。
+- input 终局（submitted/canceled/expired/failed）在 app-server 层通过 `turn/inputResolved` 发出。
+- 命名兼容约束：`StreamEvent` 现有命名继续沿用（例如 `tool_end`），不在一期重命名为 `tool_result` 等别名，避免实现偏差。
