@@ -278,4 +278,4 @@
 - [x] GUI 客户端可通过 stdio JSON-RPC 驱动完整回合。
 - [x] 审批与提问交互可回传并继续执行。
 - [x] sessionSave 可恢复 thread。
-- [ ] 现有 REPL 路径无行为回归。
+- [x] 现有 REPL 路径无行为回归。
