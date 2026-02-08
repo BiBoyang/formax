@@ -266,4 +266,129 @@ describe('AppServer', () => {
       (n) => n.method === 'turn/completed' && (n.params as any)?.turn?.id === turnId,
     )
   })
+
+  it('coalesces duplicate/conflicting submissions for the same inputId', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const userInput = createUserInputManager()
+    const threadStore = new ThreadStore({ cwd, env })
+    let releaseEngineAfterSubmissions: (() => void) | null = null
+    const waitForSubmissionBurst = new Promise<void>((resolve) => {
+      releaseEngineAfterSubmissions = resolve
+    })
+
+    let runner: TurnRunner | null = null
+    let server: AppServer
+    server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore,
+      resolveTurnRunner: async () => {
+        if (runner) return runner
+        runner = new TurnRunner({
+          engine: {
+            async runTurn(args) {
+              const questions = [
+                {
+                  question: 'Pick one?',
+                  header: 'Choice',
+                  options: [
+                    { label: 'A', description: 'Option A' },
+                    { label: 'B', description: 'Option B' },
+                  ],
+                  multiSelect: false,
+                },
+              ]
+              args.onEvent({ type: 'ask_user_question', toolUseId: 'ask-1', questions })
+              const answers = await userInput.requestAnswers({ toolUseId: 'ask-1', questions, signal: args.signal })
+              await waitForSubmissionBurst
+              args.onEvent({ type: 'assistant_delta', text: String(answers.Choice ?? '') })
+              args.onEvent({ type: 'complete' })
+              return [
+                ...args.history,
+                args.user,
+                { role: 'assistant', content: [{ type: 'text', text: String(answers.Choice ?? '') }] },
+              ] as ChatHistory
+            },
+          },
+          tools: [],
+          allowedSubagents: [],
+          model: 'test-model',
+          promptProfile: 'lite',
+          cwd,
+          env,
+          userInputManager: userInput,
+          emitNotification: server.createTurnNotificationEmitter(),
+        })
+        return runner
+      },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const threadStart = await server.handleMessage(request(2, 'thread/start'))
+    const threadId = (threadStart[0] as any).result.thread.id as string
+    const turnStart = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId,
+        input: { text: 'hello' },
+      }),
+    )
+    const turnId = (turnStart[0] as any).result.turn.id as string
+
+    const requested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && (n.params as any)?.input?.kind === 'ask_user_question',
+    )
+    const inputId = (requested.params as any).input.inputId as string
+
+    try {
+      const submit1 = await server.handleMessage(
+        request(4, 'turn/input/submit', {
+          threadId,
+          turnId,
+          inputId,
+          answers: { Choice: 'A' },
+          submissionId: 'submission-1',
+        }),
+      )
+      expect((submit1[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
+
+      const submitSame = await server.handleMessage(
+        request(5, 'turn/input/submit', {
+          threadId,
+          turnId,
+          inputId,
+          answers: { Choice: 'A' },
+          submissionId: 'submission-1',
+        }),
+      )
+      expect((submitSame[0] as any).result).toEqual({ accepted: true, status: 'already_submitted_same' })
+
+      const submitConflict = await server.handleMessage(
+        request(6, 'turn/input/submit', {
+          threadId,
+          turnId,
+          inputId,
+          answers: { Choice: 'B' },
+          submissionId: 'submission-2',
+        }),
+      )
+      expect((submitConflict[0] as any).result).toEqual({ accepted: false, status: 'conflict_already_submitted' })
+    } finally {
+      releaseEngineAfterSubmissions?.()
+    }
+
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && (n.params as any)?.turn?.id === turnId,
+    )
+    const resolvedSubmittedCount = notifications.filter(
+      (n) => n.method === 'turn/inputResolved' && (n.params as any)?.input?.status === 'submitted',
+    ).length
+    expect(resolvedSubmittedCount).toBe(1)
+  })
 })
