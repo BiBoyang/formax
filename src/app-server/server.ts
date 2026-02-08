@@ -12,8 +12,11 @@ import {
   parseThreadByIdParams,
   parseThreadListParams,
   parseThreadStartParams,
+  parseTurnInterruptParams,
+  parseTurnStartParams,
 } from './protocol.js'
 import { ThreadStore, type ThreadListResult, type ThreadReadResult } from './threadStore.js'
+import { TurnRunner } from './turnRunner.js'
 
 export type AppServerInfo = {
   name: 'formax'
@@ -28,11 +31,17 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
+  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn'>
+  resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>>
+  emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
 }
 
 export class AppServer {
   private readonly info: AppServerInfo
   private readonly threadStore: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
+  private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn'> | null
+  private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>>
+  private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
 
   private state: AppServerState = {
     initializeCompleted: false,
@@ -42,6 +51,9 @@ export class AppServer {
   constructor(args: AppServerOptions) {
     this.info = args.info
     this.threadStore = args.threadStore ?? new ThreadStore()
+    this.turnRunner = args.turnRunner ?? null
+    this.resolveTurnRunner = args.resolveTurnRunner
+    this.emitNotification = args.emitNotification
   }
 
   getState(): AppServerState {
@@ -138,6 +150,28 @@ export class AppServer {
       }
     }
 
+    if (req.method === 'turn/start') {
+      try {
+        const params = parseTurnStartParams(req.params)
+        const runner = await this.getTurnRunner()
+        const result = await runner.startTurn(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'turn/interrupt') {
+      try {
+        const params = parseTurnInterruptParams(req.params)
+        const runner = await this.getTurnRunner()
+        const result = await runner.interruptTurn(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
     return [
       makeErrorResponse(req.id, {
         code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
@@ -148,9 +182,30 @@ export class AppServer {
 
   private toRpcError(err: unknown): { code: number; message: string } {
     const message = err instanceof Error ? err.message : 'Internal error'
-    if (message.startsWith('Invalid params') || message.startsWith('Thread not found')) {
+    if (
+      message.startsWith('Invalid params') ||
+      message.startsWith('Thread not found') ||
+      message.startsWith('Turn already running') ||
+      message.startsWith('Turn not running')
+    ) {
       return { code: JSON_RPC_ERRORS.INVALID_PARAMS, message }
     }
     return { code: JSON_RPC_ERRORS.INTERNAL_ERROR, message }
+  }
+
+  private async getTurnRunner(): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn'>> {
+    if (this.turnRunner) return this.turnRunner
+    if (!this.resolveTurnRunner) {
+      throw new Error('Turn runner is not configured')
+    }
+    const resolved = await this.resolveTurnRunner()
+    this.turnRunner = resolved
+    return resolved
+  }
+
+  createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
+    return (method, params) => {
+      this.emitNotification?.({ jsonrpc: '2.0', method, ...(params === undefined ? {} : { params }) })
+    }
   }
 }

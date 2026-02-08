@@ -43,6 +43,19 @@ export type ThreadListParams = {
   cursor?: string
 }
 
+export type TurnStartParams = {
+  threadId: string
+  input: {
+    text: string
+  }
+  cwd?: string
+}
+
+export type TurnInterruptParams = {
+  threadId: string
+  turnId: string
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
 }
@@ -109,4 +122,26 @@ export function parseThreadListParams(params: unknown): ThreadListParams {
   const cursor = parseOptionalNonEmptyString(params.cursor, 'params.cursor')
 
   return cursor ? { limit, cursor } : { limit }
+}
+
+export function parseTurnStartParams(params: unknown): TurnStartParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  if (!isObject(params.input)) throw new Error('Invalid params.input: expected object')
+  const text = parseRequiredNonEmptyString(params.input.text, 'params.input.text')
+  const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
+
+  return {
+    threadId,
+    input: { text },
+    ...(cwd ? { cwd } : {}),
+  }
+}
+
+export function parseTurnInterruptParams(params: unknown): TurnInterruptParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const turnId = parseRequiredNonEmptyString(params.turnId, 'params.turnId')
+  return { threadId, turnId }
 }

@@ -88,4 +88,57 @@ describe('AppServer', () => {
     const readOut = await server.handleMessage(request(5, 'thread/read', { threadId: 't-1' }))
     expect((readOut[0] as any).result.transcriptPreview).toEqual([{ role: 'user', text: 'hi' }])
   })
+
+  it('routes turn methods to turnRunner after initialize', async () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          return { turn: { id: 'turn-1', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+      },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+
+    const startOut = await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'hello' },
+      }),
+    )
+    expect((startOut[0] as any).result.turn.status).toBe('running')
+
+    const interruptOut = await server.handleMessage(
+      request(3, 'turn/interrupt', { threadId: 'thread-1', turnId: 'turn-1' }),
+    )
+    expect((interruptOut[0] as any).result).toEqual({})
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', { threadId: 'thread-1' })
+    expect(notifications).toContainEqual({
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: { threadId: 'thread-1' },
+    })
+  })
+
+  it('returns INTERNAL_ERROR when turn runner is not configured', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'hello' },
+      }),
+    )
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+  })
 })
