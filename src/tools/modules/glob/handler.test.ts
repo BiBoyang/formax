@@ -1,47 +1,136 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { GlobToolHandler } from './handler'
+import { createGlobToolHandler } from './handler'
 
 async function writeFileEnsuringDir(filePath: string, content: string) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true })
   await fsp.writeFile(filePath, content, 'utf8')
 }
 
-describe('GlobToolHandler', () => {
-  it('matches dotfiles but skips .git and node_modules', async () => {
-    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-glob-'))
+describe('createGlobToolHandler', () => {
+  it('maps args to rg and returns mtime-sorted absolute paths', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-glob-rg-'))
     try {
-      const rootReadme = path.join(tmpDir, 'README.md')
+      const readme = path.join(tmpDir, 'README.md')
       const dotRules = path.join(tmpDir, '.cursorrules')
-      const ghInstructions = path.join(tmpDir, '.github', 'copilot-instructions.md')
-      const gitHead = path.join(tmpDir, '.git', 'HEAD')
-      const nodeModFile = path.join(tmpDir, 'node_modules', 'pkg', 'index.js')
       const srcFile = path.join(tmpDir, 'src', 'index.ts')
-
-      await writeFileEnsuringDir(rootReadme, 'root\n')
+      await writeFileEnsuringDir(readme, 'root\n')
       await writeFileEnsuringDir(dotRules, 'rules\n')
-      await writeFileEnsuringDir(ghInstructions, 'instructions\n')
-      await writeFileEnsuringDir(gitHead, 'ref: refs/heads/main\n')
-      await writeFileEnsuringDir(nodeModFile, 'ignored\n')
       await writeFileEnsuringDir(srcFile, 'export {}\n')
 
-      const result = await GlobToolHandler.execute(
-        { id: '1', name: 'Glob', input: { pattern: '**/*' } },
+      const now = Date.now()
+      await fsp.utimes(readme, now / 1000 - 120, now / 1000 - 120)
+      await fsp.utimes(dotRules, now / 1000 - 60, now / 1000 - 60)
+      await fsp.utimes(srcFile, now / 1000, now / 1000)
+
+      const runCommand = vi.fn(async (_command: string, _args: string[]) => ({
+        exitCode: 0,
+        stdout: 'README.md\n.cursorrules\nsrc/index.ts\n',
+        stderr: '',
+      }))
+      const handler = createGlobToolHandler({
+        resolveExecutable: async () => '/mock/rg',
+        runCommand,
+      })
+
+      const result = await handler.execute(
+        { id: '1', name: 'Glob', input: { pattern: '**/*' } } as any,
         { cwd: tmpDir, agentDepth: 0 },
       )
 
       expect(result.is_error).toBeUndefined()
-      const lines = result.content.split('\n').filter(Boolean)
-      expect(lines).toEqual(
-        expect.arrayContaining([rootReadme, dotRules, ghInstructions, srcFile]),
+      expect(result.content).toBe([srcFile, dotRules, readme].join('\n'))
+      expect(runCommand).toHaveBeenCalledTimes(1)
+      expect(runCommand).toHaveBeenCalledWith(
+        '/mock/rg',
+        expect.arrayContaining([
+          '--files',
+          '--hidden',
+          '--glob',
+          '!.git/**',
+          '--glob',
+          '!node_modules/**',
+          '--glob',
+          '**/*',
+          '.',
+        ]),
+        { cwd: tmpDir },
       )
-      expect(lines.some((l) => l.includes(`${path.sep}.git${path.sep}`))).toBe(false)
-      expect(lines.some((l) => l.includes(`${path.sep}node_modules${path.sep}`))).toBe(false)
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }
   })
-})
 
+  it('returns No files found when rg outputs no matches', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+
+    const result = await handler.execute(
+      { id: '2', name: 'Glob', input: { pattern: '**/*.ts' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('No files found')
+  })
+
+  it('errors when path is not a directory', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+      statPath: async () => ({ isDirectory: () => false, mtimeMs: 0 }),
+    })
+
+    const result = await handler.execute(
+      { id: '3', name: 'Glob', input: { pattern: '**/*', path: '/repo/file.txt' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('path must be a directory')
+  })
+
+  it('returns error when rg exits with a non-match failure code', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 2, stdout: '', stderr: 'permission denied' }),
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+
+    const result = await handler.execute(
+      { id: '4', name: 'Glob', input: { pattern: '**/*' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('Error: ripgrep failed')
+  })
+
+  it('keeps best-effort results when rg exits 2 with stdout', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 2,
+        stdout: 'src/a.ts\nsrc/b.ts\n',
+        stderr: 'permission denied',
+      }),
+      statPath: async (filePath: string) => ({
+        isDirectory: () => filePath === '/repo',
+        mtimeMs: filePath.endsWith('a.ts') ? 100 : 200,
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '5', name: 'Glob', input: { pattern: '**/*.ts' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/src/b.ts\n/repo/src/a.ts')
+  })
+})
