@@ -43,6 +43,8 @@ export class AppServer {
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
+  private readonly staleInputIds = new Set<string>()
+  private readonly staleInputIdsByToolUseId = new Map<string, string>()
 
   private state: AppServerState = {
     initializeCompleted: false,
@@ -125,6 +127,10 @@ export class AppServer {
       try {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadResumeResult = await this.threadStore.resumeThread(params.threadId)
+        for (const input of result.staleInputs) {
+          this.staleInputIds.add(input.inputId)
+          this.staleInputIdsByToolUseId.set(input.toolUseId, input.inputId)
+        }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -176,6 +182,26 @@ export class AppServer {
     if (req.method === 'turn/input/submit') {
       try {
         const params = parseTurnInputSubmitParams(req.params)
+        const staleInputId =
+          this.staleInputIds.has(params.inputId)
+            ? params.inputId
+            : params.toolUseId
+              ? this.staleInputIdsByToolUseId.get(params.toolUseId) ?? null
+              : null
+        if (staleInputId) {
+          return [
+            makeErrorResponse(req.id, {
+              code: JSON_RPC_ERRORS.INVALID_PARAMS,
+              message: 'INPUT_EXPIRED',
+              data: {
+                kind: 'INPUT_EXPIRED',
+                recoverable: false,
+                retryable: false,
+                inputId: staleInputId,
+              },
+            }),
+          ]
+        }
         const runner = await this.getTurnRunner()
         const result = await runner.submitInput(params)
         return [makeSuccessResponse(req.id, result)]

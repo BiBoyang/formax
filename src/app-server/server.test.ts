@@ -176,6 +176,95 @@ describe('AppServer', () => {
     expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
   })
 
+  it('returns INPUT_EXPIRED for stale input submissions after resume', async () => {
+    const baseThread: Thread = {
+      id: 't-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread(threadId) {
+          return {
+            thread: { ...baseThread, id: threadId },
+            staleInputs: [
+              {
+                inputId: 'stale-1',
+                threadId,
+                turnId: 'turn-stale',
+                toolUseId: 'ask-1',
+                kind: 'ask_user_question' as const,
+                status: 'expired' as const,
+                createdAt: '2026-02-08T00:00:00.000Z',
+                expiresAt: '2026-02-08T00:05:00.000Z',
+                resolvedAt: '2026-02-08T00:10:00.000Z',
+                reason: 'server_restart',
+              },
+            ],
+          }
+        },
+        async listThreads() {
+          return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
+        },
+        async readThread() {
+          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+      },
+      turnRunner: {
+        async startTurn() {
+          return { turn: { id: 'turn-1', threadId: 't-1', status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/resume', { threadId: 't-1' }))
+    const submit = await server.handleMessage(
+      request(3, 'turn/input/submit', {
+        threadId: 't-1',
+        turnId: 'turn-stale',
+        inputId: 'stale-1',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect((submit[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((submit[0] as any).error.message).toBe('INPUT_EXPIRED')
+    expect((submit[0] as any).error.data).toEqual(
+      expect.objectContaining({
+        kind: 'INPUT_EXPIRED',
+        inputId: 'stale-1',
+      }),
+    )
+
+    const submitByToolUseId = await server.handleMessage(
+      request(4, 'turn/input/submit', {
+        threadId: 't-1',
+        turnId: 'turn-stale',
+        toolUseId: 'ask-1',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect((submitByToolUseId[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((submitByToolUseId[0] as any).error.message).toBe('INPUT_EXPIRED')
+    expect((submitByToolUseId[0] as any).error.data).toEqual(
+      expect.objectContaining({
+        kind: 'INPUT_EXPIRED',
+        inputId: 'stale-1',
+      }),
+    )
+  })
+
   it('supports ask_user_question request -> submit -> completed integration flow', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
