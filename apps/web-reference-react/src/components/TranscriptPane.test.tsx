@@ -202,10 +202,11 @@ describe('TranscriptPane', () => {
     expect(screen.getByText('msg-259')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Render earlier messages/i }))
-    expect(screen.getByText('msg-0')).toBeInTheDocument()
+    expect(screen.queryByText('msg-0')).not.toBeInTheDocument()
+    expect(screen.getByText('msg-180')).toBeInTheDocument()
   })
 
-  it('expands render window when loading earlier server history', () => {
+  it('expands render window in batches when loading earlier server history', () => {
     const onLoadEarlier = vi.fn()
     const logs = Array.from({ length: 260 }, (_, index) => ({
       id: `s-${index}`,
@@ -227,6 +228,7 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('server-msg-0')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
     expect(onLoadEarlier).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('server-msg-0')).toBeInTheDocument()
+    expect(screen.queryByText('server-msg-0')).not.toBeInTheDocument()
+    expect(screen.getByText('server-msg-180')).toBeInTheDocument()
   })
 })

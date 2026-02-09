@@ -9,7 +9,10 @@ import { ScrollArea } from './ui/scroll-area'
 import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
 
-const RENDER_BATCH_SIZE = 200
+const TURN_INIT_RENDER_LIMIT = 30
+const TURN_BATCH_RENDER_SIZE = 20
+const HISTORY_BATCH_RENDER_SIZE = 50
+const RENDER_WINDOW_CAP = 200
 
 type RpcErrorLike = {
   at: string
@@ -126,12 +129,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [autoStick, setAutoStick] = useState(true)
-  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH_SIZE)
+  const [renderLimit, setRenderLimit] = useState(TURN_INIT_RENDER_LIMIT)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
+  const previousActiveTurnIdRef = useRef<string | null>(activeTurnId)
 
   // Filter out INFO logs for product view (User Feedback: "Not a log panel")
   const filteredLogs = useMemo(() => {
@@ -216,27 +220,71 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     onSend(event)
   }
 
-  const renderEarlierMessages = () => {
-    if (hiddenInMemoryCount <= 0) return
+  const increaseRenderLimit = (delta: number, preserveAnchor: boolean, maxLimit: number) => {
+    if (delta <= 0) return
     const viewport = viewportRef.current
+    const beforeTop = viewport?.scrollTop ?? 0
     const beforeHeight = viewport?.scrollHeight ?? 0
-    const nextLimit = Math.min(filteredLogs.length, renderLimit + RENDER_BATCH_SIZE)
-    setRenderLimit(nextLimit)
+    setRenderLimit((previous) => Math.min(maxLimit, previous + delta))
     if (!viewport) return
+    if (!preserveAnchor) return
     window.requestAnimationFrame(() => {
       const afterHeight = viewport.scrollHeight
-      viewport.scrollTop += Math.max(0, afterHeight - beforeHeight)
+      viewport.scrollTop = beforeTop + Math.max(0, afterHeight - beforeHeight)
     })
   }
 
+  const renderEarlierMessages = () => {
+    if (hiddenInMemoryCount <= 0) return
+    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, filteredLogs.length)
+  }
+
   useEffect(() => {
-    setRenderLimit(RENDER_BATCH_SIZE)
+    setRenderLimit(TURN_INIT_RENDER_LIMIT)
   }, [activeThreadId])
 
   const handleLoadEarlier = () => {
-    setRenderLimit((previous) => previous + RENDER_BATCH_SIZE)
+    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, filteredLogs.length)
     onLoadEarlier?.()
   }
+
+  useEffect(() => {
+    if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {
+      setRenderLimit(TURN_INIT_RENDER_LIMIT)
+    }
+    previousActiveTurnIdRef.current = activeTurnId
+  }, [activeTurnId])
+
+  useEffect(() => {
+    if (!activeTurnId) return
+    const target = Math.min(filteredLogs.length, RENDER_WINDOW_CAP)
+    if (renderLimit >= target) return
+    const schedule = (callback: () => void): number => {
+      const withIdle = window as Window & {
+        requestIdleCallback?: (cb: IdleRequestCallback) => number
+      }
+      if (typeof withIdle.requestIdleCallback === 'function') {
+        return withIdle.requestIdleCallback(() => callback())
+      }
+      return window.setTimeout(callback, 0)
+    }
+    const cancel = (handle: number) => {
+      const withIdle = window as Window & {
+        cancelIdleCallback?: (id: number) => void
+      }
+      if (typeof withIdle.cancelIdleCallback === 'function') {
+        withIdle.cancelIdleCallback(handle)
+        return
+      }
+      window.clearTimeout(handle)
+    }
+    const handle = schedule(() => {
+      increaseRenderLimit(TURN_BATCH_RENDER_SIZE, true, target)
+    })
+    return () => {
+      cancel(handle)
+    }
+  }, [activeTurnId, autoStick, filteredLogs.length, renderLimit])
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
