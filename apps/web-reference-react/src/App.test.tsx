@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 
 const rpcMock = vi.hoisted(() => {
   let requestImpl: (method: string, params: unknown) => unknown = () => ({})
+  let onNotification: ((notification: { method: string; params?: unknown }) => void) | null = null
   const requests: Array<{ method: string; params: unknown }> = []
 
   return {
@@ -15,9 +16,16 @@ const rpcMock = vi.hoisted(() => {
       requests.push({ method, params })
       return requestImpl(method, params)
     },
+    setNotificationHandler(handler: ((notification: { method: string; params?: unknown }) => void) | null) {
+      onNotification = handler
+    },
+    emitNotification(notification: { method: string; params?: unknown }) {
+      onNotification?.(notification)
+    },
     reset() {
       requests.splice(0, requests.length)
       requestImpl = () => ({})
+      onNotification = null
     },
   }
 })
@@ -40,8 +48,10 @@ vi.mock('./rpcClient', () => {
       _url: string,
       handlers: {
         onStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
+        onNotification?: (notification: { method: string; params?: unknown }) => void
       },
     ) {
+      rpcMock.setNotificationHandler(handlers.onNotification ?? null)
       handlers.onStatus('connected')
     }
 
@@ -156,5 +166,68 @@ describe('App thread history integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     expect(await screen.findByText('beta reply')).toBeInTheDocument()
     expect(screen.queryByText('alpha reply')).not.toBeInTheDocument()
+  })
+
+  it('updates header title after turn completion refreshes thread list and hides thread id subtitle', async () => {
+    let listVersion = 0
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: listVersion ? '2026-02-10T00:01:10.000Z' : '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'hello there',
+              label: listVersion ? 'Auto Generated Title' : null,
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /hello there/i }))
+    const header = await screen.findByRole('banner')
+    expect(within(header).getByText('hello there')).toBeInTheDocument()
+    expect(screen.queryByText('thread thread-a')).not.toBeInTheDocument()
+
+    listVersion = 1
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/completed',
+        params: {
+          turn: { id: 'turn-1', threadId: 'thread-alpha', status: 'completed' },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(within(header).getByText('Auto Generated Title')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('thread thread-a')).not.toBeInTheDocument()
   })
 })

@@ -347,6 +347,7 @@ export function App() {
           if (command && turnId) {
             commandByTurnRef.current.delete(turnId)
           }
+          void refreshThreads().catch(() => undefined)
           void refreshWorkspaceDiff().catch(() => undefined)
           break
         }
@@ -457,7 +458,7 @@ export function App() {
           break
       }
     },
-    [log, refreshWorkspaceDiff],
+    [log, refreshThreads, refreshWorkspaceDiff],
   )
 
   useEffect(() => {
@@ -688,7 +689,6 @@ export function App() {
     [state.threads, state.activeThreadId],
   )
   const activeThreadTitle = displayThreadTitle(activeThread)
-  const activeThreadLabel = state.activeThreadId ? `thread ${state.activeThreadId.slice(0, 8)}` : null
 
   useEffect(() => {
     const syncRightRailWidth = () => {
@@ -736,7 +736,6 @@ export function App() {
               </Button>
               <div className="min-w-0 flex flex-col leading-tight">
                 <div className="truncate text-[14px] font-semibold text-foreground">{activeThreadTitle}</div>
-                {activeThreadLabel ? <div className="truncate text-[12px] text-muted-foreground">{activeThreadLabel}</div> : null}
               </div>
             </div>
             <div className="ml-3 flex shrink-0 items-center gap-2">
