@@ -5,7 +5,7 @@
 
 ## P0（先做，影响可用性）
 
-- [ ] 页面定位从“日志页”切换为“用户会话页”
+- [x] 页面定位从“日志页”切换为“用户会话页”
   - 现象：当前主区域大量小按钮 + info 日志卡片，阅读重心错误
   - 验收：默认首屏以会话内容（标题/消息流/输入）为中心，日志信息默认弱化或折叠
 
@@ -27,33 +27,34 @@
 
 ## P1（强烈建议，影响体验）
 
-- [ ] 顶部条改为“会话头部”而非“调试工具条”
+- [x] 顶部条改为“会话头部”而非“调试工具条”
   - 目标：展示会话标题（thread title），不是一排细小操作按钮
   - 验收：顶部主要信息为标题与必要状态；操作入口控制在 1-2 个主动作
 
-- [ ] assistant/user/tool 信息层级重排
+- [x] assistant/user/tool 信息层级重排
   - 目标：assistant 内容视觉权重高于系统日志；tool 信息次级但可读
   - 验收：长对话中可一眼扫描 assistant 主回复，不被 info 卡片抢焦点
 
-- [ ] 顶部控制条语义分组
+- [x] 顶部控制条语义分组
   - 目标：筛选控件、连接状态、turn 操作分组而非同级混排
   - 验收：用户可在 1 秒内区分“状态展示”和“交互动作”
 
-- [ ] `Stick` 文案/语义明确化
+- [x] `Stick` 文案/语义明确化
   - 目标：改为更直观的自动滚动语义（如 `Auto-scroll`）
   - 验收：非开发用户也能理解该开关作用
+  - 备注：当前实现已移除 `Stick`，改为输入区上方“回到底部”按钮。
 
-- [ ] 顶部控件减法：移除非高频小按钮直出
+- [x] 顶部控件减法：移除非高频小按钮直出
   - 目标：像 `All Turns / Active Turn / Stick` 这类二级能力收进二级入口（过滤面板/更多菜单）
   - 验收：顶部不再出现一排小胶囊按钮；会话头部信息密度明显下降
 
-- [ ] 消息流纵向节奏压缩
+- [x] 消息流纵向节奏压缩
   - 目标：减少 info 卡片高度和过大留白
   - 验收：同屏可见信息量明显提升且不拥挤
 
 ## P2（视觉完善）
 
-- [ ] 输入区视觉减重（保留功能）
+- [x] 输入区视觉减重（保留功能）
   - 目标：减少输入区高度和边框噪声，释放聊天阅读空间
   - 验收：桌面 1080p 下聊天区可视高度提升
 
@@ -61,9 +62,10 @@
   - 目标：提供轻量 turn footer/badge，替代重复文本日志
   - 验收：每轮结束状态清晰且不打断阅读流
 
-- [ ] 统一 turnId 展示策略
+- [x] 统一 turnId 展示策略
   - 目标：避免在多处重复展示同一 turnId
   - 验收：turnId 仅在需要调试时显示，主视图不冗余
+  - 备注：当前仅在会话头部保留 active turn 简短标识。
 
 ## 实施顺序（建议）
 
@@ -90,17 +92,16 @@
 
 ### Phase 2: 消息流重塑 (Stream Refinement)
 
-- [ ] **气泡样式升级**
-  - User 消息：右侧，高亮色背景，大圆角。
+- [x] **气泡样式升级**
   - Assistant 消息：左侧，透明/白底，优化 Markdown 渲染排版。
 - [ ] **Thinking 组件化**
   - 实现 `Thinking` 折叠块：进行时展开流光动画，结束后自动折叠为摘要。
-- [ ] **系统日志降噪**
+- [x] **系统日志降噪**
   - 将 `usage`, `turn complete`, `handshake` 等系统级信息移出主消息流，或改为极大弱化的图标/Toast。
 
 ### Phase 3: 输入区现代化 (Input Modernization)
 
-- [ ] **Composer 悬浮化**
+- [x] **Composer 悬浮化**
   - 将底部厚重表单改为悬浮（Floating）或无边框（Borderless）胶囊样式。
 - [x] **Interrupt 集成**
   - (Done in Phase 5)
@@ -169,6 +170,47 @@
 - [x] 输入区上方显示“回到底部”按钮（仅 overflow 且非 bottom）
 - [x] 滚动容器设置 `overflow-anchor` 策略，避免浏览器锚点干扰
 - [ ] nested scroll 边界手势只在必要时接管（避免误触抢滚动）
+
+## 待继续（本轮优先）
+
+- [x] 中右区域共享 header + 右栏独立 header 的最终对齐（按参考图）
+- [ ] 回合结束锚点样式（轻量 turn footer/badge）替代残余系统提示
+- [ ] thinking 组件化补全：运行中 shimmer + 结束后折叠摘要
+- [ ] nested scroll 边界手势治理（避免轨迹切换时抢滚动）
+
+### 本轮执行拆解（函数/组件级）
+
+#### B1. 回合结束锚点样式（turn footer/badge）
+
+- [ ] `apps/web-reference-react/src/types.ts`：新增/收敛 `TranscriptItem` 的 turn-end 展示模型（避免继续滥用 log 文本）。
+- [ ] `apps/web-reference-react/src/store.ts`：在 `turn/completed` 处写入单条“回合结束锚点”事件，确保每个 turn 只出现一次。
+- [ ] `apps/web-reference-react/src/App.tsx`：移除或弱化冗余的 completed/info 文本注入，只保留必要错误日志。
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.tsx`：新增 turn footer 渲染（轻量 badge + 时间/状态），不抢主消息视觉权重。
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.test.tsx`：新增断言“同一 turn 仅一个 footer，且位于该 turn 末尾”。
+
+验收标准（可观察断言）：
+- [ ] 发起 1 轮对话后，仅看到 1 个轻量结束锚点，不再出现多条 `Event complete/Turn completed` 文本卡片。
+
+#### B2. Thinking 组件化（运行中 + 结束折叠摘要）
+
+- [ ] `apps/web-reference-react/src/store.ts`：把 `thinking_delta` 聚合为 turn 级状态（`running`/`finalized`），避免散行输出。
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.tsx`：`ThinkingItem` 改为可折叠块，运行中显示 shimmer，结束后默认折叠为摘要行。
+- [ ] `apps/web-reference-react/src/css/theme.css`：补充 thinking shimmer 动效 token（避免组件内硬编码动画参数）。
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.test.tsx`：覆盖“turn completed 后 thinking 从运行态切换为折叠摘要”。
+
+验收标准（可观察断言）：
+- [ ] 发送一条消息时有 `thinking` 进行态；回合结束后自动收敛为 1 条摘要，不再持续占据多行。
+
+#### B3. Nested Scroll 边界手势治理
+
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.tsx`：为 transcript viewport 增加 wheel 边界处理，仅在到达顶部/底部时阻止冒泡。
+- [ ] `apps/web-reference-react/src/components/PendingInputPane.tsx`：为右栏滚动区应用相同边界策略，避免横跨面板时误抢滚动。
+- [ ] `apps/web-reference-react/src/components/ui/scroll-area.tsx`（如需）：补充可复用的边界滚动工具 hook，减少重复逻辑。
+- [ ] `apps/web-reference-react/src/components/TranscriptPane.test.tsx`：补充 wheel 事件边界行为测试（上边界/下边界/中间区域）。
+- [ ] Playwright 场景（手工或自动）：中栏滚到底后继续滚轮时，右栏/外层不应异常抖动或跳页。
+
+验收标准（可观察断言）：
+- [ ] 中栏和右栏各自滚动时手势稳定，只有触达边界才交给外层容器处理。
 
 ### A5. 验收（Phase A Done）
 
