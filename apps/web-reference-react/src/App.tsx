@@ -190,14 +190,19 @@ export function App() {
   const [rightRailWidth, setRightRailWidth] = useState(() =>
     clampRightRailWidth(400, typeof window === 'undefined' ? 1600 : window.innerWidth, true),
   )
+  const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
   const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
   const historyLoadTokenRef = useRef(0)
+  const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
+  const historyLoadingRef = useRef<Record<string, boolean>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
   const lastConnectionStatusRef = useRef(state.connectionStatus)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
+  const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
+  const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -244,34 +249,67 @@ export function App() {
     }
   }, [request])
 
+  const setThreadHistoryLoading = useCallback((threadId: string, loading: boolean) => {
+    if (loading) {
+      historyLoadingRef.current = { ...historyLoadingRef.current, [threadId]: true }
+    } else {
+      const nextRef = { ...historyLoadingRef.current }
+      delete nextRef[threadId]
+      historyLoadingRef.current = nextRef
+    }
+    setHistoryLoadingByThreadId((prev) => {
+      const current = Boolean(prev[threadId])
+      if (current === loading) return prev
+      if (loading) return { ...prev, [threadId]: true }
+      const next = { ...prev }
+      delete next[threadId]
+      return next
+    })
+  }, [])
+
+  const beginThreadHistoryRequest = useCallback(
+    (threadId: string) => {
+      const nextSeq = (historyLoadSeqByThreadRef.current[threadId] ?? 0) + 1
+      historyLoadSeqByThreadRef.current = { ...historyLoadSeqByThreadRef.current, [threadId]: nextSeq }
+      setThreadHistoryLoading(threadId, true)
+      return nextSeq
+    },
+    [setThreadHistoryLoading],
+  )
+
+  const endThreadHistoryRequest = useCallback(
+    (threadId: string, seq: number) => {
+      if (historyLoadSeqByThreadRef.current[threadId] !== seq) return
+      setThreadHistoryLoading(threadId, false)
+    },
+    [setThreadHistoryLoading],
+  )
+
   const loadThreadHistory = useCallback(
     async (threadId: string) => {
       const token = ++historyLoadTokenRef.current
-      const previousLogs = state.logs
-      setIsLoadingHistory(true)
+      const seq = beginThreadHistoryRequest(threadId)
       try {
         const historyResult = await request('thread/messages', { threadId, limit: 50 })
         if (token !== historyLoadTokenRef.current) return false
         if (activeThreadIdRef.current !== threadId) return false
         const parsed = asThreadMessages(historyResult)
+        const logs = mapThreadHistoryToLogs(threadId, parsed.data)
         dispatch({ type: 'set_active_turn', turnId: null })
         dispatch({ type: 'clear_pending_inputs' })
-        dispatch({ type: 'replace_logs', logs: mapThreadHistoryToLogs(threadId, parsed.data) })
+        dispatch({ type: 'replace_logs', logs })
+        setLogsByThreadId((prev) => ({ ...prev, [threadId]: logs }))
         setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
         return true
       } catch {
         if (token !== historyLoadTokenRef.current) return false
         if (activeThreadIdRef.current !== threadId) return false
-        dispatch({ type: 'replace_logs', logs: previousLogs })
-        log('Failed to load thread history. Keeping previous transcript.', 'warn')
         return false
       } finally {
-        if (token === historyLoadTokenRef.current) {
-          setIsLoadingHistory(false)
-        }
+        endThreadHistoryRequest(threadId, seq)
       }
     },
-    [log, request, state.logs],
+    [beginThreadHistoryRequest, endThreadHistoryRequest, request],
   )
 
   const initializeHandshake = useCallback(async () => {
@@ -422,6 +460,12 @@ export function App() {
   }, [state.activeThreadId])
 
   useEffect(() => {
+    const threadId = state.activeThreadId
+    if (!threadId) return
+    setLogsByThreadId((prev) => ({ ...prev, [threadId]: state.logs }))
+  }, [state.activeThreadId, state.logs])
+
+  useEffect(() => {
     const client = new RpcClient()
     clientRef.current = client
     client.connect(bridgeUrl, {
@@ -461,6 +505,8 @@ export function App() {
     [state.threads],
   )
   const startThread = async () => {
+    const previousThreadId = state.activeThreadId
+    const previousLogs = state.logs
     setIsThreadActionBusy(true)
     try {
       const result = await request('thread/start', {})
@@ -468,7 +514,18 @@ export function App() {
       if (thread?.id) {
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
-        await loadThreadHistory(thread.id)
+        dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
+        const loaded = await loadThreadHistory(thread.id)
+        if (!loaded) {
+          activeThreadIdRef.current = previousThreadId
+          dispatch({ type: 'set_active_thread', threadId: previousThreadId })
+          dispatch({
+            type: 'replace_logs',
+            logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
+          })
+          log('Failed to load new thread history. Restored previous thread.', 'warn')
+          return
+        }
         await refreshThreads()
         await refreshWorkspaceDiff()
         log(`Thread created: ${thread.id}`)
@@ -580,42 +637,55 @@ export function App() {
     (threadId: string) => {
       if (threadId === state.activeThreadId) return
       const previousThreadId = state.activeThreadId
+      const previousLogs = state.logs
+      const cachedLogs = logsByThreadId[threadId] ?? []
       activeThreadIdRef.current = threadId
       dispatch({ type: 'set_active_thread', threadId })
+      dispatch({ type: 'set_active_turn', turnId: null })
+      dispatch({ type: 'clear_pending_inputs' })
+      dispatch({ type: 'replace_logs', logs: cachedLogs })
       void loadThreadHistory(threadId)
         .then((loaded) => {
           if (loaded) return
           if (activeThreadIdRef.current === threadId) {
             activeThreadIdRef.current = previousThreadId
             dispatch({ type: 'set_active_thread', threadId: previousThreadId })
+            dispatch({
+              type: 'replace_logs',
+              logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
+            })
+            log('Failed to load selected thread history. Restored previous thread.', 'warn')
           }
         })
         .catch(() => undefined)
     },
-    [loadThreadHistory, state.activeThreadId],
+    [loadThreadHistory, log, logsByThreadId, state.activeThreadId, state.logs],
   )
 
   const loadEarlierHistory = useCallback(async () => {
     const threadId = state.activeThreadId
-    if (!threadId || isLoadingHistory) return
+    if (!threadId || historyLoadingRef.current[threadId]) return
     const cursor = historyCursorByThreadId[threadId]
     if (!cursor) return
 
     const token = historyLoadTokenRef.current
-    setIsLoadingHistory(true)
+    const seq = beginThreadHistoryRequest(threadId)
     try {
       const result = await request('thread/messages', { threadId, limit: 50, cursor })
       if (token !== historyLoadTokenRef.current) return
       if (activeThreadIdRef.current !== threadId) return
       const parsed = asThreadMessages(result)
-      dispatch({ type: 'prepend_logs', logs: mapThreadHistoryToLogs(threadId, parsed.data) })
+      const prepended = mapThreadHistoryToLogs(threadId, parsed.data)
+      dispatch({ type: 'prepend_logs', logs: prepended })
+      setLogsByThreadId((prev) => {
+        const current = prev[threadId] ?? state.logs
+        return { ...prev, [threadId]: [...prepended, ...current] }
+      })
       setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
     } finally {
-      if (token === historyLoadTokenRef.current) {
-        setIsLoadingHistory(false)
-      }
+      endThreadHistoryRequest(threadId, seq)
     }
-  }, [historyCursorByThreadId, isLoadingHistory, request, state.activeThreadId])
+  }, [beginThreadHistoryRequest, endThreadHistoryRequest, historyCursorByThreadId, request, state.activeThreadId, state.logs])
 
   const activeThread = useMemo(
     () => state.threads.find((t) => t.id === state.activeThreadId),
@@ -667,14 +737,14 @@ export function App() {
           activeThreadId={state.activeThreadId}
           activeTurnId={state.activeTurnId}
 
-          logs={state.logs}
+          logs={activeLogs}
           inputText={inputText}
           connectionStatus={state.connectionStatus}
           onInputTextChange={setInputText}
           onSend={onSend}
           onInterrupt={() => void interruptTurn().catch(() => undefined)}
           historyMore={Boolean(state.activeThreadId && historyCursorByThreadId[state.activeThreadId])}
-          historyLoading={isLoadingHistory}
+          historyLoading={activeHistoryLoading}
           onLoadEarlier={() => void loadEarlierHistory().catch(() => undefined)}
           isSending={isSendingTurn}
           isInterrupting={isInterruptingTurn}

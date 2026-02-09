@@ -138,7 +138,7 @@
 
 ### A1. 前端状态模型（按线程隔离）
 
-- [ ] `AppState` 增加 `logsByThreadId`、`historyCursorByThreadId`、`historyLoadingByThreadId`
+- [x] `AppState` 增加 `logsByThreadId`、`historyCursorByThreadId`、`historyLoadingByThreadId`
 - [x] 选择线程时加载该线程第一页历史；并切换 `activeThreadId` 对应 transcript 视图
 - [x] 清理线程污染：切线程时不复用上一线程 `activeTurn/pendingInput`
 - [x] 错误回退：历史加载失败时保留旧渲染并提示可重试
