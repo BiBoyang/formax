@@ -17,6 +17,7 @@ import type {
 } from './protocol/input.js'
 import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 import { TurnInputStore } from './turn/inputStore.js'
+import { maybeAutoGenerateSessionTitle } from '../features/sessionTitle/index.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -82,6 +83,31 @@ function compactParamsText(input: unknown): string | undefined {
   return text.length > 220 ? `${text.slice(0, 220)}...` : text
 }
 
+function flattenPromptText(content: unknown): string {
+  if (!Array.isArray(content)) return ''
+  const chunks: string[] = []
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue
+    if ((block as { type?: unknown }).type !== 'text') continue
+    const text = (block as { text?: unknown }).text
+    if (typeof text !== 'string') continue
+    const trimmed = text.trim()
+    if (!trimmed) continue
+    chunks.push(trimmed)
+  }
+  return chunks.join('\n\n')
+}
+
+function firstUserPromptFromHistory(history: ChatHistory): string | null {
+  for (const message of history) {
+    if (!message || message.role !== 'user') continue
+    const text = flattenPromptText(message.content)
+    if (!text) continue
+    return text
+  }
+  return null
+}
+
 function toToolUpdateLine(event: Extract<StreamEvent, { type: 'tool_update' }>): string | null {
   const transcriptLines = Array.isArray(event.transcriptLines) ? event.transcriptLines : []
   const middleLines = Array.isArray(event.middleLines) ? event.middleLines : []
@@ -129,6 +155,8 @@ export class TurnRunner {
   private readonly defaultInputTtlMs: number
   private readonly maxPendingInputsPerThread: number
   private readonly runningByThreadId = new Map<string, RunningTurn>()
+  private readonly autoTitleAttemptedThreadIds = new Set<string>()
+  private readonly autoTitleCheckedTopicPromptKeys = new Set<string>()
 
   constructor(args: TurnRunnerOptions) {
     this.engine = args.engine
@@ -412,6 +440,25 @@ export class TurnRunner {
         })
       }
       await writer.appendHistorySnapshot(nextHistory as ChatHistory)
+      const firstUserPrompt = firstUserPromptFromHistory(history) ?? running.inputText
+      const uiMsgCount = nextHistory.filter((message) => message.role === 'user' || message.role === 'assistant').length
+      await writer.appendEvent('ui_stats', {
+        uiMsgCount,
+        firstUserPrompt,
+        lastUserPrompt: running.inputText,
+      })
+      await maybeAutoGenerateSessionTitle({
+        filePath: running.filePath,
+        engine: this.engine,
+        cwd: running.cwd,
+        attemptedSessionIds: this.autoTitleAttemptedThreadIds,
+        checkedTopicPromptKeys: this.autoTitleCheckedTopicPromptKeys,
+        writer,
+        userText: firstUserPrompt,
+        topicUserText: running.inputText,
+        assistantText,
+        signal: running.abortController.signal,
+      }).catch(() => null)
       status = 'completed'
     } catch (err) {
       status = running.abortController.signal.aborted ? 'interrupted' : 'failed'

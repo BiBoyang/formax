@@ -244,7 +244,7 @@ async function readTailSummaryData(filePath: string): Promise<{
   if (!tail) return { messageCount: null, lastUserPrompt: null, label: null }
 
   let messageCount: number | null = null
-  let lastUserPrompt: string | null = null
+  let titleSeedPrompt: string | null = null
   let label: string | null = null
 
   const lines = tail.split('\n').map((l) => l.trimEnd()).filter(Boolean)
@@ -264,16 +264,21 @@ async function readTailSummaryData(filePath: string): Promise<{
 
     if (name === 'session_rename' && !label) {
       label = coerceString((data as any).label)
+      if (messageCount !== null && titleSeedPrompt && label) break
       continue
     }
     if (name === 'ui_stats') {
       if (messageCount === null) messageCount = coerceNumber((data as any).uiMsgCount)
-      if (!lastUserPrompt) lastUserPrompt = coerceString((data as any).lastUserPrompt)
-      if (messageCount !== null && lastUserPrompt) break
+      if (!titleSeedPrompt) {
+        titleSeedPrompt =
+          coerceString((data as any).firstUserPrompt) ??
+          coerceString((data as any).lastUserPrompt)
+      }
+      if (messageCount !== null && titleSeedPrompt && label) break
     }
   }
 
-  return { messageCount, lastUserPrompt, label }
+  return { messageCount, lastUserPrompt: titleSeedPrompt, label }
 }
 
 export async function readSessionSummary(filePath: string): Promise<SessionSummary> {

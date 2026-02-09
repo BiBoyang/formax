@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
-import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { TurnRunner } from './turnRunner.js'
 
@@ -164,6 +164,16 @@ describe('TurnRunner', () => {
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (args.tools.length === 0 && userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Turn Question Title' }] },
+            ] as ChatHistory
+          }
           const questions = [
             {
               question: 'Pick one?',
@@ -350,5 +360,127 @@ describe('TurnRunner', () => {
       (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'approval',
     )
     expect(approvalRequested.params?.input?.payload?.toolName).toBe('Bash')
+  })
+
+  it('auto-generates session title once after completed turn', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (args.tools.length === 0 && userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Auto Title Test' }] },
+            ] as ChatHistory
+          }
+          args.onEvent({ type: 'assistant_delta', text: 'main assistant reply' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'main assistant reply' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'please start and make a title' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const summary = await readSessionSummary(filePath!)
+    expect(summary.label).toBe('Auto Title Test')
+  })
+
+  it('updates existing session title when topic changes', async () => {
+    const fixture = await createThreadFixture()
+    const seedWriter = await SessionWriter.openExisting({
+      filePath: (
+        await findSessionFileBySessionId({
+          cwd: fixture.cwd,
+          env: fixture.env,
+          sessionId: fixture.threadId,
+        })
+      )!,
+    })
+    await seedWriter.appendEvent('session_rename', { label: 'Old Topic' })
+    await seedWriter.shutdown()
+
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          const systemText = Array.isArray(args.system)
+            ? args.system
+                .map((block) => ((block as any)?.type === 'text' ? String((block as any).text ?? '') : ''))
+                .join('\n')
+            : ''
+          if (args.tools.length === 0 && systemText.includes('Analyze if this message indicates a new conversation topic')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: '{ "isNewTopic": true, "title": "New Topic" }' }] },
+            ] as ChatHistory
+          }
+          args.onEvent({ type: 'assistant_delta', text: 'turn complete' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'turn complete' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: '我们现在改聊 diff 面板' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const summary = await readSessionSummary(filePath!)
+    expect(summary.label).toBe('New Topic')
   })
 })

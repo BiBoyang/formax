@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../../../chat/engine'
-import { findLatestSessionFile, readSessionFile } from './reader'
+import { findLatestSessionFile, readSessionFile, readSessionSummary } from './reader'
 import type { SessionMetaRecord } from './records'
 import { getSessionFilePath, getSessionsRoot } from './paths'
 import { SessionWriter } from './writer'
@@ -88,6 +88,72 @@ describe('sessionSave (jsonl)', () => {
     expect(replay.parseErrors).toBeGreaterThanOrEqual(1)
     expect(replay.history.length).toBe(1)
     expect((replay.history[0] as any).content?.[0]?.text).toBe('b')
+  })
+
+  it('readSessionSummary prefers firstUserPrompt from ui_stats for title fallback', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-summary',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'ui_stats',
+        data: {
+          uiMsgCount: 2,
+          firstUserPrompt: '你好',
+          lastUserPrompt: '早上吃没了',
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const summary = await readSessionSummary(filePath)
+    expect(summary.lastUserPrompt).toBe('你好')
+  })
+
+  it('readSessionSummary keeps session_rename label even when newer ui_stats exists', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-label-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-summary-label',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'session_rename',
+        data: { label: 'Manual Name' },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        name: 'ui_stats',
+        data: { uiMsgCount: 4, firstUserPrompt: '你好', lastUserPrompt: '新的消息' },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const summary = await readSessionSummary(filePath)
+    expect(summary.label).toBe('Manual Name')
+    expect(summary.lastUserPrompt).toBe('你好')
   })
 
   it('writer enforces maxLineBytes by truncating ui_msg content (still valid json)', async () => {

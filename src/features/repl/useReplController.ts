@@ -47,6 +47,7 @@ import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
+import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
 
 function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
@@ -183,6 +184,8 @@ export function useReplController(deps: {
   const prevIsLoadingRef = useRef(false)
   const lastClaudeMdMetaSigRef = useRef<string | null>(null)
   const surfaceOpQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const autoTitleAttemptedSessionIdsRef = useRef<Set<string>>(new Set())
+  const autoTitleCheckedTopicPromptKeysRef = useRef<Set<string>>(new Set())
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const lastAutoCompactSeqRef = useRef(-1_000_000)
@@ -412,18 +415,27 @@ export function useReplController(deps: {
     if (wasLoading && !isLoading) {
       void writer.appendHistorySnapshot(historyRef.current)
       const uiMsgCount = messages.filter(shouldPersistUiMsg).length
-      const lastUserPrompt = (() => {
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const m = messages[i]
-          if (m.role !== 'user') continue
-          const t = String(m.content ?? '').trim()
-          if (t) return t
-        }
-        return null
-      })()
-      void writer.appendEvent('ui_stats', { uiMsgCount, lastUserPrompt })
+      const userPrompts = messages
+        .filter((m) => m.role === 'user')
+        .map((m) => String(m.content ?? '').trim())
+        .filter((text) => Boolean(text))
+      const firstUserPrompt = userPrompts[0] ?? null
+      const lastUserPrompt = userPrompts[userPrompts.length - 1] ?? null
+      void writer.appendEvent('ui_stats', { uiMsgCount, lastUserPrompt, firstUserPrompt })
+      const assistantText = extractLastAssistantTextFromHistory(historyRef.current)
+      void maybeAutoGenerateSessionTitle({
+        filePath: writer.filePath,
+        engine: deps.engine,
+        cwd: runtimeCwd,
+        attemptedSessionIds: autoTitleAttemptedSessionIdsRef.current,
+        checkedTopicPromptKeys: autoTitleCheckedTopicPromptKeysRef.current,
+        writer,
+        userText: firstUserPrompt ?? lastUserPrompt,
+        topicUserText: lastUserPrompt,
+        assistantText,
+      }).catch(() => null)
     }
-  }, [isLoading, messages])
+  }, [deps.engine, isLoading, messages, runtimeCwd])
 
   const { handleEvent } = useReplStreaming({
     assistantTextMode,
