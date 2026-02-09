@@ -38,6 +38,7 @@ export function normalizeSessionTitle(raw: string): string | null {
 const CLAUDE_TITLE_SYSTEM_PROMPTS = [
   "You are Claude Code, Anthropic's official CLI for Claude.",
   'Summarize this coding conversation in under 50 characters. Capture the main task, key files, problems addressed, and current status.',
+  "Always output the title in the same language as the user's latest message.",
 ]
 
 const CLAUDE_TOPIC_SYSTEM_PROMPTS = [
@@ -68,6 +69,7 @@ export async function generateSessionTitle(args: GenerateSessionTitleArgs): Prom
     '',
     ...conversationLines,
     '',
+    "Use the same language as the user's message.",
     'Respond with the title for the conversation and nothing else.',
   ].join('\n')
 
