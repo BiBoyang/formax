@@ -346,4 +346,67 @@ describe('TranscriptPane', () => {
 
     rafSpy.mockRestore()
   })
+
+  it('does not auto-stick on new messages after user scrolls up', async () => {
+    const initialLogs = [
+      { id: 'u1', kind: 'message' as const, role: 'assistant' as const, text: 'hello-1' },
+      { id: 'u2', kind: 'message' as const, role: 'assistant' as const, text: 'hello-2' },
+    ]
+
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+
+    const { rerender, container } = render(
+      <TranscriptPane
+        {...baseProps({
+          logs: initialLogs,
+        })}
+      />,
+    )
+
+    const viewport = container.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) throw new Error('scroll-area viewport not found')
+
+    try {
+      let scrollTopValue = 0
+      Object.defineProperty(viewport, 'scrollHeight', {
+        configurable: true,
+        get: () => 1000,
+      })
+      Object.defineProperty(viewport, 'clientHeight', {
+        configurable: true,
+        get: () => 300,
+      })
+      Object.defineProperty(viewport, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTopValue,
+        set: (value: number) => {
+          scrollTopValue = value
+        },
+      })
+
+      scrollTopValue = 120
+      fireEvent.scroll(viewport)
+
+      rerender(
+        <TranscriptPane
+          {...baseProps({
+            logs: [...initialLogs, { id: 'u3', kind: 'message', role: 'assistant', text: 'hello-3' }],
+          })}
+        />,
+      )
+
+      await waitFor(() => {
+        expect(scrollTopValue).toBe(120)
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
+      })
+    } finally {
+      rafSpy.mockRestore()
+    }
+  })
 })
