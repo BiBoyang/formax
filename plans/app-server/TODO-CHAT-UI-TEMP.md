@@ -13,7 +13,7 @@
   - 现象：turn 已 completed 仍显示 `thinking`
   - 验收：`turn/completed` 后主聊天流不再显示该 turn 的进行中 thinking 指示
 
-- [ ] 系统事件默认降噪（`usage` / `event complete` / `turn completed`）
+- [x] 系统事件默认降噪（`usage` / `event complete` / `turn completed`）
   - 现象：主聊天流被 info 卡片淹没
   - 验收：默认视图仅展示对话主内容（user/assistant/tool 核心事件）；系统事件进入可展开区域或 debug 视图
 
@@ -21,7 +21,7 @@
   - 现象：`turn started -> thinking -> assistant -> complete` 分散在流水中
   - 验收：同一 turn 的事件可被感知为单个分组块，assistant 回复是分组主内容
 
-- [ ] 调整默认过滤策略
+- [x] 调整默认过滤策略
   - 现象：`Log Filter=all` 初始即日志墙
   - 验收：默认进入“聊天视图优先”模式；日志为按需查看
 
