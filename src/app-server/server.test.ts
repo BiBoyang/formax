@@ -102,6 +102,9 @@ describe('AppServer', () => {
         async readThread() {
           return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
         },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+        },
       },
     })
 
@@ -118,6 +121,17 @@ describe('AppServer', () => {
 
     const readOut = await server.handleMessage(request(5, 'thread/read', { threadId: 't-1' }))
     expect((readOut[0] as any).result.transcriptPreview).toEqual([{ role: 'user', text: 'hi' }])
+
+    const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
+    expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
+  })
+
+  it('validates thread/messages params', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/messages', { limit: 10 }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.threadId')
   })
 
   it('routes turn methods to turnRunner after initialize', async () => {
@@ -223,6 +237,9 @@ describe('AppServer', () => {
         },
         async readThread() {
           return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
         },
       },
       turnRunner: {

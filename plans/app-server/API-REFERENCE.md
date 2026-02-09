@@ -350,6 +350,39 @@ AskUserQuestion payload：
 }
 ```
 
+## 5.4.1 `thread/messages`
+
+### Params
+
+```ts
+{
+  threadId: string
+  limit?: number // 默认 50，最大 200
+  cursor?: string // 偏移量字符串；留空时默认返回最新一页
+}
+```
+
+### Result
+
+```ts
+{
+  data: Array<
+    | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string }
+    | {
+        id: string
+        kind: 'tool'
+        toolUseId?: string
+        toolName: string
+        status: 'running' | 'completed' | 'error'
+        summary: string
+        paramsText?: string
+        detailLines?: string[]
+      }
+  >
+  nextCursor: string | null // 指向“更早一页”的 cursor；null 表示已到最早
+}
+```
+
 ## 5.5 `turn/start`
 
 ### Params

@@ -43,6 +43,12 @@ describe('ThreadStore', () => {
     expect(readOut.transcriptPreview).toEqual(
       expect.arrayContaining([{ role: 'user', text: 'hello thread' }]),
     )
+
+    const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(messagesOut.data).toEqual(
+      expect.arrayContaining([{ id: expect.any(String), kind: 'message', role: 'user', text: 'hello thread' }]),
+    )
+    expect(messagesOut.nextCursor).toBeNull()
   })
 
   it('supports pagination in thread/list', async () => {
@@ -64,6 +70,181 @@ describe('ThreadStore', () => {
     await expect(store.listThreads({ limit: 10, cursor: 'bad-cursor' })).rejects.toThrow(
       'Invalid params.cursor',
     )
+  })
+
+  it('supports pagination in thread/messages', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'u1' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'a1' }] },
+      { role: 'user', content: [{ type: 'text', text: 'u2' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'a2' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const page1 = await store.listThreadMessages({ threadId: thread.id, limit: 2 })
+    expect(page1.data).toHaveLength(2)
+    expect(page1.data[0]).toMatchObject({ kind: 'message', role: 'user', text: 'u2' })
+    expect(page1.nextCursor).toBe('2')
+
+    const page2 = await store.listThreadMessages({ threadId: thread.id, limit: 2, cursor: page1.nextCursor ?? undefined })
+    expect(page2.data).toHaveLength(2)
+    expect(page2.data[0]).toMatchObject({ kind: 'message', role: 'user', text: 'u1' })
+    expect(page2.nextCursor).toBeNull()
+  })
+
+  it('avoids overlapping pages in thread/messages when total is not multiple of limit', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'u1' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'a1' }] },
+      { role: 'user', content: [{ type: 'text', text: 'u2' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'a2' }] },
+      { role: 'user', content: [{ type: 'text', text: 'u3' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const page1 = await store.listThreadMessages({ threadId: thread.id, limit: 2 })
+    expect(page1.data.map((msg) => msg.id)).toEqual(['3', '4'])
+    expect(page1.nextCursor).toBe('3')
+
+    const page2 = await store.listThreadMessages({ threadId: thread.id, limit: 2, cursor: page1.nextCursor ?? undefined })
+    expect(page2.data.map((msg) => msg.id)).toEqual(['1', '2'])
+    expect(page2.nextCursor).toBe('1')
+
+    const page3 = await store.listThreadMessages({ threadId: thread.id, limit: 2, cursor: page2.nextCursor ?? undefined })
+    expect(page3.data.map((msg) => msg.id)).toEqual(['0'])
+    expect(page3.nextCursor).toBeNull()
+  })
+
+  it('includes persisted tool messages in thread/messages', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'run type-check',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendStableMsg({
+      id: 'tool-1',
+      role: 'tool',
+      content: 'Ran command for 3s',
+      timestamp: new Date('2026-02-08T00:00:01.000Z'),
+      toolInfo: {
+        name: 'Bash',
+        toolUseId: 'call-1',
+        input: { command: 'npm run type-check' },
+        status: 'completed',
+        result: '> tsc --noEmit',
+        middleLines: ['update', 'end'],
+      },
+    } as any)
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(out.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'u1',
+          kind: 'message',
+          role: 'user',
+          text: 'run type-check',
+        }),
+        expect.objectContaining({
+          id: 'tool-1',
+          kind: 'tool',
+          toolUseId: 'call-1',
+          toolName: 'Bash',
+          status: 'completed',
+        }),
+      ]),
+    )
+    const tool = out.data.find((entry) => entry.id === 'tool-1') as any
+    expect(tool.paramsText).toContain('command=')
+    expect(tool.detailLines).toEqual(expect.arrayContaining(['Ran command for 3s', 'update', 'end']))
+  })
+
+  it('hydrates tool rows from app_tool_event records when ui_msg has no tool role', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'run command',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-evt-1',
+      toolName: 'Bash',
+      phase: 'start',
+      status: 'running',
+      summary: 'Bash running',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-evt-1',
+      toolName: 'Bash',
+      phase: 'update',
+      paramsText: 'command="npm run type-check"',
+      line: 'running...',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-evt-1',
+      toolName: 'Bash',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Ran command for 3s',
+      lines: ['> tsc --noEmit'],
+    })
+    await writer.appendStableMsg({
+      id: 'a1',
+      role: 'assistant',
+      content: 'done',
+      timestamp: new Date('2026-02-08T00:00:02.000Z'),
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(out.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'u1', kind: 'message', role: 'user', text: 'run command' }),
+        expect.objectContaining({ id: 'a1', kind: 'message', role: 'assistant', text: 'done' }),
+        expect.objectContaining({
+          kind: 'tool',
+          toolUseId: 'tool-evt-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'Ran command for 3s',
+        }),
+      ]),
+    )
+    const tool = out.data.find((entry) => (entry as any).toolUseId === 'tool-evt-1') as any
+    expect(tool.paramsText).toBe('command="npm run type-check"')
+    expect(tool.detailLines).toEqual(expect.arrayContaining(['running...', '> tsc --noEmit']))
   })
 
   it('uses overridden homedir consistently across start and resume', async () => {

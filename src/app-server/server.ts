@@ -12,12 +12,19 @@ import {
   parseInitializeParams,
   parseThreadByIdParams,
   parseThreadListParams,
+  parseThreadMessagesParams,
   parseThreadStartParams,
   parseTurnInputSubmitParams,
   parseTurnInterruptParams,
   parseTurnStartParams,
 } from './protocol.js'
-import { ThreadStore, type ThreadListResult, type ThreadReadResult, type ThreadResumeResult } from './threadStore.js'
+import {
+  ThreadStore,
+  type ThreadListResult,
+  type ThreadMessagesResult,
+  type ThreadReadResult,
+  type ThreadResumeResult,
+} from './threadStore.js'
 import { DEFAULT_INPUT_TTL_MS, DEFAULT_MAX_PENDING_INPUTS_PER_THREAD, TurnRunner } from './turnRunner.js'
 
 export type AppServerInfo = {
@@ -32,7 +39,7 @@ export type AppServerState = {
 
 export type AppServerOptions = {
   info: AppServerInfo
-  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
+  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -48,7 +55,10 @@ export type AppServerOptions = {
 
 export class AppServer {
   private readonly info: AppServerInfo
-  private readonly threadStore: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread'>
+  private readonly threadStore: Pick<
+    ThreadStore,
+    'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
+  >
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -180,6 +190,16 @@ export class AppServer {
       try {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadReadResult = await this.threadStore.readThread(params.threadId)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/messages') {
+      try {
+        const params = parseThreadMessagesParams(req.params)
+        const result: ThreadMessagesResult = await this.threadStore.listThreadMessages(params)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]

@@ -73,6 +73,40 @@ function sourceFromInputKind(kind: InputKind): InputEnvelopeMeta['source'] {
   return kind === 'approval' ? 'policy' : 'tool'
 }
 
+function compactParamsText(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const entries = Object.entries(input as Record<string, unknown>)
+  if (entries.length === 0) return undefined
+  const parts = entries.map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+  const text = parts.join(', ')
+  return text.length > 220 ? `${text.slice(0, 220)}...` : text
+}
+
+function toToolUpdateLine(event: Extract<StreamEvent, { type: 'tool_update' }>): string | null {
+  const transcriptLines = Array.isArray(event.transcriptLines) ? event.transcriptLines : []
+  const middleLines = Array.isArray(event.middleLines) ? event.middleLines : []
+  const line = transcriptLines[transcriptLines.length - 1] ?? middleLines[middleLines.length - 1]
+  if (typeof line === 'string' && line.trim()) return line.trim()
+  if (typeof event.toolUses === 'number') return `tool uses ${event.toolUses}`
+  return null
+}
+
+function toToolEndPayload(event: Extract<StreamEvent, { type: 'tool_end' }>): {
+  status: 'completed' | 'error'
+  summary: string
+  lines: string[]
+} {
+  const status: 'completed' | 'error' = event.result?.is_error ? 'error' : 'completed'
+  const raw = typeof event.result?.content === 'string' ? event.result.content : ''
+  const lines = raw
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => Boolean(line.trim()))
+    .slice(0, 80)
+  const summary = lines[0] ?? (status === 'error' ? 'Tool failed' : 'Tool completed')
+  return { status, summary, lines }
+}
+
 function normalizePositiveLimit(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   const rounded = Math.floor(value)
@@ -303,6 +337,47 @@ export class TurnRunner {
         }
 
         if (event.type === 'assistant_delta') assistantText += event.text
+        if (event.type === 'tool_start') {
+          this.appendAppEvent(running, 'app_tool_event', {
+            threadId: running.threadId,
+            turnId: running.turnId,
+            toolUseId: event.id,
+            toolName: event.name,
+            phase: 'start',
+            status: 'running',
+            summary: `${event.name} running`,
+          })
+        } else if (event.type === 'tool_input') {
+          this.appendAppEvent(running, 'app_tool_event', {
+            threadId: running.threadId,
+            turnId: running.turnId,
+            toolUseId: event.id,
+            phase: 'update',
+            ...(compactParamsText(event.input) ? { paramsText: compactParamsText(event.input) } : {}),
+          })
+        } else if (event.type === 'tool_update') {
+          const line = toToolUpdateLine(event)
+          if (line) {
+            this.appendAppEvent(running, 'app_tool_event', {
+              threadId: running.threadId,
+              turnId: running.turnId,
+              toolUseId: event.id,
+              phase: 'update',
+              line,
+            })
+          }
+        } else if (event.type === 'tool_end') {
+          const payload = toToolEndPayload(event)
+          this.appendAppEvent(running, 'app_tool_event', {
+            threadId: running.threadId,
+            turnId: running.turnId,
+            toolUseId: event.id,
+            phase: 'end',
+            status: payload.status,
+            summary: payload.summary,
+            lines: payload.lines,
+          })
+        }
         this.emitTurnNotification(running, 'turn/event', sourceFromStreamEvent(event), {
           turnId: running.turnId,
           threadId: running.threadId,

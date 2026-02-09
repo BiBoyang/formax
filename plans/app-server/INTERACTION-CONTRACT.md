@@ -53,6 +53,18 @@
 - 入参：`{ threadId: string }`
 - 返回：`{ thread, transcriptPreview }`
 
+## 2.4.1 thread/messages
+
+- 入参：`{ threadId: string, limit?: number, cursor?: string }`
+- 约束：
+  - `limit` 默认 50，最大 200
+  - `cursor` 为非负整数字符串偏移量
+  - `cursor` 缺失时默认返回最新一页
+- 返回：`{ data, nextCursor }`（`nextCursor` 指向更早一页）
+  - `data` 包含两类项：
+    - `kind: "message"`：`{ role: "user" | "assistant", text }`
+    - `kind: "tool"`：`{ toolName, status, summary, paramsText?, detailLines? }`
+
 ## 2.5 turn/start
 
 - 入参：`{ threadId, input: { text }, cwd?: string }`
@@ -235,6 +247,7 @@
 | `thread/resume` + `staleInputs` | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
 | `thread/list`（`limit/cursor`） | `src/app-server/protocol.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
 | `thread/read` | `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
+| `thread/messages`（最新页 + 向前分页） | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts` |
 | `turn/start`（单线程单 in-flight） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/interrupt` | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/event` 转发 | `src/app-server/turnRunner.ts`, `src/streaming/types.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
