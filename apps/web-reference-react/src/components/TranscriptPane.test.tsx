@@ -77,7 +77,7 @@ describe('TranscriptPane', () => {
     expect(onInterrupt).toHaveBeenCalledTimes(1)
   })
 
-  it('renders thinking as lightweight shimmer label without delta body text', () => {
+  it('renders thinking as lightweight label without delta body text', () => {
     render(
       <TranscriptPane
         {...baseProps({
@@ -206,6 +206,59 @@ describe('TranscriptPane', () => {
     await waitFor(() => {
       expect(viewport.style.overflowAnchor).toBe('auto')
     })
+  })
+
+  it('sticks to bottom when turn loading appears even if log length is unchanged', async () => {
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
+          isSending: false,
+        })}
+      />,
+    )
+
+    const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) return
+
+    let scrollTopValue = 0
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => 1200,
+    })
+    Object.defineProperty(viewport, 'clientHeight', {
+      configurable: true,
+      get: () => 300,
+    })
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value
+      },
+    })
+    ;(viewport as any).scrollTo = (arg: number | ScrollToOptions) => {
+      if (typeof arg === 'number') {
+        scrollTopValue = arg
+        return
+      }
+      scrollTopValue = Number(arg?.top ?? 0)
+    }
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          logs: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
+          isSending: true,
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(1200)
+    })
+    expect(screen.getByTestId('turn-loading')).toBeInTheDocument()
   })
 
   it('renders long history in batches and can reveal earlier in-memory messages', () => {

@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 import { ScrollArea } from './ui/scroll-area'
 import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
+import { LoadingStatusLine } from './LoadingStatusLine'
 
 const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
@@ -199,7 +200,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       window.cancelAnimationFrame(raf)
     }
-  }, [autoStick, filteredLogs.length])
+  }, [autoStick, filteredLogs.length, showTurnLoading])
 
   useEffect(() => {
     const root = scrollAreaRef.current
@@ -329,7 +330,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     data-turn-group-start={turnGroupStart ? 'true' : undefined}
                     className={cn(
                       'min-w-0',
-                      turnGroupStart && index > 0 ? 'mt-3 border-t border-border/35 pt-3' : null,
+                      turnGroupStart && index > 0 ? 'mt-3 pt-1' : null,
                     )}
                   >
                     {item.kind === 'log' ? (
@@ -374,9 +375,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
             })()}
 
             {showTurnLoading ? (
-              <div data-testid="turn-loading" className="flex items-center gap-2 py-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-                <div className="text-[11px] tracking-tight lowercase loading-shimmer">thinking</div>
+              <div data-testid="turn-loading" className="py-1">
+                <LoadingStatusLine text="Thinking" cycleWords />
               </div>
             ) : null}
 
