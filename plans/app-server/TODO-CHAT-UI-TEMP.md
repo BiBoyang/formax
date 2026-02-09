@@ -17,7 +17,7 @@
   - 现象：主聊天流被 info 卡片淹没
   - 验收：默认视图仅展示对话主内容（user/assistant/tool 核心事件）；系统事件进入可展开区域或 debug 视图
 
-- [ ] 按 turn 分组渲染事件链路
+- [x] 按 turn 分组渲染事件链路
   - 现象：`turn started -> thinking -> assistant -> complete` 分散在流水中
   - 验收：同一 turn 的事件可被感知为单个分组块，assistant 回复是分组主内容
 
