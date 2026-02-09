@@ -74,6 +74,13 @@ body {
   line-height: 1.6;
   overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.markdown-body > * {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .markdown-body p {
@@ -92,6 +99,7 @@ body {
   border: 1px solid var(--border);
   font-family: var(--font-mono);
   font-size: 12px;
+  max-width: 100%;
   overflow-x: auto;
 }
 
