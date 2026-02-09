@@ -118,3 +118,73 @@
 - [x] **Pending Input 上下文融合**
   - 移除右侧 Pending Input 列表的表单模式。
   - 实现嵌入式卡片：当 input requested 时，在输入框上方直接弹出表单。
+
+## 长列表与历史加载（Phase A）
+
+> 结论来源：对比 `chatgpt方案` 与最新 `opencode` 实现后收敛。
+> 目标：先解决“切线程看不到历史 + 长会话滚动卡顿/跳动”，暂不引入重型虚拟列表。
+
+### A0. 协议与数据面（必须先做）
+
+- [x] 新增 `thread/messages`（推荐）或扩展 `thread/read`（二选一，默认前者）
+  - 原因：当前 `thread/read` 仅返回 `transcriptPreview`，由 `readSessionPreview` 限制为 tail 预览（默认 6 条、每条截断）。
+  - 参数建议：`{ threadId, limit?: number, cursor?: string }`
+  - 返回建议：`{ data: Array<{ id, role, text, createdAt }>, nextCursor: string | null }`
+- [x] 保持 `thread/read` 兼容（左栏预览继续可用），聊天主历史改走 `thread/messages`
+- [x] 增加后端测试
+  - `src/app-server/threadStore.test.ts`
+  - `src/app-server/server.test.ts`
+  - 断言：分页顺序稳定、cursor 可推进、空页/越界安全
+
+### A1. 前端状态模型（按线程隔离）
+
+- [ ] `AppState` 增加 `logsByThreadId`、`historyCursorByThreadId`、`historyLoadingByThreadId`
+- [x] 选择线程时加载该线程第一页历史；并切换 `activeThreadId` 对应 transcript 视图
+- [x] 清理线程污染：切线程时不复用上一线程 `activeTurn/pendingInput`
+- [ ] 错误回退：历史加载失败时保留旧渲染并提示可重试
+
+### A2. 渐进渲染（参考 opencode，不上虚拟列表）
+
+- [ ] 引入 `turnStart` 渐进渲染窗口
+  - 初始只渲染最近 `turnInit = 30` 条（可配置）
+  - 后台回填批次 `turnBatch = 20`
+- [ ] 使用 `requestIdleCallback`（fallback `setTimeout(0)`）做回填调度
+- [ ] 回填锚点补偿
+  - 回填前记录 `beforeTop/beforeHeight`
+  - 回填后执行 `scrollTop += (newHeight - beforeHeight)`
+- [ ] 增加 “Render earlier messages” 按钮（一次性展开已拉取历史）
+
+### A3. 历史分页入口（超长会话）
+
+- [x] 顶部或列表起始处增加 “Load earlier messages”
+- [x] `historyLoading` 态文案：`Loading earlier messages...`
+- [ ] 分页参数默认
+  - `limit = 50`
+  - 单次 `loadMore = +50`
+  - 上限保护（客户端显示层可配）
+
+### A4. 自动滚动与手势稳定性
+
+- [ ] 保留粘底，但用户上翻后不抢滚动（`userScrolled`）
+- [ ] 输入区上方显示“回到底部”按钮（仅 overflow 且非 bottom）
+- [ ] 滚动容器设置 `overflow-anchor` 策略，避免浏览器锚点干扰
+- [ ] nested scroll 边界手势只在必要时接管（避免误触抢滚动）
+
+### A5. 验收（Phase A Done）
+
+- [ ] 选择任意线程后，2 秒内可见该线程历史（非 preview）
+- [ ] 500+ 消息会话：滚动不出现明显跳跃，输入框始终可用
+- [ ] 上翻阅读时新消息到达不抢焦点；点击“回到底部”可恢复
+- [ ] load more 后位置不漂移（锚点补偿生效）
+
+### 计划改动文件（Phase A）
+
+- `src/app-server/server.ts`
+- `src/app-server/threadStore.ts`
+- `src/app-server/server.test.ts`
+- `src/app-server/threadStore.test.ts`
+- `apps/web-reference-react/src/types.ts`
+- `apps/web-reference-react/src/store.ts`
+- `apps/web-reference-react/src/App.tsx`
+- `apps/web-reference-react/src/components/TranscriptPane.tsx`
+- `apps/web-reference-react/src/components/TranscriptPane.test.tsx`

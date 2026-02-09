@@ -78,7 +78,7 @@ function DiffPatchView({ file }: { file: DiffFile }) {
   const rows = parsePatchRows(file.patch)
   return (
     <div className="bg-white rounded-b-[10px] overflow-hidden">
-      <div className="max-h-[1200px] font-mono text-[12px] leading-relaxed">
+      <div className="max-h-[1200px] min-w-0 overflow-x-hidden font-mono text-[12px] leading-relaxed">
         {rows.map((row, index) => (
           <div key={index} className={cn(
               "grid grid-cols-[48px_minmax(0,1fr)] relative group/line",
@@ -92,11 +92,13 @@ function DiffPatchView({ file }: { file: DiffFile }) {
             <div className="select-none px-2 text-right text-muted-foreground/30 text-[10px] flex items-center justify-end border-r border-border/10">
                 {row.kind === 'del' ? row.oldLine : (row.newLine ?? '')}
             </div>
-            <div className={cn("px-4 flex items-start", row.kind === 'add' && "text-emerald-700/90", row.kind === 'del' && "text-red-700/90")}>
+            <div className={cn("min-w-0 px-4 flex items-start", row.kind === 'add' && "text-emerald-700/90", row.kind === 'del' && "text-red-700/90")}>
                 <span className="opacity-30 mr-3 w-2 shrink-0 select-none text-[13px]">
                     {row.kind === 'add' ? '+' : row.kind === 'del' ? '-' : ' '}
                 </span>
-                <span className="flex-1 whitespace-pre truncate py-0.5">{row.text.startsWith('+') || row.text.startsWith('-') ? row.text.slice(1) : row.text}</span>
+                <span className="min-w-0 flex-1 whitespace-pre-wrap break-all py-0.5">
+                  {row.text.startsWith('+') || row.text.startsWith('-') ? row.text.slice(1) : row.text}
+                </span>
             </div>
           </div>
         ))}
@@ -125,7 +127,7 @@ export function PendingInputPane(props: PendingInputPaneProps) {
   const remainingText = selectedInput ? formatRemainingTime(selectedInput.expiresAt, Date.now()) : null
 
   return (
-    <aside className="h-full w-full flex flex-col overflow-hidden bg-white selection:bg-primary/10">
+    <aside className="h-full w-full min-w-0 flex flex-col overflow-hidden overflow-x-hidden bg-white selection:bg-primary/10">
       {/* Target Header */}
       <div className="flex-none flex items-center justify-between px-6 h-14 bg-white z-[30]">
           <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setListOpen(!listOpen)}>
@@ -145,8 +147,8 @@ export function PendingInputPane(props: PendingInputPaneProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 min-h-0 relative">
-          <ScrollArea className="h-full px-6 pb-20">
+      <div className="flex-1 min-h-0 min-w-0 relative">
+          <ScrollArea className="h-full min-w-0 px-6 pb-20">
               <div className="relative">
                   {/* 
                       PURE CSS LEAK FIX: 
@@ -161,17 +163,17 @@ export function PendingInputPane(props: PendingInputPaneProps) {
                           {files.map((file) => {
                               const open = Boolean(openFiles[file.path])
                               return (
-                                  <div key={file.path} className="flex flex-col group relative">
+                                  <div key={file.path} className="flex min-w-0 flex-col group relative">
                                       <button
                                           className={cn(
-                                              "flex items-center justify-between w-full text-left px-5 py-[11px] transition-all sticky top-0 z-[20]",
+                                              "flex min-w-0 items-center justify-between w-full text-left px-5 py-[11px] transition-all sticky top-0 z-[20]",
                                               "bg-[#F3F4F6] hover:bg-[#EDEFF2]",
                                               open ? "rounded-t-[10px]" : "rounded-[10px]"
                                           )}
                                           onClick={() => setOpenFiles(prev => ({ ...prev, [file.path]: !open }))}
                                       >
                                           <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
-                                              <span className="font-mono text-[12px] text-foreground/60 group-hover:text-foreground/80 transition-colors truncate tracking-[-0.01em]">
+                                              <span className="font-mono text-[12px] text-foreground/60 group-hover:text-foreground/80 transition-colors truncate [overflow-wrap:anywhere] tracking-[-0.01em]">
                                                   {file.path}
                                               </span>
                                               <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold shrink-0">

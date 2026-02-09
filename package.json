@@ -51,10 +51,11 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.18",
+    "@playwright/test": "^1.58.2",
     "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.0.18",
     "fast-check": "^4.5.3",
     "ink-testing-library": "^4.0.0",
     "typescript": "^5.9.2",

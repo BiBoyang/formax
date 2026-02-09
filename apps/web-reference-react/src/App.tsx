@@ -5,11 +5,25 @@ import { TranscriptPane } from './components/TranscriptPane'
 import { RpcClient, RpcRequestError } from './rpcClient'
 import { PanelLeft } from 'lucide-react'
 import { appReducer, initialAppState } from './store'
-import type { PendingInput, ResolvedInput, RpcNotification, ThreadSummary } from './types'
+import type { PendingInput, ResolvedInput, RpcNotification, ThreadMessage, ThreadSummary, TranscriptItem } from './types'
 import { cn } from './lib/utils' // Assuming cn utility is available
 import { Button } from './components/ui/button' // Assuming Button component is available
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
+const RIGHT_RAIL_MIN_WIDTH = 280
+const RIGHT_RAIL_MAX_WIDTH = 680
+const CENTER_MIN_WIDTH = 560
+const SIDEBAR_WIDTH = 260
+const DIVIDER_WIDTH = 1
+
+function clampRightRailWidth(desiredWidth: number, viewportWidth: number, isSidebarOpen: boolean): number {
+  const leftReserved = isSidebarOpen ? SIDEBAR_WIDTH : 0
+  const available = viewportWidth - leftReserved - DIVIDER_WIDTH - CENTER_MIN_WIDTH
+  if (!Number.isFinite(available) || available <= 0) return 0
+  const maxByViewport = Math.min(RIGHT_RAIL_MAX_WIDTH, available)
+  const minByViewport = Math.min(RIGHT_RAIL_MIN_WIDTH, maxByViewport)
+  return Math.max(minByViewport, Math.min(maxByViewport, desiredWidth))
+}
 
 type RpcErrorDetails = {
   at: string
@@ -39,20 +53,98 @@ function asThreadSummaries(value: unknown): ThreadSummary[] {
   return Array.isArray(data) ? (data as ThreadSummary[]) : []
 }
 
+function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: string | null } {
+  if (!value || typeof value !== 'object') return { data: [], nextCursor: null }
+  const raw = Array.isArray((value as { data?: unknown }).data) ? ((value as { data: unknown[] }).data ?? []) : []
+  const data: ThreadMessage[] = raw
+    .map((entry, index) => {
+      if (!entry || typeof entry !== 'object') return null
+      const record = entry as Record<string, unknown>
+      const kind = record.kind
+      if (kind === 'tool') {
+        if (typeof record.toolName !== 'string') return null
+        const status =
+          record.status === 'error'
+            ? 'error'
+            : record.status === 'running'
+              ? 'running'
+              : 'completed'
+        const summary = typeof record.summary === 'string' ? record.summary : `${record.toolName} completed`
+        return {
+          id: typeof record.id === 'string' ? record.id : `tool-${index}`,
+          kind: 'tool' as const,
+          toolName: record.toolName,
+          status,
+          summary,
+          ...(typeof record.toolUseId === 'string' ? { toolUseId: record.toolUseId } : {}),
+          ...(typeof record.paramsText === 'string' ? { paramsText: record.paramsText } : {}),
+          ...(Array.isArray(record.detailLines)
+            ? { detailLines: record.detailLines.filter((line): line is string => typeof line === 'string') }
+            : {}),
+        }
+      }
+
+      const role = record.role
+      if (role !== 'user' && role !== 'assistant') return null
+      if (typeof record.text !== 'string') return null
+      return {
+        id: typeof record.id === 'string' ? record.id : `msg-${index}`,
+        kind: 'message' as const,
+        role,
+        text: record.text,
+      }
+    })
+    .filter((entry): entry is ThreadMessage => Boolean(entry))
+  const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
+  const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
+  return { data, nextCursor }
+}
+
+function mapThreadHistoryToLogs(threadId: string, messages: ThreadMessage[]): TranscriptItem[] {
+  return messages.map((message) =>
+    message.kind === 'tool'
+      ? {
+          id: `history-${threadId}-${message.id}`,
+          kind: 'tool_call' as const,
+          toolUseId: message.toolUseId,
+          toolName: message.toolName,
+          paramsText: message.paramsText,
+          status: message.status,
+          summary: message.summary,
+          detailLines: Array.isArray(message.detailLines) ? message.detailLines : [],
+        }
+      : {
+          id: `history-${threadId}-${message.id}`,
+          kind: 'message' as const,
+          role: message.role,
+          text: message.text,
+        },
+  )
+}
+
 function summarizeToolEvent(event: any): string {
   if (!event || typeof event !== 'object') return 'tool event'
-  if (event.type === 'tool_start') return `start ${String(event.name ?? 'tool')} (${String(event.id ?? '')})`
-  if (event.type === 'tool_end') return `end ${String(event.id ?? '')}`
-  if (event.type === 'tool_input') return `input ${String(event.id ?? '')}`
+  if (event.type === 'tool_start') return ''
+  if (event.type === 'tool_input') return ''
+  if (event.type === 'tool_end') {
+    const content = typeof event?.result?.content === 'string' ? event.result.content.trim() : ''
+    return content || 'completed'
+  }
   if (event.type === 'tool_update') {
     const middleLines = Array.isArray(event.middleLines) ? event.middleLines : []
     const transcriptLines = Array.isArray(event.transcriptLines) ? event.transcriptLines : []
     const line = transcriptLines[transcriptLines.length - 1] ?? middleLines[middleLines.length - 1]
     if (line && String(line).trim()) return String(line)
-    if (typeof event.toolUses === 'number') return `update tool uses ${event.toolUses}`
-    return `update ${String(event.id ?? '')}`
+    if (typeof event.toolUses === 'number') return `tool uses ${event.toolUses}`
+    return ''
   }
   return String(event.type ?? 'tool event')
+}
+
+function toToolUseId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 function toRpcError(method: string, error: unknown): RpcErrorDetails {
@@ -95,9 +187,15 @@ export function App() {
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [rightRailWidth, setRightRailWidth] = useState(400)
+  const [rightRailWidth, setRightRailWidth] = useState(() =>
+    clampRightRailWidth(400, typeof window === 'undefined' ? 1600 : window.innerWidth, true),
+  )
+  const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
+  const historyLoadTokenRef = useRef(0)
+  const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
   const lastConnectionStatusRef = useRef(state.connectionStatus)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
 
@@ -145,6 +243,28 @@ export function App() {
       setIsRefreshingDiff(false)
     }
   }, [request])
+
+  const loadThreadHistory = useCallback(
+    async (threadId: string) => {
+      const token = ++historyLoadTokenRef.current
+      setIsLoadingHistory(true)
+      dispatch({ type: 'set_active_turn', turnId: null })
+      dispatch({ type: 'clear_pending_inputs' })
+      dispatch({ type: 'replace_logs', logs: [] })
+      try {
+        const historyResult = await request('thread/messages', { threadId, limit: 50 })
+        if (token !== historyLoadTokenRef.current) return
+        const parsed = asThreadMessages(historyResult)
+        dispatch({ type: 'replace_logs', logs: mapThreadHistoryToLogs(threadId, parsed.data) })
+        setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+      } finally {
+        if (token === historyLoadTokenRef.current) {
+          setIsLoadingHistory(false)
+        }
+      }
+    },
+    [request],
+  )
 
   const initializeHandshake = useCallback(async () => {
     const client = clientRef.current
@@ -217,13 +337,16 @@ export function App() {
           }
 
           if (eventType === 'tool_start' || eventType === 'tool_update' || eventType === 'tool_end') {
+            const event = params?.event
             dispatch({
               type: 'append_tool_event',
               turnId,
-              toolUseId: String(params?.event?.id ?? ''),
-              toolName: params?.event?.name ? String(params.event.name) : undefined,
+              toolUseId: toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId),
+              toolName: event?.name ? String(event.name) : undefined,
               phase: eventType === 'tool_start' ? 'start' : eventType === 'tool_update' ? 'update' : 'end',
-              text: summarizeToolEvent(params?.event),
+              text: summarizeToolEvent(event),
+              input: event?.input,
+              isError: Boolean(event?.result?.is_error),
             })
             break
           }
@@ -234,12 +357,15 @@ export function App() {
           }
 
           if (eventType === 'tool_input') {
+            const event = params?.event
             dispatch({
               type: 'append_tool_event',
               turnId,
-              toolUseId: String(params?.event?.id ?? ''),
+              toolUseId: toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId),
+              toolName: event?.name ? String(event.name) : undefined,
               phase: 'update',
-              text: summarizeToolEvent(params?.event),
+              text: '',
+              input: event?.input,
             })
             break
           }
@@ -282,6 +408,10 @@ export function App() {
     },
     [log, refreshWorkspaceDiff],
   )
+
+  useEffect(() => {
+    activeThreadIdRef.current = state.activeThreadId
+  }, [state.activeThreadId])
 
   useEffect(() => {
     const client = new RpcClient()
@@ -329,6 +459,7 @@ export function App() {
       const thread = result?.thread as { id?: string } | undefined
       if (thread?.id) {
         dispatch({ type: 'set_active_thread', threadId: thread.id })
+        await loadThreadHistory(thread.id)
         await refreshThreads()
         await refreshWorkspaceDiff()
         log(`Thread created: ${thread.id}`)
@@ -436,14 +567,58 @@ export function App() {
     void startTurn().catch(() => undefined)
   }
 
+  const selectThread = useCallback(
+    (threadId: string) => {
+      dispatch({ type: 'set_active_thread', threadId })
+      void loadThreadHistory(threadId).catch(() => undefined)
+    },
+    [loadThreadHistory],
+  )
+
+  const loadEarlierHistory = useCallback(async () => {
+    const threadId = state.activeThreadId
+    if (!threadId || isLoadingHistory) return
+    const cursor = historyCursorByThreadId[threadId]
+    if (!cursor) return
+
+    const token = historyLoadTokenRef.current
+    setIsLoadingHistory(true)
+    try {
+      const result = await request('thread/messages', { threadId, limit: 50, cursor })
+      if (token !== historyLoadTokenRef.current) return
+      if (activeThreadIdRef.current !== threadId) return
+      const parsed = asThreadMessages(result)
+      dispatch({ type: 'prepend_logs', logs: mapThreadHistoryToLogs(threadId, parsed.data) })
+      setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+    } finally {
+      if (token === historyLoadTokenRef.current) {
+        setIsLoadingHistory(false)
+      }
+    }
+  }, [historyCursorByThreadId, isLoadingHistory, request, state.activeThreadId])
+
   const activeThread = useMemo(
     () => state.threads.find((t) => t.id === state.activeThreadId),
     [state.threads, state.activeThreadId],
   )
 
+  useEffect(() => {
+    const syncRightRailWidth = () => {
+      setRightRailWidth((previous) =>
+        clampRightRailWidth(previous, window.innerWidth, isSidebarOpen),
+      )
+    }
+    syncRightRailWidth()
+    window.addEventListener('resize', syncRightRailWidth)
+    return () => {
+      window.removeEventListener('resize', syncRightRailWidth)
+    }
+  }, [isSidebarOpen])
+
   return (
-    <div className="h-screen w-screen flex bg-background overflow-hidden text-sm relative">
+    <div data-testid="app-shell" className="h-screen w-screen min-w-0 flex bg-background overflow-hidden text-sm relative">
       <div
+        data-testid="left-rail"
         className={cn(
             "transition-all duration-300 ease-in-out h-full overflow-hidden border-r bg-sidebar flex-none",
             isSidebarOpen ? "w-[260px] opacity-100" : "w-0 opacity-0 border-none"
@@ -452,13 +627,13 @@ export function App() {
         <LeftRail
           threads={sortedThreads}
           activeThreadId={state.activeThreadId}
-          onSelectThread={(threadId) => dispatch({ type: 'set_active_thread', threadId })}
+          onSelectThread={selectThread}
           onStartThread={() => void startThread().catch(() => undefined)}
           isBusy={isThreadActionBusy}
         />
       </div>
 
-      <div className="flex-1 flex flex-col relative h-full min-w-0">
+      <div data-testid="center-pane-host" className="flex-1 flex flex-col relative h-full min-w-0">
         <Button
             variant="ghost"
             size="icon"
@@ -470,6 +645,7 @@ export function App() {
         <TranscriptPane
           activeThread={activeThread}
           activeThreadId={state.activeThreadId}
+          activeTurnId={state.activeTurnId}
 
           logs={state.logs}
           inputText={inputText}
@@ -477,13 +653,12 @@ export function App() {
           onInputTextChange={setInputText}
           onSend={onSend}
           onInterrupt={() => void interruptTurn().catch(() => undefined)}
+          historyMore={Boolean(state.activeThreadId && historyCursorByThreadId[state.activeThreadId])}
+          historyLoading={isLoadingHistory}
+          onLoadEarlier={() => void loadEarlierHistory().catch(() => undefined)}
           isSending={isSendingTurn}
           isInterrupting={isInterruptingTurn}
           lastRpcError={lastRpcError}
-          selectedInput={selectedInput}
-          onSubmitInput={(answers) => void submitSelectedInput(answers).catch(() => undefined)}
-          submitStatusByInputId={submitStatusByInputId}
-          isSubmittingInput={isSubmittingInput}
         />
       </div>
 
@@ -496,7 +671,7 @@ export function App() {
             
             const onMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.pageX
-                const newWidth = Math.max(200, Math.min(800, startWidth + deltaX))
+                const newWidth = clampRightRailWidth(startWidth + deltaX, window.innerWidth, isSidebarOpen)
                 setRightRailWidth(newWidth)
             }
             
@@ -516,7 +691,8 @@ export function App() {
 
       {/* Right Rail Container - dynamic width */}
       <div 
-        className="flex-none bg-white h-full overflow-hidden" 
+        data-testid="right-rail"
+        className="flex-none min-w-0 bg-white h-full overflow-hidden overflow-x-hidden" 
         style={{ width: rightRailWidth }}
       >
         <PendingInputPane

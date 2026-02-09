@@ -78,4 +78,81 @@ describe('appReducer', () => {
     const lastLog = state.logs[state.logs.length - 1]
     expect(lastLog).toMatchObject({ kind: 'log', text: 'Input resolved: submitted' })
   })
+
+  it('coalesces tool events into a single tool_call transcript row', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_tool_event',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      toolName: 'Bash',
+      phase: 'start',
+      input: { command: 'npm run type-check' },
+    })
+
+    state = appReducer(state, {
+      type: 'append_tool_event',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      phase: 'update',
+      text: 'update',
+    })
+
+    state = appReducer(state, {
+      type: 'append_tool_event',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      phase: 'end',
+      text: 'Ran command for 3s',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      toolName: 'Bash',
+      status: 'completed',
+      summary: 'Ran command for 3s',
+    })
+    const tool = state.logs[0] as any
+    expect(tool.paramsText).toContain('command=')
+    expect(tool.detailLines).toContain('update')
+  })
+
+  it('replaces transcript logs when loading thread history', () => {
+    let state = appReducer(initialAppState, {
+      type: 'push_message',
+      role: 'assistant',
+      text: 'old',
+    })
+
+    state = appReducer(state, {
+      type: 'replace_logs',
+      logs: [{ id: 'history-1', kind: 'message', role: 'assistant', text: 'from history' }],
+    })
+
+    expect(state.logs).toEqual([{ id: 'history-1', kind: 'message', role: 'assistant', text: 'from history' }])
+  })
+
+  it('prepends older transcript logs when loading earlier history pages', () => {
+    let state = appReducer(initialAppState, {
+      type: 'replace_logs',
+      logs: [{ id: 'recent', kind: 'message', role: 'assistant', text: 'newer' }],
+    })
+
+    state = appReducer(state, {
+      type: 'prepend_logs',
+      logs: [{ id: 'older', kind: 'message', role: 'user', text: 'older' }],
+    })
+
+    expect(state.logs.map((item) => item.id)).toEqual(['older', 'recent'])
+  })
+
+  it('clears pending inputs when switching thread context', () => {
+    const input = createPendingInput()
+    let state = appReducer(initialAppState, { type: 'input_requested', input })
+    expect(Object.keys(state.pendingInputs)).toHaveLength(1)
+
+    state = appReducer(state, { type: 'clear_pending_inputs' })
+    expect(state.pendingInputs).toEqual({})
+    expect(state.selectedInputId).toBeNull()
+  })
 })

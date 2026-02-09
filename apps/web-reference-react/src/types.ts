@@ -36,6 +36,26 @@ export type ThreadSummary = {
   label: string | null
 }
 
+export type ThreadHistoryMessage = {
+  id: string
+  kind: 'message'
+  role: 'user' | 'assistant'
+  text: string
+}
+
+export type ThreadHistoryTool = {
+  id: string
+  kind: 'tool'
+  toolUseId?: string
+  toolName: string
+  status: 'running' | 'completed' | 'error'
+  summary: string
+  paramsText?: string
+  detailLines?: string[]
+}
+
+export type ThreadMessage = ThreadHistoryMessage | ThreadHistoryTool
+
 export type PendingInput = {
   inputId: string
   threadId: string
@@ -67,10 +87,12 @@ export type TranscriptItem =
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }
   | {
       id: string
-      kind: 'tool'
+      kind: 'tool_call'
       turnId?: string
       toolUseId?: string
-      toolName?: string
-      phase: 'start' | 'update' | 'end'
-      text: string
+      toolName: string
+      paramsText?: string
+      status: 'running' | 'completed' | 'error'
+      summary: string
+      detailLines: string[]
     }

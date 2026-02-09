@@ -1,4 +1,4 @@
-import { ArrowUp, MessageSquare, Square } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronRight, MessageSquare, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
@@ -28,6 +28,9 @@ export type TranscriptPaneProps = {
   onInputTextChange: (value: string) => void
   onSend: (event: FormEvent) => void
   onInterrupt: () => void
+  historyMore?: boolean
+  historyLoading?: boolean
+  onLoadEarlier?: () => void
   isSending?: boolean
   isInterrupting?: boolean
   lastRpcError?: RpcErrorLike | null
@@ -49,12 +52,53 @@ function ThinkingItem({ item }: { item: Extract<TranscriptItem, { kind: 'thinkin
   )
 }
 
-function ToolItem({ item }: { item: Extract<TranscriptItem, { kind: 'tool' }> }) {
+function toolStatusDotClass(status: 'running' | 'completed' | 'error'): string {
+  if (status === 'running') return 'bg-amber-500 animate-pulse'
+  if (status === 'error') return 'bg-red-500'
+  return 'bg-muted-foreground/40'
+}
+
+function ToolCallItem(props: {
+  item: Extract<TranscriptItem, { kind: 'tool_call' }>
+  open: boolean
+  onToggle: () => void
+}) {
+  const { item, open, onToggle } = props
+  const hasDetails = item.detailLines.length > 0
+  const label = `${item.toolName}${item.paramsText ? `(${item.paramsText})` : ''}`
   return (
-    <div className="flex items-center gap-2 py-1.5 first:pt-0">
-      <div className="text-[11px] text-muted-foreground font-medium tracking-tight">
-        {item.toolName} <span className="lowercase font-normal text-muted-foreground/70">{item.phase}</span>
-      </div>
+    <div className="rounded-md border bg-muted/20">
+      <button
+        type="button"
+        className={cn(
+          'flex w-full items-center justify-between gap-3 px-3 py-2 text-left',
+          hasDetails ? 'cursor-pointer' : 'cursor-default',
+        )}
+        onClick={hasDetails ? onToggle : undefined}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={cn('h-2 w-2 shrink-0 rounded-full', toolStatusDotClass(item.status))} />
+          <span className="min-w-0 truncate font-mono text-[12px] text-foreground/85">{label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="max-w-[280px] truncate text-[11px] text-muted-foreground">{item.summary}</span>
+          {hasDetails ? (
+            open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : null}
+        </div>
+      </button>
+
+      {hasDetails && open ? (
+        <div className="border-t bg-background/70 px-3 py-2">
+          <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground/90">
+            {item.detailLines.map((line, index) => (
+              <div key={`${item.id}-${index}`} className="whitespace-pre-wrap break-all leading-5">
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -62,12 +106,16 @@ function ToolItem({ item }: { item: Extract<TranscriptItem, { kind: 'tool' }> })
 export function TranscriptPane(props: TranscriptPaneProps) {
   const {
     activeThreadId,
+    activeTurnId = null,
     logs,
     inputText,
     connectionStatus,
     onInputTextChange,
     onSend,
     onInterrupt,
+    historyMore = false,
+    historyLoading = false,
+    onLoadEarlier,
     isSending = false,
     isInterrupting = false,
     lastRpcError = null,
@@ -75,6 +123,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const [autoStick] = useState(true)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
+  const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   // Filter out INFO logs for product view (User Feedback: "Not a log panel")
@@ -87,17 +136,29 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     })
   }, [logs])
 
+  const showTurnLoading = Boolean(activeThreadId) &&
+    connectionStatus === 'connected' &&
+    !isInterrupting &&
+    (isSending || Boolean(activeTurnId))
+
   useEffect(() => {
     if (!autoStick) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [autoStick, filteredLogs.length])
 
   return (
-    <main className="center-pane flex-1 min-w-0 flex flex-col bg-background">
+    <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
       {/* Transcript Area */}
       <section className="transcript flex-1 overflow-hidden relative">
         <ScrollArea className="h-full">
-          <div className="flex flex-col gap-6 p-4 pb-12 max-w-3xl mx-auto w-full">
+          <div className="flex min-w-0 flex-col gap-3 p-4 pb-12 max-w-3xl mx-auto w-full">
+            {historyMore ? (
+              <div className="flex justify-center">
+                <Button type="button" variant="ghost" size="sm" disabled={historyLoading} onClick={onLoadEarlier}>
+                  {historyLoading ? 'Loading earlier messages...' : 'Load earlier messages'}
+                </Button>
+              </div>
+            ) : null}
             
             {filteredLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
@@ -112,12 +173,17 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                   <div className="mb-1 flex items-center gap-2">
                     <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 text-[10px] uppercase font-bold tracking-wider">{item.level}</Badge>
                   </div>
-                  <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words">{item.text}</div>
+                  <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
                 </div>
               ) : item.kind === 'thinking' ? (
                 <ThinkingItem key={item.id} item={item} />
-              ) : item.kind === 'tool' ? (
-                <ToolItem key={item.id} item={item} />
+              ) : item.kind === 'tool_call' ? (
+                <ToolCallItem
+                  key={item.id}
+                  item={item}
+                  open={Boolean(openToolIds[item.id])}
+                  onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                />
               ) : (
                 <div key={item.id} className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
                   <div
@@ -128,13 +194,25 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                         : 'text-foreground py-2'
                     )}
                   >
-                    <div className={cn("text-[14px] leading-relaxed whitespace-pre-wrap", item.role === 'assistant' ? "markdown-body" : "px-0.5")}>
+                    <div
+                      className={cn(
+                        'text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
+                        item.role === 'assistant' ? 'markdown-body' : 'px-0.5',
+                      )}
+                    >
                         {item.text}
                     </div>
                   </div>
                 </div>
               ),
             )}
+
+            {showTurnLoading ? (
+              <div data-testid="turn-loading" className="flex items-center gap-2 py-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+                <div className="text-[11px] tracking-tight lowercase loading-shimmer">thinking</div>
+              </div>
+            ) : null}
 
             {lastRpcError ? (
               <Collapsible open={showErrorDetails} onOpenChange={setShowErrorDetails}>
@@ -163,7 +241,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       </section>
 
       {/* Composer Area */}
-      <div className="composer p-4 pb-8">
+      <div data-testid="composer" className="composer p-4 pb-8">
         <div className="max-w-3xl mx-auto flex flex-col gap-3">
           <form
             className="group relative flex flex-col rounded-[26px] border border-border bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] focus-within:ring-1 focus-within:ring-ring/10 focus-within:border-ring/20 transition-all duration-200"
@@ -191,6 +269,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 {isSending || isInterrupting ? (
                   <Button
                     type="button"
+                    aria-label="Interrupt turn"
                     variant="destructive"
                     size="icon"
                     disabled={isInterrupting}
@@ -202,6 +281,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 ) : (
                   <Button
                     type="submit"
+                    aria-label="Send message"
                     disabled={!activeThreadId || connectionStatus !== 'connected' || !inputText.trim()}
                     size="icon"
                     className={cn(

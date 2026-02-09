@@ -16,6 +16,9 @@ export type AppAction =
   | { type: 'set_threads'; threads: ThreadSummary[] }
   | { type: 'set_active_thread'; threadId: string | null }
   | { type: 'set_active_turn'; turnId: string | null }
+  | { type: 'replace_logs'; logs: TranscriptItem[] }
+  | { type: 'prepend_logs'; logs: TranscriptItem[] }
+  | { type: 'clear_pending_inputs' }
   | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error'; turnId?: string }
   | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string }
   | { type: 'bind_last_user_message_turn'; turnId: string }
@@ -27,7 +30,9 @@ export type AppAction =
       toolUseId?: string
       toolName?: string
       phase: 'start' | 'update' | 'end'
-      text: string
+      text?: string
+      input?: unknown
+      isError?: boolean
     }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string }
@@ -47,6 +52,22 @@ function itemId(): string {
   return `${Date.now()}-${Math.random()}`
 }
 
+function compactParamText(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const entries = Object.entries(input as Record<string, unknown>)
+  if (entries.length === 0) return undefined
+  const parts = entries.map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+  const raw = parts.join(', ')
+  return raw.length > 160 ? `${raw.slice(0, 160)}...` : raw
+}
+
+function dedupeAppend(lines: string[], line: string): string[] {
+  const trimmed = line.trim()
+  if (!trimmed) return lines
+  if (lines[lines.length - 1] === trimmed) return lines
+  return [...lines, trimmed]
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'set_connection_status':
@@ -60,6 +81,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'set_active_turn':
       return { ...state, activeTurnId: action.turnId }
+
+    case 'replace_logs':
+      return { ...state, logs: action.logs }
+
+    case 'prepend_logs':
+      return { ...state, logs: [...action.logs, ...state.logs] }
+
+    case 'clear_pending_inputs':
+      return { ...state, pendingInputs: {}, selectedInputId: null }
 
     case 'push_log': {
       const next: TranscriptItem = {
@@ -131,14 +161,57 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'append_tool_event': {
+      let targetIndex = -1
+      for (let index = state.logs.length - 1; index >= 0; index -= 1) {
+        const item = state.logs[index]
+        if (
+          item.kind === 'tool_call' &&
+          item.turnId === action.turnId &&
+          item.toolUseId != null &&
+          item.toolUseId === action.toolUseId
+        ) {
+          targetIndex = index
+          break
+        }
+      }
+
+      const paramsText = compactParamText(action.input)
+      const line = typeof action.text === 'string' ? action.text.trim() : ''
+      if (targetIndex >= 0) {
+        const current = state.logs[targetIndex]
+        if (current.kind !== 'tool_call') return state
+        const updated: TranscriptItem = {
+          ...current,
+          ...(action.toolName ? { toolName: action.toolName } : {}),
+          ...(paramsText ? { paramsText } : {}),
+          status:
+            action.phase === 'end'
+              ? action.isError
+                ? 'error'
+                : 'completed'
+              : current.status,
+          detailLines: line ? dedupeAppend(current.detailLines, line) : current.detailLines,
+          summary:
+            action.phase === 'end'
+              ? line || current.summary
+              : current.summary,
+        }
+        const nextLogs = state.logs.slice()
+        nextLogs[targetIndex] = updated
+        return { ...state, logs: nextLogs }
+      }
+
+      const toolName = action.toolName ?? 'Tool'
       const next: TranscriptItem = {
         id: itemId(),
-        kind: 'tool',
+        kind: 'tool_call',
         turnId: action.turnId,
         toolUseId: action.toolUseId,
-        toolName: action.toolName,
-        phase: action.phase,
-        text: action.text,
+        toolName,
+        ...(paramsText ? { paramsText } : {}),
+        status: action.phase === 'end' ? (action.isError ? 'error' : 'completed') : 'running',
+        summary: action.phase === 'end' ? line || `${toolName} completed` : `${toolName} running`,
+        detailLines: line ? [line] : [],
       }
       return { ...state, logs: [...state.logs, next] }
     }

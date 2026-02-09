@@ -32,6 +32,30 @@ Watch mode:
 npm run test:watch
 ```
 
+E2E (Playwright):
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+Notes:
+
+- E2E config: `apps/web-reference-react/playwright.config.mjs`
+- E2E specs:
+  - `e2e/layout-overflow.spec.js` (horizontal overflow + composer visibility)
+  - `e2e/thread-history.spec.js` (thread select + load earlier messages)
+  - `e2e/approval-submit.spec.js` (pending approval submit payload/status)
+  - `e2e/diff-collapsible.spec.js` (diff file collapse/expand)
+  - `e2e/tool-history-refresh.spec.js` (tool summary rows remain available after refresh)
+- These tests auto-start Vite via Playwright `webServer` on `http://127.0.0.1:3781`.
+- E2E uses an in-page WebSocket mock (`e2e/helpers/mockRpc.js`) so tests do not depend on a real app-server process.
+- If you already started dev server manually, use:
+
+```bash
+PLAYWRIGHT_SKIP_WEBSERVER=1 npm run test:e2e
+```
+
 Current test coverage focus:
 
 - state reducer transitions (`inputRequested -> inputResolved`, assistant delta merge)

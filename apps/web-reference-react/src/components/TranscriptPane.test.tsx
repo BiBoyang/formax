@@ -75,7 +75,16 @@ describe('TranscriptPane', () => {
           { id: 'a2', kind: 'message', role: 'assistant', text: 'world', turnId: 'turn-2' },
           { id: 'l1', kind: 'log', text: 'warn log', level: 'warn', turnId: 'turn-2' },
           { id: 'l2', kind: 'log', text: 'info log', level: 'info', turnId: 'turn-2' },
-          { id: 't2', kind: 'tool', phase: 'start', text: 'tool start', turnId: 'turn-2', toolUseId: 'tool-2' },
+          {
+            id: 't2',
+            kind: 'tool_call',
+            turnId: 'turn-2',
+            toolUseId: 'tool-2',
+            toolName: 'Bash',
+            status: 'completed',
+            summary: 'tool start',
+            detailLines: ['tool start'],
+          },
         ]}
         inputText=""
         connectionStatus="connected"
