@@ -9,6 +9,8 @@ import { ScrollArea } from './ui/scroll-area'
 import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
 
+const RENDER_BATCH_SIZE = 200
+
 type RpcErrorLike = {
   at: string
   method: string
@@ -124,6 +126,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [autoStick, setAutoStick] = useState(true)
+  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH_SIZE)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement | null>(null)
@@ -145,6 +148,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     !isInterrupting &&
     (isSending || Boolean(activeTurnId))
 
+  const hiddenInMemoryCount = Math.max(0, filteredLogs.length - renderLimit)
+  const renderedLogs = hiddenInMemoryCount > 0 ? filteredLogs.slice(-renderLimit) : filteredLogs
   const showJumpToBottom = filteredLogs.length > 0 && !isNearBottom
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -205,6 +210,28 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     onSend(event)
   }
 
+  const renderEarlierMessages = () => {
+    if (hiddenInMemoryCount <= 0) return
+    const viewport = viewportRef.current
+    const beforeHeight = viewport?.scrollHeight ?? 0
+    const nextLimit = Math.min(filteredLogs.length, renderLimit + RENDER_BATCH_SIZE)
+    setRenderLimit(nextLimit)
+    if (!viewport) return
+    window.requestAnimationFrame(() => {
+      const afterHeight = viewport.scrollHeight
+      viewport.scrollTop += Math.max(0, afterHeight - beforeHeight)
+    })
+  }
+
+  useEffect(() => {
+    setRenderLimit(RENDER_BATCH_SIZE)
+  }, [activeThreadId])
+
+  const handleLoadEarlier = () => {
+    setRenderLimit((previous) => previous + RENDER_BATCH_SIZE)
+    onLoadEarlier?.()
+  }
+
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
       {/* Transcript Area */}
@@ -213,20 +240,28 @@ export function TranscriptPane(props: TranscriptPaneProps) {
           <div className="flex min-w-0 flex-col gap-3 p-4 pb-12 max-w-3xl mx-auto w-full">
             {historyMore ? (
               <div className="flex justify-center">
-                <Button type="button" variant="ghost" size="sm" disabled={historyLoading} onClick={onLoadEarlier}>
+                <Button type="button" variant="ghost" size="sm" disabled={historyLoading} onClick={handleLoadEarlier}>
                   {historyLoading ? 'Loading earlier messages...' : 'Load earlier messages'}
                 </Button>
               </div>
             ) : null}
+
+            {hiddenInMemoryCount > 0 ? (
+              <div className="flex justify-center">
+                <Button type="button" variant="ghost" size="sm" onClick={renderEarlierMessages}>
+                  {`Render earlier messages (${hiddenInMemoryCount} hidden)`}
+                </Button>
+              </div>
+            ) : null}
             
-            {filteredLogs.length === 0 ? (
+            {renderedLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
                     <MessageSquare className="h-8 w-8 text-muted-foreground/20" />
                     <span className="text-sm">Start a thread to begin</span>
                 </div>
             ) : null}
 
-            {filteredLogs.map((item) =>
+            {renderedLogs.map((item) =>
               item.kind === 'log' ? (
                 <div key={item.id} className={cn('rounded-lg border px-3 py-2 text-xs bg-muted/20')}>
                   <div className="mb-1 flex items-center gap-2">
