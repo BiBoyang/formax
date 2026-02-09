@@ -1,103 +1,96 @@
-import { Plus, RefreshCw } from 'lucide-react'
+import { Circle, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadSummary } from '../types'
-import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { Card } from './ui/card'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { ScrollArea } from './ui/scroll-area'
-import { Separator } from './ui/separator'
 
 export type LeftRailProps = {
-  connectionStatus: 'disconnected' | 'connecting' | 'connected'
-  bridgeUrl: string
-  onBridgeUrlChange: (value: string) => void
+  connectionStatus?: 'disconnected' | 'connecting' | 'connected'
+  bridgeUrl?: string
+  onBridgeUrlChange?: (value: string) => void
+  resumeThreadId?: string
+  onResumeThreadIdChange?: (value: string) => void
+  onRefreshThreads?: () => void
+  onResumeThread?: () => void
   threads: ThreadSummary[]
   activeThreadId: string | null
   onSelectThread: (threadId: string) => void
   onStartThread: () => void
-  onRefreshThreads: () => void
-}
-
-function statusVariant(status: LeftRailProps['connectionStatus']): 'secondary' | 'outline' | 'destructive' {
-  if (status === 'connected') return 'secondary'
-  if (status === 'connecting') return 'outline'
-  return 'destructive'
+  isBusy?: boolean
 }
 
 function threadTitle(thread: ThreadSummary): string {
   return thread.label || thread.lastUserPrompt || `Thread ${thread.id.slice(0, 8)}`
 }
 
+function relativeTime(updatedAt: string): string {
+  const ts = Date.parse(updatedAt)
+  if (!Number.isFinite(ts)) return '--'
+  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  return `${days}d`
+}
+
 export function LeftRail(props: LeftRailProps) {
   const {
-    connectionStatus,
-    bridgeUrl,
-    onBridgeUrlChange,
     threads,
     activeThreadId,
+    connectionStatus,
     onSelectThread,
     onStartThread,
-    onRefreshThreads,
+    isBusy = false,
   } = props
 
   return (
-    <aside className="left-rail">
-      <Card className="h-full gap-0 overflow-hidden py-0">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-sm font-semibold">Formax App Server</h1>
-          <Badge variant={statusVariant(connectionStatus)}>{connectionStatus}</Badge>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-3 px-4 py-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="bridge-url">Bridge URL</Label>
-            <Input id="bridge-url" value={bridgeUrl} onChange={(event) => onBridgeUrlChange(event.target.value)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" size="sm" onClick={onStartThread}>
-              <Plus className="size-3.5" />
-              New Thread
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={onRefreshThreads}>
-              <RefreshCw className="size-3.5" />
-              Refresh
+    <aside className="flex flex-col h-screen flex-none w-[260px] border-r bg-sidebar overflow-hidden">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex flex-col min-h-full">
+          <div className="px-2 pt-4 space-y-0.5 flex-none">
+            {connectionStatus ? <div className="px-3 pb-2 text-xs text-muted-foreground">{connectionStatus}</div> : null}
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-9 px-3 text-[14px] font-medium text-foreground/80 hover:bg-muted/40"
+              onClick={onStartThread}
+              disabled={isBusy}
+            >
+              <SquarePen className="mr-3 h-4 w-4 opacity-70" />
+              New thread
             </Button>
           </div>
-        </div>
 
-        <Separator />
+          <div className="flex-1 flex flex-col mt-4 pb-12">
+            <div className="px-5 py-2 text-[12px] font-medium text-muted-foreground/50 tracking-wide flex-none">Threads</div>
 
-        <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Threads</div>
-        <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
-          <div className="space-y-1 px-1">
-            {threads.length === 0 ? <div className="empty px-2 py-4">No threads yet.</div> : null}
-            {threads.map((thread) => (
-              <Button
-                key={thread.id}
-                type="button"
-                variant="ghost"
-                className={cn(
-                  'h-auto w-full justify-start rounded-lg border px-3 py-2 text-left',
-                  thread.id === activeThreadId
-                    ? 'border-primary/35 bg-primary/10 hover:bg-primary/15'
-                    : 'border-transparent hover:bg-muted',
-                )}
-                onClick={() => onSelectThread(thread.id)}
-              >
-                <div className="grid min-w-0 gap-0.5">
-                  <div className="truncate text-sm font-medium">{threadTitle(thread)}</div>
-                  <div className="truncate text-xs text-muted-foreground">{thread.id.slice(0, 8)}</div>
-                </div>
-              </Button>
-            ))}
+            <div className="space-y-0.5 px-2">
+              {threads.length === 0 ? <div className="px-4 py-4 text-xs text-muted-foreground/60 italic">No recent threads</div> : null}
+              {threads.map((thread) => {
+                const isActive = activeThreadId === thread.id
+                return (
+                  <Button
+                    key={thread.id}
+                    variant="ghost"
+                    className={cn(
+                      'w-full justify-between h-9 px-3 font-normal text-[13.5px] transition-all group',
+                      isActive ? 'bg-muted/60 text-foreground font-medium' : 'text-foreground/70 hover:bg-muted/40',
+                    )}
+                    onClick={() => onSelectThread(thread.id)}
+                  >
+                    <span className="truncate flex-1 text-left">{threadTitle(thread)}</span>
+                    <div className="flex items-center gap-2 ml-2 flex-none opacity-50">
+                      {thread.id === activeThreadId ? <Circle className="h-1.5 w-1.5 fill-emerald-500 text-emerald-500" /> : null}
+                      <span className="text-[11px] font-mono">{relativeTime(thread.updatedAt)}</span>
+                    </div>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
-        </ScrollArea>
-      </Card>
+        </div>
+      </div>
     </aside>
   )
 }
