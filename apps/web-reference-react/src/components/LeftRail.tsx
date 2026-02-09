@@ -19,7 +19,11 @@ export type LeftRailProps = {
 }
 
 function threadTitle(thread: ThreadSummary): string {
-  return thread.label || thread.lastUserPrompt || `Thread ${thread.id.slice(0, 8)}`
+  const label = thread.label?.trim()
+  if (label) return label
+  const prompt = thread.lastUserPrompt?.trim()
+  if (prompt) return prompt
+  return 'New Thread'
 }
 
 function relativeTime(updatedAt: string): string {

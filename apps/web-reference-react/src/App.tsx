@@ -6,8 +6,8 @@ import { RpcClient, RpcRequestError } from './rpcClient'
 import { PanelLeft } from 'lucide-react'
 import { appReducer, initialAppState } from './store'
 import type { PendingInput, ResolvedInput, RpcNotification, ThreadMessage, ThreadSummary, TranscriptItem } from './types'
-import { cn } from './lib/utils' // Assuming cn utility is available
-import { Button } from './components/ui/button' // Assuming Button component is available
+import { cn } from './lib/utils'
+import { Button } from './components/ui/button'
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
@@ -51,6 +51,15 @@ function asThreadSummaries(value: unknown): ThreadSummary[] {
   if (!value || typeof value !== 'object') return []
   const data = (value as { data?: unknown }).data
   return Array.isArray(data) ? (data as ThreadSummary[]) : []
+}
+
+function displayThreadTitle(thread: ThreadSummary | undefined): string {
+  if (!thread) return 'New Thread'
+  const label = thread.label?.trim()
+  if (label) return label
+  const prompt = thread.lastUserPrompt?.trim()
+  if (prompt) return prompt
+  return 'New Thread'
 }
 
 function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: string | null } {
@@ -678,6 +687,8 @@ export function App() {
     () => state.threads.find((t) => t.id === state.activeThreadId),
     [state.threads, state.activeThreadId],
   )
+  const activeThreadTitle = displayThreadTitle(activeThread)
+  const activeThreadLabel = state.activeThreadId ? `thread ${state.activeThreadId.slice(0, 8)}` : null
 
   useEffect(() => {
     const syncRightRailWidth = () => {
@@ -710,79 +721,104 @@ export function App() {
         />
       </div>
 
-      <div data-testid="center-pane-host" className="flex-1 flex flex-col relative h-full min-w-0">
-        <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 left-4 z-50 h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        >
-            <PanelLeft className="h-4 w-4" />
-        </Button>
-        <TranscriptPane
-          activeThread={activeThread}
-          activeThreadId={state.activeThreadId}
-          activeTurnId={state.activeTurnId}
+      <div className="flex-1 min-w-0 h-full flex flex-col">
+        <header className="h-14 flex-none border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+          <div className="h-full min-w-0 flex items-center px-4">
+            <div className="flex-1 min-w-0 flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                aria-label="Toggle sidebar"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0 flex flex-col leading-tight">
+                <div className="truncate text-[14px] font-semibold text-foreground">{activeThreadTitle}</div>
+                {activeThreadLabel ? <div className="truncate text-[12px] text-muted-foreground">{activeThreadLabel}</div> : null}
+              </div>
+            </div>
+            <div className="ml-3 flex shrink-0 items-center gap-2">
+              {state.activeTurnId ? (
+                <div className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  turn {state.activeTurnId.slice(0, 8)}
+                </div>
+              ) : null}
+              <div className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                {state.connectionStatus}
+              </div>
+            </div>
+          </div>
+        </header>
 
-          logs={activeLogs}
-          inputText={inputText}
-          connectionStatus={state.connectionStatus}
-          onInputTextChange={setInputText}
-          onSend={onSend}
-          onInterrupt={() => void interruptTurn().catch(() => undefined)}
-          historyMore={Boolean(state.activeThreadId && historyCursorByThreadId[state.activeThreadId])}
-          historyLoading={activeHistoryLoading}
-          onLoadEarlier={() => void loadEarlierHistory().catch(() => undefined)}
-          isSending={isSendingTurn}
-          isInterrupting={isInterruptingTurn}
-          lastRpcError={lastRpcError}
-        />
-      </div>
+        <div className="flex-1 min-h-0 min-w-0 flex">
+          <div data-testid="center-pane-host" className="flex-1 flex flex-col relative h-full min-w-0">
+            <TranscriptPane
+              activeThread={activeThread}
+              activeThreadId={state.activeThreadId}
+              activeTurnId={state.activeTurnId}
 
-      {/* Draggable Divider */}
-      <div 
-        className="w-[1px] h-full flex-none cursor-col-resize hover:bg-primary/50 bg-border relative group z-[100]"
-        onMouseDown={(e) => {
-            const startX = e.pageX
-            const startWidth = rightRailWidth
-            
-            const onMouseMove = (moveEvent: MouseEvent) => {
+              logs={activeLogs}
+              inputText={inputText}
+              connectionStatus={state.connectionStatus}
+              onInputTextChange={setInputText}
+              onSend={onSend}
+              onInterrupt={() => void interruptTurn().catch(() => undefined)}
+              historyMore={Boolean(state.activeThreadId && historyCursorByThreadId[state.activeThreadId])}
+              historyLoading={activeHistoryLoading}
+              onLoadEarlier={() => void loadEarlierHistory().catch(() => undefined)}
+              isSending={isSendingTurn}
+              isInterrupting={isInterruptingTurn}
+              lastRpcError={lastRpcError}
+            />
+          </div>
+
+          <div
+            className="w-[1px] h-full flex-none cursor-col-resize hover:bg-primary/50 bg-border relative group z-[100]"
+            onMouseDown={(e) => {
+              const startX = e.pageX
+              const startWidth = rightRailWidth
+
+              const onMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.pageX
                 const newWidth = clampRightRailWidth(startWidth + deltaX, window.innerWidth, isSidebarOpen)
                 setRightRailWidth(newWidth)
-            }
-            
-            const onMouseUp = () => {
+              }
+
+              const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove)
                 document.removeEventListener('mouseup', onMouseUp)
                 document.body.style.cursor = 'default'
-            }
-            
-            document.addEventListener('mousemove', onMouseMove)
-            document.addEventListener('mouseup', onMouseUp)
-            document.body.style.cursor = 'col-resize'
-        }}
-      >
-        <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
-      </div>
+              }
 
-      {/* Right Rail Container - dynamic width */}
-      <div 
-        data-testid="right-rail"
-        className="flex-none min-w-0 bg-white h-full overflow-hidden overflow-x-hidden" 
-        style={{ width: rightRailWidth }}
-      >
-        <PendingInputPane
-            pendingInputs={state.pendingInputs}
-            selectedInputId={state.selectedInputId}
-            onSelectInput={(inputId) => dispatch({ type: 'set_selected_input', inputId })}
-            onSubmitInput={(answers) => void submitSelectedInput(answers).catch(() => undefined)}
-            submitStatusByInputId={submitStatusByInputId}
-            isSubmitting={isSubmittingInput}
-            diffSnapshot={diffSnapshot}
-            onRefreshDiff={() => void refreshWorkspaceDiff().catch(() => undefined)}
-            isRefreshingDiff={isRefreshingDiff}
-        />
+              document.addEventListener('mousemove', onMouseMove)
+              document.addEventListener('mouseup', onMouseUp)
+              document.body.style.cursor = 'col-resize'
+            }}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
+          </div>
+
+          <div
+            data-testid="right-rail"
+            className="flex-none min-w-0 bg-white h-full overflow-hidden overflow-x-hidden"
+            style={{ width: rightRailWidth }}
+          >
+            <PendingInputPane
+              pendingInputs={state.pendingInputs}
+              selectedInputId={state.selectedInputId}
+              onSelectInput={(inputId) => dispatch({ type: 'set_selected_input', inputId })}
+              onSubmitInput={(answers) => void submitSelectedInput(answers).catch(() => undefined)}
+              submitStatusByInputId={submitStatusByInputId}
+              isSubmitting={isSubmittingInput}
+              diffSnapshot={diffSnapshot}
+              onRefreshDiff={() => void refreshWorkspaceDiff().catch(() => undefined)}
+              isRefreshingDiff={isRefreshingDiff}
+              showHeader
+            />
+          </div>
+        </div>
       </div>
     </div>
   )

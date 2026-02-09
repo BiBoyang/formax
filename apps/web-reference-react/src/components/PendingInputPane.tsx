@@ -39,6 +39,7 @@ export type PendingInputPaneProps = {
   diffSnapshot?: DiffSnapshot | null
   onRefreshDiff?: () => void
   isRefreshingDiff?: boolean
+  showHeader?: boolean
 }
 
 function parsePatchRows(patch: string): DiffRow[] {
@@ -118,6 +119,7 @@ export function PendingInputPane(props: PendingInputPaneProps) {
     diffSnapshot = null,
     onRefreshDiff,
     isRefreshingDiff = false,
+    showHeader = true,
   } = props
   const [openFiles, setOpenFiles] = useState<Record<string, boolean>>({})
   const [listOpen, setListOpen] = useState(true)
@@ -128,23 +130,24 @@ export function PendingInputPane(props: PendingInputPaneProps) {
 
   return (
     <aside className="h-full w-full min-w-0 flex flex-col overflow-hidden overflow-x-hidden bg-white selection:bg-primary/10">
-      {/* Target Header */}
-      <div className="flex-none flex items-center justify-between px-6 h-14 bg-white z-[30]">
-          <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setListOpen(!listOpen)}>
-              <h2 className="text-[13px] font-semibold text-foreground/85">Uncommitted worktree changes</h2>
-              <ChevronDown className={cn("size-3.5 text-muted-foreground/50 transition-transform", !listOpen && "-rotate-90")} />
-          </div>
+      {showHeader ? (
+        <div className="flex-none flex items-center justify-between px-6 h-14 bg-white z-[30]">
+            <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setListOpen(!listOpen)}>
+                <h2 className="text-[13px] font-semibold text-foreground/85">Uncommitted worktree changes</h2>
+                <ChevronDown className={cn("size-3.5 text-muted-foreground/50 transition-transform", !listOpen && "-rotate-90")} />
+            </div>
 
-          <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2.5 text-muted-foreground/35">
-                  <span className="text-[11px] text-muted-foreground/70">Changes: {files.length}</span>
-                  <RefreshCw 
-                    className={cn("size-3.5 hover:text-foreground/60 transition-all cursor-pointer", isRefreshingDiff && "animate-spin")} 
-                    onClick={(e) => { e.stopPropagation(); onRefreshDiff?.() }}
-                  />
-              </div>
-          </div>
-      </div>
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2.5 text-muted-foreground/35">
+                    <span className="text-[11px] text-muted-foreground/70">Changes: {files.length}</span>
+                    <RefreshCw 
+                      className={cn("size-3.5 hover:text-foreground/60 transition-all cursor-pointer", isRefreshingDiff && "animate-spin")} 
+                      onClick={(e) => { e.stopPropagation(); onRefreshDiff?.() }}
+                    />
+                </div>
+            </div>
+        </div>
+      ) : null}
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 min-w-0 relative">

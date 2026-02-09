@@ -21,7 +21,7 @@ describe('PendingInputPane', () => {
       kind: 'approval' as const,
       status: 'pending' as const,
       createdAt: '2026-02-09T00:00:00.000Z',
-      expiresAt: '2026-02-09T00:05:00.000Z',
+      expiresAt: '2030-02-09T00:05:00.000Z',
       payload: {
         toolName: 'Bash',
         action: { kind: 'bash.exec' },
@@ -38,9 +38,9 @@ describe('PendingInputPane', () => {
       />,
     )
 
-    selectOption('Decision', 'approve_remember')
-    selectOption('Scope', 'workspace')
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Input' }))
+    selectOption('Decision', 'Approve & Remember')
+    selectOption('Scope', 'Workspace (Persist)')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     expect(onSubmitInput).toHaveBeenCalledWith({
       decision: 'approve_remember',
@@ -60,7 +60,7 @@ describe('PendingInputPane', () => {
       kind: 'ask_user_question' as const,
       status: 'pending' as const,
       createdAt: '2026-02-09T00:00:00.000Z',
-      expiresAt: '2026-02-09T00:05:00.000Z',
+      expiresAt: '2030-02-09T00:05:00.000Z',
       payload: {
         questions: [
           {
@@ -87,7 +87,7 @@ describe('PendingInputPane', () => {
     )
 
     selectOption('Choice', 'B')
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Input' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Answer' }))
 
     expect(onSubmitInput).toHaveBeenCalledWith({ choice: 'B' })
   })
@@ -122,6 +122,6 @@ describe('PendingInputPane', () => {
     expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
     expect(screen.getByText('apps/web-reference-react/src/App.tsx')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /apps\/web-reference-react\/src\/App\.tsx/i }))
-    expect(screen.getByText('+new')).toBeInTheDocument()
+    expect(screen.getByText('new')).toBeInTheDocument()
   })
 })
