@@ -409,4 +409,33 @@ describe('TranscriptPane', () => {
       rafSpy.mockRestore()
     }
   })
+
+  it('caps active-turn render window for very long histories', async () => {
+    const logs = Array.from({ length: 600 }, (_, index) => ({
+      id: `long-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `long-msg-${index}`,
+    }))
+
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+          activeTurnId: 'turn-long',
+        })}
+      />,
+    )
+
+    expect(screen.getByText('long-msg-599')).toBeInTheDocument()
+    expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('long-msg-400')).toBeInTheDocument()
+      },
+      { timeout: 4000 },
+    )
+    expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+  })
 })
