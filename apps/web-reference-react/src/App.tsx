@@ -247,23 +247,31 @@ export function App() {
   const loadThreadHistory = useCallback(
     async (threadId: string) => {
       const token = ++historyLoadTokenRef.current
+      const previousLogs = state.logs
       setIsLoadingHistory(true)
-      dispatch({ type: 'set_active_turn', turnId: null })
-      dispatch({ type: 'clear_pending_inputs' })
-      dispatch({ type: 'replace_logs', logs: [] })
       try {
         const historyResult = await request('thread/messages', { threadId, limit: 50 })
-        if (token !== historyLoadTokenRef.current) return
+        if (token !== historyLoadTokenRef.current) return false
+        if (activeThreadIdRef.current !== threadId) return false
         const parsed = asThreadMessages(historyResult)
+        dispatch({ type: 'set_active_turn', turnId: null })
+        dispatch({ type: 'clear_pending_inputs' })
         dispatch({ type: 'replace_logs', logs: mapThreadHistoryToLogs(threadId, parsed.data) })
         setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+        return true
+      } catch {
+        if (token !== historyLoadTokenRef.current) return false
+        if (activeThreadIdRef.current !== threadId) return false
+        dispatch({ type: 'replace_logs', logs: previousLogs })
+        log('Failed to load thread history. Keeping previous transcript.', 'warn')
+        return false
       } finally {
         if (token === historyLoadTokenRef.current) {
           setIsLoadingHistory(false)
         }
       }
     },
-    [request],
+    [log, request, state.logs],
   )
 
   const initializeHandshake = useCallback(async () => {
@@ -458,6 +466,7 @@ export function App() {
       const result = await request('thread/start', {})
       const thread = result?.thread as { id?: string } | undefined
       if (thread?.id) {
+        activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
         await loadThreadHistory(thread.id)
         await refreshThreads()
@@ -569,10 +578,21 @@ export function App() {
 
   const selectThread = useCallback(
     (threadId: string) => {
+      if (threadId === state.activeThreadId) return
+      const previousThreadId = state.activeThreadId
+      activeThreadIdRef.current = threadId
       dispatch({ type: 'set_active_thread', threadId })
-      void loadThreadHistory(threadId).catch(() => undefined)
+      void loadThreadHistory(threadId)
+        .then((loaded) => {
+          if (loaded) return
+          if (activeThreadIdRef.current === threadId) {
+            activeThreadIdRef.current = previousThreadId
+            dispatch({ type: 'set_active_thread', threadId: previousThreadId })
+          }
+        })
+        .catch(() => undefined)
     },
-    [loadThreadHistory],
+    [loadThreadHistory, state.activeThreadId],
   )
 
   const loadEarlierHistory = useCallback(async () => {
