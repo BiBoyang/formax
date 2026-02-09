@@ -145,14 +145,14 @@
 
 ### A2. 渐进渲染（参考 opencode，不上虚拟列表）
 
-- [ ] 引入 `turnStart` 渐进渲染窗口
+- [x] 引入 `turnStart` 渐进渲染窗口
   - 初始只渲染最近 `turnInit = 30` 条（可配置）
   - 后台回填批次 `turnBatch = 20`
-- [ ] 使用 `requestIdleCallback`（fallback `setTimeout(0)`）做回填调度
-- [ ] 回填锚点补偿
+- [x] 使用 `requestIdleCallback`（fallback `setTimeout(0)`）做回填调度
+- [x] 回填锚点补偿
   - 回填前记录 `beforeTop/beforeHeight`
   - 回填后执行 `scrollTop += (newHeight - beforeHeight)`
-- [x] 增加 “Render earlier messages” 按钮（一次性展开已拉取历史）
+- [x] 增加 “Render earlier messages” 按钮（批量展开已拉取历史）
 
 ### A3. 历史分页入口（超长会话）
 
@@ -167,7 +167,7 @@
 
 - [x] 保留粘底，但用户上翻后不抢滚动（`userScrolled`）
 - [x] 输入区上方显示“回到底部”按钮（仅 overflow 且非 bottom）
-- [ ] 滚动容器设置 `overflow-anchor` 策略，避免浏览器锚点干扰
+- [x] 滚动容器设置 `overflow-anchor` 策略，避免浏览器锚点干扰
 - [ ] nested scroll 边界手势只在必要时接管（避免误触抢滚动）
 
 ### A5. 验收（Phase A Done）
