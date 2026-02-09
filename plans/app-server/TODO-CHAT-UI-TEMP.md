@@ -9,7 +9,7 @@
   - 现象：当前主区域大量小按钮 + info 日志卡片，阅读重心错误
   - 验收：默认首屏以会话内容（标题/消息流/输入）为中心，日志信息默认弱化或折叠
 
-- [ ] 回合结束后自动清理/折叠 `thinking` 行
+- [x] 回合结束后自动清理/折叠 `thinking` 行
   - 现象：turn 已 completed 仍显示 `thinking`
   - 验收：`turn/completed` 后主聊天流不再显示该 turn 的进行中 thinking 指示
 
