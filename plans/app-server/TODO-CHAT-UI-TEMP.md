@@ -141,7 +141,7 @@
 - [ ] `AppState` 增加 `logsByThreadId`、`historyCursorByThreadId`、`historyLoadingByThreadId`
 - [x] 选择线程时加载该线程第一页历史；并切换 `activeThreadId` 对应 transcript 视图
 - [x] 清理线程污染：切线程时不复用上一线程 `activeTurn/pendingInput`
-- [ ] 错误回退：历史加载失败时保留旧渲染并提示可重试
+- [x] 错误回退：历史加载失败时保留旧渲染并提示可重试
 
 ### A2. 渐进渲染（参考 opencode，不上虚拟列表）
 
@@ -152,21 +152,21 @@
 - [ ] 回填锚点补偿
   - 回填前记录 `beforeTop/beforeHeight`
   - 回填后执行 `scrollTop += (newHeight - beforeHeight)`
-- [ ] 增加 “Render earlier messages” 按钮（一次性展开已拉取历史）
+- [x] 增加 “Render earlier messages” 按钮（一次性展开已拉取历史）
 
 ### A3. 历史分页入口（超长会话）
 
 - [x] 顶部或列表起始处增加 “Load earlier messages”
 - [x] `historyLoading` 态文案：`Loading earlier messages...`
-- [ ] 分页参数默认
+- [x] 分页参数默认
   - `limit = 50`
   - 单次 `loadMore = +50`
   - 上限保护（客户端显示层可配）
 
 ### A4. 自动滚动与手势稳定性
 
-- [ ] 保留粘底，但用户上翻后不抢滚动（`userScrolled`）
-- [ ] 输入区上方显示“回到底部”按钮（仅 overflow 且非 bottom）
+- [x] 保留粘底，但用户上翻后不抢滚动（`userScrolled`）
+- [x] 输入区上方显示“回到底部”按钮（仅 overflow 且非 bottom）
 - [ ] 滚动容器设置 `overflow-anchor` 策略，避免浏览器锚点干扰
 - [ ] nested scroll 边界手势只在必要时接管（避免误触抢滚动）
 
