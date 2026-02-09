@@ -59,16 +59,17 @@ Transcript 类型要求（必须可区分）：
 3. `tool`（至少 start/update/end 可追踪）
 4. `system`（握手、错误、状态变更）
 
-## 2.3 右栏（Pending Inputs）
+## 2.3 右栏（Diff + Pending Inputs）
 
 必须包含：
 
+- diff / tool timeline（`tool_start/tool_update/tool_end`）
 - pending input 列表（至少显示 `kind`、`toolUseId`）
-- 选中态
-- input 详情与提交表单
+- pending 选中态 + input 详情与提交表单
 
 行为：
 
+1. 右栏主区域优先显示 diff/tool 时间线，保障调试链路可追踪。
 1. `turn/inputRequested` 到达后加入列表。
 2. `turn/inputResolved` 到达后从列表移除。
 3. 无 pending input 时显示空状态文案。
@@ -115,9 +116,12 @@ Transcript 类型要求（必须可区分）：
 
 要求：
 
-1. UI 可提交 command 文本（如 `/permissions`、`/agents` 的可用子集）。
-2. command 结果必须进入 transcript，且标记为 system/tool 输出。
-3. command 失败时必须展示错误 message（建议附 code）。
+1. 一期 commander 子集固定为：`/permissions`、`/agents`、`/hooks`。
+2. UI 需提供 command 输入路径：
+   - composer 直接输入 `/...`
+   - 快捷命令按钮（至少包含 3 个子集命令）
+3. command 结果必须进入 transcript，且标记为 system/tool 输出。
+4. command 失败时必须展示错误 message（建议附 code）。
 
 ## 4. 必须保留的操作可见性
 
@@ -157,7 +161,7 @@ Transcript 类型要求（必须可区分）：
 
 1. 页面高度固定为视口高度，禁止出现“输入框被推到页面底部外”的布局。
 2. Transcript 区必须独立滚动。
-3. 左栏线程列表与右栏 pending 列表必须独立滚动。
+3. 左栏线程列表、右栏 diff 区与 pending 区都必须独立滚动。
 4. 移动/窄屏可改为上下布局，但三区域信息不可缺失。
 
 ## 8. 与逻辑层的职责边界
@@ -180,3 +184,10 @@ Transcript 类型要求（必须可区分）：
 7. 在窄屏和宽屏下输入框始终可见。
 8. transcript 中能区分 user/assistant/tool/system 四类输出。
 9. commander 子集命令可提交并在 transcript 中看到结果或错误。
+
+## 10. 样式约束（执行规则）
+
+1. 业务组件必须优先组合 `shadcn/ui` 原子组件（`Card`、`Badge`、`Button`、`Input`、`ScrollArea` 等）。
+2. 视觉 token 统一来自 `apps/web-reference-react/src/css/theme.css`，禁止在业务组件中引入第二套颜色/阴影变量。
+3. 允许在 `styles.css` 定义布局骨架（grid/flex/scroll），但禁止在业务组件里叠加临时“补丁式”内联视觉规则。
+4. 新增组件若不满足以上约束，视为 UI 规范不通过。

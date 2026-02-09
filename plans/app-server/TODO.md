@@ -39,8 +39,8 @@
 
 验收标准（可观察断言）：
 
-- [ ] 新成员只阅读 4 份文档（Product/Contract/UI/API）即可完整描述 thread/turn/input 闭环。
-- [ ] 文档中不存在互相冲突的字段命名与状态枚举。
+- [x] 新成员只阅读 4 份文档（Product/Contract/UI/API）即可完整描述 thread/turn/input 闭环。
+- [x] 文档中不存在互相冲突的字段命名与状态枚举。
 
 ---
 
@@ -70,21 +70,21 @@
 - [x] 拆分基础结构：`rpcClient + store + 视图组件`。
 - [x] 接入 Tailwind v4 + `shadcn/ui` 基线（保留 `src/css/theme.css` 作为主题源）。
 - [x] 增加“连接生命周期提示”（connecting/connected/disconnected 时间戳）。
-- [ ] 增加 turn 过滤视图（只看当前 turn / 看全部）。
-- [ ] 在 input 面板展示 `expiresAt` 倒计时。
-- [ ] 在 submit 结果上区分 `already_submitted_same` 与 `conflict_already_submitted` 的视觉等级。
-- [ ] 增加 resume 流程入口（输入 threadId -> `thread/resume` -> 应用 staleInputs）。
-- [ ] 增加错误详情抽屉（展示 JSON-RPC `code/message/data`）。
-- [ ] transcript 渲染类型化：显式区分 `user/assistant/tool/system`。
+- [x] 增加 turn 过滤视图（只看当前 turn / 看全部）。
+- [x] 在 input 面板展示 `expiresAt` 倒计时。
+- [x] 在 submit 结果上区分 `already_submitted_same` 与 `conflict_already_submitted` 的视觉等级。
+- [x] 增加 resume 流程入口（输入 threadId -> `thread/resume` -> 应用 staleInputs）。
+- [x] 增加错误详情抽屉（展示 JSON-RPC `code/message/data`）。
+- [x] transcript 渲染类型化：显式区分 `user/assistant/tool/system`。
 - [x] 修复 `thinking_delta`（thinkultra）渲染异常：避免大量重复行挤压主对话区，改为可折叠的 thinking 块并支持增量合并。
-- [ ] tool 事件最小展示：`tool_start/tool_update/tool_end` 按序可追踪。
+- [x] tool 事件最小展示：`tool_start/tool_update/tool_end` 按序可追踪。
 
 验收标准（可观察断言）：
 
-- [ ] 无需查看源码，仅通过 UI 可完成：new thread -> turn -> input submit -> completed。
-- [ ] stale input 情况下，UI 明确显示“已失效且不可再提交”。
-- [ ] 同一 turn 的 tool 流程在 transcript 可还原顺序。
-- [ ] 长链路 `thinking_delta` 不会淹没 user/assistant 主消息，且可按 turn 定位查看。
+- [x] 无需查看源码，仅通过 UI 可完成：new thread -> turn -> input submit -> completed。
+- [x] stale input 情况下，UI 明确显示“已失效且不可再提交”。
+- [x] 同一 turn 的 tool 流程在 transcript 可还原顺序。
+- [x] 长链路 `thinking_delta` 不会淹没 user/assistant 主消息，且可按 turn 定位查看。
 
 ---
 
@@ -92,15 +92,15 @@
 
 目标：先实现“可执行 + 可追踪”的 command 能力，不做 overlay 对齐。
 
-- [ ] 定义一期 commander 子集（建议先 `/permissions`、`/agents`、`/hooks` 中可输出项）。
-- [ ] UI 增加 command 输入路径（可与 composer 共用，保留前缀 `/`）。
-- [ ] command 请求结果写入 transcript（成功/失败均可见）。
-- [ ] command 错误统一映射为可读日志（message + 可选 code）。
+- [x] 定义一期 commander 子集（建议先 `/permissions`、`/agents`、`/hooks` 中可输出项）。
+- [x] UI 增加 command 输入路径（可与 composer 共用，保留前缀 `/`）。
+- [x] command 请求结果写入 transcript（成功/失败均可见）。
+- [x] command 错误统一映射为可读日志（message + 可选 code）。
 
 验收标准（可观察断言）：
 
-- [ ] 至少 2 个 command 子集在 GUI 端可执行并返回可读结果。
-- [ ] command 异常不会破坏普通 turn 流程。
+- [x] 至少 2 个 command 子集在 GUI 端可执行并返回可读结果。
+- [x] command 异常不会破坏普通 turn 流程。
 
 ---
 
@@ -108,24 +108,24 @@
 
 目标：提升“长时间调试可用性”，不追求高保真视觉。
 
-- [ ] 固化三区域独立滚动，防止输入区被内容挤出可视区。
-- [x] 三栏布局重构（左侧导航/中间会话/右侧 input 工作台）并统一间距、层级、面板分割；参考 `formax-clone` 的结构与输入区层次，仅借鉴布局不复用业务内容。
-- [ ] transcript 增加粘底开关（auto-scroll on/off）。
-- [ ] 增加日志级别过滤（info/warn/error）。
-- [ ] 增加最小空态文案规范（线程空态、转录空态、input 空态）。
-- [ ] 增加窄屏布局规范实现（<900px 时上下结构）。
-- [ ] 为关键动作增加忙碌态（发送中、提交中、中断中）。
-- [ ] approval 表单显示完整上下文（toolName/action/effectiveDecision/workspaceRequest）。
-- [ ] 样式实现统一迁移到 `shadcn/ui` 组件层（Card/Badge/Button/Input/ScrollArea 等）；停止新增“纯手写散样式”。
-- [ ] 建立样式约束：业务组件仅组合 `shadcn/ui` + 主题 token（`src/css/theme.css`），避免组件内直接堆叠临时视觉规则。
+- [x] 固化三区域独立滚动，防止输入区被内容挤出可视区。
+- [x] 三栏布局重构（左侧导航/中间会话/右侧 diff/pending 工作台）并统一间距、层级、面板分割；参考 `formax-clone` 的结构与输入区层次，仅借鉴布局不复用业务内容。
+- [x] transcript 增加粘底开关（auto-scroll on/off）。
+- [x] 增加日志级别过滤（info/warn/error）。
+- [x] 增加最小空态文案规范（线程空态、转录空态、input 空态）。
+- [x] 增加窄屏布局规范实现（<900px 时上下结构）。
+- [x] 为关键动作增加忙碌态（发送中、提交中、中断中）。
+- [x] approval 表单显示完整上下文（toolName/action/effectiveDecision/workspaceRequest）。
+- [x] 样式实现统一迁移到 `shadcn/ui` 组件层（Card/Badge/Button/Input/ScrollArea 等）；停止新增“纯手写散样式”。
+- [x] 建立样式约束：业务组件仅组合 `shadcn/ui` + 主题 token（`src/css/theme.css`），避免组件内直接堆叠临时视觉规则。
 
 验收标准（可观察断言）：
 
-- [ ] 在大量事件流下，输入框始终可见并可操作。
-- [ ] 三栏在桌面端保持稳定信息层级，移动端按优先级折叠，不出现主会话区被侧栏挤压的情况。
-- [ ] 用户能在不滚屏找日志的情况下定位最近一次失败原因。
-- [ ] approval 提交前用户可见完整决策上下文，不依赖开发者工具。
-- [ ] 新增 UI 页面/组件默认复用 `shadcn/ui` 组件与主题变量，不再引入第二套视觉体系。
+- [x] 在大量事件流下，输入框始终可见并可操作。
+- [x] 三栏在桌面端保持稳定信息层级，移动端按优先级折叠，不出现主会话区被侧栏挤压的情况。
+- [x] 用户能在不滚屏找日志的情况下定位最近一次失败原因。
+- [x] approval 提交前用户可见完整决策上下文，不依赖开发者工具。
+- [x] 新增 UI 页面/组件默认复用 `shadcn/ui` 组件与主题变量，不再引入第二套视觉体系。
 
 ---
 
@@ -143,7 +143,7 @@
 验收标准（可观察断言）：
 
 - [x] `npm run test` 可在子项目独立通过。
-- [ ] 修改 UI 组件时，若破坏交互 contract，至少有 1 条测试失败提示。
+- [x] 修改 UI 组件时，若破坏交互 contract，至少有 1 条测试失败提示。
 
 ---
 
@@ -151,15 +151,15 @@
 
 目标：达到可持续迭代的 MVP 质量门槛。
 
-- [ ] 生成最终验收报告：`plans/app-server/FINAL-ACCEPTANCE.md`（补齐 v2 条目）。
-- [ ] 完成“20 次 thread/turn 闭环 + 10 次 approval + 10 次 ask_user_question”手工记录模板。
-- [ ] 完成“重启恢复 + stale input 提交失败”手工记录模板。
-- [ ] 文档索引更新：`plans/TODO-INDEX.md`、`README.md`（reference client 路径说明）。
+- [x] 生成最终验收报告：`plans/app-server/FINAL-ACCEPTANCE.md`（补齐 v2 条目）。
+- [x] 完成“20 次 thread/turn 闭环 + 10 次 approval + 10 次 ask_user_question”手工记录模板。
+- [x] 完成“重启恢复 + stale input 提交失败”手工记录模板。
+- [x] 文档索引更新：`plans/TODO-INDEX.md`、`README.md`（reference client 路径说明）。
 
 验收标准（可观察断言）：
 
-- [ ] 产品目标（`PRODUCT-SPEC.md` §7）中的门槛全部具备对应证据。
-- [ ] TODO 中未完成项可解释为“明确后续范围”，而非遗漏。
+- [x] 产品目标（`PRODUCT-SPEC.md` §7）中的门槛全部具备对应证据。
+- [x] TODO 中未完成项可解释为“明确后续范围”，而非遗漏。
 
 ---
 
