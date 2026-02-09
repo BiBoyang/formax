@@ -333,6 +333,9 @@ export function App() {
 
         case 'turn/completed': {
           const turnId = String(params?.turn?.id ?? '')
+          if (turnId) {
+            dispatch({ type: 'finalize_turn_thinking', turnId })
+          }
           dispatch({ type: 'set_active_turn', turnId: null })
           const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
           if (command) {
@@ -347,6 +350,9 @@ export function App() {
 
         case 'turn/failed': {
           const turnId = String(params?.turn?.id ?? '')
+          if (turnId) {
+            dispatch({ type: 'finalize_turn_thinking', turnId })
+          }
           dispatch({ type: 'set_active_turn', turnId: null })
           const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
           if (command) {

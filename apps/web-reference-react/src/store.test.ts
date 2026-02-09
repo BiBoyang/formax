@@ -60,6 +60,27 @@ describe('appReducer', () => {
     })
   })
 
+  it('clears finalized turn thinking rows while keeping other transcript items', () => {
+    const state = appReducer(initialAppState, {
+      type: 'replace_logs',
+      logs: [
+        { id: 'thinking-1', kind: 'thinking', turnId: 'turn-1', text: 'working' },
+        { id: 'assistant-1', kind: 'message', role: 'assistant', turnId: 'turn-1', text: 'done' },
+        { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running' },
+      ],
+    })
+
+    const finalized = appReducer(state, {
+      type: 'finalize_turn_thinking',
+      turnId: 'turn-1',
+    })
+
+    expect(finalized.logs).toEqual([
+      { id: 'assistant-1', kind: 'message', role: 'assistant', turnId: 'turn-1', text: 'done' },
+      { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running' },
+    ])
+  })
+
   it('tracks input requested -> resolved and clears selected input', () => {
     const input = createPendingInput()
 

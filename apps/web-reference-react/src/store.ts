@@ -24,6 +24,7 @@ export type AppAction =
   | { type: 'bind_last_user_message_turn'; turnId: string }
   | { type: 'append_assistant_delta'; turnId: string; text: string }
   | { type: 'append_thinking_delta'; turnId: string; text: string }
+  | { type: 'finalize_turn_thinking'; turnId: string }
   | {
       type: 'append_tool_event'
       turnId: string
@@ -158,6 +159,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         turnId: action.turnId,
       }
       return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'finalize_turn_thinking': {
+      const nextLogs = state.logs.filter((item) => item.kind !== 'thinking' || item.turnId !== action.turnId)
+      if (nextLogs.length === state.logs.length) return state
+      return { ...state, logs: nextLogs }
     }
 
     case 'append_tool_event': {
