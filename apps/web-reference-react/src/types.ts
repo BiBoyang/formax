@@ -24,6 +24,8 @@ export type RpcResponse = {
   }
 }
 
+export type RpcErrorObject = NonNullable<RpcResponse['error']>
+
 export type ThreadSummary = {
   id: string
   cwd: string
@@ -46,7 +48,29 @@ export type PendingInput = {
   payload: any
 }
 
+export type ResolvedInput = {
+  inputId: string
+  threadId: string
+  turnId: string
+  toolUseId: string
+  kind: 'approval' | 'ask_user_question'
+  status: 'submitted' | 'canceled' | 'expired' | 'failed'
+  createdAt: string
+  expiresAt: string
+  resolvedAt: string
+  reason?: string
+}
+
 export type TranscriptItem =
-  | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error' }
+  | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
   | { id: string; kind: 'thinking'; text: string; turnId?: string }
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }
+  | {
+      id: string
+      kind: 'tool'
+      turnId?: string
+      toolUseId?: string
+      toolName?: string
+      phase: 'start' | 'update' | 'end'
+      text: string
+    }

@@ -16,10 +16,19 @@ export type AppAction =
   | { type: 'set_threads'; threads: ThreadSummary[] }
   | { type: 'set_active_thread'; threadId: string | null }
   | { type: 'set_active_turn'; turnId: string | null }
-  | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error' }
+  | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error'; turnId?: string }
   | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string }
+  | { type: 'bind_last_user_message_turn'; turnId: string }
   | { type: 'append_assistant_delta'; turnId: string; text: string }
   | { type: 'append_thinking_delta'; turnId: string; text: string }
+  | {
+      type: 'append_tool_event'
+      turnId: string
+      toolUseId?: string
+      toolName?: string
+      phase: 'start' | 'update' | 'end'
+      text: string
+    }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string }
   | { type: 'set_selected_input'; inputId: string | null }
@@ -58,6 +67,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         kind: 'log',
         text: action.text,
         level: action.level ?? 'info',
+        ...(action.turnId ? { turnId: action.turnId } : {}),
       }
       return { ...state, logs: [...state.logs, next] }
     }
@@ -71,6 +81,18 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...(action.turnId ? { turnId: action.turnId } : {}),
       }
       return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'bind_last_user_message_turn': {
+      for (let idx = state.logs.length - 1; idx >= 0; idx -= 1) {
+        const item = state.logs[idx]
+        if (item?.kind === 'message' && item.role === 'user' && !item.turnId) {
+          const updated = state.logs.slice()
+          updated[idx] = { ...item, turnId: action.turnId }
+          return { ...state, logs: updated }
+        }
+      }
+      return state
     }
 
     case 'append_assistant_delta': {
@@ -104,6 +126,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         kind: 'thinking',
         text: action.text,
         turnId: action.turnId,
+      }
+      return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'append_tool_event': {
+      const next: TranscriptItem = {
+        id: itemId(),
+        kind: 'tool',
+        turnId: action.turnId,
+        toolUseId: action.toolUseId,
+        toolName: action.toolName,
+        phase: action.phase,
+        text: action.text,
       }
       return { ...state, logs: [...state.logs, next] }
     }

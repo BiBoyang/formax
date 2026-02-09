@@ -164,6 +164,25 @@ describe('startAppServerDevBridge', () => {
     expect(httpCloseMock).toHaveBeenCalledTimes(1)
   })
 
+  it('handles bridge/readDiff locally without forwarding to app-server input', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket)
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":42,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(readInputBuffer()).toBe('')
+    expect(socket.send).toHaveBeenCalled()
+    const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(payload.id).toBe(42)
+    expect(payload.result).toBeTruthy()
+    expect(Array.isArray(payload.result.files)).toBe(true)
+
+    await bridge.close()
+  })
+
   it('rejects when httpServer.listen throws synchronously', async () => {
     httpListenMock.mockImplementationOnce(() => {
       throw new Error('listen boom')

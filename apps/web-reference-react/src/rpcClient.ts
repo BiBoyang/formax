@@ -1,4 +1,4 @@
-import type { JsonRpcId, RpcNotification, RpcRequest, RpcResponse } from './types'
+import type { JsonRpcId, RpcErrorObject, RpcNotification, RpcRequest, RpcResponse } from './types'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
@@ -11,6 +11,18 @@ export type RpcClientHandlers = {
 function isRpcResponse(value: unknown): value is RpcResponse {
   if (!value || typeof value !== 'object') return false
   return 'id' in value && 'jsonrpc' in value
+}
+
+export class RpcRequestError extends Error {
+  readonly code: number
+  readonly data?: unknown
+
+  constructor(error: RpcErrorObject) {
+    super(error.message)
+    this.name = 'RpcRequestError'
+    this.code = error.code
+    this.data = error.data
+  }
 }
 
 export class RpcClient {
@@ -62,7 +74,7 @@ export class RpcClient {
         if (!request) return
         this.pending.delete(parsed.id)
         if (parsed.error) {
-          request.reject(new Error(parsed.error.message))
+          request.reject(new RpcRequestError(parsed.error))
         } else {
           request.resolve(parsed.result)
         }
