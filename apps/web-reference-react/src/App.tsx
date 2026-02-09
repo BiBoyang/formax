@@ -199,7 +199,6 @@ export function App() {
   const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
   const historyLoadingRef = useRef<Record<string, boolean>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
-  const lastConnectionStatusRef = useRef(state.connectionStatus)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
@@ -317,8 +316,7 @@ export function App() {
     if (!client) return
     await client.request('initialize', { clientInfo: { name: 'web-reference-react', version: '0.0.1' } })
     client.notify('initialized')
-    log('Initialized app-server handshake')
-  }, [log])
+  }, [])
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
@@ -327,7 +325,6 @@ export function App() {
         case 'turn/started': {
           const turnId = String(params?.turn?.id ?? '')
           dispatch({ type: 'set_active_turn', turnId: turnId || null })
-          if (turnId) log(`Turn started: ${turnId}`, 'info', turnId)
           break
         }
 
@@ -338,11 +335,8 @@ export function App() {
           }
           dispatch({ type: 'set_active_turn', turnId: null })
           const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
-          if (command) {
-            log(`Command completed: ${command}`, 'info', turnId)
+          if (command && turnId) {
             commandByTurnRef.current.delete(turnId)
-          } else {
-            log('Turn completed', 'info', turnId || undefined)
           }
           void refreshWorkspaceDiff().catch(() => undefined)
           break
@@ -422,9 +416,6 @@ export function App() {
             break
           }
 
-          if (eventType && eventType !== 'thinking_stop') {
-            log(`Event ${String(eventType)}`, 'info', turnId)
-          }
           break
         }
 
@@ -432,7 +423,6 @@ export function App() {
           const input = params?.input as PendingInput | undefined
           if (!input?.inputId) break
           dispatch({ type: 'input_requested', input })
-          log(`Input requested: ${input.kind} (${input.toolUseId})`, 'warn', input.turnId)
           break
         }
 
@@ -476,15 +466,6 @@ export function App() {
     clientRef.current = client
     client.connect(bridgeUrl, {
       onStatus: (connectionStatus) => {
-        if (lastConnectionStatusRef.current !== connectionStatus) {
-          const ts = new Date().toISOString()
-          dispatch({
-            type: 'push_log',
-            text: `[connection ${ts}] ${lastConnectionStatusRef.current} -> ${connectionStatus}`,
-            level: connectionStatus === 'disconnected' ? 'warn' : 'info',
-          })
-          lastConnectionStatusRef.current = connectionStatus
-        }
         dispatch({ type: 'set_connection_status', status: connectionStatus })
         if (connectionStatus === 'connected') {
           void initializeHandshake()
