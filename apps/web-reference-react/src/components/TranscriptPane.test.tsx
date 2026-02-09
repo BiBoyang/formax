@@ -287,4 +287,63 @@ describe('TranscriptPane', () => {
 
     rafSpy.mockRestore()
   })
+
+  it('keeps scroll anchor stable when loading earlier server history', async () => {
+    const onLoadEarlier = vi.fn()
+    const logs = Array.from({ length: 260 }, (_, index) => ({
+      id: `l-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `load-msg-${index}`,
+    }))
+
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+          historyMore: true,
+          onLoadEarlier,
+        })}
+      />,
+    )
+
+    const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) {
+      rafSpy.mockRestore()
+      return
+    }
+
+    let scrollTopValue = 160
+    let scrollHeightReads = 0
+
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value
+      },
+    })
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        scrollHeightReads += 1
+        return scrollHeightReads === 1 ? 1100 : 1400
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+
+    expect(onLoadEarlier).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(460)
+    })
+
+    rafSpy.mockRestore()
+  })
 })
