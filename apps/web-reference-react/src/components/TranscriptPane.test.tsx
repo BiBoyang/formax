@@ -231,4 +231,60 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('server-msg-0')).not.toBeInTheDocument()
     expect(screen.getByText('server-msg-180')).toBeInTheDocument()
   })
+
+  it('keeps scroll anchor stable when rendering earlier in-memory messages', async () => {
+    const logs = Array.from({ length: 260 }, (_, index) => ({
+      id: `a-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `anchor-msg-${index}`,
+    }))
+
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+        })}
+      />,
+    )
+
+    const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) {
+      rafSpy.mockRestore()
+      return
+    }
+
+    let scrollTopValue = 120
+    let scrollHeightReads = 0
+
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value
+      },
+    })
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        scrollHeightReads += 1
+        // first read = beforeHeight, second read = afterHeight
+        return scrollHeightReads === 1 ? 1000 : 1300
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Render earlier messages/i }))
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(420)
+    })
+
+    rafSpy.mockRestore()
+  })
 })
