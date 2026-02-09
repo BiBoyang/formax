@@ -1,63 +1,88 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { TranscriptPaneProps } from './TranscriptPane'
 import { TranscriptPane } from './TranscriptPane'
 
+function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPaneProps {
+  return {
+    activeThreadId: 'thread-1',
+    activeTurnId: null,
+    logs: [],
+    inputText: '',
+    connectionStatus: 'connected',
+    onInputTextChange: vi.fn(),
+    onSend: vi.fn((event) => event.preventDefault()),
+    onInterrupt: vi.fn(),
+    ...overrides,
+  }
+}
+
 describe('TranscriptPane', () => {
-  it('enforces disabled states for send/interrupt', () => {
+  it('enforces send/interrupt states with current composer behavior', () => {
     const onInputTextChange = vi.fn()
     const onSend = vi.fn((event) => event.preventDefault())
     const onInterrupt = vi.fn()
 
     const { rerender } = render(
       <TranscriptPane
-        activeThreadId={null}
-        activeTurnId={null}
-        logs={[]}
-        inputText="hello"
-        connectionStatus="disconnected"
-        onInputTextChange={onInputTextChange}
-        onSend={onSend}
-        onInterrupt={onInterrupt}
+        {...baseProps({
+          activeThreadId: null,
+          connectionStatus: 'disconnected',
+          inputText: 'hello',
+          onInputTextChange,
+          onSend,
+          onInterrupt,
+        })}
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Interrupt' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Interrupt turn' })).not.toBeInTheDocument()
 
     rerender(
       <TranscriptPane
-        activeThreadId="thread-1"
-        activeTurnId="turn-1"
-        logs={[{ id: '1', kind: 'message', role: 'assistant', text: 'ok', turnId: 'turn-1' }]}
-        inputText="hello"
-        connectionStatus="connected"
-        onInputTextChange={onInputTextChange}
-        onSend={onSend}
-        onInterrupt={onInterrupt}
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          inputText: 'hello',
+          onInputTextChange,
+          onSend,
+          onInterrupt,
+        })}
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Interrupt' })).toBeEnabled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Interrupt' }))
-    expect(onInterrupt).toHaveBeenCalledTimes(1)
-
-    fireEvent.submit(screen.getByRole('button', { name: 'Send' }).closest('form')!)
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toBeEnabled()
+    fireEvent.submit(sendButton.closest('form')!)
     expect(onSend).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          inputText: 'hello',
+          isSending: true,
+          onInputTextChange,
+          onSend,
+          onInterrupt,
+        })}
+      />,
+    )
+
+    const interruptButton = screen.getByRole('button', { name: 'Interrupt turn' })
+    expect(interruptButton).toBeEnabled()
+    fireEvent.click(interruptButton)
+    expect(onInterrupt).toHaveBeenCalledTimes(1)
   })
 
-  it('renders thinking as lightweight shimmer label', () => {
+  it('renders thinking as lightweight shimmer label without delta body text', () => {
     render(
       <TranscriptPane
-        activeThreadId="thread-1"
-        activeTurnId="turn-1"
-        logs={[{ id: 'thinking-1', kind: 'thinking', text: 'Step A. Step B.', turnId: 'turn-1' }]}
-        inputText=""
-        connectionStatus="connected"
-        onInputTextChange={vi.fn()}
-        onSend={vi.fn((event) => event.preventDefault())}
-        onInterrupt={vi.fn()}
+        {...baseProps({
+          logs: [{ id: 'thinking-1', kind: 'thinking', text: 'Step A. Step B.', turnId: 'turn-1' }],
+        })}
       />,
     )
 
@@ -65,46 +90,89 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
   })
 
-  it('filters by active turn and log level while keeping tool events visible', () => {
+  it('filters info logs while keeping warn/error and tool events visible', () => {
+    const onLoadEarlier = vi.fn()
+
     render(
       <TranscriptPane
-        activeThreadId="thread-1"
-        activeTurnId="turn-2"
-        logs={[
-          { id: 'u1', kind: 'message', role: 'user', text: 'hello', turnId: 'turn-1' },
-          { id: 'a2', kind: 'message', role: 'assistant', text: 'world', turnId: 'turn-2' },
-          { id: 'l1', kind: 'log', text: 'warn log', level: 'warn', turnId: 'turn-2' },
-          { id: 'l2', kind: 'log', text: 'info log', level: 'info', turnId: 'turn-2' },
-          {
-            id: 't2',
-            kind: 'tool_call',
-            turnId: 'turn-2',
-            toolUseId: 'tool-2',
-            toolName: 'Bash',
-            status: 'completed',
-            summary: 'tool start',
-            detailLines: ['tool start'],
-          },
-        ]}
-        inputText=""
-        connectionStatus="connected"
-        onInputTextChange={vi.fn()}
-        onSend={vi.fn((event) => event.preventDefault())}
-        onInterrupt={vi.fn()}
+        {...baseProps({
+          historyMore: true,
+          onLoadEarlier,
+          logs: [
+            { id: 'm1', kind: 'message', role: 'assistant', text: 'hello' },
+            { id: 'l1', kind: 'log', text: 'warn log', level: 'warn' },
+            { id: 'l2', kind: 'log', text: 'info log', level: 'info' },
+            {
+              id: 't1',
+              kind: 'tool_call',
+              turnId: 'turn-1',
+              toolUseId: 'tool-1',
+              toolName: 'Bash',
+              status: 'completed',
+              summary: 'Ran command',
+              detailLines: ['line'],
+            },
+          ],
+        })}
       />,
     )
 
-    expect(screen.getByText('hello')).toBeInTheDocument()
-    expect(screen.getByText('world')).toBeInTheDocument()
-    expect(screen.getByText('tool start')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Active Turn' }))
-    expect(screen.queryByText('hello')).not.toBeInTheDocument()
-    expect(screen.getByText('world')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'warn' }))
     expect(screen.getByText('warn log')).toBeInTheDocument()
     expect(screen.queryByText('info log')).not.toBeInTheDocument()
+    expect(screen.getByText('Ran command')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+    expect(onLoadEarlier).toHaveBeenCalledTimes(1)
   })
 
+  it('shows jump-to-bottom button when user scrolls up', async () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [
+            { id: 'm1', kind: 'message', role: 'assistant', text: 'a' },
+            { id: 'm2', kind: 'message', role: 'assistant', text: 'b' },
+          ],
+        })}
+      />,
+    )
+
+    const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) return
+
+    let scrollTopValue = 0
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => 1000,
+    })
+    Object.defineProperty(viewport, 'clientHeight', {
+      configurable: true,
+      get: () => 300,
+    })
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value
+      },
+    })
+    ;(viewport as any).scrollTo = (arg: number | ScrollToOptions) => {
+      if (typeof arg === 'number') {
+        scrollTopValue = arg
+        return
+      }
+      scrollTopValue = Number(arg?.top ?? 0)
+    }
+
+    scrollTopValue = 120
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to bottom' }))
+    expect(scrollTopValue).toBe(1000)
+  })
 })

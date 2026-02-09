@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronDown, ChevronRight, MessageSquare, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, MessageSquare, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
@@ -43,10 +43,11 @@ function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline
 }
 
 function ThinkingItem({ item }: { item: Extract<TranscriptItem, { kind: 'thinking' }> }) {
+  void item
   return (
     <div className="flex items-center gap-2 py-1">
       <div className="text-[11px] text-muted-foreground animate-pulse tracking-tight">
-        {item.text || 'Thinking...'}
+        {'thinking'}
       </div>
     </div>
   )
@@ -121,10 +122,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     lastRpcError = null,
   } = props
 
-  const [autoStick] = useState(true)
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [autoStick, setAutoStick] = useState(true)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+  const viewportRef = useRef<HTMLElement | null>(null)
 
   // Filter out INFO logs for product view (User Feedback: "Not a log panel")
   const filteredLogs = useMemo(() => {
@@ -141,16 +145,71 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     !isInterrupting &&
     (isSending || Boolean(activeTurnId))
 
+  const showJumpToBottom = filteredLogs.length > 0 && !isNearBottom
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' })
+      setAutoStick(true)
+      setIsNearBottom(true)
+      return
+    }
+    if (typeof viewport.scrollTo === 'function') {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+    } else {
+      viewport.scrollTop = viewport.scrollHeight
+    }
+    setAutoStick(true)
+    setIsNearBottom(true)
+  }
+
+  const handleViewportScroll = () => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const nearBottom = bottomDistance <= 32
+    setIsNearBottom(nearBottom)
+    if (nearBottom) {
+      setAutoStick(true)
+    } else if (autoStick) {
+      setAutoStick(false)
+    }
+  }
+
   useEffect(() => {
     if (!autoStick) return
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const raf = window.requestAnimationFrame(() => {
+      scrollToBottom('auto')
+    })
+    return () => {
+      window.cancelAnimationFrame(raf)
+    }
   }, [autoStick, filteredLogs.length])
+
+  useEffect(() => {
+    const root = scrollAreaRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+    viewportRef.current = viewport
+    viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
+    handleViewportScroll()
+    return () => {
+      viewport.removeEventListener('scroll', handleViewportScroll)
+    }
+  }, [activeThreadId, autoStick, filteredLogs.length])
+
+  const handleSend = (event: FormEvent) => {
+    setAutoStick(true)
+    onSend(event)
+  }
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
       {/* Transcript Area */}
       <section className="transcript flex-1 overflow-hidden relative">
-        <ScrollArea className="h-full">
+        <ScrollArea ref={scrollAreaRef} className="h-full">
           <div className="flex min-w-0 flex-col gap-3 p-4 pb-12 max-w-3xl mx-auto w-full">
             {historyMore ? (
               <div className="flex justify-center">
@@ -243,9 +302,23 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       {/* Composer Area */}
       <div data-testid="composer" className="composer p-4 pb-8">
         <div className="max-w-3xl mx-auto flex flex-col gap-3">
+          {showJumpToBottom ? (
+            <div className="flex justify-end px-2">
+              <Button
+                type="button"
+                aria-label="Jump to bottom"
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 rounded-full shadow-sm"
+                onClick={() => scrollToBottom('smooth')}
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
           <form
             className="group relative flex flex-col rounded-[26px] border border-border bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] focus-within:ring-1 focus-within:ring-ring/10 focus-within:border-ring/20 transition-all duration-200"
-            onSubmit={onSend}
+            onSubmit={handleSend}
           >
             <Textarea
                 value={inputText}
@@ -257,7 +330,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                         e.preventDefault();
                         if (activeThreadId && connectionStatus === 'connected' && !inputText.trim()) return;
                         if (activeThreadId && connectionStatus === 'connected' && !isSending) {
-                            onSend(e as unknown as FormEvent);
+                            handleSend(e as unknown as FormEvent);
                         }
                     }
                 }}
