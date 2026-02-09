@@ -315,45 +315,63 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 </div>
             ) : null}
 
-            {renderedLogs.map((item) =>
-              item.kind === 'log' ? (
-                <div key={item.id} className={cn('rounded-lg border px-3 py-2 text-xs bg-muted/20')}>
-                  <div className="mb-1 flex items-center gap-2">
-                    <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 text-[10px] uppercase font-bold tracking-wider">{item.level}</Badge>
-                  </div>
-                  <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
-                </div>
-              ) : item.kind === 'thinking' ? (
-                <ThinkingItem key={item.id} item={item} />
-              ) : item.kind === 'tool_call' ? (
-                <ToolCallItem
-                  key={item.id}
-                  item={item}
-                  open={Boolean(openToolIds[item.id])}
-                  onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                />
-              ) : (
-                <div key={item.id} className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
+            {(() => {
+              let lastKnownTurnId: string | undefined
+              return renderedLogs.map((item, index) => {
+                const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
+                if (item.turnId) {
+                  lastKnownTurnId = item.turnId
+                }
+
+                return (
                   <div
+                    key={item.id}
+                    data-turn-group-start={turnGroupStart ? 'true' : undefined}
                     className={cn(
-                      'max-w-[85%] transition-all duration-300',
-                      item.role === 'user'
-                        ? 'rounded-[14px] bg-[#F4F4F7] px-3 py-1 text-foreground selection:bg-primary/20'
-                        : 'text-foreground py-2'
+                      'min-w-0',
+                      turnGroupStart && index > 0 ? 'mt-3 border-t border-border/35 pt-3' : null,
                     )}
                   >
-                    <div
-                      className={cn(
-                        'text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
-                        item.role === 'assistant' ? 'markdown-body' : 'px-0.5',
-                      )}
-                    >
-                        {item.text}
-                    </div>
+                    {item.kind === 'log' ? (
+                      <div className={cn('rounded-lg border px-3 py-2 text-xs bg-muted/20')}>
+                        <div className="mb-1 flex items-center gap-2">
+                          <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 text-[10px] uppercase font-bold tracking-wider">{item.level}</Badge>
+                        </div>
+                        <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
+                      </div>
+                    ) : item.kind === 'thinking' ? (
+                      <ThinkingItem item={item} />
+                    ) : item.kind === 'tool_call' ? (
+                      <ToolCallItem
+                        item={item}
+                        open={Boolean(openToolIds[item.id])}
+                        onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                      />
+                    ) : (
+                      <div className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
+                        <div
+                          className={cn(
+                            'max-w-[85%] transition-all duration-300',
+                            item.role === 'user'
+                              ? 'rounded-[14px] bg-[#F4F4F7] px-3 py-1 text-foreground selection:bg-primary/20'
+                              : 'text-foreground py-2'
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              'text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
+                              item.role === 'assistant' ? 'markdown-body' : 'px-0.5',
+                            )}
+                          >
+                              {item.text}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ),
-            )}
+                )
+              })
+            })()}
 
             {showTurnLoading ? (
               <div data-testid="turn-loading" className="flex items-center gap-2 py-1">

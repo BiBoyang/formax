@@ -90,6 +90,32 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
   })
 
+  it('adds visual turn boundaries when turn id changes in transcript stream', () => {
+    const { container } = render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [
+            { id: 't1-msg', kind: 'message', role: 'assistant', text: 'turn-1 message', turnId: 'turn-1' },
+            { id: 'mid-log', kind: 'log', text: 'informational', level: 'warn' },
+            {
+              id: 't1-tool',
+              kind: 'tool_call',
+              turnId: 'turn-1',
+              toolUseId: 'tool-1',
+              toolName: 'Bash',
+              status: 'completed',
+              summary: 'Ran ls',
+              detailLines: [],
+            },
+            { id: 't2-msg', kind: 'message', role: 'assistant', text: 'turn-2 message', turnId: 'turn-2' },
+          ],
+        })}
+      />,
+    )
+
+    expect(container.querySelectorAll('[data-turn-group-start=\"true\"]')).toHaveLength(2)
+  })
+
   it('filters info logs while keeping warn/error and tool events visible', () => {
     const onLoadEarlier = vi.fn()
 
