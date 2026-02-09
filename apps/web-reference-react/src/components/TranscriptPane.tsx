@@ -160,6 +160,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       setIsNearBottom(true)
       return
     }
+    viewport.style.overflowAnchor = 'auto'
     if (typeof viewport.scrollTo === 'function') {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior })
     } else {
@@ -176,9 +177,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     const nearBottom = bottomDistance <= 32
     setIsNearBottom(nearBottom)
     if (nearBottom) {
+      viewport.style.overflowAnchor = 'auto'
       setAutoStick(true)
     } else if (autoStick) {
+      viewport.style.overflowAnchor = 'none'
       setAutoStick(false)
+    } else {
+      viewport.style.overflowAnchor = 'none'
     }
   }
 
@@ -198,6 +203,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     const viewport = root.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
     if (!viewport) return
     viewportRef.current = viewport
+    viewport.style.overflowAnchor = autoStick ? 'auto' : 'none'
     viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
     handleViewportScroll()
     return () => {

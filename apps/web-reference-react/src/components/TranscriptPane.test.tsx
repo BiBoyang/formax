@@ -171,9 +171,15 @@ describe('TranscriptPane', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
     })
+    await waitFor(() => {
+      expect(viewport.style.overflowAnchor).toBe('none')
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Jump to bottom' }))
     expect(scrollTopValue).toBe(1000)
+    await waitFor(() => {
+      expect(viewport.style.overflowAnchor).toBe('auto')
+    })
   })
 
   it('renders long history in batches and can reveal earlier in-memory messages', () => {
