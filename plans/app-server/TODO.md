@@ -1,37 +1,25 @@
-# TODO：Formax App Server（仅未完成项）
+# TODO：Formax App Server（主线入口）
 
 更新时间：2026-02-10
 
-> 已完成项已移除以降低噪音，历史可从 git 提交记录追溯。
+> 说明：`TODO.md` 保持为“入口级索引”，避免与详细执行清单双写漂移。
 
-## 当前主线（执行中）
+## 当前执行主线
 
-- [ ] Web 客户端事件归一最小层（`traceId + seq` 去重/乱序保护）
-  - 目标：避免重复通知与乱序通知污染 transcript。
-  - 主要文件：`apps/web-reference-react/src/App.tsx`、`apps/web-reference-react/src/store.ts`。
+- [ ] TUI/GUI 语义一致性融合路线（v2）
+  - 执行清单：`plans/app-server/TODO-SEMANTICS-PARITY.md`
+  - 来源融合：`plans/app-server/SEMANTICS-PARITY-ARCH.txt` + `plans/app-server/webgpt-response-2.txt` + 代码现状
+  - 目标：统一 Turn 输入构建、mode 注入、input 生命周期、tool 事件归一、事件光标策略
 
-- [ ] Web 客户端高频 delta 合并（节流写入）
-  - 目标：降低 `assistant_delta/thinking_delta` 高频渲染卡顿。
-  - 主要文件：`apps/web-reference-react/src/App.tsx`、`apps/web-reference-react/src/components/TranscriptPane.tsx`。
+## 近期已落地（作为基线，不再重复维护 TODO 项）
 
-- [ ] `thread/resume` 恢复闭环（刷新/重连后 stale input 恢复）
-  - 目标：approval / ask_user_question 不因刷新丢失上下文。
-  - 主要文件：`apps/web-reference-react/src/App.tsx`、`src/app-server/server.ts`。
+- [x] Web 事件幂等与顺序保护（`eventId + traceId + seq`）
+- [x] `thread/resume` stale input 恢复链路
+- [x] transcript 收敛（thinking 运行/完成态 + turn footer）
+- [x] 中栏/右栏滚动边界治理 + Playwright 基线用例
 
-- [ ] input submit 全状态可见化（accepted/conflict/expired/not_pending）
-  - 目标：用户能直接理解提交结果与下一步动作。
-  - 主要文件：`apps/web-reference-react/src/components/PendingInputPane.tsx`、`apps/web-reference-react/src/App.tsx`。
+## 暂缓（等待 Extended 结果后再决策）
 
-- [ ] 聊天区 turn footer 与 thinking 收敛
-  - 目标：减少冗余系统噪音，保留关键进度信息。
-  - 主要文件：`apps/web-reference-react/src/types.ts`、`apps/web-reference-react/src/store.ts`、`apps/web-reference-react/src/components/TranscriptPane.tsx`。
-
-- [ ] nested scroll 边界手势治理（中栏/右栏）
-  - 目标：滚动稳定，不抢焦点。
-  - 主要文件：`apps/web-reference-react/src/components/TranscriptPane.tsx`、`apps/web-reference-react/src/components/PendingInputPane.tsx`。
-
-## 等 Extended 评审后再定（暂不实现）
-
-- [ ] TUI/GUI 语义抽象层最终边界（TurnInputBuilder / ModeSemantics / InputStateMachine / ToolEventNormalizer）。
-- [ ] 协议扩展项（如 replay、command/dispatch）。
-- [ ] commander 全量能力扩展（超出 `/init` 的最终形态）。
+- [ ] ThreadStateReducer 全量抽象（server/web 统一线程状态归约）
+- [ ] 协议扩展（`replay`、`command/dispatch` 等）
+- [ ] commander 全量能力迁移（超出 `/init`）
