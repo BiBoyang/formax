@@ -318,6 +318,102 @@ describe('App thread history integration', () => {
     ).toBe(false)
   })
 
+  it('handles /clear locally by creating a new thread', async () => {
+    let created = 0
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return { data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }], nextCursor: null }
+        }
+        if (threadId === 'thread-new') {
+          return { data: [], nextCursor: null }
+        }
+      }
+      if (method === 'thread/start') {
+        created += 1
+        return {
+          thread: {
+            id: 'thread-new',
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:01:00.000Z',
+            updatedAt: '2026-02-10T00:01:00.000Z',
+          },
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: 'thread-new' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/clear' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(created).toBe(1)
+      expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(true)
+    })
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/clear'),
+    ).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/clear'),
+    ).toBe(false)
+  })
+
+  it('shows usage for /clear with arguments and does not send RPC turn command', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/clear extra' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect((await screen.findAllByText('Usage: /clear')).length).toBeGreaterThan(0)
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/clear extra'),
+    ).toBe(false)
+    expect(
+      rpcMock.requests.some(
+        (entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/clear extra',
+      ),
+    ).toBe(false)
+  })
+
   it('deduplicates repeated eventId notifications', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))

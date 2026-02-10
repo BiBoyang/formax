@@ -938,15 +938,25 @@ export function App() {
   }
 
   const startTurn = async () => {
+    const text = inputText.trim()
+    if (!text || isSendingTurn) return
+
+    const commandRouting = resolveCommandRouting(text)
+    if (commandRouting.isExactClear) {
+      setInputText('')
+      if (commandRouting.commandArgs) {
+        dispatch({ type: 'push_message', role: 'assistant', text: 'Usage: /clear' })
+        return
+      }
+      await startThread()
+      return
+    }
+
     if (!state.activeThreadId) {
       log('Please select or create a thread first', 'warn')
       return
     }
 
-    const text = inputText.trim()
-    if (!text || isSendingTurn) return
-
-    const commandRouting = resolveCommandRouting(text)
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     dispatch({ type: 'push_message', role: 'user', text })
     setInputText('')
