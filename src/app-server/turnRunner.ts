@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import { buildSystemPrompt, buildUserContent, type SystemPromptProfile } from '../prompts/index.js'
+import { buildInitPrompt } from '../prompts/init.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
 import type { Msg } from '../components/tool/ToolMessage.js'
 import type { StreamEvent } from '../streaming/types.js'
@@ -48,11 +49,21 @@ type RunningTurn = {
   filePath: string
   cwd: string
   inputText: string
+  modelInputText: string
+  replMode: 'normal' | 'acceptEdits' | 'plan'
   abortController: AbortController
   inputStore: TurnInputStore
   writer: SessionWriter | null
   pendingEventWrites: Array<Promise<void>>
   inputExpiryTimers: Map<string, ReturnType<typeof setTimeout>>
+}
+
+function maybeMapSlashCommandToModelInput(inputText: string): string {
+  const trimmed = inputText.trim()
+  if (trimmed === '/init' || trimmed.startsWith('/init ')) {
+    return buildInitPrompt()
+  }
+  return inputText
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -194,6 +205,8 @@ export class TurnRunner {
       filePath,
       cwd: params.cwd ? path.resolve(params.cwd) : this.cwd,
       inputText: params.input.text,
+      modelInputText: maybeMapSlashCommandToModelInput(params.input.text),
+      replMode: params.mode ?? 'normal',
       abortController: new AbortController(),
       inputStore: new TurnInputStore({
         threadId: params.threadId,
@@ -312,7 +325,7 @@ export class TurnRunner {
 
       const user = {
         role: 'user' as const,
-        content: buildUserContent(running.inputText),
+        content: buildUserContent(running.modelInputText),
       }
       const system = buildSystemPrompt({
         allowedSubagents: this.allowedSubagents,
@@ -425,7 +438,7 @@ export class TurnRunner {
         cwd: running.cwd,
         signal: running.abortController.signal,
         thinkingEnabled: this.thinkingEnabled,
-        exec: { interactive: false },
+        exec: { interactive: true, replMode: running.replMode },
       })
       if (running.abortController.signal.aborted) {
         throw new Error('Request aborted')

@@ -62,6 +62,7 @@ export type TurnStartParams = {
   input: {
     text: string
   }
+  mode?: 'normal' | 'acceptEdits' | 'plan'
   cwd?: string
 }
 
@@ -164,11 +165,20 @@ export function parseTurnStartParams(params: unknown): TurnStartParams {
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   if (!isObject(params.input)) throw new Error('Invalid params.input: expected object')
   const text = parseRequiredNonEmptyString(params.input.text, 'params.input.text')
+  const modeRaw = parseOptionalNonEmptyString(params.mode, 'params.mode')
   const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
+
+  let mode: TurnStartParams['mode'] | undefined
+  if (modeRaw === 'normal' || modeRaw === 'acceptEdits' || modeRaw === 'plan') {
+    mode = modeRaw
+  } else if (modeRaw) {
+    throw new Error('Invalid params.mode: expected normal|acceptEdits|plan')
+  }
 
   return {
     threadId,
     input: { text },
+    ...(mode ? { mode } : {}),
     ...(cwd ? { cwd } : {}),
   }
 }

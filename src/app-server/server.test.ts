@@ -188,6 +188,34 @@ describe('AppServer', () => {
     })
   })
 
+  it('validates turn/start mode params', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          return { turn: { id: 'turn-1', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'hello' },
+        mode: 'invalid',
+      }),
+    )
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.mode')
+  })
+
   it('returns INTERNAL_ERROR when turn runner is not configured', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))
@@ -310,6 +338,16 @@ describe('AppServer', () => {
         runner = new TurnRunner({
           engine: {
             async runTurn(args) {
+              const userText = Array.isArray(args.user.content)
+                ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+                : ''
+              if (userText.includes('Please write a 5-10 word title')) {
+                return [
+                  ...args.history,
+                  args.user,
+                  { role: 'assistant', content: [{ type: 'text', text: 'Flow Title' }] },
+                ] as ChatHistory
+              }
               const questions = [
                 {
                   question: 'Pick one?',
@@ -401,6 +439,16 @@ describe('AppServer', () => {
         runner = new TurnRunner({
           engine: {
             async runTurn(args) {
+              const userText = Array.isArray(args.user.content)
+                ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+                : ''
+              if (userText.includes('Please write a 5-10 word title')) {
+                return [
+                  ...args.history,
+                  args.user,
+                  { role: 'assistant', content: [{ type: 'text', text: 'Flow Title' }] },
+                ] as ChatHistory
+              }
               args.onEvent({
                 type: 'approval_request',
                 toolUseId: 'approval-1',
@@ -547,6 +595,16 @@ describe('AppServer', () => {
         runner = new TurnRunner({
           engine: {
             async runTurn(args) {
+              const userText = Array.isArray(args.user.content)
+                ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+                : ''
+              if (userText.includes('Please write a 5-10 word title')) {
+                return [
+                  ...args.history,
+                  args.user,
+                  { role: 'assistant', content: [{ type: 'text', text: 'Flow Title' }] },
+                ] as ChatHistory
+              }
               const questions = [
                 {
                   question: 'Pick one?',

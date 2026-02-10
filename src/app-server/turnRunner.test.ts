@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { TurnRunner } from './turnRunner.js'
 
@@ -482,5 +483,114 @@ describe('TurnRunner', () => {
     expect(filePath).toBeTruthy()
     const summary = await readSessionSummary(filePath!)
     expect(summary.label).toBe('New Topic')
+  })
+
+  it('maps /init to init prompt for model while keeping user transcript text', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    let capturedUserText = ''
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Init Title' }] },
+            ] as ChatHistory
+          }
+          capturedUserText = userText
+          args.onEvent({ type: 'assistant_delta', text: 'ok' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: '/init' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(capturedUserText).toBe(buildInitPrompt())
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const replay = await readSessionFile(filePath!)
+    expect(replay.messages.some((m) => m.role === 'user' && m.content === '/init')).toBe(true)
+  })
+
+  it('passes turn mode to engine exec context and keeps interactive on', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    let capturedReplMode: string | undefined
+    let capturedInteractive: boolean | undefined
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Mode Title' }] },
+            ] as ChatHistory
+          }
+          capturedReplMode = args.exec?.replMode as string | undefined
+          capturedInteractive = args.exec?.interactive
+          args.onEvent({ type: 'assistant_delta', text: 'ok' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'mode test' },
+      mode: 'plan',
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(capturedReplMode).toBe('plan')
+    expect(capturedInteractive).toBe(true)
   })
 })
