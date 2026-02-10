@@ -121,6 +121,24 @@ describe('appReducer', () => {
     expect(lastLog).toMatchObject({ kind: 'log', text: 'Input resolved: submitted' })
   })
 
+  it('handles resolved metadata (resolvedAt/reason) without keeping stale pending rows', () => {
+    const input = createPendingInput({ kind: 'ask_user_question' })
+    let state = appReducer(initialAppState, { type: 'input_requested', input })
+    expect(state.pendingInputs[input.inputId]).toBeDefined()
+
+    state = appReducer(state, {
+      type: 'input_resolved',
+      inputId: input.inputId,
+      status: 'failed',
+      resolvedAt: '2026-02-09T00:01:00.000Z',
+      reason: 'input_expired',
+    })
+
+    expect(state.pendingInputs[input.inputId]).toBeUndefined()
+    const lastLog = state.logs[state.logs.length - 1]
+    expect(lastLog).toMatchObject({ kind: 'log', text: 'Input resolved: failed' })
+  })
+
   it('coalesces tool events into a single tool_call transcript row', () => {
     let state = appReducer(initialAppState, {
       type: 'append_tool_event',

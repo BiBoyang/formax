@@ -8,6 +8,8 @@ import { appReducer, initialAppState } from './store'
 import type { PendingInput, ResolvedInput, RpcNotification, ThreadMessage, ThreadSummary, TranscriptItem } from './types'
 import { cn } from './lib/utils'
 import { Button } from './components/ui/button'
+import { mapHistoryToolToTranscript } from './toolEventNormalizer'
+import { createTurnEventCursorState, shouldAcceptSequencedNotification } from './turnEventCursor'
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
@@ -167,16 +169,10 @@ function asResolvedInputs(value: unknown): ResolvedInput[] {
 function mapThreadHistoryToLogs(threadId: string, messages: ThreadMessage[]): TranscriptItem[] {
   return messages.map((message) =>
     message.kind === 'tool'
-      ? {
+      ? mapHistoryToolToTranscript({
           id: `history-${threadId}-${message.id}`,
-          kind: 'tool_call' as const,
-          toolUseId: message.toolUseId,
-          toolName: message.toolName,
-          paramsText: message.paramsText,
-          status: message.status,
-          summary: message.summary,
-          detailLines: Array.isArray(message.detailLines) ? message.detailLines : [],
-        }
+          tool: message,
+        })
       : {
           id: `history-${threadId}-${message.id}`,
           kind: 'message' as const,
@@ -288,9 +284,7 @@ export function App() {
   const [staleInputsByThreadId, setStaleInputsByThreadId] = useState<Record<string, ResolvedInput[]>>({})
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
-  const lastSeqByTraceRef = useRef<Map<string, number>>(new Map())
-  const seenEventIdsRef = useRef<Set<string>>(new Set())
-  const seenEventOrderRef = useRef<string[]>([])
+  const eventCursorRef = useRef(createTurnEventCursorState(SEEN_EVENT_CAP))
   const historyLoadTokenRef = useRef(0)
   const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
   const historyLoadingRef = useRef<Record<string, boolean>>({})
@@ -317,35 +311,11 @@ export function App() {
     return threadId === activeThreadId
   }, [])
 
-  const markEventSeen = useCallback((eventId: string): boolean => {
-    if (seenEventIdsRef.current.has(eventId)) return false
-    seenEventIdsRef.current.add(eventId)
-    seenEventOrderRef.current.push(eventId)
-    if (seenEventOrderRef.current.length > SEEN_EVENT_CAP) {
-      const overflow = seenEventOrderRef.current.length - SEEN_EVENT_CAP
-      const dropped = seenEventOrderRef.current.splice(0, overflow)
-      for (const id of dropped) {
-        seenEventIdsRef.current.delete(id)
-      }
-    }
-    return true
-  }, [])
-
   const shouldProcessSequencedNotification = useCallback(
     (params: any): boolean => {
-      const eventId = typeof params?.eventId === 'string' ? params.eventId : null
-      if (eventId && !markEventSeen(eventId)) return false
-
-      const traceId = typeof params?.traceId === 'string' ? params.traceId : null
-      const seq = typeof params?.seq === 'number' && Number.isFinite(params.seq) ? params.seq : null
-      if (!traceId || seq == null) return true
-
-      const lastSeq = lastSeqByTraceRef.current.get(traceId)
-      if (typeof lastSeq === 'number' && seq <= lastSeq) return false
-      lastSeqByTraceRef.current.set(traceId, seq)
-      return true
+      return shouldAcceptSequencedNotification(eventCursorRef.current, params)
     },
-    [markEventSeen],
+    [],
   )
 
   const captureError = useCallback(
@@ -669,7 +639,13 @@ export function App() {
           const input = params?.input as ResolvedInput | undefined
           const inputId = input?.inputId as string | undefined
           if (!inputId) break
-          dispatch({ type: 'input_resolved', inputId, status: String(input?.status ?? 'unknown') })
+          dispatch({
+            type: 'input_resolved',
+            inputId,
+            status: String(input?.status ?? 'unknown'),
+            resolvedAt: typeof input?.resolvedAt === 'string' ? input.resolvedAt : undefined,
+            reason: typeof input?.reason === 'string' ? input.reason : undefined,
+          })
           if (input?.status && input.status !== 'submitted') {
             setSubmitStatusByInputId((prev) => ({
               ...prev,
@@ -725,9 +701,7 @@ export function App() {
       onStatus: (connectionStatus) => {
         dispatch({ type: 'set_connection_status', status: connectionStatus })
         if (connectionStatus === 'connected') {
-          lastSeqByTraceRef.current.clear()
-          seenEventIdsRef.current.clear()
-          seenEventOrderRef.current = []
+          eventCursorRef.current = createTurnEventCursorState(SEEN_EVENT_CAP)
           void initializeHandshake()
             .then(async () => {
               await Promise.all([refreshThreads(), refreshWorkspaceDiff()])

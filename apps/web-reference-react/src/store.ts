@@ -1,5 +1,7 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
+import { transitionResolvedFromPending } from '../../../src/features/semantics/inputStateMachine'
+import { applyToolEventPatch, findToolEventTargetIndex } from './toolEventNormalizer'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -42,7 +44,7 @@ export type AppAction =
       isError?: boolean
     }
   | { type: 'input_requested'; input: PendingInput }
-  | { type: 'input_resolved'; inputId: string; status?: string }
+  | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
 
 export const initialAppState: AppState = {
@@ -59,20 +61,8 @@ function itemId(): string {
   return `${Date.now()}-${Math.random()}`
 }
 
-function compactParamText(input: unknown): string | undefined {
-  if (!input || typeof input !== 'object') return undefined
-  const entries = Object.entries(input as Record<string, unknown>)
-  if (entries.length === 0) return undefined
-  const parts = entries.map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-  const raw = parts.join(', ')
-  return raw.length > 160 ? `${raw.slice(0, 160)}...` : raw
-}
-
-function dedupeAppend(lines: string[], line: string): string[] {
-  const trimmed = line.trim()
-  if (!trimmed) return lines
-  if (lines[lines.length - 1] === trimmed) return lines
-  return [...lines, trimmed]
+function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled' | 'expired' | 'failed' {
+  return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -205,58 +195,43 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'append_tool_event': {
-      let targetIndex = -1
-      for (let index = state.logs.length - 1; index >= 0; index -= 1) {
-        const item = state.logs[index]
-        if (
-          item.kind === 'tool_call' &&
-          item.turnId === action.turnId &&
-          item.toolUseId != null &&
-          item.toolUseId === action.toolUseId
-        ) {
-          targetIndex = index
-          break
-        }
-      }
-
-      const paramsText = compactParamText(action.input)
-      const line = typeof action.text === 'string' ? action.text.trim() : ''
+      const targetIndex = findToolEventTargetIndex(state.logs, {
+        turnId: action.turnId,
+        toolUseId: action.toolUseId,
+      })
       if (targetIndex >= 0) {
         const current = state.logs[targetIndex]
         if (current.kind !== 'tool_call') return state
-        const updated: TranscriptItem = {
-          ...current,
-          ...(action.toolName ? { toolName: action.toolName } : {}),
-          ...(paramsText ? { paramsText } : {}),
-          status:
-            action.phase === 'end'
-              ? action.isError
-                ? 'error'
-                : 'completed'
-              : current.status,
-          detailLines: line ? dedupeAppend(current.detailLines, line) : current.detailLines,
-          summary:
-            action.phase === 'end'
-              ? line || current.summary
-              : current.summary,
-        }
+        const updated = applyToolEventPatch({
+          id: current.id,
+          current,
+          patch: {
+            turnId: action.turnId,
+            toolUseId: action.toolUseId,
+            toolName: action.toolName,
+            phase: action.phase,
+            text: action.text,
+            input: action.input,
+            isError: action.isError,
+          },
+        })
         const nextLogs = state.logs.slice()
         nextLogs[targetIndex] = updated
         return { ...state, logs: nextLogs }
       }
 
-      const toolName = action.toolName ?? 'Tool'
-      const next: TranscriptItem = {
+      const next = applyToolEventPatch({
         id: itemId(),
-        kind: 'tool_call',
-        turnId: action.turnId,
-        toolUseId: action.toolUseId,
-        toolName,
-        ...(paramsText ? { paramsText } : {}),
-        status: action.phase === 'end' ? (action.isError ? 'error' : 'completed') : 'running',
-        summary: action.phase === 'end' ? line || `${toolName} completed` : `${toolName} running`,
-        detailLines: line ? [line] : [],
-      }
+        patch: {
+          turnId: action.turnId,
+          toolUseId: action.toolUseId,
+          toolName: action.toolName,
+          phase: action.phase,
+          text: action.text,
+          input: action.input,
+          isError: action.isError,
+        },
+      })
       return { ...state, logs: [...state.logs, next] }
     }
 
@@ -272,18 +247,33 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'input_resolved': {
       const nextPending = { ...state.pendingInputs }
+      const pending = nextPending[action.inputId]
       delete nextPending[action.inputId]
       const nextSelected =
         state.selectedInputId === action.inputId ? (Object.keys(nextPending)[0] ?? null) : state.selectedInputId
+      const resolvedAt = action.resolvedAt ?? new Date().toISOString()
+      const resolvedStatus =
+        action.status && pending && isResolvedInputStatus(action.status)
+          ? transitionResolvedFromPending({
+              state: {
+                status: 'pending',
+                createdAt: pending.createdAt,
+                expiresAt: pending.expiresAt,
+              },
+              status: action.status,
+              resolvedAt,
+              reason: action.reason,
+            }).status
+          : action.status
       const nextLogs =
-        action.status == null
+        resolvedStatus == null
           ? state.logs
           : [
               ...state.logs,
               {
                 id: itemId(),
                 kind: 'log',
-                text: `Input resolved: ${action.status}`,
+                text: `Input resolved: ${resolvedStatus}`,
                 level: 'info',
               } as TranscriptItem,
             ]
