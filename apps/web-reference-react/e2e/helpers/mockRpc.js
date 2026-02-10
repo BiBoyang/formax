@@ -54,6 +54,24 @@ export async function installMockRpc(page, scenario) {
             return {
               turn: scenarioConfig.turnStart || { id: 'turn-test-1' },
             }
+          case 'command/dispatch': {
+            const command = String(params.command || '')
+            const byCommand = scenarioConfig.commandDispatchResults || {}
+            if (Object.prototype.hasOwnProperty.call(byCommand, command)) {
+              return byCommand[command]
+            }
+            return (
+              scenarioConfig.commandDispatchResult || {
+                command,
+                dispatched: true,
+                turn: {
+                  id: 'turn-command-1',
+                  threadId: String(params.threadId || ''),
+                  status: 'running',
+                },
+              }
+            )
+          }
           case 'turn/interrupt':
             return {
               ok: true,
