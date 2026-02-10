@@ -1001,6 +1001,14 @@ export function App() {
             input: { text },
             mode,
           })
+      const localStdout =
+        typeof (result as { local?: { stdout?: unknown } } | null)?.local?.stdout === 'string'
+          ? ((result as { local?: { stdout?: string } }).local?.stdout ?? '')
+          : ''
+      if (localStdout) {
+        dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
+        return
+      }
       const turnId = String((result as any)?.turn?.id ?? '')
       if (turnId) {
         dispatch({ type: 'set_active_turn', turnId })

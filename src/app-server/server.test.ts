@@ -226,39 +226,111 @@ describe('AppServer', () => {
     })
   })
 
-  it('routes /todos via command/dispatch to turnRunner startTurn', async () => {
-    let received: unknown = null
-    const server = new AppServer({
-      info: { name: 'formax', version: 'test' },
-      turnRunner: {
-        async startTurn(params) {
-          received = params
-          return { turn: { id: 'turn-todos', threadId: params.threadId, status: 'running' as const } }
+  it('routes /todos via command/dispatch as local command output', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-server-todos-'))
+    const todosPath = path.join(cwd, 'todos', 'web-agent-web.json')
+    await fs.mkdir(path.dirname(todosPath), { recursive: true })
+    await fs.writeFile(
+      todosPath,
+      JSON.stringify(
+        {
+          todos: [{ content: 'Ship web parity', status: 'pending', activeForm: 'Shipping web parity' }],
         },
-        async interruptTurn() {
-          return {}
-        },
-        async submitInput() {
-          return { accepted: true, status: 'accepted' as const }
-        },
-      },
-    })
-    await server.handleMessage(request(1, 'initialize'))
-
-    const out = await server.handleMessage(
-      request(2, 'command/dispatch', {
-        threadId: 'thread-1',
-        command: '/todos',
-      }),
+        null,
+        2,
+      ),
+      'utf8',
     )
 
-    expect((out[0] as any).result.dispatched).toBe(true)
-    expect((out[0] as any).result.command).toBe('/todos')
-    expect((out[0] as any).result.turn.id).toBe('turn-todos')
-    expect(received).toEqual({
-      threadId: 'thread-1',
-      input: { text: '/todos' },
-    })
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+    process.env.FORMAX_TODOS_PATH = 'todos/web-agent-web.json'
+    process.env.FORMAX_TODOS_SESSION_ID = 'web'
+
+    let startTurnCount = 0
+    try {
+      const server = new AppServer({
+        info: { name: 'formax', version: 'test' },
+        threadStore: {
+          async startThread() {
+            return {
+              id: 'thread-1',
+              cwd,
+              createdAt: new Date(0).toISOString(),
+              updatedAt: new Date(0).toISOString(),
+            }
+          },
+          async resumeThread() {
+            return {
+              thread: {
+                id: 'thread-1',
+                cwd,
+                createdAt: new Date(0).toISOString(),
+                updatedAt: new Date(0).toISOString(),
+              },
+              staleInputs: [],
+            }
+          },
+          async listThreads() {
+            return { data: [], nextCursor: null }
+          },
+          async readThread() {
+            return {
+              thread: {
+                id: 'thread-1',
+                cwd: '/tmp/should-not-be-used',
+                createdAt: new Date(0).toISOString(),
+                updatedAt: new Date(0).toISOString(),
+              },
+              transcriptPreview: [],
+            }
+          },
+          async listThreadMessages() {
+            return { data: [], nextCursor: null }
+          },
+        },
+        turnRunner: {
+          async startTurn(params) {
+            startTurnCount += 1
+            return { turn: { id: 'turn-todos', threadId: params.threadId, status: 'running' as const } }
+          },
+          async interruptTurn() {
+            return {}
+          },
+          async submitInput() {
+            return { accepted: true, status: 'accepted' as const }
+          },
+        },
+      })
+      await server.handleMessage(request(1, 'initialize'))
+
+      const out = await server.handleMessage(
+        request(2, 'command/dispatch', {
+          threadId: 'thread-1',
+          command: '/ToDos',
+          cwd,
+        }),
+      )
+
+      expect((out[0] as any).result.dispatched).toBe(true)
+      expect((out[0] as any).result.command).toBe('/ToDos')
+      expect(typeof (out[0] as any).result.local?.stdout).toBe('string')
+      expect((out[0] as any).result.local.stdout).toContain('Ship web parity')
+      expect((out[0] as any).result.local.stdout).not.toContain('\u001b[')
+      expect(startTurnCount).toBe(0)
+    } finally {
+      if (prevTodosPath === undefined) {
+        delete process.env.FORMAX_TODOS_PATH
+      } else {
+        process.env.FORMAX_TODOS_PATH = prevTodosPath
+      }
+      if (prevTodosSessionId === undefined) {
+        delete process.env.FORMAX_TODOS_SESSION_ID
+      } else {
+        process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      }
+      await fs.rm(cwd, { recursive: true, force: true })
+    }
   })
 
   it('validates command/dispatch params', async () => {

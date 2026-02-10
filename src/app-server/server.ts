@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import {
   JSON_RPC_ERRORS,
   type JsonRpcErrorResponse,
@@ -34,9 +35,11 @@ import {
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from './threadStateReducer.js'
+import { createSlashCommandRegistry } from '../features/commands/registry.js'
 import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
+const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
 
 type ReplayEntry = {
   replaySeq: number
@@ -261,6 +264,34 @@ export class AppServer {
             }),
           ]
         }
+
+        if (commandRouting.commandName === '/todos') {
+          const thread = await this.threadStore.readThread(params.threadId)
+          const dispatchCwd = params.cwd ? path.resolve(params.cwd) : thread.thread.cwd
+          const slashRegistry = createSlashCommandRegistry({ cwd: dispatchCwd })
+          const normalizedDispatchCommand = commandRouting.commandArgs
+            ? `${commandRouting.commandName} ${commandRouting.commandArgs}`
+            : commandRouting.commandName
+          const effect = slashRegistry.dispatch(normalizedDispatchCommand)
+          if (!effect || effect.kind !== 'local') {
+            return [
+              makeErrorResponse(req.id, {
+                code: JSON_RPC_ERRORS.INTERNAL_ERROR,
+                message: `Failed to dispatch local command: ${params.command}`,
+              }),
+            ]
+          }
+          return [
+            makeSuccessResponse(req.id, {
+              command: params.command,
+              dispatched: true,
+              local: {
+                stdout: stripAnsiSgr(effect.stdout),
+              },
+            }),
+          ]
+        }
+
         const runner = await this.getTurnRunner()
         const result = await runner.startTurn({
           threadId: params.threadId,
@@ -475,4 +506,8 @@ export class AppServer {
       state: stateSnapshot,
     }
   }
+}
+
+function stripAnsiSgr(text: string): string {
+  return String(text ?? '').replace(ANSI_SGR_RE, '')
 }

@@ -133,6 +133,28 @@ describe('App thread history integration', () => {
           }
         }
       }
+      if (method === 'command/dispatch') {
+        const command = (params as { command?: string } | undefined)?.command
+        if (command === '/todos') {
+          return {
+            command,
+            dispatched: true,
+            local: {
+              stdout: 'No todos currently tracked',
+            },
+          }
+        }
+        const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
+        return {
+          command,
+          dispatched: true,
+          turn: {
+            id: `turn-${String(command ?? 'cmd').replace(/\W+/g, '-')}`,
+            threadId,
+            status: 'running',
+          },
+        }
+      }
       return {}
     })
   })
@@ -311,6 +333,7 @@ describe('App thread history integration', () => {
     expect(rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/todos')).toBe(
       false,
     )
+    expect(await screen.findByText('No todos currently tracked')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
