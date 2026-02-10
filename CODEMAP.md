@@ -66,6 +66,20 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
 - Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
 
+## Semantics Parity (TUI + App-Server + Web)
+- Shared semantics source of truth:
+  - Mode semantics: `src/features/semantics/modeSemantics.ts`
+  - Slash semantics: `src/features/semantics/slashSemantics.ts`
+  - Turn input builder: `src/features/semantics/turnInputBuilder.ts`
+  - Input state machine: `src/features/semantics/inputStateMachine.ts`
+- Contract tests:
+  - `src/features/semantics/__tests__/*`
+  - `src/features/semantics/*.test.ts`
+- Web-side parity adapters:
+  - Tool event normalizer: `apps/web-reference-react/src/toolEventNormalizer.ts`
+  - Event cursor (eventId/traceId/seq): `apps/web-reference-react/src/turnEventCursor.ts`
+  - Reducer integration points: `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/App.tsx`
+
 ## Permissions / Approvals (Claude Code-style)
 - Permissions store (read/merge/write settings): `src/adapters/permissions/permissionsStore.ts`
 - Rule matcher (deny/ask/allow priority + ToolName(spec) matching): `src/adapters/permissions/matcher.ts`

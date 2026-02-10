@@ -9,7 +9,7 @@
   - 关联实现：`apps/web-reference-react/`（React reference client）
   - 验收记录模板：`plans/app-server/MANUAL-RUNBOOK-THREAD-TURN-INPUT.md`、`plans/app-server/MANUAL-RUNBOOK-RECOVERY-STALE.md`
 - `plans/app-server/TODO-SEMANTICS-PARITY.md`：TUI/GUI 语义一致性融合路线（v2）
-  - 当前状态：执行中（Phase 1 起步，先统一 TurnInputBuilder + ModeSemantics）
+  - 当前状态：执行中（Phase 1-6 基本完成，当前推进文档收敛与剩余抽象）
   - 来源：`plans/app-server/SEMANTICS-PARITY-ARCH.txt` + `plans/app-server/webgpt-response-2.txt`
 
 ## 并行参考（不作为主线推进）

@@ -258,6 +258,40 @@
 4. turn/interrupt 正常生效
 5. 重启后 thread/resume 可继续
 
+## 10. 语义一致性层（TUI/GUI）
+
+为避免 TUI 与 GUI 在同一能力上出现“双实现漂移”，当前已引入共享语义层（`src/features/semantics/*`），并要求新能力优先进入该层，再接入 TUI/app-server/web。
+
+当前核心模块：
+
+- `modeSemantics.ts`
+  - mode 注入规则（`normal | acceptEdits | plan`）与 plan 提示注入。
+- `slashSemantics.ts`
+  - slash 最小语义解析（当前含 `/init` 的模型映射）。
+- `turnInputBuilder.ts`
+  - 统一 turn 输入构建（`displayText` / `modelUserText` / `semanticBlocks`）。
+- `inputStateMachine.ts`
+  - approval / ask_user_question 的提交与 resolved 状态转移（幂等、冲突、过期）。
+
+Web 侧配套抽象：
+
+- `apps/web-reference-react/src/toolEventNormalizer.ts`
+  - 工具事件（start/update/end）与历史工具消息统一归并结构。
+- `apps/web-reference-react/src/turnEventCursor.ts`
+  - `eventId + traceId + seq` 去重与乱序保护。
+
+接入原则：
+
+1. TUI 与 app-server 不再各自拼接 turn 注入文本，统一走 `turnInputBuilder`。
+2. web reducer 的 input resolved 处理使用共享状态转移，避免本地分叉语义。
+3. 工具流式事件与历史回放使用同一 normalizer，保证刷新前后结构一致。
+
+测试门禁：
+
+- 共享语义 contract 测试：`src/features/semantics/__tests__/*`
+- app-server 输入/turn 回归：`src/app-server/turn/*.test.ts`、`src/app-server/turnRunner.test.ts`
+- web reducer/cursor/normalizer 回归：`apps/web-reference-react/src/*.test.ts(x)`
+
 ### 9.3 回归要求
 
 - 现有 `bun run test` 全绿。
