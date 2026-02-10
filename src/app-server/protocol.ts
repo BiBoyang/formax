@@ -72,6 +72,13 @@ export type TurnStartParams = {
   cwd?: string
 }
 
+export type CommandDispatchParams = {
+  threadId: string
+  command: string
+  mode?: 'normal' | 'acceptEdits' | 'plan'
+  cwd?: string
+}
+
 export type TurnInterruptParams = {
   threadId: string
   turnId: string
@@ -199,6 +206,32 @@ export function parseTurnStartParams(params: unknown): TurnStartParams {
   return {
     threadId,
     input: { text },
+    ...(mode ? { mode } : {}),
+    ...(cwd ? { cwd } : {}),
+  }
+}
+
+export function parseCommandDispatchParams(params: unknown): CommandDispatchParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const command = parseRequiredNonEmptyString(params.command, 'params.command')
+  if (!command.startsWith('/')) {
+    throw new Error('Invalid params.command: expected slash command')
+  }
+  const modeRaw = parseOptionalNonEmptyString(params.mode, 'params.mode')
+  const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
+
+  let mode: CommandDispatchParams['mode'] | undefined
+  if (modeRaw === 'normal' || modeRaw === 'acceptEdits' || modeRaw === 'plan') {
+    mode = modeRaw
+  } else if (modeRaw) {
+    throw new Error('Invalid params.mode: expected normal|acceptEdits|plan')
+  }
+
+  return {
+    threadId,
+    command,
     ...(mode ? { mode } : {}),
     ...(cwd ? { cwd } : {}),
   }

@@ -270,6 +270,32 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('uses command/dispatch for slash input', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.change(input, { target: { value: '/init' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.command === '/init',
+        ),
+      ).toBe(true)
+    })
+
+    expect(rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/init')).toBe(
+      false,
+    )
+  })
+
   it('deduplicates repeated eventId notifications', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))

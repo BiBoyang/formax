@@ -9,6 +9,7 @@ import {
 } from './jsonrpc.js'
 import {
   APP_SERVER_PROTOCOL_VERSION,
+  parseCommandDispatchParams,
   parseInitializeParams,
   parseThreadByIdParams,
   parseThreadListParams,
@@ -242,6 +243,22 @@ export class AppServer {
         const runner = await this.getTurnRunner()
         const result = await runner.startTurn(params)
         return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'command/dispatch') {
+      try {
+        const params = parseCommandDispatchParams(req.params)
+        const runner = await this.getTurnRunner()
+        const result = await runner.startTurn({
+          threadId: params.threadId,
+          input: { text: params.command },
+          ...(params.mode ? { mode: params.mode } : {}),
+          ...(params.cwd ? { cwd: params.cwd } : {}),
+        })
+        return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }

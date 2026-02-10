@@ -190,6 +190,69 @@ describe('AppServer', () => {
     )
   })
 
+  it('routes command/dispatch to turnRunner startTurn', async () => {
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          return { turn: { id: 'turn-cmd', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: '/init',
+        mode: 'plan',
+      }),
+    )
+    expect((out[0] as any).result.dispatched).toBe(true)
+    expect((out[0] as any).result.command).toBe('/init')
+    expect((out[0] as any).result.turn.id).toBe('turn-cmd')
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: '/init' },
+      mode: 'plan',
+    })
+  })
+
+  it('validates command/dispatch params', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          return { turn: { id: 'turn-1', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: 'init',
+      }),
+    )
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.command')
+  })
+
   it('validates thread/replay params', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))

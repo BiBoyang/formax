@@ -875,11 +875,17 @@ export function App() {
 
     setIsSendingTurn(true)
     try {
-      const result = await request('turn/start', {
-        threadId: state.activeThreadId,
-        input: { text },
-        mode,
-      })
+      const result = isCommand
+        ? await request('command/dispatch', {
+            threadId: state.activeThreadId,
+            command: text,
+            mode,
+          })
+        : await request('turn/start', {
+            threadId: state.activeThreadId,
+            input: { text },
+            mode,
+          })
       const turnId = String((result as any)?.turn?.id ?? '')
       if (turnId) {
         dispatch({ type: 'set_active_turn', turnId })
