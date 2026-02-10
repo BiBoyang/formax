@@ -414,6 +414,26 @@ describe('App thread history integration', () => {
     ).toBe(false)
   })
 
+  it('shows unsupported hint for /compact and does not send RPC turn command', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/compact' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText('Web reference does not support /compact yet. Please use TUI for this command.'),
+    ).toBeInTheDocument()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/compact'),
+    ).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/compact'),
+    ).toBe(false)
+  })
+
   it('deduplicates repeated eventId notifications', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))

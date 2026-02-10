@@ -951,6 +951,15 @@ export function App() {
       await startThread()
       return
     }
+    if (commandRouting.isExactCompact) {
+      setInputText('')
+      dispatch({
+        type: 'push_message',
+        role: 'assistant',
+        text: 'Web reference does not support /compact yet. Please use TUI for this command.',
+      })
+      return
+    }
 
     if (!state.activeThreadId) {
       log('Please select or create a thread first', 'warn')
