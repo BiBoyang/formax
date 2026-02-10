@@ -48,6 +48,7 @@ Notes:
   - `e2e/approval-submit.spec.js` (pending approval submit payload/status)
   - `e2e/diff-collapsible.spec.js` (diff file collapse/expand)
   - `e2e/tool-history-refresh.spec.js` (tool summary rows remain available after refresh)
+  - `e2e/nested-scroll-boundary.spec.js` (center/right pane wheel scrolling isolation)
 - These tests auto-start Vite via Playwright `webServer` on `http://127.0.0.1:3781`.
 - E2E uses an in-page WebSocket mock (`e2e/helpers/mockRpc.js`) so tests do not depend on a real app-server process.
 - If you already started dev server manually, use:
