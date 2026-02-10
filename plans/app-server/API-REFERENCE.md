@@ -427,7 +427,7 @@ AskUserQuestion payload：
 
 ### Result（两种形态）
 
-形态 A：转发为 turn（当前 `/init`）
+形态 A：转发为 turn（当前 `/init`、`/compact`）
 
 ```ts
 {
@@ -456,6 +456,7 @@ AskUserQuestion payload：
 当前支持范围（server 侧）：
 
 - `/init`：走形态 A（转发 turn）
+- `/compact`：走形态 A（转发 turn；由 TurnRunner 执行 compact 语义）
 - `/todos`：走形态 B（本地输出）
 - 其他命令：返回 `INVALID_PARAMS`（Unsupported params.command）
 

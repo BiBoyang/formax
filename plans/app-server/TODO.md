@@ -15,11 +15,11 @@
   - 契约测试与文档索引补齐
 - [x] app-server 协议扩展：
   - `thread/replay`
-  - `command/dispatch`（当前覆盖 `/init`、`/todos`）
+  - `command/dispatch`（当前覆盖 `/init`、`/compact`、`/todos`）
 - [x] Web 命令侧当前闭环：
   - `/init`：走 `command/dispatch`
   - `/clear`：本地处理（新建线程）
-  - `/compact`：Web 侧明确提示暂不支持（不落模型）
+  - `/compact`：走 `command/dispatch`，后端执行 compact 语义并持久化压缩后的 history
   - `/todos`：走 `command/dispatch` 本地输出（非模型提问）
 - [x] 4 命令闭环回归用例已覆盖（web + app-server）
   - 证据：`apps/web-reference-react/src/App.test.tsx`、`src/app-server/server.test.ts`、`apps/web-reference-react/e2e/slash-command-routing.spec.js`
@@ -33,4 +33,3 @@
 ## 暂不推进（保持边界）
 
 - [ ] 配置类命令（如 `/agents`、`/hooks`、`/permissions`）默认不接入 Web
-- [ ] `/compact` 真正语义执行（目前仅提示不支持）
