@@ -113,7 +113,7 @@
 验收标准：
 - 新同学只看文档即可定位语义归属与测试门禁。
 
-## 暂缓（等 Extended 结果后再决定）
+## 后续增强（非当前主线）
 
 - [ ] `ThreadStateReducer` 全量抽象（server/web 统一线程状态归约）
 - [ ] 协议扩展：`replay`、`command/dispatch` 等

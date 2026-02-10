@@ -18,7 +18,7 @@
 - [x] transcript 收敛（thinking 运行/完成态 + turn footer）
 - [x] 中栏/右栏滚动边界治理 + Playwright 基线用例
 
-## 暂缓（等待 Extended 结果后再决策）
+## 后续增强（非当前主线）
 
 - [ ] ThreadStateReducer 全量抽象（server/web 统一线程状态归约）
 - [ ] 协议扩展（`replay`、`command/dispatch` 等）
