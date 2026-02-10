@@ -43,7 +43,7 @@
 2. 发送 `initialize` 请求
 3. 发送 `initialized` 通知
 4. 调 `thread/start`（或 `thread/resume`）
-5. 调 `turn/start`
+5. 调 `turn/start` 或 `command/dispatch`
 6. 持续监听通知：`turn/*`
 7. 如收到 `turn/inputRequested`，调用 `turn/input/submit`
 8. 直到收到 `turn/completed` 或 `turn/failed`
@@ -391,6 +391,7 @@ AskUserQuestion payload：
 {
   threadId: string
   input: { text: string }
+  mode?: 'normal' | 'acceptEdits' | 'plan'
   cwd?: string
 }
 ```
@@ -411,7 +412,54 @@ AskUserQuestion payload：
 
 - 单线程仅允许一个 in-flight turn。重复启动会返回 `Invalid params`（`Turn already running...`）。
 
-## 5.6 `turn/interrupt`
+## 5.6 `command/dispatch`
+
+### Params
+
+```ts
+{
+  threadId: string
+  command: string // 必须以 "/" 开头
+  mode?: 'normal' | 'acceptEdits' | 'plan'
+  cwd?: string
+}
+```
+
+### Result（两种形态）
+
+形态 A：转发为 turn（当前 `/init`）
+
+```ts
+{
+  command: string
+  dispatched: true
+  turn: {
+    id: string
+    threadId: string
+    status: 'running'
+  }
+}
+```
+
+形态 B：本地命令输出（当前 `/todos`）
+
+```ts
+{
+  command: string
+  dispatched: true
+  local: {
+    stdout: string // 已去除 ANSI 控制序列，可直接在 Web 渲染
+  }
+}
+```
+
+当前支持范围（server 侧）：
+
+- `/init`：走形态 A（转发 turn）
+- `/todos`：走形态 B（本地输出）
+- 其他命令：返回 `INVALID_PARAMS`（Unsupported params.command）
+
+## 5.7 `turn/interrupt`
 
 ### Params
 
@@ -428,7 +476,7 @@ AskUserQuestion payload：
 {}
 ```
 
-## 5.7 `turn/input/submit`
+## 5.8 `turn/input/submit`
 
 ### Params
 

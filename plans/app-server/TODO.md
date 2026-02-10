@@ -21,6 +21,8 @@
   - `/clear`：本地处理（新建线程）
   - `/compact`：Web 侧明确提示暂不支持（不落模型）
   - `/todos`：走 `command/dispatch` 本地输出（非模型提问）
+- [x] 4 命令闭环回归用例已覆盖（web + app-server）
+  - 证据：`apps/web-reference-react/src/App.test.tsx`、`src/app-server/server.test.ts`
 
 ## 当前待办（唯一主线）
 
