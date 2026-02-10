@@ -6,4 +6,4 @@
 ## D. 后续增强（非当前主线）
 
 - [ ] 协议层新增方法/字段（如 replay、command/dispatch）。
-- [ ] commander 全量能力扩展（超出 `/init` 的最终形态）。
+- [ ] commander 全量能力扩展（超出 `/init`、`/clear`、`/compact`、`/todos`）。
