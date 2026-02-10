@@ -12,10 +12,13 @@ Create a clean handoff package for another AI with:
 - explicit acceptance criteria and non-goals
 
 ## Where to change what
-- Bundle output: `proxy/repomix-<topic>-<suffix>.txt`
-- Handoff prompt: `plans/<area>/<topic>-handoff-prompt.md`
-- Optional file manifest notes: `plans/<area>/repomix-<topic>-files.md`
+- All handoff artifacts live in one folder: `repomix-output/`
+- Bundle output: `repomix-output/repomix-<topic>-<suffix>.txt`
+- Handoff prompt: `repomix-output/<topic>-handoff-prompt.md`
+- Optional file manifest notes: `repomix-output/repomix-<topic>-files.md`
 - Template references: `references/prompt-templates.md`
+
+> Required hygiene: each new pack run must clear previous files in `repomix-output/` first, so users can upload that folder as-is without manual file picking.
 
 ## Patterns
 1. Classify target runtime first
@@ -27,20 +30,24 @@ Create a clean handoff package for another AI with:
 - Include only the docs needed for intent/constraints.
 - Avoid unrelated folders to keep context small.
 
-3. Pack with deterministic command
+3. Pack with deterministic command (single folder, auto-clean)
 ```sh
 bunx repomix . \
   --style plain \
   --no-git-sort-by-changes \
-  -o proxy/repomix-<topic>-<suffix>.txt \
+  -o repomix-output/repomix-<topic>-<suffix>.txt \
   --include "<comma-separated-file-list>"
 ```
 Or use the helper script:
 ```sh
 bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh \
-  proxy/repomix-<topic>-<suffix>.txt \
+  repomix-<topic>-<suffix>.txt \
   "<comma-separated-file-list>"
 ```
+The helper script will:
+- create `repomix-output/` if missing
+- delete previous files under `repomix-output/` (except `.gitkeep`)
+- write the new bundle into `repomix-output/`
 
 4. Write prompt with explicit boundaries
 - State known symptoms.
@@ -49,6 +56,7 @@ bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh \
 - Include acceptance criteria with observable assertions.
 
 5. Sanity-check before handoff
+- `repomix-output/` only contains current-round artifacts.
 - Bundle exists and includes the expected files.
 - Prompt has no impossible instructions for the target runtime.
 - Prompt does not ask static consumers to run commands.
