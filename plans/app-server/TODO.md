@@ -22,6 +22,6 @@
 
 - [x] ThreadStateReducer 最小闭环（server 运行态归约 + replay 状态快照）
 - [x] 协议扩展最小版：`thread/replay`（cursor + hasGap）
-- [ ] ThreadStateReducer 全量抽象（server/web 统一线程状态归约）
+- [x] ThreadStateReducer 全量抽象（server/web 统一线程状态归约）
 - [x] 协议扩展（`command/dispatch`，当前接入 `/init`）
 - [ ] commander 全量能力迁移（超出 `/init`）
