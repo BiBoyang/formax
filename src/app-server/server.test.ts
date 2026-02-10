@@ -249,6 +249,7 @@ describe('AppServer', () => {
       request(2, 'command/dispatch', {
         threadId: 'thread-1',
         command: '/compact keep only key points',
+        mode: 'acceptEdits',
       }),
     )
     expect((out[0] as any).result.dispatched).toBe(true)
@@ -257,6 +258,7 @@ describe('AppServer', () => {
     expect(received).toEqual({
       threadId: 'thread-1',
       input: { text: '/compact keep only key points' },
+      mode: 'acceptEdits',
     })
   })
 

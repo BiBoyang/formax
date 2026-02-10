@@ -546,11 +546,27 @@ describe('TurnRunner', () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
     const toolStub = { name: 'DummyTool' } as any
+    let compactToolsLength = -1
+    let compactReplMode: string | undefined
+    let compactPromptText = ''
 
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
           if (args.tools.length === 0) {
+            compactToolsLength = args.tools.length
+            compactReplMode = args.exec?.replMode as string | undefined
+            compactPromptText = Array.isArray(args.user.content)
+              ? args.user.content
+                  .map((block) => {
+                    if (!block || typeof block !== 'object') return ''
+                    if ((block as { type?: unknown }).type !== 'text') return ''
+                    const text = (block as { text?: unknown }).text
+                    return typeof text === 'string' ? text : ''
+                  })
+                  .filter(Boolean)
+                  .join('\n\n')
+              : ''
             return [
               ...args.history,
               args.user,
@@ -586,6 +602,7 @@ describe('TurnRunner', () => {
     const compactStarted = await runner.startTurn({
       threadId: fixture.threadId,
       input: { text: '/compact keep the intent only' },
+      mode: 'plan',
     })
     await waitForNotification(
       notifications,
@@ -601,6 +618,10 @@ describe('TurnRunner', () => {
           String(n.params?.event?.text ?? '').includes('Conversation compacted'),
       ),
     ).toBe(true)
+    expect(compactToolsLength).toBe(0)
+    expect(compactReplMode).toBe('plan')
+    expect(compactPromptText).toContain('Additional user instructions:')
+    expect(compactPromptText).toContain('keep the intent only')
 
     const filePath = await findSessionFileBySessionId({
       cwd: fixture.cwd,

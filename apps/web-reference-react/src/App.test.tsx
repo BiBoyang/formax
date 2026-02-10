@@ -253,14 +253,14 @@ describe('App thread history integration', () => {
     expect(screen.queryByText('thread thread-a')).not.toBeInTheDocument()
   })
 
-  it('sends selected mode in turn/start params', async () => {
+  it('keeps mode routing consistent across turn/start and command/dispatch', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
 
     const input = screen.getByPlaceholderText('Ask for follow-up changes')
-    fireEvent.change(input, { target: { value: 'hello mode' } })
+    fireEvent.change(input, { target: { value: 'hello normal' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
@@ -269,7 +269,7 @@ describe('App thread history integration', () => {
           (entry) =>
             entry.method === 'turn/start' &&
             (entry.params as any)?.mode === 'normal' &&
-            (entry.params as any)?.input?.text === 'hello mode',
+            (entry.params as any)?.input?.text === 'hello normal',
         ),
       ).toBe(true)
     })
@@ -290,6 +290,71 @@ describe('App thread history integration', () => {
         ),
       ).toBe(true)
     })
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Auto edit' }))
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello auto' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.mode === 'acceptEdits' &&
+            (entry.params as any)?.input?.text === 'hello auto',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/init' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.mode === 'acceptEdits' &&
+            (entry.params as any)?.command === '/init',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), {
+      target: { value: '/compact summarize the conversation' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.mode === 'plan' &&
+            (entry.params as any)?.command === '/compact summarize the conversation',
+        ),
+      ).toBe(true)
+    })
+
+    const settledRequestCount = rpcMock.requests.length
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(rpcMock.requests.length).toBe(settledRequestCount)
+
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'turn/start' &&
+          ((entry.params as any)?.input?.text === '/init' ||
+            (entry.params as any)?.input?.text === '/compact summarize the conversation'),
+      ),
+    ).toBe(false)
   })
 
   it('uses command/dispatch for /init and /todos only', async () => {
