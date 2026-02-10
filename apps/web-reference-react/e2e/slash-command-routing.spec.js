@@ -39,6 +39,11 @@ test.describe('slash command routing', () => {
           dispatched: true,
           local: { stdout: 'No todos currently tracked' },
         },
+        '/compact': {
+          command: '/compact',
+          dispatched: true,
+          turn: { id: 'turn-compact-1', threadId: 'thread-cmd', status: 'running' },
+        },
       },
     })
 
@@ -62,7 +67,6 @@ test.describe('slash command routing', () => {
 
     await input.fill('/compact')
     await send.click()
-    await expect(page.getByText('Web reference does not support /compact yet. Please use TUI for this command.')).toBeVisible()
 
     await input.fill('/help')
     await send.click()
@@ -70,20 +74,19 @@ test.describe('slash command routing', () => {
 
     const requests = await page.evaluate(() => window.__mockRpcState?.requests || [])
     const methods = requests.map((entry) => String(entry.method || ''))
-    expect(methods.filter((method) => method === 'command/dispatch').length).toBe(2)
+    expect(methods.filter((method) => method === 'command/dispatch').length).toBe(3)
     expect(methods.filter((method) => method === 'thread/start').length).toBe(1)
 
     const commandPayloads = requests
       .filter((entry) => String(entry.method || '') === 'command/dispatch')
       .map((entry) => entry.params?.command)
-    expect(commandPayloads).toEqual(['/init', '/todos'])
+    expect(commandPayloads).toEqual(['/init', '/todos', '/compact'])
 
     const turnStartPayloads = requests
       .filter((entry) => String(entry.method || '') === 'turn/start')
       .map((entry) => entry.params?.input?.text)
     expect(turnStartPayloads).not.toContain('/init')
     expect(turnStartPayloads).not.toContain('/todos')
-    expect(turnStartPayloads).not.toContain('/compact')
     expect(turnStartPayloads).not.toContain('/help')
   })
 })

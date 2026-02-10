@@ -542,6 +542,91 @@ describe('TurnRunner', () => {
     expect(replay.messages.some((m) => m.role === 'user' && m.content === '/init')).toBe(true)
   })
 
+  it('executes /compact semantics and persists compacted history', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const toolStub = { name: 'DummyTool' } as any
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          if (args.tools.length === 0) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Compaction summary from model' }] },
+            ] as ChatHistory
+          }
+          args.onEvent({ type: 'assistant_delta', text: 'normal reply' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'normal reply' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [toolStub],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'hello before compact' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const compactStarted = await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: '/compact keep the intent only' },
+    })
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && n.params?.turn?.id === compactStarted.turn.id,
+    )
+
+    expect(
+      notifications.some(
+        (n) =>
+          n.method === 'turn/event' &&
+          n.params?.turnId === compactStarted.turn.id &&
+          n.params?.event?.type === 'assistant_delta' &&
+          String(n.params?.event?.text ?? '').includes('Conversation compacted'),
+      ),
+    ).toBe(true)
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const replay = await readSessionFile(filePath!)
+
+    expect(replay.history).toHaveLength(1)
+    expect(replay.history[0]?.role).toBe('user')
+    const summaryText = Array.isArray(replay.history[0]?.content)
+      ? String((replay.history[0]!.content[0] as { text?: string } | undefined)?.text ?? '')
+      : ''
+    expect(summaryText).toContain('This session is being continued from a previous conversation')
+
+    expect(replay.messages.some((message) => message.role === 'user' && message.content === '/compact keep the intent only')).toBe(true)
+    expect(
+      replay.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          String(message.content).includes('Conversation compacted. Summary kept for future turns.'),
+      ),
+    ).toBe(true)
+  })
+
   it('passes turn mode to engine exec context and keeps interactive on', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

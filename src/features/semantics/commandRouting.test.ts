@@ -18,6 +18,14 @@ describe('commandRouting', () => {
     expect(out.shouldUseCommandDispatch).toBe(true)
   })
 
+  it('classifies /compact as command-dispatchable', () => {
+    const out = resolveCommandRouting('/compact summarize recent edits')
+    expect(out.commandName).toBe('/compact')
+    expect(out.commandArgs).toBe('summarize recent edits')
+    expect(out.isSlashCommand).toBe(true)
+    expect(out.shouldUseCommandDispatch).toBe(true)
+  })
+
   it('keeps unknown slash commands on turn/start route', () => {
     const out = resolveCommandRouting('/permissions')
     expect(out.commandName).toBe('/permissions')

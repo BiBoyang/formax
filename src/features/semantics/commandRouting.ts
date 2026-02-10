@@ -27,7 +27,7 @@ export function resolveCommandRouting(rawText: string): CommandRouting {
     isSlashCommandAfterTrim,
     isExactClear: normalized === '/clear',
     isExactCompact: normalized === '/compact',
-    shouldUseCommandDispatch: normalized === '/init' || normalized === '/todos',
+    shouldUseCommandDispatch: normalized === '/init' || normalized === '/compact' || normalized === '/todos',
   }
 }
 

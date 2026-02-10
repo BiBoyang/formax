@@ -226,6 +226,40 @@ describe('AppServer', () => {
     })
   })
 
+  it('routes /compact via command/dispatch to turnRunner startTurn', async () => {
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          return { turn: { id: 'turn-compact', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: '/compact keep only key points',
+      }),
+    )
+    expect((out[0] as any).result.dispatched).toBe(true)
+    expect((out[0] as any).result.command).toBe('/compact keep only key points')
+    expect((out[0] as any).result.turn.id).toBe('turn-compact')
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: '/compact keep only key points' },
+    })
+  })
+
   it('routes /todos via command/dispatch as local command output', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-server-todos-'))
     const todosPath = path.join(cwd, 'todos', 'web-agent-web.json')

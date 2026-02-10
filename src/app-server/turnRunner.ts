@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { PromptBlock } from '../prompts/index.js'
 import { buildSystemPrompt, type SystemPromptProfile } from '../prompts/index.js'
+import { buildCompactRequest } from '../prompts/compact.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
 import type { Msg } from '../components/tool/ToolMessage.js'
 import type { StreamEvent } from '../streaming/types.js'
@@ -19,6 +21,7 @@ import type {
 import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 import { TurnInputStore } from './turn/inputStore.js'
 import { maybeAutoGenerateSessionTitle } from '../features/sessionTitle/index.js'
+import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
 import { buildTurnInput } from '../features/semantics/turnInputBuilder.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
@@ -59,10 +62,16 @@ type RunningTurn = {
   writer: SessionWriter | null
   pendingEventWrites: Array<Promise<void>>
   inputExpiryTimers: Map<string, ReturnType<typeof setTimeout>>
+  compact: {
+    isCommand: boolean
+    instructions: string
+  }
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
 export const DEFAULT_MAX_PENDING_INPUTS_PER_THREAD = 32
+const MANUAL_COMPACT_KEEP_LAST_TURNS = 0
+const COMPACT_BANNER_TEXT = 'Conversation compacted. Summary kept for future turns.'
 
 function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
   return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
@@ -112,6 +121,25 @@ function firstUserPromptFromHistory(history: ChatHistory): string | null {
     return text
   }
   return null
+}
+
+function extractAssistantText(history: ChatHistory): string {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (message?.role !== 'assistant') continue
+    if (!Array.isArray(message.content)) continue
+    const text = message.content
+      .map((block) => {
+        if (!block || typeof block !== 'object') return ''
+        if ((block as { type?: unknown }).type !== 'text') return ''
+        const value = (block as { text?: unknown }).text
+        return typeof value === 'string' ? value : ''
+      })
+      .join('')
+      .trim()
+    if (text) return text
+  }
+  return ''
 }
 
 function toToolUpdateLine(event: Extract<StreamEvent, { type: 'tool_update' }>): string | null {
@@ -210,6 +238,7 @@ export class TurnRunner {
       mode: params.mode ?? 'normal',
       planPath: null,
     })
+    const commandRouting = resolveCommandRouting(params.input.text)
 
     const turnId = randomUUID()
     const running: RunningTurn = {
@@ -234,6 +263,10 @@ export class TurnRunner {
       writer: null,
       pendingEventWrites: [],
       inputExpiryTimers: new Map(),
+      compact: {
+        isCommand: commandRouting.isExactCompact,
+        instructions: commandRouting.isExactCompact ? commandRouting.commandArgs ?? '' : '',
+      },
     }
     this.runningByThreadId.set(params.threadId, running)
 
@@ -353,6 +386,16 @@ export class TurnRunner {
       const tools = patchToolsForTurn(this.tools, running.cwd)
 
       let assistantText = ''
+      let nextHistoryForSnapshot: ChatHistory | null = null
+      const shouldAutoGenerateTitle = !running.compact.isCommand
+      const emitStreamTurnEvent = (event: StreamEvent) => {
+        this.emitTurnNotification(running, 'turn/event', sourceFromStreamEvent(event), {
+          turnId: running.turnId,
+          threadId: running.threadId,
+          event,
+        })
+      }
+
       const onEvent = (event: StreamEvent) => {
         if (event.type === 'approval_request') {
           const input = running.inputStore.createPendingInput({
@@ -436,34 +479,74 @@ export class TurnRunner {
             lines: payload.lines,
           })
         }
-        this.emitTurnNotification(running, 'turn/event', sourceFromStreamEvent(event), {
-          turnId: running.turnId,
-          threadId: running.threadId,
-          event,
-        })
+        emitStreamTurnEvent(event)
       }
 
       if (running.abortController.signal.aborted) {
         throw new Error('Request aborted')
       }
-      const nextHistory = await this.engine.runTurn({
-        history,
-        user,
-        system,
-        tools,
-        onEvent,
-        cwd: running.cwd,
-        signal: running.abortController.signal,
-        thinkingEnabled: this.thinkingEnabled,
-        exec: { interactive: true, replMode: running.replMode },
-      })
-      if (running.abortController.signal.aborted) {
-        throw new Error('Request aborted')
+
+      if (running.compact.isCommand) {
+        await writer.appendEvent('compact_started', { source: 'manual' })
+        const compactPrompt: ChatHistory[number] = {
+          role: 'user',
+          content: [{ type: 'text', text: buildCompactRequest(running.compact.instructions) }],
+        }
+        const compactHistory = await this.engine.runTurn({
+          history,
+          user: compactPrompt,
+          system,
+          tools: [],
+          onEvent: (event) => {
+            if (event.type === 'thinking_delta' || event.type === 'thinking_stop' || event.type === 'usage') {
+              emitStreamTurnEvent(event)
+            }
+          },
+          cwd: running.cwd,
+          signal: running.abortController.signal,
+          thinkingEnabled: this.thinkingEnabled,
+          exec: { interactive: true, replMode: running.replMode },
+        })
+        if (running.abortController.signal.aborted) {
+          throw new Error('Request aborted')
+        }
+        const summary = extractAssistantText(compactHistory).trim()
+        if (!summary) {
+          throw new Error('Compact failed: empty summary')
+        }
+        nextHistoryForSnapshot = rebuildHistoryAfterCompaction({
+          summary,
+          previousHistory: history,
+          keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+        })
+        assistantText = COMPACT_BANNER_TEXT
+        emitStreamTurnEvent({ type: 'assistant_delta', text: assistantText })
+        await writer.appendEvent('compact_succeeded', {
+          source: 'manual',
+          summaryChars: summary.length,
+        })
+      } else {
+        const nextHistory = await this.engine.runTurn({
+          history,
+          user,
+          system,
+          tools,
+          onEvent,
+          cwd: running.cwd,
+          signal: running.abortController.signal,
+          thinkingEnabled: this.thinkingEnabled,
+          exec: { interactive: true, replMode: running.replMode },
+        })
+        if (running.abortController.signal.aborted) {
+          throw new Error('Request aborted')
+        }
+        nextHistoryForSnapshot =
+          running.semanticBlockCount > 0
+            ? stripInjectedBlocksFromHistory(nextHistory as ChatHistory, history.length, running.semanticBlockCount)
+            : (nextHistory as ChatHistory)
       }
-      const stripped =
-        running.semanticBlockCount > 0
-          ? stripInjectedBlocksFromHistory(nextHistory as ChatHistory, history.length, running.semanticBlockCount)
-          : (nextHistory as ChatHistory)
+
+      const historyForSnapshot = nextHistoryForSnapshot ?? history
 
       if (assistantText.trim()) {
         await writer.appendStableMsg({
@@ -473,26 +556,28 @@ export class TurnRunner {
           timestamp: new Date(),
         })
       }
-      await writer.appendHistorySnapshot(stripped)
+      await writer.appendHistorySnapshot(historyForSnapshot)
       const firstUserPrompt = firstUserPromptFromHistory(history) ?? running.inputText
-      const uiMsgCount = stripped.filter((message) => message.role === 'user' || message.role === 'assistant').length
+      const uiMsgCount = historyForSnapshot.filter((message) => message.role === 'user' || message.role === 'assistant').length
       await writer.appendEvent('ui_stats', {
         uiMsgCount,
         firstUserPrompt,
         lastUserPrompt: running.inputText,
       })
-      await maybeAutoGenerateSessionTitle({
-        filePath: running.filePath,
-        engine: this.engine,
-        cwd: running.cwd,
-        attemptedSessionIds: this.autoTitleAttemptedThreadIds,
-        checkedTopicPromptKeys: this.autoTitleCheckedTopicPromptKeys,
-        writer,
-        userText: firstUserPrompt,
-        topicUserText: running.inputText,
-        assistantText,
-        signal: running.abortController.signal,
-      }).catch(() => null)
+      if (shouldAutoGenerateTitle) {
+        await maybeAutoGenerateSessionTitle({
+          filePath: running.filePath,
+          engine: this.engine,
+          cwd: running.cwd,
+          attemptedSessionIds: this.autoTitleAttemptedThreadIds,
+          checkedTopicPromptKeys: this.autoTitleCheckedTopicPromptKeys,
+          writer,
+          userText: firstUserPrompt,
+          topicUserText: running.inputText,
+          assistantText,
+          signal: running.abortController.signal,
+        }).catch(() => null)
+      }
       status = 'completed'
     } catch (err) {
       status = running.abortController.signal.aborted ? 'interrupted' : 'failed'
