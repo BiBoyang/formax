@@ -34,6 +34,7 @@ import {
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from './threadStateReducer.js'
+import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 
@@ -251,6 +252,15 @@ export class AppServer {
     if (req.method === 'command/dispatch') {
       try {
         const params = parseCommandDispatchParams(req.params)
+        const commandRouting = resolveCommandRouting(params.command)
+        if (!commandRouting.shouldUseCommandDispatch) {
+          return [
+            makeErrorResponse(req.id, {
+              code: JSON_RPC_ERRORS.INVALID_PARAMS,
+              message: `Unsupported params.command for command/dispatch: ${params.command}`,
+            }),
+          ]
+        }
         const runner = await this.getTurnRunner()
         const result = await runner.startTurn({
           threadId: params.threadId,

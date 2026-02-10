@@ -253,6 +253,36 @@ describe('AppServer', () => {
     expect((out[0] as any).error.message).toContain('params.command')
   })
 
+  it('rejects unsupported command/dispatch commands', async () => {
+    let startTurnCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          startTurnCount += 1
+          return { turn: { id: 'turn-1', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: '/permissions',
+      }),
+    )
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('Unsupported params.command')
+    expect(startTurnCount).toBe(0)
+  })
+
   it('validates thread/replay params', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))
