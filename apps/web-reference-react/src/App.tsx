@@ -26,6 +26,7 @@ const SIDEBAR_WIDTH = 260
 const DIVIDER_WIDTH = 1
 const SEEN_EVENT_CAP = 2000
 const DELTA_FLUSH_MS = 50
+const WEB_SUPPORTED_SLASH_COMMANDS = new Set(['/init', '/clear', '/compact', '/todos'])
 
 function clampRightRailWidth(desiredWidth: number, viewportWidth: number, isSidebarOpen: boolean): number {
   const leftReserved = isSidebarOpen ? SIDEBAR_WIDTH : 0
@@ -942,6 +943,20 @@ export function App() {
     if (!text || isSendingTurn) return
 
     const commandRouting = resolveCommandRouting(text)
+    if (
+      commandRouting.isSlashCommandAfterTrim &&
+      commandRouting.commandName &&
+      !WEB_SUPPORTED_SLASH_COMMANDS.has(commandRouting.commandName)
+    ) {
+      setInputText('')
+      dispatch({
+        type: 'push_message',
+        role: 'assistant',
+        text: `Web reference does not support ${commandRouting.commandName} yet. Please use TUI for this command.`,
+      })
+      return
+    }
+
     if (commandRouting.isExactClear) {
       setInputText('')
       if (commandRouting.commandArgs) {

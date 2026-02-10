@@ -226,6 +226,41 @@ describe('AppServer', () => {
     })
   })
 
+  it('routes /todos via command/dispatch to turnRunner startTurn', async () => {
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          return { turn: { id: 'turn-todos', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: '/todos',
+      }),
+    )
+
+    expect((out[0] as any).result.dispatched).toBe(true)
+    expect((out[0] as any).result.command).toBe('/todos')
+    expect((out[0] as any).result.turn.id).toBe('turn-todos')
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: '/todos' },
+    })
+  })
+
   it('validates command/dispatch params', async () => {
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },

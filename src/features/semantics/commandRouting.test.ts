@@ -10,6 +10,14 @@ describe('commandRouting', () => {
     expect(out.shouldUseCommandDispatch).toBe(true)
   })
 
+  it('classifies /todos as command-dispatchable', () => {
+    const out = resolveCommandRouting('/todos')
+    expect(out.commandName).toBe('/todos')
+    expect(out.commandArgs).toBe('')
+    expect(out.isSlashCommand).toBe(true)
+    expect(out.shouldUseCommandDispatch).toBe(true)
+  })
+
   it('keeps unknown slash commands on turn/start route', () => {
     const out = resolveCommandRouting('/permissions')
     expect(out.commandName).toBe('/permissions')

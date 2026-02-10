@@ -270,7 +270,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('uses command/dispatch only for /init', async () => {
+  it('uses command/dispatch for /init and /todos only', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
@@ -295,19 +295,37 @@ describe('App thread history integration', () => {
       false,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/todos' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
       expect(
         rpcMock.requests.some(
           (entry) =>
-            entry.method === 'turn/start' &&
+            entry.method === 'command/dispatch' &&
             (entry.params as any)?.threadId === 'thread-alpha' &&
-            (entry.params as any)?.input?.text === '/permissions',
+            (entry.params as any)?.command === '/todos',
         ),
       ).toBe(true)
     })
+    expect(rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/todos')).toBe(
+      false,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(
+      await screen.findByText('Web reference does not support /permissions yet. Please use TUI for this command.'),
+    ).toBeInTheDocument()
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'turn/start' &&
+          (entry.params as any)?.threadId === 'thread-alpha' &&
+          (entry.params as any)?.input?.text === '/permissions',
+      ),
+    ).toBe(false)
     expect(
       rpcMock.requests.some(
         (entry) =>
@@ -431,6 +449,24 @@ describe('App thread history integration', () => {
     ).toBe(false)
     expect(
       rpcMock.requests.some((entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/compact'),
+    ).toBe(false)
+  })
+
+  it('shows unsupported hint for /help and does not send RPC turn command', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/help' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(await screen.findByText('Web reference does not support /help yet. Please use TUI for this command.')).toBeInTheDocument()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/help'),
+    ).toBe(false)
+    expect(
+      rpcMock.requests.some((entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/help'),
     ).toBe(false)
   })
 
