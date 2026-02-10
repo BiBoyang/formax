@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptPaneProps } from './TranscriptPane'
 import { TranscriptPane } from './TranscriptPane'
+import { shouldStopWheelPropagation } from './scrollBoundary'
 
 function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPaneProps {
   return {
@@ -9,8 +10,10 @@ function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPane
     activeTurnId: null,
     logs: [],
     inputText: '',
+    mode: 'normal',
     connectionStatus: 'connected',
     onInputTextChange: vi.fn(),
+    onModeChange: vi.fn(),
     onSend: vi.fn((event) => event.preventDefault()),
     onInterrupt: vi.fn(),
     ...overrides,
@@ -77,17 +80,30 @@ describe('TranscriptPane', () => {
     expect(onInterrupt).toHaveBeenCalledTimes(1)
   })
 
-  it('renders thinking as lightweight label without delta body text', () => {
+  it('renders running thinking as lightweight label without delta body text', () => {
     render(
       <TranscriptPane
-        {...baseProps({
-          logs: [{ id: 'thinking-1', kind: 'thinking', text: 'Step A. Step B.', turnId: 'turn-1' }],
-        })}
+        {...baseProps({ logs: [{ id: 'thinking-1', kind: 'thinking', status: 'running', text: 'Step A. Step B.', turnId: 'turn-1' }] })}
       />,
     )
 
     expect(screen.getByText('thinking')).toBeInTheDocument()
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
+  })
+
+  it('renders finalized thinking collapsed and can expand details', () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [{ id: 'thinking-1', kind: 'thinking', status: 'finalized', text: 'Step A.\nStep B.', turnId: 'turn-1' }],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('thinking')).toBeInTheDocument()
+    expect(screen.queryByText(/Step A\.\s*Step B\./)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /thinking/i }))
+    expect(screen.getByText(/Step A\.\s*Step B\./)).toBeInTheDocument()
   })
 
   it('adds visual turn boundaries when turn id changes in transcript stream', () => {
@@ -516,5 +532,34 @@ describe('TranscriptPane', () => {
       { timeout: 4000 },
     )
     expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+  })
+
+  it('stops wheel propagation only when viewport can still scroll in that direction', () => {
+    expect(
+      shouldStopWheelPropagation({
+        deltaY: 10,
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 300,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldStopWheelPropagation({
+        deltaY: 10,
+        scrollTop: 700,
+        scrollHeight: 1000,
+        clientHeight: 300,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldStopWheelPropagation({
+        deltaY: -10,
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 300,
+      }),
+    ).toBe(false)
   })
 })

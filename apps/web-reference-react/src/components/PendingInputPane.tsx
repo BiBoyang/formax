@@ -1,10 +1,11 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
-import type { PendingInput } from '../types'
+import { useEffect, useRef, useState } from 'react'
+import type { PendingInput, ResolvedInput } from '../types'
 import { ScrollArea } from './ui/scroll-area'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { ApprovalForm, QuestionForm, formatRemainingTime, statusVariant } from './InputForms'
+import { shouldStopWheelPropagation } from './scrollBoundary'
 
 type DiffFile = {
   path: string
@@ -39,6 +40,7 @@ export type PendingInputPaneProps = {
   diffSnapshot?: DiffSnapshot | null
   onRefreshDiff?: () => void
   isRefreshingDiff?: boolean
+  staleInputs?: ResolvedInput[]
   showHeader?: boolean
 }
 
@@ -119,14 +121,39 @@ export function PendingInputPane(props: PendingInputPaneProps) {
     diffSnapshot = null,
     onRefreshDiff,
     isRefreshingDiff = false,
+    staleInputs = [],
     showHeader = true,
   } = props
   const [openFiles, setOpenFiles] = useState<Record<string, boolean>>({})
   const [listOpen, setListOpen] = useState(true)
+  const diffScrollAreaRef = useRef<HTMLDivElement | null>(null)
   const files = diffSnapshot?.files ?? []
   const selectedInput = selectedInputId ? pendingInputs[selectedInputId] : null
   const selectedSubmitStatus = selectedInput ? submitStatusByInputId[selectedInput.inputId] : null
   const remainingText = selectedInput ? formatRemainingTime(selectedInput.expiresAt, Date.now()) : null
+
+  useEffect(() => {
+    const root = diffScrollAreaRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+    const onWheel = (event: WheelEvent) => {
+      if (
+        shouldStopWheelPropagation({
+          deltaY: event.deltaY,
+          scrollTop: viewport.scrollTop,
+          scrollHeight: viewport.scrollHeight,
+          clientHeight: viewport.clientHeight,
+        })
+      ) {
+        event.stopPropagation()
+      }
+    }
+    viewport.addEventListener('wheel', onWheel, { passive: true })
+    return () => {
+      viewport.removeEventListener('wheel', onWheel)
+    }
+  }, [files.length, listOpen])
 
   return (
     <aside className="h-full w-full min-w-0 flex flex-col overflow-hidden overflow-x-hidden bg-white selection:bg-primary/10">
@@ -151,7 +178,7 @@ export function PendingInputPane(props: PendingInputPaneProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 min-w-0 relative">
-          <ScrollArea className="h-full min-w-0 px-6 pb-20">
+          <ScrollArea ref={diffScrollAreaRef} className="h-full min-w-0 px-6 pb-20">
               <div className="relative">
                   {/* 
                       PURE CSS LEAK FIX: 
@@ -205,12 +232,44 @@ export function PendingInputPane(props: PendingInputPaneProps) {
       </div>
 
       {/* Pending Inputs Area */}
-      {Object.values(pendingInputs).length > 0 && (
+      {(staleInputs.length > 0 || Object.values(pendingInputs).length > 0) && (
           <div className="flex-none border-t bg-white pt-2 pb-6 shadow-[-10px_0_20px_rgba(0,0,0,0.02)] z-30">
               <div className="px-6 py-2 flex items-center justify-between">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Pending Inputs</h3>
-                  <div className="size-5 rounded-full bg-muted/60 flex items-center justify-center text-[10px] font-bold text-muted-foreground/60">{Object.values(pendingInputs).length}</div>
+                  <div className="size-5 rounded-full bg-muted/60 flex items-center justify-center text-[10px] font-bold text-muted-foreground/60">
+                    {Object.values(pendingInputs).length}
+                  </div>
               </div>
+              {staleInputs.length > 0 ? (
+                <div className="px-5 pb-2">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    Recovered (Expired/Resolved)
+                  </div>
+                  <div className="space-y-1.5">
+                    {staleInputs.map((input) => (
+                      <div
+                        key={input.inputId}
+                        className="rounded-lg border bg-muted/20 px-4 py-2.5 text-[11px]"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-foreground/80">
+                            {input.kind === 'approval' ? 'Approval' : 'Question'}
+                          </span>
+                          <Badge variant={statusVariant(input.status, input.status === 'failed' ? 'error' : 'success')}>
+                            {input.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/80">
+                          {input.toolUseId}
+                        </div>
+                        {input.reason ? (
+                          <div className="mt-1 text-[10px] text-muted-foreground">{input.reason}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="px-5 space-y-1.5 mt-2">
                   {Object.values(pendingInputs).map(input => (
                       <button 

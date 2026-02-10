@@ -230,4 +230,249 @@ describe('App thread history integration', () => {
     })
     expect(screen.queryByText('thread thread-a')).not.toBeInTheDocument()
   })
+
+  it('sends selected mode in turn/start params', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.change(input, { target: { value: 'hello mode' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.mode === 'normal' &&
+            (entry.params as any)?.input?.text === 'hello mode',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello plan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.mode === 'plan' &&
+            (entry.params as any)?.input?.text === 'hello plan',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('deduplicates repeated eventId notifications', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/started',
+        params: {
+          eventId: 'turn-1:1',
+          traceId: 'trace-1',
+          seq: 1,
+          turn: { id: 'turn-1', threadId: 'thread-alpha', status: 'running' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-1:2',
+          traceId: 'trace-1',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-1',
+          event: { type: 'assistant_delta', text: 'dedupe-check' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-1:2',
+          traceId: 'trace-1',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-1',
+          event: { type: 'assistant_delta', text: 'dedupe-check' },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getAllByText('dedupe-check')).toHaveLength(1)
+    })
+  })
+
+  it('drops out-of-order seq notifications for the same trace', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/started',
+        params: {
+          eventId: 'turn-2:1',
+          traceId: 'trace-2',
+          seq: 1,
+          turn: { id: 'turn-2', threadId: 'thread-alpha', status: 'running' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-2:3',
+          traceId: 'trace-2',
+          seq: 3,
+          threadId: 'thread-alpha',
+          turnId: 'turn-2',
+          event: { type: 'assistant_delta', text: 'newer-delta' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-2:2',
+          traceId: 'trace-2',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-2',
+          event: { type: 'assistant_delta', text: 'older-delta' },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('newer-delta')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('older-delta')).not.toBeInTheDocument()
+  })
+
+  it('loads stale inputs from thread/resume and renders recovered section', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        return {
+          thread: {
+            id: 'thread-alpha',
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [
+            {
+              inputId: 'stale-1',
+              threadId: 'thread-alpha',
+              turnId: 'turn-9',
+              toolUseId: 'approval-9',
+              kind: 'approval',
+              status: 'expired',
+              createdAt: '2026-02-10T00:00:01.000Z',
+              expiresAt: '2026-02-10T00:05:01.000Z',
+              resolvedAt: '2026-02-10T00:05:01.000Z',
+              reason: 'server_restart',
+            },
+          ],
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+
+    expect(await screen.findByText(/Recovered \(Expired\/Resolved\)/i)).toBeInTheDocument()
+    expect(screen.getByText('approval-9')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/resume' &&
+            (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-alpha',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('does not leak buffered deltas into another thread after switching', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/started',
+        params: {
+          eventId: 'turn-3:1',
+          traceId: 'trace-3',
+          seq: 1,
+          turn: { id: 'turn-3', threadId: 'thread-alpha', status: 'running' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-3:2',
+          traceId: 'trace-3',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-3',
+          event: { type: 'assistant_delta', text: 'buffered-cross-thread-delta' },
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 90))
+    })
+
+    expect(screen.queryByText('buffered-cross-thread-delta')).not.toBeInTheDocument()
+  })
 })

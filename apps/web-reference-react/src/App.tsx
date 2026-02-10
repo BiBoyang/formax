@@ -15,6 +15,8 @@ const RIGHT_RAIL_MAX_WIDTH = 680
 const CENTER_MIN_WIDTH = 560
 const SIDEBAR_WIDTH = 260
 const DIVIDER_WIDTH = 1
+const SEEN_EVENT_CAP = 2000
+const DELTA_FLUSH_MS = 50
 
 function clampRightRailWidth(desiredWidth: number, viewportWidth: number, isSidebarOpen: boolean): number {
   const leftReserved = isSidebarOpen ? SIDEBAR_WIDTH : 0
@@ -31,6 +33,16 @@ type RpcErrorDetails = {
   message: string
   code?: number
   data?: unknown
+}
+type ReplMode = 'normal' | 'acceptEdits' | 'plan'
+type DeltaBucket = {
+  threadId: string | null
+  assistant: string
+  thinking: string
+}
+type SubmitUiStatus = {
+  kind: 'success' | 'error'
+  message: string
 }
 
 type DiffSnapshot = {
@@ -109,6 +121,49 @@ function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: 
   return { data, nextCursor }
 }
 
+function asResolvedInputs(value: unknown): ResolvedInput[] {
+  if (!value || typeof value !== 'object') return []
+  const raw = (value as { staleInputs?: unknown }).staleInputs
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const record = entry as Record<string, unknown>
+      const inputId = typeof record.inputId === 'string' ? record.inputId : null
+      const threadId = typeof record.threadId === 'string' ? record.threadId : null
+      const turnId = typeof record.turnId === 'string' ? record.turnId : null
+      const toolUseId = typeof record.toolUseId === 'string' ? record.toolUseId : null
+      const kind = record.kind === 'approval' || record.kind === 'ask_user_question' ? record.kind : null
+      const status =
+        record.status === 'submitted' ||
+        record.status === 'canceled' ||
+        record.status === 'expired' ||
+        record.status === 'failed'
+          ? record.status
+          : null
+      const createdAt = typeof record.createdAt === 'string' ? record.createdAt : null
+      const expiresAt = typeof record.expiresAt === 'string' ? record.expiresAt : null
+      const resolvedAt = typeof record.resolvedAt === 'string' ? record.resolvedAt : null
+      if (!inputId || !threadId || !turnId || !toolUseId || !kind || !status || !createdAt || !expiresAt || !resolvedAt) {
+        return null
+      }
+      const reason = typeof record.reason === 'string' ? record.reason : undefined
+      return {
+        inputId,
+        threadId,
+        turnId,
+        toolUseId,
+        kind,
+        status,
+        createdAt,
+        expiresAt,
+        resolvedAt,
+        ...(reason ? { reason } : {}),
+      } satisfies ResolvedInput
+    })
+    .filter((entry): entry is ResolvedInput => Boolean(entry))
+}
+
 function mapThreadHistoryToLogs(threadId: string, messages: ThreadMessage[]): TranscriptItem[] {
   return messages.map((message) =>
     message.kind === 'tool'
@@ -181,6 +236,33 @@ function toRpcError(method: string, error: unknown): RpcErrorDetails {
   }
 }
 
+function toSubmitUiStatus(status: string): SubmitUiStatus {
+  switch (status) {
+    case 'accepted':
+      return { kind: 'success', message: 'Accepted' }
+    case 'already_submitted_same':
+      return { kind: 'success', message: 'Same answer already accepted' }
+    case 'conflict_already_submitted':
+      return { kind: 'error', message: 'Different answer conflicts with previous submission' }
+    case 'not_pending':
+      return { kind: 'error', message: 'Input is no longer pending; refresh or re-run the action' }
+    case 'expired':
+      return { kind: 'error', message: 'Input expired; trigger the action again' }
+    case 'canceled':
+      return { kind: 'error', message: 'Input was canceled; trigger the action again' }
+    default:
+      return { kind: 'error', message: status }
+  }
+}
+
+function toTurnFooterStatus(errorMessage: string | null | undefined): 'failed' | 'interrupted' {
+  const normalized = String(errorMessage ?? '').toLowerCase()
+  if (normalized.includes('interrupt') || normalized.includes('aborted') || normalized.includes('cancel')) {
+    return 'interrupted'
+  }
+  return 'failed'
+}
+
 export function App() {
   const [bridgeUrl] = useState(DEFAULT_BRIDGE_URL)
   const [inputText, setInputText] = useState('')
@@ -196,25 +278,75 @@ export function App() {
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [mode, setMode] = useState<ReplMode>('normal')
   const [rightRailWidth, setRightRailWidth] = useState(() =>
     clampRightRailWidth(400, typeof window === 'undefined' ? 1600 : window.innerWidth, true),
   )
   const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
   const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
   const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
+  const [staleInputsByThreadId, setStaleInputsByThreadId] = useState<Record<string, ResolvedInput[]>>({})
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
+  const lastSeqByTraceRef = useRef<Map<string, number>>(new Map())
+  const seenEventIdsRef = useRef<Set<string>>(new Set())
+  const seenEventOrderRef = useRef<string[]>([])
   const historyLoadTokenRef = useRef(0)
   const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
   const historyLoadingRef = useRef<Record<string, boolean>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
+  const seenStaleInputIdRef = useRef<Set<string>>(new Set())
+  const bufferedDeltaByTurnRef = useRef<Record<string, DeltaBucket>>({})
+  const deltaFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
+  const activeStaleInputs = state.activeThreadId ? (staleInputsByThreadId[state.activeThreadId] ?? []) : []
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
   }, [])
+
+  const isNotificationForActiveThread = useCallback((params: any): boolean => {
+    const threadId =
+      (typeof params?.threadId === 'string' ? params.threadId : null) ??
+      (typeof params?.turn?.threadId === 'string' ? params.turn.threadId : null)
+    if (!threadId) return true
+    const activeThreadId = activeThreadIdRef.current
+    if (!activeThreadId) return true
+    return threadId === activeThreadId
+  }, [])
+
+  const markEventSeen = useCallback((eventId: string): boolean => {
+    if (seenEventIdsRef.current.has(eventId)) return false
+    seenEventIdsRef.current.add(eventId)
+    seenEventOrderRef.current.push(eventId)
+    if (seenEventOrderRef.current.length > SEEN_EVENT_CAP) {
+      const overflow = seenEventOrderRef.current.length - SEEN_EVENT_CAP
+      const dropped = seenEventOrderRef.current.splice(0, overflow)
+      for (const id of dropped) {
+        seenEventIdsRef.current.delete(id)
+      }
+    }
+    return true
+  }, [])
+
+  const shouldProcessSequencedNotification = useCallback(
+    (params: any): boolean => {
+      const eventId = typeof params?.eventId === 'string' ? params.eventId : null
+      if (eventId && !markEventSeen(eventId)) return false
+
+      const traceId = typeof params?.traceId === 'string' ? params.traceId : null
+      const seq = typeof params?.seq === 'number' && Number.isFinite(params.seq) ? params.seq : null
+      if (!traceId || seq == null) return true
+
+      const lastSeq = lastSeqByTraceRef.current.get(traceId)
+      if (typeof lastSeq === 'number' && seq <= lastSeq) return false
+      lastSeqByTraceRef.current.set(traceId, seq)
+      return true
+    },
+    [markEventSeen],
+  )
 
   const captureError = useCallback(
     (method: string, error: unknown) => {
@@ -238,6 +370,57 @@ export function App() {
       }
     },
     [captureError],
+  )
+
+  const flushBufferedDeltas = useCallback((targetTurnId?: string, threadId?: string | null) => {
+    const entries = bufferedDeltaByTurnRef.current
+    const turnIds = targetTurnId ? [targetTurnId] : Object.keys(entries)
+    const activeThreadId = threadId ?? activeThreadIdRef.current
+    for (const turnId of turnIds) {
+      const bucket = entries[turnId]
+      if (!bucket) continue
+      if (activeThreadId && bucket.threadId && bucket.threadId !== activeThreadId) {
+        delete entries[turnId]
+        continue
+      }
+      if (bucket.assistant) {
+        dispatch({
+          type: 'append_assistant_delta',
+          turnId,
+          text: bucket.assistant,
+        })
+      }
+      if (bucket.thinking) {
+        dispatch({
+          type: 'append_thinking_delta',
+          turnId,
+          text: bucket.thinking,
+        })
+      }
+      delete entries[turnId]
+    }
+  }, [])
+
+  const scheduleDeltaFlush = useCallback(() => {
+    if (deltaFlushTimerRef.current) return
+    deltaFlushTimerRef.current = setTimeout(() => {
+      deltaFlushTimerRef.current = null
+      flushBufferedDeltas()
+    }, DELTA_FLUSH_MS)
+  }, [flushBufferedDeltas])
+
+  const queueDelta = useCallback(
+    (kind: 'assistant' | 'thinking', turnId: string, text: string, threadId: string | null) => {
+      if (!turnId || !text) return
+      const current = bufferedDeltaByTurnRef.current[turnId] ?? { threadId, assistant: '', thinking: '' }
+      if (!current.threadId && threadId) {
+        current.threadId = threadId
+      }
+      current[kind] += text
+      bufferedDeltaByTurnRef.current[turnId] = current
+      scheduleDeltaFlush()
+    },
+    [scheduleDeltaFlush],
   )
 
   const refreshThreads = useCallback(async () => {
@@ -320,6 +503,28 @@ export function App() {
     [beginThreadHistoryRequest, endThreadHistoryRequest, request],
   )
 
+  const resumeThreadInputs = useCallback(
+    async (threadId: string) => {
+      try {
+        const resumeResult = await request('thread/resume', { threadId })
+        const staleInputs = asResolvedInputs(resumeResult)
+        setStaleInputsByThreadId((prev) => ({ ...prev, [threadId]: staleInputs }))
+        for (const input of staleInputs) {
+          if (seenStaleInputIdRef.current.has(input.inputId)) continue
+          seenStaleInputIdRef.current.add(input.inputId)
+          log(
+            `Recovered stale input: ${input.kind} (${input.status})${input.reason ? ` - ${input.reason}` : ''}`,
+            input.status === 'failed' ? 'error' : 'warn',
+            input.turnId,
+          )
+        }
+      } catch {
+        // best-effort resume; thread history loading remains the source of truth for messages
+      }
+    },
+    [log, request],
+  )
+
   const initializeHandshake = useCallback(async () => {
     const client = clientRef.current
     if (!client) return
@@ -330,21 +535,33 @@ export function App() {
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
       const params = (notification.params ?? {}) as any
+      if (!shouldProcessSequencedNotification(params)) return
       switch (notification.method) {
         case 'turn/started': {
+          if (!isNotificationForActiveThread(params)) break
           const turnId = String(params?.turn?.id ?? '')
           dispatch({ type: 'set_active_turn', turnId: turnId || null })
           break
         }
 
         case 'turn/completed': {
+          if (!isNotificationForActiveThread(params)) {
+            void refreshThreads().catch(() => undefined)
+            void refreshWorkspaceDiff().catch(() => undefined)
+            break
+          }
           const turnId = String(params?.turn?.id ?? '')
           if (turnId) {
+            flushBufferedDeltas(turnId)
+          } else {
+            flushBufferedDeltas()
+          }
+          if (turnId) {
             dispatch({ type: 'finalize_turn_thinking', turnId })
+            dispatch({ type: 'push_turn_footer', turnId, status: 'completed' })
           }
           dispatch({ type: 'set_active_turn', turnId: null })
-          const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
-          if (command && turnId) {
+          if (turnId) {
             commandByTurnRef.current.delete(turnId)
           }
           void refreshThreads().catch(() => undefined)
@@ -353,9 +570,24 @@ export function App() {
         }
 
         case 'turn/failed': {
+          if (!isNotificationForActiveThread(params)) {
+            void refreshWorkspaceDiff().catch(() => undefined)
+            break
+          }
           const turnId = String(params?.turn?.id ?? '')
           if (turnId) {
+            flushBufferedDeltas(turnId)
+          } else {
+            flushBufferedDeltas()
+          }
+          if (turnId) {
             dispatch({ type: 'finalize_turn_thinking', turnId })
+            dispatch({
+              type: 'push_turn_footer',
+              turnId,
+              status: toTurnFooterStatus(String(params?.error ?? '')),
+              message: String(params?.error ?? 'unknown'),
+            })
           }
           dispatch({ type: 'set_active_turn', turnId: null })
           const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
@@ -369,25 +601,20 @@ export function App() {
         }
 
         case 'turn/event': {
+          if (!isNotificationForActiveThread(params)) break
           const turnId = String(params?.turnId ?? '')
+          const eventThreadId =
+            typeof params?.threadId === 'string' ? params.threadId : activeThreadIdRef.current
           const eventType = params?.event?.type
           if (eventType === 'assistant_delta') {
-            dispatch({
-              type: 'append_assistant_delta',
-              turnId,
-              text: String(params?.event?.text ?? ''),
-            })
+            queueDelta('assistant', turnId, String(params?.event?.text ?? ''), eventThreadId)
             break
           }
 
           if (eventType === 'thinking_delta') {
             const text = String(params?.event?.thinking ?? params?.event?.text ?? params?.event?.delta ?? '')
             if (text) {
-              dispatch({
-                type: 'append_thinking_delta',
-                turnId,
-                text,
-              })
+              queueDelta('thinking', turnId, text, eventThreadId)
             }
             break
           }
@@ -430,6 +657,7 @@ export function App() {
         }
 
         case 'turn/inputRequested': {
+          if (!isNotificationForActiveThread(params)) break
           const input = params?.input as PendingInput | undefined
           if (!input?.inputId) break
           dispatch({ type: 'input_requested', input })
@@ -437,6 +665,7 @@ export function App() {
         }
 
         case 'turn/inputResolved': {
+          if (!isNotificationForActiveThread(params)) break
           const input = params?.input as ResolvedInput | undefined
           const inputId = input?.inputId as string | undefined
           if (!inputId) break
@@ -458,8 +687,26 @@ export function App() {
           break
       }
     },
-    [log, refreshThreads, refreshWorkspaceDiff],
+    [
+      isNotificationForActiveThread,
+      log,
+      flushBufferedDeltas,
+      queueDelta,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      shouldProcessSequencedNotification,
+    ],
   )
+
+  useEffect(() => {
+    return () => {
+      if (deltaFlushTimerRef.current) {
+        clearTimeout(deltaFlushTimerRef.current)
+        deltaFlushTimerRef.current = null
+      }
+      flushBufferedDeltas()
+    }
+  }, [flushBufferedDeltas])
 
   useEffect(() => {
     activeThreadIdRef.current = state.activeThreadId
@@ -478,9 +725,16 @@ export function App() {
       onStatus: (connectionStatus) => {
         dispatch({ type: 'set_connection_status', status: connectionStatus })
         if (connectionStatus === 'connected') {
+          lastSeqByTraceRef.current.clear()
+          seenEventIdsRef.current.clear()
+          seenEventOrderRef.current = []
           void initializeHandshake()
             .then(async () => {
               await Promise.all([refreshThreads(), refreshWorkspaceDiff()])
+              const activeThreadId = activeThreadIdRef.current
+              if (activeThreadId) {
+                await resumeThreadInputs(activeThreadId)
+              }
             })
             .catch((error) => captureError('initialize', error))
         }
@@ -495,7 +749,7 @@ export function App() {
       client.disconnect()
       clientRef.current = null
     }
-  }, [bridgeUrl, captureError, handleNotification, initializeHandshake, refreshThreads, refreshWorkspaceDiff])
+  }, [bridgeUrl, captureError, handleNotification, initializeHandshake, refreshThreads, refreshWorkspaceDiff, resumeThreadInputs])
 
   const sortedThreads = useMemo(
     () => [...state.threads].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
@@ -509,6 +763,7 @@ export function App() {
       const result = await request('thread/start', {})
       const thread = result?.thread as { id?: string } | undefined
       if (thread?.id) {
+        flushBufferedDeltas(undefined, previousThreadId)
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
         dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
@@ -523,6 +778,7 @@ export function App() {
           log('Failed to load new thread history. Restored previous thread.', 'warn')
           return
         }
+        await resumeThreadInputs(thread.id)
         await refreshThreads()
         await refreshWorkspaceDiff()
         log(`Thread created: ${thread.id}`)
@@ -553,6 +809,7 @@ export function App() {
       const result = await request('turn/start', {
         threadId: state.activeThreadId,
         input: { text },
+        mode,
       })
       const turnId = String((result as any)?.turn?.id ?? '')
       if (turnId) {
@@ -595,20 +852,16 @@ export function App() {
         submissionId: `web-${Date.now()}`,
       })
       const status = String((response as { status?: string })?.status ?? 'unknown')
+      const uiStatus = toSubmitUiStatus(status)
       setSubmitStatusByInputId((prev) => ({
         ...prev,
         [selectedInput.inputId]: {
           status,
-          kind: status === 'conflict_already_submitted' ? 'error' : 'success',
-          message:
-            status === 'already_submitted_same'
-              ? 'Same answer already accepted'
-              : status === 'conflict_already_submitted'
-                ? 'Different answer conflicts with previous submission'
-                : status,
+          kind: uiStatus.kind,
+          message: uiStatus.message,
         },
       }))
-      log(`Input submit: ${status}`, status === 'conflict_already_submitted' ? 'error' : 'info', selectedInput.turnId)
+      log(`Input submit: ${status}`, uiStatus.kind === 'error' ? 'error' : 'info', selectedInput.turnId)
     } catch (error) {
       const details = toRpcError('turn/input/submit', error)
       setSubmitStatusByInputId((prev) => ({
@@ -636,6 +889,7 @@ export function App() {
       const previousThreadId = state.activeThreadId
       const previousLogs = state.logs
       const cachedLogs = logsByThreadId[threadId] ?? []
+      flushBufferedDeltas(undefined, previousThreadId)
       activeThreadIdRef.current = threadId
       dispatch({ type: 'set_active_thread', threadId })
       dispatch({ type: 'set_active_turn', turnId: null })
@@ -655,8 +909,9 @@ export function App() {
           }
         })
         .catch(() => undefined)
+      void resumeThreadInputs(threadId)
     },
-    [loadThreadHistory, log, logsByThreadId, state.activeThreadId, state.logs],
+    [flushBufferedDeltas, loadThreadHistory, log, logsByThreadId, resumeThreadInputs, state.activeThreadId, state.logs],
   )
 
   const loadEarlierHistory = useCallback(async () => {
@@ -760,6 +1015,8 @@ export function App() {
 
               logs={activeLogs}
               inputText={inputText}
+              mode={mode}
+              onModeChange={setMode}
               connectionStatus={state.connectionStatus}
               onInputTextChange={setInputText}
               onSend={onSend}
@@ -814,6 +1071,7 @@ export function App() {
               diffSnapshot={diffSnapshot}
               onRefreshDiff={() => void refreshWorkspaceDiff().catch(() => undefined)}
               isRefreshingDiff={isRefreshingDiff}
+              staleInputs={activeStaleInputs}
               showHeader
             />
           </div>

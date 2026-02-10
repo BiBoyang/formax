@@ -5,10 +5,12 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { ScrollArea } from './ui/scroll-area'
 import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
 import { LoadingStatusLine } from './LoadingStatusLine'
+import { shouldStopWheelPropagation } from './scrollBoundary'
 
 const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
@@ -32,6 +34,8 @@ export type TranscriptPaneProps = {
   inputText: string
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   onInputTextChange: (value: string) => void
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  onModeChange: (value: 'normal' | 'acceptEdits' | 'plan') => void
   onSend: (event: FormEvent) => void
   onInterrupt: () => void
   historyMore?: boolean
@@ -48,13 +52,60 @@ function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline
   return 'secondary'
 }
 
-function ThinkingItem({ item }: { item: Extract<TranscriptItem, { kind: 'thinking' }> }) {
-  void item
-  return (
-    <div className="flex items-center gap-2 py-1">
-      <div className="text-[11px] text-muted-foreground animate-pulse tracking-tight">
-        {'thinking'}
+function ThinkingItem(props: {
+  item: Extract<TranscriptItem, { kind: 'thinking' }>
+  open: boolean
+  onToggle: () => void
+}) {
+  const { item, open, onToggle } = props
+  const summary = item.text.trim().split('\n')[0]?.trim() || 'thinking'
+  const compactSummary = summary.length > 90 ? `${summary.slice(0, 90)}...` : summary
+  if (item.status === 'running') {
+    return (
+      <div className="flex items-center gap-2 py-1">
+        <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-pulse" />
+        <div className="text-[11px] text-muted-foreground tracking-tight animate-pulse">{'thinking'}</div>
       </div>
+    )
+  }
+  return (
+    <div className="rounded-md border bg-muted/15">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+        onClick={onToggle}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="text-[11px] text-muted-foreground">thinking</span>
+        </div>
+        <span className="max-w-[320px] truncate text-[11px] text-muted-foreground/80">{compactSummary}</span>
+      </button>
+      {open ? (
+        <div className="border-t bg-background/70 px-3 py-2 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+          {item.text}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_footer' }> }) {
+  const styleByStatus = {
+    completed: 'text-muted-foreground',
+    failed: 'text-red-600',
+    interrupted: 'text-amber-700',
+  } as const
+  const labelByStatus = {
+    completed: 'Turn completed',
+    failed: 'Turn failed',
+    interrupted: 'Turn interrupted',
+  } as const
+  return (
+    <div className="flex items-center gap-2 py-1 pl-1">
+      <span className={cn('text-[11px] font-medium', styleByStatus[item.status])}>{labelByStatus[item.status]}</span>
+      <span className="text-[10px] text-muted-foreground/70 font-mono">{item.turnId.slice(0, 8)}</span>
+      {item.message ? <span className="text-[10px] text-muted-foreground/70 truncate max-w-[320px]">{item.message}</span> : null}
     </div>
   )
 }
@@ -116,6 +167,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     activeTurnId = null,
     logs,
     inputText,
+    mode,
+    onModeChange,
     connectionStatus,
     onInputTextChange,
     onSend,
@@ -133,6 +186,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const [renderLimit, setRenderLimit] = useState(TURN_INIT_RENDER_LIMIT)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
+  const [openThinkingIds, setOpenThinkingIds] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
@@ -192,6 +246,21 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     }
   }
 
+  const handleBoundaryWheel = (event: WheelEvent) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    if (
+      shouldStopWheelPropagation({
+        deltaY: event.deltaY,
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+        clientHeight: viewport.clientHeight,
+      })
+    ) {
+      event.stopPropagation()
+    }
+  }
+
   useEffect(() => {
     if (!autoStick) return
     const raf = window.requestAnimationFrame(() => {
@@ -210,9 +279,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     viewportRef.current = viewport
     viewport.style.overflowAnchor = autoStick ? 'auto' : 'none'
     viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
+    viewport.addEventListener('wheel', handleBoundaryWheel, { passive: true })
     handleViewportScroll()
     return () => {
       viewport.removeEventListener('scroll', handleViewportScroll)
+      viewport.removeEventListener('wheel', handleBoundaryWheel)
     }
   }, [activeThreadId, autoStick, filteredLogs.length])
 
@@ -341,7 +412,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                         <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
                       </div>
                     ) : item.kind === 'thinking' ? (
-                      <ThinkingItem item={item} />
+                      <ThinkingItem
+                        item={item}
+                        open={Boolean(openThinkingIds[item.id])}
+                        onToggle={() => setOpenThinkingIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                      />
+                    ) : item.kind === 'turn_footer' ? (
+                      <TurnFooterItem item={item} />
                     ) : item.kind === 'tool_call' ? (
                       <ToolCallItem
                         item={item}
@@ -444,7 +521,19 @@ export function TranscriptPane(props: TranscriptPaneProps) {
             />
             
             <div className="flex items-center justify-between px-3 h-12">
-              <div className="text-xs text-muted-foreground">Enter to send, Shift+Enter for newline</div>
+              <div className="flex items-center gap-3">
+                <Select value={mode} onValueChange={(value) => onModeChange(value as 'normal' | 'acceptEdits' | 'plan')}>
+                  <SelectTrigger aria-label="Execution mode" className="h-8 w-[180px] border-border/60 bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Ask before edits</SelectItem>
+                    <SelectItem value="acceptEdits">Auto edit</SelectItem>
+                    <SelectItem value="plan">Plan mode</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-muted-foreground">Enter to send, Shift+Enter for newline</div>
+              </div>
               <div className="flex items-center gap-1 pr-1">
                 {isSending || isInterrupting ? (
                   <Button

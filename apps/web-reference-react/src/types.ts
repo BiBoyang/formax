@@ -83,8 +83,16 @@ export type ResolvedInput = {
 
 export type TranscriptItem =
   | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
-  | { id: string; kind: 'thinking'; text: string; turnId?: string }
+  | { id: string; kind: 'thinking'; text: string; status: 'running' | 'finalized'; turnId?: string }
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }
+  | {
+      id: string
+      kind: 'turn_footer'
+      turnId: string
+      status: 'completed' | 'failed' | 'interrupted'
+      createdAt: string
+      message?: string
+    }
   | {
       id: string
       kind: 'tool_call'

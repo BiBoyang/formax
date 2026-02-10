@@ -57,16 +57,17 @@ describe('appReducer', () => {
       kind: 'thinking',
       turnId: 'turn-1',
       text: 'Need to inspect files. Then propose patch.',
+      status: 'running',
     })
   })
 
-  it('clears finalized turn thinking rows while keeping other transcript items', () => {
+  it('finalizes turn thinking rows while keeping other transcript items', () => {
     const state = appReducer(initialAppState, {
       type: 'replace_logs',
       logs: [
-        { id: 'thinking-1', kind: 'thinking', turnId: 'turn-1', text: 'working' },
+        { id: 'thinking-1', kind: 'thinking', turnId: 'turn-1', text: 'working', status: 'running' },
         { id: 'assistant-1', kind: 'message', role: 'assistant', turnId: 'turn-1', text: 'done' },
-        { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running' },
+        { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running', status: 'running' },
       ],
     })
 
@@ -76,9 +77,29 @@ describe('appReducer', () => {
     })
 
     expect(finalized.logs).toEqual([
+      { id: 'thinking-1', kind: 'thinking', turnId: 'turn-1', text: 'working', status: 'finalized' },
       { id: 'assistant-1', kind: 'message', role: 'assistant', turnId: 'turn-1', text: 'done' },
-      { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running' },
+      { id: 'thinking-2', kind: 'thinking', turnId: 'turn-2', text: 'still running', status: 'running' },
     ])
+  })
+
+  it('stores one turn footer per turn and updates status on repeat writes', () => {
+    let state = appReducer(initialAppState, {
+      type: 'push_turn_footer',
+      turnId: 'turn-1',
+      status: 'completed',
+    })
+    expect(state.logs.filter((item) => item.kind === 'turn_footer')).toHaveLength(1)
+
+    state = appReducer(state, {
+      type: 'push_turn_footer',
+      turnId: 'turn-1',
+      status: 'failed',
+      message: 'error',
+    })
+    const footers = state.logs.filter((item) => item.kind === 'turn_footer')
+    expect(footers).toHaveLength(1)
+    expect(footers[0]).toMatchObject({ status: 'failed', message: 'error' })
   })
 
   it('tracks input requested -> resolved and clears selected input', () => {

@@ -26,6 +26,12 @@ export type AppAction =
   | { type: 'append_thinking_delta'; turnId: string; text: string }
   | { type: 'finalize_turn_thinking'; turnId: string }
   | {
+      type: 'push_turn_footer'
+      turnId: string
+      status: 'completed' | 'failed' | 'interrupted'
+      message?: string
+    }
+  | {
       type: 'append_tool_event'
       turnId: string
       toolUseId?: string
@@ -148,7 +154,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const last = state.logs[state.logs.length - 1]
       if (last && last.kind === 'thinking' && last.turnId === action.turnId) {
         const updated = state.logs.slice()
-        updated[updated.length - 1] = { ...last, text: last.text + action.text }
+        updated[updated.length - 1] = { ...last, text: last.text + action.text, status: 'running' }
         return { ...state, logs: updated }
       }
 
@@ -156,15 +162,46 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         id: itemId(),
         kind: 'thinking',
         text: action.text,
+        status: 'running',
         turnId: action.turnId,
       }
       return { ...state, logs: [...state.logs, next] }
     }
 
     case 'finalize_turn_thinking': {
-      const nextLogs = state.logs.filter((item) => item.kind !== 'thinking' || item.turnId !== action.turnId)
-      if (nextLogs.length === state.logs.length) return state
+      let changed = false
+      const nextLogs = state.logs.map((item) => {
+        if (item.kind !== 'thinking' || item.turnId !== action.turnId || item.status === 'finalized') return item
+        changed = true
+        return { ...item, status: 'finalized' as const }
+      })
+      if (!changed) return state
       return { ...state, logs: nextLogs }
+    }
+
+    case 'push_turn_footer': {
+      const existingIndex = state.logs.findIndex((item) => item.kind === 'turn_footer' && item.turnId === action.turnId)
+      if (existingIndex >= 0) {
+        const existing = state.logs[existingIndex]
+        if (existing.kind !== 'turn_footer') return state
+        const updated: TranscriptItem = {
+          ...existing,
+          status: action.status,
+          ...(action.message ? { message: action.message } : {}),
+        }
+        const logs = state.logs.slice()
+        logs[existingIndex] = updated
+        return { ...state, logs }
+      }
+      const next: TranscriptItem = {
+        id: itemId(),
+        kind: 'turn_footer',
+        turnId: action.turnId,
+        status: action.status,
+        createdAt: new Date().toISOString(),
+        ...(action.message ? { message: action.message } : {}),
+      }
+      return { ...state, logs: [...state.logs, next] }
     }
 
     case 'append_tool_event': {
