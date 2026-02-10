@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
-import { buildSystemPrompt, buildUserContent, type SystemPromptProfile } from '../prompts/index.js'
-import { buildInitPrompt } from '../prompts/init.js'
+import type { PromptBlock } from '../prompts/index.js'
+import { buildSystemPrompt, type SystemPromptProfile } from '../prompts/index.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
 import type { Msg } from '../components/tool/ToolMessage.js'
 import type { StreamEvent } from '../streaming/types.js'
@@ -19,6 +19,7 @@ import type {
 import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 import { TurnInputStore } from './turn/inputStore.js'
 import { maybeAutoGenerateSessionTitle } from '../features/sessionTitle/index.js'
+import { buildTurnInput } from '../features/semantics/turnInputBuilder.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -50,20 +51,14 @@ type RunningTurn = {
   cwd: string
   inputText: string
   modelInputText: string
+  modelUserContent: PromptBlock[]
+  semanticBlockCount: number
   replMode: 'normal' | 'acceptEdits' | 'plan'
   abortController: AbortController
   inputStore: TurnInputStore
   writer: SessionWriter | null
   pendingEventWrites: Array<Promise<void>>
   inputExpiryTimers: Map<string, ReturnType<typeof setTimeout>>
-}
-
-function maybeMapSlashCommandToModelInput(inputText: string): string {
-  const trimmed = inputText.trim()
-  if (trimmed === '/init' || trimmed.startsWith('/init ')) {
-    return buildInitPrompt()
-  }
-  return inputText
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -150,6 +145,20 @@ function normalizePositiveLimit(value: unknown, fallback: number): number {
   return rounded >= 1 ? rounded : fallback
 }
 
+function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {
+  const msg = history[userIndex]
+  if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return history
+  if (injectedCount <= 0) return history
+  if (msg.content.length <= injectedCount) return history
+
+  const stripped: ChatHistory[number] = {
+    ...msg,
+    content: msg.content.slice(injectedCount),
+  }
+
+  return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
+}
+
 export class TurnRunner {
   private readonly engine: Pick<ChatEngine, 'runTurn'>
   private readonly tools: ToolDefinition[]
@@ -196,6 +205,12 @@ export class TurnRunner {
     const filePath = await this.resolveThreadFilePath(params.threadId)
     if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
 
+    const turnInput = buildTurnInput({
+      rawText: params.input.text,
+      mode: params.mode ?? 'normal',
+      planPath: null,
+    })
+
     const turnId = randomUUID()
     const running: RunningTurn = {
       turnId,
@@ -205,7 +220,9 @@ export class TurnRunner {
       filePath,
       cwd: params.cwd ? path.resolve(params.cwd) : this.cwd,
       inputText: params.input.text,
-      modelInputText: maybeMapSlashCommandToModelInput(params.input.text),
+      modelInputText: turnInput.modelUserText,
+      modelUserContent: [...turnInput.semanticBlocks, ...turnInput.userBlocks],
+      semanticBlockCount: turnInput.semanticBlocks.length,
       replMode: params.mode ?? 'normal',
       abortController: new AbortController(),
       inputStore: new TurnInputStore({
@@ -325,7 +342,7 @@ export class TurnRunner {
 
       const user = {
         role: 'user' as const,
-        content: buildUserContent(running.modelInputText),
+        content: running.modelUserContent,
       }
       const system = buildSystemPrompt({
         allowedSubagents: this.allowedSubagents,
@@ -443,6 +460,10 @@ export class TurnRunner {
       if (running.abortController.signal.aborted) {
         throw new Error('Request aborted')
       }
+      const stripped =
+        running.semanticBlockCount > 0
+          ? stripInjectedBlocksFromHistory(nextHistory as ChatHistory, history.length, running.semanticBlockCount)
+          : (nextHistory as ChatHistory)
 
       if (assistantText.trim()) {
         await writer.appendStableMsg({
@@ -452,9 +473,9 @@ export class TurnRunner {
           timestamp: new Date(),
         })
       }
-      await writer.appendHistorySnapshot(nextHistory as ChatHistory)
+      await writer.appendHistorySnapshot(stripped)
       const firstUserPrompt = firstUserPromptFromHistory(history) ?? running.inputText
-      const uiMsgCount = nextHistory.filter((message) => message.role === 'user' || message.role === 'assistant').length
+      const uiMsgCount = stripped.filter((message) => message.role === 'user' || message.role === 'assistant').length
       await writer.appendEvent('ui_stats', {
         uiMsgCount,
         firstUserPrompt,

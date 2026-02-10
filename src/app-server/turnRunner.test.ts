@@ -547,6 +547,7 @@ describe('TurnRunner', () => {
     const notifications: Notification[] = []
     let capturedReplMode: string | undefined
     let capturedInteractive: boolean | undefined
+    let capturedFirstUserTextBlock: string | undefined
 
     const runner = new TurnRunner({
       engine: {
@@ -561,6 +562,7 @@ describe('TurnRunner', () => {
               { role: 'assistant', content: [{ type: 'text', text: 'Mode Title' }] },
             ] as ChatHistory
           }
+          capturedFirstUserTextBlock = userText
           capturedReplMode = args.exec?.replMode as string | undefined
           capturedInteractive = args.exec?.interactive
           args.onEvent({ type: 'assistant_delta', text: 'ok' })
@@ -590,7 +592,22 @@ describe('TurnRunner', () => {
     })
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
 
+    expect(capturedFirstUserTextBlock).toContain('Plan mode is active')
     expect(capturedReplMode).toBe('plan')
     expect(capturedInteractive).toBe(true)
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const replay = await readSessionFile(filePath!)
+    const userMessages = replay.history.filter((message) => message.role === 'user')
+    const latestUser = userMessages[userMessages.length - 1]
+    const latestUserText = Array.isArray(latestUser?.content)
+      ? String((latestUser.content[0] as { text?: string } | undefined)?.text ?? '')
+      : ''
+    expect(latestUserText).toBe('mode test')
   })
 })

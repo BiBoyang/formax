@@ -9,6 +9,7 @@ import type {
   TurnInputSubmitStatus,
 } from '../protocol/input.js'
 import { createInputId } from './inputId.js'
+import { transitionInputSubmit, transitionResolvePending, type InputState } from '../../features/semantics/inputStateMachine.js'
 
 type PendingInputRecord = {
   inputId: string
@@ -86,6 +87,33 @@ function isPending(record: InputRecord): record is PendingInputRecord {
   return record.status === 'pending'
 }
 
+function hasSameSubmissionIds(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const value of a) {
+    if (!b.has(value)) return false
+  }
+  return true
+}
+
+function toInputState(record: InputRecord): InputState {
+  if (record.status === 'pending') {
+    return {
+      status: 'pending',
+      createdAt: record.createdAt,
+      expiresAt: record.expiresAt,
+    }
+  }
+  return {
+    status: record.status,
+    createdAt: record.createdAt,
+    expiresAt: record.expiresAt,
+    resolvedAt: record.resolvedAt,
+    ...(record.reason ? { reason: record.reason } : {}),
+    ...(record.answersHash ? { answersHash: record.answersHash } : {}),
+    submissionIds: new Set(record.submissionIds),
+  }
+}
+
 export class TurnInputStore {
   private readonly threadId: string
   private readonly turnId: string
@@ -159,57 +187,52 @@ export class TurnInputStore {
   }): SubmitInputResult {
     const record = this.byInputId.get(args.inputId)
     if (!record) return { accepted: false, status: 'not_pending' }
+    const now = args.now ?? nowIso()
+    const transition = transitionInputSubmit({
+      state: toInputState(record),
+      nowIso: now,
+      answersHash: hashAnswers(args.answers),
+      submissionId: args.submissionId,
+    })
 
-    if (isPending(record)) {
-      const now = args.now ?? nowIso()
-      if (Date.parse(now) > Date.parse(record.expiresAt)) {
-        const expired = this.resolveRecord(record, 'expired', now, 'input_expired')
-        return { accepted: false, status: 'expired', transition: expired, toolUseId: record.toolUseId }
-      }
-
-      const answersHash = hashAnswers(args.answers)
-      const submissionIds = new Set<string>()
-      if (args.submissionId) submissionIds.add(args.submissionId)
-      const submitted: ResolvedInputRecord = {
-        inputId: record.inputId,
-        threadId: record.threadId,
-        turnId: record.turnId,
-        toolUseId: record.toolUseId,
-        kind: record.kind,
-        status: 'submitted',
-        createdAt: record.createdAt,
-        expiresAt: record.expiresAt,
-        resolvedAt: now,
-        answersHash,
-        submissionIds,
-      }
-      this.byInputId.set(record.inputId, submitted)
+    if (transition.nextState.status === 'pending') {
       return {
-        accepted: true,
-        status: 'accepted',
-        transition: toResolvedPayload(submitted),
-        toolUseId: record.toolUseId,
+        accepted: transition.accepted,
+        status: transition.submitStatus,
       }
     }
 
-    const answersHash = hashAnswers(args.answers)
-    if (record.status === 'submitted') {
-      if (args.submissionId && record.submissionIds.has(args.submissionId)) {
-        if (record.answersHash === answersHash) return { accepted: true, status: 'already_submitted_same' }
-        return { accepted: false, status: 'conflict_already_submitted' }
-      }
-
-      if (record.answersHash === answersHash) {
-        if (args.submissionId) record.submissionIds.add(args.submissionId)
-        return { accepted: true, status: 'already_submitted_same' }
-      }
-
-      return { accepted: false, status: 'conflict_already_submitted' }
+    const resolved: ResolvedInputRecord = {
+      inputId: record.inputId,
+      threadId: record.threadId,
+      turnId: record.turnId,
+      toolUseId: record.toolUseId,
+      kind: record.kind,
+      status: transition.nextState.status,
+      createdAt: transition.nextState.createdAt,
+      expiresAt: transition.nextState.expiresAt,
+      resolvedAt: transition.nextState.resolvedAt,
+      ...(transition.nextState.reason ? { reason: transition.nextState.reason } : {}),
+      ...(transition.nextState.answersHash ? { answersHash: transition.nextState.answersHash } : {}),
+      submissionIds: new Set(transition.nextState.submissionIds ?? []),
     }
+    const stateChanged = isPending(record)
+      ? true
+      : !(
+          record.status === resolved.status &&
+          record.resolvedAt === resolved.resolvedAt &&
+          record.answersHash === resolved.answersHash &&
+          record.reason === resolved.reason &&
+          hasSameSubmissionIds(record.submissionIds, resolved.submissionIds)
+        )
+    if (stateChanged) this.byInputId.set(record.inputId, resolved)
 
-    if (record.status === 'expired') return { accepted: false, status: 'expired' }
-    if (record.status === 'canceled') return { accepted: false, status: 'canceled' }
-    return { accepted: false, status: 'not_pending' }
+    return {
+      accepted: transition.accepted,
+      status: transition.submitStatus,
+      ...(stateChanged ? { transition: toResolvedPayload(resolved) } : {}),
+      ...(isPending(record) ? { toolUseId: record.toolUseId } : {}),
+    }
   }
 
   hasInput(inputId: string): boolean {
@@ -254,18 +277,27 @@ export class TurnInputStore {
     resolvedAt: string,
     reason?: string,
   ): InputResolvedPayload {
+    const resolvedState = transitionResolvePending({
+      state: toInputState(record),
+      status,
+      resolvedAt,
+      reason,
+    })
+    if (resolvedState.status === 'pending') {
+      throw new Error('Expected resolved state for pending input')
+    }
     const resolved: ResolvedInputRecord = {
       inputId: record.inputId,
       threadId: record.threadId,
       turnId: record.turnId,
       toolUseId: record.toolUseId,
       kind: record.kind,
-      status,
-      createdAt: record.createdAt,
-      expiresAt: record.expiresAt,
-      resolvedAt,
-      submissionIds: new Set<string>(),
-      ...(reason ? { reason } : {}),
+      status: resolvedState.status,
+      createdAt: resolvedState.createdAt,
+      expiresAt: resolvedState.expiresAt,
+      resolvedAt: resolvedState.resolvedAt,
+      submissionIds: new Set(resolvedState.submissionIds ?? []),
+      ...(resolvedState.reason ? { reason: resolvedState.reason } : {}),
     }
     this.byInputId.set(record.inputId, resolved)
     return toResolvedPayload(resolved)

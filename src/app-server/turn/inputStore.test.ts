@@ -42,7 +42,8 @@ describe('TurnInputStore', () => {
       answers: { Choice: 'A' },
       submissionId: 'sub-2',
     })
-    expect(sameAnswers).toEqual({ accepted: true, status: 'already_submitted_same' })
+    expect(sameAnswers.accepted).toBe(true)
+    expect(sameAnswers.status).toBe('already_submitted_same')
 
     const conflict = store.submitInput({
       inputId: requested.inputId,

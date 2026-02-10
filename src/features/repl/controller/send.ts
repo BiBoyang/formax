@@ -6,12 +6,11 @@ import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../../chat/context/prune'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../../prompts'
-import { buildSystemPrompt, buildUserContent } from '../../../prompts'
+import { buildSystemPrompt } from '../../../prompts'
 import type { TokenUsage } from '../../../streaming/types'
 import type { StreamEvent } from '../../../streaming/types'
 import type { RuntimeConfig } from '../../../env/config'
 import type { SystemPromptProfile } from '../../../prompts/system'
-import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../../utils/planMode'
 import type { ToolDefinition } from '../../../tools/types'
 import { buildSkillToolSpecForCwd } from '../../../tools/modules/skill'
 import type { ReplMode } from '../mode'
@@ -26,6 +25,7 @@ import { buildLocalCommandInjectedBlocks } from '../injectedBlocks'
 import { buildOutputStyleInjectedBlocks } from '../../../prompts/reminders/outputStyle'
 import { makeMessageId } from './ids'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
+import { buildTurnInput } from '../../semantics/turnInputBuilder'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
@@ -477,19 +477,23 @@ export async function runMainSendTurn(raw: {
         : args.planSession?.getPlanPath() ?? null
 
     const cwd = process.cwd()
+    const turnInput = buildTurnInput({
+      rawText: args.text,
+      mode: args.mode,
+      planPath,
+      includeExitPlanReminder: args.pendingExitPlanReminderRef.current,
+      slashLlmBlocks: args.slashEffect?.kind === 'llm' ? args.slashEffect.blocks : null,
+    })
+
     const injectedBlocks: PromptBlock[] = [
       ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
-      ...buildModeInjectedBlocks(args.mode, planPath),
-      ...(args.pendingExitPlanReminderRef.current ? buildExitPlanInjectedBlocks(planPath) : []),
+      ...turnInput.semanticBlocks,
       ...args.pendingInjectedBlocksRef.current,
     ]
     args.pendingInjectedBlocksRef.current = []
 
-    const user =
-      args.slashEffect?.kind === 'llm'
-        ? { role: 'user' as const, content: [...injectedBlocks, ...args.slashEffect.blocks] }
-        : { role: 'user' as const, content: [...injectedBlocks, ...buildUserContent(args.text)] }
+    const user = { role: 'user' as const, content: [...injectedBlocks, ...turnInput.userBlocks] }
 
     const system = buildSystemPrompt({
       allowedSubagents: args.allowedSubagents,
@@ -692,27 +696,6 @@ export async function runMainSendTurn(raw: {
     args.setIsLoading(false)
     args.abortControllerRef.current = null
   }
-}
-
-function buildModeInjectedBlocks(mode: ReplMode, planPath: string | null): PromptBlock[] {
-  if (mode !== 'plan') return []
-  return [
-    {
-      type: 'text',
-      text: buildPlanModeSystemReminder(planPath),
-      cache_control: { type: 'ephemeral' },
-    },
-  ]
-}
-
-function buildExitPlanInjectedBlocks(planPath: string | null): PromptBlock[] {
-  return [
-    {
-      type: 'text',
-      text: buildExitedPlanModeSystemReminder(planPath),
-      cache_control: { type: 'ephemeral' },
-    },
-  ]
 }
 
 function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
