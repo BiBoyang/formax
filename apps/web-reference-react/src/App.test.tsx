@@ -439,6 +439,235 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('re-baselines replay cursor after hasGap so next replay uses refreshed cursor', async () => {
+    let replayBaselineCount = 0
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
+        return {
+          thread: {
+            id: threadId,
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [],
+        }
+      }
+      if (method === 'thread/replay') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        const after = (params as { after?: number } | undefined)?.after
+        if (threadId !== 'thread-alpha') {
+          return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+        }
+        if (after == null) {
+          replayBaselineCount += 1
+          const cursor = replayBaselineCount === 1 ? 10 : 30
+          return { data: [], nextCursor: cursor, latestCursor: cursor, hasGap: false }
+        }
+        if (after === 10) {
+          return {
+            data: [
+              {
+                replaySeq: 20,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-alpha',
+                  turnId: 'turn-gap',
+                  event: { type: 'assistant_delta', text: 'gap-tail' },
+                },
+              },
+            ],
+            nextCursor: 20,
+            latestCursor: 30,
+            hasGap: true,
+          }
+        }
+        if (after === 30) {
+          return {
+            data: [
+              {
+                replaySeq: 31,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-alpha',
+                  turnId: 'turn-sync',
+                  event: { type: 'assistant_delta', text: 'sync-tail' },
+                },
+              },
+            ],
+            nextCursor: 31,
+            latestCursor: 31,
+            hasGap: false,
+          }
+        }
+        return { data: [], nextCursor: after, latestCursor: after, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('sync-tail')
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/replay' &&
+            (entry.params as { threadId?: string; after?: number } | undefined)?.threadId === 'thread-alpha' &&
+            (entry.params as { threadId?: string; after?: number } | undefined)?.after === 30,
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('loads thread history before replaying thread events on thread switch', async () => {
+    let alphaHistoryResolved = false
+    let replayRequestedBeforeHistory = false
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              alphaHistoryResolved = true
+              resolve({
+                data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+                nextCursor: null,
+              })
+            }, 30)
+          })
+        }
+      }
+      if (method === 'thread/resume') {
+        return {
+          thread: {
+            id: 'thread-alpha',
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [],
+        }
+      }
+      if (method === 'thread/replay') {
+        if (!alphaHistoryResolved) replayRequestedBeforeHistory = true
+        return {
+          data: [
+            {
+              replaySeq: 1,
+              method: 'turn/event',
+              params: {
+                threadId: 'thread-alpha',
+                turnId: 'turn-1',
+                event: { type: 'assistant_delta', text: 'replay after history' },
+              },
+            },
+          ],
+          nextCursor: 1,
+          latestCursor: 1,
+          hasGap: false,
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+
+    expect(await screen.findByText('alpha reply')).toBeInTheDocument()
+    expect(await screen.findByText('replay after history')).toBeInTheDocument()
+    expect(replayRequestedBeforeHistory).toBe(false)
+  })
+
   it('does not leak buffered deltas into another thread after switching', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))

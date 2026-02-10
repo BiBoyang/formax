@@ -47,6 +47,12 @@ type SubmitUiStatus = {
   message: string
 }
 
+type ReplayNotification = {
+  replaySeq: number
+  method: string
+  params?: unknown
+}
+
 type DiffSnapshot = {
   cwd: string
   generatedAt: string
@@ -121,6 +127,37 @@ function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: 
   const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
   return { data, nextCursor }
+}
+
+function asThreadReplay(value: unknown): {
+  data: ReplayNotification[]
+  nextCursor: number
+  latestCursor: number
+  hasGap: boolean
+} {
+  if (!value || typeof value !== 'object') {
+    return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+  }
+  const record = value as Record<string, unknown>
+  const rawData = Array.isArray(record.data) ? record.data : []
+  const data = rawData
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as Record<string, unknown>
+      if (typeof row.replaySeq !== 'number' || !Number.isFinite(row.replaySeq)) return null
+      if (typeof row.method !== 'string' || !row.method.trim()) return null
+      return {
+        replaySeq: row.replaySeq,
+        method: row.method,
+        ...(row.params !== undefined ? { params: row.params } : {}),
+      } satisfies ReplayNotification
+    })
+    .filter((entry): entry is ReplayNotification => Boolean(entry))
+  const nextCursor = typeof record.nextCursor === 'number' && Number.isFinite(record.nextCursor) ? record.nextCursor : 0
+  const latestCursor =
+    typeof record.latestCursor === 'number' && Number.isFinite(record.latestCursor) ? record.latestCursor : nextCursor
+  const hasGap = Boolean(record.hasGap)
+  return { data, nextCursor, latestCursor, hasGap }
 }
 
 function asResolvedInputs(value: unknown): ResolvedInput[] {
@@ -259,6 +296,18 @@ function toTurnFooterStatus(errorMessage: string | null | undefined): 'failed' |
   return 'failed'
 }
 
+function notificationThreadId(params: unknown): string | null {
+  if (!params || typeof params !== 'object') return null
+  const record = params as Record<string, unknown>
+  if (typeof record.threadId === 'string' && record.threadId.trim()) return record.threadId
+  const turn = record.turn
+  if (turn && typeof turn === 'object') {
+    const turnThreadId = (turn as Record<string, unknown>).threadId
+    if (typeof turnThreadId === 'string' && turnThreadId.trim()) return turnThreadId
+  }
+  return null
+}
+
 export function App() {
   const [bridgeUrl] = useState(DEFAULT_BRIDGE_URL)
   const [inputText, setInputText] = useState('')
@@ -289,6 +338,7 @@ export function App() {
   const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
   const historyLoadingRef = useRef<Record<string, boolean>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
+  const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const bufferedDeltaByTurnRef = useRef<Record<string, DeltaBucket>>({})
   const deltaFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -505,6 +555,12 @@ export function App() {
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
       const params = (notification.params ?? {}) as any
+      const threadId = notificationThreadId(params)
+      const replaySeq = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
+      if (threadId && replaySeq != null) {
+        const current = replayCursorByThreadRef.current[threadId]
+        replayCursorByThreadRef.current[threadId] = typeof current === 'number' ? Math.max(current, replaySeq) : replaySeq
+      }
       if (!shouldProcessSequencedNotification(params)) return
       switch (notification.method) {
         case 'turn/started': {
@@ -674,6 +730,34 @@ export function App() {
     ],
   )
 
+  const replayThreadEvents = useCallback(
+    async (threadId: string) => {
+      const after = replayCursorByThreadRef.current[threadId]
+      const result = await request(
+        'thread/replay',
+        after == null ? { threadId } : { threadId, after, limit: 200 },
+      )
+      const replay = asThreadReplay(result)
+      if (after != null && replay.hasGap) {
+        await loadThreadHistory(threadId)
+        const baselineResult = await request('thread/replay', { threadId })
+        const baselineReplay = asThreadReplay(baselineResult)
+        replayCursorByThreadRef.current[threadId] =
+          baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
+        return
+      }
+      for (const entry of replay.data) {
+        handleNotification({
+          jsonrpc: '2.0',
+          method: entry.method,
+          ...(entry.params === undefined ? {} : { params: entry.params }),
+        })
+      }
+      replayCursorByThreadRef.current[threadId] = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
+    },
+    [handleNotification, loadThreadHistory, request],
+  )
+
   useEffect(() => {
     return () => {
       if (deltaFlushTimerRef.current) {
@@ -708,6 +792,7 @@ export function App() {
               const activeThreadId = activeThreadIdRef.current
               if (activeThreadId) {
                 await resumeThreadInputs(activeThreadId)
+                await replayThreadEvents(activeThreadId)
               }
             })
             .catch((error) => captureError('initialize', error))
@@ -723,7 +808,16 @@ export function App() {
       client.disconnect()
       clientRef.current = null
     }
-  }, [bridgeUrl, captureError, handleNotification, initializeHandshake, refreshThreads, refreshWorkspaceDiff, resumeThreadInputs])
+  }, [
+    bridgeUrl,
+    captureError,
+    handleNotification,
+    initializeHandshake,
+    refreshThreads,
+    refreshWorkspaceDiff,
+    replayThreadEvents,
+    resumeThreadInputs,
+  ])
 
   const sortedThreads = useMemo(
     () => [...state.threads].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
@@ -753,6 +847,7 @@ export function App() {
           return
         }
         await resumeThreadInputs(thread.id)
+        await replayThreadEvents(thread.id)
         await refreshThreads()
         await refreshWorkspaceDiff()
         log(`Thread created: ${thread.id}`)
@@ -869,9 +964,9 @@ export function App() {
       dispatch({ type: 'set_active_turn', turnId: null })
       dispatch({ type: 'clear_pending_inputs' })
       dispatch({ type: 'replace_logs', logs: cachedLogs })
-      void loadThreadHistory(threadId)
-        .then((loaded) => {
-          if (loaded) return
+      void (async () => {
+        const loaded = await loadThreadHistory(threadId).catch(() => false)
+        if (!loaded) {
           if (activeThreadIdRef.current === threadId) {
             activeThreadIdRef.current = previousThreadId
             dispatch({ type: 'set_active_thread', threadId: previousThreadId })
@@ -881,11 +976,24 @@ export function App() {
             })
             log('Failed to load selected thread history. Restored previous thread.', 'warn')
           }
-        })
-        .catch(() => undefined)
-      void resumeThreadInputs(threadId)
+          return
+        }
+        if (activeThreadIdRef.current !== threadId) return
+        await resumeThreadInputs(threadId)
+        if (activeThreadIdRef.current !== threadId) return
+        await replayThreadEvents(threadId)
+      })().catch(() => undefined)
     },
-    [flushBufferedDeltas, loadThreadHistory, log, logsByThreadId, resumeThreadInputs, state.activeThreadId, state.logs],
+    [
+      flushBufferedDeltas,
+      loadThreadHistory,
+      log,
+      logsByThreadId,
+      replayThreadEvents,
+      resumeThreadInputs,
+      state.activeThreadId,
+      state.logs,
+    ],
   )
 
   const loadEarlierHistory = useCallback(async () => {

@@ -181,11 +181,133 @@ describe('AppServer', () => {
 
     const emit = server.createTurnNotificationEmitter()
     emit('turn/event', { threadId: 'thread-1' })
-    expect(notifications).toContainEqual({
-      jsonrpc: '2.0',
-      method: 'turn/event',
-      params: { threadId: 'thread-1' },
+    expect(notifications).toContainEqual(
+      expect.objectContaining({
+        jsonrpc: '2.0',
+        method: 'turn/event',
+        params: expect.objectContaining({ threadId: 'thread-1', replaySeq: expect.any(Number) }),
+      }),
+    )
+  })
+
+  it('validates thread/replay params', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/replay', { threadId: 't-1', after: -1 }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.after')
+  })
+
+  it('does not mark replay gap when no buffered entries exist and nothing was trimmed', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/replay', { threadId: 't-1', after: 42 }))
+    const result = (out[0] as any).result
+    expect(result.data).toEqual([])
+    expect(result.nextCursor).toBe(0)
+    expect(result.latestCursor).toBe(0)
+    expect(result.hasGap).toBe(false)
+  })
+
+  it('replays buffered turn notifications with cursor and state snapshot', async () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      emitNotification(message) {
+        notifications.push(message)
+      },
     })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'running' },
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    emit('turn/inputRequested', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      input: {
+        inputId: 'input-1',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-02-10T00:00:01.000Z',
+        expiresAt: '2026-02-10T00:05:01.000Z',
+        payload: { toolName: 'Bash', action: {}, effectiveDecision: {} },
+      },
+      ts: '2026-02-10T00:00:01.000Z',
+    })
+    emit('turn/completed', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
+      ts: '2026-02-10T00:00:02.000Z',
+    })
+
+    const baseline = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((baseline[0] as any).result.data).toEqual([])
+    const baselineCursor = (baseline[0] as any).result.nextCursor as number
+    expect(baselineCursor).toBeGreaterThan(0)
+    expect((baseline[0] as any).result.state).toEqual(
+      expect.objectContaining({
+        activeTurnId: null,
+        lastTurnId: 'turn-1',
+        lastTurnStatus: 'completed',
+        pendingInputCount: 0,
+      }),
+    )
+
+    const page = await server.handleMessage(
+      request(3, 'thread/replay', {
+        threadId: 'thread-1',
+        after: 0,
+        limit: 2,
+      }),
+    )
+    expect((page[0] as any).result.data).toHaveLength(2)
+    expect((page[0] as any).result.latestCursor).toBeGreaterThanOrEqual((page[0] as any).result.nextCursor)
+    expect((page[0] as any).result.hasGap).toBe(false)
+
+    const next = await server.handleMessage(
+      request(4, 'thread/replay', {
+        threadId: 'thread-1',
+        after: (page[0] as any).result.nextCursor,
+        limit: 10,
+      }),
+    )
+    expect((next[0] as any).result.data).toHaveLength(1)
+
+    const notificationReplaySeqs = notifications
+      .map((entry) => (entry.params as any)?.replaySeq)
+      .filter((value) => typeof value === 'number')
+    expect(notificationReplaySeqs.length).toBe(3)
+  })
+
+  it('marks replay gap based on trimmed boundary for the thread buffer', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    for (let index = 0; index < 2050; index += 1) {
+      emit('turn/event', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: { type: 'assistant_delta', text: `delta-${index}` },
+      })
+    }
+
+    const out = await server.handleMessage(
+      request(2, 'thread/replay', {
+        threadId: 'thread-1',
+        after: 1,
+        limit: 10,
+      }),
+    )
+    const result = (out[0] as any).result
+    expect(result.hasGap).toBe(true)
+    expect(result.data).toHaveLength(10)
+    expect((result.data[0] as any).replaySeq).toBeGreaterThan(1)
   })
 
   it('validates turn/start mode params', async () => {

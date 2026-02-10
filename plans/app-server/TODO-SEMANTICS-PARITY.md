@@ -115,8 +115,10 @@
 
 ## 后续增强（非当前主线）
 
+- [x] `ThreadStateReducer` 最小闭环（server 运行态归约 + replay 状态快照）
+- [x] 协议扩展最小版：`thread/replay`（cursor + hasGap + latestCursor）
 - [ ] `ThreadStateReducer` 全量抽象（server/web 统一线程状态归约）
-- [ ] 协议扩展：`replay`、`command/dispatch` 等
+- [ ] 协议扩展：`command/dispatch` 等
 - [ ] commander 全量能力迁移（超出 `/init`）
 
 ## 执行顺序建议（最小风险）

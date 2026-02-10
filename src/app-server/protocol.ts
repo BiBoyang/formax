@@ -57,6 +57,12 @@ export type ThreadMessagesParams = {
   cursor?: string
 }
 
+export type ThreadReplayParams = {
+  threadId: string
+  after?: number
+  limit: number
+}
+
 export type TurnStartParams = {
   threadId: string
   input: {
@@ -157,6 +163,21 @@ export function parseThreadMessagesParams(params: unknown): ThreadMessagesParams
   const cursor = parseOptionalNonEmptyString(params.cursor, 'params.cursor')
 
   return cursor ? { threadId, limit, cursor } : { threadId, limit }
+}
+
+export function parseThreadReplayParams(params: unknown): ThreadReplayParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  let after: number | undefined
+  if ('after' in params && params.after != null) {
+    if (typeof params.after !== 'number' || !Number.isInteger(params.after) || params.after < 0) {
+      throw new Error('Invalid params.after: expected non-negative integer')
+    }
+    after = params.after
+  }
+  const limit = 'limit' in params ? parsePositiveInt(params.limit, 'params.limit') : 200
+  if (limit > 500) throw new Error('Invalid params.limit: max 500')
+  return after == null ? { threadId, limit } : { threadId, after, limit }
 }
 
 export function parseTurnStartParams(params: unknown): TurnStartParams {

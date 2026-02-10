@@ -13,6 +13,7 @@ import {
   parseThreadByIdParams,
   parseThreadListParams,
   parseThreadMessagesParams,
+  parseThreadReplayParams,
   parseThreadStartParams,
   parseTurnInputSubmitParams,
   parseTurnInterruptParams,
@@ -26,6 +27,20 @@ import {
   type ThreadResumeResult,
 } from './threadStore.js'
 import { DEFAULT_INPUT_TTL_MS, DEFAULT_MAX_PENDING_INPUTS_PER_THREAD, TurnRunner } from './turnRunner.js'
+import {
+  createInitialThreadRuntimeState,
+  extractThreadIdFromNotificationParams,
+  reduceThreadRuntimeState,
+  type ThreadRuntimeState,
+} from './threadStateReducer.js'
+
+const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
+
+type ReplayEntry = {
+  replaySeq: number
+  method: string
+  params?: Record<string, unknown>
+}
 
 export type AppServerInfo = {
   name: 'formax'
@@ -72,6 +87,11 @@ export class AppServer {
   }
   private readonly staleInputIds = new Set<string>()
   private readonly staleInputIdsByToolUseId = new Map<string, string>()
+  private readonly replayByThreadId = new Map<string, ReplayEntry[]>()
+  private readonly replayTrimmedBeforeByThreadId = new Map<string, number>()
+  private readonly runtimeStateByThreadId = new Map<string, ThreadRuntimeState>()
+  private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
+  private replaySeq = 0
 
   private state: AppServerState = {
     initializeCompleted: false,
@@ -206,6 +226,16 @@ export class AppServer {
       }
     }
 
+    if (req.method === 'thread/replay') {
+      try {
+        const params = parseThreadReplayParams(req.params)
+        const result = this.getThreadReplay(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
     if (req.method === 'turn/start') {
       try {
         const params = parseTurnStartParams(req.params)
@@ -292,7 +322,130 @@ export class AppServer {
 
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
     return (method, params) => {
-      this.emitNotification?.({ jsonrpc: '2.0', method, ...(params === undefined ? {} : { params }) })
+      const replayWrapped = this.captureReplayAndRuntimeState(method, params)
+      this.emitNotification?.({
+        jsonrpc: '2.0',
+        method,
+        ...(replayWrapped === undefined ? {} : { params: replayWrapped }),
+      })
+    }
+  }
+
+  private captureReplayAndRuntimeState(method: string, params?: unknown): Record<string, unknown> | undefined {
+    const paramsObj = params && typeof params === 'object' ? (params as Record<string, unknown>) : null
+    const threadId = extractThreadIdFromNotificationParams(paramsObj)
+    if (!threadId) return paramsObj ?? undefined
+
+    const replaySeq = this.replaySeq + 1
+    this.replaySeq = replaySeq
+    const wrapped: Record<string, unknown> = {
+      ...(paramsObj ?? {}),
+      replaySeq,
+    }
+
+    const currentEntries = this.replayByThreadId.get(threadId) ?? []
+    currentEntries.push({
+      replaySeq,
+      method,
+      params: wrapped,
+    })
+    if (currentEntries.length > this.maxReplayEventsPerThread) {
+      const trimCount = currentEntries.length - this.maxReplayEventsPerThread
+      const trimmed = currentEntries.splice(0, trimCount)
+      const trimmedBefore = trimmed[trimmed.length - 1]?.replaySeq
+      if (typeof trimmedBefore === 'number') {
+        const previousTrimmed = this.replayTrimmedBeforeByThreadId.get(threadId) ?? 0
+        if (trimmedBefore > previousTrimmed) {
+          this.replayTrimmedBeforeByThreadId.set(threadId, trimmedBefore)
+        }
+      }
+    }
+    this.replayByThreadId.set(threadId, currentEntries)
+
+    const currentState = this.runtimeStateByThreadId.get(threadId)
+    const baseState =
+      currentState ??
+      createInitialThreadRuntimeState({
+        threadId,
+        replaySeq,
+        method,
+        ts: wrapped.ts,
+      })
+    const nextState = reduceThreadRuntimeState(baseState, {
+      method,
+      params: wrapped,
+      replaySeq,
+    })
+    this.runtimeStateByThreadId.set(threadId, nextState)
+
+    return wrapped
+  }
+
+  private getThreadReplay(args: { threadId: string; after?: number; limit: number }): {
+    data: Array<{ replaySeq: number; method: string; params?: Record<string, unknown> }>
+    nextCursor: number
+    latestCursor: number
+    hasGap: boolean
+    state: {
+      activeTurnId: string | null
+      lastTurnId: string | null
+      lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
+      pendingInputCount: number
+      updatedAt: string
+    } | null
+  } {
+    const entries = this.replayByThreadId.get(args.threadId) ?? []
+    const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
+    const trimmedBefore = this.replayTrimmedBeforeByThreadId.get(args.threadId) ?? 0
+    const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
+    const stateSnapshot = state
+      ? {
+          activeTurnId: state.activeTurnId,
+          lastTurnId: state.lastTurnId,
+          lastTurnStatus: state.lastTurnStatus,
+          pendingInputCount: Object.keys(state.pendingInputs).length,
+          updatedAt: state.updatedAt,
+        }
+      : null
+
+    if (entries.length === 0) {
+      return {
+        data: [],
+        nextCursor: 0,
+        latestCursor: 0,
+        hasGap: args.after != null && args.after < trimmedBefore,
+        state: stateSnapshot,
+      }
+    }
+
+    if (args.after == null) {
+      return {
+        data: [],
+        nextCursor: latestCursor,
+        latestCursor,
+        hasGap: false,
+        state: stateSnapshot,
+      }
+    }
+
+    let startIndex = entries.findIndex((entry) => entry.replaySeq > args.after!)
+    if (startIndex < 0) startIndex = entries.length
+    const hasGap = args.after < trimmedBefore
+    if (hasGap) startIndex = 0
+
+    const page = entries.slice(startIndex, startIndex + args.limit)
+    const nextCursor = page.length > 0 ? page[page.length - 1]!.replaySeq : Math.min(args.after, latestCursor)
+
+    return {
+      data: page.map((entry) => ({
+        replaySeq: entry.replaySeq,
+        method: entry.method,
+        ...(entry.params ? { params: entry.params } : {}),
+      })),
+      nextCursor,
+      latestCursor,
+      hasGap,
+      state: stateSnapshot,
     }
   }
 }
