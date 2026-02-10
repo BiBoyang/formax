@@ -16,6 +16,7 @@ import {
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from '../../../src/features/semantics/threadRuntimeState'
+import { resolveCommandRouting } from '../../../src/features/semantics/commandRouting'
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
@@ -945,16 +946,17 @@ export function App() {
     const text = inputText.trim()
     if (!text || isSendingTurn) return
 
-    const isCommand = text.startsWith('/')
+    const commandRouting = resolveCommandRouting(text)
+    const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     dispatch({ type: 'push_message', role: 'user', text })
     setInputText('')
-    if (isCommand) {
+    if (shouldDispatchCommand) {
       log(`Command queued: ${text}`, 'info')
     }
 
     setIsSendingTurn(true)
     try {
-      const result = isCommand
+      const result = shouldDispatchCommand
         ? await request('command/dispatch', {
             threadId: state.activeThreadId,
             command: text,
@@ -969,7 +971,7 @@ export function App() {
       if (turnId) {
         dispatch({ type: 'set_active_turn', turnId })
         dispatch({ type: 'bind_last_user_message_turn', turnId })
-        if (isCommand) {
+        if (shouldDispatchCommand) {
           commandByTurnRef.current.set(turnId, text)
         }
       }

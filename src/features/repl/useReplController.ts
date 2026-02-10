@@ -18,7 +18,7 @@ import type {
   AgentsDialogSaveResult,
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
-import { isExactSlashCommand } from './controller/utils'
+import { resolveCommandRouting } from '../semantics/commandRouting'
 import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
@@ -741,7 +741,10 @@ export function useReplController(deps: {
         }
       }
 
+      const commandRouting = resolveCommandRouting(text)
+
       if (
+        commandRouting.isExactClear &&
         maybeHandleClearCommand({
           text,
           isLoading,
@@ -752,7 +755,7 @@ export function useReplController(deps: {
         return
       }
 
-      if (isExactSlashCommand(text, '/compact')) {
+      if (commandRouting.isExactCompact) {
         if (sessionSaveEnabled) void sessionWriterRef.current?.appendEvent('compact_requested')
         await maybeHandleCompactCommand({
           text,
@@ -785,7 +788,7 @@ export function useReplController(deps: {
       }
 
       let slashEffect: SlashCommandEffect | null = null
-      if (text.startsWith('/')) {
+      if (commandRouting.isSlashCommand) {
         const res = await maybeHandleConsumedSlashCommand({
           text,
           preferredSlashSpecId: opts?.preferredSlashSpecId,

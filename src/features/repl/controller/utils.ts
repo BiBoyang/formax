@@ -1,6 +1,9 @@
 import type { ChatHistory } from '../../../chat/engine'
 import type { TokenUsage } from '../../../streaming/types'
 import { isCompactionSummaryUserMessage } from '../../../chat/context/compact'
+import { isExactSlashCommand as isExactSlashCommandFromRouting } from '../../semantics/commandRouting'
+
+export const isExactSlashCommand = isExactSlashCommandFromRouting
 
 export function isAbortLikeError(err: unknown): boolean {
   if (!err) return false
@@ -10,20 +13,6 @@ export function isAbortLikeError(err: unknown): boolean {
   if (name === 'AbortError') return true
   if (message === 'Stream aborted' || message === 'Request aborted') return true
   return /aborted/i.test(message)
-}
-
-export function isExactSlashCommand(input: string, command: string): boolean {
-  const raw = String(input || '').trimStart()
-  const cmd = String(command || '').trim()
-  if (!raw.startsWith('/')) return false
-  if (!cmd.startsWith('/')) return false
-
-  const re = new RegExp(`^${escapeRegex(cmd)}(?:\\s|$)`, 'i')
-  return re.test(raw)
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export function formatToolUses(count: number): string {

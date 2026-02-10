@@ -270,7 +270,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('uses command/dispatch for slash input', async () => {
+  it('uses command/dispatch only for /init', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
@@ -294,6 +294,28 @@ describe('App thread history integration', () => {
     expect(rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/init')).toBe(
       false,
     )
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.input?.text === '/permissions',
+        ),
+      ).toBe(true)
+    })
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'command/dispatch' &&
+          (entry.params as any)?.threadId === 'thread-alpha' &&
+          (entry.params as any)?.command === '/permissions',
+      ),
+    ).toBe(false)
   })
 
   it('deduplicates repeated eventId notifications', async () => {
