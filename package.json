@@ -1,6 +1,6 @@
 {
   "name": "@yusifeng/formax",
-  "version": "0.0.1-beta.3",
+  "version": "0.0.1-beta.5",
   "type": "module",
   "description": "Terminal-first AI assistant for software engineering tasks (Ink + React)",
   "license": "MIT",
@@ -33,7 +33,14 @@
     "test:coverage": "vitest run --coverage --testTimeout 30000",
     "test:coverage:watch": "vitest --coverage --testTimeout 30000",
     "test:coverage:gate": "vitest run --coverage --testTimeout 30000 && node ./scripts/check-coverage-thresholds.mjs",
-    "check:partial-stage": "node ./scripts/check-partial-stage.mjs"
+    "check:partial-stage": "node ./scripts/check-partial-stage.mjs",
+    "release:patch": "npm version patch -m \"chore(release): %s\"",
+    "release:minor": "npm version minor -m \"chore(release): %s\"",
+    "release:major": "npm version major -m \"chore(release): %s\"",
+    "release:prerelease": "npm version prerelease --preid=beta -m \"chore(release): %s\"",
+    "release:prepatch": "npm version prepatch --preid=beta -m \"chore(release): %s\"",
+    "release:preminor": "npm version preminor --preid=beta -m \"chore(release): %s\"",
+    "release:premajor": "npm version premajor --preid=beta -m \"chore(release): %s\""
   },
   "bin": {
     "formax": "bin/formax.js"
