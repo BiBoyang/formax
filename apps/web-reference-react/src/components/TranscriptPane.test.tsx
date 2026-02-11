@@ -80,6 +80,22 @@ describe('TranscriptPane', () => {
     expect(onInterrupt).toHaveBeenCalledTimes(1)
   })
 
+  it('renders assistant markdown into structured content', async () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [{ id: 'm1', kind: 'message', role: 'assistant', text: '# Plan\n\n- first item\n- second item' }],
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Plan' })).toBeInTheDocument()
+    })
+    expect(screen.getByText('first item')).toBeInTheDocument()
+    expect(screen.getByText('second item')).toBeInTheDocument()
+  })
+
   it('renders running thinking as lightweight label without delta body text', () => {
     render(
       <TranscriptPane

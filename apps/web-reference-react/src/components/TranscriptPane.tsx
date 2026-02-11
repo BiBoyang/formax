@@ -11,6 +11,7 @@ import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
 import { LoadingStatusLine } from './LoadingStatusLine'
 import { shouldStopWheelPropagation } from './scrollBoundary'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
@@ -435,14 +436,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                               : 'text-foreground py-2'
                           )}
                         >
-                          <div
-                            className={cn(
-                              'text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
-                              item.role === 'assistant' ? 'markdown-body' : 'px-0.5',
-                            )}
-                          >
+                          {item.role === 'assistant' ? (
+                            <MarkdownRenderer text={item.text} cacheKey={item.id} className="text-[14px] leading-relaxed" />
+                          ) : (
+                            <div className="text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
                               {item.text}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

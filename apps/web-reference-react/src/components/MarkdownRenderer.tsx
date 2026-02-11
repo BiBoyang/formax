@@ -1,0 +1,320 @@
+import DOMPurify from 'dompurify'
+import { Marked, type Tokens } from 'marked'
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from 'react'
+import { cn } from '../lib/utils'
+
+type MarkdownRendererProps = Omit<HTMLAttributes<HTMLDivElement>, 'dangerouslySetInnerHTML' | 'children'> & {
+  text: string
+  cacheKey?: string
+}
+
+type CacheEntry = {
+  hash: string
+  html: string
+}
+
+const CACHE_LIMIT = 200
+const markdownCache = new Map<string, CacheEntry>()
+const CODE_BLOCK_PATTERN = '<pre><code(?:\\s+class="language-([^"]*)")?>([\\s\\S]*?)<\\/code><\\/pre>'
+const HAS_CODE_BLOCK_REGEX = new RegExp(CODE_BLOCK_PATTERN)
+const SHIKI_THEME = 'github-light'
+const LANGUAGE_ALIASES: Record<string, string> = {
+  js: 'javascript',
+  cjs: 'javascript',
+  mjs: 'javascript',
+  ts: 'typescript',
+  mts: 'typescript',
+  cts: 'typescript',
+  jsx: 'jsx',
+  tsx: 'tsx',
+  shell: 'bash',
+  sh: 'bash',
+  zsh: 'bash',
+  yml: 'yaml',
+  md: 'markdown',
+  plaintext: 'text',
+  txt: 'text',
+}
+
+const markedParser = new Marked({
+  gfm: true,
+  breaks: true,
+})
+markedParser.use({
+  renderer: {
+    html(token: Tokens.HTML | Tokens.Tag) {
+      return escapeHtml(token.text)
+    },
+  },
+})
+
+const sanitizeConfig = {
+  USE_PROFILES: { html: true, mathMl: true },
+  SANITIZE_NAMED_PROPS: true,
+  FORBID_TAGS: ['style'],
+  FORBID_CONTENTS: ['style', 'script'],
+}
+
+let sanitizeHookInitialized = false
+let shikiRuntimePromise: Promise<ShikiRuntime> | null = null
+let highlighterPromise: Promise<ShikiHighlighter> | null = null
+
+type ShikiRuntime = {
+  bundledLanguages: Record<string, unknown>
+  createHighlighter: (options: { themes: string[]; langs: string[] }) => Promise<ShikiHighlighter>
+}
+
+type ShikiHighlighter = {
+  getLoadedLanguages: () => string[]
+  loadLanguage: (lang: string) => Promise<unknown>
+  codeToHtml: (code: string, options: { lang: string; theme: string }) => string
+}
+
+function initSanitizeHook() {
+  if (sanitizeHookInitialized) return
+  if (typeof window === 'undefined' || !DOMPurify.isSupported) return
+
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (!(node instanceof HTMLAnchorElement)) return
+    node.setAttribute('target', '_blank')
+
+    const rel = node.getAttribute('rel') ?? ''
+    const tokens = new Set(rel.split(/\s+/).filter(Boolean))
+    tokens.add('noopener')
+    tokens.add('noreferrer')
+    node.setAttribute('rel', Array.from(tokens).join(' '))
+  })
+
+  sanitizeHookInitialized = true
+}
+
+function sanitizeHtml(html: string) {
+  initSanitizeHook()
+  if (!DOMPurify.isSupported) return escapeHtml(html)
+  return DOMPurify.sanitize(html, sanitizeConfig)
+}
+
+function checksum(text: string): string {
+  let hash = 5381
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 33) ^ text.charCodeAt(i)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function touchCache(key: string, value: CacheEntry) {
+  markdownCache.delete(key)
+  markdownCache.set(key, value)
+  if (markdownCache.size <= CACHE_LIMIT) return
+  const first = markdownCache.keys().next().value
+  if (!first) return
+  markdownCache.delete(first)
+}
+
+function normalizeLanguage(raw: string | undefined, bundledLanguages: Record<string, unknown>): string {
+  const normalized = (raw ?? '').trim().toLowerCase()
+  if (!normalized) return 'text'
+  const aliased = LANGUAGE_ALIASES[normalized] ?? normalized
+  if (aliased in bundledLanguages) {
+    return aliased
+  }
+  return 'text'
+}
+
+async function getShikiRuntime(): Promise<ShikiRuntime> {
+  if (!shikiRuntimePromise) {
+    shikiRuntimePromise = import('shiki')
+      .then((mod) => ({
+        bundledLanguages: mod.bundledLanguages as Record<string, unknown>,
+        createHighlighter: (options: { themes: string[]; langs: string[] }) => mod.createHighlighter(options) as Promise<ShikiHighlighter>,
+      }))
+      .catch((error) => {
+        shikiRuntimePromise = null
+        throw error
+      })
+  }
+  return shikiRuntimePromise
+}
+
+async function getHighlighter(): Promise<ShikiHighlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = getShikiRuntime()
+      .then((runtime) =>
+        runtime.createHighlighter({
+          themes: [SHIKI_THEME],
+          langs: ['text'],
+        }),
+      )
+      .catch((error) => {
+        highlighterPromise = null
+        throw error
+      })
+  }
+  return highlighterPromise
+}
+
+function parseMarkdown(text: string): string {
+  const parsed = markedParser.parse(text)
+  return typeof parsed === 'string' ? parsed : ''
+}
+
+function wrapCodeBlock(codeHtml: string): string {
+  return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`
+}
+
+async function highlightCodeBlocks(html: string): Promise<string> {
+  const codeBlockRegex = new RegExp(CODE_BLOCK_PATTERN, 'g')
+  const matches = [...html.matchAll(codeBlockRegex)]
+  if (matches.length === 0) return html
+
+  let runtime: ShikiRuntime
+  let highlighter: ShikiHighlighter
+  try {
+    runtime = await getShikiRuntime()
+    highlighter = await getHighlighter()
+  } catch {
+    return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full))
+  }
+
+  let result = ''
+  let cursor = 0
+  for (const match of matches) {
+    const full = match[0]
+    const language = normalizeLanguage(match[1], runtime.bundledLanguages)
+    const escapedCode = match[2] ?? ''
+    const index = match.index ?? 0
+
+    result += html.slice(cursor, index)
+
+    const code = decodeHtmlEntities(escapedCode)
+    let highlighted = ''
+    try {
+      if (!highlighter.getLoadedLanguages().includes(language)) {
+        await highlighter.loadLanguage(language)
+      }
+      highlighted = highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME })
+    } catch {
+      highlighted = `<pre><code>${escapedCode}</code></pre>`
+    }
+    result += wrapCodeBlock(highlighted)
+    cursor = index + full.length
+  }
+
+  result += html.slice(cursor)
+  return result
+}
+
+export function MarkdownRenderer({ text, cacheKey, className, ...rest }: MarkdownRendererProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  const rawHtml = useMemo(() => parseMarkdown(text), [text])
+  const safeBaseHtml = useMemo(() => sanitizeHtml(rawHtml), [rawHtml])
+  const [html, setHtml] = useState<string>(safeBaseHtml)
+
+  useEffect(() => {
+    setHtml(safeBaseHtml)
+  }, [safeBaseHtml])
+
+  useEffect(() => {
+    const hash = checksum(text)
+    const key = cacheKey ?? hash
+
+    const cached = markdownCache.get(key)
+    if (cached && cached.hash === hash) {
+      touchCache(key, cached)
+      setHtml(cached.html)
+      return
+    }
+
+    if (!HAS_CODE_BLOCK_REGEX.test(rawHtml)) {
+      touchCache(key, { hash, html: safeBaseHtml })
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      const highlighted = await highlightCodeBlocks(rawHtml)
+      if (cancelled) return
+      const safeHighlighted = sanitizeHtml(highlighted)
+      touchCache(key, { hash, html: safeHighlighted })
+      setHtml(safeHighlighted)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [text, cacheKey, rawHtml, safeBaseHtml])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+
+    const timeouts = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>()
+    const onClick = async (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const button = target.closest('[data-copy-code]')
+      if (!(button instanceof HTMLButtonElement)) return
+
+      const code = button.closest('[data-component="markdown-code"]')?.querySelector('pre code')?.textContent ?? ''
+      if (!code) return
+      if (!navigator.clipboard) return
+
+      try {
+        await navigator.clipboard.writeText(code)
+      } catch {
+        return
+      }
+
+      button.dataset.copied = 'true'
+      button.textContent = 'Copied'
+      button.setAttribute('aria-label', 'Copied')
+      button.setAttribute('title', 'Copied')
+
+      const existing = timeouts.get(button)
+      if (existing) clearTimeout(existing)
+      const timeout = setTimeout(() => {
+        button.dataset.copied = 'false'
+        button.textContent = 'Copy'
+        button.setAttribute('aria-label', 'Copy code')
+        button.setAttribute('title', 'Copy code')
+      }, 2000)
+      timeouts.set(button, timeout)
+    }
+
+    root.addEventListener('click', onClick)
+    return () => {
+      root.removeEventListener('click', onClick)
+      for (const timeout of timeouts.values()) {
+        clearTimeout(timeout)
+      }
+    }
+  }, [html])
+
+  return (
+    <div
+      ref={rootRef}
+      className={cn('markdown-body', className)}
+      {...rest}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}

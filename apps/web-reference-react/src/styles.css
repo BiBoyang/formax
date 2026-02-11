@@ -76,6 +76,7 @@ body {
   word-break: break-word;
   max-width: 100%;
   min-width: 0;
+  color: var(--foreground);
 }
 
 .markdown-body > * {
@@ -91,6 +92,42 @@ body {
   margin-bottom: 0;
 }
 
+.markdown-body [data-component='markdown-code'] {
+  position: relative;
+  margin: 0.75rem 0;
+}
+
+.markdown-body [data-copy-code] {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  color: var(--muted-foreground);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.markdown-body [data-component='markdown-code']:hover [data-copy-code] {
+  opacity: 1;
+}
+
+.markdown-body [data-copy-code]:focus-visible {
+  opacity: 1;
+}
+
+.markdown-body [data-copy-code][data-copied='true'] {
+  color: var(--foreground);
+  border-color: color-mix(in oklch, var(--foreground) 24%, var(--border));
+  opacity: 1;
+}
+
+.markdown-body .shiki,
 .markdown-body pre {
   margin: 0.75rem 0;
   padding: 0.75rem;
@@ -111,7 +148,8 @@ body {
   font-size: 0.9em;
 }
 
-.markdown-body pre code {
+.markdown-body pre code,
+.markdown-body .shiki code {
   background: transparent;
   padding: 0;
   border-radius: 0;
@@ -137,6 +175,34 @@ body {
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
   color: var(--foreground);
+}
+
+.markdown-body blockquote {
+  border-left: 2px solid var(--border);
+  margin: 0.9rem 0;
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body th {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .loading-shimmer {
