@@ -8,6 +8,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
   - Runtime assembly slices: `src/legacy/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
+- Web UI runtime launcher (`formax web`, bridge + static host): `src/web/localUi.ts`
 - App-server dev bridge entrypoint (WebSocket -> stdio loop): `src/entrypoints/app-server-bridge.ts`
 - App-server web reference entrypoint (bridge + React UI dev server): `src/entrypoints/app-server-web-reference.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
@@ -23,6 +24,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Input lifecycle helpers: `src/app-server/turn/inputId.ts`, `src/app-server/turn/inputStore.ts`
 - Stdio JSONL transport: `src/app-server/transport/stdio.ts`
 - Dev bridge (WebSocket fan-in/fan-out to app-server loop): `src/app-server/devBridge.ts`
+- Web command parsing/help text: `src/web/command.ts`
+- Shared web/bridge network + security helpers (host/port/url/origin/token): `src/network/runtime.ts`
 - Web reference React client (isolated app): `apps/web-reference-react/*`
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
 - Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`

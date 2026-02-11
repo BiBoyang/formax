@@ -20,7 +20,8 @@
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
-    "prepack": "bun run build",
+    "build:web-ui": "node ./scripts/build-web-ui.mjs",
+    "prepack": "bun run build && bun run build:web-ui",
     "core:boundaries": "node ./scripts/check-core-boundaries.mjs",
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
     "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs",
@@ -55,6 +56,7 @@
     "openai": "^6.15.0",
     "react": "^19.0.0",
     "tsx": "^4.20.3",
+    "ws": "^8.18.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

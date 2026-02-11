@@ -28,6 +28,15 @@ const SEEN_EVENT_CAP = 2000
 const DELTA_FLUSH_MS = 50
 const WEB_SUPPORTED_SLASH_COMMANDS = new Set(['/init', '/clear', '/compact', '/todos'])
 
+function resolveBridgeUrl(): string {
+  if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
+  const fromRuntimeConfig = (window as Window & { __FORMAX_BRIDGE_URL__?: unknown }).__FORMAX_BRIDGE_URL__
+  if (typeof fromRuntimeConfig === 'string' && fromRuntimeConfig.trim()) {
+    return fromRuntimeConfig
+  }
+  return DEFAULT_BRIDGE_URL
+}
+
 function clampRightRailWidth(desiredWidth: number, viewportWidth: number, isSidebarOpen: boolean): number {
   const leftReserved = isSidebarOpen ? SIDEBAR_WIDTH : 0
   const available = viewportWidth - leftReserved - DIVIDER_WIDTH - CENTER_MIN_WIDTH
@@ -341,7 +350,7 @@ function toTurnFooterStatus(errorMessage: string | null | undefined): 'failed' |
 }
 
 export function App() {
-  const [bridgeUrl] = useState(DEFAULT_BRIDGE_URL)
+  const [bridgeUrl] = useState(resolveBridgeUrl)
   const [inputText, setInputText] = useState('')
   const [submitStatusByInputId, setSubmitStatusByInputId] = useState<
     Record<string, { status: string; kind: 'success' | 'error'; message?: string }>

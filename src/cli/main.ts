@@ -27,11 +27,13 @@ import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
+import { formatWebCommandHelp, parseWebCommandArgs } from '../web/command.js'
 import pkg from '../../package.json'
 
 export type CliDispatchResult =
   | { kind: 'repl' }
   | { kind: 'app-server' }
+  | { kind: 'web'; options: { host: string; uiPort: number; bridgePort: number } }
   | { kind: 'handled'; exitCode: number; stdout: string; stderr: string }
 
 type ConnectionTester = (args: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
@@ -309,11 +311,41 @@ export async function dispatchCli(
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
   }
 
-  if (flags.help) {
+  if (flags.help && args[0] !== 'web') {
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
   }
 
   if (args.length === 0 || args[0] === 'repl') return { kind: 'repl' }
+  if (args[0] === 'web') {
+    if (flags.help) {
+      return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatWebCommandHelp(), stderr: '' }
+    }
+
+    if (flags.json) {
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Usage,
+        stdout: errJson('web', '--json is not supported for this command'),
+        stderr: '',
+      }
+    }
+
+    const parsedWeb = parseWebCommandArgs(args.slice(1))
+    if (!parsedWeb.ok) {
+      const parseError = parsedWeb as { ok: false; message: string }
+      if (parseError.message === '__HELP__') {
+        return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatWebCommandHelp(), stderr: '' }
+      }
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Usage,
+        stdout: '',
+        stderr: `${parseError.message}\n\n${formatWebCommandHelp()}`,
+      }
+    }
+
+    return { kind: 'web', options: parsedWeb.options }
+  }
   if (args[0] === 'app-server') return { kind: 'app-server' }
 
   if (args[0] === 'help') {

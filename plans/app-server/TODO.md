@@ -1,6 +1,6 @@
 # TODO：Formax App Server（单一清单）
 
-更新时间：2026-02-11
+更新时间：2026-02-12
 
 > 本文件是 `plans/app-server/` 下唯一 TODO。  
 > 原 `TODO-SEMANTICS-PARITY.md` 与 `TODO-CHAT-UI-TEMP.md` 已合并到这里。
@@ -29,6 +29,11 @@
 - [ ] commander 能力增量扩展（超出 `/init`、`/clear`、`/compact`、`/todos`）
   - 只接入非配置类且产品确认要上 Web 的命令
   - 每接入一个命令：语义层 + app-server + Web + 测试同 PR 落地
+- [ ] Web 启动链路标准化（network + security + serve）
+  - [x] Phase A：抽离共享 `network/security` 运行时模块（host/port、origin/cors、token、URL 校验）
+  - [ ] Phase B：新增 `formax serve`（后端服务标准入口，支持可观测日志与稳定退出）
+  - [ ] Phase C：`formax web` 复用 `serve` 能力（`web` 仅负责启动 UI + 连接 URL）
+  - [ ] 文档与测试同步：README、CLI help、关键集成测试（成功启动/鉴权失败/非法参数）
 
 ## 暂不推进（保持边界）
 

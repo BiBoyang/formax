@@ -32,6 +32,12 @@ async function main(): Promise<void> {
     return
   }
 
+  if (res.kind === 'web') {
+    const { runWebUi } = await import('../web/localUi.js')
+    await runWebUi(res.options)
+    return
+  }
+
   const { createApp } = await import('../core/app/createApp.js')
   const { runLegacyCli } = await import('../legacy/runLegacyCli.js')
   const app = createApp()

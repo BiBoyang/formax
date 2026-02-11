@@ -6,9 +6,11 @@ const rpcMock = vi.hoisted(() => {
   let requestImpl: (method: string, params: unknown) => unknown = () => ({})
   let onNotification: ((notification: { method: string; params?: unknown }) => void) | null = null
   const requests: Array<{ method: string; params: unknown }> = []
+  const connectUrls: string[] = []
 
   return {
     requests,
+    connectUrls,
     setRequestImpl(impl: (method: string, params: unknown) => unknown) {
       requestImpl = impl
     },
@@ -24,6 +26,7 @@ const rpcMock = vi.hoisted(() => {
     },
     reset() {
       requests.splice(0, requests.length)
+      connectUrls.splice(0, connectUrls.length)
       requestImpl = () => ({})
       onNotification = null
     },
@@ -45,12 +48,13 @@ vi.mock('./rpcClient', () => {
 
   class MockRpcClient {
     connect(
-      _url: string,
+      url: string,
       handlers: {
         onStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
         onNotification?: (notification: { method: string; params?: unknown }) => void
       },
     ) {
+      rpcMock.connectUrls.push(url)
       rpcMock.setNotificationHandler(handlers.onNotification ?? null)
       handlers.onStatus('connected')
     }
@@ -157,6 +161,19 @@ describe('App thread history integration', () => {
       }
       return {}
     })
+  })
+
+  it('reads bridge url from runtime config when provided', async () => {
+    const runtimeWindow = window as Window & { __FORMAX_BRIDGE_URL__?: string }
+    runtimeWindow.__FORMAX_BRIDGE_URL__ = 'ws://127.0.0.1:4777'
+    try {
+      render(<App />)
+      await waitFor(() => {
+        expect(rpcMock.connectUrls[0]).toBe('ws://127.0.0.1:4777')
+      })
+    } finally {
+      delete runtimeWindow.__FORMAX_BRIDGE_URL__
+    }
   })
 
   it('loads selected thread history and renders tool history blocks', async () => {

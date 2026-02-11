@@ -37,6 +37,45 @@ describe('dispatchCli', () => {
     expect(res.kind).toBe('app-server')
   })
 
+  it('dispatches web subcommand with defaults', async () => {
+    const res = await dispatchCli(['web'])
+    expect(res.kind).toBe('web')
+    if (res.kind !== 'web') return
+    expect(res.options).toEqual({
+      host: '127.0.0.1',
+      uiPort: 3781,
+      bridgePort: 3777,
+    })
+  })
+
+  it('dispatches web subcommand with custom ports', async () => {
+    const res = await dispatchCli(['web', '--host', '0.0.0.0', '--ui-port', '4080', '--bridge-port', '4077'])
+    expect(res.kind).toBe('web')
+    if (res.kind !== 'web') return
+    expect(res.options).toEqual({
+      host: '0.0.0.0',
+      uiPort: 4080,
+      bridgePort: 4077,
+    })
+  })
+
+  it('returns web command help', async () => {
+    const res = await dispatchCli(['web', '--help'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('Formax Web UI')
+    expect(res.stdout).toContain('formax web')
+  })
+
+  it('returns web command help when --help and --json are both passed', async () => {
+    const res = await dispatchCli(['web', '--help', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('Formax Web UI')
+  })
+
   it('shows help for --help', async () => {
     const res = await dispatchCli(['--help'])
     expect(res.kind).toBe('handled')
@@ -194,6 +233,14 @@ describe('dispatchCli', () => {
     const parsed = JSON.parse(res.stdout)
     expect(parsed.ok).toBe(false)
     expect(parsed.command).toBe('unknown')
+  })
+
+  it('returns usage error for invalid web command args', async () => {
+    const res = await dispatchCli(['web', '--ui-port', 'abc'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    expect(res.stderr).toContain('Invalid --ui-port')
   })
 
   it('setup triggers repl and sets FORMAX_FORCE_SETUP', async () => {

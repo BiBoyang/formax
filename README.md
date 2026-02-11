@@ -25,6 +25,25 @@ cd /path/to/your/project
 formax
 ```
 
+## Web UI (for npm users)
+
+If you want to use Formax in the browser after installing from npm:
+
+```bash
+formax web
+```
+
+By default:
+
+- Web UI: `http://127.0.0.1:3781`
+- Bridge (WebSocket): `ws://127.0.0.1:3777`
+
+Optional flags:
+
+```bash
+formax web --host 127.0.0.1 --ui-port 3781 --bridge-port 3777
+```
+
 ## App Server (GUI Integration)
 
 Formax can run as a local subprocess JSON-RPC service (stdio JSONL transport) for IDE / GUI clients:
@@ -45,7 +64,7 @@ Notes:
 - Phase 1 focuses on thread/turn flows and the input lifecycle for approval and ask_user_question
 - Full API reference: `plans/app-server/API-REFERENCE.md`
 
-For development, use the WebSocket dev bridge to debug GUI clients (non-production transport):
+For source-level development, use the WebSocket dev bridge to debug GUI clients (non-production transport):
 
 ```bash
 bun run app-server:bridge -- --host 127.0.0.1 --port 3777

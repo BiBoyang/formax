@@ -1,12 +1,14 @@
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage } from 'node:http'
 import { execFile } from 'node:child_process'
 import { PassThrough } from 'node:stream'
 import { WebSocket, WebSocketServer } from 'ws'
+import { authorizeBridgeConnection, buildWsUrl, type BridgeSecurityOptions } from '../network/runtime.js'
 import { runAppServer } from './index.js'
 
 export type AppServerDevBridgeOptions = {
   host?: string
   port?: number
+  security?: BridgeSecurityOptions
   cwd?: string
   env?: NodeJS.ProcessEnv
   maxRequestBytes?: number
@@ -215,7 +217,21 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
     }
   })
 
-  wsServer.on('connection', (socket) => {
+  wsServer.on('connection', (socket, request: IncomingMessage) => {
+    const authorization = authorizeBridgeConnection({
+      requestUrl: request.url,
+      originHeader: request.headers.origin,
+      security: options.security,
+    })
+    if (authorization.ok === false) {
+      try {
+        socket.close(1008, authorization.reason)
+      } catch {
+        // Ignore close failures for rejected sockets.
+      }
+      return
+    }
+
     clients.add(socket)
     socket.on('close', () => {
       clients.delete(socket)
@@ -287,7 +303,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
   if (!addr || typeof addr === 'string') {
     throw new Error('Failed to resolve app-server dev bridge address')
   }
-  const url = `ws://${host}:${addr.port}`
+  const url = buildWsUrl(host, addr.port)
 
   const runPromise = runAppServer({
     input,

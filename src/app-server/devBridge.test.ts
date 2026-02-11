@@ -17,7 +17,7 @@ const {
   readInputBuffer,
   readRunAppServerArgs,
 } = vi.hoisted(() => {
-  let connectionHandler: ((socket: any) => void) | null = null
+  let connectionHandler: ((socket: any, request?: { url?: string; headers?: { origin?: string } }) => void) | null = null
   let inputBuffer = ''
   let runAppServerArgs: any | null = null
 
@@ -65,7 +65,7 @@ const {
     wsCtorMock,
     wsServerCloseMock,
     getConnectionHandler: () => connectionHandler,
-    setConnectionHandler: (handler: (socket: any) => void) => {
+    setConnectionHandler: (handler: (socket: any, request?: { url?: string; headers?: { origin?: string } }) => void) => {
       connectionHandler = handler
     },
     resetState,
@@ -85,7 +85,7 @@ vi.mock('ws', () => {
     constructor(opts: any) {
       wsCtorMock(opts)
     }
-    on(event: string, handler: (socket: any) => void) {
+    on(event: string, handler: (socket: any, request?: { url?: string; headers?: { origin?: string } }) => void) {
       if (event === 'connection') {
         setConnectionHandler(handler)
       }
@@ -143,7 +143,7 @@ describe('startAppServerDevBridge', () => {
     expect(typeof onConnection).toBe('function')
 
     const socket = createMockSocket()
-    onConnection?.(socket)
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
     socket.emitMessage('{"jsonrpc":"2.0","id":1}\n{"jsonrpc":"2.0","method":"initialized"}\n')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -168,10 +168,10 @@ describe('startAppServerDevBridge', () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
     const onConnection = getConnectionHandler()
     const socket = createMockSocket()
-    onConnection?.(socket)
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
     socket.emitMessage('{"jsonrpc":"2.0","id":42,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await waitFor(() => socket.send.mock.calls.length > 0)
 
     expect(readInputBuffer()).toBe('')
     expect(socket.send).toHaveBeenCalled()
@@ -179,6 +179,69 @@ describe('startAppServerDevBridge', () => {
     expect(payload.id).toBe(42)
     expect(payload.result).toBeTruthy()
     expect(Array.isArray(payload.result.files)).toBe(true)
+
+    await bridge.close()
+  })
+
+  it('rejects websocket connection when auth token does not match', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      security: { authToken: 'secret-token' },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+
+    onConnection?.(socket, { url: '/?token=wrong-token', headers: { origin: 'http://localhost:3781' } })
+    socket.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(readInputBuffer()).toBe('')
+    expect(socket.close).toHaveBeenCalledWith(1008, 'Unauthorized')
+
+    await bridge.close()
+  })
+
+  it('rejects websocket connection when origin is not allowed', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      security: {
+        authToken: 'secret-token',
+        allowedOrigins: ['http://localhost:3781'],
+      },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+
+    onConnection?.(socket, { url: '/?token=secret-token', headers: { origin: 'http://evil.invalid' } })
+    socket.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(readInputBuffer()).toBe('')
+    expect(socket.close).toHaveBeenCalledWith(1008, 'Forbidden origin')
+
+    await bridge.close()
+  })
+
+  it('accepts websocket connection when token and origin are valid', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      security: {
+        authToken: 'secret-token',
+        allowedOrigins: ['http://localhost:3781'],
+      },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+
+    onConnection?.(socket, { url: '/?token=secret-token', headers: { origin: 'http://localhost:3781' } })
+    socket.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(readInputBuffer()).toBe('{"jsonrpc":"2.0","id":1}\n')
+    expect(socket.close).not.toHaveBeenCalledWith(1008, expect.anything())
 
     await bridge.close()
   })
@@ -193,3 +256,11 @@ describe('startAppServerDevBridge', () => {
     expect(httpOffMock).toHaveBeenCalled()
   })
 })
+async function waitFor(condition: () => boolean, timeoutMs = 1200): Promise<void> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    if (condition()) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error('Timed out waiting for condition')
+}
