@@ -10,7 +10,14 @@ import {
   type SessionSummary,
 } from '../features/repl/sessionSave/index.js'
 import type { InputResolvedPayload } from './protocol/input.js'
-import type { Thread, ThreadListParams, ThreadMessagesParams, ThreadStartParams, ThreadSummary } from './protocol.js'
+import type {
+  Thread,
+  ThreadListParams,
+  ThreadMessagesParams,
+  ThreadRenameParams,
+  ThreadStartParams,
+  ThreadSummary,
+} from './protocol.js'
 import { readPersistedToolMessagesFromSession, readStaleInputsFromSession } from './store/sessionEventReader.js'
 
 export type ThreadStoreOptions = {
@@ -62,6 +69,10 @@ type ThreadTimelineEntry = {
 export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
+}
+
+export type ThreadRenameResult = {
+  thread: ThreadSummary
 }
 
 function toThreadSummary(summary: SessionSummary): ThreadSummary {
@@ -416,5 +427,26 @@ export class ThreadStore {
       data: page,
       nextCursor,
     }
+  }
+
+  async renameThread(params: ThreadRenameParams): Promise<ThreadRenameResult> {
+    const filePath = await findSessionFileBySessionId({
+      cwd: this.cwd,
+      sessionId: params.threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
+
+    const writer = await SessionWriter.openExisting({ filePath })
+    try {
+      await writer.appendEvent('session_rename', { label: params.label })
+    } finally {
+      await writer.shutdown()
+    }
+
+    const summary = await readSessionSummary(filePath)
+    return { thread: toThreadSummary(summary) }
   }
 }

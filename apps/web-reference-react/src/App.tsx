@@ -925,11 +925,6 @@ export function App() {
     }
     return values
   }, [sortedThreads])
-  const filteredThreads = useMemo(
-    () => (selectedCwd ? sortedThreads.filter((thread) => thread.cwd === selectedCwd) : sortedThreads),
-    [selectedCwd, sortedThreads],
-  )
-
   useEffect(() => {
     const activeThread = state.activeThreadId ? state.threads.find((thread) => thread.id === state.activeThreadId) : null
     if (activeThread?.cwd && activeThread.cwd !== selectedCwd) {
@@ -1188,6 +1183,21 @@ export function App() {
     [flushBufferedDeltas, selectThread, selectedCwd, sortedThreads, state.activeThreadId],
   )
 
+  const renameThread = useCallback(
+    async (threadId: string, label: string) => {
+      const nextLabel = label.trim()
+      if (!threadId || !nextLabel) return
+      setIsThreadActionBusy(true)
+      try {
+        await request('thread/rename', { threadId, label: nextLabel })
+        await refreshThreads()
+      } finally {
+        setIsThreadActionBusy(false)
+      }
+    },
+    [refreshThreads, request],
+  )
+
   const loadEarlierHistory = useCallback(async () => {
     const threadId = state.activeThreadId
     if (!threadId || historyLoadingRef.current[threadId]) return
@@ -1242,12 +1252,12 @@ export function App() {
         )}
       >
         <LeftRail
-          threads={filteredThreads}
-          cwdOptions={cwdOptions}
+          threads={sortedThreads}
           selectedCwd={selectedCwd}
           onSelectCwd={selectCwd}
           activeThreadId={state.activeThreadId}
           onSelectThread={selectThread}
+          onRenameThread={(threadId, label) => renameThread(threadId, label)}
           onStartThread={() => void startThread().catch(() => undefined)}
           isBusy={isThreadActionBusy}
         />

@@ -72,6 +72,19 @@ describe('ThreadStore', () => {
     )
   })
 
+  it('persists session_rename through thread/rename', async () => {
+    const { store } = await createStore()
+    const started = await store.startThread({})
+
+    const renamed = await store.renameThread({ threadId: started.id, label: 'Renamed Thread' })
+    expect(renamed.thread.id).toBe(started.id)
+    expect(renamed.thread.label).toBe('Renamed Thread')
+
+    const listed = await store.listThreads({ limit: 20 })
+    const row = listed.data.find((thread) => thread.id === started.id)
+    expect(row?.label).toBe('Renamed Thread')
+  })
+
   it('supports pagination in thread/messages', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})

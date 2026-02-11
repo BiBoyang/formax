@@ -207,6 +207,75 @@ describe('App thread history integration', () => {
     expect(screen.queryByText('alpha reply')).not.toBeInTheDocument()
   })
 
+  it('renames thread from thread action menu and refreshes list', async () => {
+    let currentLabel = 'Alpha Session'
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: currentLabel,
+            },
+          ],
+        }
+      }
+      if (method === 'thread/rename') {
+        currentLabel = String((params as { label?: string } | undefined)?.label ?? currentLabel)
+        return {
+          thread: {
+            id: 'thread-alpha',
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:01:00.000Z',
+            messageCount: 1,
+            lastUserPrompt: 'alpha',
+            label: currentLabel,
+          },
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+
+    fireEvent.click(screen.getAllByLabelText('Thread actions')[0]!)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename thread' }))
+    fireEvent.change(await screen.findByPlaceholderText('Thread title'), {
+      target: { value: 'Renamed Session' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/rename' &&
+            (entry.params as { threadId?: string; label?: string } | undefined)?.threadId === 'thread-alpha' &&
+            (entry.params as { threadId?: string; label?: string } | undefined)?.label === 'Renamed Session',
+        ),
+      ).toBe(true)
+    })
+
+    expect(await screen.findByRole('button', { name: /Renamed Session/i })).toBeInTheDocument()
+  })
+
   it('updates header title after turn completion refreshes thread list and hides thread id subtitle', async () => {
     let listVersion = 0
     rpcMock.setRequestImpl((method, params) => {
@@ -455,8 +524,6 @@ describe('App thread history integration', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByLabelText('Working directory'))
-    fireEvent.click(await screen.findByRole('option', { name: /\/repo-beta/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
 
@@ -568,8 +635,7 @@ describe('App thread history integration', () => {
     render(<App />)
     await screen.findByRole('button', { name: /Alpha Session/i })
 
-    fireEvent.click(screen.getByLabelText('Working directory'))
-    fireEvent.click(await screen.findByRole('option', { name: '/repo-beta' }))
+    fireEvent.click(screen.getByRole('button', { name: /repo-beta/ }))
     fireEvent.click(screen.getByRole('button', { name: /New thread/i }))
 
     await waitFor(() => {

@@ -46,6 +46,11 @@ export type ThreadByIdParams = {
   threadId: string
 }
 
+export type ThreadRenameParams = {
+  threadId: string
+  label: string
+}
+
 export type ThreadListParams = {
   limit: number
   cursor?: string
@@ -148,6 +153,13 @@ export function parseThreadByIdParams(params: unknown): ThreadByIdParams {
   if (!isObject(params)) throw new Error('Invalid params: expected object')
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   return { threadId }
+}
+
+export function parseThreadRenameParams(params: unknown): ThreadRenameParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const label = parseRequiredNonEmptyString(params.label, 'params.label')
+  return { threadId, label }
 }
 
 export function parseThreadListParams(params: unknown): ThreadListParams {

@@ -15,6 +15,7 @@ import {
   parseThreadByIdParams,
   parseThreadListParams,
   parseThreadMessagesParams,
+  parseThreadRenameParams,
   parseThreadReplayParams,
   parseThreadStartParams,
   parseTurnInputSubmitParams,
@@ -59,7 +60,8 @@ export type AppServerState = {
 
 export type AppServerOptions = {
   info: AppServerInfo
-  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'>
+  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
+    Partial<Pick<ThreadStore, 'renameThread'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -78,7 +80,8 @@ export class AppServer {
   private readonly threadStore: Pick<
     ThreadStore,
     'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
-  >
+  > &
+    Partial<Pick<ThreadStore, 'renameThread'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -225,6 +228,24 @@ export class AppServer {
       try {
         const params = parseThreadMessagesParams(req.params)
         const result: ThreadMessagesResult = await this.threadStore.listThreadMessages(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/rename') {
+      if (!this.threadStore.renameThread) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseThreadRenameParams(req.params)
+        const result = await this.threadStore.renameThread(params)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]

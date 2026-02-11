@@ -105,6 +105,17 @@ describe('AppServer', () => {
         async listThreadMessages() {
           return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
         },
+        async renameThread(params) {
+          return {
+            thread: {
+              ...baseThread,
+              id: params.threadId,
+              messageCount: 1,
+              lastUserPrompt: 'hi',
+              label: params.label,
+            },
+          }
+        },
       },
     })
 
@@ -124,6 +135,12 @@ describe('AppServer', () => {
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
+
+    const renameOut = await server.handleMessage(
+      request(7, 'thread/rename', { threadId: 't-1', label: 'Renamed in web' }),
+    )
+    expect((renameOut[0] as any).result.thread.id).toBe('t-1')
+    expect((renameOut[0] as any).result.thread.label).toBe('Renamed in web')
   })
 
   it('validates thread/messages params', async () => {
@@ -132,6 +149,48 @@ describe('AppServer', () => {
     const out = await server.handleMessage(request(2, 'thread/messages', { limit: 10 }))
     expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
     expect((out[0] as any).error.message).toContain('params.threadId')
+  })
+
+  it('returns METHOD_NOT_FOUND for thread/rename when threadStore does not support rename', async () => {
+    const baseThread: Thread = {
+      id: 't-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread(threadId) {
+          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
+        },
+        async listThreads() {
+          return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
+        },
+        async readThread() {
+          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/rename', { threadId: 't-1', label: 'new name' }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
+    expect((out[0] as any).error.message).toBe('Method not found: thread/rename')
+  })
+
+  it('validates thread/rename params', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/rename', { threadId: 't-1', label: '' }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.label')
   })
 
   it('routes turn methods to turnRunner after initialize', async () => {
