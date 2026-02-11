@@ -1,7 +1,8 @@
-import { Circle, SquarePen } from 'lucide-react'
+import { Circle, Folder, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadSummary } from '../types'
 import { Button } from './ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
 export type LeftRailProps = {
   connectionStatus?: 'disconnected' | 'connecting' | 'connected'
@@ -12,6 +13,9 @@ export type LeftRailProps = {
   onRefreshThreads?: () => void
   onResumeThread?: () => void
   threads: ThreadSummary[]
+  cwdOptions: string[]
+  selectedCwd: string | null
+  onSelectCwd: (cwd: string) => void
   activeThreadId: string | null
   onSelectThread: (threadId: string) => void
   onStartThread: () => void
@@ -42,6 +46,9 @@ function relativeTime(updatedAt: string): string {
 export function LeftRail(props: LeftRailProps) {
   const {
     threads,
+    cwdOptions,
+    selectedCwd,
+    onSelectCwd,
     activeThreadId,
     connectionStatus,
     onSelectThread,
@@ -64,6 +71,27 @@ export function LeftRail(props: LeftRailProps) {
               <SquarePen className="mr-3 h-4 w-4 opacity-70" />
               New thread
             </Button>
+            {cwdOptions.length > 0 ? (
+              <div className="px-1 pt-1 pb-2">
+                <div className="px-2 pb-1 text-[11px] font-medium text-muted-foreground/60">Directory</div>
+                <Select value={selectedCwd ?? ''} onValueChange={onSelectCwd}>
+                  <SelectTrigger
+                    aria-label="Working directory"
+                    className="h-8 w-full border-border/60 bg-background px-2 text-[12px]"
+                  >
+                    <SelectValue placeholder="Select directory" />
+                    <Folder className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {cwdOptions.map((cwd) => (
+                      <SelectItem key={cwd} value={cwd}>
+                        {cwd}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex-1 flex flex-col mt-4 pb-12">

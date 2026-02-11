@@ -17,12 +17,16 @@ const threads = [
 describe('LeftRail', () => {
   it('renders status and dispatches actions', () => {
     const onSelectThread = vi.fn()
+    const onSelectCwd = vi.fn()
     const onStartThread = vi.fn()
 
     render(
       <LeftRail
         connectionStatus="connected"
         threads={threads}
+        cwdOptions={['/repo', '/repo-b']}
+        selectedCwd="/repo"
+        onSelectCwd={onSelectCwd}
         activeThreadId={threads[0].id}
         onSelectThread={onSelectThread}
         onStartThread={onStartThread}
@@ -35,5 +39,9 @@ describe('LeftRail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /hello/ }))
     expect(onSelectThread).toHaveBeenCalledWith('thread-11111111')
+
+    fireEvent.click(screen.getByLabelText('Working directory'))
+    fireEvent.click(screen.getByRole('option', { name: '/repo-b' }))
+    expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 })

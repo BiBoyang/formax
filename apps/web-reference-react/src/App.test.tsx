@@ -374,6 +374,213 @@ describe('App thread history integration', () => {
     ).toBe(false)
   })
 
+  it('includes active thread cwd on turn/start and command/dispatch requests', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:40.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta ',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-beta' }, staleInputs: [] }
+      }
+      if (method === 'turn/start') {
+        return {
+          turn: {
+            id: 'turn-cwd',
+            threadId: (params as { threadId?: string } | undefined)?.threadId ?? 'thread-beta',
+            status: 'running',
+          },
+        }
+      }
+      if (method === 'command/dispatch') {
+        return {
+          command: (params as { command?: string } | undefined)?.command,
+          dispatched: true,
+          turn: {
+            id: 'turn-cwd-command',
+            threadId: (params as { threadId?: string } | undefined)?.threadId ?? 'thread-beta',
+            status: 'running',
+          },
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByLabelText('Working directory'))
+    fireEvent.click(await screen.findByRole('option', { name: /\/repo-beta/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.change(input, { target: { value: 'hello cwd' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-beta' &&
+            (entry.params as any)?.cwd === '/repo-beta ',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.change(input, { target: { value: '/init' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.threadId === 'thread-beta' &&
+            (entry.params as any)?.cwd === '/repo-beta ' &&
+            (entry.params as any)?.command === '/init',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('starts new thread with selected working directory cwd', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:40.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/start') {
+        const cwd = (params as { cwd?: string } | undefined)?.cwd ?? '/repo-alpha'
+        return {
+          thread: {
+            id: 'thread-new',
+            cwd,
+            createdAt: '2026-02-10T00:01:00.000Z',
+            updatedAt: '2026-02-10T00:01:00.000Z',
+          },
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-new') {
+          return { data: [], nextCursor: null }
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-new' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+
+    fireEvent.click(screen.getByLabelText('Working directory'))
+    fireEvent.click(await screen.findByRole('option', { name: '/repo-beta' }))
+    fireEvent.click(screen.getByRole('button', { name: /New thread/i }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) => entry.method === 'thread/start' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
+        ),
+      ).toBe(true)
+    })
+  })
+
   it('uses command/dispatch for /init and /todos only', async () => {
     render(<App />)
 

@@ -365,6 +365,7 @@ export function App() {
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mode, setMode] = useState<ReplMode>('normal')
+  const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
   const [rightRailWidth, setRightRailWidth] = useState(() =>
     clampRightRailWidth(400, typeof window === 'undefined' ? 1600 : window.innerWidth, true),
   )
@@ -913,14 +914,46 @@ export function App() {
     () => [...state.threads].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
     [state.threads],
   )
+  const cwdOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const values: string[] = []
+    for (const thread of sortedThreads) {
+      const cwd = typeof thread.cwd === 'string' ? thread.cwd : ''
+      if (!cwd || seen.has(cwd)) continue
+      seen.add(cwd)
+      values.push(cwd)
+    }
+    return values
+  }, [sortedThreads])
+  const filteredThreads = useMemo(
+    () => (selectedCwd ? sortedThreads.filter((thread) => thread.cwd === selectedCwd) : sortedThreads),
+    [selectedCwd, sortedThreads],
+  )
+
+  useEffect(() => {
+    const activeThread = state.activeThreadId ? state.threads.find((thread) => thread.id === state.activeThreadId) : null
+    if (activeThread?.cwd && activeThread.cwd !== selectedCwd) {
+      setSelectedCwd(activeThread.cwd)
+      return
+    }
+    if (selectedCwd && cwdOptions.includes(selectedCwd)) return
+    const fallback = cwdOptions[0] ?? null
+    if (fallback !== selectedCwd) {
+      setSelectedCwd(fallback)
+    }
+  }, [cwdOptions, selectedCwd, state.activeThreadId, state.threads])
+
   const startThread = async () => {
     const previousThreadId = state.activeThreadId
     const previousLogs = state.logs
     setIsThreadActionBusy(true)
     try {
-      const result = await request('thread/start', {})
-      const thread = result?.thread as { id?: string } | undefined
+      const result = await request('thread/start', selectedCwd ? { cwd: selectedCwd } : {})
+      const thread = result?.thread as { id?: string; cwd?: string } | undefined
       if (thread?.id) {
+        if (thread.cwd) {
+          setSelectedCwd(thread.cwd)
+        }
         flushBufferedDeltas(undefined, previousThreadId)
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
@@ -981,6 +1014,8 @@ export function App() {
     }
 
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
+    const activeThread = state.threads.find((thread) => thread.id === state.activeThreadId)
+    const requestCwd = selectedCwd ?? activeThread?.cwd
     dispatch({ type: 'push_message', role: 'user', text })
     setInputText('')
     if (shouldDispatchCommand) {
@@ -994,11 +1029,13 @@ export function App() {
             threadId: state.activeThreadId,
             command: text,
             mode,
+            ...(requestCwd ? { cwd: requestCwd } : {}),
           })
         : await request('turn/start', {
             threadId: state.activeThreadId,
             input: { text },
             mode,
+            ...(requestCwd ? { cwd: requestCwd } : {}),
           })
       const localStdout =
         typeof (result as { local?: { stdout?: unknown } } | null)?.local?.stdout === 'string'
@@ -1083,6 +1120,10 @@ export function App() {
   const selectThread = useCallback(
     (threadId: string) => {
       if (threadId === state.activeThreadId) return
+      const nextThread = state.threads.find((thread) => thread.id === threadId)
+      if (nextThread?.cwd) {
+        setSelectedCwd(nextThread.cwd)
+      }
       const previousThreadId = state.activeThreadId
       const previousLogs = state.logs
       const cachedLogs = logsByThreadId[threadId] ?? []
@@ -1121,7 +1162,30 @@ export function App() {
       resumeThreadInputs,
       state.activeThreadId,
       state.logs,
+      state.threads,
     ],
+  )
+
+  const selectCwd = useCallback(
+    (cwd: string) => {
+      if (!cwd || cwd === selectedCwd) return
+      setSelectedCwd(cwd)
+      const targetThread = sortedThreads.find((thread) => thread.cwd === cwd)
+      if (!targetThread) {
+        const previousThreadId = state.activeThreadId
+        flushBufferedDeltas(undefined, previousThreadId)
+        activeThreadIdRef.current = null
+        dispatch({ type: 'set_active_thread', threadId: null })
+        dispatch({ type: 'set_active_turn', turnId: null })
+        dispatch({ type: 'clear_pending_inputs' })
+        dispatch({ type: 'replace_logs', logs: [] })
+        return
+      }
+      if (targetThread.id !== state.activeThreadId) {
+        selectThread(targetThread.id)
+      }
+    },
+    [flushBufferedDeltas, selectThread, selectedCwd, sortedThreads, state.activeThreadId],
   )
 
   const loadEarlierHistory = useCallback(async () => {
@@ -1178,7 +1242,10 @@ export function App() {
         )}
       >
         <LeftRail
-          threads={sortedThreads}
+          threads={filteredThreads}
+          cwdOptions={cwdOptions}
+          selectedCwd={selectedCwd}
+          onSelectCwd={selectCwd}
           activeThreadId={state.activeThreadId}
           onSelectThread={selectThread}
           onStartThread={() => void startThread().catch(() => undefined)}
