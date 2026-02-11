@@ -25,39 +25,39 @@ cd /path/to/your/project
 formax
 ```
 
-## App Server (GUI 集成入口)
+## App Server (GUI Integration)
 
-Formax 支持以本地子进程方式启动 JSON-RPC 服务（stdio JSONL 传输），用于 IDE / GUI 客户端驱动：
+Formax can run as a local subprocess JSON-RPC service (stdio JSONL transport) for IDE / GUI clients:
 
 ```bash
 formax app-server
 ```
 
-握手顺序：
+Handshake sequence:
 
-1. 客户端发送 `initialize`
-2. 客户端发送 `initialized`（notification）
-3. 调用 `thread/*`、`turn/*`、`turn/input/submit`
+1. Client sends `initialize`
+2. Client sends `initialized` (notification)
+3. Call `thread/*`, `turn/*`, `turn/input/submit`
 
-说明：
+Notes:
 
-- 传输为 **stdio + JSONL + JSON-RPC 2.0**。
-- 一期重点覆盖 thread/turn 流程、approval 与 ask_user_question 的 input 生命周期闭环。
-- 详细接口文档：`plans/app-server/API-REFERENCE.md`
+- Transport: **stdio + JSONL + JSON-RPC 2.0**
+- Phase 1 focuses on thread/turn flows and the input lifecycle for approval and ask_user_question
+- Full API reference: `plans/app-server/API-REFERENCE.md`
 
-开发期也可通过 WebSocket dev bridge 调试 GUI 客户端（非生产传输）：
+For development, use the WebSocket dev bridge to debug GUI clients (non-production transport):
 
 ```bash
 bun run app-server:bridge -- --host 127.0.0.1 --port 3777
 ```
 
-也可直接启动 Web 参考客户端（React + Vite + bridge，开发验证用途）：
+Or start the web reference client (React + Vite + bridge, for development validation):
 
 ```bash
 bun run app-server:web-reference -- --host 127.0.0.1 --bridge-port 3777 --ui-port 3781
 ```
 
-前端代码位于：
+Frontend code:
 
 - `apps/web-reference-react/`
 
@@ -115,7 +115,6 @@ Generate a redacted debug bundle:
 formax doctor --bundle --bundle-tar
 ```
 
-See `docs/troubleshooting.md` for details.
 
 ## License
 
