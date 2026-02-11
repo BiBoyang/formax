@@ -22,11 +22,15 @@ const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
 const RIGHT_RAIL_MAX_WIDTH = 680
 const CENTER_MIN_WIDTH = 560
-const SIDEBAR_WIDTH = 260
+const SIDEBAR_MIN_WIDTH = 220
+const SIDEBAR_MAX_WIDTH = 520
+const SIDEBAR_DEFAULT_WIDTH = 260
 const DIVIDER_WIDTH = 1
 const SEEN_EVENT_CAP = 2000
 const DELTA_FLUSH_MS = 50
 const WEB_SUPPORTED_SLASH_COMMANDS = new Set(['/init', '/clear', '/compact', '/todos'])
+const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
+const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -37,8 +41,43 @@ function resolveBridgeUrl(): string {
   return DEFAULT_BRIDGE_URL
 }
 
-function clampRightRailWidth(desiredWidth: number, viewportWidth: number, isSidebarOpen: boolean): number {
-  const leftReserved = isSidebarOpen ? SIDEBAR_WIDTH : 0
+function readStoredPaneWidth(storageKey: string): number | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return null
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeStoredPaneWidth(storageKey: string, width: number): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, String(Math.round(width)))
+  } catch {
+    // best-effort only
+  }
+}
+
+function clampSidebarWidth(desiredWidth: number, viewportWidth: number, rightRailWidth: number): number {
+  const available = viewportWidth - rightRailWidth - DIVIDER_WIDTH - DIVIDER_WIDTH - CENTER_MIN_WIDTH
+  if (!Number.isFinite(available) || available <= 0) return SIDEBAR_MIN_WIDTH
+  const maxByViewport = Math.min(SIDEBAR_MAX_WIDTH, available)
+  const minByViewport = Math.min(SIDEBAR_MIN_WIDTH, maxByViewport)
+  return Math.max(minByViewport, Math.min(maxByViewport, desiredWidth))
+}
+
+function clampRightRailWidth(
+  desiredWidth: number,
+  viewportWidth: number,
+  isSidebarOpen: boolean,
+  sidebarWidth: number,
+): number {
+  const leftReserved = isSidebarOpen ? sidebarWidth + DIVIDER_WIDTH : 0
   const available = viewportWidth - leftReserved - DIVIDER_WIDTH - CENTER_MIN_WIDTH
   if (!Number.isFinite(available) || available <= 0) return 0
   const maxByViewport = Math.min(RIGHT_RAIL_MAX_WIDTH, available)
@@ -366,8 +405,22 @@ export function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    (() => {
+      const viewportWidth = typeof window === 'undefined' ? 1600 : window.innerWidth
+      const storedRightRailWidth = readStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY) ?? 400
+      const storedSidebarWidth = readStoredPaneWidth(SIDEBAR_WIDTH_STORAGE_KEY) ?? SIDEBAR_DEFAULT_WIDTH
+      return clampSidebarWidth(storedSidebarWidth, viewportWidth, storedRightRailWidth)
+    })(),
+  )
   const [rightRailWidth, setRightRailWidth] = useState(() =>
-    clampRightRailWidth(400, typeof window === 'undefined' ? 1600 : window.innerWidth, true),
+    (() => {
+      const viewportWidth = typeof window === 'undefined' ? 1600 : window.innerWidth
+      const storedRightRailWidth = readStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY) ?? 400
+      const storedSidebarWidth = readStoredPaneWidth(SIDEBAR_WIDTH_STORAGE_KEY) ?? SIDEBAR_DEFAULT_WIDTH
+      const clampedSidebarWidth = clampSidebarWidth(storedSidebarWidth, viewportWidth, storedRightRailWidth)
+      return clampRightRailWidth(storedRightRailWidth, viewportWidth, true, clampedSidebarWidth)
+    })(),
   )
   const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
   const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
@@ -1230,26 +1283,39 @@ export function App() {
   const activeThreadTitle = displayThreadTitle(activeThread)
 
   useEffect(() => {
-    const syncRightRailWidth = () => {
+    const syncLayoutWidths = () => {
+      const nextSidebarWidth = clampSidebarWidth(sidebarWidth, window.innerWidth, rightRailWidth)
+      if (nextSidebarWidth !== sidebarWidth) {
+        setSidebarWidth(nextSidebarWidth)
+      }
       setRightRailWidth((previous) =>
-        clampRightRailWidth(previous, window.innerWidth, isSidebarOpen),
+        clampRightRailWidth(previous, window.innerWidth, isSidebarOpen, nextSidebarWidth),
       )
     }
-    syncRightRailWidth()
-    window.addEventListener('resize', syncRightRailWidth)
+    syncLayoutWidths()
+    window.addEventListener('resize', syncLayoutWidths)
     return () => {
-      window.removeEventListener('resize', syncRightRailWidth)
+      window.removeEventListener('resize', syncLayoutWidths)
     }
-  }, [isSidebarOpen])
+  }, [isSidebarOpen, rightRailWidth, sidebarWidth])
+
+  useEffect(() => {
+    writeStoredPaneWidth(SIDEBAR_WIDTH_STORAGE_KEY, sidebarWidth)
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    writeStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY, rightRailWidth)
+  }, [rightRailWidth])
 
   return (
     <div data-testid="app-shell" className="h-screen w-screen min-w-0 flex bg-background overflow-hidden text-sm relative">
       <div
         data-testid="left-rail"
         className={cn(
-            "transition-all duration-300 ease-in-out h-full overflow-hidden border-r bg-sidebar flex-none",
-            isSidebarOpen ? "w-[260px] opacity-100" : "w-0 opacity-0 border-none"
+          'transition-all duration-300 ease-in-out h-full overflow-hidden bg-sidebar flex-none relative',
+          isSidebarOpen ? 'opacity-100' : 'w-0 opacity-0',
         )}
+        style={{ width: isSidebarOpen ? sidebarWidth : 0 }}
       >
         <LeftRail
           threads={sortedThreads}
@@ -1261,6 +1327,37 @@ export function App() {
           onStartThread={() => void startThread().catch(() => undefined)}
           isBusy={isThreadActionBusy}
         />
+
+        {isSidebarOpen ? (
+          <div
+            className="absolute right-0 top-0 bottom-0 w-[1px] cursor-col-resize hover:bg-primary/50 bg-border z-[110]"
+            onMouseDown={(event) => {
+              const startX = event.pageX
+              const startWidth = sidebarWidth
+
+              const onMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.pageX - startX
+                const newWidth = clampSidebarWidth(startWidth + deltaX, window.innerWidth, rightRailWidth)
+                setSidebarWidth(newWidth)
+                setRightRailWidth((previous) =>
+                  clampRightRailWidth(previous, window.innerWidth, true, newWidth),
+                )
+              }
+
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove)
+                document.removeEventListener('mouseup', onMouseUp)
+                document.body.style.cursor = 'default'
+              }
+
+              document.addEventListener('mousemove', onMouseMove)
+              document.addEventListener('mouseup', onMouseUp)
+              document.body.style.cursor = 'col-resize'
+            }}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex-1 min-w-0 h-full flex flex-col">
@@ -1325,7 +1422,7 @@ export function App() {
 
               const onMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = startX - moveEvent.pageX
-                const newWidth = clampRightRailWidth(startWidth + deltaX, window.innerWidth, isSidebarOpen)
+                const newWidth = clampRightRailWidth(startWidth + deltaX, window.innerWidth, isSidebarOpen, sidebarWidth)
                 setRightRailWidth(newWidth)
               }
 

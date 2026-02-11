@@ -75,8 +75,13 @@ vi.mock('./rpcClient', () => {
 })
 
 describe('App thread history integration', () => {
+  const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
+  const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
+
   beforeEach(() => {
     rpcMock.reset()
+    window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
+    window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -161,6 +166,25 @@ describe('App thread history integration', () => {
       }
       return {}
     })
+  })
+
+  it('restores persisted sidebar and right rail widths', async () => {
+    const originalInnerWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 })
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, '320')
+    window.localStorage.setItem(RIGHT_RAIL_WIDTH_STORAGE_KEY, '460')
+
+    try {
+      render(<App />)
+      await waitFor(() => {
+        expect(screen.getByTestId('left-rail')).toHaveStyle('width: 320px')
+      })
+      expect(screen.getByTestId('right-rail')).toHaveStyle('width: 460px')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
+      window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
+      window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
+    }
   })
 
   it('reads bridge url from runtime config when provided', async () => {

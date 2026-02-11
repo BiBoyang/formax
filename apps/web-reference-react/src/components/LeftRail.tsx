@@ -149,7 +149,7 @@ export function LeftRail(props: LeftRailProps) {
   }
 
   return (
-    <aside className="flex flex-col h-screen flex-none w-[260px] border-r bg-sidebar overflow-hidden">
+    <aside className="flex flex-col h-screen flex-none w-full border-r bg-sidebar overflow-hidden">
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col min-h-full">
           <div className="px-2 pt-4 space-y-0.5 flex-none">
@@ -216,17 +216,19 @@ export function LeftRail(props: LeftRailProps) {
                             <Button
                               variant="ghost"
                               className={cn(
-                                'h-9 flex-1 justify-between pl-8 pr-2 font-normal text-[13.5px] transition-all hover:bg-transparent',
+                                'h-9 min-w-0 flex-1 justify-between pl-8 pr-2 font-normal text-[13.5px] transition-all hover:bg-transparent',
                                 isActive ? 'font-medium text-foreground' : 'text-foreground/70',
                               )}
                               onClick={() => onSelectThread(thread.id)}
                             >
-                              <span className="truncate flex-1 text-left">{threadTitle(thread)}</span>
-                              <div className="flex items-center gap-2 ml-2 flex-none opacity-50">
-                                {thread.id === activeThreadId ? (
-                                  <Circle className="h-1.5 w-1.5 fill-emerald-500 text-emerald-500" />
-                                ) : null}
-                                <span className="text-[11px] font-mono">{relativeTime(thread.updatedAt)}</span>
+                              <span className="min-w-0 flex-1 truncate text-left">{threadTitle(thread)}</span>
+                              <div className="ml-2 flex w-14 flex-none items-center justify-end opacity-50">
+                                <span className="inline-flex h-2 w-2 items-center justify-center">
+                                  {thread.id === activeThreadId ? (
+                                    <Circle className="h-1.5 w-1.5 fill-emerald-500 text-emerald-500" />
+                                  ) : null}
+                                </span>
+                                <span className="w-10 text-right text-[11px] font-mono">{relativeTime(thread.updatedAt)}</span>
                               </div>
                             </Button>
 
