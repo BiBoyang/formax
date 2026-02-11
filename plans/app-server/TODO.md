@@ -31,9 +31,9 @@
   - 每接入一个命令：语义层 + app-server + Web + 测试同 PR 落地
 - [ ] Web 启动链路标准化（network + security + serve）
   - [x] Phase A：抽离共享 `network/security` 运行时模块（host/port、origin/cors、token、URL 校验）
-  - [ ] Phase B：新增 `formax serve`（后端服务标准入口，支持可观测日志与稳定退出）
-  - [ ] Phase C：`formax web` 复用 `serve` 能力（`web` 仅负责启动 UI + 连接 URL）
-  - [ ] 文档与测试同步：README、CLI help、关键集成测试（成功启动/鉴权失败/非法参数）
+  - [x] Phase B：新增 `formax serve`（后端服务标准入口，支持可观测日志与稳定退出）
+  - [x] Phase C：`formax web` 复用 `serve` 能力（`web` 仅负责启动 UI + 连接 URL）
+  - [x] 文档与测试同步：README、CLI help、关键集成测试（成功启动/鉴权失败/非法参数）
 
 ## 暂不推进（保持边界）
 

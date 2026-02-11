@@ -37,6 +37,56 @@ describe('dispatchCli', () => {
     expect(res.kind).toBe('app-server')
   })
 
+  it('dispatches serve subcommand with defaults', async () => {
+    const res = await dispatchCli(['serve'])
+    expect(res.kind).toBe('serve')
+    if (res.kind !== 'serve') return
+    expect(res.options).toEqual({
+      host: '127.0.0.1',
+      port: 3777,
+      allowedOrigins: [],
+    })
+  })
+
+  it('dispatches serve subcommand with custom args', async () => {
+    const res = await dispatchCli([
+      'serve',
+      '--host',
+      '0.0.0.0',
+      '--port',
+      '4088',
+      '--token',
+      'abc123',
+      '--allow-origin',
+      'http://localhost:5173',
+    ])
+    expect(res.kind).toBe('serve')
+    if (res.kind !== 'serve') return
+    expect(res.options).toEqual({
+      host: '0.0.0.0',
+      port: 4088,
+      token: 'abc123',
+      allowedOrigins: ['http://localhost:5173'],
+    })
+  })
+
+  it('returns serve command help', async () => {
+    const res = await dispatchCli(['serve', '--help'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('Formax Serve')
+    expect(res.stdout).toContain('formax serve')
+  })
+
+  it('returns serve command help when --help and --json are both passed', async () => {
+    const res = await dispatchCli(['serve', '--help', '--json'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('Formax Serve')
+  })
+
   it('dispatches web subcommand with defaults', async () => {
     const res = await dispatchCli(['web'])
     expect(res.kind).toBe('web')
@@ -241,6 +291,14 @@ describe('dispatchCli', () => {
     if (res.kind !== 'handled') return
     expect(res.exitCode).toBe(2)
     expect(res.stderr).toContain('Invalid --ui-port')
+  })
+
+  it('returns usage error for invalid serve command args', async () => {
+    const res = await dispatchCli(['serve', '--port', 'abc'])
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    expect(res.stderr).toContain('Invalid --port')
   })
 
   it('setup triggers repl and sets FORMAX_FORCE_SETUP', async () => {

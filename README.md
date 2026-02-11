@@ -36,12 +36,24 @@ formax web
 By default:
 
 - Web UI: `http://127.0.0.1:3781`
-- Bridge (WebSocket): `ws://127.0.0.1:3777`
+- Bridge (WebSocket): `ws://127.0.0.1:3777` (token-protected; browser token is injected automatically)
 
 Optional flags:
 
 ```bash
 formax web --host 127.0.0.1 --ui-port 3781 --bridge-port 3777
+```
+
+If you only need a standalone WebSocket bridge (without hosting the web UI):
+
+```bash
+formax serve --host 127.0.0.1 --port 3777
+```
+
+Optional security flags:
+
+```bash
+formax serve --token my-secret --allow-origin http://localhost:5173
 ```
 
 ## App Server (GUI Integration)
@@ -64,7 +76,7 @@ Notes:
 - Phase 1 focuses on thread/turn flows and the input lifecycle for approval and ask_user_question
 - Full API reference: `plans/app-server/API-REFERENCE.md`
 
-For source-level development, use the WebSocket dev bridge to debug GUI clients (non-production transport):
+For source-level development, you can still use the legacy dev scripts (non-production transport):
 
 ```bash
 bun run app-server:bridge -- --host 127.0.0.1 --port 3777

@@ -27,12 +27,14 @@ import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
+import { formatServeCommandHelp, parseServeCommandArgs, type ServeCommandOptions } from '../serve/command.js'
 import { formatWebCommandHelp, parseWebCommandArgs } from '../web/command.js'
 import pkg from '../../package.json'
 
 export type CliDispatchResult =
   | { kind: 'repl' }
   | { kind: 'app-server' }
+  | { kind: 'serve'; options: ServeCommandOptions }
   | { kind: 'web'; options: { host: string; uiPort: number; bridgePort: number } }
   | { kind: 'handled'; exitCode: number; stdout: string; stderr: string }
 
@@ -311,11 +313,41 @@ export async function dispatchCli(
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
   }
 
-  if (flags.help && args[0] !== 'web') {
+  if (flags.help && args[0] !== 'web' && args[0] !== 'serve') {
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatCliHelp(), stderr: '' }
   }
 
   if (args.length === 0 || args[0] === 'repl') return { kind: 'repl' }
+  if (args[0] === 'serve') {
+    if (flags.help) {
+      return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatServeCommandHelp(), stderr: '' }
+    }
+
+    if (flags.json) {
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Usage,
+        stdout: errJson('serve', '--json is not supported for this command'),
+        stderr: '',
+      }
+    }
+
+    const parsedServe = parseServeCommandArgs(args.slice(1))
+    if (!parsedServe.ok) {
+      const parseError = parsedServe as { ok: false; message: string }
+      if (parseError.message === '__HELP__') {
+        return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatServeCommandHelp(), stderr: '' }
+      }
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Usage,
+        stdout: '',
+        stderr: `${parseError.message}\n\n${formatServeCommandHelp()}`,
+      }
+    }
+
+    return { kind: 'serve', options: parsedServe.options }
+  }
   if (args[0] === 'web') {
     if (flags.help) {
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatWebCommandHelp(), stderr: '' }

@@ -32,6 +32,12 @@ async function main(): Promise<void> {
     return
   }
 
+  if (res.kind === 'serve') {
+    const { runServe } = await import('../serve/localServer.js')
+    await runServe(res.options)
+    return
+  }
+
   if (res.kind === 'web') {
     const { runWebUi } = await import('../web/localUi.js')
     await runWebUi(res.options)

@@ -2,13 +2,13 @@ import { createServer } from 'node:http'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { startAppServerDevBridge } from '../app-server/devBridge.js'
 import {
   buildHttpUrl,
   createBridgeAuthToken,
   decodeRequestPathname,
   displayHostForLogs,
 } from '../network/runtime.js'
+import { startServeBridge } from '../serve/localServer.js'
 import type { WebCommandOptions } from './command.js'
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -185,12 +185,11 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
   }
 
   const bridgeToken = createBridgeAuthToken()
-  const bridge = await startAppServerDevBridge({
+  const bridge = await startServeBridge({
     host: options.host,
     port: options.bridgePort,
-    security: {
-      authToken: bridgeToken,
-    },
+    token: bridgeToken,
+    allowedOrigins: [],
   })
 
   let webServer: { url: string; close: () => Promise<void> } | null = null
