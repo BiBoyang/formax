@@ -43,6 +43,7 @@ import { createSlashCommandSpecMap, resolveSlashCommandInputHint } from './repl/
 import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
+import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/errorSubline'
 
 type Props = {
   onExit?: () => void
@@ -241,6 +242,10 @@ export function REPL({
   const allMessages = useMemo(
     () => [...state.staticMessages, ...state.transientMessages],
     [state.staticMessages, state.transientMessages],
+  )
+  const suppressGlobalError = useMemo(
+    () => shouldSuppressGlobalError({ messages: allMessages, currentError: state.error }),
+    [allMessages, state.error],
   )
 
   const { lastCompactBoundaryIndex, primaryTranscriptStartIndex, primaryTranscriptMessages } = useMemo(
@@ -447,10 +452,11 @@ export function REPL({
       if (msg.role === 'assistant') {
         if (!msg.content) return null
         if (msg.ui?.kind === 'command_subline') {
+          const errorLike = isErrorLikeSubline(msg.content)
           return (
             <Box flexDirection="column" marginTop={0} marginBottom={0}>
               <Box>
-                <Text>{`  ⎿  ${msg.content}`}</Text>
+                <Text color={errorLike ? theme.error : undefined}>{`  ⎿  ${msg.content}`}</Text>
               </Box>
             </Box>
           )
@@ -502,7 +508,14 @@ export function REPL({
         </Box>
       )
     },
-    [runtimeCfg.ui.verboseOutput, theme.replUserPromptBg, theme.replUserPromptFg, theme.secondaryText, toolRegistry],
+    [
+      runtimeCfg.ui.verboseOutput,
+      theme.error,
+      theme.replUserPromptBg,
+      theme.replUserPromptFg,
+      theme.secondaryText,
+      toolRegistry,
+    ],
   )
 
   const renderMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'primary'), [renderReplMessage])
@@ -666,7 +679,7 @@ export function REPL({
               </Box>
             )}
 
-            {state.error && !state.isLoading && (
+            {state.error && !state.isLoading && !suppressGlobalError && (
               <Box marginTop={1}>
                 <PulsingDot color="red" />
                 <Text color="red">Error: {state.error}</Text>

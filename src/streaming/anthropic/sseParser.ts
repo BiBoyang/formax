@@ -39,6 +39,13 @@ export interface ParseResult {
   usage?: TokenUsage
 }
 
+class FatalSSEError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'FatalSSEError'
+  }
+}
+
 /**
  * Parse Anthropic SSE stream and invoke callbacks for each event
  */
@@ -81,8 +88,16 @@ export async function parseAnthropicSSEStream(
         const payload = line.slice('data:'.length).trim()
         if (!payload || payload === '[DONE]') continue
 
+        let event: any
         try {
-          const event = JSON.parse(payload)
+          event = JSON.parse(payload)
+        } catch (e) {
+          // Log parse error but continue processing
+          callbacks.onError(new Error(`SSE parse error: ${e}`))
+          continue
+        }
+
+        try {
           handleSSEEvent(
             event,
             contentBlocks,
@@ -95,34 +110,43 @@ export async function parseAnthropicSSEStream(
             (u) => mergeUsageMax(usage, u),
           )
         } catch (e) {
-          // Log parse error but continue processing
-          callbacks.onError(new Error(`SSE parse error: ${e}`))
+          if (e instanceof FatalSSEError) throw e
+          callbacks.onError(new Error(`SSE event handler error: ${e}`))
         }
       }
     }
 
     // Flush any trailing buffer
     if (buffer.trim().startsWith('data:')) {
+      let event: any
       try {
         const payload = buffer.trim().slice('data:'.length).trim()
-          if (payload && payload !== '[DONE]') {
-            const event = JSON.parse(payload)
-            handleSSEEvent(
-              event,
-              contentBlocks,
-              inputJSONBuffers,
-              callbacks,
-              (reason, seq) => {
+        if (payload && payload !== '[DONE]') {
+          event = JSON.parse(payload)
+        }
+      } catch {
+        // Ignore trailing parse errors
+      }
+
+      if (event) {
+        try {
+          handleSSEEvent(
+            event,
+            contentBlocks,
+            inputJSONBuffers,
+            callbacks,
+            (reason, seq) => {
               stopReason = reason
               stopSequence = seq
-              },
-              (u) => mergeUsageMax(usage, u),
-            )
-          }
-        } catch {
-          // Ignore trailing parse errors
+            },
+            (u) => mergeUsageMax(usage, u),
+          )
+        } catch (e) {
+          if (e instanceof FatalSSEError) throw e
+          callbacks.onError(new Error(`SSE event handler error: ${e}`))
         }
       }
+    }
 
     // Signal completion
     callbacks.onMessageComplete(stopReason, contentBlocks)
@@ -147,6 +171,11 @@ function handleSSEEvent(
   onUsage: (usage: TokenUsage) => void,
 ): void {
   if (!event || typeof event !== 'object') return
+
+  const apiErrorMessage = maybeBuildApiErrorMessage(event)
+  if (apiErrorMessage) {
+    throw new FatalSSEError(apiErrorMessage)
+  }
 
   const type = event.type
 
@@ -284,6 +313,34 @@ function handleSSEEvent(
     default:
       // Unknown event type - ignore silently
       break
+  }
+}
+
+function maybeBuildApiErrorMessage(event: any): string | null {
+  const isTypedError = event?.type === 'error'
+  const isErrorEnvelope = !event?.type && event?.error && typeof event.error === 'object'
+  if (!isTypedError && !isErrorEnvelope) return null
+
+  const status = getApiErrorStatus(event)
+  const payload = safeJsonStringify(event)
+  return status == null ? `API Error: ${payload}` : `API Error: ${status} ${payload}`
+}
+
+function getApiErrorStatus(event: any): number | null {
+  const directStatus = Number(event?.status)
+  if (Number.isFinite(directStatus) && directStatus > 0) return directStatus
+
+  const nestedStatus = Number(event?.error?.status)
+  if (Number.isFinite(nestedStatus) && nestedStatus > 0) return nestedStatus
+
+  return null
+}
+
+function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
   }
 }
 

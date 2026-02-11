@@ -92,6 +92,10 @@ describe('REPL', () => {
       .join('')
   }
 
+  function isAutoTitlePrompt(text: string): boolean {
+    return text.startsWith('Please write a 5-10 word title for the following conversation:')
+  }
+
   const engine: ChatEngine = {
     async runTurn({ history }) {
       return history
@@ -182,6 +186,59 @@ describe('REPL', () => {
       const { lastFrame } = render(<REPL engine={engine} tools={[]} cfg={cfg} />)
       expect(lastFrame()).toBeDefined()
     })
+  })
+
+  describe('error rendering', () => {
+    it('shows status-first command subline and suppresses duplicate global API error', async () => {
+      const failingEngine: ChatEngine = {
+        async runTurn() {
+          throw new Error(
+            'API Error: 429 {"error":{"code":"1113","message":"insufficient balance"},"request_id":"req_1"}',
+          )
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={failingEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('123')
+      await tick()
+      stdin.write('\r')
+
+      const frame = await waitForFrame(lastFrame, (f) => f.includes('⎿  429 {"error":{"code":"1113"'))
+      expect(frame).not.toContain('Error: API Error:')
+    }, 20000)
+
+    it('does not suppress a fresh global error because of a stale prior subline', async () => {
+      let turn = 0
+      const mixedEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          turn++
+          if (turn === 1) {
+            throw new Error('API Error: 429 {"error":{"code":"1113","message":"insufficient balance"}}')
+          }
+
+          onEvent({ type: 'error', error: new Error('fresh streaming error') })
+          onEvent({ type: 'complete' })
+          return [...history, user]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={mixedEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('first')
+      await tick()
+      stdin.write('\r')
+      await waitForFrame(lastFrame, (f) => f.includes('⎿  429 {"error":{"code":"1113"'), 15000)
+
+      stdin.write('second')
+      await tick()
+      stdin.write('\r')
+
+      const frame = await waitForFrame(lastFrame, (f) => f.includes('Error: fresh streaming error'), 15000)
+      expect(frame).toContain('⎿  429 {"error":{"code":"1113","message":"insufficient balance"}}')
+    }, 20000)
   })
 
   describe('exit handling', () => {
@@ -553,7 +610,7 @@ describe('REPL', () => {
       await waitForFrame(lastFrame, (f) => f.includes('ACK:start'), 15000)
       await waitForCondition(() => sentTexts.length === 1, 5000)
       await sleep(120)
-      expect(sentTexts).toEqual(['start'])
+      expect(sentTexts.filter((text) => !isAutoTitlePrompt(text))).toEqual(['start'])
     }, 20000)
 
     it('keeps / and ! command input on Enter during loading without queuing or sending', async () => {
@@ -601,7 +658,7 @@ describe('REPL', () => {
       releaseFirstTurn?.()
       await waitForFrame(lastFrame, (f) => f.includes('ACK:start'), 15000)
       await sleep(80)
-      expect(sentTexts).toEqual(['start'])
+      expect(sentTexts.filter((text) => !isAutoTitlePrompt(text))).toEqual(['start'])
     }, 20000)
   })
 

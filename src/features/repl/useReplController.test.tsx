@@ -229,6 +229,112 @@ describe('useReplController', () => {
     expect(injectedText).not.toContain('<bash-input>')
   })
 
+  it('formats API errors as status-first command sublines', async () => {
+    const engine: ChatEngine = {
+      async runTurn() {
+        throw new Error(
+          'API Error: 429 {"error":{"code":"1113","message":"insufficient balance"},"request_id":"req_1"}',
+        )
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('123')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(() =>
+      controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('429 {"error":{"code":"1113"')),
+    )
+
+    const sublines = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline',
+    )
+    const lastSubline = sublines[sublines.length - 1]
+    expect(lastSubline?.content).toBe(
+      '429 {"error":{"code":"1113","message":"insufficient balance"},"request_id":"req_1"}',
+    )
+    expect(controller.state.error).toContain('API Error: 429')
+  })
+
+  it('keeps API Error marker when status is missing', async () => {
+    const engine: ChatEngine = {
+      async runTurn() {
+        throw new Error(
+          'API Error: {"error":{"code":"1113","message":"insufficient balance"},"request_id":"req_2"}',
+        )
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('123')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(() =>
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline'),
+    )
+
+    const sublines = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline',
+    )
+    const lastSubline = sublines[sublines.length - 1]
+    expect(lastSubline?.content).toBe(
+      'API Error: {"error":{"code":"1113","message":"insufficient balance"},"request_id":"req_2"}',
+    )
+  })
+
+  it('summarizes HTML error bodies in command sublines', async () => {
+    const engine: ChatEngine = {
+      async runTurn() {
+        throw new Error('HTTP 404: <!DOCTYPE html><html><head><title>Not Found</title></head><body>nope</body></html>')
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('123')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(() =>
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline'),
+    )
+
+    const sublines = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline',
+    )
+    const lastSubline = sublines[sublines.length - 1]
+    expect(lastSubline?.content).toBe('404 HTML error response body')
+  })
+
+  it('truncates oversized error command sublines', async () => {
+    const engine: ChatEngine = {
+      async runTurn() {
+        throw new Error(`API Error: 500 ${'x'.repeat(2000)}`)
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('123')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(() =>
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline'),
+    )
+
+    const sublines = controller.state.messages.filter(
+      (m) => m.role === 'assistant' && m.ui?.kind === 'command_subline',
+    )
+    const lastSubline = sublines[sublines.length - 1]
+    expect(lastSubline?.content.endsWith('... [truncated]')).toBe(true)
+    expect((lastSubline?.content || '').length).toBeLessThanOrEqual(320)
+  })
+
   it('injects /config into next turn only for Output style changes', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {

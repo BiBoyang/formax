@@ -26,6 +26,7 @@ import { buildOutputStyleInjectedBlocks } from '../../../prompts/reminders/outpu
 import { makeMessageId } from './ids'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 import { buildTurnInput } from '../../semantics/turnInputBuilder'
+import { formatErrorSubline } from './errorSubline'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
@@ -253,7 +254,8 @@ export async function maybeHandleCompactCommand(args: {
       {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `Error: ${msg}`,
+        ui: { kind: 'command_subline' as const },
+        content: formatErrorSubline(msg),
         timestamp: new Date(),
       },
     ])
@@ -687,7 +689,8 @@ export async function runMainSendTurn(raw: {
         {
           id: `error-${Date.now()}`,
           role: 'assistant',
-          content: `Error: ${msg}`,
+          ui: { kind: 'command_subline' as const },
+          content: formatErrorSubline(msg),
           timestamp: new Date(),
         },
       ])

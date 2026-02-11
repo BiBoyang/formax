@@ -446,5 +446,61 @@ describe('SSE Streaming Parser', () => {
 
       await expect(parseAnthropicSSEStream(stream, callbacks, controller.signal)).rejects.toThrow('Stream aborted')
     })
+
+    it('reports trailing-buffer handler errors instead of rejecting for non-fatal callback failures', async () => {
+      const callbacks = createMockCallbacks()
+      callbacks.onTextDelta = () => {
+        throw new Error('boom')
+      }
+      callbacks.onError = (error) => {
+        callbacks.errors.push(error)
+      }
+
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'text_delta', text: 'ok' },
+              })}`,
+            ),
+          )
+          controller.close()
+        },
+      })
+
+      const out = await parseAnthropicSSEStream(stream, callbacks)
+      expect(out.contentBlocks[0]?.text).toBe('ok')
+      expect(callbacks.errors.length).toBeGreaterThan(0)
+      expect(String(callbacks.errors[0]?.message || '')).toContain('SSE event handler error')
+    })
+
+    it('throws an API error when the stream emits an explicit error event', async () => {
+      const callbacks = createMockCallbacks()
+      const stream = createMockSSEStream([
+        {
+          type: 'error',
+          error: { type: 'rate_limit_error', status: 429, message: '余额不足或无可用资源包,请充值。', code: '1113' },
+          request_id: 'req_123',
+        },
+      ])
+
+      await expect(parseAnthropicSSEStream(stream, callbacks)).rejects.toThrow(/API Error: 429/i)
+    })
+
+    it('throws an API error for error envelopes without a type field', async () => {
+      const callbacks = createMockCallbacks()
+      const stream = createMockSSEStream([
+        {
+          error: { code: '1113', message: '余额不足或无可用资源包,请充值。' },
+          request_id: 'req_456',
+        },
+      ])
+
+      await expect(parseAnthropicSSEStream(stream, callbacks)).rejects.toThrow(/API Error/i)
+    })
   })
 })
