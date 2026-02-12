@@ -7,6 +7,7 @@ const QUESTIONS: AskUserQuestion[] = [
   {
     header: 'Submit',
     question: 'Ready to code?',
+    fieldId: 'choice',
     options: [
       { label: 'Yes, and auto-accept edits', description: 'Proceed and allow edits without per-edit prompts.' },
       { label: 'Yes, and manually approve edits', description: 'Proceed but confirm each edit.' },
@@ -39,14 +40,21 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
 
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
 
+        ctx.onEvent?.({
+          type: 'ask_user_question',
+          toolUseId: call.id,
+          questions: QUESTIONS,
+        })
+
         const answers = await userInput.requestAnswers({
           toolUseId: call.id,
           questions: QUESTIONS,
           signal: ctx.signal,
         })
 
-        const choice = String(answers.choice || '').toLowerCase()
-        const feedback = String(answers.feedback || '').trim()
+        const resolved = resolveExitPlanChoice(answers)
+        const choice = resolved.choice
+        const feedback = resolved.feedback
 
         if (choice === 'auto') {
           ctx.setReplMode?.('acceptEdits')
@@ -89,6 +97,45 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
       }
     },
   }
+}
+
+function resolveExitPlanChoice(answers: Record<string, string>): {
+  choice: 'auto' | 'manual' | 'feedback' | 'cancel' | null
+  feedback: string
+} {
+  const rawChoice = String(answers.choice || '').trim()
+  const direct = rawChoice.toLowerCase()
+  const directFeedback = String(answers.feedback || '').trim()
+  const normalizedOptionLabels = new Set(QUESTIONS[0]?.options.map((option) => option.label.toLowerCase()) ?? [])
+
+  if (direct === 'auto' || direct === 'manual' || direct === 'feedback' || direct === 'cancel') {
+    return {
+      choice: direct,
+      feedback: direct === 'feedback' ? directFeedback : '',
+    }
+  }
+
+  const values = Object.values(answers)
+    .map((value) => String(value).trim().toLowerCase())
+    .filter((value) => value.length > 0)
+  const merged = values.join(' ')
+  if (!merged) return { choice: null, feedback: '' }
+
+  if (merged.includes('auto-accept') || merged.includes('auto accept')) return { choice: 'auto', feedback: '' }
+  if (merged.includes('manual')) return { choice: 'manual', feedback: '' }
+  if (merged.includes('cancel')) return { choice: 'cancel', feedback: '' }
+  if (merged.includes('tell claude') || merged.includes('tell codex') || merged.includes('change')) {
+    const fallbackFeedback = normalizedOptionLabels.has(direct) ? directFeedback : rawChoice
+    return { choice: 'feedback', feedback: directFeedback || fallbackFeedback }
+  }
+
+  // Web ask panel may return free-text directly in `choice`.
+  if (rawChoice) {
+    const fallbackFeedback = normalizedOptionLabels.has(direct) ? directFeedback : rawChoice
+    return { choice: 'feedback', feedback: fallbackFeedback }
+  }
+
+  return { choice: null, feedback: '' }
 }
 
 function buildApprovedResult(args: {

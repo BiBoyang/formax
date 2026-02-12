@@ -7,6 +7,7 @@ const QUESTIONS: AskUserQuestion[] = [
   {
     header: 'Plan',
     question: 'Enter plan mode?',
+    fieldId: 'choice',
     options: [
       { label: 'Yes, enter plan mode', description: 'Explore and design an implementation plan first.' },
       { label: 'No, start implementing now', description: 'Skip planning and start making changes.' },
@@ -39,13 +40,19 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
         const input = requirePlainObject(call.input || {}, 'EnterPlanMode.input')
         assertNoExtraKeys(input, [], 'EnterPlanMode.input')
 
+        ctx.onEvent?.({
+          type: 'ask_user_question',
+          toolUseId: call.id,
+          questions: QUESTIONS,
+        })
+
         const answers = await userInput.requestAnswers({
           toolUseId: call.id,
           questions: QUESTIONS,
           signal: ctx.signal,
         })
 
-        const choice = String(answers.choice || '').toLowerCase()
+        const choice = resolveEnterPlanChoice(answers)
         if (choice === 'enter') {
           ctx.setReplMode?.('plan')
           return {
@@ -64,4 +71,19 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
       }
     },
   }
+}
+
+function resolveEnterPlanChoice(answers: Record<string, string>): 'enter' | 'skip' | null {
+  const direct = String(answers.choice || '').trim().toLowerCase()
+  if (direct === 'enter' || direct === 'skip') return direct
+
+  const values = Object.values(answers)
+    .map((value) => String(value).trim().toLowerCase())
+    .filter((value) => value.length > 0)
+  const merged = values.join(' ')
+  if (!merged) return null
+
+  if (merged.includes('yes') || (merged.includes('enter') && merged.includes('plan'))) return 'enter'
+  if (merged.includes('no') || merged.includes('skip') || merged.includes('start implementing')) return 'skip'
+  return null
 }

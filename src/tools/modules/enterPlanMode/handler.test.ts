@@ -53,6 +53,39 @@ describe('EnterPlanMode handler', () => {
     expect(res.content).toContain('Entered plan mode')
   })
 
+  it('emits ask_user_question before waiting for answers', async () => {
+    const onEvent = vi.fn()
+    const userInput = {
+      requestAnswers: vi.fn(async () => ({ choice: 'enter' })),
+      submitAnswers: vi.fn(),
+    } as any
+    const handler = createEnterPlanModeToolHandler(userInput)
+
+    await handler.execute({ id: 't1', name: 'EnterPlanMode', input: {} } as any, createCtx({ onEvent }))
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ask_user_question',
+        toolUseId: 't1',
+        questions: expect.any(Array),
+      }),
+    )
+  })
+
+  it('accepts web-style label answers for enter choice', async () => {
+    const userInput = {
+      requestAnswers: vi.fn(async () => ({ choice: 'Yes, enter plan mode' })),
+      submitAnswers: vi.fn(),
+    } as any
+    const handler = createEnterPlanModeToolHandler(userInput)
+    const ctx = createCtx()
+
+    const res = await handler.execute({ id: 't1', name: 'EnterPlanMode', input: {} } as any, ctx)
+
+    expect(ctx.setReplMode).toHaveBeenCalledWith('plan')
+    expect(res.content).toContain('Entered plan mode')
+  })
+
   it('returns declined when user chooses skip', async () => {
     const userInput = {
       requestAnswers: vi.fn(async () => ({ choice: 'skip' })),
