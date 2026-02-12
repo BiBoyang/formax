@@ -516,6 +516,17 @@ export class AppServer {
       lastTurnId: string | null
       lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
       pendingInputCount: number
+      pendingInputs: Array<{
+        inputId: string
+        threadId: string
+        turnId: string
+        toolUseId: string
+        kind: 'approval' | 'ask_user_question'
+        status: 'pending'
+        createdAt: string
+        expiresAt: string
+        payload: unknown
+      }>
       toolNameByUseId: Record<string, string>
       updatedAt: string
     } | null
@@ -531,6 +542,17 @@ export class AppServer {
           lastTurnId: state.lastTurnId,
           lastTurnStatus: state.lastTurnStatus,
           pendingInputCount: Object.keys(state.pendingInputs).length,
+          pendingInputs: Object.values(state.pendingInputs).map((input) => ({
+            inputId: input.inputId,
+            threadId: input.threadId,
+            turnId: input.turnId,
+            toolUseId: input.toolUseId,
+            kind: input.kind,
+            status: input.status,
+            createdAt: input.createdAt,
+            expiresAt: input.expiresAt,
+            payload: input.payload,
+          })),
           toolNameByUseId: { ...state.toolNameByUseId },
           updatedAt: state.updatedAt,
         }

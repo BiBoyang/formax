@@ -4,10 +4,14 @@ const MAX_STICKY_TOOL_NAMES = 512
 
 export type ThreadRuntimePendingInput = {
   inputId: string
+  threadId: string
   turnId: string
+  toolUseId: string
   kind: ThreadRuntimePendingInputKind
+  status: 'pending'
   createdAt: string
   expiresAt: string
+  payload: unknown
 }
 
 export type ThreadRuntimeState = {
@@ -129,29 +133,35 @@ export function reduceThreadRuntimeState(
       const record = input as Record<string, unknown>
       const inputId = typeof record.inputId === 'string' ? record.inputId : null
       const turnId = typeof record.turnId === 'string' ? record.turnId : null
+      const threadId = typeof record.threadId === 'string' && record.threadId.trim() ? record.threadId : state.threadId
+      const toolUseIdRaw = toNonEmptyString(record.toolUseId)
+      const pendingToolUseId = toolUseIdRaw ?? inputId
       const kind = record.kind === 'approval' || record.kind === 'ask_user_question' ? record.kind : null
       const createdAt = typeof record.createdAt === 'string' ? record.createdAt : nowIso()
       const expiresAt = typeof record.expiresAt === 'string' ? record.expiresAt : createdAt
-      if (inputId && turnId && kind) {
+      if (inputId && turnId && kind && pendingToolUseId) {
         next.pendingInputs = {
           ...next.pendingInputs,
           [inputId]: {
             inputId,
+            threadId,
             turnId,
+            toolUseId: pendingToolUseId,
             kind,
+            status: 'pending',
             createdAt,
             expiresAt,
+            payload: record.payload,
           },
         }
       }
-      const toolUseId = toNonEmptyString(record.toolUseId)
       const payload = record.payload
       const payloadToolName =
         payload && typeof payload === 'object' ? toNonEmptyString((payload as Record<string, unknown>).toolName) : null
-      if (toolUseId && payloadToolName) {
+      if (toolUseIdRaw && payloadToolName) {
         next.toolNameByUseId = withStickyToolNameBounded({
           current: next.toolNameByUseId,
-          toolUseId,
+          toolUseId: toolUseIdRaw,
           toolName: payloadToolName,
         })
       }

@@ -114,6 +114,7 @@ type ReplayStateSnapshot = {
   lastTurnId: string | null
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
+  pendingInputs: PendingInput[]
   toolNameByUseId: Record<string, string>
   updatedAt: string
 }
@@ -230,6 +231,47 @@ function asThreadReplay(value: unknown): {
       typeof stateRecord.pendingInputCount === 'number' && Number.isFinite(stateRecord.pendingInputCount)
         ? Math.max(0, stateRecord.pendingInputCount)
         : 0
+    const pendingInputs: PendingInput[] = Array.isArray(stateRecord.pendingInputs)
+      ? stateRecord.pendingInputs
+          .map((rawInput): PendingInput | null => {
+            if (!rawInput || typeof rawInput !== 'object') return null
+            const record = rawInput as Record<string, unknown>
+            const inputId = typeof record.inputId === 'string' && record.inputId.trim() ? record.inputId : null
+            const threadId = typeof record.threadId === 'string' && record.threadId.trim() ? record.threadId : null
+            const turnId = typeof record.turnId === 'string' && record.turnId.trim() ? record.turnId : null
+            const toolUseId =
+              typeof record.toolUseId === 'string' && record.toolUseId.trim() ? record.toolUseId : null
+            const kind = record.kind === 'approval' || record.kind === 'ask_user_question' ? record.kind : null
+            const status = record.status === 'pending' ? 'pending' : null
+            const createdAt = typeof record.createdAt === 'string' ? record.createdAt : null
+            const expiresAt = typeof record.expiresAt === 'string' ? record.expiresAt : null
+            if (
+              !inputId ||
+              !threadId ||
+              !turnId ||
+              !toolUseId ||
+              !kind ||
+              !status ||
+              !createdAt ||
+              !expiresAt
+            ) {
+              return null
+            }
+            const payload = record.payload && typeof record.payload === 'object' ? record.payload : {}
+            return {
+              inputId,
+              threadId,
+              turnId,
+              toolUseId,
+              kind,
+              status,
+              createdAt,
+              expiresAt,
+              payload,
+            }
+          })
+          .filter((input): input is PendingInput => Boolean(input))
+      : []
     const rawToolNameByUseId = stateRecord.toolNameByUseId
     const toolNameByUseId: Record<string, string> = {}
     if (rawToolNameByUseId && typeof rawToolNameByUseId === 'object') {
@@ -248,6 +290,7 @@ function asThreadReplay(value: unknown): {
       lastTurnId,
       lastTurnStatus,
       pendingInputCount,
+      pendingInputs,
       toolNameByUseId,
       updatedAt,
     }
@@ -312,6 +355,24 @@ function mapThreadHistoryToLogs(threadId: string, messages: ThreadMessage[]): Tr
           text: message.text,
         },
   )
+}
+
+function toRuntimePendingInputsById(pendingInputs: PendingInput[]): ThreadRuntimeState['pendingInputs'] {
+  const next: ThreadRuntimeState['pendingInputs'] = {}
+  for (const input of pendingInputs) {
+    next[input.inputId] = {
+      inputId: input.inputId,
+      threadId: input.threadId,
+      turnId: input.turnId,
+      toolUseId: input.toolUseId,
+      kind: input.kind,
+      status: 'pending',
+      createdAt: input.createdAt,
+      expiresAt: input.expiresAt,
+      payload: input.payload,
+    }
+  }
+  return next
 }
 
 function summarizeToolEvent(event: any): string {
@@ -440,6 +501,7 @@ export function App() {
   const historyLoadingRef = useRef<Record<string, boolean>>({})
   const transcriptSourceByThreadRef = useRef<Record<string, ThreadTranscriptSource>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
+  const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
@@ -524,6 +586,59 @@ export function App() {
       }
     },
     [captureError],
+  )
+
+  const syncPendingInputsFromReplayState = useCallback(
+    (threadId: string, replayState: ReplayStateSnapshot | null) => {
+      if (activeThreadIdRef.current !== threadId) return
+      const pendingInputs = replayState?.pendingInputs ?? []
+      const pendingInputIdSet = new Set(pendingInputs.map((input) => input.inputId))
+      const selectedInputIdBeforeSync = selectedInputIdRef.current
+
+      dispatch({ type: 'clear_pending_inputs' })
+      for (const input of pendingInputs) {
+        dispatch({ type: 'input_requested', input })
+      }
+      if (selectedInputIdBeforeSync && pendingInputIdSet.has(selectedInputIdBeforeSync)) {
+        dispatch({ type: 'set_selected_input', inputId: selectedInputIdBeforeSync })
+      }
+
+      setSubmitStatusByInputId((prev) => {
+        if (Object.keys(prev).length === 0) return prev
+        const next: Record<string, { status: string; kind: 'success' | 'error'; message?: string }> = {}
+        for (const [inputId, status] of Object.entries(prev)) {
+          if (!pendingInputIdSet.has(inputId)) continue
+          next[inputId] = status
+        }
+        return next
+      })
+
+      setAskDockOpenByInputId((prev) => {
+        const next: Record<string, boolean> = {}
+        for (const input of pendingInputs) {
+          if (input.kind !== 'ask_user_question') continue
+          next[input.inputId] = prev[input.inputId] ?? true
+        }
+        return next
+      })
+      setAskDraftByInputId((prev) => {
+        const next: Record<string, Record<string, string>> = {}
+        for (const input of pendingInputs) {
+          if (input.kind !== 'ask_user_question') continue
+          if (prev[input.inputId]) next[input.inputId] = prev[input.inputId]
+        }
+        return next
+      })
+      setAskPageIndexByInputId((prev) => {
+        const next: Record<string, number> = {}
+        for (const input of pendingInputs) {
+          if (input.kind !== 'ask_user_question') continue
+          next[input.inputId] = prev[input.inputId] ?? 0
+        }
+        return next
+      })
+    },
+    [],
   )
 
   const nextCanonicalReplaySeq = useCallback((candidate?: unknown): number => {
@@ -1096,7 +1211,7 @@ export function App() {
             activeTurnId: replay.state.activeTurnId,
             lastTurnId: replay.state.lastTurnId,
             lastTurnStatus: replay.state.lastTurnStatus,
-            pendingInputs: {},
+            pendingInputs: toRuntimePendingInputsById(replay.state.pendingInputs),
             toolNameByUseId: replay.state.toolNameByUseId,
             updatedAt: replay.state.updatedAt,
             lastNotificationMethod: null,
@@ -1123,7 +1238,7 @@ export function App() {
               activeTurnId: baselineReplay.state.activeTurnId,
               lastTurnId: baselineReplay.state.lastTurnId,
               lastTurnStatus: baselineReplay.state.lastTurnStatus,
-              pendingInputs: {},
+              pendingInputs: toRuntimePendingInputsById(baselineReplay.state.pendingInputs),
               toolNameByUseId: baselineReplay.state.toolNameByUseId,
               updatedAt: baselineReplay.state.updatedAt,
               lastNotificationMethod: null,
@@ -1141,6 +1256,7 @@ export function App() {
           replayCursorByThreadRef.current[threadId] =
             baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
           if (activeThreadIdRef.current === threadId) {
+            syncPendingInputsFromReplayState(threadId, baselineReplay.state ?? null)
             dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
             const nextMode = baselineReplay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
             setMode(nextMode)
@@ -1156,6 +1272,7 @@ export function App() {
           if (!loaded) return false
           replayCursorByThreadRef.current[threadId] = 0
           if (activeThreadIdRef.current === threadId) {
+            syncPendingInputsFromReplayState(threadId, replay.state ?? null)
             dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
             const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
             setMode(nextMode)
@@ -1198,6 +1315,7 @@ export function App() {
 
       replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
       if (activeThreadIdRef.current === threadId) {
+        syncPendingInputsFromReplayState(threadId, replayState)
         dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
         const nextMode = replayState?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
         setMode(nextMode)
@@ -1214,12 +1332,17 @@ export function App() {
       loadThreadHistory,
       request,
       setThreadTranscriptSource,
+      syncPendingInputsFromReplayState,
     ],
   )
 
   useEffect(() => {
     activeThreadIdRef.current = state.activeThreadId
   }, [state.activeThreadId])
+
+  useEffect(() => {
+    selectedInputIdRef.current = state.selectedInputId
+  }, [state.selectedInputId])
 
   useEffect(() => {
     const pendingIds = Object.keys(state.pendingInputs)

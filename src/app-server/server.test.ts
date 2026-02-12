@@ -940,6 +940,53 @@ describe('AppServer', () => {
     expect(notificationReplaySeqs.length).toBe(5)
   })
 
+  it('includes pending input details in replay state snapshot', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'running' },
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    emit('turn/inputRequested', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      input: {
+        inputId: 'input-1',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-02-10T00:00:01.000Z',
+        expiresAt: '2026-02-10T00:05:01.000Z',
+        payload: { toolName: 'Bash', action: { command: 'rm -rf a.js' } },
+      },
+      ts: '2026-02-10T00:00:01.000Z',
+    })
+
+    const replay = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replay[0] as any).result.state).toEqual(
+      expect.objectContaining({
+        pendingInputCount: 1,
+        pendingInputs: [
+          expect.objectContaining({
+            inputId: 'input-1',
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            toolUseId: 'tool-1',
+            kind: 'approval',
+            status: 'pending',
+          }),
+        ],
+      }),
+    )
+  })
+
   it('marks replay gap based on trimmed boundary for the thread buffer', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))

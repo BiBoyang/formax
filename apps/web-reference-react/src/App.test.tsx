@@ -773,6 +773,85 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('hydrates pending approval inputs from thread replay state snapshot', async () => {
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        return {
+          data: [],
+          nextCursor: null,
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: 'thread-alpha' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return {
+          data: [],
+          nextCursor: 12,
+          latestCursor: 12,
+          hasGap: false,
+          state: {
+            mode: 'normal',
+            activeTurnId: 'turn-4',
+            lastTurnId: 'turn-3',
+            lastTurnStatus: 'running',
+            pendingInputCount: 1,
+            pendingInputs: [
+              {
+                inputId: 'input-1',
+                threadId: 'thread-alpha',
+                turnId: 'turn-4',
+                toolUseId: 'tool-approve-1',
+                kind: 'approval',
+                status: 'pending',
+                createdAt: '2026-02-10T00:00:01.000Z',
+                expiresAt: '2026-02-10T00:05:01.000Z',
+                payload: {
+                  toolName: 'Bash',
+                  action: { command: 'rm -rf a.js' },
+                },
+              },
+            ],
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+
+    expect(await screen.findByTestId('approval-submit-panel-input-1')).toBeInTheDocument()
+    expect(await screen.findByText('Do you want to run this command?')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Ask for follow-up changes')).not.toBeInTheDocument()
+  })
+
   it('includes active thread cwd on turn/start and command/dispatch requests', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
