@@ -794,6 +794,14 @@ export function App() {
           if (!isNotificationForActiveThread(params)) break
           const input = params?.input as PendingInput | undefined
           if (!input?.inputId) break
+          dispatch({
+            type: 'annotate_tool_input_state',
+            turnId: input.turnId,
+            toolUseId: input.toolUseId,
+            ...(typeof input.payload?.toolName === 'string' ? { toolName: input.payload.toolName } : {}),
+            inputKind: input.kind,
+            status: 'pending',
+          })
           dispatch({ type: 'input_requested', input })
           dispatch({ type: 'set_selected_input', inputId: input.inputId })
           if (input.kind === 'ask_user_question') {
@@ -808,6 +816,15 @@ export function App() {
           const input = params?.input as ResolvedInput | undefined
           const inputId = input?.inputId as string | undefined
           if (!inputId) break
+          if (input?.turnId && input?.toolUseId && input?.kind && input?.status) {
+            dispatch({
+              type: 'annotate_tool_input_state',
+              turnId: input.turnId,
+              toolUseId: input.toolUseId,
+              inputKind: input.kind,
+              status: input.status,
+            })
+          }
           setAskDockOpenByInputId((prev) => {
             if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
             const next = { ...prev }

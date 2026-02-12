@@ -177,6 +177,130 @@ describe('appReducer', () => {
     expect(tool.detailLines).toContain('update')
   })
 
+  it('annotates tool row with input lifecycle state', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_tool_event',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      toolName: 'Bash',
+      phase: 'start',
+    })
+
+    state = appReducer(state, {
+      type: 'annotate_tool_input_state',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      inputKind: 'approval',
+      status: 'pending',
+    })
+
+    state = appReducer(state, {
+      type: 'annotate_tool_input_state',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      inputKind: 'approval',
+      status: 'submitted',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      toolUseId: 'tool-1',
+      inputState: {
+        kind: 'approval',
+        status: 'submitted',
+      },
+    })
+  })
+
+  it('creates placeholder tool row when input state arrives before tool event', () => {
+    const state = appReducer(initialAppState, {
+      type: 'annotate_tool_input_state',
+      turnId: 'turn-7',
+      toolUseId: 'tool-late',
+      toolName: 'Glob',
+      inputKind: 'ask_user_question',
+      status: 'pending',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      turnId: 'turn-7',
+      toolUseId: 'tool-late',
+      toolName: 'Glob',
+      inputState: {
+        kind: 'ask_user_question',
+        status: 'pending',
+      },
+    })
+  })
+
+  it('updates tool name on existing row when annotation provides better metadata', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_tool_event',
+      turnId: 'turn-9',
+      toolUseId: 'tool-9',
+      phase: 'start',
+    })
+
+    state = appReducer(state, {
+      type: 'annotate_tool_input_state',
+      turnId: 'turn-9',
+      toolUseId: 'tool-9',
+      toolName: 'Bash',
+      inputKind: 'approval',
+      status: 'pending',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      toolName: 'Bash',
+      summary: 'Bash running',
+      inputState: {
+        kind: 'approval',
+        status: 'pending',
+      },
+    })
+  })
+
+  it('reuses history tool row without turnId when annotating by toolUseId', () => {
+    let state = appReducer(initialAppState, {
+      type: 'replace_logs',
+      logs: [
+        {
+          id: 'history-tool-1',
+          kind: 'tool_call',
+          toolUseId: 'tool-history-1',
+          toolName: 'Read',
+          status: 'completed',
+          summary: 'Read file',
+          detailLines: [],
+        },
+      ],
+    })
+
+    state = appReducer(state, {
+      type: 'annotate_tool_input_state',
+      turnId: 'turn-history',
+      toolUseId: 'tool-history-1',
+      inputKind: 'ask_user_question',
+      status: 'submitted',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      turnId: 'turn-history',
+      toolUseId: 'tool-history-1',
+      inputState: {
+        kind: 'ask_user_question',
+        status: 'submitted',
+      },
+    })
+  })
+
   it('replaces transcript logs when loading thread history', () => {
     let state = appReducer(initialAppState, {
       type: 'push_message',

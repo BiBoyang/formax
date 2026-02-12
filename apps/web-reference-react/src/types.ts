@@ -103,4 +103,8 @@ export type TranscriptItem =
       status: 'running' | 'completed' | 'error'
       summary: string
       detailLines: string[]
+      inputState?: {
+        kind: 'approval' | 'ask_user_question'
+        status: 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+      }
     }

@@ -77,6 +77,7 @@ const defaultRenderer: ToolBlockRenderer = (item) => {
       title: item.toolName,
       ...(item.paramsText ? { paramsText: item.paramsText } : {}),
       summary: item.summary,
+      ...(item.inputState ? { inputState: item.inputState } : {}),
       expandable: item.detailLines.length > 0,
     },
   ]
@@ -96,6 +97,7 @@ const bashRenderer: ToolBlockRenderer = (item) => {
       status: toToolStatus(item.status),
       title,
       summary: item.summary,
+      ...(item.inputState ? { inputState: item.inputState } : {}),
       expandable: item.detailLines.length > 0,
     },
   ]
@@ -115,6 +117,7 @@ const globRenderer: ToolBlockRenderer = (item) => {
       status: toToolStatus(item.status),
       title: item.toolName,
       summary: headerSummary,
+      ...(item.inputState ? { inputState: item.inputState } : {}),
       expandable: item.detailLines.length > 0,
     },
   ]

@@ -43,6 +43,14 @@ export type AppAction =
       input?: unknown
       isError?: boolean
     }
+  | {
+      type: 'annotate_tool_input_state'
+      turnId: string
+      toolUseId: string
+      toolName?: string
+      inputKind: 'approval' | 'ask_user_question'
+      status: 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+    }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
@@ -232,6 +240,59 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           isError: action.isError,
         },
       })
+      return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'annotate_tool_input_state': {
+      const targetIndexByTurn = findToolEventTargetIndex(state.logs, {
+        turnId: action.turnId,
+        toolUseId: action.toolUseId,
+      })
+      const targetIndex =
+        targetIndexByTurn >= 0
+          ? targetIndexByTurn
+          : (() => {
+              for (let index = state.logs.length - 1; index >= 0; index -= 1) {
+                const item = state.logs[index]
+                if (item.kind !== 'tool_call') continue
+                if (item.toolUseId !== action.toolUseId) continue
+                if (!item.turnId) return index
+              }
+              return -1
+            })()
+      if (targetIndex >= 0) {
+        const current = state.logs[targetIndex]
+        if (current.kind !== 'tool_call') return state
+        const nextLogs = state.logs.slice()
+        nextLogs[targetIndex] = {
+          ...current,
+          ...(current.turnId ? {} : { turnId: action.turnId }),
+          ...(action.toolName ? { toolName: action.toolName } : {}),
+          ...(action.toolName && current.summary === `${current.toolName} running`
+            ? { summary: `${action.toolName} running` }
+            : {}),
+          inputState: {
+            kind: action.inputKind,
+            status: action.status,
+          },
+        }
+        return { ...state, logs: nextLogs }
+      }
+
+      const next: TranscriptItem = {
+        id: itemId(),
+        kind: 'tool_call',
+        turnId: action.turnId,
+        toolUseId: action.toolUseId,
+        toolName: action.toolName ?? 'Tool',
+        status: 'running',
+        summary: `${action.toolName ?? 'Tool'} running`,
+        detailLines: [],
+        inputState: {
+          kind: action.inputKind,
+          status: action.status,
+        },
+      }
       return { ...state, logs: [...state.logs, next] }
     }
 

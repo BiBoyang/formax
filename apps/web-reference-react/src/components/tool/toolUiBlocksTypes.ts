@@ -1,6 +1,7 @@
 import type { TranscriptItem } from '../../types'
 
 export type ToolCallItem = Extract<TranscriptItem, { kind: 'tool_call' }>
+export type ToolInputState = NonNullable<ToolCallItem['inputState']>
 
 export type ToolStatus = 'running' | 'completed' | 'error' | 'pending'
 
@@ -10,6 +11,7 @@ export type ToolUiBlockHeader = {
   title: string
   paramsText?: string
   summary?: string
+  inputState?: ToolInputState
   expandable: boolean
 }
 

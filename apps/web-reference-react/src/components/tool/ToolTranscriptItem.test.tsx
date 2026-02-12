@@ -32,6 +32,17 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('/repo')).toBeInTheDocument()
   })
 
+  it('renders approval input lifecycle label', () => {
+    const item = makeToolItem({
+      inputState: {
+        kind: 'approval',
+        status: 'pending',
+      },
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+  })
+
   it('renders bash command from params and completed status as static dot', () => {
     const item = makeToolItem({
       status: 'completed',

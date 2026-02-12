@@ -1316,6 +1316,7 @@ describe('App thread history integration', () => {
 
     expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
     expect(screen.getByLabelText('Question index')).toHaveTextContent('1 of 1')
+    expect(screen.getByText('question:pending')).toBeInTheDocument()
     expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
     expect(screen.getByTestId('composer-locked')).toBeInTheDocument()
 
@@ -1353,6 +1354,7 @@ describe('App thread history integration', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
     })
+    expect(screen.getByText('question:submitted')).toBeInTheDocument()
     expect(screen.getByTestId('composer')).toBeInTheDocument()
   })
 
@@ -1432,6 +1434,7 @@ describe('App thread history integration', () => {
 
     expect(screen.queryByLabelText('Question index')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
+    expect(screen.getByText('approval:pending')).toBeInTheDocument()
     expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /3\. No/i }))
