@@ -354,3 +354,9 @@ Tool 级映射表（v1）：
 5. 回归保障
 - `ToolTranscriptItem.test.tsx`、`formatToolParams.test.ts`、`App.test.tsx`、`store.test.ts` 持续补齐。
 - CI 已补充 web-reference-react 专属 `type-check + test`，避免仅跑根目录 `src/**` 漏检。
+
+6. Mode 语义统一（TUI / app-server / web）
+- 新增共享 `replModeTransition` 语义层（规范化 + transition 判定）。
+- app-server turn 执行期支持运行时 mode 切换并发出 `turn/modeChanged`。
+- web 端消费 `turn/modeChanged` 与 replay `state.mode`，并修复切线程 mode 串用窗口期。
+- TUI `setReplMode` 已改为同一 transition 语义，不再各自分叉。
