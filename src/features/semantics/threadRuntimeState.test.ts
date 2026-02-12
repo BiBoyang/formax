@@ -81,4 +81,82 @@ describe('threadRuntimeState (shared)', () => {
     })
     expect(state.mode).toBe('acceptEdits')
   })
+
+  it('tracks sticky tool names from tool events and input payloads', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: {
+          type: 'tool_start',
+          id: 'tool-1',
+          name: 'Bash',
+        },
+      },
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        input: {
+          inputId: 'input-1',
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-2',
+          kind: 'approval',
+          status: 'pending',
+          createdAt: '2026-02-10T00:00:01.000Z',
+          expiresAt: '2026-02-10T00:05:01.000Z',
+          payload: { toolName: 'Write', action: {}, effectiveDecision: {} },
+        },
+      },
+    })
+
+    expect(state.toolNameByUseId).toEqual({
+      'tool-1': 'Bash',
+      'tool-2': 'Write',
+    })
+  })
+
+  it('bounds sticky tool name cache size and retains newest entries', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    for (let index = 0; index < 530; index += 1) {
+      state = reduceThreadRuntimeState(state, {
+        method: 'turn/event',
+        replaySeq: 2 + index,
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          event: {
+            type: 'tool_start',
+            id: `tool-${index}`,
+            name: `Tool${index}`,
+          },
+        },
+      })
+    }
+
+    expect(Object.keys(state.toolNameByUseId)).toHaveLength(512)
+    expect(state.toolNameByUseId['tool-0']).toBeUndefined()
+    expect(state.toolNameByUseId['tool-17']).toBeUndefined()
+    expect(state.toolNameByUseId['tool-529']).toBe('Tool529')
+  })
 })

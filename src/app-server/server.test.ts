@@ -883,6 +883,16 @@ describe('AppServer', () => {
       mode: 'acceptEdits',
       ts: '2026-02-10T00:00:01.500Z',
     })
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'tool_start',
+        id: 'tool-1',
+        name: 'Bash',
+      },
+      ts: '2026-02-10T00:00:01.750Z',
+    })
     emit('turn/completed', {
       threadId: 'thread-1',
       turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
@@ -900,6 +910,7 @@ describe('AppServer', () => {
         lastTurnId: 'turn-1',
         lastTurnStatus: 'completed',
         pendingInputCount: 0,
+        toolNameByUseId: { 'tool-1': 'Bash' },
       }),
     )
 
@@ -921,12 +932,12 @@ describe('AppServer', () => {
         limit: 10,
       }),
     )
-    expect((next[0] as any).result.data).toHaveLength(2)
+    expect((next[0] as any).result.data).toHaveLength(3)
 
     const notificationReplaySeqs = notifications
       .map((entry) => (entry.params as any)?.replaySeq)
       .filter((value) => typeof value === 'number')
-    expect(notificationReplaySeqs.length).toBe(4)
+    expect(notificationReplaySeqs.length).toBe(5)
   })
 
   it('marks replay gap based on trimmed boundary for the thread buffer', async () => {

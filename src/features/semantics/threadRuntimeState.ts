@@ -1,5 +1,6 @@
 import { isReplMode, type ReplMode } from './replModeTransition'
 export type ThreadRuntimePendingInputKind = 'approval' | 'ask_user_question'
+const MAX_STICKY_TOOL_NAMES = 512
 
 export type ThreadRuntimePendingInput = {
   inputId: string
@@ -16,6 +17,7 @@ export type ThreadRuntimeState = {
   lastTurnId: string | null
   lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
   pendingInputs: Record<string, ThreadRuntimePendingInput>
+  toolNameByUseId: Record<string, string>
   updatedAt: string
   lastNotificationMethod: string | null
   lastReplaySeq: number
@@ -29,6 +31,34 @@ function toIsoOrNow(value: unknown): string {
   if (typeof value !== 'string') return nowIso()
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : nowIso()
+}
+
+function toNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function withStickyToolNameBounded(args: {
+  current: Record<string, string>
+  toolUseId: string
+  toolName: string
+}): Record<string, string> {
+  const existing = args.current[args.toolUseId]
+  if (existing === args.toolName) return args.current
+
+  const next = {
+    ...args.current,
+    [args.toolUseId]: args.toolName,
+  }
+  const keys = Object.keys(next)
+  if (keys.length <= MAX_STICKY_TOOL_NAMES) return next
+
+  const trimCount = keys.length - MAX_STICKY_TOOL_NAMES
+  for (let index = 0; index < trimCount; index += 1) {
+    delete next[keys[index]!]
+  }
+  return next
 }
 
 export function extractThreadIdFromNotificationParams(params: unknown): string | null {
@@ -56,6 +86,7 @@ export function createInitialThreadRuntimeState(args: {
     lastTurnId: null,
     lastTurnStatus: null,
     pendingInputs: {},
+    toolNameByUseId: {},
     updatedAt: toIsoOrNow(args.ts),
     lastNotificationMethod: args.method,
     lastReplaySeq: args.replaySeq,
@@ -111,6 +142,42 @@ export function reduceThreadRuntimeState(
             createdAt,
             expiresAt,
           },
+        }
+      }
+      const toolUseId = toNonEmptyString(record.toolUseId)
+      const payload = record.payload
+      const payloadToolName =
+        payload && typeof payload === 'object' ? toNonEmptyString((payload as Record<string, unknown>).toolName) : null
+      if (toolUseId && payloadToolName) {
+        next.toolNameByUseId = withStickyToolNameBounded({
+          current: next.toolNameByUseId,
+          toolUseId,
+          toolName: payloadToolName,
+        })
+      }
+    }
+    return next
+  }
+
+  if (args.method === 'turn/event') {
+    const event = params.event
+    if (event && typeof event === 'object') {
+      const eventRecord = event as Record<string, unknown>
+      const eventType = toNonEmptyString(eventRecord.type)
+      if (
+        eventType === 'tool_start' ||
+        eventType === 'tool_update' ||
+        eventType === 'tool_end' ||
+        eventType === 'tool_input'
+      ) {
+        const toolUseId = toNonEmptyString(eventRecord.id) ?? toNonEmptyString(eventRecord.toolUseId)
+        const toolName = toNonEmptyString(eventRecord.name) ?? toNonEmptyString(eventRecord.toolName)
+        if (toolUseId && toolName) {
+          next.toolNameByUseId = withStickyToolNameBounded({
+            current: next.toolNameByUseId,
+            toolUseId,
+            toolName,
+          })
         }
       }
     }

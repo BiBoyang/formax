@@ -110,6 +110,9 @@
     - 回放 state 能支持 projector 从任意 cursor 恢复（含 sticky toolName、必要上下文）
   - 验收：
     - `hasGap=true` 后能稳定重建，不出现 toolName 退化或 segment 丢失。
+  - 当前进展：
+    - 已完成：`thread/replay.state` 补充 `toolNameByUseId` sticky cache，Web hydration 会把该映射注入 canonical projection seed。
+    - 未完成：`hasGap=true` 的完整重建链路仍依赖 `thread/messages`，尚未完全收敛到 replay-only 语义恢复。
 
 - [x] T7 文档契约统一（以结构化语义为准）
   - 文件：

@@ -61,6 +61,7 @@ export type AppAction =
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
+  | { type: 'hydrate_projection_tool_names'; threadId: string; toolNameByUseId: Record<string, string> }
   | { type: 'apply_canonical_event'; event: CanonicalEvent }
 
 export const initialAppState: AppState = {
@@ -155,6 +156,19 @@ function toTranscriptItemFromProjectionSegment(segment: TranscriptProjectionStat
   return null
 }
 
+function collectToolNameByUseIdFromLogs(logs: TranscriptItem[]): Record<string, string> {
+  const next: Record<string, string> = {}
+  for (const item of logs) {
+    if (item.kind !== 'tool_call') continue
+    if (typeof item.toolUseId !== 'string' || !item.toolUseId.trim()) continue
+    if (typeof item.toolName !== 'string') continue
+    const toolName = item.toolName.trim()
+    if (!toolName || toolName === 'Tool') continue
+    next[item.toolUseId] = toolName
+  }
+  return next
+}
+
 function mergeTurnProjectionLogs(args: {
   logs: TranscriptItem[]
   turnId: string
@@ -191,7 +205,15 @@ function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): 
   const currentProjection =
     state.transcriptProjection && state.transcriptProjection.threadId === event.threadId
       ? state.transcriptProjection
-      : createInitialTranscriptProjectionState({ threadId: event.threadId })
+      : (() => {
+          const seeded = createInitialTranscriptProjectionState({ threadId: event.threadId })
+          const toolNameByUseId = collectToolNameByUseIdFromLogs(state.logs)
+          if (Object.keys(toolNameByUseId).length === 0) return seeded
+          return {
+            ...seeded,
+            toolNameByUseId,
+          }
+        })()
   const nextProjection = reduceTranscriptProjection(currentProjection, event)
   const projectedItems = nextProjection.segments
     .filter((segment) => segment.turnId === event.turnId)
@@ -499,6 +521,27 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'set_selected_input':
       return { ...state, selectedInputId: action.inputId }
+
+    case 'hydrate_projection_tool_names': {
+      const existingProjection =
+        state.transcriptProjection && state.transcriptProjection.threadId === action.threadId
+          ? state.transcriptProjection
+          : createInitialTranscriptProjectionState({ threadId: action.threadId })
+      const fromLogs = collectToolNameByUseIdFromLogs(state.logs)
+      const toolNameByUseId = {
+        ...fromLogs,
+        ...existingProjection.toolNameByUseId,
+        ...action.toolNameByUseId,
+      }
+      if (Object.keys(toolNameByUseId).length === 0) return state
+      return {
+        ...state,
+        transcriptProjection: {
+          ...existingProjection,
+          toolNameByUseId,
+        },
+      }
+    }
 
     case 'apply_canonical_event':
       return applyCanonicalProjectionEvent(state, action.event)

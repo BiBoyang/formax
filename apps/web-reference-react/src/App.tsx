@@ -114,6 +114,7 @@ type ReplayStateSnapshot = {
   lastTurnId: string | null
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
+  toolNameByUseId: Record<string, string>
   updatedAt: string
 }
 
@@ -227,6 +228,17 @@ function asThreadReplay(value: unknown): {
       typeof stateRecord.pendingInputCount === 'number' && Number.isFinite(stateRecord.pendingInputCount)
         ? Math.max(0, stateRecord.pendingInputCount)
         : 0
+    const rawToolNameByUseId = stateRecord.toolNameByUseId
+    const toolNameByUseId: Record<string, string> = {}
+    if (rawToolNameByUseId && typeof rawToolNameByUseId === 'object') {
+      for (const [toolUseId, toolNameRaw] of Object.entries(rawToolNameByUseId as Record<string, unknown>)) {
+        if (!toolUseId.trim()) continue
+        if (typeof toolNameRaw !== 'string') continue
+        const toolName = toolNameRaw.trim()
+        if (!toolName) continue
+        toolNameByUseId[toolUseId] = toolName
+      }
+    }
     const updatedAt = typeof stateRecord.updatedAt === 'string' ? stateRecord.updatedAt : new Date(0).toISOString()
     state = {
       mode,
@@ -234,6 +246,7 @@ function asThreadReplay(value: unknown): {
       lastTurnId,
       lastTurnStatus,
       pendingInputCount,
+      toolNameByUseId,
       updatedAt,
     }
   }
@@ -1050,9 +1063,17 @@ export function App() {
             lastTurnId: replay.state.lastTurnId,
             lastTurnStatus: replay.state.lastTurnStatus,
             pendingInputs: {},
+            toolNameByUseId: replay.state.toolNameByUseId,
             updatedAt: replay.state.updatedAt,
             lastNotificationMethod: null,
             lastReplaySeq: replay.latestCursor,
+          }
+          if (activeThreadIdRef.current === threadId && Object.keys(replay.state.toolNameByUseId).length > 0) {
+            dispatch({
+              type: 'hydrate_projection_tool_names',
+              threadId,
+              toolNameByUseId: replay.state.toolNameByUseId,
+            })
           }
         }
 
@@ -1069,11 +1090,19 @@ export function App() {
               lastTurnId: baselineReplay.state.lastTurnId,
               lastTurnStatus: baselineReplay.state.lastTurnStatus,
               pendingInputs: {},
+              toolNameByUseId: baselineReplay.state.toolNameByUseId,
               updatedAt: baselineReplay.state.updatedAt,
               lastNotificationMethod: null,
               lastReplaySeq: baselineReplay.latestCursor,
             }
             replayState = baselineReplay.state
+            if (activeThreadIdRef.current === threadId && Object.keys(baselineReplay.state.toolNameByUseId).length > 0) {
+              dispatch({
+                type: 'hydrate_projection_tool_names',
+                threadId,
+                toolNameByUseId: baselineReplay.state.toolNameByUseId,
+              })
+            }
           }
           replayCursorByThreadRef.current[threadId] =
             baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor

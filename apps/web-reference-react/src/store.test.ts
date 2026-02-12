@@ -532,4 +532,29 @@ describe('appReducer', () => {
     expect(state.logs).toHaveLength(1)
     expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'hello' })
   })
+
+  it('hydrates projection tool names and applies sticky name for tool updates without toolName', () => {
+    let state = appReducer(initialAppState, {
+      type: 'hydrate_projection_tool_names',
+      threadId: 'thread-1',
+      toolNameByUseId: { 'tool-snap': 'Glob' },
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 4, eventId: 'tool-seeded' },
+        { kind: 'tool_event', turnId: 'turn-2', toolUseId: 'tool-snap', phase: 'update', line: 'running' },
+      ),
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'tool_call',
+      turnId: 'turn-2',
+      toolUseId: 'tool-snap',
+      toolName: 'Glob',
+      detailLines: ['running'],
+    })
+  })
 })

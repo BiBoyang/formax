@@ -516,6 +516,7 @@ export class AppServer {
       lastTurnId: string | null
       lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
       pendingInputCount: number
+      toolNameByUseId: Record<string, string>
       updatedAt: string
     } | null
   } {
@@ -530,6 +531,7 @@ export class AppServer {
           lastTurnId: state.lastTurnId,
           lastTurnStatus: state.lastTurnStatus,
           pendingInputCount: Object.keys(state.pendingInputs).length,
+          toolNameByUseId: { ...state.toolNameByUseId },
           updatedAt: state.updatedAt,
         }
       : null

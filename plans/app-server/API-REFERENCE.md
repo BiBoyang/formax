@@ -424,6 +424,7 @@ AskUserQuestion payload：
     lastTurnId: string | null
     lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
     pendingInputCount: number
+    toolNameByUseId: Record<string, string>
     updatedAt: string
   } | null
 }
@@ -435,6 +436,7 @@ AskUserQuestion payload：
 - `hasGap = false` 且 `data` 为空，表示当前仅“无新增事件”，不是错误。
 - `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
 - `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
+- `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。
 
 ## 5.5 `turn/start`
 
