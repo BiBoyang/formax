@@ -284,6 +284,42 @@ describe('appReducer', () => {
     expect(tool.detailLines).toContain('update')
   })
 
+  it('reuses sticky tool name when update/end arrives first for a new turn row', () => {
+    let state = appReducer(initialAppState, {
+      type: 'replace_logs',
+      logs: [
+        {
+          id: 'history-tool',
+          kind: 'tool_call',
+          turnId: 'turn-old',
+          toolUseId: 'tool-shared',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: [],
+        },
+      ],
+    })
+
+    state = appReducer(state, {
+      type: 'append_tool_event',
+      turnId: 'turn-new',
+      toolUseId: 'tool-shared',
+      phase: 'end',
+      text: 'new turn completed',
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[1]).toMatchObject({
+      kind: 'tool_call',
+      turnId: 'turn-new',
+      toolUseId: 'tool-shared',
+      toolName: 'Bash',
+      status: 'completed',
+      summary: 'new turn completed',
+    })
+  })
+
   it('annotates tool row with input lifecycle state', () => {
     let state = appReducer(initialAppState, {
       type: 'append_tool_event',

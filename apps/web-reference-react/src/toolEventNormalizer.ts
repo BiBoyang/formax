@@ -43,6 +43,18 @@ export function findToolEventTargetIndex(logs: TranscriptItem[], args: Pick<Tool
   return -1
 }
 
+export function findLatestToolNameByUseId(logs: TranscriptItem[], toolUseId?: string): string | undefined {
+  if (!toolUseId) return undefined
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const item = logs[index]
+    if (item.kind !== 'tool_call') continue
+    if (item.toolUseId !== toolUseId) continue
+    if (typeof item.toolName !== 'string' || !item.toolName.trim()) continue
+    return item.toolName
+  }
+  return undefined
+}
+
 export function applyToolEventPatch(args: {
   id: string
   current?: ToolCallTranscriptItem

@@ -1,7 +1,7 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
 import { transitionResolvedFromPending } from '../../../src/features/semantics/inputStateMachine'
-import { applyToolEventPatch, findToolEventTargetIndex } from './toolEventNormalizer'
+import { applyToolEventPatch, findLatestToolNameByUseId, findToolEventTargetIndex } from './toolEventNormalizer'
 import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
 import {
   createInitialTranscriptProjectionState,
@@ -351,6 +351,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'append_tool_event': {
+      const stickyToolName = action.toolName ?? findLatestToolNameByUseId(state.logs, action.toolUseId)
       const targetIndex = findToolEventTargetIndex(state.logs, {
         turnId: action.turnId,
         toolUseId: action.toolUseId,
@@ -364,7 +365,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           patch: {
             turnId: action.turnId,
             toolUseId: action.toolUseId,
-            toolName: action.toolName,
+            toolName: stickyToolName,
             phase: action.phase,
             text: action.text,
             input: action.input,
@@ -381,7 +382,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         patch: {
           turnId: action.turnId,
           toolUseId: action.toolUseId,
-          toolName: action.toolName,
+          toolName: stickyToolName,
           phase: action.phase,
           text: action.text,
           input: action.input,
@@ -427,14 +428,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         return { ...state, logs: nextLogs }
       }
 
+      const stickyToolName = action.toolName ?? findLatestToolNameByUseId(state.logs, action.toolUseId)
+      const resolvedToolName = stickyToolName ?? 'Tool'
       const next: TranscriptItem = {
         id: itemId(),
         kind: 'tool_call',
         turnId: action.turnId,
         toolUseId: action.toolUseId,
-        toolName: action.toolName ?? 'Tool',
+        toolName: resolvedToolName,
         status: 'running',
-        summary: `${action.toolName ?? 'Tool'} running`,
+        summary: `${resolvedToolName} running`,
         detailLines: [],
         inputState: {
           kind: action.inputKind,

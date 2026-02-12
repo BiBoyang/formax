@@ -154,7 +154,7 @@
   - 文件：`apps/web-reference-react/src/turnEventCursor.ts` + `apps/web-reference-react/src/App.tsx`
   - 原因：能降低乱序风险，但仍非最终结构化方案。
 
-- [ ] S4 `toolEventNormalizer` 增加跨事件 toolName cache（首次 update/end 也尽量回填）
+- [x] S4 `toolEventNormalizer` 增加跨事件 toolName cache（首次 update/end 也尽量回填）
   - 文件：`apps/web-reference-react/src/toolEventNormalizer.ts`
   - 原因：修复概率性 `Tool (...)` 退化，但最终应由 canonical projector 统一处理。
 
@@ -167,7 +167,7 @@
 | 1. Web delta 改为当前 segment append | 未完成 | T1（主线）/ S1（兜底） | 当前仍有 turn-tail 回写逻辑 |
 | 2. tool_event 关闭文本段 | 未完成 | T1（主线）/ S1（兜底） | 当前无显式 open segment 状态 |
 | 3. Server update/end 补 toolName | 部分完成 | T6（主线）/ S2（兜底） | 仅 reader 侧保名，写入侧仍缺 |
-| 4. Web toolName sticky | 部分完成 | T2（主线）/ S4（兜底） | patch 有 current sticky，无全局 cache |
+| 4. Web toolName sticky | 部分完成 | T2（主线）/ S4（兜底） | 已补 logs 级 sticky cache；canonical projector 统一仍待完成 |
 | 5. ordering 迁移 replaySeq | 部分完成 | T2 + T5（主线）/ S3（兜底） | notification 过滤已 replaySeq 优先；线程切换仍非 replay-first |
 | 6. 共享 Transcript Projection | 未完成 | T0/T1/T2/T3/T4 | 本次主线核心 |
 | 7. 减少 history->logs 直映射 | 部分完成 | T5/T6 | 线程切换已 replay-first；history 仍用于 fallback 与上翻分页 |
