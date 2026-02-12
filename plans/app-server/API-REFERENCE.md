@@ -79,7 +79,7 @@
 通知（服务端推送）：
 
 ```json
-{"jsonrpc":"2.0","method":"turn/started","params":{"traceId":"...","seq":1,"ts":"...","eventId":"turnId:1","source":"system","turn":{"id":"...","threadId":"...","status":"running"}}}
+{"jsonrpc":"2.0","method":"turn/started","params":{"replaySeq":101,"traceId":"...","seq":1,"ts":"...","eventId":"turnId:1","source":"system","turn":{"id":"...","threadId":"...","status":"running"}}}
 ```
 
 ## 2.3 大小限制
@@ -258,6 +258,7 @@ AskUserQuestion payload：
 
 ```ts
 {
+  replaySeq: number // thread 内单调递增、唯一；客户端排序主键
   traceId: string
   seq: number
   ts: string
@@ -266,6 +267,11 @@ AskUserQuestion payload：
   ...
 }
 ```
+
+说明：
+
+- `replaySeq` 是跨 turn 的全局游标，客户端应优先按它排序与去重。
+- `seq` 仅在单个 turn 内递增，不能单独作为跨 turn 排序键。
 
 ## 5. JSON-RPC 方法
 
@@ -383,6 +389,11 @@ AskUserQuestion payload：
 }
 ```
 
+说明：
+
+- `toolName` 以 `toolUseId` 为维度保持粘性（sticky）；服务端会在 `update/end` 缺省时补齐，客户端可以按同一 `toolUseId` 视为同一工具。
+- `toolUseId` 可能缺失（历史数据或降级路径）。当缺失时，这条 tool 记录只保证自身字段完整，不承诺跨记录合并；客户端应按该条记录的 `id` 作为本地渲染键。
+
 ## 5.4.2 `thread/replay`
 
 ### Params
@@ -402,7 +413,7 @@ AskUserQuestion payload：
   data: Array<{
     replaySeq: number
     method: string
-    params?: Record<string, unknown>
+    params: Record<string, unknown>
   }>
   nextCursor: number
   latestCursor: number
@@ -417,6 +428,13 @@ AskUserQuestion payload：
   } | null
 }
 ```
+
+说明：
+
+- `hasGap = true` 表示 `after` 指向的游标与服务端可重放窗口不连续（例如事件被裁剪）；客户端应丢弃本地增量缓存并改走 `thread/messages` 全量重建，再使用新的 `latestCursor` 继续增量同步。
+- `hasGap = false` 且 `data` 为空，表示当前仅“无新增事件”，不是错误。
+- `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
+- `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
 
 ## 5.5 `turn/start`
 
