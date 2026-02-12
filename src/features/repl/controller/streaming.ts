@@ -7,6 +7,8 @@ import { formatToolResult, stripTrailingSystemReminderBlock } from '../../../uti
 import type { ReminderService } from '../reminders/ReminderService'
 import { makeMessageId } from './ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
+import { toCanonicalEventsFromStreamEvent } from '../../semantics/streamCanonicalAdapter'
+import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import {
   formatDuration,
   formatTokenTotal,
@@ -100,6 +102,12 @@ export function useReplStreaming(args: {
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+  canonical?: {
+    threadId: string
+    getTurnId: () => string | null
+    nextReplaySeq: () => number
+    onEvent: (event: CanonicalEvent) => void
+  }
 }): { handleEvent: (ev: StreamEvent) => void } {
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
@@ -148,6 +156,19 @@ export function useReplStreaming(args: {
 
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
+      const canonicalTurnId = args.canonical?.getTurnId()
+      const shouldForwardCanonical = !(ev.type === 'error' && isAbortLikeError(ev.error))
+      if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
+        const canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
+          threadId: args.canonical.threadId,
+          turnId: canonicalTurnId,
+          nextReplaySeq: args.canonical.nextReplaySeq,
+        })
+        for (const event of canonicalEvents) {
+          args.canonical.onEvent(event)
+        }
+      }
+
       switch (ev.type) {
         case 'assistant_delta': {
           stopThinkingIfActive()

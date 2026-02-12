@@ -78,6 +78,9 @@
     - TUI 可继续保留 transient/static 呈现差异，但不再自定义另一套语义
   - 验收：
     - Web/TUI 同输入事件序列下，segment 顺序与边界一致。
+  - 当前进展：
+    - 已完成：TUI `useReplStreaming` 增加 `StreamEvent -> CanonicalEvent` 语义桥接，并将事件实时喂给共享 `reduceTranscriptProjection`（先并行桥接，不改现有 TUI 渲染）。
+    - 未完成：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
 
 - [ ] T4 建立跨端语义一致性测试矩阵
   - 文件：
@@ -87,6 +90,9 @@
     - 覆盖：ordering、去重、toolName sticky、mode/input 交错
   - 验收：
     - 同一 fixture 在 Web/TUI projector 输出一致（不比样式，只比语义状态）。
+  - 当前进展：
+    - 已完成：新增 stream canonical adapter 单测，以及 `useReplStreaming` canonical bridge 投影回归测试（覆盖 assistant/tool/footer 边界）。
+    - 未完成：尚未建立 Web notification fixture 与 TUI stream fixture 的同源 parity 对照用例。
 
 ### P1：刷新与实时统一为 replay-first
 

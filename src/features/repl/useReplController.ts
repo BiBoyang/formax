@@ -49,6 +49,11 @@ import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
 import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../semantics/replModeTransition'
+import {
+  createInitialTranscriptProjectionState,
+  reduceTranscriptProjection,
+} from '../semantics/transcriptProjection'
+import type { CanonicalEvent } from '../semantics/canonicalEvents'
 
 function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
@@ -166,6 +171,10 @@ export function useReplController(deps: {
   >(new Map())
   const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
   const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
+  const canonicalProjectionRef = useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' }))
+  const canonicalReplaySeqRef = useRef(0)
+  const canonicalTurnIdRef = useRef<string | null>(null)
+  const canonicalTurnSeqRef = useRef(0)
   const modeRef = useRef<ReplMode>(deps.mode)
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
@@ -290,8 +299,19 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
+    canonicalProjectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
+    canonicalReplaySeqRef.current = 0
+    canonicalTurnIdRef.current = null
+    canonicalTurnSeqRef.current = 0
     lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
+
+  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+    canonicalProjectionRef.current = reduceTranscriptProjection(canonicalProjectionRef.current, event)
+    if (event.kind === 'turn_footer') {
+      canonicalTurnIdRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
@@ -461,6 +481,15 @@ export function useReplController(deps: {
     exploreBatchRef,
     reminderServiceRef,
     contextBudgetConfigRef,
+    canonical: {
+      threadId: 'tui-live',
+      getTurnId: () => canonicalTurnIdRef.current,
+      nextReplaySeq: () => {
+        canonicalReplaySeqRef.current += 1
+        return canonicalReplaySeqRef.current
+      },
+      onEvent: onCanonicalEvent,
+    },
   })
 
   const abort = useCallback(() => {
@@ -830,44 +859,50 @@ export function useReplController(deps: {
         if (res.shouldReturn) return
       }
 
-      await runMainSendTurn({
-        input: { text, slashEffect, provider },
-        deps: {
-          engine: deps.engine,
-          cfg: deps.cfg,
-          promptProfile: deps.promptProfile,
-          planSession: deps.planSession ?? null,
-          reminderServiceRef,
-          tools: deps.tools,
-          allowedSubagents,
-          mode: deps.mode,
-          getReplMode: () => modeRef.current,
-          setReplMode,
-          handleEvent,
-        },
-        refs: {
-          historyRef,
-          pendingInjectedBlocksRef,
-          pendingExitPlanReminderRef,
-          contextBudgetConfigRef,
-          abortControllerRef,
-          assistantBufferRef,
-          thinkingBufferRef,
-          thinkingLastFlushAtRef,
-          currentAssistantIdRef,
-          sendSeqRef,
-          lastAutoCompactSeqRef,
-          onCompactLifecycle,
-        },
-        state: {
-          setMessages,
-          setIsLoading,
-          setLoadingText,
-          setThinkingText,
-          setError,
-          setContext,
-        },
-      })
+      canonicalTurnSeqRef.current += 1
+      canonicalTurnIdRef.current = `turn-${canonicalTurnSeqRef.current}`
+      try {
+        await runMainSendTurn({
+          input: { text, slashEffect, provider },
+          deps: {
+            engine: deps.engine,
+            cfg: deps.cfg,
+            promptProfile: deps.promptProfile,
+            planSession: deps.planSession ?? null,
+            reminderServiceRef,
+            tools: deps.tools,
+            allowedSubagents,
+            mode: deps.mode,
+            getReplMode: () => modeRef.current,
+            setReplMode,
+            handleEvent,
+          },
+          refs: {
+            historyRef,
+            pendingInjectedBlocksRef,
+            pendingExitPlanReminderRef,
+            contextBudgetConfigRef,
+            abortControllerRef,
+            assistantBufferRef,
+            thinkingBufferRef,
+            thinkingLastFlushAtRef,
+            currentAssistantIdRef,
+            sendSeqRef,
+            lastAutoCompactSeqRef,
+            onCompactLifecycle,
+          },
+          state: {
+            setMessages,
+            setIsLoading,
+            setLoadingText,
+            setThinkingText,
+            setError,
+            setContext,
+          },
+        })
+      } finally {
+        canonicalTurnIdRef.current = null
+      }
     },
     [
       allowedSubagents,

@@ -8,6 +8,10 @@ import { performance } from 'node:perf_hooks'
 import type { StreamEvent } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { useReplStreaming } from './streaming'
+import {
+  createInitialTranscriptProjectionState,
+  reduceTranscriptProjection,
+} from '../../semantics/transcriptProjection'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -320,5 +324,121 @@ describe('useReplStreaming', () => {
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }
+  })
+
+  it('forwards stream events into canonical projection when canonical bridge is enabled', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const canonicalKindsRef = { current: [] as string[] }
+    const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+      const replaySeqRef = useRef(0)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+        canonical: {
+          threadId: 'tui-live',
+          getTurnId: () => 'turn-canonical',
+          nextReplaySeq: () => {
+            replaySeqRef.current += 1
+            return replaySeqRef.current
+          },
+          onEvent: (event) => {
+            canonicalKindsRef.current = [...canonicalKindsRef.current, event.kind]
+            projectionRef.current = reduceTranscriptProjection(projectionRef.current, event)
+          },
+        },
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void messages
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'assistant_delta', text: 'hello ' })
+    handleEvent!({ type: 'tool_start', id: 'tool-1', name: 'Bash' })
+    handleEvent!({ type: 'tool_end', id: 'tool-1', result: { tool_use_id: 'tool-1', content: 'ok' } })
+    handleEvent!({ type: 'error', error: new Error('Request aborted by user') })
+    handleEvent!({ type: 'assistant_delta', text: 'done' })
+    handleEvent!({ type: 'complete' })
+    await tick()
+
+    expect(canonicalKindsRef.current).toEqual([
+      'assistant_delta',
+      'tool_event',
+      'tool_event',
+      'assistant_delta',
+      'thinking_finalized',
+      'turn_footer',
+    ])
+
+    const normalizedSegments = projectionRef.current.segments.map((segment) => {
+      if (segment.kind === 'assistant') return { kind: 'assistant', text: segment.text }
+      if (segment.kind === 'tool') return { kind: 'tool', tool: segment.toolName, status: segment.status }
+      if (segment.kind === 'turn_footer') return { kind: 'turn_footer', status: segment.status }
+      return { kind: 'thinking', text: segment.text, status: segment.status }
+    })
+    expect(normalizedSegments).toEqual([
+      { kind: 'assistant', text: 'hello ' },
+      { kind: 'tool', tool: 'Bash', status: 'completed' },
+      { kind: 'assistant', text: 'done' },
+      { kind: 'turn_footer', status: 'completed' },
+    ])
   })
 })
