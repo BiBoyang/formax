@@ -88,6 +88,19 @@ const globRenderer: ToolBlockRenderer = (item) => {
   return blocks
 }
 
+const searchRenderer: ToolBlockRenderer = (item) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText })
+  const pattern = params.find((param) => param.label === 'pattern')?.value
+  const title = pattern ? `${item.toolName} ${pattern}` : item.toolName
+  const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'pattern')) : item.paramsText
+  return withStandardBlocks({
+    item,
+    title,
+    summary: item.summary,
+    ...(paramsText ? { paramsText } : {}),
+  })
+}
+
 const readLikeRenderer: ToolBlockRenderer = (item) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText })
   const file = params.find((param) => param.label === 'file')?.value
@@ -182,6 +195,8 @@ const todoWriteRenderer: ToolBlockRenderer = (item) => {
 const renderers: Record<string, ToolBlockRenderer> = {
   Bash: bashRenderer,
   Glob: globRenderer,
+  Grep: searchRenderer,
+  Search: searchRenderer,
   Read: readLikeRenderer,
   Write: readLikeRenderer,
   Edit: readLikeRenderer,

@@ -111,6 +111,27 @@ describe('formatToolParams', () => {
       { label: 'todos', value: '[{"content":"a"},{"content":"b"},{"content":"c"}]', valueType: 'json' },
     ])
   })
+
+  it('maps grep/search pattern + path + output_mode', () => {
+    const grep = formatToolParams({
+      toolName: 'Grep',
+      paramsText: 'pattern="TODO", path="src", output_mode="files_with_matches"',
+    })
+    const search = formatToolParams({
+      toolName: 'Search',
+      paramsText: 'pattern="useEffect", path="apps/web-reference-react/src"',
+    })
+
+    expect(grep).toEqual([
+      { label: 'pattern', value: 'TODO', valueType: 'string' },
+      { label: 'path', value: 'src', valueType: 'string' },
+      { label: 'output_mode', value: 'files_with_matches', valueType: 'string' },
+    ])
+    expect(search).toEqual([
+      { label: 'pattern', value: 'useEffect', valueType: 'string' },
+      { label: 'path', value: 'apps/web-reference-react/src', valueType: 'string' },
+    ])
+  })
 })
 
 describe('stringifyToolParams', () => {

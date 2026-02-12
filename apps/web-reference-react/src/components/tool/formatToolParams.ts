@@ -140,6 +140,12 @@ export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsTe
       pushPicked(pickValue(parsed, usedLabels, { label: 'pattern', keys: ['pattern', 'glob'] }))
       pushPicked(pickValue(parsed, usedLabels, { label: 'path', keys: ['path'] }))
       break
+    case 'Grep':
+    case 'Search':
+      pushPicked(pickValue(parsed, usedLabels, { label: 'pattern', keys: ['pattern'] }))
+      pushPicked(pickValue(parsed, usedLabels, { label: 'path', keys: ['path'] }))
+      pushPicked(pickValue(parsed, usedLabels, { label: 'output_mode', keys: ['output_mode'] }))
+      break
     case 'Read':
     case 'Write':
     case 'Edit':

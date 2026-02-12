@@ -22,9 +22,11 @@ jobs:
               - '**/*.tsx'
               - '**/*.js'
               - '**/*.mjs'
+            web_reference:
+              - 'apps/web-reference-react/**'
 
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'
         with:
           node-version: '20'
 
@@ -45,6 +47,18 @@ jobs:
         if: steps.changes.outputs.code == 'true'
         run: bun run test:coverage
 
+      - name: Install web-reference-react deps
+        if: steps.changes.outputs.web_reference == 'true'
+        run: npm ci --prefix apps/web-reference-react
+
+      - name: Web reference typecheck
+        if: steps.changes.outputs.web_reference == 'true'
+        run: npm --prefix apps/web-reference-react run type-check
+
+      - name: Web reference tests
+        if: steps.changes.outputs.web_reference == 'true'
+        run: npm --prefix apps/web-reference-react run test
+
       - name: Upload coverage to Codecov
         if: steps.changes.outputs.code == 'true'
         uses: codecov/codecov-action@v5
@@ -55,5 +69,5 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Skip (no code changes)
-        if: steps.changes.outputs.code != 'true'
-        run: echo "No *.ts/*.tsx/*.js/*.mjs changes; skipping typecheck/tests/coverage."
+        if: steps.changes.outputs.code != 'true' && steps.changes.outputs.web_reference != 'true'
+        run: echo "No code or web-reference changes; skipping checks."

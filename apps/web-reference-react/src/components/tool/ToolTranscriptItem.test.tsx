@@ -168,6 +168,27 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/TodoWrite 3 items \(op="replace"\)/)).toBeInTheDocument()
   })
 
+  it('renders grep/search with pattern promoted to title', () => {
+    const grep = makeToolItem({
+      toolName: 'Grep',
+      paramsText: 'pattern="TODO", path="src", output_mode="files_with_matches"',
+      summary: 'Found matches',
+      detailLines: [],
+    })
+    const search = makeToolItem({
+      toolName: 'Search',
+      paramsText: 'pattern="useEffect", path="apps/web-reference-react/src"',
+      summary: 'Found references',
+      detailLines: [],
+    })
+
+    const { rerender } = render(<ToolTranscriptItem item={grep} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText(/Grep TODO \(path="src", output_mode="files_with_matches"\)/)).toBeInTheDocument()
+
+    rerender(<ToolTranscriptItem item={search} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText(/Search useEffect \(path="apps\/web-reference-react\/src"\)/)).toBeInTheDocument()
+  })
+
   it('falls back to raw params text when formatter cannot parse them', () => {
     const item = makeToolItem({
       toolName: 'UnknownTool',
