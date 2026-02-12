@@ -1,7 +1,6 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
 import { transitionResolvedFromPending } from '../../../src/features/semantics/inputStateMachine'
-import { applyToolEventPatch, findLatestToolNameByUseId, findToolEventTargetIndex } from './toolEventNormalizer'
 import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
 import {
   createInitialTranscriptProjectionState,
@@ -31,33 +30,6 @@ export type AppAction =
   | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error'; turnId?: string }
   | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string }
   | { type: 'bind_last_user_message_turn'; turnId: string }
-  | { type: 'append_assistant_delta'; turnId: string; text: string }
-  | { type: 'append_thinking_delta'; turnId: string; text: string }
-  | { type: 'finalize_turn_thinking'; turnId: string }
-  | {
-      type: 'push_turn_footer'
-      turnId: string
-      status: 'completed' | 'failed' | 'interrupted'
-      message?: string
-    }
-  | {
-      type: 'append_tool_event'
-      turnId: string
-      toolUseId?: string
-      toolName?: string
-      phase: 'start' | 'update' | 'end'
-      text?: string
-      input?: unknown
-      isError?: boolean
-    }
-  | {
-      type: 'annotate_tool_input_state'
-      turnId: string
-      toolUseId: string
-      toolName?: string
-      inputKind: 'approval' | 'ask_user_question'
-      status: 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
-    }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
@@ -83,30 +55,17 @@ function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled'
   return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
 }
 
-function findLastLogIndexInTurnTail(
-  logs: TranscriptItem[],
-  turnId: string,
-  matcher: (item: TranscriptItem) => boolean,
-): number {
-  for (let index = logs.length - 1; index >= 0; index -= 1) {
-    const item = logs[index]
-    if (item.turnId === turnId) {
-      if (matcher(item)) return index
-      continue
-    }
-    if (!item.turnId) continue
-    break
-  }
-  return -1
-}
-
 function isProjectionManagedTurnItem(item: TranscriptItem, turnId: string): boolean {
   if (item.turnId !== turnId) return false
   if (item.kind === 'thinking' || item.kind === 'turn_footer' || item.kind === 'tool_call') return true
   return item.kind === 'message' && item.role === 'assistant'
 }
 
-function toTranscriptItemFromProjectionSegment(segment: TranscriptProjectionState['segments'][number]): TranscriptItem | null {
+function toTranscriptItemFromProjectionSegment(args: {
+  segment: TranscriptProjectionState['segments'][number]
+  existingItemById: Map<string, TranscriptItem>
+}): TranscriptItem | null {
+  const { segment, existingItemById } = args
   if (segment.kind === 'assistant') {
     return {
       id: segment.id,
@@ -143,12 +102,15 @@ function toTranscriptItemFromProjectionSegment(segment: TranscriptProjectionStat
   }
 
   if (segment.kind === 'turn_footer') {
+    const existing = existingItemById.get(segment.id)
+    const createdAt =
+      existing && existing.kind === 'turn_footer' ? existing.createdAt : new Date().toISOString()
     return {
       id: segment.id,
       kind: 'turn_footer',
       turnId: segment.turnId,
       status: segment.status,
-      createdAt: new Date().toISOString(),
+      createdAt,
       ...(segment.message ? { message: segment.message } : {}),
     }
   }
@@ -175,29 +137,27 @@ function mergeTurnProjectionLogs(args: {
   projectedItems: TranscriptItem[]
 }): TranscriptItem[] {
   const { logs, turnId, projectedItems } = args
-  let firstManagedIndex = -1
-  let lastTurnIndex = -1
-  for (let index = 0; index < logs.length; index += 1) {
-    const item = logs[index]
-    if (item.turnId === turnId) {
-      lastTurnIndex = index
-      if (firstManagedIndex < 0 && isProjectionManagedTurnItem(item, turnId)) {
-        firstManagedIndex = index
+  const pendingProjectionItems = [...projectedItems]
+  const merged: TranscriptItem[] = []
+  for (const item of logs) {
+    if (isProjectionManagedTurnItem(item, turnId)) {
+      if (pendingProjectionItems.length > 0) {
+        merged.push(pendingProjectionItems.shift()!)
       }
+      continue
+    }
+    merged.push(item)
+  }
+  if (pendingProjectionItems.length === 0) return merged
+
+  let insertionIndex = merged.length
+  for (let index = merged.length - 1; index >= 0; index -= 1) {
+    if (merged[index]?.turnId === turnId) {
+      insertionIndex = index + 1
+      break
     }
   }
-  const anchorIndex = firstManagedIndex >= 0 ? firstManagedIndex : lastTurnIndex >= 0 ? lastTurnIndex + 1 : logs.length
-  let managedBeforeAnchor = 0
-  for (let index = 0; index < anchorIndex; index += 1) {
-    if (isProjectionManagedTurnItem(logs[index], turnId)) managedBeforeAnchor += 1
-  }
-  const filteredLogs = logs.filter((item) => !isProjectionManagedTurnItem(item, turnId))
-  const insertionIndex = Math.max(0, Math.min(filteredLogs.length, anchorIndex - managedBeforeAnchor))
-  return [
-    ...filteredLogs.slice(0, insertionIndex),
-    ...projectedItems,
-    ...filteredLogs.slice(insertionIndex),
-  ]
+  return [...merged.slice(0, insertionIndex), ...pendingProjectionItems, ...merged.slice(insertionIndex)]
 }
 
 function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): AppState {
@@ -215,9 +175,10 @@ function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): 
           }
         })()
   const nextProjection = reduceTranscriptProjection(currentProjection, event)
+  const existingItemById = new Map(state.logs.map((item) => [item.id, item]))
   const projectedItems = nextProjection.segments
     .filter((segment) => segment.turnId === event.turnId)
-    .map((segment) => toTranscriptItemFromProjectionSegment(segment))
+    .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
     .filter((segment): segment is TranscriptItem => Boolean(segment))
   const logs = mergeTurnProjectionLogs({
     logs: state.logs,
@@ -286,187 +247,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         }
       }
       return state
-    }
-
-    case 'append_assistant_delta': {
-      const assistantIndex = findLastLogIndexInTurnTail(
-        state.logs,
-        action.turnId,
-        (item) => item.kind === 'message' && item.role === 'assistant' && item.turnId === action.turnId,
-      )
-      if (assistantIndex >= 0) {
-        const existing = state.logs[assistantIndex]
-        if (existing.kind !== 'message' || existing.role !== 'assistant') return state
-        const updated = state.logs.slice()
-        updated[assistantIndex] = { ...existing, text: existing.text + action.text }
-        return { ...state, logs: updated }
-      }
-
-      const next: TranscriptItem = {
-        id: itemId(),
-        kind: 'message',
-        role: 'assistant',
-        text: action.text,
-        turnId: action.turnId,
-      }
-      return { ...state, logs: [...state.logs, next] }
-    }
-
-    case 'append_thinking_delta': {
-      const thinkingIndex = findLastLogIndexInTurnTail(
-        state.logs,
-        action.turnId,
-        (item) => item.kind === 'thinking' && item.turnId === action.turnId,
-      )
-      if (thinkingIndex >= 0) {
-        const existing = state.logs[thinkingIndex]
-        if (existing.kind !== 'thinking') return state
-        const updated = state.logs.slice()
-        updated[thinkingIndex] = { ...existing, text: existing.text + action.text }
-        return { ...state, logs: updated }
-      }
-
-      const next: TranscriptItem = {
-        id: itemId(),
-        kind: 'thinking',
-        text: action.text,
-        status: 'running',
-        turnId: action.turnId,
-      }
-      return { ...state, logs: [...state.logs, next] }
-    }
-
-    case 'finalize_turn_thinking': {
-      let changed = false
-      const nextLogs = state.logs.map((item) => {
-        if (item.kind !== 'thinking' || item.turnId !== action.turnId || item.status === 'finalized') return item
-        changed = true
-        return { ...item, status: 'finalized' as const }
-      })
-      if (!changed) return state
-      return { ...state, logs: nextLogs }
-    }
-
-    case 'push_turn_footer': {
-      const existingIndex = state.logs.findIndex((item) => item.kind === 'turn_footer' && item.turnId === action.turnId)
-      if (existingIndex >= 0) {
-        const existing = state.logs[existingIndex]
-        if (existing.kind !== 'turn_footer') return state
-        const updated: TranscriptItem = {
-          ...existing,
-          status: action.status,
-          ...(action.message ? { message: action.message } : {}),
-        }
-        const logs = state.logs.slice()
-        logs[existingIndex] = updated
-        return { ...state, logs }
-      }
-      const next: TranscriptItem = {
-        id: itemId(),
-        kind: 'turn_footer',
-        turnId: action.turnId,
-        status: action.status,
-        createdAt: new Date().toISOString(),
-        ...(action.message ? { message: action.message } : {}),
-      }
-      return { ...state, logs: [...state.logs, next] }
-    }
-
-    case 'append_tool_event': {
-      const stickyToolName = action.toolName ?? findLatestToolNameByUseId(state.logs, action.toolUseId)
-      const targetIndex = findToolEventTargetIndex(state.logs, {
-        turnId: action.turnId,
-        toolUseId: action.toolUseId,
-      })
-      if (targetIndex >= 0) {
-        const current = state.logs[targetIndex]
-        if (current.kind !== 'tool_call') return state
-        const updated = applyToolEventPatch({
-          id: current.id,
-          current,
-          patch: {
-            turnId: action.turnId,
-            toolUseId: action.toolUseId,
-            toolName: stickyToolName,
-            phase: action.phase,
-            text: action.text,
-            input: action.input,
-            isError: action.isError,
-          },
-        })
-        const nextLogs = state.logs.slice()
-        nextLogs[targetIndex] = updated
-        return { ...state, logs: nextLogs }
-      }
-
-      const next = applyToolEventPatch({
-        id: itemId(),
-        patch: {
-          turnId: action.turnId,
-          toolUseId: action.toolUseId,
-          toolName: stickyToolName,
-          phase: action.phase,
-          text: action.text,
-          input: action.input,
-          isError: action.isError,
-        },
-      })
-      return { ...state, logs: [...state.logs, next] }
-    }
-
-    case 'annotate_tool_input_state': {
-      const targetIndexByTurn = findToolEventTargetIndex(state.logs, {
-        turnId: action.turnId,
-        toolUseId: action.toolUseId,
-      })
-      const targetIndex =
-        targetIndexByTurn >= 0
-          ? targetIndexByTurn
-          : (() => {
-              for (let index = state.logs.length - 1; index >= 0; index -= 1) {
-                const item = state.logs[index]
-                if (item.kind !== 'tool_call') continue
-                if (item.toolUseId !== action.toolUseId) continue
-                if (!item.turnId) return index
-              }
-              return -1
-            })()
-      if (targetIndex >= 0) {
-        const current = state.logs[targetIndex]
-        if (current.kind !== 'tool_call') return state
-        const nextLogs = state.logs.slice()
-        nextLogs[targetIndex] = {
-          ...current,
-          ...(current.turnId ? {} : { turnId: action.turnId }),
-          ...(action.toolName ? { toolName: action.toolName } : {}),
-          ...(action.toolName && current.summary === `${current.toolName} running`
-            ? { summary: `${action.toolName} running` }
-            : {}),
-          inputState: {
-            kind: action.inputKind,
-            status: action.status,
-          },
-        }
-        return { ...state, logs: nextLogs }
-      }
-
-      const stickyToolName = action.toolName ?? findLatestToolNameByUseId(state.logs, action.toolUseId)
-      const resolvedToolName = stickyToolName ?? 'Tool'
-      const next: TranscriptItem = {
-        id: itemId(),
-        kind: 'tool_call',
-        turnId: action.turnId,
-        toolUseId: action.toolUseId,
-        toolName: resolvedToolName,
-        status: 'running',
-        summary: `${resolvedToolName} running`,
-        detailLines: [],
-        inputState: {
-          kind: action.inputKind,
-          status: action.status,
-        },
-      }
-      return { ...state, logs: [...state.logs, next] }
     }
 
     case 'input_requested': {

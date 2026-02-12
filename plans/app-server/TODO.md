@@ -67,6 +67,7 @@
     - 移除/停用 `append_assistant_delta` 与 `append_thinking_delta` 的 turn-tail 回写语义。
   - 当前进展：
     - 已完成：notification + replay 路径接入 canonical（`apply_canonical_event`），并新增顺序回归测试。
+    - 已完成：`apps/web-reference-react/src/store.ts` 停用 legacy turn-tail action（`append_* / append_tool_event / annotate_tool_input_state`），主路径收敛到 canonical projection。
     - 未完成：history 路径仍是 `thread/messages -> logs` 映射，尚未 replay-first。
 
 - [ ] T3 TUI 接入同一 projector（语义统一，渲染可不同）
