@@ -1241,6 +1241,72 @@ describe('App thread history integration', () => {
     expect(centerText.indexOf('assistant-before-tool')).toBeLessThan(centerText.indexOf('Write snake-game.html'))
   })
 
+  it('keeps assistant segments split when tool rows are interleaved in the same turn', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/started',
+        params: {
+          eventId: 'turn-split:1',
+          traceId: 'trace-split',
+          seq: 1,
+          turn: { id: 'turn-split', threadId: 'thread-alpha', status: 'running' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-split:2',
+          traceId: 'trace-split',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-split',
+          event: { type: 'assistant_delta', text: 'assistant-before' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-split:3',
+          traceId: 'trace-split',
+          seq: 3,
+          threadId: 'thread-alpha',
+          turnId: 'turn-split',
+          event: {
+            type: 'tool_start',
+            id: 'tool-split-1',
+            name: 'Write',
+            input: { file_path: 'snake-game.html' },
+          },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-split:4',
+          traceId: 'trace-split',
+          seq: 4,
+          threadId: 'thread-alpha',
+          turnId: 'turn-split',
+          event: { type: 'assistant_delta', text: 'assistant-after' },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('assistant-before')).toBeInTheDocument()
+      expect(screen.getByText('Write snake-game.html')).toBeInTheDocument()
+      expect(screen.getByText('assistant-after')).toBeInTheDocument()
+    })
+
+    const centerText = screen.getByTestId('center-pane').textContent ?? ''
+    expect(centerText.indexOf('assistant-before')).toBeLessThan(centerText.indexOf('Write snake-game.html'))
+    expect(centerText.indexOf('Write snake-game.html')).toBeLessThan(centerText.indexOf('assistant-after'))
+  })
+
   it('deduplicates repeated eventId notifications', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
