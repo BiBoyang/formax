@@ -73,6 +73,23 @@ function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled'
   return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
 }
 
+function findLastLogIndexInTurnTail(
+  logs: TranscriptItem[],
+  turnId: string,
+  matcher: (item: TranscriptItem) => boolean,
+): number {
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const item = logs[index]
+    if (item.turnId === turnId) {
+      if (matcher(item)) return index
+      continue
+    }
+    if (!item.turnId) continue
+    break
+  }
+  return -1
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'set_connection_status':
@@ -131,10 +148,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'append_assistant_delta': {
-      const last = state.logs[state.logs.length - 1]
-      if (last && last.kind === 'message' && last.role === 'assistant' && last.turnId === action.turnId) {
+      const assistantIndex = findLastLogIndexInTurnTail(
+        state.logs,
+        action.turnId,
+        (item) => item.kind === 'message' && item.role === 'assistant' && item.turnId === action.turnId,
+      )
+      if (assistantIndex >= 0) {
+        const existing = state.logs[assistantIndex]
+        if (existing.kind !== 'message' || existing.role !== 'assistant') return state
         const updated = state.logs.slice()
-        updated[updated.length - 1] = { ...last, text: last.text + action.text }
+        updated[assistantIndex] = { ...existing, text: existing.text + action.text }
         return { ...state, logs: updated }
       }
 
@@ -149,10 +172,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'append_thinking_delta': {
-      const last = state.logs[state.logs.length - 1]
-      if (last && last.kind === 'thinking' && last.turnId === action.turnId) {
+      const thinkingIndex = findLastLogIndexInTurnTail(
+        state.logs,
+        action.turnId,
+        (item) => item.kind === 'thinking' && item.turnId === action.turnId,
+      )
+      if (thinkingIndex >= 0) {
+        const existing = state.logs[thinkingIndex]
+        if (existing.kind !== 'thinking') return state
         const updated = state.logs.slice()
-        updated[updated.length - 1] = { ...last, text: last.text + action.text, status: 'running' }
+        updated[thinkingIndex] = { ...existing, text: existing.text + action.text }
         return { ...state, logs: updated }
       }
 

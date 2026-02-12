@@ -39,6 +39,53 @@ describe('appReducer', () => {
     expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'Hello' })
   })
 
+  it('keeps assistant deltas merged when thinking rows are interleaved', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_assistant_delta',
+      turnId: 'turn-1',
+      text: 'Hel',
+    })
+
+    state = appReducer(state, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: 'draft',
+    })
+
+    state = appReducer(state, {
+      type: 'append_assistant_delta',
+      turnId: 'turn-1',
+      text: 'lo',
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'Hello' })
+    expect(state.logs[1]).toMatchObject({ kind: 'thinking', text: 'draft' })
+  })
+
+  it('keeps assistant deltas merged across unscoped logs in the same tail', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_assistant_delta',
+      turnId: 'turn-1',
+      text: 'Hel',
+    })
+
+    state = appReducer(state, {
+      type: 'push_log',
+      text: 'local status',
+    })
+
+    state = appReducer(state, {
+      type: 'append_assistant_delta',
+      turnId: 'turn-1',
+      text: 'lo',
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'Hello' })
+    expect(state.logs[1]).toMatchObject({ kind: 'log', text: 'local status' })
+  })
+
   it('merges thinking deltas into one collapsible transcript block', () => {
     let state = appReducer(initialAppState, {
       type: 'append_thinking_delta',
@@ -58,6 +105,51 @@ describe('appReducer', () => {
       turnId: 'turn-1',
       text: 'Need to inspect files. Then propose patch.',
       status: 'running',
+    })
+  })
+
+  it('keeps thinking deltas merged when assistant rows are interleaved', () => {
+    let state = appReducer(initialAppState, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: 'first',
+    })
+
+    state = appReducer(state, {
+      type: 'append_assistant_delta',
+      turnId: 'turn-1',
+      text: 'answer',
+    })
+
+    state = appReducer(state, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: ' second',
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[0]).toMatchObject({ kind: 'thinking', text: 'first second', status: 'running' })
+    expect(state.logs[1]).toMatchObject({ kind: 'message', role: 'assistant', text: 'answer' })
+  })
+
+  it('does not reopen finalized thinking rows when late deltas arrive', () => {
+    let state = appReducer(initialAppState, {
+      type: 'replace_logs',
+      logs: [{ id: 'thinking-1', kind: 'thinking', turnId: 'turn-1', text: 'done', status: 'finalized' }],
+    })
+
+    state = appReducer(state, {
+      type: 'append_thinking_delta',
+      turnId: 'turn-1',
+      text: ' late',
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'thinking',
+      turnId: 'turn-1',
+      text: 'done late',
+      status: 'finalized',
     })
   })
 
