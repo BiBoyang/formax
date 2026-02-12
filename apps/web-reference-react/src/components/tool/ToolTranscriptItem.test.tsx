@@ -95,4 +95,15 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('No files found')).toBeInTheDocument()
     expect(screen.getAllByText('No files found')).toHaveLength(1)
   })
+
+  it('falls back to raw params text when formatter cannot parse them', () => {
+    const item = makeToolItem({
+      toolName: 'UnknownTool',
+      paramsText: '--raw --flag',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/UnknownTool \(\-\-raw \-\-flag\)/)).toBeInTheDocument()
+  })
 })
