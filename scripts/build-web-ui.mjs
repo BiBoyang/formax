@@ -17,6 +17,8 @@ function run(command, args, cwd) {
 }
 
 async function main() {
+  const args = new Set(process.argv.slice(2))
+  const skipInstall = args.has('--skip-install') || process.env.FORMAX_WEB_UI_SKIP_INSTALL === '1'
   const scriptDir = path.dirname(fileURLToPath(import.meta.url))
   const repoRoot = path.resolve(scriptDir, '..')
   const webRoot = path.join(repoRoot, 'apps', 'web-reference-react')
@@ -24,8 +26,13 @@ async function main() {
   const outDir = path.join(repoRoot, 'dist', 'web')
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 
-  // Ensure lockfile-accurate deps before building the published bundle.
-  run(npmCmd, ['ci'], webRoot)
+  // Ensure lockfile-accurate deps before building the published bundle,
+  // unless caller explicitly requests a faster local rebuild path.
+  if (!skipInstall) {
+    run(npmCmd, ['ci'], webRoot)
+  } else {
+    process.stdout.write('[formax] skip install: reusing existing web dependencies\n')
+  }
 
   run(npmCmd, ['run', 'build'], webRoot)
 

@@ -794,6 +794,12 @@ export function App() {
             break
           }
 
+          if (turnId) {
+            // Keep turn timeline order stable: flush buffered assistant/thinking text
+            // before appending synchronous non-delta rows (tool/log/footer).
+            flushBufferedDeltas(turnId, eventThreadId)
+          }
+
           if (eventType === 'tool_start' || eventType === 'tool_update' || eventType === 'tool_end') {
             const event = params?.event
             dispatch({

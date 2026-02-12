@@ -168,7 +168,8 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
     const data = parsed.data
     const toolUseId = coerceNonEmptyString(data.toolUseId) ?? undefined
     const turnId = coerceNonEmptyString(data.turnId) ?? 'turn'
-    const toolName = coerceNonEmptyString(data.toolName) ?? 'Tool'
+    const parsedToolName = coerceNonEmptyString(data.toolName)
+    const toolName = parsedToolName ?? 'Tool'
     const phase = coerceNonEmptyString(data.phase)
     const bucketKey = `${turnId}:${toolName}`
     let key: string
@@ -203,7 +204,9 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
       byKey.set(key, current)
     }
 
-    current.toolName = toolName
+    if (parsedToolName) {
+      current.toolName = parsedToolName
+    }
     if (status) current.status = status
     if (summary) current.summary = summary
     if (paramsText) current.paramsText = paramsText

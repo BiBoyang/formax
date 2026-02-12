@@ -93,8 +93,8 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText('pattern: **/*.md')).toBeInTheDocument()
-    expect(screen.getByText('Found 10 files')).toBeInTheDocument()
+    expect(screen.getByText(/Glob/)).toBeInTheDocument()
+    expect(screen.queryByText('pattern: **/*.md')).not.toBeInTheDocument()
   })
 
   it('does not duplicate glob summary when pattern is missing', () => {
@@ -107,8 +107,8 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText('No files found')).toBeInTheDocument()
-    expect(screen.getAllByText('No files found')).toHaveLength(1)
+    expect(screen.getByText(/Glob/)).toBeInTheDocument()
+    expect(screen.queryByText('No files found')).not.toBeInTheDocument()
   })
 
   it('renders read-like tools as `<Tool> <file>` in header', () => {
@@ -120,7 +120,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Read package\.json \(offset=0\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Read package\.json/)).toBeInTheDocument()
   })
 
   it('renders websearch with query promoted to title', () => {
@@ -132,7 +132,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/WebSearch react hooks \(recency=30\)/)).toBeInTheDocument()
+    expect(screen.getByText(/WebSearch react hooks/)).toBeInTheDocument()
   })
 
   it('renders webfetch with url promoted to title', () => {
@@ -144,7 +144,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/WebFetch https:\/\/example\.com \(timeout=30000\)/)).toBeInTheDocument()
+    expect(screen.getByText(/WebFetch https:\/\/example\.com/)).toBeInTheDocument()
   })
 
   it('renders task with subagent and description promoted to title', () => {
@@ -156,7 +156,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Task planner\(analyze docs\) \(priority="high"\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Task planner\(analyze docs\)/)).toBeInTheDocument()
   })
 
   it('renders ask-user-question count in title', () => {
@@ -168,7 +168,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/AskUserQuestion 2 questions \(mode="single"\)/)).toBeInTheDocument()
+    expect(screen.getByText(/AskUserQuestion 2 questions/)).toBeInTheDocument()
   })
 
   it('renders todowrite count in title', () => {
@@ -180,7 +180,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/TodoWrite 3 items \(op="replace"\)/)).toBeInTheDocument()
+    expect(screen.getByText(/TodoWrite 3 items/)).toBeInTheDocument()
   })
 
   it('renders grep/search with pattern promoted to title', () => {
@@ -198,10 +198,10 @@ describe('ToolTranscriptItem', () => {
     })
 
     const { rerender } = render(<ToolTranscriptItem item={grep} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText(/Grep TODO \(path="src", output_mode="files_with_matches"\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Grep TODO/)).toBeInTheDocument()
 
     rerender(<ToolTranscriptItem item={search} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText(/Search useEffect \(path="apps\/web-reference-react\/src"\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Search useEffect/)).toBeInTheDocument()
   })
 
   it('falls back to raw params text when formatter cannot parse them', () => {
@@ -212,6 +212,67 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/UnknownTool \(\-\-raw \-\-flag\)/)).toBeInTheDocument()
+    expect(screen.getByText('UnknownTool (--raw --flag)')).toBeInTheDocument()
+  })
+
+  it('renders workspace-relative paths when cwd is provided', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      paramsText: 'file_path="/Users/david/Documents/github/formax/snake-game/index.html"',
+      summary: 'Wrote /Users/david/Documents/github/formax/snake-game/index.html',
+      detailLines: [],
+    })
+
+    render(
+      <ToolTranscriptItem
+        item={item}
+        cwd="/Users/david/Documents/github/formax"
+        open={false}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/Write snake-game\/index\.html/)).toBeInTheDocument()
+    expect(screen.queryByText(/\/Users\/david\/Documents\/github\/formax/)).not.toBeInTheDocument()
+  })
+
+  it('renders Enter/ExitPlanMode with semantic titles', () => {
+    const enterItem = makeToolItem({
+      toolName: 'EnterPlanMode',
+      status: 'running',
+      summary: 'EnterPlanMode running',
+      detailLines: [],
+    })
+    const exitItem = makeToolItem({
+      toolName: 'ExitPlanMode',
+      status: 'completed',
+      summary: 'User has approved your plan. You can now start coding.',
+      detailLines: [],
+    })
+
+    const { rerender } = render(<ToolTranscriptItem item={enterItem} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText(/Enter plan mode/)).toBeInTheDocument()
+
+    rerender(<ToolTranscriptItem item={exitItem} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText(/Exit plan mode/)).toBeInTheDocument()
+  })
+
+  it('shows semantic AskUserQuestion detail lines instead of raw json brace', () => {
+    const item = makeToolItem({
+      toolName: 'AskUserQuestion',
+      status: 'completed',
+      summary: '{',
+      detailLines: [
+        '{',
+        '"answers": {"platform":"Mac","theme":"dark"}',
+        '}',
+      ],
+    })
+
+    render(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
+    expect(screen.getByText('platform: Mac')).toBeInTheDocument()
+    expect(screen.getByText('theme: dark')).toBeInTheDocument()
+    expect(screen.queryByText('{')).not.toBeInTheDocument()
   })
 })

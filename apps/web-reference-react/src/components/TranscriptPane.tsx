@@ -115,6 +115,7 @@ function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_
 
 export function TranscriptPane(props: TranscriptPaneProps) {
   const {
+    activeThread,
     activeThreadId,
     activeTurnId = null,
     logs,
@@ -375,6 +376,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     ) : item.kind === 'tool_call' ? (
                       <ToolTranscriptItem
                         item={item}
+                        cwd={activeThread?.cwd}
                         open={Boolean(openToolIds[item.id])}
                         onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
                       />

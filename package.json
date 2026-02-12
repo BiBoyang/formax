@@ -21,6 +21,7 @@
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
     "build:web-ui": "node ./scripts/build-web-ui.mjs",
+    "build:web-ui:fast": "node ./scripts/build-web-ui.mjs --skip-install",
     "prepack": "bun run build && bun run build:web-ui",
     "core:boundaries": "node ./scripts/check-core-boundaries.mjs",
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",

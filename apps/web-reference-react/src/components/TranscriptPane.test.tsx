@@ -201,7 +201,7 @@ describe('TranscriptPane', () => {
 
     expect(screen.getByText('warn log')).toBeInTheDocument()
     expect(screen.queryByText('info log')).not.toBeInTheDocument()
-    expect(screen.getByText('Ran command')).toBeInTheDocument()
+    expect(screen.getByText(/^Bash$/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
     expect(onLoadEarlier).toHaveBeenCalledTimes(1)

@@ -110,6 +110,51 @@ describe('readStaleInputsFromSession', () => {
     expect(toolMessages[0]?.detailLines).toEqual(expect.arrayContaining(['update', '> tsc --noEmit']))
   })
 
+  it('preserves tool name when update/end events omit toolName', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-tool-event-name-preserve-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-tool-event-name-preserve-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const created = await SessionWriter.createNew({ cwd, env })
+    const writer = created.writer
+
+    await writer.appendEvent('app_tool_event', {
+      turnId: 'turn-1',
+      threadId: created.meta.sessionId,
+      toolUseId: 'tool-write-1',
+      toolName: 'Write',
+      phase: 'start',
+      status: 'running',
+      summary: 'Write running',
+    })
+    await writer.appendEvent('app_tool_event', {
+      turnId: 'turn-1',
+      threadId: created.meta.sessionId,
+      toolUseId: 'tool-write-1',
+      phase: 'update',
+      paramsText: 'file_path=\"/tmp/a.txt\"',
+    })
+    await writer.appendEvent('app_tool_event', {
+      turnId: 'turn-1',
+      threadId: created.meta.sessionId,
+      toolUseId: 'tool-write-1',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Wrote /tmp/a.txt',
+    })
+    await writer.shutdown()
+
+    const toolMessages = await readPersistedToolMessagesFromSession({ filePath: created.filePath })
+    expect(toolMessages).toHaveLength(1)
+    expect(toolMessages[0]).toMatchObject({
+      toolUseId: 'tool-write-1',
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote /tmp/a.txt',
+      paramsText: 'file_path=\"/tmp/a.txt\"',
+    })
+  })
+
   it('groups anonymous tool events by turn/tool across start-update-end', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-tool-event-anon-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-tool-event-anon-config-'))

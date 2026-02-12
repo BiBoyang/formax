@@ -1,4 +1,5 @@
 import type { ToolCallItem } from './toolUiBlocksTypes'
+import { formatPathForToolDisplay } from './pathDisplay'
 
 export type ToolParamDisplay = {
   label: string
@@ -102,6 +103,22 @@ function parseParams(paramsText: string | undefined): ToolParamDisplay[] {
   return parsed
 }
 
+function isPathLikeLabel(label: string): boolean {
+  const lower = label.toLowerCase()
+  if (lower === 'cwd' || lower === 'path' || lower === 'file') return true
+  if (lower.endsWith('_path')) return true
+  return false
+}
+
+function normalizePathValue(param: ToolParamDisplay, cwd?: string): ToolParamDisplay {
+  if (param.valueType !== 'string') return param
+  if (!isPathLikeLabel(param.label)) return param
+  return {
+    ...param,
+    value: formatPathForToolDisplay(param.value, cwd),
+  }
+}
+
 function pickValue(
   parsed: ToolParamDisplay[],
   usedLabels: Set<string>,
@@ -120,7 +137,7 @@ function pickValue(
   return null
 }
 
-export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsText'>): ToolParamDisplay[] {
+export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsText'> & { cwd?: string }): ToolParamDisplay[] {
   const parsed = parseParams(args.paramsText)
   if (parsed.length === 0) return []
 
@@ -176,7 +193,7 @@ export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsTe
     ordered.push(entry)
   }
 
-  return ordered
+  return ordered.map((param) => normalizePathValue(param, args.cwd))
 }
 
 export function stringifyToolParams(params: ToolParamDisplay[]): string | undefined {

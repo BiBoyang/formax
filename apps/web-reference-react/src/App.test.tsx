@@ -207,7 +207,7 @@ describe('App thread history integration', () => {
     fireEvent.click(alphaButton)
 
     expect(await screen.findByText('alpha reply')).toBeInTheDocument()
-    expect(screen.getByText('Ran ls')).toBeInTheDocument()
+    expect(screen.getByText(/^Bash$/)).toBeInTheDocument()
 
     await waitFor(() => {
       expect(
@@ -1162,6 +1162,83 @@ describe('App thread history integration', () => {
     expect(
       rpcMock.requests.some((entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/help'),
     ).toBe(false)
+  })
+
+  it('keeps assistant text ordered before later tool rows in the same turn', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/started',
+        params: {
+          eventId: 'turn-order:1',
+          traceId: 'trace-order',
+          seq: 1,
+          turn: { id: 'turn-order', threadId: 'thread-alpha', status: 'running' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-order:2',
+          traceId: 'trace-order',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-order',
+          event: { type: 'assistant_delta', text: 'assistant-before-tool' },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-order:3',
+          traceId: 'trace-order',
+          seq: 3,
+          threadId: 'thread-alpha',
+          turnId: 'turn-order',
+          event: {
+            type: 'tool_start',
+            id: 'tool-order-1',
+            name: 'Write',
+            input: { file_path: 'snake-game.html' },
+          },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/event',
+        params: {
+          eventId: 'turn-order:4',
+          traceId: 'trace-order',
+          seq: 4,
+          threadId: 'thread-alpha',
+          turnId: 'turn-order',
+          event: {
+            type: 'tool_end',
+            id: 'tool-order-1',
+            result: { content: 'Wrote snake-game.html', is_error: false },
+          },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/completed',
+        params: {
+          eventId: 'turn-order:5',
+          traceId: 'trace-order',
+          seq: 5,
+          turn: { id: 'turn-order', threadId: 'thread-alpha', status: 'completed' },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('assistant-before-tool')).toBeInTheDocument()
+      expect(screen.getByText('Write snake-game.html')).toBeInTheDocument()
+    })
+
+    const centerText = screen.getByTestId('center-pane').textContent ?? ''
+    expect(centerText.indexOf('assistant-before-tool')).toBeLessThan(centerText.indexOf('Write snake-game.html'))
   })
 
   it('deduplicates repeated eventId notifications', async () => {

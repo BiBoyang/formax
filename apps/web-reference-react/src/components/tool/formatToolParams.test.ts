@@ -132,6 +132,30 @@ describe('formatToolParams', () => {
       { label: 'path', value: 'apps/web-reference-react/src', valueType: 'string' },
     ])
   })
+
+  it('formats absolute file paths relative to cwd', () => {
+    const params = formatToolParams({
+      toolName: 'Read',
+      paramsText: 'file_path="/Users/david/Documents/github/formax/apps/web-reference-react/src/App.tsx"',
+      cwd: '/Users/david/Documents/github/formax',
+    })
+
+    expect(params).toEqual([
+      { label: 'file', value: 'apps/web-reference-react/src/App.tsx', valueType: 'string' },
+    ])
+  })
+
+  it('collapses out-of-workspace home paths to ~ prefix', () => {
+    const params = formatToolParams({
+      toolName: 'Read',
+      paramsText: 'file_path="/Users/david/.ssh/config"',
+      cwd: '/Users/david/Documents/github/formax',
+    })
+
+    expect(params).toEqual([
+      { label: 'file', value: '~/.ssh/config', valueType: 'string' },
+    ])
+  })
 })
 
 describe('stringifyToolParams', () => {

@@ -37,12 +37,13 @@ function inputStateClass(inputState: ToolInputState): string {
 
 function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle: () => void }) {
   const { block, open, onToggle } = props
-  const label = block.paramsText ? `${block.title} (${block.paramsText})` : block.title
+  const showParams = Boolean(block.paramsText) && (open || !block.expandable)
+  const label = showParams && block.paramsText ? `${block.title} (${block.paramsText})` : block.title
   return (
     <button
       type="button"
       className={cn(
-        'flex w-full items-center gap-2.5 py-1 text-left',
+        'flex w-full items-center gap-2 py-0.5 text-left',
         block.expandable ? 'cursor-pointer' : 'cursor-default',
       )}
       onClick={block.expandable ? onToggle : undefined}
@@ -51,18 +52,15 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         data-testid="tool-status-dot"
         className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
       />
-      <span className="min-w-0 truncate text-[15px] font-medium text-foreground/90">{label}</span>
-      <div className="ml-auto flex min-w-0 items-center gap-2">
-        {block.inputState ? (
-          <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
-            {inputStateLabel(block.inputState)}
-          </span>
-        ) : null}
-        {block.summary ? <span className="truncate text-[12px] text-muted-foreground">{block.summary}</span> : null}
-        {block.expandable ? (
-          open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        ) : null}
-      </div>
+      <span className="min-w-0 truncate text-[13px] leading-5 font-normal text-foreground/80">{label}</span>
+      {block.inputState ? (
+        <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
+          {inputStateLabel(block.inputState)}
+        </span>
+      ) : null}
+      {block.expandable ? (
+        open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      ) : null}
     </button>
   )
 }
