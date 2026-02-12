@@ -41,6 +41,21 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
     expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    const dot = screen.getByRole('button').querySelector('span.h-2.w-2')
+    expect(dot).toHaveClass('bg-amber-500')
+  })
+
+  it('prioritizes failed input lifecycle as red status dot', () => {
+    const item = makeToolItem({
+      status: 'running',
+      inputState: {
+        kind: 'approval',
+        status: 'failed',
+      },
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    const dot = screen.getByRole('button').querySelector('span.h-2.w-2')
+    expect(dot).toHaveClass('bg-red-500')
   })
 
   it('renders bash command from params and completed status as static dot', () => {

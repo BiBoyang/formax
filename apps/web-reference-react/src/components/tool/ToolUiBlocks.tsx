@@ -15,6 +15,13 @@ function statusDotClass(status: ToolStatus): string {
   return 'bg-muted-foreground/40'
 }
 
+function statusDotClassForBlock(status: ToolStatus, inputState?: ToolInputState): string {
+  if (inputState?.status === 'pending') return 'bg-amber-500 animate-pulse'
+  if (inputState?.status === 'failed') return 'bg-red-500'
+  if (inputState?.status === 'expired' || inputState?.status === 'canceled') return 'bg-muted-foreground/50'
+  return statusDotClass(status)
+}
+
 function inputStateLabel(inputState: ToolInputState): string {
   const prefix = inputState.kind === 'approval' ? 'approval' : 'question'
   return `${prefix}:${inputState.status}`
@@ -40,7 +47,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
       )}
       onClick={block.expandable ? onToggle : undefined}
     >
-      <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClass(block.status))} />
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))} />
       <span className="min-w-0 truncate text-[15px] font-medium text-foreground/90">{label}</span>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         {block.inputState ? (
