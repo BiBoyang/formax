@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isReplMode, normalizeReplMode, resolveReplModeTransition } from './replModeTransition.js'
+import {
+  isReplMode,
+  normalizeReplMode,
+  resolveReplModeTransition,
+  shouldInjectExitPlanReminder,
+} from './replModeTransition.js'
 
 describe('replModeTransition', () => {
   it('validates repl modes', () => {
@@ -22,5 +27,12 @@ describe('replModeTransition', () => {
       from: 'normal',
       to: 'plan',
     })
+  })
+
+  it('identifies when exit-plan reminder should be injected', () => {
+    expect(shouldInjectExitPlanReminder({ current: 'plan', next: 'normal' })).toBe(true)
+    expect(shouldInjectExitPlanReminder({ current: 'plan', next: 'acceptEdits' })).toBe(true)
+    expect(shouldInjectExitPlanReminder({ current: 'normal', next: 'plan' })).toBe(false)
+    expect(shouldInjectExitPlanReminder({ current: 'plan', next: 'plan' })).toBe(false)
   })
 })

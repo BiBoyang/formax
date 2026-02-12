@@ -31,6 +31,10 @@ import {
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
+type TurnStartRuntimeParams = TurnStartParams & {
+  includeExitPlanReminder?: boolean
+}
+
 export type TurnRunnerNotificationEmitter = (method: string, params?: unknown) => void
 
 export type TurnRunnerOptions = {
@@ -231,7 +235,7 @@ export class TurnRunner {
     )
   }
 
-  async startTurn(params: TurnStartParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
+  async startTurn(params: TurnStartRuntimeParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
     const existing = this.runningByThreadId.get(params.threadId)
     if (existing) throw new Error(`Turn already running for thread: ${params.threadId}`)
 
@@ -243,6 +247,7 @@ export class TurnRunner {
       rawText: params.input.text,
       mode: initialMode,
       planPath: null,
+      includeExitPlanReminder: Boolean(params.includeExitPlanReminder),
     })
     const commandRouting = resolveCommandRouting(params.input.text)
 

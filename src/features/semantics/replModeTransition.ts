@@ -26,3 +26,13 @@ export function resolveReplModeTransition(args: {
   if (from === to) return null
   return { from, to }
 }
+
+export function shouldInjectExitPlanReminder(args: {
+  current: unknown
+  next: unknown
+  fallback?: ReplMode
+}): boolean {
+  const transition = resolveReplModeTransition(args)
+  if (!transition) return false
+  return transition.from === 'plan' && transition.to !== 'plan'
+}

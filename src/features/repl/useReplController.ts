@@ -48,7 +48,7 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
-import { resolveReplModeTransition } from '../semantics/replModeTransition'
+import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../semantics/replModeTransition'
 
 function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
@@ -300,7 +300,7 @@ export function useReplController(deps: {
   useEffect(() => {
     modeRef.current = deps.mode
     const prev = prevModeRef.current
-    if (prev === 'plan' && deps.mode !== 'plan') {
+    if (shouldInjectExitPlanReminder({ current: prev, next: deps.mode })) {
       pendingExitPlanReminderRef.current = true
     }
     prevModeRef.current = deps.mode

@@ -38,6 +38,7 @@ import {
 } from './threadStateReducer.js'
 import { createSlashCommandRegistry } from '../features/commands/registry.js'
 import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
+import { normalizeReplMode, shouldInjectExitPlanReminder } from '../features/semantics/replModeTransition.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -266,7 +267,14 @@ export class AppServer {
       try {
         const params = parseTurnStartParams(req.params)
         const runner = await this.getTurnRunner()
-        const result = await runner.startTurn(params)
+        const includeExitPlanReminder = this.shouldIncludeExitPlanReminder({
+          threadId: params.threadId,
+          requestedMode: params.mode,
+        })
+        const result = await runner.startTurn({
+          ...params,
+          ...(includeExitPlanReminder ? { includeExitPlanReminder: true } : {}),
+        })
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -314,11 +322,16 @@ export class AppServer {
         }
 
         const runner = await this.getTurnRunner()
+        const includeExitPlanReminder = this.shouldIncludeExitPlanReminder({
+          threadId: params.threadId,
+          requestedMode: params.mode,
+        })
         const result = await runner.startTurn({
           threadId: params.threadId,
           input: { text: params.command },
           ...(params.mode ? { mode: params.mode } : {}),
           ...(params.cwd ? { cwd: params.cwd } : {}),
+          ...(includeExitPlanReminder ? { includeExitPlanReminder: true } : {}),
         })
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
@@ -397,6 +410,15 @@ export class AppServer {
     const resolved = await this.resolveTurnRunner()
     this.turnRunner = resolved
     return resolved
+  }
+
+  private shouldIncludeExitPlanReminder(args: {
+    threadId: string
+    requestedMode?: ThreadRuntimeState['mode']
+  }): boolean {
+    const previousMode = this.runtimeStateByThreadId.get(args.threadId)?.mode ?? 'normal'
+    const nextMode = normalizeReplMode(args.requestedMode, 'normal')
+    return shouldInjectExitPlanReminder({ current: previousMode, next: nextMode })
   }
 
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {

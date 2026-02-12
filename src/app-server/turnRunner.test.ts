@@ -717,6 +717,71 @@ describe('TurnRunner', () => {
     expect(latestUserText).toBe('mode test')
   })
 
+  it('injects exit-plan reminder when explicitly requested', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    let capturedFirstUserTextBlock = ''
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Exit Reminder Title' }] },
+            ] as ChatHistory
+          }
+          capturedFirstUserTextBlock = userText
+          args.onEvent({ type: 'assistant_delta', text: 'ok' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'continue implementation' },
+      mode: 'normal',
+      includeExitPlanReminder: true,
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(capturedFirstUserTextBlock).toContain('You have exited plan mode')
+    expect(capturedFirstUserTextBlock).not.toContain('Plan mode is active')
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const replay = await readSessionFile(filePath!)
+    const userMessages = replay.history.filter((message) => message.role === 'user')
+    const latestUser = userMessages[userMessages.length - 1]
+    const latestUserText = Array.isArray(latestUser?.content)
+      ? String((latestUser.content[0] as { text?: string } | undefined)?.text ?? '')
+      : ''
+    expect(latestUserText).toBe('continue implementation')
+  })
+
   it('emits mode transition notifications when tools change repl mode', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
