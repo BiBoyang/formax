@@ -644,7 +644,7 @@ export function App() {
           )
         }
       } catch {
-        // best-effort resume; thread history loading remains the source of truth for messages
+        // best-effort resume
       }
     },
     [log, request],
@@ -1028,71 +1028,108 @@ export function App() {
   )
 
   const replayThreadEvents = useCallback(
-    async (threadId: string) => {
-      const after = replayCursorByThreadRef.current[threadId]
-      const result = await request(
-        'thread/replay',
-        after == null ? { threadId } : { threadId, after, limit: 200 },
-      )
-      const replay = asThreadReplay(result)
-      if (replay.state) {
-        runtimeStateByThreadRef.current[threadId] = {
-          threadId,
-          mode: replay.state.mode,
-          activeTurnId: replay.state.activeTurnId,
-          lastTurnId: replay.state.lastTurnId,
-          lastTurnStatus: replay.state.lastTurnStatus,
-          pendingInputs: {},
-          updatedAt: replay.state.updatedAt,
-          lastNotificationMethod: null,
-          lastReplaySeq: replay.latestCursor,
-        }
-      }
-      if (after != null && replay.hasGap) {
-        await loadThreadHistory(threadId)
-        const baselineResult = await request('thread/replay', { threadId })
-        const baselineReplay = asThreadReplay(baselineResult)
-        if (baselineReplay.state) {
+    async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
+      const fromStart = options?.fromStart === true
+      let after = fromStart ? 0 : (replayCursorByThreadRef.current[threadId] ?? 0)
+      let latestCursor = after
+      let replayState: ReplayStateSnapshot | null = null
+      let receivedEntries = false
+      let pageCount = 0
+
+      while (pageCount < 100) {
+        pageCount += 1
+        const result = await request('thread/replay', { threadId, after, limit: 200 })
+        const replay = asThreadReplay(result)
+        latestCursor = replay.latestCursor
+        if (replay.state) {
+          replayState = replay.state
           runtimeStateByThreadRef.current[threadId] = {
             threadId,
-            mode: baselineReplay.state.mode,
-            activeTurnId: baselineReplay.state.activeTurnId,
-            lastTurnId: baselineReplay.state.lastTurnId,
-            lastTurnStatus: baselineReplay.state.lastTurnStatus,
+            mode: replay.state.mode,
+            activeTurnId: replay.state.activeTurnId,
+            lastTurnId: replay.state.lastTurnId,
+            lastTurnStatus: replay.state.lastTurnStatus,
             pendingInputs: {},
-            updatedAt: baselineReplay.state.updatedAt,
+            updatedAt: replay.state.updatedAt,
             lastNotificationMethod: null,
-            lastReplaySeq: baselineReplay.latestCursor,
+            lastReplaySeq: replay.latestCursor,
           }
         }
-        replayCursorByThreadRef.current[threadId] =
-          baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
-        if (activeThreadIdRef.current === threadId) {
-          dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-          const nextMode = baselineReplay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-          setMode(nextMode)
+
+        if (replay.hasGap) {
+          const loaded = await loadThreadHistory(threadId)
+          if (!loaded) return false
+          const baselineResult = await request('thread/replay', { threadId })
+          const baselineReplay = asThreadReplay(baselineResult)
           if (baselineReplay.state) {
-            cacheThreadMode(threadId, nextMode)
+            runtimeStateByThreadRef.current[threadId] = {
+              threadId,
+              mode: baselineReplay.state.mode,
+              activeTurnId: baselineReplay.state.activeTurnId,
+              lastTurnId: baselineReplay.state.lastTurnId,
+              lastTurnStatus: baselineReplay.state.lastTurnStatus,
+              pendingInputs: {},
+              updatedAt: baselineReplay.state.updatedAt,
+              lastNotificationMethod: null,
+              lastReplaySeq: baselineReplay.latestCursor,
+            }
+            replayState = baselineReplay.state
           }
+          replayCursorByThreadRef.current[threadId] =
+            baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
+          if (activeThreadIdRef.current === threadId) {
+            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+            const nextMode = baselineReplay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+            setMode(nextMode)
+            if (baselineReplay.state) {
+              cacheThreadMode(threadId, nextMode)
+            }
+          }
+          return true
         }
-        return
+
+        if (fromStart && replay.latestCursor === 0 && replay.data.length === 0) {
+          const loaded = await loadThreadHistory(threadId)
+          if (!loaded) return false
+          replayCursorByThreadRef.current[threadId] = 0
+          if (activeThreadIdRef.current === threadId) {
+            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+            const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+            setMode(nextMode)
+            if (replay.state) {
+              cacheThreadMode(threadId, nextMode)
+            }
+          }
+          return true
+        }
+
+        for (const entry of replay.data) {
+          receivedEntries = true
+          handleNotification({
+            jsonrpc: '2.0',
+            method: entry.method,
+            ...(entry.params === undefined ? {} : { params: entry.params }),
+          })
+        }
+
+        const nextAfter = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
+        if (nextAfter <= after || nextAfter >= replay.latestCursor) {
+          after = nextAfter
+          break
+        }
+        after = nextAfter
       }
-      for (const entry of replay.data) {
-        handleNotification({
-          jsonrpc: '2.0',
-          method: entry.method,
-          ...(entry.params === undefined ? {} : { params: entry.params }),
-        })
-      }
-      replayCursorByThreadRef.current[threadId] = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
+
+      replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
       if (activeThreadIdRef.current === threadId) {
         dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-        const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+        const nextMode = replayState?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
         setMode(nextMode)
-        if (replay.state) {
+        if (replayState) {
           cacheThreadMode(threadId, nextMode)
         }
       }
+      return fromStart ? receivedEntries || latestCursor === 0 : true
     },
     [cacheThreadMode, handleNotification, loadThreadHistory, request],
   )
@@ -1230,19 +1267,18 @@ export function App() {
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
         dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
-        const loaded = await loadThreadHistory(thread.id)
-        if (!loaded) {
+        const replayLoaded = await replayThreadEvents(thread.id, { fromStart: true })
+        if (!replayLoaded) {
           activeThreadIdRef.current = previousThreadId
           dispatch({ type: 'set_active_thread', threadId: previousThreadId })
           dispatch({
             type: 'replace_logs',
             logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
           })
-          log('Failed to load new thread history. Restored previous thread.', 'warn')
+          log('Failed to hydrate new thread transcript. Restored previous thread.', 'warn')
           return
         }
         await resumeThreadInputs(thread.id)
-        await replayThreadEvents(thread.id)
         await refreshThreads()
         await refreshWorkspaceDiff()
         log(`Thread created: ${thread.id}`)
@@ -1407,8 +1443,9 @@ export function App() {
       dispatch({ type: 'clear_pending_inputs' })
       dispatch({ type: 'replace_logs', logs: cachedLogs })
       void (async () => {
-        const loaded = await loadThreadHistory(threadId).catch(() => false)
-        if (!loaded) {
+        const hasReplayCursor = typeof replayCursorByThreadRef.current[threadId] === 'number'
+        const replayLoaded = await replayThreadEvents(threadId, { fromStart: !hasReplayCursor }).catch(() => false)
+        if (!replayLoaded) {
           if (activeThreadIdRef.current === threadId) {
             activeThreadIdRef.current = previousThreadId
             dispatch({ type: 'set_active_thread', threadId: previousThreadId })
@@ -1416,18 +1453,15 @@ export function App() {
               type: 'replace_logs',
               logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
             })
-            log('Failed to load selected thread history. Restored previous thread.', 'warn')
+            log('Failed to hydrate selected thread transcript. Restored previous thread.', 'warn')
           }
           return
         }
         if (activeThreadIdRef.current !== threadId) return
         await resumeThreadInputs(threadId)
-        if (activeThreadIdRef.current !== threadId) return
-        await replayThreadEvents(threadId)
       })().catch(() => undefined)
     },
     [
-      loadThreadHistory,
       log,
       logsByThreadId,
       replayThreadEvents,

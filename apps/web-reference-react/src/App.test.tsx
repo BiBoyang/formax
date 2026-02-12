@@ -667,7 +667,7 @@ describe('App thread history integration', () => {
   })
 
   it('hydrates mode from thread replay state snapshot', async () => {
-    rpcMock.setRequestImpl((method, _params) => {
+    rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
         return {
@@ -703,8 +703,22 @@ describe('App thread history integration', () => {
         return { thread: { id: 'thread-alpha' }, staleInputs: [] }
       }
       if (method === 'thread/replay') {
+        const after = (params as { after?: number } | undefined)?.after
         return {
-          data: [],
+          data:
+            after === 0
+              ? [
+                  {
+                    replaySeq: 8,
+                    method: 'turn/event',
+                    params: {
+                      threadId: 'thread-alpha',
+                      turnId: 'turn-4',
+                      event: { type: 'assistant_delta', text: 'alpha reply' },
+                    },
+                  },
+                ]
+              : [],
           nextCursor: 8,
           latestCursor: 8,
           hasGap: false,
@@ -1479,7 +1493,6 @@ describe('App thread history integration', () => {
   })
 
   it('re-baselines replay cursor after hasGap so next replay uses refreshed cursor', async () => {
-    let replayBaselineCount = 0
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -1548,11 +1561,25 @@ describe('App thread history integration', () => {
         if (threadId !== 'thread-alpha') {
           return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
         }
-        if (after == null) {
-          replayBaselineCount += 1
-          const cursor = replayBaselineCount === 1 ? 10 : 30
-          return { data: [], nextCursor: cursor, latestCursor: cursor, hasGap: false }
+        if (after === 0) {
+          return {
+            data: [
+              {
+                replaySeq: 10,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-alpha',
+                  turnId: 'turn-init',
+                  event: { type: 'assistant_delta', text: 'alpha replay' },
+                },
+              },
+            ],
+            nextCursor: 10,
+            latestCursor: 10,
+            hasGap: false,
+          }
         }
+        if (after == null) return { data: [], nextCursor: 30, latestCursor: 30, hasGap: false }
         if (after === 10) {
           return {
             data: [
@@ -1597,13 +1624,13 @@ describe('App thread history integration', () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
-    await screen.findByText('alpha reply')
+    await screen.findByText('alpha replay')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
-    await screen.findByText('alpha reply')
+    await screen.findByText('alpha replay')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
@@ -1623,9 +1650,8 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('loads thread history before replaying thread events on thread switch', async () => {
-    let alphaHistoryResolved = false
-    let replayRequestedBeforeHistory = false
+  it('replays thread events first on thread switch and skips history when replay has data', async () => {
+    let historyRequested = false
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -1653,17 +1679,13 @@ describe('App thread history integration', () => {
         }
       }
       if (method === 'thread/messages') {
+        historyRequested = true
         const threadId = (params as { threadId?: string } | undefined)?.threadId
         if (threadId === 'thread-alpha') {
-          return new Promise((resolve) => {
-            setTimeout(() => {
-              alphaHistoryResolved = true
-              resolve({
-                data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
-                nextCursor: null,
-              })
-            }, 30)
-          })
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
         }
       }
       if (method === 'thread/resume') {
@@ -1678,7 +1700,6 @@ describe('App thread history integration', () => {
         }
       }
       if (method === 'thread/replay') {
-        if (!alphaHistoryResolved) replayRequestedBeforeHistory = true
         return {
           data: [
             {
@@ -1687,7 +1708,7 @@ describe('App thread history integration', () => {
               params: {
                 threadId: 'thread-alpha',
                 turnId: 'turn-1',
-                event: { type: 'assistant_delta', text: 'replay after history' },
+                event: { type: 'assistant_delta', text: 'replay-first transcript' },
               },
             },
           ],
@@ -1702,9 +1723,8 @@ describe('App thread history integration', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
 
-    expect(await screen.findByText('alpha reply')).toBeInTheDocument()
-    expect(await screen.findByText('replay after history')).toBeInTheDocument()
-    expect(replayRequestedBeforeHistory).toBe(false)
+    expect(await screen.findByText('replay-first transcript')).toBeInTheDocument()
+    expect(historyRequested).toBe(false)
   })
 
   it('opens ask dock on inputRequested, supports dismiss, and restores composer after resolved', async () => {

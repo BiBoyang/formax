@@ -97,6 +97,9 @@
     - `mapThreadHistoryToLogs` 逐步退场（仅应急 fallback）
   - 验收：
     - 刷新前后 transcript 结构一致（不再“history 一套、streaming 一套”）。
+  - 当前进展：
+    - 已完成：`App.tsx` 在线程切换/新线程场景优先 `thread/replay(after=0)` 重建；`hasGap` 与 replay 空窗口时才走 `thread/messages` fallback。
+    - 未完成：历史上翻分页仍依赖 `thread/messages` 直映射，尚未完全退出 history 语义链路。
 
 - [ ] T6 app-server replay 状态快照补齐可恢复信息
   - 文件：
@@ -167,7 +170,7 @@
 | 4. Web toolName sticky | 部分完成 | T2（主线）/ S4（兜底） | patch 有 current sticky，无全局 cache |
 | 5. ordering 迁移 replaySeq | 部分完成 | T2 + T5（主线）/ S3（兜底） | notification 过滤已 replaySeq 优先；线程切换仍非 replay-first |
 | 6. 共享 Transcript Projection | 未完成 | T0/T1/T2/T3/T4 | 本次主线核心 |
-| 7. 减少 history->logs 直映射 | 未完成 | T5/T6 | 当前仍先走 history |
+| 7. 减少 history->logs 直映射 | 部分完成 | T5/T6 | 线程切换已 replay-first；history 仍用于 fallback 与上翻分页 |
 | 8. Tool UI IR 插拔体系 | 部分完成 | T8 | 已有 blocks 基础，但跨端 IR 未统一 |
 
 ---
