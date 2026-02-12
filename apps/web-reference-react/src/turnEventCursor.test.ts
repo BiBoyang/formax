@@ -22,4 +22,11 @@ describe('turnEventCursor', () => {
     expect(shouldAcceptSequencedNotification(cursor, { eventId: 'e-3' })).toBe(true)
     expect(shouldAcceptSequencedNotification(cursor, { eventId: 'e-1' })).toBe(true)
   })
+
+  it('uses replaySeq as the canonical ordering key when present', () => {
+    const cursor = createTurnEventCursorState(4)
+    expect(shouldAcceptSequencedNotification(cursor, { replaySeq: 10, traceId: 't-1', seq: 9 })).toBe(true)
+    expect(shouldAcceptSequencedNotification(cursor, { replaySeq: 12, traceId: 't-2', seq: 1 })).toBe(true)
+    expect(shouldAcceptSequencedNotification(cursor, { replaySeq: 11, traceId: 't-3', seq: 99 })).toBe(false)
+  })
 })
