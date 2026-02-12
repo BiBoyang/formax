@@ -91,8 +91,9 @@
   - 验收：
     - 同一 fixture 在 Web/TUI projector 输出一致（不比样式，只比语义状态）。
   - 当前进展：
-    - 已完成：新增 stream canonical adapter 单测，以及 `useReplStreaming` canonical bridge 投影回归测试（覆盖 assistant/tool/footer 边界）。
-    - 未完成：尚未建立 Web notification fixture 与 TUI stream fixture 的同源 parity 对照用例。
+    - 已完成：新增 `projectionParity.test.ts`，覆盖同一 turn 语义序列在 Web notification adapter 与 TUI stream adapter 下的投影一致性。
+    - 已完成：新增 stream canonical adapter 与 turn notification canonical adapter 的单测，以及 `useReplStreaming` canonical bridge 投影回归测试（assistant/tool/footer）。
+    - 未完成：parity 矩阵尚未覆盖 mode/input 交错与 replay gap 场景。
 
 ### P1：刷新与实时统一为 replay-first
 
