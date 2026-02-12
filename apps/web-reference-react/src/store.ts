@@ -5,6 +5,7 @@ import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEv
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
+  type TranscriptSegment,
   type TranscriptProjectionState,
 } from '../../../src/features/semantics/transcriptProjection'
 
@@ -34,6 +35,17 @@ export type AppAction =
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
   | { type: 'hydrate_projection_tool_names'; threadId: string; toolNameByUseId: Record<string, string> }
+  | {
+      type: 'hydrate_projection_snapshot'
+      threadId: string
+      snapshot: {
+        segments: TranscriptSegment[]
+        lastReplaySeq: number
+        toolNameByUseId: Record<string, string>
+        openAssistantSegmentIdByTurn: Record<string, string>
+        openThinkingSegmentIdByTurn: Record<string, string>
+      }
+    }
   | { type: 'apply_canonical_event'; event: CanonicalEvent }
 
 export const initialAppState: AppState = {
@@ -319,6 +331,26 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         transcriptProjection: {
           ...existingProjection,
           toolNameByUseId,
+        },
+      }
+    }
+
+    case 'hydrate_projection_snapshot': {
+      const existingItemById = new Map<string, TranscriptItem>()
+      const logs = action.snapshot.segments
+        .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
+        .filter((item): item is TranscriptItem => Boolean(item))
+      return {
+        ...state,
+        logs,
+        transcriptProjection: {
+          threadId: action.threadId,
+          segments: action.snapshot.segments.map((segment) => ({ ...segment })),
+          seenEventIds: new Set<string>(),
+          lastReplaySeq: action.snapshot.lastReplaySeq,
+          toolNameByUseId: { ...action.snapshot.toolNameByUseId },
+          openAssistantSegmentIdByTurn: { ...action.snapshot.openAssistantSegmentIdByTurn },
+          openThinkingSegmentIdByTurn: { ...action.snapshot.openThinkingSegmentIdByTurn },
         },
       }
     }

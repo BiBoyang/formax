@@ -39,6 +39,12 @@ import {
 import { createSlashCommandRegistry } from '../features/commands/registry.js'
 import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
 import { normalizeReplMode, shouldInjectExitPlanReminder } from '../features/semantics/replModeTransition.js'
+import {
+  createInitialTranscriptProjectionState,
+  reduceTranscriptProjection,
+  type TranscriptProjectionState,
+} from '../features/semantics/transcriptProjection.js'
+import { toCanonicalEventsFromTurnNotification } from '../features/semantics/turnNotificationCanonicalAdapter.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -99,6 +105,7 @@ export class AppServer {
   private readonly replayByThreadId = new Map<string, ReplayEntry[]>()
   private readonly replayTrimmedBeforeByThreadId = new Map<string, number>()
   private readonly runtimeStateByThreadId = new Map<string, ThreadRuntimeState>()
+  private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
   private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
   private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
   private replaySeq = 0
@@ -492,6 +499,24 @@ export class AppServer {
       replaySeq,
     })
     this.runtimeStateByThreadId.set(threadId, nextState)
+
+    const canonicalEvents = toCanonicalEventsFromTurnNotification(
+      { method, params: wrapped },
+      {
+        fallbackThreadId: threadId,
+        source: 'engine',
+      },
+    )
+    if (canonicalEvents.length > 0) {
+      const baseProjection =
+        this.transcriptProjectionByThreadId.get(threadId) ?? createInitialTranscriptProjectionState({ threadId })
+      const nextProjection = canonicalEvents.reduce(
+        (projection, event) => reduceTranscriptProjection(projection, event),
+        baseProjection,
+      )
+      this.transcriptProjectionByThreadId.set(threadId, nextProjection)
+    }
+
     if (method === 'turn/modeChanged') {
       if (shouldInjectExitPlanReminder({ current: baseState.mode, next: nextState.mode })) {
         this.pendingExitPlanReminderByThreadId.set(threadId, true)
@@ -527,6 +552,13 @@ export class AppServer {
         expiresAt: string
         payload: unknown
       }>
+      projection: {
+        segments: TranscriptProjectionState['segments']
+        lastReplaySeq: number
+        toolNameByUseId: Record<string, string>
+        openAssistantSegmentIdByTurn: Record<string, string>
+        openThinkingSegmentIdByTurn: Record<string, string>
+      } | null
       toolNameByUseId: Record<string, string>
       updatedAt: string
     } | null
@@ -534,7 +566,9 @@ export class AppServer {
     const entries = this.replayByThreadId.get(args.threadId) ?? []
     const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
     const trimmedBefore = this.replayTrimmedBeforeByThreadId.get(args.threadId) ?? 0
+    const hasGap = args.after != null && args.after < trimmedBefore
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
+    const projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
     const stateSnapshot = state
       ? {
           mode: state.mode,
@@ -553,6 +587,15 @@ export class AppServer {
             expiresAt: input.expiresAt,
             payload: input.payload,
           })),
+          projection: hasGap && projection
+            ? {
+                segments: projection.segments.map((segment) => ({ ...segment })),
+                lastReplaySeq: projection.lastReplaySeq,
+                toolNameByUseId: { ...projection.toolNameByUseId },
+                openAssistantSegmentIdByTurn: { ...projection.openAssistantSegmentIdByTurn },
+                openThinkingSegmentIdByTurn: { ...projection.openThinkingSegmentIdByTurn },
+              }
+            : null,
           toolNameByUseId: { ...state.toolNameByUseId },
           updatedAt: state.updatedAt,
         }
@@ -563,7 +606,7 @@ export class AppServer {
         data: [],
         nextCursor: 0,
         latestCursor: 0,
-        hasGap: args.after != null && args.after < trimmedBefore,
+        hasGap,
         state: stateSnapshot,
       }
     }
@@ -580,7 +623,6 @@ export class AppServer {
 
     let startIndex = entries.findIndex((entry) => entry.replaySeq > args.after!)
     if (startIndex < 0) startIndex = entries.length
-    const hasGap = args.after < trimmedBefore
     if (hasGap) startIndex = 0
 
     const page = entries.slice(startIndex, startIndex + args.limit)

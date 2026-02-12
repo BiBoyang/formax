@@ -17,6 +17,7 @@ import {
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from '../../../src/features/semantics/threadRuntimeState'
+import type { TranscriptSegment } from '../../../src/features/semantics/transcriptProjection'
 import { resolveCommandRouting } from '../../../src/features/semantics/commandRouting'
 import { isReplMode, type ReplMode } from '../../../src/features/semantics/replModeTransition'
 import {
@@ -115,6 +116,13 @@ type ReplayStateSnapshot = {
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
   pendingInputs: PendingInput[]
+  projection: {
+    segments: TranscriptSegment[]
+    lastReplaySeq: number
+    toolNameByUseId: Record<string, string>
+    openAssistantSegmentIdByTurn: Record<string, string>
+    openThinkingSegmentIdByTurn: Record<string, string>
+  } | null
   toolNameByUseId: Record<string, string>
   updatedAt: string
 }
@@ -181,6 +189,106 @@ function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: 
   const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
   return { data, nextCursor }
+}
+
+function parseProjectionSegments(value: unknown): TranscriptSegment[] {
+  if (!Array.isArray(value)) return []
+  const out: TranscriptSegment[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const segment = raw as Record<string, unknown>
+    const kind = segment.kind
+    const id = typeof segment.id === 'string' ? segment.id : null
+    const turnId = typeof segment.turnId === 'string' ? segment.turnId : null
+    if (!id || !turnId) continue
+
+    if (kind === 'assistant') {
+      if (typeof segment.text !== 'string') continue
+      out.push({ id, kind: 'assistant', turnId, text: segment.text })
+      continue
+    }
+    if (kind === 'thinking') {
+      if (typeof segment.text !== 'string') continue
+      if (segment.status !== 'running' && segment.status !== 'finalized') continue
+      out.push({
+        id,
+        kind: 'thinking',
+        turnId,
+        text: segment.text,
+        status: segment.status,
+      })
+      continue
+    }
+    if (kind === 'tool') {
+      if (typeof segment.toolUseId !== 'string' || typeof segment.toolName !== 'string' || typeof segment.summary !== 'string') {
+        continue
+      }
+      if (segment.status !== 'running' && segment.status !== 'completed' && segment.status !== 'error') continue
+      const detailLines = Array.isArray(segment.detailLines)
+        ? segment.detailLines.filter((line): line is string => typeof line === 'string')
+        : []
+      const inputStateRaw = segment.inputState
+      const inputState:
+        | {
+            kind: 'approval' | 'ask_user_question'
+            status: 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+          }
+        | null =
+        inputStateRaw && typeof inputStateRaw === 'object'
+          ? (() => {
+              const row = inputStateRaw as Record<string, unknown>
+              const kind = row.kind === 'approval' || row.kind === 'ask_user_question' ? row.kind : null
+              const status =
+                row.status === 'pending' ||
+                row.status === 'submitted' ||
+                row.status === 'canceled' ||
+                row.status === 'expired' ||
+                row.status === 'failed'
+                  ? row.status
+                  : null
+              if (!kind || !status) return null
+              return { kind, status }
+            })()
+          : null
+      out.push({
+        id,
+        kind: 'tool',
+        turnId,
+        toolUseId: segment.toolUseId,
+        toolName: segment.toolName,
+        status: segment.status,
+        summary: segment.summary,
+        detailLines,
+        ...(typeof segment.paramsText === 'string' ? { paramsText: segment.paramsText } : {}),
+        ...(inputState ? { inputState } : {}),
+      })
+      continue
+    }
+    if (kind === 'turn_footer') {
+      if (segment.status !== 'completed' && segment.status !== 'failed' && segment.status !== 'interrupted') continue
+      out.push({
+        id,
+        kind: 'turn_footer',
+        turnId,
+        status: segment.status,
+        ...(typeof segment.message === 'string' ? { message: segment.message } : {}),
+      })
+    }
+  }
+  return out
+}
+
+function parseStringRecord(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (!value || typeof value !== 'object') return out
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!key.trim()) continue
+    if (typeof raw !== 'string') continue
+    const text = raw.trim()
+    if (!text) continue
+    out[key] = text
+  }
+  return out
 }
 
 function asThreadReplay(value: unknown): {
@@ -272,17 +380,25 @@ function asThreadReplay(value: unknown): {
           })
           .filter((input): input is PendingInput => Boolean(input))
       : []
-    const rawToolNameByUseId = stateRecord.toolNameByUseId
-    const toolNameByUseId: Record<string, string> = {}
-    if (rawToolNameByUseId && typeof rawToolNameByUseId === 'object') {
-      for (const [toolUseId, toolNameRaw] of Object.entries(rawToolNameByUseId as Record<string, unknown>)) {
-        if (!toolUseId.trim()) continue
-        if (typeof toolNameRaw !== 'string') continue
-        const toolName = toolNameRaw.trim()
-        if (!toolName) continue
-        toolNameByUseId[toolUseId] = toolName
-      }
-    }
+    const projectionRaw = hasGap ? stateRecord.projection : null
+    const projection =
+      projectionRaw && typeof projectionRaw === 'object'
+        ? (() => {
+            const record = projectionRaw as Record<string, unknown>
+            const segments = parseProjectionSegments(record.segments)
+            const lastReplaySeq =
+              typeof record.lastReplaySeq === 'number' && Number.isFinite(record.lastReplaySeq) ? record.lastReplaySeq : 0
+            if (segments.length === 0 && lastReplaySeq <= 0) return null
+            return {
+              segments,
+              lastReplaySeq,
+              toolNameByUseId: parseStringRecord(record.toolNameByUseId),
+              openAssistantSegmentIdByTurn: parseStringRecord(record.openAssistantSegmentIdByTurn),
+              openThinkingSegmentIdByTurn: parseStringRecord(record.openThinkingSegmentIdByTurn),
+            }
+          })()
+        : null
+    const toolNameByUseId = parseStringRecord(stateRecord.toolNameByUseId)
     const updatedAt = typeof stateRecord.updatedAt === 'string' ? stateRecord.updatedAt : new Date(0).toISOString()
     state = {
       mode,
@@ -291,6 +407,7 @@ function asThreadReplay(value: unknown): {
       lastTurnStatus,
       pendingInputCount,
       pendingInputs,
+      projection,
       toolNameByUseId,
       updatedAt,
     }
@@ -1227,6 +1344,26 @@ export function App() {
         }
 
         if (replay.hasGap) {
+          if (replay.state?.projection) {
+            if (activeThreadIdRef.current !== threadId) return true
+            dispatch({
+              type: 'hydrate_projection_snapshot',
+              threadId,
+              snapshot: replay.state.projection,
+            })
+            setThreadTranscriptSource(threadId, 'replay')
+            clearThreadHistoryCursor(threadId)
+            replayCursorByThreadRef.current[threadId] = replay.latestCursor
+            if (activeThreadIdRef.current === threadId) {
+              syncPendingInputsFromReplayState(threadId, replay.state)
+              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+              const nextMode = replay.state.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+              setMode(nextMode)
+              cacheThreadMode(threadId, nextMode)
+            }
+            return true
+          }
+
           const loaded = await loadThreadHistory(threadId)
           if (!loaded) return false
           const baselineResult = await request('thread/replay', { threadId })

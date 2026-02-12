@@ -207,6 +207,41 @@ describe('appReducer', () => {
     })
   })
 
+  it('hydrates projection snapshot into logs and projection state', () => {
+    const state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          {
+            id: 'turn-1:assistant:1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'hello',
+          },
+          {
+            id: 'turn-1:turn_footer:2',
+            kind: 'turn_footer',
+            turnId: 'turn-1',
+            status: 'completed',
+          },
+        ],
+        lastReplaySeq: 2,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: {},
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'hello', turnId: 'turn-1' })
+    expect(state.logs[1]).toMatchObject({ kind: 'turn_footer', turnId: 'turn-1', status: 'completed' })
+    expect(state.transcriptProjection).toMatchObject({
+      threadId: 'thread-1',
+      lastReplaySeq: 2,
+    })
+  })
+
   it('keeps turn footer createdAt stable when projection is rebuilt', () => {
     let state = appReducer(initialAppState, {
       type: 'apply_canonical_event',

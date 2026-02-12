@@ -910,6 +910,7 @@ describe('AppServer', () => {
         lastTurnId: 'turn-1',
         lastTurnStatus: 'completed',
         pendingInputCount: 0,
+        projection: null,
         toolNameByUseId: { 'tool-1': 'Bash' },
       }),
     )
@@ -1010,6 +1011,14 @@ describe('AppServer', () => {
     expect(result.hasGap).toBe(true)
     expect(result.data).toHaveLength(10)
     expect((result.data[0] as any).replaySeq).toBeGreaterThan(1)
+    expect(result.state).toEqual(
+      expect.objectContaining({
+        projection: expect.objectContaining({
+          segments: expect.any(Array),
+          lastReplaySeq: expect.any(Number),
+        }),
+      }),
+    )
   })
 
   it('validates turn/start mode params', async () => {
