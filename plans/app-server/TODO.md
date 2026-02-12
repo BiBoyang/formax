@@ -1,43 +1,197 @@
 # TODO：Formax App Server（单一清单）
 
-更新时间：2026-02-12
+更新时间：2026-02-13
 
 > 本文件是 `plans/app-server/` 下唯一 TODO。  
-> 原 `TODO-SEMANTICS-PARITY.md` 与 `TODO-CHAT-UI-TEMP.md` 已合并到这里。
+> 本次已将 `plans/app-server/webgpt-response.txt` 转译为可执行项，并按“结构化改造优先、止血方案降级”重排。
 
-## 当前基线（已完成）
+## WebGPT 回复评估（先判定是否过时）
 
-- [x] TUI/GUI 语义一致性主线（Phase 1-7）已落地：
-  - 统一 turn 输入构建与 mode 注入（`TurnInputBuilder`）
-  - 统一 slash 路由语义（共享 `commandRouting`）
-  - 统一 input 生命周期状态机（approval + ask_user_question）
-  - 工具事件归一与事件光标治理
-  - 契约测试与文档索引补齐
-- [x] app-server 协议扩展：
-  - `thread/replay`
-  - `command/dispatch`（当前覆盖 `/init`、`/compact`、`/todos`）
-- [x] Web 命令侧当前闭环：
-  - `/init`：走 `command/dispatch`
-  - `/clear`：本地处理（新建线程）
-  - `/compact`：走 `command/dispatch`，后端执行 compact 语义并持久化压缩后的 history
-  - `/todos`：走 `command/dispatch` 本地输出（非模型提问）
-- [x] 4 命令闭环回归用例已覆盖（web + app-server）
-  - 证据：`apps/web-reference-react/src/App.test.tsx`、`src/app-server/server.test.ts`、`apps/web-reference-react/e2e/slash-command-routing.spec.js`
+### 仍然成立（需要继续推进）
 
-## 当前待办（唯一主线）
+- Web 仍是多入口语义链路：`thread/messages` + `thread/replay` + 实时 `turn/*` notification 并存。
+- Web transcript 核心 reducer 仍是“按 turn tail 扫描并回写”的模式，不是显式 segment 状态机。
+- ordering 主键仍是 `traceId + seq` 去重/丢弃，尚未切到 `replaySeq` 主导。
+- 刷新路径仍是先 history 再 replay 增量，不是 replay-first 的单一语义重建。
+
+### 已部分缓解（但未根治）
+
+- toolName 丢失问题：
+  - 已缓解：`sessionEventReader` 已支持从 start 继承 toolName（update/end 缺字段时保名）。
+  - 未根治：`turnRunner` 写 `app_tool_event` 时 update/end 仍可能不带 toolName；实时链路仍可能遇到“首见即 update/end”。
+- hasGap 路径：
+  - 已有：Web 在 `hasGap=true` 时会回到 baseline 逻辑。
+  - 未根治：仍依赖 history 与 replay 混合，不是单一投影源。
+
+### 已过时或需要降权的点（给出原因）
+
+- “先做止血再做结构化”中的止血优先级，按当前要求降级：只保留为兜底，不作为主线。
+- Tool UI 组件化“从零开始”建议降权：Web/TUI 当前都已有 Tool Blocks 能力，主问题变成“跨端共享语义层”而非“是否组件化”。
+
+---
+
+## 主线 TODO（结构化改造优先）
+
+### P0：Canonical 语义层（最高优先级）
+
+- [ ] T0 定义统一 `CanonicalEvent` 与 `Segment` 模型
+  - 文件：
+    - 新增 `src/features/semantics/canonicalEvents.ts`
+    - 新增 `src/features/semantics/transcriptProjection.ts`
+  - 要点：
+    - Event Envelope 最小字段：`threadId/turnId/eventId/replaySeq/ts/source`
+    - tool 粘性字段缓存：`toolUseId -> toolName`
+    - turn 内 segment 显式建模（assistant/thinking/tool/input/footer）
+  - 验收：
+    - 纯单元测试覆盖幂等、顺序、segment 开闭规则。
+
+- [ ] T1 实现唯一投影 reducer：`reduceTranscriptProjection`
+  - 文件：
+    - `src/features/semantics/transcriptProjection.ts`
+  - 要点：
+    - delta 只能 append 到“当前打开 segment”
+    - tool event 到来必须关闭当前文本 segment
+    - 禁止回写旧 segment
+  - 验收：
+    - 构造“同一 turn 多段 assistant/tool/assistant”序列，顺序稳定。
+
+- [ ] T2 Web 入口适配到 canonical projector（替换手写语义）
+  - 文件：
+    - `apps/web-reference-react/src/App.tsx`
+    - `apps/web-reference-react/src/store.ts`
+    - 可新增 `apps/web-reference-react/src/eventAdapters.ts`
+  - 要点：
+    - notification/replay/history 都先转换为 canonical event 再喂 projector
+    - `store.ts` 仅保留 UI 本地状态（滚动、选择、dock 展开），语义状态由 projector 产出
+  - 验收：
+    - 移除/停用 `append_assistant_delta` 与 `append_thinking_delta` 的 turn-tail 回写语义。
+
+- [ ] T3 TUI 接入同一 projector（语义统一，渲染可不同）
+  - 文件：
+    - `src/features/repl/controller/streaming.ts`
+  - 要点：
+    - TUI streaming 事件先转 canonical，再走共享 projection
+    - TUI 可继续保留 transient/static 呈现差异，但不再自定义另一套语义
+  - 验收：
+    - Web/TUI 同输入事件序列下，segment 顺序与边界一致。
+
+- [ ] T4 建立跨端语义一致性测试矩阵
+  - 文件：
+    - 新增 `src/features/semantics/__tests__/projectionParity.test.ts`
+    - 视情况新增 web/tui 适配层测试
+  - 要点：
+    - 覆盖：ordering、去重、toolName sticky、mode/input 交错
+  - 验收：
+    - 同一 fixture 在 Web/TUI projector 输出一致（不比样式，只比语义状态）。
+
+### P1：刷新与实时统一为 replay-first
+
+- [ ] T5 Web 线程切换改为 replay-first（history 降为 fallback）
+  - 文件：
+    - `apps/web-reference-react/src/App.tsx`
+  - 要点：
+    - thread 切换：先 replay 拉取并重建语义，再按需补 history
+    - `mapThreadHistoryToLogs` 逐步退场（仅应急 fallback）
+  - 验收：
+    - 刷新前后 transcript 结构一致（不再“history 一套、streaming 一套”）。
+
+- [ ] T6 app-server replay 状态快照补齐可恢复信息
+  - 文件：
+    - `src/app-server/server.ts`
+    - `src/app-server/threadStore.ts`
+    - `src/app-server/store/sessionEventReader.ts`
+  - 要点：
+    - 回放 state 能支持 projector 从任意 cursor 恢复（含 sticky toolName、必要上下文）
+  - 验收：
+    - `hasGap=true` 后能稳定重建，不出现 toolName 退化或 segment 丢失。
+
+- [ ] T7 文档契约统一（以结构化语义为准）
+  - 文件：
+    - `plans/app-server/INTERACTION-CONTRACT.md`
+    - `plans/app-server/API-REFERENCE.md`
+    - `plans/app-server/UI-SPEC.md`
+    - `plans/app-server/FINAL-ACCEPTANCE.md`
+    - `plans/app-server/DOC-CONSISTENCY-CHECKLIST.md`
+  - 要点：
+    - 明确 replaySeq/canonical ordering、toolName sticky、gap 重建策略
+  - 验收：
+    - 文档中不存在互相冲突的 ordering/source 描述。
+
+### P2：Tool Presentation IR（并行，不阻塞 P0/P1）
+
+- [ ] T8 统一 Tool Presentation IR（跨端 presenter，端内 renderer）
+  - 文件：
+    - 新增 `src/features/tools/presentation/*`（IR + registry）
+    - Web：`apps/web-reference-react/src/components/tool/*` 适配 renderer
+    - TUI：`src/screens/repl/transcript.tsx` 或现有 tool blocks 渲染入口
+  - 要点：
+    - 新工具特化只改 presenter
+    - 全局 UI 基元调整只改 renderer
+  - 验收：
+    - 新增一个工具 renderer 时，不需要同时改多端多处语义代码。
+
+---
+
+## 降级止血清单（仅兜底，不抢主线）
+
+> 以下项来自 WebGPT Phase 1，保留但降级。  
+> 触发条件：若 P0/P1 排期被阻塞，先做这些以降低线上风险。
+
+- [ ] S1 Web `store.ts` 去掉 turn-tail 回写扫描，改最小版 open-segment 指针
+  - 原因：可快速止血，但会与 T1 重叠，属于过渡实现。
+
+- [ ] S2 `turnRunner` 在 `tool_input/tool_update/tool_end` 追加 `toolName`
+  - 文件：`src/app-server/turnRunner.ts`
+  - 原因：向后兼容字段补齐，可独立落地且风险低。
+
+- [ ] S3 `turnEventCursor` 主键切到 replaySeq（trace/seq 只保留诊断）
+  - 文件：`apps/web-reference-react/src/turnEventCursor.ts` + `apps/web-reference-react/src/App.tsx`
+  - 原因：能降低乱序风险，但仍非最终结构化方案。
+
+- [ ] S4 `toolEventNormalizer` 增加跨事件 toolName cache（首次 update/end 也尽量回填）
+  - 文件：`apps/web-reference-react/src/toolEventNormalizer.ts`
+  - 原因：修复概率性 `Tool (...)` 退化，但最终应由 canonical projector 统一处理。
+
+---
+
+## WebGPT 建议“不遗漏”映射表（逐条对照）
+
+| WebGPT Recommendation-to-File Map | 本仓当前状态 | 对应任务 | 备注 |
+| --- | --- | --- | --- |
+| 1. Web delta 改为当前 segment append | 未完成 | T1（主线）/ S1（兜底） | 当前仍有 turn-tail 回写逻辑 |
+| 2. tool_event 关闭文本段 | 未完成 | T1（主线）/ S1（兜底） | 当前无显式 open segment 状态 |
+| 3. Server update/end 补 toolName | 部分完成 | T6（主线）/ S2（兜底） | 仅 reader 侧保名，写入侧仍缺 |
+| 4. Web toolName sticky | 部分完成 | T2（主线）/ S4（兜底） | patch 有 current sticky，无全局 cache |
+| 5. ordering 迁移 replaySeq | 未完成 | T2 + T5（主线）/ S3（兜底） | 当前 cursor 仍 trace/seq 主导 |
+| 6. 共享 Transcript Projection | 未完成 | T0/T1/T2/T3/T4 | 本次主线核心 |
+| 7. 减少 history->logs 直映射 | 未完成 | T5/T6 | 当前仍先走 history |
+| 8. Tool UI IR 插拔体系 | 部分完成 | T8 | 已有 blocks 基础，但跨端 IR 未统一 |
+
+---
+
+## Validation Matrix 映射（防遗漏）
+
+| 验收点 | 对应任务 | 必要断言 |
+| --- | --- | --- |
+| 同一 turn 顺序稳定（无反转/穿插） | T1 / T4（兜底 S1） | delta 不回写旧 segment；tool 插入后后续 delta 必开新段 |
+| toolName 不退化为 `Tool (...)` | T2 / T6（兜底 S2/S4） | update/end 缺字段时仍可从 sticky cache 恢复名称 |
+| replay gap 重建正确 | T5 / T6 | `hasGap=true` 不走增量拼接，必须触发重建 |
+| mode/input 交错一致 | T0 / T2 / T3 / T4 | input/mode 只在 projector 演化，幂等去重 |
+| segment 边界保留 | T1 / T4 | assistant/thinking/tool/input 均为独立 segment，可多段并存 |
+
+---
+
+## 现有基线（保留）
+
+- [x] `thread/replay` 已落地（含 `hasGap` 与 runtime state）
+- [x] `command/dispatch` 已落地（`/init`、`/compact`、`/todos`）
+- [x] mode/input 语义层已有基础（`threadRuntimeState`、`inputStateMachine`、`commandRouting`）
+- [x] Web 审批输入区 dock 已落地（ask 分页 / approval submit）
+
+---
+
+## 其他 backlog（不在本次 WebGPT 主线内）
 
 - [ ] commander 能力增量扩展（超出 `/init`、`/clear`、`/compact`、`/todos`）
-  - 只接入非配置类且产品确认要上 Web 的命令
-  - 每接入一个命令：语义层 + app-server + Web + 测试同 PR 落地
-- [ ] Web 启动链路标准化（network + security + serve）
-  - [x] Phase A：抽离共享 `network/security` 运行时模块（host/port、origin/cors、token、URL 校验）
-  - [x] Phase B：新增 `formax serve`（后端服务标准入口，支持可观测日志与稳定退出）
-  - [x] Phase C：`formax web` 复用 `serve` 能力（`web` 仅负责启动 UI + 连接 URL）
-  - [x] 文档与测试同步：README、CLI help、关键集成测试（成功启动/鉴权失败/非法参数）
-
-## 暂不推进（保持边界）
-
 - [ ] 配置类命令（如 `/agents`、`/hooks`、`/permissions`）默认不接入 Web
-- [ ] 远程暴露场景安全增强（当前仅本机使用，后置）
-  - [ ] TLS / WSS 支持（内建证书参数或反向代理终止）
-  - [ ] 更细粒度鉴权（token scope/过期与轮换/吊销、连接速率限制、审计日志）
+- [ ] 远程暴露场景安全增强（TLS/WSS、细粒度鉴权、限流与审计）
