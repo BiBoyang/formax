@@ -155,6 +155,12 @@ export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsTe
       pushPicked(pickValue(parsed, usedLabels, { label: 'subagent_type', keys: ['subagent_type'] }))
       pushPicked(pickValue(parsed, usedLabels, { label: 'description', keys: ['description', 'prompt'] }))
       break
+    case 'AskUserQuestion':
+      pushPicked(pickValue(parsed, usedLabels, { label: 'questions', keys: ['questions'] }))
+      break
+    case 'TodoWrite':
+      pushPicked(pickValue(parsed, usedLabels, { label: 'todos', keys: ['todos'] }))
+      break
     default:
       break
   }

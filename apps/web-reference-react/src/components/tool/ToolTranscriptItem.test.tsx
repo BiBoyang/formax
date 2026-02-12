@@ -108,6 +108,66 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/Read package\.json \(offset=0\)/)).toBeInTheDocument()
   })
 
+  it('renders websearch with query promoted to title', () => {
+    const item = makeToolItem({
+      toolName: 'WebSearch',
+      paramsText: 'query="react hooks", recency=30',
+      summary: 'Found 5 results',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/WebSearch react hooks \(recency=30\)/)).toBeInTheDocument()
+  })
+
+  it('renders webfetch with url promoted to title', () => {
+    const item = makeToolItem({
+      toolName: 'WebFetch',
+      paramsText: 'url="https://example.com", timeout=30000',
+      summary: 'Fetched content',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/WebFetch https:\/\/example\.com \(timeout=30000\)/)).toBeInTheDocument()
+  })
+
+  it('renders task with subagent and description promoted to title', () => {
+    const item = makeToolItem({
+      toolName: 'Task',
+      paramsText: 'subagent_type="planner", description="analyze docs", priority="high"',
+      summary: 'Delegated task',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/Task planner\(analyze docs\) \(priority="high"\)/)).toBeInTheDocument()
+  })
+
+  it('renders ask-user-question count in title', () => {
+    const item = makeToolItem({
+      toolName: 'AskUserQuestion',
+      paramsText: 'questions=[{"id":"q1"},{"id":"q2"}], mode="single"',
+      summary: 'Waiting for answers',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/AskUserQuestion 2 questions \(mode="single"\)/)).toBeInTheDocument()
+  })
+
+  it('renders todowrite count in title', () => {
+    const item = makeToolItem({
+      toolName: 'TodoWrite',
+      paramsText: 'todos=[{"content":"a"},{"content":"b"},{"content":"c"}], op="replace"',
+      summary: 'Updated todos',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/TodoWrite 3 items \(op="replace"\)/)).toBeInTheDocument()
+  })
+
   it('falls back to raw params text when formatter cannot parse them', () => {
     const item = makeToolItem({
       toolName: 'UnknownTool',

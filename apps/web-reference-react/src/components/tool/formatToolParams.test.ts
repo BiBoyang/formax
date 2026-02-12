@@ -81,6 +81,36 @@ describe('formatToolParams', () => {
 
     expect(params).toEqual([{ label: 'query', value: '', valueType: 'string' }])
   })
+
+  it('maps task prompt to description when description is absent', () => {
+    const params = formatToolParams({
+      toolName: 'Task',
+      paramsText: 'subagent_type="planner", prompt="break down work"',
+    })
+
+    expect(params).toEqual([
+      { label: 'subagent_type', value: 'planner', valueType: 'string' },
+      { label: 'description', value: 'break down work', valueType: 'string' },
+    ])
+  })
+
+  it('maps ask question and todo list payload keys', () => {
+    const ask = formatToolParams({
+      toolName: 'AskUserQuestion',
+      paramsText: 'questions=[{"id":"q1"},{"id":"q2"}]',
+    })
+    const todo = formatToolParams({
+      toolName: 'TodoWrite',
+      paramsText: 'todos=[{"content":"a"},{"content":"b"},{"content":"c"}]',
+    })
+
+    expect(ask).toEqual([
+      { label: 'questions', value: '[{"id":"q1"},{"id":"q2"}]', valueType: 'json' },
+    ])
+    expect(todo).toEqual([
+      { label: 'todos', value: '[{"content":"a"},{"content":"b"},{"content":"c"}]', valueType: 'json' },
+    ])
+  })
 })
 
 describe('stringifyToolParams', () => {
