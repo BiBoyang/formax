@@ -147,7 +147,7 @@
 > 以下项来自 WebGPT Phase 1，保留但降级。  
 > 触发条件：若 P0/P1 排期被阻塞，先做这些以降低线上风险。
 
-- [ ] S1 Web `store.ts` 去掉 turn-tail 回写扫描，改最小版 open-segment 指针
+- [x] S1 Web `store.ts` 去掉 turn-tail 回写扫描，改最小版 open-segment 指针
   - 原因：可快速止血，但会与 T1 重叠，属于过渡实现。
 
 - [x] S2 `turnRunner` 在 `tool_input/tool_update/tool_end` 追加 `toolName`
