@@ -34,7 +34,7 @@
 
 ### P0：Canonical 语义层（最高优先级）
 
-- [ ] T0 定义统一 `CanonicalEvent` 与 `Segment` 模型
+- [x] T0 定义统一 `CanonicalEvent` 与 `Segment` 模型
   - 文件：
     - 新增 `src/features/semantics/canonicalEvents.ts`
     - 新增 `src/features/semantics/transcriptProjection.ts`
@@ -45,7 +45,7 @@
   - 验收：
     - 纯单元测试覆盖幂等、顺序、segment 开闭规则。
 
-- [ ] T1 实现唯一投影 reducer：`reduceTranscriptProjection`
+- [x] T1 实现唯一投影 reducer：`reduceTranscriptProjection`
   - 文件：
     - `src/features/semantics/transcriptProjection.ts`
   - 要点：
@@ -65,6 +65,9 @@
     - `store.ts` 仅保留 UI 本地状态（滚动、选择、dock 展开），语义状态由 projector 产出
   - 验收：
     - 移除/停用 `append_assistant_delta` 与 `append_thinking_delta` 的 turn-tail 回写语义。
+  - 当前进展：
+    - 已完成：notification + replay 路径接入 canonical（`apply_canonical_event`），并新增顺序回归测试。
+    - 未完成：history 路径仍是 `thread/messages -> logs` 映射，尚未 replay-first。
 
 - [ ] T3 TUI 接入同一 projector（语义统一，渲染可不同）
   - 文件：
@@ -140,11 +143,11 @@
 - [ ] S1 Web `store.ts` 去掉 turn-tail 回写扫描，改最小版 open-segment 指针
   - 原因：可快速止血，但会与 T1 重叠，属于过渡实现。
 
-- [ ] S2 `turnRunner` 在 `tool_input/tool_update/tool_end` 追加 `toolName`
+- [x] S2 `turnRunner` 在 `tool_input/tool_update/tool_end` 追加 `toolName`
   - 文件：`src/app-server/turnRunner.ts`
   - 原因：向后兼容字段补齐，可独立落地且风险低。
 
-- [ ] S3 `turnEventCursor` 主键切到 replaySeq（trace/seq 只保留诊断）
+- [x] S3 `turnEventCursor` 主键切到 replaySeq（trace/seq 只保留诊断）
   - 文件：`apps/web-reference-react/src/turnEventCursor.ts` + `apps/web-reference-react/src/App.tsx`
   - 原因：能降低乱序风险，但仍非最终结构化方案。
 
@@ -187,6 +190,8 @@
 - [x] `command/dispatch` 已落地（`/init`、`/compact`、`/todos`）
 - [x] mode/input 语义层已有基础（`threadRuntimeState`、`inputStateMachine`、`commandRouting`）
 - [x] Web 审批输入区 dock 已落地（ask 分页 / approval submit）
+- [x] Canonical transcript projection 基础已落地（`canonicalEvents` + `transcriptProjection`）
+- [x] Web 实时 turn 事件已切 canonical projection（含 assistant/tool/input/footer 路径）
 
 ---
 
