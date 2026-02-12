@@ -13,7 +13,7 @@
 - `initialize/initialized`、`thread/*`、`turn/*`、`turn/input/submit` 均已落地。
 - input 生命周期统一：`pending -> submitted/canceled/expired/failed`。
 - stale input 恢复策略生效：`thread/resume` 返回 `staleInputs`，stale 提交不可成功。
-- 通知 envelope 元字段统一：`traceId/seq/ts/eventId/source`。
+- 通知 envelope 元字段统一：`replaySeq/traceId/seq/ts/eventId/source`。
 
 ### 2.2 Reference Client（React）
 
@@ -23,7 +23,7 @@
   - turn 过滤（全部/当前 turn）
   - 日志级别过滤（all/info/warn/error）
   - 粘底模式（Stick/Manual）
-  - command 快捷路径（`/permissions`、`/agents`、`/hooks`）
+  - command 快捷路径（`/init`、`/clear`、`/compact`、`/todos`）
   - 错误详情抽屉（code/message/data）
   - 输入区审批双形态（ask 分页 / approval 提交）与 submit 结果分级
 
@@ -31,6 +31,7 @@
 
 - `thinking_delta` 聚合为可折叠块，避免刷屏。
 - tool 事件最小可追踪（start/update/end）。
+- canonical transcript projection 已接入 Web 实时链路（notification + replay 增量）。
 - Web 测试基线完善（Vitest + Testing Library）：
   - reducer 状态机
   - 左栏线程与连接操作

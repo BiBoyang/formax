@@ -108,7 +108,7 @@
   - 验收：
     - `hasGap=true` 后能稳定重建，不出现 toolName 退化或 segment 丢失。
 
-- [ ] T7 文档契约统一（以结构化语义为准）
+- [x] T7 文档契约统一（以结构化语义为准）
   - 文件：
     - `plans/app-server/INTERACTION-CONTRACT.md`
     - `plans/app-server/API-REFERENCE.md`
@@ -165,7 +165,7 @@
 | 2. tool_event 关闭文本段 | 未完成 | T1（主线）/ S1（兜底） | 当前无显式 open segment 状态 |
 | 3. Server update/end 补 toolName | 部分完成 | T6（主线）/ S2（兜底） | 仅 reader 侧保名，写入侧仍缺 |
 | 4. Web toolName sticky | 部分完成 | T2（主线）/ S4（兜底） | patch 有 current sticky，无全局 cache |
-| 5. ordering 迁移 replaySeq | 未完成 | T2 + T5（主线）/ S3（兜底） | 当前 cursor 仍 trace/seq 主导 |
+| 5. ordering 迁移 replaySeq | 部分完成 | T2 + T5（主线）/ S3（兜底） | notification 过滤已 replaySeq 优先；线程切换仍非 replay-first |
 | 6. 共享 Transcript Projection | 未完成 | T0/T1/T2/T3/T4 | 本次主线核心 |
 | 7. 减少 history->logs 直映射 | 未完成 | T5/T6 | 当前仍先走 history |
 | 8. Tool UI IR 插拔体系 | 部分完成 | T8 | 已有 blocks 基础，但跨端 IR 未统一 |

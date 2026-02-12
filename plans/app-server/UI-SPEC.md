@@ -1,6 +1,6 @@
 # Formax App Server UI Spec（功能型规范）
 
-更新时间：2026-02-09
+更新时间：2026-02-13
 
 本文件规定 reference client 的功能行为规范，不定义品牌视觉。  
 目标是：任何实现者都能做出“行为一致”的调试 UI。
@@ -118,12 +118,19 @@ Transcript 类型要求（必须可区分）：
 
 要求：
 
-1. 一期 commander 子集固定为：`/permissions`、`/agents`、`/hooks`。
+1. 一期 commander 子集固定为：`/init`、`/clear`、`/compact`、`/todos`。
 2. UI 需提供 command 输入路径：
    - composer 直接输入 `/...`
    - 快捷命令按钮（至少包含 3 个子集命令）
 3. command 结果必须进入 transcript，且标记为 system/tool 输出。
 4. command 失败时必须展示错误 message（建议附 code）。
+
+## 3.6 Replay 与排序语义
+
+1. notification 处理与 replay 回放均以 `replaySeq` 作为主排序键。
+2. `traceId/seq` 仅用于诊断与同 turn 内定位，不能作为跨 turn 全序键。
+3. `thread/replay` 返回 `hasGap=true` 时，客户端必须触发重建路径，不允许继续用增量拼接。
+4. tool 展示的 `toolName` 采用 `toolUseId` 粘性规则；缺失 `toolUseId` 的历史记录按单条记录渲染，不做跨记录合并。
 
 ## 4. 必须保留的操作可见性
 
@@ -170,7 +177,7 @@ Transcript 类型要求（必须可区分）：
 
 1. UI 层只消费状态与 action，不直接管理 WebSocket 请求映射。
 2. 协议请求/响应管理在 `rpcClient` 层。
-3. 状态迁移与日志追加在 `store/reducer` 层。
+3. 语义状态迁移（mode/input/transcript segment）应集中在共享 semantics projector，UI reducer 仅承接投影结果与本地交互状态。
 4. 组件只做展示与事件派发，不持有业务状态机。
 
 ## 9. 验收清单（UI）
