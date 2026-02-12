@@ -12,6 +12,7 @@ import type { TranscriptItem, ThreadSummary } from '../types'
 import { LoadingStatusLine } from './LoadingStatusLine'
 import { shouldStopWheelPropagation } from './scrollBoundary'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { ToolTranscriptItem } from './tool/ToolTranscriptItem'
 
 const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
@@ -108,57 +109,6 @@ function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_
       <span className={cn('text-[11px] font-medium', styleByStatus[item.status])}>{labelByStatus[item.status]}</span>
       <span className="text-[10px] text-muted-foreground/70 font-mono">{item.turnId.slice(0, 8)}</span>
       {item.message ? <span className="text-[10px] text-muted-foreground/70 truncate max-w-[320px]">{item.message}</span> : null}
-    </div>
-  )
-}
-
-function toolStatusDotClass(status: 'running' | 'completed' | 'error'): string {
-  if (status === 'running') return 'bg-amber-500 animate-pulse'
-  if (status === 'error') return 'bg-red-500'
-  return 'bg-muted-foreground/40'
-}
-
-function ToolCallItem(props: {
-  item: Extract<TranscriptItem, { kind: 'tool_call' }>
-  open: boolean
-  onToggle: () => void
-}) {
-  const { item, open, onToggle } = props
-  const hasDetails = item.detailLines.length > 0
-  const label = `${item.toolName}${item.paramsText ? `(${item.paramsText})` : ''}`
-  return (
-    <div className="rounded-md border bg-muted/20">
-      <button
-        type="button"
-        className={cn(
-          'flex w-full items-center justify-between gap-3 px-3 py-2 text-left',
-          hasDetails ? 'cursor-pointer' : 'cursor-default',
-        )}
-        onClick={hasDetails ? onToggle : undefined}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={cn('h-2 w-2 shrink-0 rounded-full', toolStatusDotClass(item.status))} />
-          <span className="min-w-0 truncate font-mono text-[12px] text-foreground/85">{label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="max-w-[280px] truncate text-[11px] text-muted-foreground">{item.summary}</span>
-          {hasDetails ? (
-            open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : null}
-        </div>
-      </button>
-
-      {hasDetails && open ? (
-        <div className="border-t bg-background/70 px-3 py-2">
-          <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground/90">
-            {item.detailLines.map((line, index) => (
-              <div key={`${item.id}-${index}`} className="whitespace-pre-wrap break-all leading-5">
-                {line}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -423,7 +373,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     ) : item.kind === 'turn_footer' ? (
                       <TurnFooterItem item={item} />
                     ) : item.kind === 'tool_call' ? (
-                      <ToolCallItem
+                      <ToolTranscriptItem
                         item={item}
                         open={Boolean(openToolIds[item.id])}
                         onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
