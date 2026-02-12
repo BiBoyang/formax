@@ -293,6 +293,261 @@ describe('AppServer', () => {
     })
   })
 
+  it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {
+    const received: unknown[] = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received.push(params)
+          return { turn: { id: `turn-${received.length}`, threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-previous', threadId: 'thread-1', status: 'running', mode: 'plan' },
+      ts: '2026-02-12T00:00:00.000Z',
+    })
+    emit('turn/modeChanged', {
+      threadId: 'thread-1',
+      turnId: 'turn-previous',
+      previousMode: 'plan',
+      mode: 'normal',
+      ts: '2026-02-12T00:00:01.000Z',
+    })
+
+    await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'first turn after exit plan mode' },
+        mode: 'normal',
+      }),
+    )
+    await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'second turn after exit plan mode' },
+        mode: 'normal',
+      }),
+    )
+
+    expect(received).toEqual([
+      {
+        threadId: 'thread-1',
+        input: { text: 'first turn after exit plan mode' },
+        mode: 'normal',
+        includeExitPlanReminder: true,
+      },
+      {
+        threadId: 'thread-1',
+        input: { text: 'second turn after exit plan mode' },
+        mode: 'normal',
+      },
+    ])
+  })
+
+  it('does not apply pending exit-plan reminder when next turn re-enters plan mode', async () => {
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          return { turn: { id: 'turn-plan-reentry', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-previous', threadId: 'thread-1', status: 'running', mode: 'plan' },
+      ts: '2026-02-12T00:00:00.000Z',
+    })
+    emit('turn/modeChanged', {
+      threadId: 'thread-1',
+      turnId: 'turn-previous',
+      previousMode: 'plan',
+      mode: 'normal',
+      ts: '2026-02-12T00:00:01.000Z',
+    })
+
+    await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'go back to planning' },
+        mode: 'plan',
+      }),
+    )
+
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: 'go back to planning' },
+      mode: 'plan',
+    })
+  })
+
+  it('clears pending exit-plan reminder when turn/started enters plan mode before a later normal start', async () => {
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          return { turn: { id: 'turn-clear-pending', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-previous', threadId: 'thread-1', status: 'running', mode: 'plan' },
+      ts: '2026-02-12T00:00:00.000Z',
+    })
+    emit('turn/modeChanged', {
+      threadId: 'thread-1',
+      turnId: 'turn-previous',
+      previousMode: 'plan',
+      mode: 'normal',
+      ts: '2026-02-12T00:00:01.000Z',
+    })
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-plan-again', threadId: 'thread-1', status: 'running', mode: 'plan' },
+      ts: '2026-02-12T00:00:02.000Z',
+    })
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-now-normal', threadId: 'thread-1', status: 'running', mode: 'normal' },
+      ts: '2026-02-12T00:00:03.000Z',
+    })
+
+    await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'normal turn after pending clear' },
+        mode: 'normal',
+      }),
+    )
+
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: 'normal turn after pending clear' },
+      mode: 'normal',
+    })
+  })
+
+  it('preserves pending exit-plan reminder when startTurn fails and consumes it on next success', async () => {
+    const received: unknown[] = []
+    let startCalls = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn(params) {
+          startCalls += 1
+          received.push(params)
+          if (startCalls === 1) {
+            throw new Error(`Turn already running for thread: ${params.threadId}`)
+          }
+          return { turn: { id: `turn-retry-${startCalls}`, threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-previous', threadId: 'thread-1', status: 'running', mode: 'plan' },
+      ts: '2026-02-12T00:00:00.000Z',
+    })
+    emit('turn/modeChanged', {
+      threadId: 'thread-1',
+      turnId: 'turn-previous',
+      previousMode: 'plan',
+      mode: 'normal',
+      ts: '2026-02-12T00:00:01.000Z',
+    })
+
+    const first = await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'first attempt' },
+        mode: 'normal',
+      }),
+    )
+    expect((first[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+
+    const second = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'second attempt' },
+        mode: 'normal',
+      }),
+    )
+    expect((second[0] as any).result.turn.id).toBe('turn-retry-2')
+
+    const third = await server.handleMessage(
+      request(4, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'third attempt' },
+        mode: 'normal',
+      }),
+    )
+    expect((third[0] as any).result.turn.id).toBe('turn-retry-3')
+
+    expect(received).toEqual([
+      {
+        threadId: 'thread-1',
+        input: { text: 'first attempt' },
+        mode: 'normal',
+        includeExitPlanReminder: true,
+      },
+      {
+        threadId: 'thread-1',
+        input: { text: 'second attempt' },
+        mode: 'normal',
+        includeExitPlanReminder: true,
+      },
+      {
+        threadId: 'thread-1',
+        input: { text: 'third attempt' },
+        mode: 'normal',
+      },
+    ])
+  })
+
   it('routes command/dispatch to turnRunner startTurn', async () => {
     let received: unknown = null
     const server = new AppServer({

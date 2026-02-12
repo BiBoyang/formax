@@ -99,6 +99,7 @@ export class AppServer {
   private readonly replayByThreadId = new Map<string, ReplayEntry[]>()
   private readonly replayTrimmedBeforeByThreadId = new Map<string, number>()
   private readonly runtimeStateByThreadId = new Map<string, ThreadRuntimeState>()
+  private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
   private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
   private replaySeq = 0
 
@@ -267,14 +268,17 @@ export class AppServer {
       try {
         const params = parseTurnStartParams(req.params)
         const runner = await this.getTurnRunner()
-        const includeExitPlanReminder = this.shouldIncludeExitPlanReminder({
+        const exitPlanReminder = this.resolveExitPlanReminder({
           threadId: params.threadId,
           requestedMode: params.mode,
         })
         const result = await runner.startTurn({
           ...params,
-          ...(includeExitPlanReminder ? { includeExitPlanReminder: true } : {}),
+          ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
         })
+        if (exitPlanReminder.consumePendingOnSuccess) {
+          this.pendingExitPlanReminderByThreadId.delete(params.threadId)
+        }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -322,7 +326,7 @@ export class AppServer {
         }
 
         const runner = await this.getTurnRunner()
-        const includeExitPlanReminder = this.shouldIncludeExitPlanReminder({
+        const exitPlanReminder = this.resolveExitPlanReminder({
           threadId: params.threadId,
           requestedMode: params.mode,
         })
@@ -331,8 +335,11 @@ export class AppServer {
           input: { text: params.command },
           ...(params.mode ? { mode: params.mode } : {}),
           ...(params.cwd ? { cwd: params.cwd } : {}),
-          ...(includeExitPlanReminder ? { includeExitPlanReminder: true } : {}),
+          ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
         })
+        if (exitPlanReminder.consumePendingOnSuccess) {
+          this.pendingExitPlanReminderByThreadId.delete(params.threadId)
+        }
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -412,13 +419,20 @@ export class AppServer {
     return resolved
   }
 
-  private shouldIncludeExitPlanReminder(args: {
+  private resolveExitPlanReminder(args: {
     threadId: string
     requestedMode?: ThreadRuntimeState['mode']
-  }): boolean {
-    const previousMode = this.runtimeStateByThreadId.get(args.threadId)?.mode ?? 'normal'
+  }): { include: boolean; consumePendingOnSuccess: boolean } {
     const nextMode = normalizeReplMode(args.requestedMode, 'normal')
-    return shouldInjectExitPlanReminder({ current: previousMode, next: nextMode })
+    const hasPending = nextMode !== 'plan' && this.pendingExitPlanReminderByThreadId.get(args.threadId) === true
+    if (hasPending) {
+      return { include: true, consumePendingOnSuccess: true }
+    }
+    const previousMode = this.runtimeStateByThreadId.get(args.threadId)?.mode ?? 'normal'
+    return {
+      include: shouldInjectExitPlanReminder({ current: previousMode, next: nextMode }),
+      consumePendingOnSuccess: false,
+    }
   }
 
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
@@ -478,6 +492,15 @@ export class AppServer {
       replaySeq,
     })
     this.runtimeStateByThreadId.set(threadId, nextState)
+    if (method === 'turn/modeChanged') {
+      if (shouldInjectExitPlanReminder({ current: baseState.mode, next: nextState.mode })) {
+        this.pendingExitPlanReminderByThreadId.set(threadId, true)
+      } else if (nextState.mode === 'plan') {
+        this.pendingExitPlanReminderByThreadId.delete(threadId)
+      }
+    } else if (method === 'turn/started' && nextState.mode === 'plan') {
+      this.pendingExitPlanReminderByThreadId.delete(threadId)
+    }
 
     return wrapped
   }

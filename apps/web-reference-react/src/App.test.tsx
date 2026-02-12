@@ -667,7 +667,7 @@ describe('App thread history integration', () => {
   })
 
   it('hydrates mode from thread replay state snapshot', async () => {
-    rpcMock.setRequestImpl((method, params) => {
+    rpcMock.setRequestImpl((method, _params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
         return {
