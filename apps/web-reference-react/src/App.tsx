@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { LeftRail } from './components/LeftRail'
-import { PendingInputPane } from './components/PendingInputPane'
+import { InputApprovalDock } from './components/InputApprovalDock'
 import { TranscriptPane } from './components/TranscriptPane'
 import { RpcClient, RpcRequestError } from './rpcClient'
 import { PanelLeft } from 'lucide-react'
@@ -10,6 +10,7 @@ import { cn } from './lib/utils'
 import { Button } from './components/ui/button'
 import { mapHistoryToolToTranscript } from './toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from './turnEventCursor'
+import { WorktreeDiffPane, type DiffSnapshot } from './components/WorktreeDiffPane'
 import {
   createInitialThreadRuntimeState,
   extractThreadIdFromNotificationParams,
@@ -115,20 +116,6 @@ type ReplayStateSnapshot = {
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
   updatedAt: string
-}
-
-type DiffSnapshot = {
-  cwd: string
-  generatedAt: string
-  hasChanges: boolean
-  truncated: boolean
-  files: Array<{
-    path: string
-    additions: number
-    deletions: number
-    patch: string
-    untracked?: boolean
-  }>
 }
 
 function asThreadSummaries(value: unknown): ThreadSummary[] {
@@ -402,6 +389,9 @@ export function App() {
   const [isInterruptingTurn, setIsInterruptingTurn] = useState(false)
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
+  const [askDockOpenByInputId, setAskDockOpenByInputId] = useState<Record<string, boolean>>({})
+  const [askDraftByInputId, setAskDraftByInputId] = useState<Record<string, Record<string, string>>>({})
+  const [askPageIndexByInputId, setAskPageIndexByInputId] = useState<Record<string, number>>({})
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
@@ -425,7 +415,6 @@ export function App() {
   const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
   const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
   const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
-  const [staleInputsByThreadId, setStaleInputsByThreadId] = useState<Record<string, ResolvedInput[]>>({})
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
   const eventCursorRef = useRef(createTurnEventCursorState(SEEN_EVENT_CAP))
@@ -439,9 +428,15 @@ export function App() {
   const bufferedDeltaByTurnRef = useRef<Record<string, DeltaBucket>>({})
   const deltaFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
+  const selectedAskDraft = selectedInput ? (askDraftByInputId[selectedInput.inputId] ?? {}) : {}
+  const selectedAskPageIndex = selectedInput ? (askPageIndexByInputId[selectedInput.inputId] ?? 0) : 0
+  const isSelectedAskOpen =
+    selectedInput?.kind === 'ask_user_question' ? Boolean(askDockOpenByInputId[selectedInput.inputId] ?? true) : false
+  const composerLocked =
+    selectedInput != null &&
+    (selectedInput.kind === 'approval' || (selectedInput.kind === 'ask_user_question' && isSelectedAskOpen))
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
-  const activeStaleInputs = state.activeThreadId ? (staleInputsByThreadId[state.activeThreadId] ?? []) : []
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -624,7 +619,6 @@ export function App() {
       try {
         const resumeResult = await request('thread/resume', { threadId })
         const staleInputs = asResolvedInputs(resumeResult)
-        setStaleInputsByThreadId((prev) => ({ ...prev, [threadId]: staleInputs }))
         for (const input of staleInputs) {
           if (seenStaleInputIdRef.current.has(input.inputId)) continue
           seenStaleInputIdRef.current.add(input.inputId)
@@ -801,6 +795,11 @@ export function App() {
           const input = params?.input as PendingInput | undefined
           if (!input?.inputId) break
           dispatch({ type: 'input_requested', input })
+          dispatch({ type: 'set_selected_input', inputId: input.inputId })
+          if (input.kind === 'ask_user_question') {
+            setAskDockOpenByInputId((prev) => ({ ...prev, [input.inputId]: true }))
+            setAskPageIndexByInputId((prev) => ({ ...prev, [input.inputId]: prev[input.inputId] ?? 0 }))
+          }
           break
         }
 
@@ -809,6 +808,24 @@ export function App() {
           const input = params?.input as ResolvedInput | undefined
           const inputId = input?.inputId as string | undefined
           if (!inputId) break
+          setAskDockOpenByInputId((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
+            const next = { ...prev }
+            delete next[inputId]
+            return next
+          })
+          setAskDraftByInputId((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
+            const next = { ...prev }
+            delete next[inputId]
+            return next
+          })
+          setAskPageIndexByInputId((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
+            const next = { ...prev }
+            delete next[inputId]
+            return next
+          })
           dispatch({
             type: 'input_resolved',
             inputId,
@@ -915,6 +932,45 @@ export function App() {
   useEffect(() => {
     activeThreadIdRef.current = state.activeThreadId
   }, [state.activeThreadId])
+
+  useEffect(() => {
+    const pendingIds = Object.keys(state.pendingInputs)
+    const pendingIdSet = new Set(pendingIds)
+    if (!state.selectedInputId || !state.pendingInputs[state.selectedInputId]) {
+      const latestPendingId = pendingIds[pendingIds.length - 1] ?? null
+      if (latestPendingId !== state.selectedInputId) {
+        dispatch({ type: 'set_selected_input', inputId: latestPendingId })
+      }
+    }
+
+    setAskDockOpenByInputId((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([inputId]) => pendingIdSet.has(inputId)))
+      const prevKeys = Object.keys(prev)
+      const nextKeys = Object.keys(next)
+      const same =
+        prevKeys.length === nextKeys.length &&
+        prevKeys.every((key) => Object.prototype.hasOwnProperty.call(next, key) && prev[key] === next[key])
+      return same ? prev : next
+    })
+    setAskDraftByInputId((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([inputId]) => pendingIdSet.has(inputId)))
+      const prevKeys = Object.keys(prev)
+      const nextKeys = Object.keys(next)
+      const same =
+        prevKeys.length === nextKeys.length &&
+        prevKeys.every((key) => Object.prototype.hasOwnProperty.call(next, key) && prev[key] === next[key])
+      return same ? prev : next
+    })
+    setAskPageIndexByInputId((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([inputId]) => pendingIdSet.has(inputId)))
+      const prevKeys = Object.keys(prev)
+      const nextKeys = Object.keys(next)
+      const same =
+        prevKeys.length === nextKeys.length &&
+        prevKeys.every((key) => Object.prototype.hasOwnProperty.call(next, key) && prev[key] === next[key])
+      return same ? prev : next
+    })
+  }, [state.pendingInputs, state.selectedInputId])
 
   useEffect(() => {
     const threadId = state.activeThreadId
@@ -1120,16 +1176,17 @@ export function App() {
     }
   }
 
-  const submitSelectedInput = async (answers: Record<string, string>) => {
-    if (!selectedInput || isSubmittingInput) return
+  const submitInputById = async (inputId: string, answers: Record<string, string>) => {
+    const input = state.pendingInputs[inputId]
+    if (!input || isSubmittingInput) return
 
     setIsSubmittingInput(true)
     try {
       const response = await request('turn/input/submit', {
-        threadId: selectedInput.threadId,
-        turnId: selectedInput.turnId,
-        inputId: selectedInput.inputId,
-        toolUseId: selectedInput.toolUseId,
+        threadId: input.threadId,
+        turnId: input.turnId,
+        inputId: input.inputId,
+        toolUseId: input.toolUseId,
         answers,
         submissionId: `web-${Date.now()}`,
       })
@@ -1137,18 +1194,18 @@ export function App() {
       const uiStatus = toSubmitUiStatus(status)
       setSubmitStatusByInputId((prev) => ({
         ...prev,
-        [selectedInput.inputId]: {
+        [input.inputId]: {
           status,
           kind: uiStatus.kind,
           message: uiStatus.message,
         },
       }))
-      log(`Input submit: ${status}`, uiStatus.kind === 'error' ? 'error' : 'info', selectedInput.turnId)
+      log(`Input submit: ${status}`, uiStatus.kind === 'error' ? 'error' : 'info', input.turnId)
     } catch (error) {
       const details = toRpcError('turn/input/submit', error)
       setSubmitStatusByInputId((prev) => ({
         ...prev,
-        [selectedInput.inputId]: {
+        [input.inputId]: {
           status: details.code != null ? `rpc_${details.code}` : 'error',
           kind: 'error',
           message: details.message,
@@ -1396,7 +1453,7 @@ export function App() {
               activeThread={activeThread}
               activeThreadId={state.activeThreadId}
               activeTurnId={state.activeTurnId}
-
+              composerLocked={composerLocked}
               logs={activeLogs}
               inputText={inputText}
               mode={mode}
@@ -1411,6 +1468,37 @@ export function App() {
               isSending={isSendingTurn}
               isInterrupting={isInterruptingTurn}
               lastRpcError={lastRpcError}
+            />
+            <InputApprovalDock
+              input={selectedInput}
+              isAskOpen={isSelectedAskOpen}
+              askPageIndex={selectedAskPageIndex}
+              askDraftValues={selectedAskDraft}
+              submitStatus={selectedInput ? (submitStatusByInputId[selectedInput.inputId] ?? null) : null}
+              isSubmitting={isSubmittingInput}
+              onAskOpen={() => {
+                if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
+                setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: true }))
+              }}
+              onAskDismiss={() => {
+                if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
+                setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: false }))
+              }}
+              onAskPageChange={(page) => {
+                if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
+                setAskPageIndexByInputId((prev) => ({ ...prev, [selectedInput.inputId]: Math.max(0, page) }))
+              }}
+              onAskDraftChange={(fieldId, value) => {
+                if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
+                setAskDraftByInputId((prev) => ({
+                  ...prev,
+                  [selectedInput.inputId]: {
+                    ...(prev[selectedInput.inputId] ?? {}),
+                    [fieldId]: value,
+                  },
+                }))
+              }}
+              onSubmitInput={(inputId, answers) => void submitInputById(inputId, answers).catch(() => undefined)}
             />
           </div>
 
@@ -1445,17 +1533,10 @@ export function App() {
             className="flex-none min-w-0 bg-white h-full overflow-hidden overflow-x-hidden"
             style={{ width: rightRailWidth }}
           >
-            <PendingInputPane
-              pendingInputs={state.pendingInputs}
-              selectedInputId={state.selectedInputId}
-              onSelectInput={(inputId) => dispatch({ type: 'set_selected_input', inputId })}
-              onSubmitInput={(answers) => void submitSelectedInput(answers).catch(() => undefined)}
-              submitStatusByInputId={submitStatusByInputId}
-              isSubmitting={isSubmittingInput}
+            <WorktreeDiffPane
               diffSnapshot={diffSnapshot}
               onRefreshDiff={() => void refreshWorkspaceDiff().catch(() => undefined)}
               isRefreshingDiff={isRefreshingDiff}
-              staleInputs={activeStaleInputs}
               showHeader
             />
           </div>

@@ -96,6 +96,30 @@ describe('TranscriptPane', () => {
     expect(screen.getByText('second item')).toBeInTheDocument()
   })
 
+  it('hides composer when composerLocked is true and restores when false', () => {
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          composerLocked: true,
+        })}
+      />,
+    )
+
+    expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-locked')).toBeInTheDocument()
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          composerLocked: false,
+        })}
+      />,
+    )
+
+    expect(screen.getByTestId('composer')).toBeInTheDocument()
+    expect(screen.queryByTestId('composer-locked')).not.toBeInTheDocument()
+  })
+
   it('renders running thinking as lightweight label without delta body text', () => {
     render(
       <TranscriptPane

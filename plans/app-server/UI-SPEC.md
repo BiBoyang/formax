@@ -42,7 +42,7 @@
 - 当前 active thread 展示
 - `Interrupt` 按钮
 - Transcript 区（日志 + user/assistant 消息）
-- Composer 输入框与 `Send` 按钮
+- Composer 输入框与 `Send` 按钮（有活动审批面板时可被审批面板占位）
 
 行为：
 
@@ -51,6 +51,7 @@
 3. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
 4. `turn/completed` 与 `turn/failed` 必须写入可见日志。
 5. `Interrupt` 仅在 active turn 存在时可用。
+6. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
 
 Transcript 类型要求（必须可区分）：
 
@@ -59,21 +60,17 @@ Transcript 类型要求（必须可区分）：
 3. `tool`（至少 start/update/end 可追踪）
 4. `system`（握手、错误、状态变更）
 
-## 2.3 右栏（Diff + Pending Inputs）
+## 2.3 右栏（Diff Only）
 
 必须包含：
 
 - diff / tool timeline（`tool_start/tool_update/tool_end`）
-- pending input 列表（至少显示 `kind`、`toolUseId`）
-- pending 选中态 + input 详情与提交表单
 
 行为：
 
 1. 右栏主区域优先显示 diff/tool 时间线，保障调试链路可追踪。
-1. `turn/inputRequested` 到达后加入列表。
-2. `turn/inputResolved` 到达后从列表移除。
-3. 无 pending input 时显示空状态文案。
-4. `approval` 与 `ask_user_question` 使用不同表单渲染，但统一调用 `turn/input/submit`。
+2. 右栏不承载 pending input 表单。
+3. 右栏只负责 workspace diff 的展示与刷新。
 
 ## 3. 关键交互规范
 
@@ -100,15 +97,20 @@ Transcript 类型要求（必须可区分）：
 
 ## 3.4 Input 工作流
 
-1. 表单提交必须带 `submissionId`（客户端生成）。
-2. `turn/input/submit` 返回状态要可见：
+1. input 入口位于中栏输入区锚定审批面板（dock/popup 形态），不是右栏。
+2. 表单提交必须带 `submissionId`（客户端生成）。
+3. `turn/input/submit` 返回状态要可见：
    - `accepted`
    - `already_submitted_same`
    - `conflict_already_submitted`
    - `not_pending`
    - `expired`
    - `canceled`
-3. 对 `INPUT_EXPIRED` 错误要展示“该输入已失效，需重新发起流程”。
+4. ask_user_question 与 approval 为双形态：
+   - ask_user_question：支持 `1 of N` 分页，`Dismiss/ESC`，最后一页 `Submit`。
+   - approval：仅审批选项 + `Submit`，无分页、无 dismiss。
+5. ask 的 `1 of N` 表示单个 input 的 questions 分页，不是 pending 队列分页。
+6. 对 `INPUT_EXPIRED` 错误要展示“该输入已失效，需重新发起流程”。
 
 ## 3.5 Commander（Slash Command）工作流（P1）
 
@@ -161,7 +163,7 @@ Transcript 类型要求（必须可区分）：
 
 1. 页面高度固定为视口高度，禁止出现“输入框被推到页面底部外”的布局。
 2. Transcript 区必须独立滚动。
-3. 左栏线程列表、右栏 diff 区与 pending 区都必须独立滚动。
+3. 左栏线程列表与右栏 diff 区都必须独立滚动。
 4. 移动/窄屏可改为上下布局，但三区域信息不可缺失。
 
 ## 8. 与逻辑层的职责边界

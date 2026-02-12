@@ -20,3 +20,4 @@ No active UI TODO files.
 - `plans/ui/BACKLOG-command-subline-output.md`：更多 commands 扩展（后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 的后置增强项（后置）
 - `plans/ui/BACKLOG-tool-ui-blocks-migration.md`：Tool UI Blocks（C-lite）后续迁移清单（后置）
+- `plans/ui/BACKLOG-web-tool-transcript-optimization.md`：基于截图的 Web transcript/tool 展示优化清单（后置）

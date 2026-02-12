@@ -6,8 +6,8 @@
 
 | 主题 | Product | Contract | UI | API | 结论 |
 |---|---|---|---|---|---|
-| 输入类型 | `approval` / `ask_user_question` | `InputKind` | pending input 双表单 | Input payload 两种结构 | 一致 |
-| input 状态 | `pending -> submitted/canceled/expired/failed` | `InputStatus` / 状态机 | Pending + stale 展示 | `InputResolvedPayload.status` | 一致 |
+| 输入类型 | `approval` / `ask_user_question` | `InputKind` | 输入区审批 dock 双形态（ask 分页 / approval 提交） | Input payload 两种结构 | 一致 |
+| input 状态 | `pending -> submitted/canceled/expired/failed` | `InputStatus` / 状态机 | 活动审批占位 composer，resolved 恢复 | `InputResolvedPayload.status` | 一致 |
 | turn 终态 | `completed/failed/interrupted` | Turn 状态机 | interrupt + completed/failed 可见 | `turn/completed` / `turn/failed` | 一致 |
 | envelope 元字段 | 提到稳定协议 | `traceId/seq/ts/eventId/source` | transcript/system logs 依赖 | 通知 envelope 说明 | 一致 |
 | 错误码 | Recoverable Failure 原则 | 固定错误码 + typed data | 错误抽屉显示 code/message/data | JSON-RPC error model | 一致 |

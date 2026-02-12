@@ -32,6 +32,7 @@ export type TranscriptPaneProps = {
   activeTurnId?: string | null
 
   logs: TranscriptItem[]
+  composerLocked?: boolean
   inputText: string
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   onInputTextChange: (value: string) => void
@@ -167,6 +168,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     activeThreadId,
     activeTurnId = null,
     logs,
+    composerLocked = false,
     inputText,
     mode,
     onModeChange,
@@ -483,89 +485,92 @@ export function TranscriptPane(props: TranscriptPaneProps) {
         </ScrollArea>
       </section>
 
-      {/* Composer Area */}
-      <div data-testid="composer" className="composer p-4 pb-8">
-        <div className="max-w-3xl mx-auto flex flex-col gap-3">
-          {showJumpToBottom ? (
-            <div className="flex justify-end px-2">
-              <Button
-                type="button"
-                aria-label="Jump to bottom"
-                size="icon"
-                variant="outline"
-                className="h-9 w-9 rounded-full shadow-sm"
-                onClick={() => scrollToBottom('smooth')}
-              >
-                <ArrowDown className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : null}
-          <form
-            className="group relative flex flex-col rounded-[26px] border border-border bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] focus-within:ring-1 focus-within:ring-ring/10 focus-within:border-ring/20 transition-all duration-200"
-            onSubmit={handleSend}
-          >
-            <Textarea
-                value={inputText}
-                onChange={(event) => onInputTextChange(event.target.value)}
-                placeholder="Ask for follow-up changes"
-                className="min-h-[90px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-5 pb-0 text-[15px] leading-relaxed placeholder:text-muted-foreground/40 focus-visible:ring-0 shadow-none"
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (activeThreadId && connectionStatus === 'connected' && !inputText.trim()) return;
-                        if (activeThreadId && connectionStatus === 'connected' && !isSending) {
-                            handleSend(e as unknown as FormEvent);
-                        }
-                    }
-                }}
-            />
-            
-            <div className="flex items-center justify-between px-3 h-12">
-              <div className="flex items-center gap-3">
-                <Select value={mode} onValueChange={(value) => onModeChange(value as 'normal' | 'acceptEdits' | 'plan')}>
-                  <SelectTrigger aria-label="Execution mode" className="h-8 w-[180px] border-border/60 bg-background text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Ask before edits</SelectItem>
-                    <SelectItem value="acceptEdits">Auto edit</SelectItem>
-                    <SelectItem value="plan">Plan mode</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-muted-foreground">Enter to send, Shift+Enter for newline</div>
+      {!composerLocked ? (
+        <div data-testid="composer" className="composer p-4 pb-8">
+          <div className="max-w-3xl mx-auto flex flex-col gap-3">
+            {showJumpToBottom ? (
+              <div className="flex justify-end px-2">
+                <Button
+                  type="button"
+                  aria-label="Jump to bottom"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 rounded-full shadow-sm"
+                  onClick={() => scrollToBottom('smooth')}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="flex items-center gap-1 pr-1">
-                {isSending || isInterrupting ? (
-                  <Button
-                    type="button"
-                    aria-label="Interrupt turn"
-                    variant="destructive"
-                    size="icon"
-                    disabled={isInterrupting}
-                    className="h-8 w-8 rounded-full shrink-0 shadow-sm"
-                    onClick={onInterrupt}
-                  >
-                    <Square className="h-3.5 w-3.5 fill-current" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    aria-label="Send message"
-                    disabled={!activeThreadId || connectionStatus !== 'connected' || !inputText.trim()}
-                    size="icon"
-                    className={cn(
-                      'h-8 w-8 rounded-full shrink-0 shadow-none transition-all duration-200 border-0',
-                      !inputText.trim() ? 'bg-[#E5E5E5] text-white' : 'bg-muted-foreground text-background hover:bg-foreground',
-                    )}
-                  >
-                    <ArrowUp className="h-4.5 w-4.5" />
-                  </Button>
-                )}
+            ) : null}
+            <form
+              className="group relative flex flex-col rounded-[26px] border border-border bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] focus-within:ring-1 focus-within:ring-ring/10 focus-within:border-ring/20 transition-all duration-200"
+              onSubmit={handleSend}
+            >
+              <Textarea
+                  value={inputText}
+                  onChange={(event) => onInputTextChange(event.target.value)}
+                  placeholder="Ask for follow-up changes"
+                  className="min-h-[90px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-5 pb-0 text-[15px] leading-relaxed placeholder:text-muted-foreground/40 focus-visible:ring-0 shadow-none"
+                  onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (activeThreadId && connectionStatus === 'connected' && !inputText.trim()) return;
+                          if (activeThreadId && connectionStatus === 'connected' && !isSending) {
+                              handleSend(e as unknown as FormEvent);
+                          }
+                      }
+                  }}
+              />
+
+              <div className="flex items-center justify-between px-3 h-12">
+                <div className="flex items-center gap-3">
+                  <Select value={mode} onValueChange={(value) => onModeChange(value as 'normal' | 'acceptEdits' | 'plan')}>
+                    <SelectTrigger aria-label="Execution mode" className="h-8 w-[180px] border-border/60 bg-background text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Ask before edits</SelectItem>
+                      <SelectItem value="acceptEdits">Auto edit</SelectItem>
+                      <SelectItem value="plan">Plan mode</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">Enter to send, Shift+Enter for newline</div>
+                </div>
+                <div className="flex items-center gap-1 pr-1">
+                  {isSending || isInterrupting ? (
+                    <Button
+                      type="button"
+                      aria-label="Interrupt turn"
+                      variant="destructive"
+                      size="icon"
+                      disabled={isInterrupting}
+                      className="h-8 w-8 rounded-full shrink-0 shadow-sm"
+                      onClick={onInterrupt}
+                    >
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      aria-label="Send message"
+                      disabled={!activeThreadId || connectionStatus !== 'connected' || !inputText.trim()}
+                      size="icon"
+                      className={cn(
+                        'h-8 w-8 rounded-full shrink-0 shadow-none transition-all duration-200 border-0',
+                        !inputText.trim() ? 'bg-[#E5E5E5] text-white' : 'bg-muted-foreground text-background hover:bg-foreground',
+                      )}
+                    >
+                      <ArrowUp className="h-4.5 w-4.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div data-testid="composer-locked" className="h-4" />
+      )}
     </main>
   )
 }

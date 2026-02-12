@@ -18,14 +18,14 @@
 ### 2.2 Reference Client（React）
 
 - 独立子项目：`apps/web-reference-react/`（不复用根 `package.json`）。
-- 三栏稳定布局：左侧线程导航、中间 transcript/composer、右侧 diff-first（tool timeline）+ pending inputs。
+- 三栏稳定布局：左侧线程导航、中间 transcript + 输入区审批 dock、右侧 diff-only（workspace changes）。
 - 关键交互：
   - turn 过滤（全部/当前 turn）
   - 日志级别过滤（all/info/warn/error）
   - 粘底模式（Stick/Manual）
   - command 快捷路径（`/permissions`、`/agents`、`/hooks`）
   - 错误详情抽屉（code/message/data）
-  - pending input 倒计时 + submit 结果分级
+  - 输入区审批双形态（ask 分页 / approval 提交）与 submit 结果分级
 
 ### 2.3 UI 与测试
 
@@ -35,7 +35,7 @@
   - reducer 状态机
   - 左栏线程与连接操作
   - 中栏发送/中断/过滤/command 入口
-  - 右栏 diff-first 与 input 表单提交
+  - 右栏 diff-only 与输入区审批提交流程
 
 ## 3. 发布门槛映射（PRODUCT-SPEC §7）
 

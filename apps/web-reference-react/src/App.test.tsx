@@ -961,7 +961,7 @@ describe('App thread history integration', () => {
     expect(screen.queryByText('older-delta')).not.toBeInTheDocument()
   })
 
-  it('loads stale inputs from thread/resume and renders recovered section', async () => {
+  it('loads stale inputs from thread/resume without rendering pending list in right rail', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -1027,8 +1027,10 @@ describe('App thread history integration', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
 
-    expect(await screen.findByText(/Recovered \(Expired\/Resolved\)/i)).toBeInTheDocument()
-    expect(screen.getByText('approval-9')).toBeInTheDocument()
+    await screen.findByText('alpha reply')
+    expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
+    expect(screen.queryByText(/Recovered \(Expired\/Resolved\)/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('approval-9')).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(
@@ -1268,6 +1270,185 @@ describe('App thread history integration', () => {
     expect(await screen.findByText('alpha reply')).toBeInTheDocument()
     expect(await screen.findByText('replay after history')).toBeInTheDocument()
     expect(replayRequestedBeforeHistory).toBe(false)
+  })
+
+  it('opens ask dock on inputRequested, supports dismiss, and restores composer after resolved', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-ask:1',
+          traceId: 'trace-ask',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-ask',
+          input: {
+            inputId: 'input-ask-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-ask',
+            toolUseId: 'ask-tool-1',
+            kind: 'ask_user_question',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              questions: [
+                {
+                  header: 'Environment',
+                  question: 'Which OS do you use most?',
+                  fieldId: 'os',
+                  options: [
+                    { label: 'macOS', description: 'Apple device' },
+                    { label: 'Windows', description: 'PC device' },
+                  ],
+                  multiSelect: false,
+                },
+              ],
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
+    expect(screen.getByLabelText('Question index')).toHaveTextContent('1 of 1')
+    expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-locked')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.getByTestId('ask-dock-collapsed')).toBeInTheDocument()
+    expect(screen.getByTestId('composer')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+    expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputResolved',
+        params: {
+          eventId: 'turn-ask:2',
+          traceId: 'trace-ask',
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-ask',
+          input: {
+            inputId: 'input-ask-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-ask',
+            toolUseId: 'ask-tool-1',
+            kind: 'ask_user_question',
+            status: 'submitted',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            resolvedAt: '2026-02-10T00:00:20.000Z',
+          },
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId('composer')).toBeInTheDocument()
+  })
+
+  it('renders approval dock without pager and submits through turn/input/submit', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return { accepted: true, status: 'accepted' }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval:1',
+          traceId: 'trace-approval',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval',
+          input: {
+            inputId: 'input-approval-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval',
+            toolUseId: 'approval-tool-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Bash',
+              action: { kind: 'bash.exec', command: 'rm -rf a.js && ls -l a.js' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.queryByLabelText('Question index')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /3\. No/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/input/submit' &&
+            (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.inputId ===
+              'input-approval-1' &&
+            (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.answers?.decision ===
+              'reject',
+        ),
+      ).toBe(true)
+    })
   })
 
   it('does not leak buffered deltas into another thread after switching', async () => {
