@@ -383,6 +383,41 @@ AskUserQuestion payload：
 }
 ```
 
+## 5.4.2 `thread/replay`
+
+### Params
+
+```ts
+{
+  threadId: string
+  after?: number // 从某个 replaySeq 之后增量拉取
+  limit?: number // 默认 200，最大 500
+}
+```
+
+### Result
+
+```ts
+{
+  data: Array<{
+    replaySeq: number
+    method: string
+    params?: Record<string, unknown>
+  }>
+  nextCursor: number
+  latestCursor: number
+  hasGap: boolean
+  state: {
+    mode: 'normal' | 'acceptEdits' | 'plan'
+    activeTurnId: string | null
+    lastTurnId: string | null
+    lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
+    pendingInputCount: number
+    updatedAt: string
+  } | null
+}
+```
+
 ## 5.5 `turn/start`
 
 ### Params
@@ -554,7 +589,12 @@ AskUserQuestion payload：
 ```ts
 {
   ...envelopeMeta,
-  turn: { id: string; threadId: string; status: 'running' }
+  turn: {
+    id: string
+    threadId: string
+    status: 'running'
+    mode: 'normal' | 'acceptEdits' | 'plan'
+  }
 }
 ```
 
@@ -585,7 +625,19 @@ AskUserQuestion payload：
 - 服务端会透传未知 `event.type`。
 - 客户端应以“unknown event fallback”处理（展示原始 payload），不要因未知类型中断渲染。
 
-## 6.3 `turn/inputRequested`
+## 6.3 `turn/modeChanged`
+
+```ts
+{
+  ...envelopeMeta,
+  threadId: string
+  turnId: string
+  previousMode: 'normal' | 'acceptEdits' | 'plan'
+  mode: 'normal' | 'acceptEdits' | 'plan'
+}
+```
+
+## 6.4 `turn/inputRequested`
 
 ```ts
 {
@@ -596,7 +648,7 @@ AskUserQuestion payload：
 }
 ```
 
-## 6.4 `turn/inputResolved`
+## 6.5 `turn/inputResolved`
 
 ```ts
 {
@@ -607,7 +659,7 @@ AskUserQuestion payload：
 }
 ```
 
-## 6.5 `turn/completed`
+## 6.6 `turn/completed`
 
 ```ts
 {
@@ -616,7 +668,7 @@ AskUserQuestion payload：
 }
 ```
 
-## 6.6 `turn/failed`
+## 6.7 `turn/failed`
 
 ```ts
 {

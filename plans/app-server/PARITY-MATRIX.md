@@ -1,6 +1,6 @@
 # TUI/GUI Parity Matrix（语义层）
 
-更新时间：2026-02-10
+更新时间：2026-02-12
 
 ## 目标
 
@@ -10,7 +10,8 @@
 
 | 能力 | 语义单一来源 | TUI 接入 | App-Server 接入 | Web 接入 | 测试门禁 |
 | --- | --- | --- | --- | --- | --- |
-| mode 注入（normal/acceptEdits/plan） | `src/features/semantics/modeSemantics.ts` | `src/features/repl/controller/send.ts` | `src/app-server/turnRunner.ts` | N/A（通过 turn/start.mode 透传） | `src/features/semantics/modeSemantics.test.ts` + contract |
+| mode 注入（normal/acceptEdits/plan） | `src/features/semantics/modeSemantics.ts` | `src/features/repl/controller/send.ts` | `src/app-server/turnRunner.ts` | `apps/web-reference-react/src/App.tsx`（`turn/start.mode` + `turn/modeChanged` + replay state） | `src/features/semantics/modeSemantics.test.ts` + contract |
+| mode transition（运行期切换） | `src/features/semantics/replModeTransition.ts` | `src/features/repl/useReplController.ts` | `src/app-server/turnRunner.ts`（`turn/modeChanged`） | `apps/web-reference-react/src/App.tsx`（消费通知与线程缓存） | `src/features/semantics/replModeTransition.test.ts` + `src/app-server/turnRunner.test.ts` + `apps/web-reference-react/src/App.test.tsx` |
 | slash 语义（/init） | `src/features/semantics/slashSemantics.ts` | `src/features/repl/controller/send.ts` | `src/app-server/turnRunner.ts` | N/A（server 结果驱动） | `src/features/semantics/slashSemantics.test.ts` |
 | turn 输入构建 | `src/features/semantics/turnInputBuilder.ts` | `src/features/repl/controller/send.ts` | `src/app-server/turnRunner.ts` | N/A | `src/features/semantics/turnInputBuilder.test.ts` + contract |
 | input 生命周期（approval/question） | `src/features/semantics/inputStateMachine.ts` | N/A（runtime manager） | `src/app-server/turn/inputStore.ts` | `apps/web-reference-react/src/store.ts` | `src/features/semantics/inputStateMachine.test.ts` + `src/app-server/turn/inputStore.test.ts` + `apps/web-reference-react/src/store.test.ts` |
@@ -19,7 +20,7 @@
 
 ## 当前已知缺口
 
-1. `ThreadStateReducer` 仍未统一为 server/web 共用抽象（暂缓项）。
+1. 协议文档需补齐 `turn/modeChanged` 与 replay state 中 `mode` 字段说明（文档一致性项）。
 2. 协议扩展（replay / command-dispatch）尚未进入本阶段实现。
 3. commander 全量能力迁移不在当前主线。
 

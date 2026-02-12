@@ -266,12 +266,16 @@
 
 - `modeSemantics.ts`
   - mode 注入规则（`normal | acceptEdits | plan`）与 plan 提示注入。
+- `replModeTransition.ts`
+  - mode 规范化与 transition 判定（TUI / app-server / web 共用）。
 - `slashSemantics.ts`
   - slash 最小语义解析（当前含 `/init` 的模型映射）。
 - `turnInputBuilder.ts`
   - 统一 turn 输入构建（`displayText` / `modelUserText` / `semanticBlocks`）。
 - `inputStateMachine.ts`
   - approval / ask_user_question 的提交与 resolved 状态转移（幂等、冲突、过期）。
+- `threadRuntimeState.ts`
+  - 线程运行态聚合（active turn、pending inputs、mode）用于 replay/state 快照。
 
 Web 侧配套抽象：
 
@@ -285,6 +289,7 @@ Web 侧配套抽象：
 1. TUI 与 app-server 不再各自拼接 turn 注入文本，统一走 `turnInputBuilder`。
 2. web reducer 的 input resolved 处理使用共享状态转移，避免本地分叉语义。
 3. 工具流式事件与历史回放使用同一 normalizer，保证刷新前后结构一致。
+4. mode 切换走共享 transition 语义，app-server 通过 `turn/modeChanged` 反向同步到 web。
 
 测试门禁：
 

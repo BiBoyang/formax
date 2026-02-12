@@ -104,7 +104,8 @@
 
 ## 3.1 turn/started
 
-- 载荷：`{ turn: { id, threadId, status: "running" } }`
+- 载荷：`{ turn: { id, threadId, status: "running", mode } }`
+- `mode` 仅允许：`normal | acceptEdits | plan`
 
 ## 3.2 turn/event
 
@@ -115,7 +116,12 @@
   - 客户端必须以“可降级渲染”处理未知事件（至少保留原始 JSON 可见）。
   - `event` 的结构稳定性低于 envelope 字段，客户端不应把未知字段当作错误。
 
-## 3.3 turn/inputRequested
+## 3.3 turn/modeChanged
+
+- 载荷：`{ threadId, turnId, previousMode, mode }`
+- `previousMode` / `mode` 仅允许：`normal | acceptEdits | plan`
+
+## 3.4 turn/inputRequested
 
 - 载荷：`{ threadId, turnId, input }`
 - `input.kind` 仅允许：
@@ -123,7 +129,7 @@
   - `ask_user_question`
 - `input.status` 固定为 `pending`
 
-## 3.4 turn/inputResolved
+## 3.5 turn/inputResolved
 
 - 载荷：`{ threadId, turnId, input }`
 - `input.status` 仅允许：
@@ -132,7 +138,7 @@
   - `expired`
   - `failed`
 
-## 3.5 turn/completed / turn/failed
+## 3.6 turn/completed / turn/failed
 
 - `turn/completed`：`status = completed`
 - `turn/failed`：`status = failed | interrupted` 且带 `error`
@@ -248,9 +254,11 @@
 | `thread/list`（`limit/cursor`） | `src/app-server/protocol.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
 | `thread/read` | `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
 | `thread/messages`（最新页 + 向前分页） | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts` |
+| `thread/replay` + runtime state snapshot | `src/app-server/server.ts`, `src/features/semantics/threadRuntimeState.ts` | `src/app-server/server.test.ts`, `src/features/semantics/threadRuntimeState.test.ts` |
 | `turn/start`（单线程单 in-flight） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/interrupt` | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/event` 转发 | `src/app-server/turnRunner.ts`, `src/streaming/types.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
+| `turn/modeChanged`（运行期 mode 同步） | `src/app-server/turnRunner.ts`, `src/features/semantics/replModeTransition.ts` | `src/app-server/turnRunner.test.ts`, `apps/web-reference-react/src/App.test.tsx` |
 | `turn/inputRequested` / `turn/inputResolved` | `src/app-server/turnRunner.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/protocol/input.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts` |
 | `turn/input/submit` + `inputId/toolUseId` fallback | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 提交幂等与冲突（`already_submitted_same` / `conflict_already_submitted`） | `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts` |

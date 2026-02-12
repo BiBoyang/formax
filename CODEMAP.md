@@ -74,9 +74,11 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Semantics Parity (TUI + App-Server + Web)
 - Shared semantics source of truth:
   - Mode semantics: `src/features/semantics/modeSemantics.ts`
+  - Mode transition semantics (normalize/transition helpers): `src/features/semantics/replModeTransition.ts`
   - Slash semantics: `src/features/semantics/slashSemantics.ts`
   - Turn input builder: `src/features/semantics/turnInputBuilder.ts`
   - Input state machine: `src/features/semantics/inputStateMachine.ts`
+  - Thread runtime state reducer (shared by app-server/web): `src/features/semantics/threadRuntimeState.ts`
 - Contract tests:
   - `src/features/semantics/__tests__/*`
   - `src/features/semantics/*.test.ts`
@@ -176,9 +178,11 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Plan Mode
 - REPL mode type: `src/features/repl/mode.ts`
+- REPL mode transition application: `src/features/repl/useReplController.ts`
 - Plan session manager (plan file path, lifecycle): `src/features/repl/planSession.ts`
 - Plan path helpers: `src/utils/planMode.ts`
 - Plan mode injected blocks: `src/features/repl/controller/send.ts` (wired by `src/features/repl/useReplController.ts`)
+- App-server runtime mode change notifications: `src/app-server/turnRunner.ts` (`turn/modeChanged`)
 - Plan tools:
   - EnterPlanMode: `src/tools/modules/enterPlanMode/*`
   - ExitPlanMode: `src/tools/modules/exitPlanMode/*`
