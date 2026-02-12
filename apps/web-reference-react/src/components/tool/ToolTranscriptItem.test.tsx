@@ -96,6 +96,18 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getAllByText('No files found')).toHaveLength(1)
   })
 
+  it('renders read-like tools as `<Tool> <file>` in header', () => {
+    const item = makeToolItem({
+      toolName: 'Read',
+      paramsText: 'file_path="package.json", offset=0',
+      summary: 'Read 42 lines',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText(/Read package\.json \(offset=0\)/)).toBeInTheDocument()
+  })
+
   it('falls back to raw params text when formatter cannot parse them', () => {
     const item = makeToolItem({
       toolName: 'UnknownTool',

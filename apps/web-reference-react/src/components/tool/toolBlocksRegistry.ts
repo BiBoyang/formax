@@ -74,9 +74,34 @@ const globRenderer: ToolBlockRenderer = (item) => {
   return blocks
 }
 
+const readLikeRenderer: ToolBlockRenderer = (item) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText })
+  const file = params.find((param) => param.label === 'file')?.value
+  const title = file ? `${item.toolName} ${file}` : item.toolName
+  const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'file')) : item.paramsText
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title,
+      ...(paramsText ? { paramsText } : {}),
+      summary: item.summary,
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: item.detailLines.length > 0,
+    },
+  ]
+  if (item.detailLines.length > 0) {
+    blocks.push({ kind: 'details', lines: item.detailLines })
+  }
+  return blocks
+}
+
 const renderers: Record<string, ToolBlockRenderer> = {
   Bash: bashRenderer,
   Glob: globRenderer,
+  Read: readLikeRenderer,
+  Write: readLikeRenderer,
+  Edit: readLikeRenderer,
 }
 
 export function buildToolUiBlocks(item: ToolCallItem): ToolUiBlock[] {
