@@ -73,6 +73,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Shared semantics source of truth:
+  - Canonical event envelope/types: `src/features/semantics/canonicalEvents.ts`
+  - Transcript projection reducer (segment model): `src/features/semantics/transcriptProjection.ts`
   - Mode semantics: `src/features/semantics/modeSemantics.ts`
   - Mode transition semantics (normalize/transition helpers): `src/features/semantics/replModeTransition.ts`
   - Slash semantics: `src/features/semantics/slashSemantics.ts`
@@ -84,7 +86,7 @@ This file is a “where to change what” index for quickly navigating the codeb
   - `src/features/semantics/*.test.ts`
 - Web-side parity adapters:
   - Tool event normalizer: `apps/web-reference-react/src/toolEventNormalizer.ts`
-  - Event cursor (eventId/traceId/seq): `apps/web-reference-react/src/turnEventCursor.ts`
+  - Event cursor (eventId dedupe + replaySeq-first ordering): `apps/web-reference-react/src/turnEventCursor.ts`
   - Reducer integration points: `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/App.tsx`
 
 ## Permissions / Approvals (Claude Code-style)
