@@ -90,7 +90,7 @@
 
 ### P1：刷新与实时统一为 replay-first
 
-- [ ] T5 Web 线程切换改为 replay-first（history 降为 fallback）
+- [x] T5 Web 线程切换改为 replay-first（history 降为 fallback）
   - 文件：
     - `apps/web-reference-react/src/App.tsx`
   - 要点：
@@ -100,7 +100,7 @@
     - 刷新前后 transcript 结构一致（不再“history 一套、streaming 一套”）。
   - 当前进展：
     - 已完成：`App.tsx` 在线程切换/新线程场景优先 `thread/replay(after=0)` 重建；`hasGap` 与 replay 空窗口时才走 `thread/messages` fallback。
-    - 未完成：历史上翻分页仍依赖 `thread/messages` 直映射，尚未完全退出 history 语义链路。
+    - 已完成：历史上翻分页仅在 history fallback 模式可用；一旦 replay 成为该线程 canonical 来源会清理 history cursor 并关闭 messages 分页入口。
 
 - [ ] T6 app-server replay 状态快照补齐可恢复信息
   - 文件：

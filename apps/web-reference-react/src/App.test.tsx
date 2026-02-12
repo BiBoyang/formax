@@ -1727,6 +1727,140 @@ describe('App thread history integration', () => {
     expect(historyRequested).toBe(false)
   })
 
+  it('disables history pagination after a thread recovers from history fallback to replay', async () => {
+    let alphaReplayAttempt = 0
+    let pagedHistoryRequested = false
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string; cursor?: string } | undefined)?.threadId
+        const cursor = (params as { threadId?: string; cursor?: string } | undefined)?.cursor
+        if (threadId === 'thread-alpha') {
+          if (cursor) {
+            pagedHistoryRequested = true
+            return {
+              data: [{ id: 'a-older', kind: 'message', role: 'assistant', text: 'older alpha page' }],
+              nextCursor: null,
+            }
+          }
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha from history fallback' }],
+            nextCursor: 'cursor-alpha-older',
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta fallback' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
+        return {
+          thread: {
+            id: threadId,
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [],
+        }
+      }
+      if (method === 'thread/replay') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-beta') {
+          return {
+            data: [
+              {
+                replaySeq: 1,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-beta',
+                  turnId: 'turn-beta',
+                  event: { type: 'assistant_delta', text: 'beta replay canonical' },
+                },
+              },
+            ],
+            nextCursor: 1,
+            latestCursor: 1,
+            hasGap: false,
+          }
+        }
+        if (threadId === 'thread-alpha') {
+          alphaReplayAttempt += 1
+          if (alphaReplayAttempt === 1) {
+            return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+          }
+          return {
+            data: [
+              {
+                replaySeq: 12,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-alpha',
+                  turnId: 'turn-alpha',
+                  event: { type: 'assistant_delta', text: 'alpha replay canonical' },
+                },
+              },
+            ],
+            nextCursor: 12,
+            latestCursor: 12,
+            hasGap: false,
+          }
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    expect(await screen.findByText('alpha from history fallback')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load earlier messages' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    expect(await screen.findByText('beta replay canonical')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    expect(await screen.findByText('alpha replay canonical')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load earlier messages' })).not.toBeInTheDocument()
+    expect(pagedHistoryRequested).toBe(false)
+  })
+
   it('opens ask dock on inputRequested, supports dismiss, and restores composer after resolved', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))

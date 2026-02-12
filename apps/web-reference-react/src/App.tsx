@@ -118,6 +118,8 @@ type ReplayStateSnapshot = {
   updatedAt: string
 }
 
+type ThreadTranscriptSource = 'replay' | 'history'
+
 function asThreadSummaries(value: unknown): ThreadSummary[] {
   if (!value || typeof value !== 'object') return []
   const data = (value as { data?: unknown }).data
@@ -429,12 +431,14 @@ export function App() {
   const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
   const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
   const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
+  const [transcriptSourceByThreadId, setTranscriptSourceByThreadId] = useState<Record<string, ThreadTranscriptSource>>({})
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
   const eventCursorRef = useRef(createTurnEventCursorState(SEEN_EVENT_CAP))
   const historyLoadTokenRef = useRef(0)
   const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
   const historyLoadingRef = useRef<Record<string, boolean>>({})
+  const transcriptSourceByThreadRef = useRef<Record<string, ThreadTranscriptSource>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
@@ -449,6 +453,8 @@ export function App() {
     selectedInput != null &&
     (selectedInput.kind === 'approval' || (selectedInput.kind === 'ask_user_question' && isSelectedAskOpen))
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
+  const activeTranscriptSource =
+    state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
@@ -597,6 +603,32 @@ export function App() {
     })
   }, [])
 
+  const setThreadTranscriptSource = useCallback((threadId: string, source: ThreadTranscriptSource) => {
+    transcriptSourceByThreadRef.current = { ...transcriptSourceByThreadRef.current, [threadId]: source }
+    setTranscriptSourceByThreadId((prev) => {
+      if (prev[threadId] === source) return prev
+      return { ...prev, [threadId]: source }
+    })
+  }, [])
+
+  const clearThreadHistoryCursor = useCallback((threadId: string) => {
+    const nextHistoryLoadingRef = { ...historyLoadingRef.current }
+    delete nextHistoryLoadingRef[threadId]
+    historyLoadingRef.current = nextHistoryLoadingRef
+    setHistoryLoadingByThreadId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
+      const next = { ...prev }
+      delete next[threadId]
+      return next
+    })
+    setHistoryCursorByThreadId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
+      const next = { ...prev }
+      delete next[threadId]
+      return next
+    })
+  }, [])
+
   const beginThreadHistoryRequest = useCallback(
     (threadId: string) => {
       const nextSeq = (historyLoadSeqByThreadRef.current[threadId] ?? 0) + 1
@@ -630,6 +662,7 @@ export function App() {
         dispatch({ type: 'replace_logs', logs })
         setLogsByThreadId((prev) => ({ ...prev, [threadId]: logs }))
         setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+        setThreadTranscriptSource(threadId, 'history')
         return true
       } catch {
         if (token !== historyLoadTokenRef.current) return false
@@ -639,7 +672,7 @@ export function App() {
         endThreadHistoryRequest(threadId, seq)
       }
     },
-    [beginThreadHistoryRequest, endThreadHistoryRequest, request],
+    [beginThreadHistoryRequest, endThreadHistoryRequest, request, setThreadTranscriptSource],
   )
 
   const resumeThreadInputs = useCallback(
@@ -1044,6 +1077,7 @@ export function App() {
     async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
       const fromStart = options?.fromStart === true
       let after = fromStart ? 0 : (replayCursorByThreadRef.current[threadId] ?? 0)
+      const initialAfter = after
       let latestCursor = after
       let replayState: ReplayStateSnapshot | null = null
       let receivedEntries = false
@@ -1154,6 +1188,14 @@ export function App() {
         if (!loaded) return false
       }
 
+      const currentTranscriptSource = transcriptSourceByThreadRef.current[threadId]
+      const shouldPromoteReplayAsCanonical =
+        receivedEntries && (fromStart || initialAfter === 0 || currentTranscriptSource !== 'history')
+      if (shouldPromoteReplayAsCanonical) {
+        setThreadTranscriptSource(threadId, 'replay')
+        clearThreadHistoryCursor(threadId)
+      }
+
       replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
       if (activeThreadIdRef.current === threadId) {
         dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
@@ -1165,7 +1207,14 @@ export function App() {
       }
       return true
     },
-    [cacheThreadMode, handleNotification, loadThreadHistory, request],
+    [
+      cacheThreadMode,
+      clearThreadHistoryCursor,
+      handleNotification,
+      loadThreadHistory,
+      request,
+      setThreadTranscriptSource,
+    ],
   )
 
   useEffect(() => {
@@ -1547,6 +1596,7 @@ export function App() {
   const loadEarlierHistory = useCallback(async () => {
     const threadId = state.activeThreadId
     if (!threadId || historyLoadingRef.current[threadId]) return
+    if (transcriptSourceByThreadRef.current[threadId] !== 'history') return
     const cursor = historyCursorByThreadId[threadId]
     if (!cursor) return
 
@@ -1567,7 +1617,14 @@ export function App() {
     } finally {
       endThreadHistoryRequest(threadId, seq)
     }
-  }, [beginThreadHistoryRequest, endThreadHistoryRequest, historyCursorByThreadId, request, state.activeThreadId, state.logs])
+  }, [
+    beginThreadHistoryRequest,
+    endThreadHistoryRequest,
+    historyCursorByThreadId,
+    request,
+    state.activeThreadId,
+    state.logs,
+  ])
 
   const activeThread = useMemo(
     () => state.threads.find((t) => t.id === state.activeThreadId),
@@ -1701,7 +1758,11 @@ export function App() {
               onInputTextChange={setInputText}
               onSend={onSend}
               onInterrupt={() => void interruptTurn().catch(() => undefined)}
-              historyMore={Boolean(state.activeThreadId && historyCursorByThreadId[state.activeThreadId])}
+              historyMore={Boolean(
+                state.activeThreadId &&
+                  activeTranscriptSource === 'history' &&
+                  historyCursorByThreadId[state.activeThreadId],
+              )}
               historyLoading={activeHistoryLoading}
               onLoadEarlier={() => void loadEarlierHistory().catch(() => undefined)}
               isSending={isSendingTurn}
