@@ -145,6 +145,19 @@ describe('formatToolParams', () => {
     ])
   })
 
+  it('normalizes to relative path before truncating long absolute path values', () => {
+    const cwd = `/Users/david/Documents/github/formax/${'very-long-workspace-root/'.repeat(6)}project`
+    const params = formatToolParams({
+      toolName: 'Read',
+      paramsText: `file_path="${cwd}/src/App.tsx"`,
+      cwd,
+    })
+
+    expect(params).toEqual([
+      { label: 'file', value: 'src/App.tsx', valueType: 'string' },
+    ])
+  })
+
   it('collapses out-of-workspace home paths to ~ prefix', () => {
     const params = formatToolParams({
       toolName: 'Read',

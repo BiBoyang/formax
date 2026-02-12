@@ -95,7 +95,7 @@ function parseParams(paramsText: string | undefined): ToolParamDisplay[] {
     const normalized = normalizeRawValue(rawValue)
     parsed.push({
       label,
-      value: shouldRedact(label) ? REDACTED_VALUE : truncate(normalized.value, MAX_VALUE_LENGTH),
+      value: shouldRedact(label) ? REDACTED_VALUE : normalized.value,
       ...(shouldRedact(label) ? { valueType: 'string' as const } : { valueType: normalized.valueType }),
     })
   }
@@ -116,6 +116,14 @@ function normalizePathValue(param: ToolParamDisplay, cwd?: string): ToolParamDis
   return {
     ...param,
     value: formatPathForToolDisplay(param.value, cwd),
+  }
+}
+
+function truncateDisplayValue(param: ToolParamDisplay): ToolParamDisplay {
+  if (param.value === REDACTED_VALUE) return param
+  return {
+    ...param,
+    value: truncate(param.value, MAX_VALUE_LENGTH),
   }
 }
 
@@ -193,7 +201,7 @@ export function formatToolParams(args: Pick<ToolCallItem, 'toolName' | 'paramsTe
     ordered.push(entry)
   }
 
-  return ordered.map((param) => normalizePathValue(param, args.cwd))
+  return ordered.map((param) => truncateDisplayValue(normalizePathValue(param, args.cwd)))
 }
 
 export function stringifyToolParams(params: ToolParamDisplay[]): string | undefined {
