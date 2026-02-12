@@ -49,8 +49,10 @@ export function findLatestToolNameByUseId(logs: TranscriptItem[], toolUseId?: st
     const item = logs[index]
     if (item.kind !== 'tool_call') continue
     if (item.toolUseId !== toolUseId) continue
-    if (typeof item.toolName !== 'string' || !item.toolName.trim()) continue
-    return item.toolName
+    if (typeof item.toolName !== 'string') continue
+    const normalizedToolName = item.toolName.trim()
+    if (!normalizedToolName || normalizedToolName === 'Tool') continue
+    return normalizedToolName
   }
   return undefined
 }

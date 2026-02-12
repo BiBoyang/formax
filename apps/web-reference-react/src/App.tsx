@@ -1120,6 +1120,11 @@ export function App() {
         after = nextAfter
       }
 
+      if (fromStart && !receivedEntries) {
+        const loaded = await loadThreadHistory(threadId)
+        if (!loaded) return false
+      }
+
       replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
       if (activeThreadIdRef.current === threadId) {
         dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
@@ -1129,7 +1134,7 @@ export function App() {
           cacheThreadMode(threadId, nextMode)
         }
       }
-      return fromStart ? receivedEntries || latestCursor === 0 : true
+      return true
     },
     [cacheThreadMode, handleNotification, loadThreadHistory, request],
   )
@@ -1266,6 +1271,8 @@ export function App() {
         setMode(runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
+        dispatch({ type: 'set_active_turn', turnId: null })
+        dispatch({ type: 'clear_pending_inputs' })
         dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
         const replayLoaded = await replayThreadEvents(thread.id, { fromStart: true })
         if (!replayLoaded) {

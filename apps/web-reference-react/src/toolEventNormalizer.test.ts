@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { applyToolEventPatch, findToolEventTargetIndex, mapHistoryToolToTranscript } from './toolEventNormalizer'
+import {
+  applyToolEventPatch,
+  findLatestToolNameByUseId,
+  findToolEventTargetIndex,
+  mapHistoryToolToTranscript,
+} from './toolEventNormalizer'
 import type { TranscriptItem } from './types'
 
 describe('toolEventNormalizer', () => {
@@ -89,5 +94,32 @@ describe('toolEventNormalizer', () => {
     ]
     expect(findToolEventTargetIndex(logs, { turnId: 'turn-1', toolUseId: 'tool-1' })).toBe(1)
     expect(findToolEventTargetIndex(logs, { turnId: 'turn-1', toolUseId: 'missing' })).toBe(-1)
+  })
+
+  it('ignores placeholder tool names when resolving sticky name by toolUseId', () => {
+    const logs: TranscriptItem[] = [
+      {
+        id: 'real',
+        kind: 'tool_call',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        toolName: 'Bash',
+        status: 'completed',
+        summary: 'done',
+        detailLines: [],
+      },
+      {
+        id: 'placeholder',
+        kind: 'tool_call',
+        turnId: 'turn-2',
+        toolUseId: 'tool-1',
+        toolName: 'Tool',
+        status: 'completed',
+        summary: 'done',
+        detailLines: [],
+      },
+    ]
+
+    expect(findLatestToolNameByUseId(logs, 'tool-1')).toBe('Bash')
   })
 })
