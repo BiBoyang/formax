@@ -75,6 +75,7 @@ type RunningTurn = {
     isCommand: boolean
     instructions: string
   }
+  toolNameByUseId: Map<string, string>
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -278,6 +279,7 @@ export class TurnRunner {
         isCommand: commandRouting.isExactCompact,
         instructions: commandRouting.isExactCompact ? commandRouting.commandArgs ?? '' : '',
       },
+      toolNameByUseId: new Map<string, string>(),
     }
     this.runningByThreadId.set(params.threadId, running)
 
@@ -463,6 +465,7 @@ export class TurnRunner {
 
         if (event.type === 'assistant_delta') assistantText += event.text
         if (event.type === 'tool_start') {
+          running.toolNameByUseId.set(event.id, event.name)
           this.appendAppEvent(running, 'app_tool_event', {
             threadId: running.threadId,
             turnId: running.turnId,
@@ -473,35 +476,42 @@ export class TurnRunner {
             summary: `${event.name} running`,
           })
         } else if (event.type === 'tool_input') {
+          const toolName = running.toolNameByUseId.get(event.id)
           this.appendAppEvent(running, 'app_tool_event', {
             threadId: running.threadId,
             turnId: running.turnId,
             toolUseId: event.id,
+            ...(toolName ? { toolName } : {}),
             phase: 'update',
             ...(compactParamsText(event.input) ? { paramsText: compactParamsText(event.input) } : {}),
           })
         } else if (event.type === 'tool_update') {
+          const toolName = running.toolNameByUseId.get(event.id)
           const line = toToolUpdateLine(event)
           if (line) {
             this.appendAppEvent(running, 'app_tool_event', {
               threadId: running.threadId,
               turnId: running.turnId,
               toolUseId: event.id,
+              ...(toolName ? { toolName } : {}),
               phase: 'update',
               line,
             })
           }
         } else if (event.type === 'tool_end') {
+          const toolName = running.toolNameByUseId.get(event.id)
           const payload = toToolEndPayload(event)
           this.appendAppEvent(running, 'app_tool_event', {
             threadId: running.threadId,
             turnId: running.turnId,
             toolUseId: event.id,
+            ...(toolName ? { toolName } : {}),
             phase: 'end',
             status: payload.status,
             summary: payload.summary,
             lines: payload.lines,
           })
+          running.toolNameByUseId.delete(event.id)
         }
         emitStreamTurnEvent(event)
       }

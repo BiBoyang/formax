@@ -37,6 +37,27 @@ async function createThreadFixture() {
   }
 }
 
+async function readAppToolEvents(filePath: string): Promise<Array<Record<string, unknown>>> {
+  const raw = await fs.readFile(filePath, 'utf8')
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as Record<string, unknown>
+      } catch {
+        return null
+      }
+    })
+    .filter((record): record is Record<string, unknown> => Boolean(record))
+    .filter((record) => record.type === 'event' && record.name === 'app_tool_event')
+    .map((record) => {
+      const data = record.data
+      return data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+    })
+}
+
 describe('TurnRunner', () => {
   it('runs a turn, emits events, and persists history', async () => {
     const fixture = await createThreadFixture()
@@ -361,6 +382,55 @@ describe('TurnRunner', () => {
       (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'approval',
     )
     expect(approvalRequested.params?.input?.payload?.toolName).toBe('Bash')
+  })
+
+  it('persists toolName on app_tool_event update/end rows', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' })
+          args.onEvent({ type: 'tool_input', id: 'tool-1', input: { command: 'ls -la' } })
+          args.onEvent({ type: 'tool_update', id: 'tool-1', middleLines: ['running'] })
+          args.onEvent({
+            type: 'tool_end',
+            id: 'tool-1',
+            result: { tool_use_id: 'tool-1', content: 'done', is_error: false },
+          })
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'tool name sticky' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const toolEvents = await readAppToolEvents(filePath!)
+    const targetEvents = toolEvents.filter((event) => event.toolUseId === 'tool-1')
+    expect(targetEvents.length).toBeGreaterThanOrEqual(4)
+    const updateOrEnd = targetEvents.filter((event) => event.phase === 'update' || event.phase === 'end')
+    expect(updateOrEnd.length).toBeGreaterThanOrEqual(2)
+    for (const event of updateOrEnd) {
+      expect(event.toolName).toBe('Bash')
+    }
   })
 
   it('auto-generates session title once after completed turn', async () => {
