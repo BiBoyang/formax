@@ -8,7 +8,7 @@ import { appReducer, initialAppState } from './store'
 import type { PendingInput, ResolvedInput, RpcNotification, ThreadMessage, ThreadSummary, TranscriptItem } from './types'
 import { cn } from './lib/utils'
 import { Button } from './components/ui/button'
-import { mapHistoryToolToTranscript } from './toolEventNormalizer'
+import { formatToolInputAsParamsText, mapHistoryToolToTranscript } from './toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from './turnEventCursor'
 import { WorktreeDiffPane, type DiffSnapshot } from './components/WorktreeDiffPane'
 import {
@@ -19,6 +19,10 @@ import {
 } from '../../../src/features/semantics/threadRuntimeState'
 import { resolveCommandRouting } from '../../../src/features/semantics/commandRouting'
 import { isReplMode, type ReplMode } from '../../../src/features/semantics/replModeTransition'
+import {
+  isCanonicalEventSource,
+  type CanonicalEventSource,
+} from '../../../src/features/semantics/canonicalEvents'
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
@@ -29,7 +33,6 @@ const SIDEBAR_MAX_WIDTH = 520
 const SIDEBAR_DEFAULT_WIDTH = 260
 const DIVIDER_WIDTH = 1
 const SEEN_EVENT_CAP = 2000
-const DELTA_FLUSH_MS = 50
 const WEB_SUPPORTED_SLASH_COMMANDS = new Set(['/init', '/clear', '/compact', '/todos'])
 const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
 const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
@@ -93,11 +96,6 @@ type RpcErrorDetails = {
   message: string
   code?: number
   data?: unknown
-}
-type DeltaBucket = {
-  threadId: string | null
-  assistant: string
-  thinking: string
 }
 type SubmitUiStatus = {
   kind: 'success' | 'error'
@@ -428,8 +426,7 @@ export function App() {
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
-  const bufferedDeltaByTurnRef = useRef<Record<string, DeltaBucket>>({})
-  const deltaFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const canonicalReplaySeqRef = useRef(0)
   const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
   const selectedAskDraft = selectedInput ? (askDraftByInputId[selectedInput.inputId] ?? {}) : {}
   const selectedAskPageIndex = selectedInput ? (askPageIndexByInputId[selectedInput.inputId] ?? 0) : 0
@@ -510,55 +507,46 @@ export function App() {
     [captureError],
   )
 
-  const flushBufferedDeltas = useCallback((targetTurnId?: string, threadId?: string | null) => {
-    const entries = bufferedDeltaByTurnRef.current
-    const turnIds = targetTurnId ? [targetTurnId] : Object.keys(entries)
-    const activeThreadId = threadId ?? activeThreadIdRef.current
-    for (const turnId of turnIds) {
-      const bucket = entries[turnId]
-      if (!bucket) continue
-      if (activeThreadId && bucket.threadId && bucket.threadId !== activeThreadId) {
-        delete entries[turnId]
-        continue
-      }
-      if (bucket.assistant) {
-        dispatch({
-          type: 'append_assistant_delta',
-          turnId,
-          text: bucket.assistant,
-        })
-      }
-      if (bucket.thinking) {
-        dispatch({
-          type: 'append_thinking_delta',
-          turnId,
-          text: bucket.thinking,
-        })
-      }
-      delete entries[turnId]
+  const nextCanonicalReplaySeq = useCallback((candidate?: unknown): number => {
+    if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
+      const replaySeq = candidate > canonicalReplaySeqRef.current ? candidate : canonicalReplaySeqRef.current + 1
+      canonicalReplaySeqRef.current = replaySeq
+      return replaySeq
     }
+    canonicalReplaySeqRef.current += 1
+    return canonicalReplaySeqRef.current
   }, [])
 
-  const scheduleDeltaFlush = useCallback(() => {
-    if (deltaFlushTimerRef.current) return
-    deltaFlushTimerRef.current = setTimeout(() => {
-      deltaFlushTimerRef.current = null
-      flushBufferedDeltas()
-    }, DELTA_FLUSH_MS)
-  }, [flushBufferedDeltas])
-
-  const queueDelta = useCallback(
-    (kind: 'assistant' | 'thinking', turnId: string, text: string, threadId: string | null) => {
-      if (!turnId || !text) return
-      const current = bufferedDeltaByTurnRef.current[turnId] ?? { threadId, assistant: '', thinking: '' }
-      if (!current.threadId && threadId) {
-        current.threadId = threadId
+  const toCanonicalMeta = useCallback(
+    (args: {
+      threadId: string | null | undefined
+      turnId: string
+      kind: string
+      params?: Record<string, unknown> | null | undefined
+    }): {
+      threadId: string
+      replaySeq: number
+      eventId: string
+      ts: string
+      source: CanonicalEventSource
+    } => {
+      const resolvedThreadId = args.threadId ?? activeThreadIdRef.current ?? '__active_thread__'
+      const params = args.params
+      const replaySeq = nextCanonicalReplaySeq(params?.replaySeq)
+      const eventIdRaw = typeof params?.eventId === 'string' ? params.eventId.trim() : ''
+      const eventId = eventIdRaw || `${resolvedThreadId}:${args.turnId}:${args.kind}:${replaySeq}`
+      const ts = typeof params?.ts === 'string' && params.ts.trim() ? params.ts : new Date().toISOString()
+      const sourceRaw = params?.source
+      const source = isCanonicalEventSource(sourceRaw) ? sourceRaw : 'engine'
+      return {
+        threadId: resolvedThreadId,
+        replaySeq,
+        eventId,
+        ts,
+        source,
       }
-      current[kind] += text
-      bufferedDeltaByTurnRef.current[turnId] = current
-      scheduleDeltaFlush()
     },
-    [scheduleDeltaFlush],
+    [nextCanonicalReplaySeq],
   )
 
   const refreshThreads = useCallback(async () => {
@@ -727,13 +715,37 @@ export function App() {
           }
           const turnId = String(params?.turn?.id ?? '')
           if (turnId) {
-            flushBufferedDeltas(turnId)
-          } else {
-            flushBufferedDeltas()
-          }
-          if (turnId) {
-            dispatch({ type: 'finalize_turn_thinking', turnId })
-            dispatch({ type: 'push_turn_footer', turnId, status: 'completed' })
+            const threadId =
+              typeof params?.turn?.threadId === 'string' ? params.turn.threadId : activeThreadIdRef.current
+            const thinkingMeta = toCanonicalMeta({
+              threadId,
+              turnId,
+              kind: 'thinking_finalized',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...thinkingMeta,
+                kind: 'thinking_finalized',
+                turnId,
+              },
+            })
+            const footerMeta = toCanonicalMeta({
+              threadId,
+              turnId,
+              kind: 'turn_footer',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...footerMeta,
+                kind: 'turn_footer',
+                turnId,
+                status: 'completed',
+              },
+            })
           }
           dispatch({ type: 'set_active_turn', turnId: null })
           if (turnId) {
@@ -751,17 +763,37 @@ export function App() {
           }
           const turnId = String(params?.turn?.id ?? '')
           if (turnId) {
-            flushBufferedDeltas(turnId)
-          } else {
-            flushBufferedDeltas()
-          }
-          if (turnId) {
-            dispatch({ type: 'finalize_turn_thinking', turnId })
-            dispatch({
-              type: 'push_turn_footer',
+            const threadId =
+              typeof params?.turn?.threadId === 'string' ? params.turn.threadId : activeThreadIdRef.current
+            const thinkingMeta = toCanonicalMeta({
+              threadId,
               turnId,
-              status: toTurnFooterStatus(String(params?.error ?? '')),
-              message: String(params?.error ?? 'unknown'),
+              kind: 'thinking_finalized',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...thinkingMeta,
+                kind: 'thinking_finalized',
+                turnId,
+              },
+            })
+            const footerMeta = toCanonicalMeta({
+              threadId,
+              turnId,
+              kind: 'turn_footer',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...footerMeta,
+                kind: 'turn_footer',
+                turnId,
+                status: toTurnFooterStatus(String(params?.error ?? '')),
+                message: String(params?.error ?? 'unknown'),
+              },
             })
           }
           dispatch({ type: 'set_active_turn', turnId: null })
@@ -780,37 +812,76 @@ export function App() {
           const turnId = String(params?.turnId ?? '')
           const eventThreadId =
             typeof params?.threadId === 'string' ? params.threadId : activeThreadIdRef.current
+          if (!turnId) break
           const eventType = params?.event?.type
           if (eventType === 'assistant_delta') {
-            queueDelta('assistant', turnId, String(params?.event?.text ?? ''), eventThreadId)
+            const textDelta = String(params?.event?.text ?? '')
+            if (!textDelta) break
+            const meta = toCanonicalMeta({
+              threadId: eventThreadId,
+              turnId,
+              kind: 'assistant_delta',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...meta,
+                kind: 'assistant_delta',
+                turnId,
+                textDelta,
+              },
+            })
             break
           }
 
           if (eventType === 'thinking_delta') {
             const text = String(params?.event?.thinking ?? params?.event?.text ?? params?.event?.delta ?? '')
             if (text) {
-              queueDelta('thinking', turnId, text, eventThreadId)
+              const meta = toCanonicalMeta({
+                threadId: eventThreadId,
+                turnId,
+                kind: 'thinking_delta',
+                params,
+              })
+              dispatch({
+                type: 'apply_canonical_event',
+                event: {
+                  ...meta,
+                  kind: 'thinking_delta',
+                  turnId,
+                  textDelta: text,
+                },
+              })
             }
             break
           }
 
-          if (turnId) {
-            // Keep turn timeline order stable: flush buffered assistant/thinking text
-            // before appending synchronous non-delta rows (tool/log/footer).
-            flushBufferedDeltas(turnId, eventThreadId)
-          }
-
           if (eventType === 'tool_start' || eventType === 'tool_update' || eventType === 'tool_end') {
             const event = params?.event
-            dispatch({
-              type: 'append_tool_event',
+            const toolUseId = toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId)
+            if (!toolUseId) break
+            const meta = toCanonicalMeta({
+              threadId: eventThreadId,
               turnId,
-              toolUseId: toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId),
-              toolName: event?.name ? String(event.name) : undefined,
-              phase: eventType === 'tool_start' ? 'start' : eventType === 'tool_update' ? 'update' : 'end',
-              text: summarizeToolEvent(event),
-              input: event?.input,
-              isError: Boolean(event?.result?.is_error),
+              kind: 'tool_event',
+              params,
+            })
+            const summary = summarizeToolEvent(event)
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...meta,
+                kind: 'tool_event',
+                turnId,
+                toolUseId,
+                phase: eventType === 'tool_start' ? 'start' : eventType === 'tool_update' ? 'update' : 'end',
+                ...(event?.name ? { toolName: String(event.name) } : {}),
+                ...(eventType === 'tool_update' && summary ? { line: summary } : {}),
+                ...(eventType === 'tool_end' && summary ? { summary } : {}),
+                ...(event?.input ? { paramsText: formatToolInputAsParamsText(event.input) } : {}),
+                isError: Boolean(event?.result?.is_error),
+              },
             })
             break
           }
@@ -822,14 +893,25 @@ export function App() {
 
           if (eventType === 'tool_input') {
             const event = params?.event
-            dispatch({
-              type: 'append_tool_event',
+            const toolUseId = toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId)
+            if (!toolUseId) break
+            const meta = toCanonicalMeta({
+              threadId: eventThreadId,
               turnId,
-              toolUseId: toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId),
-              toolName: event?.name ? String(event.name) : undefined,
-              phase: 'update',
-              text: '',
-              input: event?.input,
+              kind: 'tool_event',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...meta,
+                kind: 'tool_event',
+                turnId,
+                toolUseId,
+                phase: 'update',
+                ...(event?.name ? { toolName: String(event.name) } : {}),
+                ...(event?.input ? { paramsText: formatToolInputAsParamsText(event.input) } : {}),
+              },
             })
             break
           }
@@ -841,13 +923,23 @@ export function App() {
           if (!isNotificationForActiveThread(params)) break
           const input = params?.input as PendingInput | undefined
           if (!input?.inputId) break
-          dispatch({
-            type: 'annotate_tool_input_state',
+          const meta = toCanonicalMeta({
+            threadId: input.threadId,
             turnId: input.turnId,
-            toolUseId: input.toolUseId,
-            ...(typeof input.payload?.toolName === 'string' ? { toolName: input.payload.toolName } : {}),
-            inputKind: input.kind,
-            status: 'pending',
+            kind: 'tool_input_state',
+            params,
+          })
+          dispatch({
+            type: 'apply_canonical_event',
+            event: {
+              ...meta,
+              kind: 'tool_input_state',
+              turnId: input.turnId,
+              toolUseId: input.toolUseId,
+              ...(typeof input.payload?.toolName === 'string' ? { toolName: input.payload.toolName } : {}),
+              inputKind: input.kind,
+              status: 'pending',
+            },
           })
           dispatch({ type: 'input_requested', input })
           dispatch({ type: 'set_selected_input', inputId: input.inputId })
@@ -864,12 +956,22 @@ export function App() {
           const inputId = input?.inputId as string | undefined
           if (!inputId) break
           if (input?.turnId && input?.toolUseId && input?.kind && input?.status) {
-            dispatch({
-              type: 'annotate_tool_input_state',
+            const meta = toCanonicalMeta({
+              threadId: input.threadId,
               turnId: input.turnId,
-              toolUseId: input.toolUseId,
-              inputKind: input.kind,
-              status: input.status,
+              kind: 'tool_input_state',
+              params,
+            })
+            dispatch({
+              type: 'apply_canonical_event',
+              event: {
+                ...meta,
+                kind: 'tool_input_state',
+                turnId: input.turnId,
+                toolUseId: input.toolUseId,
+                inputKind: input.kind,
+                status: input.status,
+              },
             })
           }
           setAskDockOpenByInputId((prev) => {
@@ -918,8 +1020,7 @@ export function App() {
       cacheThreadMode,
       isNotificationForActiveThread,
       log,
-      flushBufferedDeltas,
-      queueDelta,
+      toCanonicalMeta,
       refreshThreads,
       refreshWorkspaceDiff,
       shouldProcessSequencedNotification,
@@ -995,16 +1096,6 @@ export function App() {
     },
     [cacheThreadMode, handleNotification, loadThreadHistory, request],
   )
-
-  useEffect(() => {
-    return () => {
-      if (deltaFlushTimerRef.current) {
-        clearTimeout(deltaFlushTimerRef.current)
-        deltaFlushTimerRef.current = null
-      }
-      flushBufferedDeltas()
-    }
-  }, [flushBufferedDeltas])
 
   useEffect(() => {
     activeThreadIdRef.current = state.activeThreadId
@@ -1125,17 +1216,16 @@ export function App() {
   }, [cwdOptions, selectedCwd, state.activeThreadId, state.threads])
 
   const startThread = async () => {
-    const previousThreadId = state.activeThreadId
-    const previousLogs = state.logs
-    setIsThreadActionBusy(true)
-    try {
+      const previousThreadId = state.activeThreadId
+      const previousLogs = state.logs
+      setIsThreadActionBusy(true)
+      try {
       const result = await request('thread/start', selectedCwd ? { cwd: selectedCwd } : {})
       const thread = result?.thread as { id?: string; cwd?: string } | undefined
       if (thread?.id) {
         if (thread.cwd) {
           setSelectedCwd(thread.cwd)
         }
-        flushBufferedDeltas(undefined, previousThreadId)
         setMode(runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
@@ -1311,7 +1401,6 @@ export function App() {
       const previousLogs = state.logs
       const cachedLogs = logsByThreadId[threadId] ?? []
       setMode(runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal')
-      flushBufferedDeltas(undefined, previousThreadId)
       activeThreadIdRef.current = threadId
       dispatch({ type: 'set_active_thread', threadId })
       dispatch({ type: 'set_active_turn', turnId: null })
@@ -1338,7 +1427,6 @@ export function App() {
       })().catch(() => undefined)
     },
     [
-      flushBufferedDeltas,
       loadThreadHistory,
       log,
       logsByThreadId,
@@ -1356,8 +1444,6 @@ export function App() {
       setSelectedCwd(cwd)
       const targetThread = sortedThreads.find((thread) => thread.cwd === cwd)
       if (!targetThread) {
-        const previousThreadId = state.activeThreadId
-        flushBufferedDeltas(undefined, previousThreadId)
         activeThreadIdRef.current = null
         setMode('normal')
         dispatch({ type: 'set_active_thread', threadId: null })
@@ -1370,7 +1456,7 @@ export function App() {
         selectThread(targetThread.id)
       }
     },
-    [flushBufferedDeltas, selectThread, selectedCwd, sortedThreads, state.activeThreadId],
+    [selectThread, selectedCwd, sortedThreads, state.activeThreadId],
   )
 
   const renameThread = useCallback(

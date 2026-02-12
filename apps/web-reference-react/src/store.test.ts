@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { appReducer, initialAppState } from './store'
 import type { PendingInput } from './types'
+import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
 
 function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput {
   return {
@@ -19,6 +20,20 @@ function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput
     },
     ...overrides,
   }
+}
+
+function createCanonicalEvent(
+  base: { replaySeq: number; eventId: string },
+  patch: { kind: CanonicalEvent['kind'] } & Record<string, unknown>,
+): CanonicalEvent {
+  return {
+    threadId: 'thread-1',
+    replaySeq: base.replaySeq,
+    eventId: base.eventId,
+    ts: '2026-02-13T01:10:00.000Z',
+    source: 'engine',
+    ...patch,
+  } as CanonicalEvent
 }
 
 describe('appReducer', () => {
@@ -430,5 +445,55 @@ describe('appReducer', () => {
     state = appReducer(state, { type: 'clear_pending_inputs' })
     expect(state.pendingInputs).toEqual({})
     expect(state.selectedInputId).toBeNull()
+  })
+
+  it('applies canonical events without back-writing assistant text across tool rows', () => {
+    let state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'e1' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'alpha' },
+      ),
+    })
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 2, eventId: 'e2' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'start', toolName: 'Bash' },
+      ),
+    })
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 3, eventId: 'e3' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'beta' },
+      ),
+    })
+
+    expect(state.logs.map((item) => item.kind)).toEqual(['message', 'tool_call', 'message'])
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'alpha' })
+    expect(state.logs[1]).toMatchObject({ kind: 'tool_call', toolName: 'Bash' })
+    expect(state.logs[2]).toMatchObject({ kind: 'message', role: 'assistant', text: 'beta' })
+  })
+
+  it('deduplicates canonical events by eventId', () => {
+    let state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'e-dup' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'hello' },
+      ),
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'e-dup' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'hello' },
+      ),
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'hello' })
   })
 })

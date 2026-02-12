@@ -2,6 +2,12 @@ import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
 import { transitionResolvedFromPending } from '../../../src/features/semantics/inputStateMachine'
 import { applyToolEventPatch, findToolEventTargetIndex } from './toolEventNormalizer'
+import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
+import {
+  createInitialTranscriptProjectionState,
+  reduceTranscriptProjection,
+  type TranscriptProjectionState,
+} from '../../../src/features/semantics/transcriptProjection'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -11,6 +17,7 @@ export type AppState = {
   logs: TranscriptItem[]
   pendingInputs: Record<string, PendingInput>
   selectedInputId: string | null
+  transcriptProjection: TranscriptProjectionState | null
 }
 
 export type AppAction =
@@ -54,6 +61,7 @@ export type AppAction =
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
+  | { type: 'apply_canonical_event'; event: CanonicalEvent }
 
 export const initialAppState: AppState = {
   connectionStatus: 'disconnected',
@@ -63,6 +71,7 @@ export const initialAppState: AppState = {
   logs: [],
   pendingInputs: {},
   selectedInputId: null,
+  transcriptProjection: null,
 }
 
 function itemId(): string {
@@ -90,6 +99,116 @@ function findLastLogIndexInTurnTail(
   return -1
 }
 
+function isProjectionManagedTurnItem(item: TranscriptItem, turnId: string): boolean {
+  if (item.turnId !== turnId) return false
+  if (item.kind === 'thinking' || item.kind === 'turn_footer' || item.kind === 'tool_call') return true
+  return item.kind === 'message' && item.role === 'assistant'
+}
+
+function toTranscriptItemFromProjectionSegment(segment: TranscriptProjectionState['segments'][number]): TranscriptItem | null {
+  if (segment.kind === 'assistant') {
+    return {
+      id: segment.id,
+      kind: 'message',
+      role: 'assistant',
+      turnId: segment.turnId,
+      text: segment.text,
+    }
+  }
+
+  if (segment.kind === 'thinking') {
+    return {
+      id: segment.id,
+      kind: 'thinking',
+      turnId: segment.turnId,
+      text: segment.text,
+      status: segment.status,
+    }
+  }
+
+  if (segment.kind === 'tool') {
+    return {
+      id: segment.id,
+      kind: 'tool_call',
+      turnId: segment.turnId,
+      toolUseId: segment.toolUseId,
+      toolName: segment.toolName,
+      status: segment.status,
+      summary: segment.summary,
+      detailLines: segment.detailLines,
+      ...(segment.paramsText ? { paramsText: segment.paramsText } : {}),
+      ...(segment.inputState ? { inputState: segment.inputState } : {}),
+    }
+  }
+
+  if (segment.kind === 'turn_footer') {
+    return {
+      id: segment.id,
+      kind: 'turn_footer',
+      turnId: segment.turnId,
+      status: segment.status,
+      createdAt: new Date().toISOString(),
+      ...(segment.message ? { message: segment.message } : {}),
+    }
+  }
+
+  return null
+}
+
+function mergeTurnProjectionLogs(args: {
+  logs: TranscriptItem[]
+  turnId: string
+  projectedItems: TranscriptItem[]
+}): TranscriptItem[] {
+  const { logs, turnId, projectedItems } = args
+  let firstManagedIndex = -1
+  let lastTurnIndex = -1
+  for (let index = 0; index < logs.length; index += 1) {
+    const item = logs[index]
+    if (item.turnId === turnId) {
+      lastTurnIndex = index
+      if (firstManagedIndex < 0 && isProjectionManagedTurnItem(item, turnId)) {
+        firstManagedIndex = index
+      }
+    }
+  }
+  const anchorIndex = firstManagedIndex >= 0 ? firstManagedIndex : lastTurnIndex >= 0 ? lastTurnIndex + 1 : logs.length
+  let managedBeforeAnchor = 0
+  for (let index = 0; index < anchorIndex; index += 1) {
+    if (isProjectionManagedTurnItem(logs[index], turnId)) managedBeforeAnchor += 1
+  }
+  const filteredLogs = logs.filter((item) => !isProjectionManagedTurnItem(item, turnId))
+  const insertionIndex = Math.max(0, Math.min(filteredLogs.length, anchorIndex - managedBeforeAnchor))
+  return [
+    ...filteredLogs.slice(0, insertionIndex),
+    ...projectedItems,
+    ...filteredLogs.slice(insertionIndex),
+  ]
+}
+
+function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): AppState {
+  if (!event.threadId || !event.turnId) return state
+  const currentProjection =
+    state.transcriptProjection && state.transcriptProjection.threadId === event.threadId
+      ? state.transcriptProjection
+      : createInitialTranscriptProjectionState({ threadId: event.threadId })
+  const nextProjection = reduceTranscriptProjection(currentProjection, event)
+  const projectedItems = nextProjection.segments
+    .filter((segment) => segment.turnId === event.turnId)
+    .map((segment) => toTranscriptItemFromProjectionSegment(segment))
+    .filter((segment): segment is TranscriptItem => Boolean(segment))
+  const logs = mergeTurnProjectionLogs({
+    logs: state.logs,
+    turnId: event.turnId,
+    projectedItems,
+  })
+  return {
+    ...state,
+    logs,
+    transcriptProjection: nextProjection,
+  }
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'set_connection_status':
@@ -99,13 +218,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, threads: action.threads }
 
     case 'set_active_thread':
-      return { ...state, activeThreadId: action.threadId }
+      return { ...state, activeThreadId: action.threadId, transcriptProjection: null }
 
     case 'set_active_turn':
       return { ...state, activeTurnId: action.turnId }
 
     case 'replace_logs':
-      return { ...state, logs: action.logs }
+      return { ...state, logs: action.logs, transcriptProjection: null }
 
     case 'prepend_logs':
       return { ...state, logs: [...action.logs, ...state.logs] }
@@ -377,6 +496,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'set_selected_input':
       return { ...state, selectedInputId: action.inputId }
+
+    case 'apply_canonical_event':
+      return applyCanonicalProjectionEvent(state, action.event)
 
     default:
       return state

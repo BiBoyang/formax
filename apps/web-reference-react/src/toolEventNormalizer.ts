@@ -12,7 +12,7 @@ export type ToolEventPatch = {
   isError?: boolean
 }
 
-function compactParamText(input: unknown): string | undefined {
+export function formatToolInputAsParamsText(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined
   const entries = Object.entries(input as Record<string, unknown>)
   if (entries.length === 0) return undefined
@@ -49,7 +49,7 @@ export function applyToolEventPatch(args: {
   patch: ToolEventPatch
 }): ToolCallTranscriptItem {
   const { current, patch } = args
-  const paramsText = compactParamText(patch.input)
+  const paramsText = formatToolInputAsParamsText(patch.input)
   const line = typeof patch.text === 'string' ? patch.text.trim() : ''
   const toolName = patch.toolName ?? current?.toolName ?? 'Tool'
 
