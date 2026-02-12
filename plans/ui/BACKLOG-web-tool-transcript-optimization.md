@@ -325,3 +325,32 @@ Tool 级映射表（v1）：
 - 右栏仅保留 workspace diff，不再承载 pending input 表单。
 - Tool 行只展示与审批相关的状态，不承载完整审批交互。
 - 审批面板激活期间隐藏 composer；resolved 后恢复。
+
+## 已完成进度（2026-02-12）
+
+1. 输入区审批双形态与布局改造
+- `ask_user_question` 输入区分页面板（`1 of N`、`Dismiss/ESC`、`Continue/Submit`）已落地。
+- `approval` 输入区面板（仅 `Submit`）已落地。
+- 右栏已切为 diff-only，pending 表单从右栏移除。
+- 审批激活时 composer 锁定，resolved 后恢复。
+
+2. Tool 渲染组件化（非卡片化）
+- Tool 渲染已切到 `ToolTranscriptItem + ToolUiBlocks + toolBlocksRegistry` 协议层。
+- 公共 header/details 结构复用，Tool 行保持流式，不再整卡包裹。
+- 工具状态点支持运行态呼吸灯、错误态红点、输入态联动点色。
+
+3. Tool 参数格式化集中层
+- 已新增 `formatToolParams` + `stringifyToolParams`，参数解析/排序/脱敏/裁剪收敛到单点。
+- 已覆盖：`Bash`、`Glob`、`Grep/Search`、`Read/Write/Edit`、`WebSearch`、`WebFetch`、`Task`、`AskUserQuestion`、`TodoWrite`。
+
+4. Tool 专用 renderer 覆盖
+- `Bash`：`command` 提升为标题，余参保留。
+- `Glob`：`pattern` 提升为摘要，保留 found/no files 语义。
+- `Read/Write/Edit`：`file` 提升为标题。
+- `WebSearch/WebFetch`：`query/url` 提升为标题。
+- `Task`：`subagent_type + description/prompt` 提升为标题。
+- `AskUserQuestion/TodoWrite`：数组项计数提升为标题。
+
+5. 回归保障
+- `ToolTranscriptItem.test.tsx`、`formatToolParams.test.ts`、`App.test.tsx`、`store.test.ts` 持续补齐。
+- CI 已补充 web-reference-react 专属 `type-check + test`，避免仅跑根目录 `src/**` 漏检。
