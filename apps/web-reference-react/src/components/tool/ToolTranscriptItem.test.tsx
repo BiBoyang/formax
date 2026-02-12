@@ -41,7 +41,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
     expect(screen.getByText('approval:pending')).toBeInTheDocument()
-    const dot = screen.getByRole('button').querySelector('span.h-2.w-2')
+    const dot = screen.getByTestId('tool-status-dot')
     expect(dot).toHaveClass('bg-amber-500')
   })
 
@@ -54,7 +54,7 @@ describe('ToolTranscriptItem', () => {
       },
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
-    const dot = screen.getByRole('button').querySelector('span.h-2.w-2')
+    const dot = screen.getByTestId('tool-status-dot')
     expect(dot).toHaveClass('bg-red-500')
   })
 

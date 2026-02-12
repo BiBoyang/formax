@@ -47,7 +47,10 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
       )}
       onClick={block.expandable ? onToggle : undefined}
     >
-      <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))} />
+      <span
+        data-testid="tool-status-dot"
+        className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
+      />
       <span className="min-w-0 truncate text-[15px] font-medium text-foreground/90">{label}</span>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         {block.inputState ? (
