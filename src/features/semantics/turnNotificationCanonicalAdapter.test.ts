@@ -190,4 +190,88 @@ describe('turnNotificationCanonicalAdapter', () => {
       source: 'policy',
     })
   })
+
+  it('preserves tool input state transitions when interleaved with tool events', () => {
+    const fixtures = [
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 1,
+          event: { type: 'tool_start', id: 'tool-approve-1', name: 'Write' },
+        },
+      },
+      {
+        method: 'turn/inputRequested',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 2,
+          input: {
+            inputId: 'input-1',
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            toolUseId: 'tool-approve-1',
+            kind: 'approval',
+            status: 'pending',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+      {
+        method: 'turn/inputResolved',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 3,
+          input: {
+            inputId: 'input-1',
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            toolUseId: 'tool-approve-1',
+            kind: 'approval',
+            status: 'submitted',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 4,
+          event: {
+            type: 'tool_end',
+            id: 'tool-approve-1',
+            result: { content: 'Wrote file', is_error: false, tool_use_id: 'tool-approve-1' },
+          },
+        },
+      },
+    ]
+
+    const projection = fixtures
+      .flatMap((notification) =>
+        toCanonicalEventsFromTurnNotification(notification, { fallbackThreadId: 'thread-fallback' }),
+      )
+      .reduce(
+        (state, event) => reduceTranscriptProjection(state, event),
+        createInitialTranscriptProjectionState({ threadId: 'thread-1' }),
+      )
+
+    expect(projection.segments).toHaveLength(1)
+    expect(projection.segments[0]).toMatchObject({
+      kind: 'tool',
+      turnId: 'turn-1',
+      toolUseId: 'tool-approve-1',
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote file',
+      inputState: {
+        kind: 'approval',
+        status: 'submitted',
+      },
+    })
+  })
 })

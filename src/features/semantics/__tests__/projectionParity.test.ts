@@ -212,4 +212,136 @@ describe('projection parity', () => {
 
     expect(normalizeSegments(streamProjection.segments)).toEqual(normalizeSegments(webProjection.segments))
   })
+
+  it('keeps tool name sticky and dedupes duplicate canonical events consistently', () => {
+    const threadId = 'thread-sticky'
+    const turnId = 'turn-sticky'
+    let streamSeq = 0
+
+    const streamCanonicalEvents = [
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'tool-2', name: 'Write' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_update', id: 'tool-2', middleLines: ['OUT chunk 1'] },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'tool-2', result: { content: 'done', is_error: false, tool_use_id: 'tool-2' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'complete' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+    ]
+
+    const webCanonicalEvents = [
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 1,
+            eventId: 'sticky-1',
+            event: { type: 'tool_start', id: 'tool-2', name: 'Write' },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 2,
+            eventId: 'sticky-2',
+            event: { type: 'tool_update', id: 'tool-2', middleLines: ['OUT chunk 1'] },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 3,
+            eventId: 'sticky-3',
+            event: { type: 'tool_end', id: 'tool-2', result: { content: 'done', is_error: false } },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/completed',
+          params: {
+            threadId,
+            turn: { id: turnId, threadId },
+            replaySeq: 4,
+            eventId: 'sticky-4',
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+    ]
+
+    const streamDuplicate = streamCanonicalEvents[1]
+    const webDuplicate = webCanonicalEvents[1]
+    if (!streamDuplicate || !webDuplicate) throw new Error('fixture error: missing duplicate target')
+
+    const streamProjection = [...streamCanonicalEvents, streamDuplicate].reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const webProjection = [...webCanonicalEvents, webDuplicate].reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    expect(normalizeSegments(streamProjection.segments)).toEqual(normalizeSegments(webProjection.segments))
+    expect(normalizeSegments(webProjection.segments)).toEqual([
+      {
+        kind: 'tool',
+        turnId,
+        toolUseId: 'tool-2',
+        toolName: 'Write',
+        status: 'completed',
+        summary: 'done',
+        detailLines: ['OUT chunk 1'],
+      },
+      {
+        kind: 'turn_footer',
+        turnId,
+        status: 'completed',
+      },
+    ])
+  })
 })

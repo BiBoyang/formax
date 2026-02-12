@@ -93,7 +93,9 @@
   - 当前进展：
     - 已完成：新增 `projectionParity.test.ts`，覆盖同一 turn 语义序列在 Web notification adapter 与 TUI stream adapter 下的投影一致性。
     - 已完成：新增 stream canonical adapter 与 turn notification canonical adapter 的单测，以及 `useReplStreaming` canonical bridge 投影回归测试（assistant/tool/footer）。
-    - 未完成：parity 矩阵尚未覆盖 mode/input 交错与 replay gap 场景。
+    - 已完成：补充 parity fixture 覆盖 `toolName` sticky 与 duplicate canonical event 去重一致性。
+    - 已完成：补充 `turnNotificationCanonicalAdapter` 的 tool input 交错测试（`inputRequested/inputResolved` 与 tool event 混排）。
+    - 未完成：parity 矩阵尚未覆盖 replay gap 场景。
 
 ### P1：刷新与实时统一为 replay-first
 
