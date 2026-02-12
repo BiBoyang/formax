@@ -10,6 +10,7 @@ Use this when the receiver only has the bundle/text you provide.
 ## Inputs
 - 代码包：`<repomix-file>`
 - 需求说明：`<optional-docs>`
+- 说明：路径统一使用仓库相对路径（repo-relative）
 
 ## Hard Constraints
 1. 不要建议运行任何命令（包括测试、构建、lint）。
@@ -34,6 +35,7 @@ Use this when the receiver can run commands in the repository.
 ## Inputs
 - 代码包：`<repomix-file>`（用于快速聚焦）
 - 可直接读取仓库文件
+- 说明：路径统一使用仓库相对路径（repo-relative）
 
 ## Hard Constraints
 1. 主线问题优先，禁止顺手修 unrelated 问题。
