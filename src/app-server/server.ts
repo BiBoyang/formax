@@ -466,6 +466,7 @@ export class AppServer {
     latestCursor: number
     hasGap: boolean
     state: {
+      mode: ThreadRuntimeState['mode']
       activeTurnId: string | null
       lastTurnId: string | null
       lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
@@ -479,6 +480,7 @@ export class AppServer {
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
     const stateSnapshot = state
       ? {
+          mode: state.mode,
           activeTurnId: state.activeTurnId,
           lastTurnId: state.lastTurnId,
           lastTurnStatus: state.lastTurnStatus,

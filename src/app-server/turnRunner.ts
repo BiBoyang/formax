@@ -23,6 +23,11 @@ import { TurnInputStore } from './turn/inputStore.js'
 import { maybeAutoGenerateSessionTitle } from '../features/sessionTitle/index.js'
 import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
 import { buildTurnInput } from '../features/semantics/turnInputBuilder.js'
+import {
+  normalizeReplMode,
+  resolveReplModeTransition,
+  type ReplMode,
+} from '../features/semantics/replModeTransition.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -56,7 +61,7 @@ type RunningTurn = {
   modelInputText: string
   modelUserContent: PromptBlock[]
   semanticBlockCount: number
-  replMode: 'normal' | 'acceptEdits' | 'plan'
+  replMode: ReplMode
   abortController: AbortController
   inputStore: TurnInputStore
   writer: SessionWriter | null
@@ -233,9 +238,10 @@ export class TurnRunner {
     const filePath = await this.resolveThreadFilePath(params.threadId)
     if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
 
+    const initialMode = normalizeReplMode(params.mode, 'normal')
     const turnInput = buildTurnInput({
       rawText: params.input.text,
-      mode: params.mode ?? 'normal',
+      mode: initialMode,
       planPath: null,
     })
     const commandRouting = resolveCommandRouting(params.input.text)
@@ -252,7 +258,7 @@ export class TurnRunner {
       modelInputText: turnInput.modelUserText,
       modelUserContent: [...turnInput.semanticBlocks, ...turnInput.userBlocks],
       semanticBlockCount: turnInput.semanticBlocks.length,
-      replMode: params.mode ?? 'normal',
+      replMode: initialMode,
       abortController: new AbortController(),
       inputStore: new TurnInputStore({
         threadId: params.threadId,
@@ -275,6 +281,7 @@ export class TurnRunner {
         id: running.turnId,
         threadId: running.threadId,
         status: 'running',
+        mode: running.replMode,
       },
     })
 
@@ -395,6 +402,18 @@ export class TurnRunner {
           event,
         })
       }
+      const getReplMode = () => running.replMode
+      const setReplMode = (nextMode: ReplMode) => {
+        const transition = resolveReplModeTransition({ current: running.replMode, next: nextMode })
+        if (!transition) return
+        running.replMode = transition.to
+        this.emitTurnNotification(running, 'turn/modeChanged', 'engine', {
+          threadId: running.threadId,
+          turnId: running.turnId,
+          previousMode: transition.from,
+          mode: transition.to,
+        })
+      }
 
       const onEvent = (event: StreamEvent) => {
         if (event.type === 'approval_request') {
@@ -505,7 +524,7 @@ export class TurnRunner {
           cwd: running.cwd,
           signal: running.abortController.signal,
           thinkingEnabled: this.thinkingEnabled,
-          exec: { interactive: true, replMode: running.replMode },
+          exec: { interactive: true, replMode: running.replMode, getReplMode, setReplMode },
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
@@ -535,7 +554,7 @@ export class TurnRunner {
           cwd: running.cwd,
           signal: running.abortController.signal,
           thinkingEnabled: this.thinkingEnabled,
-          exec: { interactive: true, replMode: running.replMode },
+          exec: { interactive: true, replMode: running.replMode, getReplMode, setReplMode },
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')

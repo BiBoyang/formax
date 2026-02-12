@@ -716,4 +716,62 @@ describe('TurnRunner', () => {
       : ''
     expect(latestUserText).toBe('mode test')
   })
+
+  it('emits mode transition notifications when tools change repl mode', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const observedModes: string[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = Array.isArray(args.user.content)
+            ? String((args.user.content.find((b) => (b as any)?.type === 'text') as any)?.text ?? '')
+            : ''
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Mode Transition Title' }] },
+            ] as ChatHistory
+          }
+          observedModes.push(String(args.exec?.getReplMode?.() ?? args.exec?.replMode ?? ''))
+          args.exec?.setReplMode?.('plan')
+          observedModes.push(String(args.exec?.getReplMode?.() ?? args.exec?.replMode ?? ''))
+          args.exec?.setReplMode?.('plan')
+          args.exec?.setReplMode?.('acceptEdits')
+          observedModes.push(String(args.exec?.getReplMode?.() ?? args.exec?.replMode ?? ''))
+          args.onEvent({ type: 'assistant_delta', text: 'done' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'mode transition test' },
+      mode: 'normal',
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(observedModes).toEqual(['normal', 'plan', 'acceptEdits'])
+    const modeNotifications = notifications.filter((entry) => entry.method === 'turn/modeChanged')
+    expect(modeNotifications).toHaveLength(2)
+    expect(modeNotifications.map((entry) => (entry.params as any)?.previousMode)).toEqual(['normal', 'plan'])
+    expect(modeNotifications.map((entry) => (entry.params as any)?.mode)).toEqual(['plan', 'acceptEdits'])
+  })
 })

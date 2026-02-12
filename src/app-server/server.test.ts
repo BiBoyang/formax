@@ -535,6 +535,13 @@ describe('AppServer', () => {
       },
       ts: '2026-02-10T00:00:01.000Z',
     })
+    emit('turn/modeChanged', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      previousMode: 'normal',
+      mode: 'acceptEdits',
+      ts: '2026-02-10T00:00:01.500Z',
+    })
     emit('turn/completed', {
       threadId: 'thread-1',
       turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
@@ -547,6 +554,7 @@ describe('AppServer', () => {
     expect(baselineCursor).toBeGreaterThan(0)
     expect((baseline[0] as any).result.state).toEqual(
       expect.objectContaining({
+        mode: 'acceptEdits',
         activeTurnId: null,
         lastTurnId: 'turn-1',
         lastTurnStatus: 'completed',
@@ -572,12 +580,12 @@ describe('AppServer', () => {
         limit: 10,
       }),
     )
-    expect((next[0] as any).result.data).toHaveLength(1)
+    expect((next[0] as any).result.data).toHaveLength(2)
 
     const notificationReplaySeqs = notifications
       .map((entry) => (entry.params as any)?.replaySeq)
       .filter((value) => typeof value === 'number')
-    expect(notificationReplaySeqs.length).toBe(3)
+    expect(notificationReplaySeqs.length).toBe(4)
   })
 
   it('marks replay gap based on trimmed boundary for the thread buffer', async () => {

@@ -1,3 +1,4 @@
+import { isReplMode, type ReplMode } from './replModeTransition'
 export type ThreadRuntimePendingInputKind = 'approval' | 'ask_user_question'
 
 export type ThreadRuntimePendingInput = {
@@ -10,6 +11,7 @@ export type ThreadRuntimePendingInput = {
 
 export type ThreadRuntimeState = {
   threadId: string
+  mode: ReplMode
   activeTurnId: string | null
   lastTurnId: string | null
   lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
@@ -49,6 +51,7 @@ export function createInitialThreadRuntimeState(args: {
 }): ThreadRuntimeState {
   return {
     threadId: args.threadId,
+    mode: 'normal',
     activeTurnId: null,
     lastTurnId: null,
     lastTurnStatus: null,
@@ -75,7 +78,11 @@ export function reduceThreadRuntimeState(
   if (args.method === 'turn/started') {
     const turn = params.turn
     if (turn && typeof turn === 'object') {
-      const turnId = (turn as Record<string, unknown>).id
+      const turnRecord = turn as Record<string, unknown>
+      const turnId = turnRecord.id
+      if (isReplMode(turnRecord.mode)) {
+        next.mode = turnRecord.mode
+      }
       if (typeof turnId === 'string' && turnId.trim()) {
         next.activeTurnId = turnId
         next.lastTurnId = turnId
@@ -145,6 +152,13 @@ export function reduceThreadRuntimeState(
       } else {
         next.lastTurnStatus = 'failed'
       }
+    }
+    return next
+  }
+
+  if (args.method === 'turn/modeChanged') {
+    if (isReplMode(params.mode)) {
+      next.mode = params.mode
     }
     return next
   }

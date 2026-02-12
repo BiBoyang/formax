@@ -18,6 +18,7 @@ import {
   type ThreadRuntimeState,
 } from '../../../src/features/semantics/threadRuntimeState'
 import { resolveCommandRouting } from '../../../src/features/semantics/commandRouting'
+import { isReplMode, type ReplMode } from '../../../src/features/semantics/replModeTransition'
 
 const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
 const RIGHT_RAIL_MIN_WIDTH = 280
@@ -93,7 +94,6 @@ type RpcErrorDetails = {
   code?: number
   data?: unknown
 }
-type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 type DeltaBucket = {
   threadId: string | null
   assistant: string
@@ -111,6 +111,7 @@ type ReplayNotification = {
 }
 
 type ReplayStateSnapshot = {
+  mode: ReplMode
   activeTurnId: string | null
   lastTurnId: string | null
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
@@ -213,6 +214,7 @@ function asThreadReplay(value: unknown): {
   let state: ReplayStateSnapshot | null = null
   if (rawState && typeof rawState === 'object') {
     const stateRecord = rawState as Record<string, unknown>
+    const mode = isReplMode(stateRecord.mode) ? stateRecord.mode : 'normal'
     const activeTurnId = typeof stateRecord.activeTurnId === 'string' ? stateRecord.activeTurnId : null
     const lastTurnId = typeof stateRecord.lastTurnId === 'string' ? stateRecord.lastTurnId : null
     const lastTurnStatusRaw = stateRecord.lastTurnStatus
@@ -229,6 +231,7 @@ function asThreadReplay(value: unknown): {
         : 0
     const updatedAt = typeof stateRecord.updatedAt === 'string' ? stateRecord.updatedAt : new Date(0).toISOString()
     state = {
+      mode,
       activeTurnId,
       lastTurnId,
       lastTurnStatus,
@@ -450,6 +453,30 @@ export function App() {
     const activeThreadId = activeThreadIdRef.current
     if (!activeThreadId) return true
     return threadId === activeThreadId
+  }, [])
+
+  const cacheThreadMode = useCallback((threadId: string | null | undefined, nextMode: ReplMode) => {
+    if (!threadId) return
+    const existing = runtimeStateByThreadRef.current[threadId]
+    if (existing) {
+      if (existing.mode === nextMode) return
+      runtimeStateByThreadRef.current[threadId] = {
+        ...existing,
+        mode: nextMode,
+        updatedAt: new Date().toISOString(),
+      }
+      return
+    }
+    const seed = createInitialThreadRuntimeState({
+      threadId,
+      replaySeq: 0,
+      method: 'ui/modeSelected',
+      ts: new Date().toISOString(),
+    })
+    runtimeStateByThreadRef.current[threadId] = {
+      ...seed,
+      mode: nextMode,
+    }
   }, [])
 
   const shouldProcessSequencedNotification = useCallback(
@@ -674,7 +701,21 @@ export function App() {
         case 'turn/started': {
           if (!isNotificationForActiveThread(params)) break
           const turnId = String(params?.turn?.id ?? '')
+          const nextMode = params?.turn?.mode
+          if (isReplMode(nextMode)) {
+            setMode(nextMode)
+            cacheThreadMode(threadId ?? activeThreadIdRef.current, nextMode)
+          }
           dispatch({ type: 'set_active_turn', turnId: turnId || null })
+          break
+        }
+
+        case 'turn/modeChanged': {
+          if (!isNotificationForActiveThread(params)) break
+          if (isReplMode(params?.mode)) {
+            setMode(params.mode)
+            cacheThreadMode(threadId ?? activeThreadIdRef.current, params.mode)
+          }
           break
         }
 
@@ -868,6 +909,7 @@ export function App() {
       }
     },
     [
+      cacheThreadMode,
       isNotificationForActiveThread,
       log,
       flushBufferedDeltas,
@@ -889,6 +931,7 @@ export function App() {
       if (replay.state) {
         runtimeStateByThreadRef.current[threadId] = {
           threadId,
+          mode: replay.state.mode,
           activeTurnId: replay.state.activeTurnId,
           lastTurnId: replay.state.lastTurnId,
           lastTurnStatus: replay.state.lastTurnStatus,
@@ -905,6 +948,7 @@ export function App() {
         if (baselineReplay.state) {
           runtimeStateByThreadRef.current[threadId] = {
             threadId,
+            mode: baselineReplay.state.mode,
             activeTurnId: baselineReplay.state.activeTurnId,
             lastTurnId: baselineReplay.state.lastTurnId,
             lastTurnStatus: baselineReplay.state.lastTurnStatus,
@@ -918,6 +962,11 @@ export function App() {
           baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
         if (activeThreadIdRef.current === threadId) {
           dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+          const nextMode = baselineReplay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+          setMode(nextMode)
+          if (baselineReplay.state) {
+            cacheThreadMode(threadId, nextMode)
+          }
         }
         return
       }
@@ -931,9 +980,14 @@ export function App() {
       replayCursorByThreadRef.current[threadId] = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
       if (activeThreadIdRef.current === threadId) {
         dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+        const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+        setMode(nextMode)
+        if (replay.state) {
+          cacheThreadMode(threadId, nextMode)
+        }
       }
     },
-    [handleNotification, loadThreadHistory, request],
+    [cacheThreadMode, handleNotification, loadThreadHistory, request],
   )
 
   useEffect(() => {
@@ -1076,6 +1130,7 @@ export function App() {
           setSelectedCwd(thread.cwd)
         }
         flushBufferedDeltas(undefined, previousThreadId)
+        setMode(runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
         activeThreadIdRef.current = thread.id
         dispatch({ type: 'set_active_thread', threadId: thread.id })
         dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
@@ -1249,6 +1304,7 @@ export function App() {
       const previousThreadId = state.activeThreadId
       const previousLogs = state.logs
       const cachedLogs = logsByThreadId[threadId] ?? []
+      setMode(runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal')
       flushBufferedDeltas(undefined, previousThreadId)
       activeThreadIdRef.current = threadId
       dispatch({ type: 'set_active_thread', threadId })
@@ -1297,6 +1353,7 @@ export function App() {
         const previousThreadId = state.activeThreadId
         flushBufferedDeltas(undefined, previousThreadId)
         activeThreadIdRef.current = null
+        setMode('normal')
         dispatch({ type: 'set_active_thread', threadId: null })
         dispatch({ type: 'set_active_turn', turnId: null })
         dispatch({ type: 'clear_pending_inputs' })
@@ -1474,7 +1531,10 @@ export function App() {
               logs={activeLogs}
               inputText={inputText}
               mode={mode}
-              onModeChange={setMode}
+              onModeChange={(nextMode) => {
+                setMode(nextMode)
+                cacheThreadMode(activeThreadIdRef.current, nextMode)
+              }}
               connectionStatus={state.connectionStatus}
               onInputTextChange={setInputText}
               onSend={onSend}

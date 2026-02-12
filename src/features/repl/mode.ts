@@ -1,4 +1,5 @@
-export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
+import type { ReplMode } from '../semantics/replModeTransition'
+export type { ReplMode }
 
 export function nextReplMode(mode: ReplMode): ReplMode {
   switch (mode) {
@@ -11,4 +12,3 @@ export function nextReplMode(mode: ReplMode): ReplMode {
       return 'normal'
   }
 }
-

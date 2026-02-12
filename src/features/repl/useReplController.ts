@@ -48,6 +48,7 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
+import { resolveReplModeTransition } from '../semantics/replModeTransition'
 
 function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
@@ -375,8 +376,10 @@ export function useReplController(deps: {
 
   const setReplMode = useCallback(
     (nextMode: ReplMode) => {
-      modeRef.current = nextMode
-      deps.onModeChange?.(nextMode)
+      const transition = resolveReplModeTransition({ current: modeRef.current, next: nextMode })
+      if (!transition) return
+      modeRef.current = transition.to
+      deps.onModeChange?.(transition.to)
     },
     [deps.onModeChange],
   )

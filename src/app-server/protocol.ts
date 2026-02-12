@@ -1,3 +1,4 @@
+import { isReplMode, type ReplMode } from '../features/semantics/replModeTransition.js'
 export const APP_SERVER_PROTOCOL_VERSION = '0.2'
 
 export type ClientInfo = {
@@ -73,14 +74,14 @@ export type TurnStartParams = {
   input: {
     text: string
   }
-  mode?: 'normal' | 'acceptEdits' | 'plan'
+  mode?: ReplMode
   cwd?: string
 }
 
 export type CommandDispatchParams = {
   threadId: string
   command: string
-  mode?: 'normal' | 'acceptEdits' | 'plan'
+  mode?: ReplMode
   cwd?: string
 }
 
@@ -209,7 +210,7 @@ export function parseTurnStartParams(params: unknown): TurnStartParams {
   const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
 
   let mode: TurnStartParams['mode'] | undefined
-  if (modeRaw === 'normal' || modeRaw === 'acceptEdits' || modeRaw === 'plan') {
+  if (isReplMode(modeRaw)) {
     mode = modeRaw
   } else if (modeRaw) {
     throw new Error('Invalid params.mode: expected normal|acceptEdits|plan')
@@ -235,7 +236,7 @@ export function parseCommandDispatchParams(params: unknown): CommandDispatchPara
   const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
 
   let mode: CommandDispatchParams['mode'] | undefined
-  if (modeRaw === 'normal' || modeRaw === 'acceptEdits' || modeRaw === 'plan') {
+  if (isReplMode(modeRaw)) {
     mode = modeRaw
   } else if (modeRaw) {
     throw new Error('Invalid params.mode: expected normal|acceptEdits|plan')

@@ -467,6 +467,298 @@ describe('App thread history integration', () => {
     ).toBe(false)
   })
 
+  it('applies turn/modeChanged from server to subsequent turn requests', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/modeChanged',
+        params: {
+          threadId: 'thread-alpha',
+          turnId: 'turn-1',
+          mode: 'plan',
+        },
+      })
+    })
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'follow server mode' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.mode === 'plan' &&
+            (entry.params as any)?.input?.text === 'follow server mode',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('resets mode to normal when switching to a thread with no replay state', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'mode should reset' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-beta' &&
+            (entry.params as any)?.mode === 'normal' &&
+            (entry.params as any)?.input?.text === 'mode should reset',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('keeps user-selected mode for a thread before first turn starts', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), {
+      target: { value: 'thread mode draft should persist' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-beta' &&
+            (entry.params as any)?.mode === 'plan' &&
+            (entry.params as any)?.input?.text === 'thread mode draft should persist',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('does not leak previous thread mode while next thread replay is still hydrating', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+                  nextCursor: null,
+                }),
+              60,
+            ),
+          )
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-beta' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return {
+          data: [],
+          nextCursor: 0,
+          latestCursor: 0,
+          hasGap: false,
+          state: null,
+        }
+      }
+      if (method === 'turn/start') {
+        return {
+          turn: {
+            id: 'turn-beta-fast',
+            threadId: (params as { threadId?: string } | undefined)?.threadId ?? 'thread-beta',
+            status: 'running',
+          },
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.click(screen.getByLabelText('Execution mode'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'fast switch send' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-beta' &&
+            (entry.params as any)?.mode === 'normal' &&
+            (entry.params as any)?.input?.text === 'fast switch send',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('hydrates mode from thread replay state snapshot', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        return {
+          data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+          nextCursor: null,
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: 'thread-alpha' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return {
+          data: [],
+          nextCursor: 8,
+          latestCursor: 8,
+          hasGap: false,
+          state: {
+            mode: 'acceptEdits',
+            activeTurnId: null,
+            lastTurnId: 'turn-4',
+            lastTurnStatus: 'completed',
+            pendingInputCount: 0,
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+        }
+      }
+      if (method === 'turn/start') {
+        return {
+          turn: {
+            id: 'turn-next',
+            threadId: 'thread-alpha',
+            status: 'running',
+          },
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/replay' && (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-alpha',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'replay mode send' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/start' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.mode === 'acceptEdits' &&
+            (entry.params as any)?.input?.text === 'replay mode send',
+        ),
+      ).toBe(true)
+    })
+  })
+
   it('includes active thread cwd on turn/start and command/dispatch requests', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}

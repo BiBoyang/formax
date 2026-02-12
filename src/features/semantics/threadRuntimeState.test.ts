@@ -24,9 +24,10 @@ describe('threadRuntimeState (shared)', () => {
       replaySeq: 2,
       params: {
         threadId: 'thread-1',
-        turn: { id: 'turn-1', threadId: 'thread-1', status: 'running' },
+        turn: { id: 'turn-1', threadId: 'thread-1', status: 'running', mode: 'plan' },
       },
     })
+    expect(state.mode).toBe('plan')
     expect(state.activeTurnId).toBe('turn-1')
     expect(state.lastTurnStatus).toBe('running')
 
@@ -69,5 +70,15 @@ describe('threadRuntimeState (shared)', () => {
     expect(state.activeTurnId).toBeNull()
     expect(state.lastTurnId).toBe('turn-1')
     expect(state.lastTurnStatus).toBe('completed')
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/modeChanged',
+      replaySeq: 6,
+      params: {
+        threadId: 'thread-1',
+        mode: 'acceptEdits',
+      },
+    })
+    expect(state.mode).toBe('acceptEdits')
   })
 })
