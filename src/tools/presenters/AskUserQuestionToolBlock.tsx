@@ -5,14 +5,13 @@ import { useUserInputManager } from '../runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 import { parseAskAnswers } from '../../features/tools/presentation/askAnswers'
+import {
+  fieldIdForAskQuestion,
+  normalizeAskQuestions,
+  type PresentationAskQuestion,
+} from '../../features/tools/presentation/askQuestions'
 
-type AskOption = { label: string; description: string }
-type AskQuestion = {
-  question: string
-  header: string
-  options: AskOption[]
-  multiSelect: boolean
-}
+type AskQuestion = PresentationAskQuestion
 
 type QuestionState = {
   cursor: number
@@ -20,14 +19,6 @@ type QuestionState = {
   other: string
   typing: boolean
   typingValue: string
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
-}
-
-function getUnknownArray(value: unknown): unknown[] | null {
-  return Array.isArray(value) ? value : null
 }
 
 export function AskUserQuestionToolBlock({
@@ -114,7 +105,7 @@ function InteractiveAsk({
     setIsSubmitting(true)
     const out: Record<string, string> = {}
     for (let i = 0; i < questions.length; i++) {
-      const key = questions[i].header || `Q${i + 1}`
+      const key = fieldIdForAskQuestion(questions[i], i)
       out[key] = formatAnswerForSubmit(questions[i], state[i])
     }
     onSubmit(out)
@@ -652,29 +643,11 @@ function formatAnswerForDisplay(q: AskQuestion, s: QuestionState | undefined): s
 }
 
 export function parseQuestions(input: unknown): AskQuestion[] {
-  const rec = asRecord(input)
-  const raw = getUnknownArray(rec?.questions) ?? []
-
-  return raw.map((q, i) => {
-    const qRec = asRecord(q)
-    const headerRaw = qRec?.header
-    const header = typeof headerRaw === 'string' && headerRaw.trim() ? headerRaw : `Q${i + 1}`
-
-    const optsRaw = getUnknownArray(qRec?.options) ?? []
-    const opts = optsRaw.map((o) => {
-      const oRec = asRecord(o)
-      const label = typeof oRec?.label === 'string' ? oRec.label : ''
-      const description = typeof oRec?.description === 'string' ? oRec.description : ''
-      return { label, description }
-    })
-
-    return {
-      question: typeof qRec?.question === 'string' ? qRec.question : '',
-      header,
-      options: opts,
-      multiSelect: Boolean(qRec?.multiSelect),
-    }
-  })
+  const normalized = normalizeAskQuestions(input)
+  return normalized.map((question, index) => ({
+    ...question,
+    header: question.header || `Q${index + 1}`,
+  }))
 }
 
 export function parseAnswers(raw: string): Record<string, string> | null {

@@ -6,6 +6,20 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 import { AskUserQuestionToolBlock, parseQuestions, parseAnswers } from '../../presenters/AskUserQuestionToolBlock'
 import { formatQuestionCountLabel, summarizeAskUserQuestionStatus } from '../../../features/tools/presentation/labels'
+import { fieldIdForAskQuestion } from '../../../features/tools/presentation/askQuestions'
+
+type ParsedAskQuestion = ReturnType<typeof parseQuestions>[number]
+
+function buildAnswerLabelMap(questions: ParsedAskQuestion[]): Map<string, string> {
+  const labels = new Map<string, string>()
+  questions.forEach((question, index) => {
+    const key = fieldIdForAskQuestion(question, index)
+    const header = question.header.trim()
+    if (header) labels.set(header, header)
+    labels.set(key, header || key)
+  })
+  return labels
+}
 
 export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {
@@ -49,6 +63,7 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
     }
 
     if (answers) {
+      const answerLabels = buildAnswerLabelMap(questions)
       const summary = summarizeAskUserQuestionStatus({
         status,
         fallbackSummary: '',
@@ -62,7 +77,7 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
       blocks.push({
         kind: 'lines',
         lines: Object.entries(answers).map(([k, v]) => ({
-          text: `${k}: ${v}`,
+          text: `${answerLabels.get(k) ?? k}: ${v}`,
           tone: 'default' as const,
         })),
       })

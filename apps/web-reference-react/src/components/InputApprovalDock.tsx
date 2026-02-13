@@ -2,14 +2,7 @@ import type { PendingInput } from '../types'
 import { AskQuestionPagerPanel } from './approval/AskQuestionPagerPanel'
 import { ApprovalSubmitPanel } from './approval/ApprovalSubmitPanel'
 import { Button } from './ui/button'
-
-type AskQuestion = {
-  question: string
-  header: string
-  fieldId?: string
-  options: Array<{ label: string; description: string }>
-  multiSelect: boolean
-}
+import { normalizeAskQuestions } from '../../../../src/features/tools/presentation/askQuestions'
 
 type SubmitUiStatus = {
   status: string
@@ -29,40 +22,6 @@ export type InputApprovalDockProps = {
   onAskPageChange: (page: number) => void
   onAskDraftChange: (fieldId: string, value: string) => void
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
-}
-
-function normalizeAskQuestions(input: PendingInput | null): AskQuestion[] {
-  if (!input || input.kind !== 'ask_user_question') return []
-  const payload = (input.payload ?? {}) as Record<string, unknown>
-  const questions: unknown[] = Array.isArray(payload.questions) ? payload.questions : []
-  const normalized: AskQuestion[] = []
-  for (const question of questions) {
-    if (!question || typeof question !== 'object') continue
-    const record = question as Record<string, unknown>
-    const questionText = typeof record.question === 'string' ? record.question : ''
-    const header = typeof record.header === 'string' ? record.header : ''
-    const fieldId = typeof record.fieldId === 'string' ? record.fieldId : undefined
-    const options = Array.isArray(record.options)
-      ? record.options
-          .map((option) => {
-            if (!option || typeof option !== 'object') return null
-            const row = option as Record<string, unknown>
-            const label = typeof row.label === 'string' ? row.label : ''
-            if (!label.trim()) return null
-            const description = typeof row.description === 'string' ? row.description : ''
-            return { label, description }
-          })
-          .filter((option): option is { label: string; description: string } => Boolean(option))
-      : []
-    normalized.push({
-      question: questionText,
-      header,
-      fieldId,
-      options,
-      multiSelect: Boolean(record.multiSelect),
-    })
-  }
-  return normalized
 }
 
 export function InputApprovalDock(props: InputApprovalDockProps) {
@@ -100,7 +59,7 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
           isAskOpen ? (
             <AskQuestionPagerPanel
               inputId={input.inputId}
-              questions={normalizeAskQuestions(input)}
+              questions={normalizeAskQuestions(input.payload)}
               pageIndex={askPageIndex}
               draftValues={askDraftValues}
               isSubmitting={isSubmitting}

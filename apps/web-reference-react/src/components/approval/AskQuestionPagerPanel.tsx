@@ -2,23 +2,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-
-type AskOption = {
-  label: string
-  description?: string
-}
-
-type AskQuestion = {
-  question: string
-  header: string
-  fieldId?: string
-  options: AskOption[]
-  multiSelect: boolean
-}
+import {
+  buildAskAnswersFromDraft,
+  fieldIdForAskQuestion,
+  type PresentationAskQuestion,
+} from '../../../../../src/features/tools/presentation/askQuestions'
 
 type AskQuestionPagerPanelProps = {
   inputId: string
-  questions: AskQuestion[]
+  questions: PresentationAskQuestion[]
   pageIndex: number
   draftValues: Record<string, string>
   isSubmitting: boolean
@@ -26,25 +18,6 @@ type AskQuestionPagerPanelProps = {
   onPageChange: (page: number) => void
   onDraftChange: (fieldId: string, value: string) => void
   onSubmit: (answers: Record<string, string>) => void
-}
-
-function fieldIdForQuestion(question: AskQuestion, index: number): string {
-  const fieldId = typeof question.fieldId === 'string' ? question.fieldId.trim() : ''
-  if (fieldId) return fieldId
-  const header = typeof question.header === 'string' ? question.header.trim() : ''
-  if (header) return header
-  const text = typeof question.question === 'string' ? question.question.trim() : ''
-  if (text) return text
-  return `question_${index + 1}`
-}
-
-function buildAnswerPayload(questions: AskQuestion[], draftValues: Record<string, string>): Record<string, string> {
-  const answers: Record<string, string> = {}
-  questions.forEach((question, index) => {
-    const fieldId = fieldIdForQuestion(question, index)
-    answers[fieldId] = draftValues[fieldId] ?? ''
-  })
-  return answers
 }
 
 export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
@@ -63,12 +36,12 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   const totalPages = questions.length
   const clampedPageIndex = Math.max(0, Math.min(pageIndex, Math.max(0, totalPages - 1)))
   const current = questions[clampedPageIndex]
-  const currentFieldId = current ? fieldIdForQuestion(current, clampedPageIndex) : ''
+  const currentFieldId = current ? fieldIdForAskQuestion(current, clampedPageIndex) : ''
   const currentValue = currentFieldId ? (draftValues[currentFieldId] ?? '') : ''
   const canMoveForward = currentValue.trim().length > 0
   const isLastPage = clampedPageIndex >= totalPages - 1
   const canSubmitAll = useMemo(
-    () => questions.every((question, index) => (draftValues[fieldIdForQuestion(question, index)] ?? '').trim().length > 0),
+    () => questions.every((question, index) => (draftValues[fieldIdForAskQuestion(question, index)] ?? '').trim().length > 0),
     [draftValues, questions],
   )
 
@@ -177,7 +150,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
           type="button"
           onClick={() => {
             if (isLastPage) {
-              onSubmit(buildAnswerPayload(questions, draftValues))
+              onSubmit(buildAskAnswersFromDraft(questions, draftValues))
               return
             }
             onPageChange(clampedPageIndex + 1)

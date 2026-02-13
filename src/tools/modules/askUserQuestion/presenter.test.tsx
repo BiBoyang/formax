@@ -41,6 +41,7 @@ vi.mock('../../presenters/AskUserQuestionToolBlock', () => ({
       return {
         question: typeof qRec?.question === 'string' ? qRec.question : '',
         header: typeof qRec?.header === 'string' && qRec.header ? qRec.header : `Q${i + 1}`,
+        fieldId: typeof qRec?.fieldId === 'string' && qRec.fieldId ? qRec.fieldId : undefined,
         options,
         multiSelect: Boolean(qRec?.multiSelect),
       }
@@ -137,6 +138,36 @@ describe('AskUserQuestionToolPresenter', () => {
     expect(frame).toContain('AskUserQuestion(')
     expect(frame).toContain('Answered')
     expect(frame).toContain('Tech: Option A')
+  })
+
+  it('completed uses question header for fieldId-keyed answers', () => {
+    const message: Msg = {
+      id: 'tool-2b',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'AskUserQuestion',
+        status: 'completed',
+        input: {
+          questions: [
+            {
+              question: 'Pick one',
+              header: 'Platform',
+              fieldId: 'platform',
+              multiSelect: false,
+              options: [{ label: 'Mac', description: '' }],
+            },
+          ],
+        },
+        result: JSON.stringify({ answers: { platform: 'Mac' } }),
+      },
+    }
+
+    const { lastFrame } = render(<ToolUiBlocks blocks={AskUserQuestionToolPresenter({ message }).blocks} />)
+    const frame = lastFrame()
+    expect(frame).toContain('Platform: Mac')
+    expect(frame).not.toContain('platform: Mac')
   })
 
   it('completed without answers shows no answers', () => {
