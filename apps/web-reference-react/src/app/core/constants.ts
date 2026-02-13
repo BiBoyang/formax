@@ -1,0 +1,11 @@
+export const DEFAULT_BRIDGE_URL = 'ws://127.0.0.1:3777'
+export const RIGHT_RAIL_MIN_WIDTH = 280
+export const RIGHT_RAIL_MAX_WIDTH = 680
+export const CENTER_MIN_WIDTH = 560
+export const SIDEBAR_MIN_WIDTH = 220
+export const SIDEBAR_MAX_WIDTH = 520
+export const SIDEBAR_DEFAULT_WIDTH = 260
+export const DIVIDER_WIDTH = 1
+export const SEEN_EVENT_CAP = 2000
+export const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
+export const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
