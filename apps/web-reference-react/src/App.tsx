@@ -619,6 +619,8 @@ export function App() {
   const transcriptSourceByThreadRef = useRef<Record<string, ThreadTranscriptSource>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
   const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
+  const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
+  const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
@@ -1364,7 +1366,14 @@ export function App() {
             return true
           }
 
-          if (transcriptSourceByThreadRef.current[threadId] === 'replay') {
+          const threadTranscriptSource = transcriptSourceByThreadRef.current[threadId]
+          const cachedThreadLogs =
+            activeThreadIdRef.current === threadId
+              ? stateLogsRef.current
+              : (logsByThreadIdRef.current[threadId] ?? [])
+          const canFastRebaseGapWithoutHistory =
+            (threadTranscriptSource === 'replay' || threadTranscriptSource === 'history') && cachedThreadLogs.length > 0
+          if (canFastRebaseGapWithoutHistory) {
             replayCursorByThreadRef.current[threadId] = replay.latestCursor
             if (activeThreadIdRef.current === threadId) {
               if (replay.state) {
@@ -1492,6 +1501,14 @@ export function App() {
   useEffect(() => {
     activeThreadIdRef.current = state.activeThreadId
   }, [state.activeThreadId])
+
+  useEffect(() => {
+    stateLogsRef.current = state.logs
+  }, [state.logs])
+
+  useEffect(() => {
+    logsByThreadIdRef.current = logsByThreadId
+  }, [logsByThreadId])
 
   useEffect(() => {
     selectedInputIdRef.current = state.selectedInputId

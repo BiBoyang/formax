@@ -1736,6 +1736,139 @@ describe('App thread history integration', () => {
     expect(alphaHistoryCalls).toHaveLength(0)
   })
 
+  it('fast-rebases hasGap for history-source thread without reloading history again', async () => {
+    let alphaReplayCalls = 0
+    let alphaHistoryCalls = 0
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          alphaHistoryCalls += 1
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha history once' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta fallback' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
+        return {
+          thread: {
+            id: threadId,
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [],
+        }
+      }
+      if (method === 'thread/replay') {
+        const threadId = (params as { threadId?: string; after?: number } | undefined)?.threadId
+        const after = (params as { threadId?: string; after?: number } | undefined)?.after
+        if (threadId === 'thread-beta') {
+          return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+        }
+        if (threadId !== 'thread-alpha') {
+          return { data: [], nextCursor: after ?? 0, latestCursor: after ?? 0, hasGap: false }
+        }
+
+        if (after === 0) {
+          alphaReplayCalls += 1
+          if (alphaReplayCalls === 1) {
+            return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+          }
+          if (alphaReplayCalls === 2) {
+            return {
+              data: [],
+              nextCursor: 20,
+              latestCursor: 30,
+              hasGap: true,
+            }
+          }
+        }
+        if (after === 30) {
+          return {
+            data: [
+              {
+                replaySeq: 31,
+                method: 'turn/event',
+                params: {
+                  threadId: 'thread-alpha',
+                  turnId: 'turn-sync',
+                  event: { type: 'assistant_delta', text: 'alpha replay after gap' },
+                },
+              },
+            ],
+            nextCursor: 31,
+            latestCursor: 31,
+            hasGap: false,
+          }
+        }
+        return { data: [], nextCursor: after ?? 0, latestCursor: after ?? 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha history once')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta fallback')
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha history once')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta fallback')
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha replay after gap')
+
+    expect(alphaHistoryCalls).toBe(1)
+  })
+
   it('uses replay projection snapshot on hasGap without falling back to thread/messages for that thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
