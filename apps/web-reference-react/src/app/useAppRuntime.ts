@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { RpcClient } from '../rpcClient'
+import type { RpcClient } from '../rpcClient'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
 import { formatToolInputAsParamsText } from '../toolEventNormalizer'
@@ -33,6 +33,7 @@ import { createComposerActions } from './runtime/composerActions'
 import { createThreadActions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
+import { connectRpcClient } from './runtime/connectRpcClient'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -341,35 +342,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   }, [state.activeThreadId, state.logs])
 
   useEffect(() => {
-    const client = new RpcClient()
-    clientRef.current = client
-    client.connect(bridgeUrl, {
-      onStatus: (connectionStatus) => {
-        dispatch({ type: 'set_connection_status', status: connectionStatus })
-        if (connectionStatus === 'connected') {
-          eventCursorRef.current = createTurnEventCursorState(SEEN_EVENT_CAP)
-          void initializeHandshake()
-            .then(async () => {
-              await Promise.all([refreshThreads(), refreshWorkspaceDiff()])
-              const activeThreadId = activeThreadIdRef.current
-              if (activeThreadId) {
-                await resumeThreadInputs(activeThreadId)
-                await replayThreadEvents(activeThreadId)
-              }
-            })
-            .catch((error) => captureError('initialize', error))
-        }
-      },
-      onNotification: handleNotification,
-      onError: (error) => {
-        captureError('transport', error)
-      },
+    return connectRpcClient({
+      bridgeUrl,
+      seenEventCap: SEEN_EVENT_CAP,
+      dispatch,
+      clientRef,
+      eventCursorRef,
+      initializeHandshake,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      resumeThreadInputs,
+      replayThreadEvents,
+      activeThreadIdRef,
+      handleNotification,
+      captureError,
     })
-
-    return () => {
-      client.disconnect()
-      clientRef.current = null
-    }
   }, [
     bridgeUrl,
     captureError,
