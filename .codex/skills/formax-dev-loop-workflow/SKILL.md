@@ -31,7 +31,7 @@ description: "Use when working on Formax code changes and you need a disciplined
    - Avoid partial staging (“MM” state). If needed, check with:
      - `bun run check:partial-stage`
    - Run review before every commit (required profile):
-     - `codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"`
+     - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
    - Use a long command timeout for review runs:
      - In Codex tool calls: set `timeout_ms` to **at least 900000** (15 minutes), preferred **1200000** (20 minutes).
      - Do not use short default timeouts for review loops.
@@ -61,8 +61,8 @@ bun run test:changed
 bun run test:changed -- --all
 
 # Required before commit (review profile)
-codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"
+codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"
 
 # If your shell supports it, wrap with an explicit process timeout (20 minutes)
-timeout 1200 codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"
+timeout 1200 codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"
 ```
