@@ -1,6 +1,7 @@
 import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
+import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
 import { parseJsonArrayLength } from '../../../../../src/features/tools/presentation/paramsText'
 import {
   formatItemCountLabel,
@@ -47,32 +48,6 @@ function withStandardBlocks(args: {
     blocks.push({ kind: 'details', lines: detailLines })
   }
   return blocks
-}
-
-function parseFirstJsonObjectFromLines(lines: string[]): Record<string, unknown> | null {
-  if (!Array.isArray(lines) || lines.length === 0) return null
-  const text = lines.join('\n').trim()
-  if (!text.startsWith('{')) return null
-  try {
-    const parsed = JSON.parse(text) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    return parsed as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
-function parseAskAnswerLines(lines: string[]): { answerCount: number; lines: string[] } | null {
-  const parsed = parseFirstJsonObjectFromLines(lines)
-  if (!parsed) return null
-  const answersRaw = parsed.answers
-  if (!answersRaw || typeof answersRaw !== 'object' || Array.isArray(answersRaw)) return null
-  const answers = Object.entries(answersRaw as Record<string, unknown>)
-  if (answers.length === 0) return { answerCount: 0, lines: [] }
-  return {
-    answerCount: answers.length,
-    lines: answers.map(([key, value]) => `${key}: ${String(value ?? '')}`),
-  }
 }
 
 const defaultRenderer: ToolBlockRenderer = (item, context) => {

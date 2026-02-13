@@ -4,6 +4,7 @@ import { getTheme } from '../../utils/theme'
 import { useUserInputManager } from '../runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
+import { parseAskAnswers } from '../../features/tools/presentation/askAnswers'
 
 type AskOption = { label: string; description: string }
 type AskQuestion = {
@@ -677,16 +678,5 @@ export function parseQuestions(input: unknown): AskQuestion[] {
 }
 
 export function parseAnswers(raw: string): Record<string, string> | null {
-  const trimmed = (raw || '').trim()
-  if (!trimmed) return null
-  try {
-    const parsed = JSON.parse(trimmed)
-    const answers = parsed?.answers
-    if (!answers || typeof answers !== 'object') return null
-    const out: Record<string, string> = {}
-    for (const [k, v] of Object.entries(answers)) out[String(k)] = String(v)
-    return out
-  } catch {
-    return null
-  }
+  return parseAskAnswers(raw)
 }
