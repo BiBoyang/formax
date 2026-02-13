@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { RpcClient } from '../rpcClient'
 import { appReducer, initialAppState } from '../store'
-import type { PendingInput, ResolvedInput, RpcNotification, TranscriptItem } from '../types'
+import type { RpcNotification, TranscriptItem } from '../types'
 import { formatToolInputAsParamsText } from '../toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from '../turnEventCursor'
 import { type DiffSnapshot } from '../components/WorktreeDiffPane'
@@ -26,11 +26,8 @@ import {
   toPendingInputIdSet,
 } from './core/inputStateMachine'
 import {
-  canFastRebaseGapWithoutHistory,
-  shouldPromoteReplayAsCanonical,
   type ThreadTranscriptSource,
 } from './core/replayMachine'
-import { isNotificationForActiveThread, resolveNotificationReplaySeq } from './core/appEventMachine'
 import {
   displayThreadTitle,
   summarizeToolEvent,
@@ -44,9 +41,10 @@ import {
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
+import { processNotification } from './runtime/processNotification'
+import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
 import {
   createInitialThreadRuntimeState,
-  extractThreadIdFromNotificationParams,
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from '../../../../src/features/semantics/threadRuntimeState'
@@ -411,596 +409,63 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
-      const params = (notification.params ?? {}) as any
-      const threadId = extractThreadIdFromNotificationParams(params)
-      if (threadId) {
-        const current = runtimeStateByThreadRef.current[threadId]
-        const replaySeqRaw =
-          typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
-        const replaySeq = resolveNotificationReplaySeq({
-          replaySeqFromParams: replaySeqRaw,
-          previousReplaySeq: current?.lastReplaySeq ?? 0,
-        })
-        const baseState =
-          current ??
-          createInitialThreadRuntimeState({
-            threadId,
-            replaySeq,
-            method: notification.method,
-            ts: params?.ts,
-          })
-        runtimeStateByThreadRef.current[threadId] = reduceThreadRuntimeState(baseState, {
-          method: notification.method,
-          params,
-          replaySeq,
-        })
-      }
-      const replaySeq = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
-      if (threadId && replaySeq != null) {
-        const current = replayCursorByThreadRef.current[threadId]
-        replayCursorByThreadRef.current[threadId] = typeof current === 'number' ? Math.max(current, replaySeq) : replaySeq
-      }
-      if (!shouldProcessSequencedNotification(params)) return
-      switch (notification.method) {
-        case 'turn/started': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) break
-          const turnId = String(params?.turn?.id ?? '')
-          const nextMode = params?.turn?.mode
-          if (isReplMode(nextMode)) {
-            setMode(nextMode)
-            cacheThreadMode(threadId ?? activeThreadIdRef.current, nextMode)
-          }
-          dispatch({ type: 'set_active_turn', turnId: turnId || null })
-          break
-        }
-
-        case 'turn/modeChanged': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) break
-          if (isReplMode(params?.mode)) {
-            setMode(params.mode)
-            cacheThreadMode(threadId ?? activeThreadIdRef.current, params.mode)
-          }
-          break
-        }
-
-        case 'turn/completed': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) {
-            void refreshThreads().catch(() => undefined)
-            void refreshWorkspaceDiff().catch(() => undefined)
-            break
-          }
-          const turnId = String(params?.turn?.id ?? '')
-          if (turnId) {
-            const threadId =
-              typeof params?.turn?.threadId === 'string' ? params.turn.threadId : activeThreadIdRef.current
-            const thinkingMeta = toCanonicalMeta({
-              threadId,
-              turnId,
-              kind: 'thinking_finalized',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...thinkingMeta,
-                kind: 'thinking_finalized',
-                turnId,
-              },
-            })
-            const footerMeta = toCanonicalMeta({
-              threadId,
-              turnId,
-              kind: 'turn_footer',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...footerMeta,
-                kind: 'turn_footer',
-                turnId,
-                status: 'completed',
-              },
-            })
-          }
-          dispatch({ type: 'set_active_turn', turnId: null })
-          if (turnId) {
-            commandByTurnRef.current.delete(turnId)
-          }
-          void refreshThreads().catch(() => undefined)
-          void refreshWorkspaceDiff().catch(() => undefined)
-          break
-        }
-
-        case 'turn/failed': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) {
-            void refreshWorkspaceDiff().catch(() => undefined)
-            break
-          }
-          const turnId = String(params?.turn?.id ?? '')
-          if (turnId) {
-            const threadId =
-              typeof params?.turn?.threadId === 'string' ? params.turn.threadId : activeThreadIdRef.current
-            const thinkingMeta = toCanonicalMeta({
-              threadId,
-              turnId,
-              kind: 'thinking_finalized',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...thinkingMeta,
-                kind: 'thinking_finalized',
-                turnId,
-              },
-            })
-            const footerMeta = toCanonicalMeta({
-              threadId,
-              turnId,
-              kind: 'turn_footer',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...footerMeta,
-                kind: 'turn_footer',
-                turnId,
-                status: toTurnFooterStatus(String(params?.error ?? '')),
-                message: String(params?.error ?? 'unknown'),
-              },
-            })
-          }
-          dispatch({ type: 'set_active_turn', turnId: null })
-          const command = turnId ? commandByTurnRef.current.get(turnId) : undefined
-          if (command) {
-            log(`Command failed: ${command}`, 'error', turnId)
-            commandByTurnRef.current.delete(turnId)
-          }
-          log(`Turn failed: ${String(params?.error ?? 'unknown')}`, 'error', turnId || undefined)
-          void refreshWorkspaceDiff().catch(() => undefined)
-          break
-        }
-
-        case 'turn/event': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) break
-          const turnId = String(params?.turnId ?? '')
-          const eventThreadId =
-            typeof params?.threadId === 'string' ? params.threadId : activeThreadIdRef.current
-          if (!turnId) break
-          const eventType = params?.event?.type
-          if (eventType === 'assistant_delta') {
-            const textDelta = String(params?.event?.text ?? '')
-            if (!textDelta) break
-            const meta = toCanonicalMeta({
-              threadId: eventThreadId,
-              turnId,
-              kind: 'assistant_delta',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...meta,
-                kind: 'assistant_delta',
-                turnId,
-                textDelta,
-              },
-            })
-            break
-          }
-
-          if (eventType === 'thinking_delta') {
-            const text = String(params?.event?.thinking ?? params?.event?.text ?? params?.event?.delta ?? '')
-            if (text) {
-              const meta = toCanonicalMeta({
-                threadId: eventThreadId,
-                turnId,
-                kind: 'thinking_delta',
-                params,
-              })
-              dispatch({
-                type: 'apply_canonical_event',
-                event: {
-                  ...meta,
-                  kind: 'thinking_delta',
-                  turnId,
-                  textDelta: text,
-                },
-              })
-            }
-            break
-          }
-
-          if (eventType === 'tool_start' || eventType === 'tool_update' || eventType === 'tool_end') {
-            const event = params?.event
-            const toolUseId = toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId)
-            if (!toolUseId) break
-            const meta = toCanonicalMeta({
-              threadId: eventThreadId,
-              turnId,
-              kind: 'tool_event',
-              params,
-            })
-            const summary = summarizeToolEvent(event)
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...meta,
-                kind: 'tool_event',
-                turnId,
-                toolUseId,
-                phase: eventType === 'tool_start' ? 'start' : eventType === 'tool_update' ? 'update' : 'end',
-                ...(event?.name ? { toolName: String(event.name) } : {}),
-                ...(eventType === 'tool_update' && summary ? { line: summary } : {}),
-                ...(eventType === 'tool_end' && summary ? { summary } : {}),
-                ...(event?.input ? { paramsText: formatToolInputAsParamsText(event.input) } : {}),
-                isError: Boolean(event?.result?.is_error),
-              },
-            })
-            break
-          }
-
-          if (eventType === 'error') {
-            log(String(params?.event?.error ?? 'Stream error'), 'error', turnId)
-            break
-          }
-
-          if (eventType === 'tool_input') {
-            const event = params?.event
-            const toolUseId = toToolUseId(event?.id) ?? toToolUseId(event?.toolUseId)
-            if (!toolUseId) break
-            const meta = toCanonicalMeta({
-              threadId: eventThreadId,
-              turnId,
-              kind: 'tool_event',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...meta,
-                kind: 'tool_event',
-                turnId,
-                toolUseId,
-                phase: 'update',
-                ...(event?.name ? { toolName: String(event.name) } : {}),
-                ...(event?.input ? { paramsText: formatToolInputAsParamsText(event.input) } : {}),
-              },
-            })
-            break
-          }
-
-          break
-        }
-
-        case 'turn/inputRequested': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) break
-          const input = params?.input as PendingInput | undefined
-          if (!input?.inputId) break
-          const meta = toCanonicalMeta({
-            threadId: input.threadId,
-            turnId: input.turnId,
-            kind: 'tool_input_state',
-            params,
-          })
-          dispatch({
-            type: 'apply_canonical_event',
-            event: {
-              ...meta,
-              kind: 'tool_input_state',
-              turnId: input.turnId,
-              toolUseId: input.toolUseId,
-              ...(typeof input.payload?.toolName === 'string' ? { toolName: input.payload.toolName } : {}),
-              inputKind: input.kind,
-              status: 'pending',
-            },
-          })
-          dispatch({ type: 'input_requested', input })
-          dispatch({ type: 'set_selected_input', inputId: input.inputId })
-          if (input.kind === 'ask_user_question') {
-            setAskDockOpenByInputId((prev) => ({ ...prev, [input.inputId]: true }))
-            setAskPageIndexByInputId((prev) => ({ ...prev, [input.inputId]: prev[input.inputId] ?? 0 }))
-          }
-          break
-        }
-
-        case 'turn/inputResolved': {
-          if (!isNotificationForActiveThread({ params, activeThreadId: activeThreadIdRef.current })) break
-          const input = params?.input as ResolvedInput | undefined
-          const inputId = input?.inputId as string | undefined
-          if (!inputId) break
-          if (input?.turnId && input?.toolUseId && input?.kind && input?.status) {
-            const meta = toCanonicalMeta({
-              threadId: input.threadId,
-              turnId: input.turnId,
-              kind: 'tool_input_state',
-              params,
-            })
-            dispatch({
-              type: 'apply_canonical_event',
-              event: {
-                ...meta,
-                kind: 'tool_input_state',
-                turnId: input.turnId,
-                toolUseId: input.toolUseId,
-                inputKind: input.kind,
-                status: input.status,
-              },
-            })
-          }
-          setAskDockOpenByInputId((prev) => {
-            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
-            const next = { ...prev }
-            delete next[inputId]
-            return next
-          })
-          setAskDraftByInputId((prev) => {
-            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
-            const next = { ...prev }
-            delete next[inputId]
-            return next
-          })
-          setAskPageIndexByInputId((prev) => {
-            if (!Object.prototype.hasOwnProperty.call(prev, inputId)) return prev
-            const next = { ...prev }
-            delete next[inputId]
-            return next
-          })
-          dispatch({
-            type: 'input_resolved',
-            inputId,
-            status: String(input?.status ?? 'unknown'),
-            resolvedAt: typeof input?.resolvedAt === 'string' ? input.resolvedAt : undefined,
-            reason: typeof input?.reason === 'string' ? input.reason : undefined,
-          })
-          if (input?.status && input.status !== 'submitted') {
-            setSubmitStatusByInputId((prev) => ({
-              ...prev,
-              [inputId]: {
-                status: input.status,
-                kind: input.status === 'failed' ? 'error' : 'success',
-                message: input.reason,
-              },
-            }))
-          }
-          break
-        }
-
-        default:
-          break
-      }
+      processNotification(notification, {
+        runtimeStateByThreadRef,
+        replayCursorByThreadRef,
+        activeThreadIdRef,
+        commandByTurnRef,
+        createInitialThreadRuntimeState,
+        shouldProcessSequencedNotification,
+        toCanonicalMeta,
+        dispatch,
+        setMode,
+        cacheThreadMode,
+        isReplMode,
+        refreshThreads,
+        refreshWorkspaceDiff,
+        summarizeToolEvent,
+        toToolUseId,
+        toTurnFooterStatus,
+        formatToolInputAsParamsText,
+        log,
+        setAskDockOpenByInputId,
+        setAskPageIndexByInputId,
+        setAskDraftByInputId,
+        setSubmitStatusByInputId,
+        reduceThreadRuntimeState,
+      })
     },
-    [
-      cacheThreadMode,
-      isNotificationForActiveThread,
-      log,
-      toCanonicalMeta,
-      refreshThreads,
-      refreshWorkspaceDiff,
-      shouldProcessSequencedNotification,
-    ],
+    [cacheThreadMode, log, refreshThreads, refreshWorkspaceDiff, shouldProcessSequencedNotification, toCanonicalMeta],
   )
 
   const replayThreadEvents = useCallback(
     async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
-      const fromStart = options?.fromStart === true
-      let after = fromStart ? 0 : (replayCursorByThreadRef.current[threadId] ?? 0)
-      const initialAfter = after
-      let latestCursor = after
-      let replayState: ReplayStateSnapshot | null = null
-      let receivedEntries = false
-      let pageCount = 0
-
-      while (pageCount < 100) {
-        pageCount += 1
-        const result = await request('thread/replay', { threadId, after, limit: 200 })
-        const replay = asThreadReplay(result)
-        latestCursor = replay.latestCursor
-        if (replay.state) {
-          replayState = replay.state
-          runtimeStateByThreadRef.current[threadId] = {
-            threadId,
-            mode: replay.state.mode,
-            activeTurnId: replay.state.activeTurnId,
-            lastTurnId: replay.state.lastTurnId,
-            lastTurnStatus: replay.state.lastTurnStatus,
-            pendingInputs: toRuntimePendingInputsById(replay.state.pendingInputs),
-            toolNameByUseId: replay.state.toolNameByUseId,
-            updatedAt: replay.state.updatedAt,
-            lastNotificationMethod: null,
-            lastReplaySeq: replay.latestCursor,
-          }
-          if (activeThreadIdRef.current === threadId && Object.keys(replay.state.toolNameByUseId).length > 0) {
-            dispatch({
-              type: 'hydrate_projection_tool_names',
-              threadId,
-              toolNameByUseId: replay.state.toolNameByUseId,
-            })
-          }
-        }
-
-        if (replay.hasGap) {
-          if (replay.state?.projection) {
-            if (activeThreadIdRef.current !== threadId) return true
-            dispatch({
-              type: 'hydrate_projection_snapshot',
-              threadId,
-              snapshot: replay.state.projection,
-            })
-            setThreadTranscriptSource(threadId, 'replay')
-            clearThreadHistoryCursor(threadId)
-            replayCursorByThreadRef.current[threadId] = replay.latestCursor
-            if (activeThreadIdRef.current === threadId) {
-              syncPendingInputsFromReplayState(threadId, replay.state)
-              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-              const nextMode = replay.state.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-              setMode(nextMode)
-              cacheThreadMode(threadId, nextMode)
-            }
-            return true
-          }
-
-          const baselineResult = await request('thread/replay', { threadId })
-          const baselineReplay = asThreadReplay(baselineResult)
-          if (baselineReplay.state) {
-            runtimeStateByThreadRef.current[threadId] = {
-              threadId,
-              mode: baselineReplay.state.mode,
-              activeTurnId: baselineReplay.state.activeTurnId,
-              lastTurnId: baselineReplay.state.lastTurnId,
-              lastTurnStatus: baselineReplay.state.lastTurnStatus,
-              pendingInputs: toRuntimePendingInputsById(baselineReplay.state.pendingInputs),
-              toolNameByUseId: baselineReplay.state.toolNameByUseId,
-              updatedAt: baselineReplay.state.updatedAt,
-              lastNotificationMethod: null,
-              lastReplaySeq: baselineReplay.latestCursor,
-            }
-            replayState = baselineReplay.state
-            if (activeThreadIdRef.current === threadId && Object.keys(baselineReplay.state.toolNameByUseId).length > 0) {
-              dispatch({
-                type: 'hydrate_projection_tool_names',
-                threadId,
-                toolNameByUseId: baselineReplay.state.toolNameByUseId,
-              })
-            }
-          }
-          if (baselineReplay.state?.projection) {
-            if (activeThreadIdRef.current !== threadId) return true
-            dispatch({
-              type: 'hydrate_projection_snapshot',
-              threadId,
-              snapshot: baselineReplay.state.projection,
-            })
-            setThreadTranscriptSource(threadId, 'replay')
-            clearThreadHistoryCursor(threadId)
-            replayCursorByThreadRef.current[threadId] = baselineReplay.latestCursor
-            syncPendingInputsFromReplayState(threadId, baselineReplay.state)
-            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-            const nextMode = baselineReplay.state.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-            setMode(nextMode)
-            cacheThreadMode(threadId, nextMode)
-            return true
-          }
-          const threadTranscriptSource = transcriptSourceByThreadRef.current[threadId]
-          const cachedThreadLogs =
-            activeThreadIdRef.current === threadId
-              ? stateLogsRef.current
-              : (logsByThreadIdRef.current[threadId] ?? [])
-          if (
-            canFastRebaseGapWithoutHistory({
-              transcriptSource: threadTranscriptSource,
-              cachedLogsLength: cachedThreadLogs.length,
-            })
-          ) {
-            replayCursorByThreadRef.current[threadId] = replay.latestCursor
-            if (activeThreadIdRef.current === threadId) {
-              if (replay.state) {
-                syncPendingInputsFromReplayState(threadId, replay.state)
-              }
-              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-              const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-              setMode(nextMode)
-              if (replay.state) {
-                cacheThreadMode(threadId, nextMode)
-              }
-            }
-            return true
-          }
-          if (activeThreadIdRef.current === threadId) {
-            dispatch({ type: 'replace_logs', logs: [] })
-          } else {
-            setLogsByThreadId((prev) => ({
-              ...prev,
-              [threadId]: [],
-            }))
-          }
-          setThreadTranscriptSource(threadId, 'replay')
-          clearThreadHistoryCursor(threadId)
-          replayCursorByThreadRef.current[threadId] =
-            baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
-          if (activeThreadIdRef.current === threadId) {
-            syncPendingInputsFromReplayState(threadId, baselineReplay.state ?? null)
-            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-            const nextMode = baselineReplay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-            setMode(nextMode)
-            if (baselineReplay.state) {
-              cacheThreadMode(threadId, nextMode)
-            }
-          }
-          return true
-        }
-
-        if (fromStart && replay.latestCursor === 0 && replay.data.length === 0) {
-          const loaded = await loadThreadHistory(threadId)
-          if (!loaded) return false
-          replayCursorByThreadRef.current[threadId] = 0
-          if (activeThreadIdRef.current === threadId) {
-            syncPendingInputsFromReplayState(threadId, replay.state ?? null)
-            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-            const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-            setMode(nextMode)
-            if (replay.state) {
-              cacheThreadMode(threadId, nextMode)
-            }
-          }
-          return true
-        }
-
-        for (const entry of replay.data) {
-          receivedEntries = true
-          handleNotification({
-            jsonrpc: '2.0',
-            method: entry.method,
-            ...(entry.params === undefined ? {} : { params: entry.params }),
-          })
-        }
-
-        const nextAfter = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
-        if (nextAfter <= after || nextAfter >= replay.latestCursor) {
-          after = nextAfter
-          break
-        }
-        after = nextAfter
-      }
-
-      if (fromStart && !receivedEntries) {
-        const loaded = await loadThreadHistory(threadId)
-        if (!loaded) return false
-      }
-
-      const currentTranscriptSource = transcriptSourceByThreadRef.current[threadId]
-      if (
-        shouldPromoteReplayAsCanonical({
-          receivedEntries,
-          fromStart,
-          initialAfter,
-          currentTranscriptSource,
-        })
-      ) {
-        setThreadTranscriptSource(threadId, 'replay')
-        clearThreadHistoryCursor(threadId)
-      }
-
-      replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
-      if (activeThreadIdRef.current === threadId) {
-        syncPendingInputsFromReplayState(threadId, replayState)
-        dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-        const nextMode = replayState?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-        setMode(nextMode)
-        if (replayState) {
-          cacheThreadMode(threadId, nextMode)
-        }
-      }
-      return true
+      return runReplayThreadEvents(threadId, options, {
+        request,
+        asThreadReplay,
+        toRuntimePendingInputsById,
+        replayCursorByThreadRef,
+        runtimeStateByThreadRef,
+        activeThreadIdRef,
+        logsByThreadIdRef,
+        stateLogsRef,
+        transcriptSourceByThreadRef,
+        dispatch,
+        setMode,
+        cacheThreadMode,
+        setThreadTranscriptSource,
+        clearThreadHistoryCursor,
+        syncPendingInputsFromReplayState,
+        loadThreadHistory,
+        handleNotification,
+      })
     },
     [
+      request,
       cacheThreadMode,
       clearThreadHistoryCursor,
-      handleNotification,
       loadThreadHistory,
-      request,
+      handleNotification,
       setThreadTranscriptSource,
       syncPendingInputsFromReplayState,
     ],
