@@ -125,6 +125,7 @@
     - 已完成：`thread/replay.state` 补充 `pendingInputs` 详情快照（不再仅 `pendingInputCount`），Web replay hydration 会恢复 pending approval/ask 输入态。
     - 已完成：`thread/replay.state` 补充 `projection` 快照（segments + sticky maps），`hasGap=true` 时 Web 优先用 projection 直恢复并仅在缺 snapshot 时回退 `thread/messages`。
     - 已完成：`hasGap=true` 且 runtime cache 缺失时，server 仍会返回可恢复的 projection state 快照（避免降级到历史拼接）。
+    - 已完成：Web 在 replay-source 线程遇到 `hasGap=true` 且无 projection 时，直接重基线 cursor，不再回退 `thread/messages`。
     - 未完成：`hasGap=true` 的完整重建链路仍依赖 `thread/messages`，尚未完全收敛到 replay-only 语义恢复。
 
 - [x] T7 文档契约统一（以结构化语义为准）

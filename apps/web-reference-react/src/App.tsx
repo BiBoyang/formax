@@ -1364,6 +1364,22 @@ export function App() {
             return true
           }
 
+          if (transcriptSourceByThreadRef.current[threadId] === 'replay') {
+            replayCursorByThreadRef.current[threadId] = replay.latestCursor
+            if (activeThreadIdRef.current === threadId) {
+              if (replay.state) {
+                syncPendingInputsFromReplayState(threadId, replay.state)
+              }
+              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+              const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+              setMode(nextMode)
+              if (replay.state) {
+                cacheThreadMode(threadId, nextMode)
+              }
+            }
+            return true
+          }
+
           const loaded = await loadThreadHistory(threadId)
           if (!loaded) return false
           const baselineResult = await request('thread/replay', { threadId })

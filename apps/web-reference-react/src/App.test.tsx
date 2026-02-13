@@ -1727,6 +1727,13 @@ describe('App thread history integration', () => {
         ),
       ).toBe(true)
     })
+
+    const alphaHistoryCalls = rpcMock.requests.filter(
+      (entry) =>
+        entry.method === 'thread/messages' &&
+        (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-alpha',
+    )
+    expect(alphaHistoryCalls).toHaveLength(0)
   })
 
   it('uses replay projection snapshot on hasGap without falling back to thread/messages for that thread', async () => {
