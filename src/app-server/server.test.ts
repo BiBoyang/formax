@@ -910,7 +910,10 @@ describe('AppServer', () => {
         lastTurnId: 'turn-1',
         lastTurnStatus: 'completed',
         pendingInputCount: 0,
-        projection: null,
+        projection: expect.objectContaining({
+          segments: expect.any(Array),
+          lastReplaySeq: expect.any(Number),
+        }),
         toolNameByUseId: { 'tool-1': 'Bash' },
       }),
     )

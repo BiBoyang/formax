@@ -585,6 +585,7 @@ export class AppServer {
           }
         : null
     const stateForSnapshot = state ?? fallbackSnapshotState
+    const shouldIncludeProjectionSnapshot = Boolean(projection) && (hasGap || args.after == null)
     const stateSnapshot = stateForSnapshot
       ? {
           mode: stateForSnapshot.mode,
@@ -603,7 +604,7 @@ export class AppServer {
             expiresAt: input.expiresAt,
             payload: input.payload,
           })),
-          projection: hasGap && projection
+          projection: shouldIncludeProjectionSnapshot && projection
             ? {
                 segments: projection.segments.map((segment) => ({ ...segment })),
                 lastReplaySeq: projection.lastReplaySeq,

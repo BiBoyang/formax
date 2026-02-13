@@ -2035,6 +2035,181 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('recovers hasGap from baseline replay snapshot without calling thread/messages', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha history fallback' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
+        return {
+          thread: {
+            id: threadId,
+            cwd: '/repo',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:10.000Z',
+          },
+          staleInputs: [],
+        }
+      }
+      if (method === 'thread/replay') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        const after = (params as { after?: number } | undefined)?.after
+        if (threadId === 'thread-alpha') {
+          if (after === 0) {
+            return {
+              data: [
+                {
+                  replaySeq: 10,
+                  method: 'turn/event',
+                  params: {
+                    threadId: 'thread-alpha',
+                    turnId: 'turn-init',
+                    event: { type: 'assistant_delta', text: 'alpha replay start' },
+                  },
+                },
+              ],
+              nextCursor: 10,
+              latestCursor: 10,
+              hasGap: false,
+              state: {
+                mode: 'normal',
+                activeTurnId: null,
+                lastTurnId: 'turn-init',
+                lastTurnStatus: 'completed',
+                pendingInputCount: 0,
+                pendingInputs: [],
+                projection: null,
+                toolNameByUseId: {},
+                updatedAt: '2026-02-10T00:00:10.000Z',
+              },
+            }
+          }
+          if (after === 10) {
+            return {
+              data: [],
+              nextCursor: 21,
+              latestCursor: 30,
+              hasGap: true,
+              state: {
+                mode: 'normal',
+                activeTurnId: null,
+                lastTurnId: 'turn-sync',
+                lastTurnStatus: 'completed',
+                pendingInputCount: 0,
+                pendingInputs: [],
+                projection: null,
+                toolNameByUseId: {},
+                updatedAt: '2026-02-10T00:00:30.000Z',
+              },
+            }
+          }
+          if (after === undefined) {
+            return {
+              data: [],
+              nextCursor: 30,
+              latestCursor: 30,
+              hasGap: false,
+              state: {
+                mode: 'normal',
+                activeTurnId: null,
+                lastTurnId: 'turn-sync',
+                lastTurnStatus: 'completed',
+                pendingInputCount: 0,
+                pendingInputs: [],
+                projection: {
+                  segments: [
+                    {
+                      id: 'turn-sync:assistant:30',
+                      kind: 'assistant',
+                      turnId: 'turn-sync',
+                      text: 'baseline replay projection',
+                    },
+                  ],
+                  lastReplaySeq: 30,
+                  toolNameByUseId: {},
+                  openAssistantSegmentIdByTurn: {},
+                  openThinkingSegmentIdByTurn: {},
+                },
+                toolNameByUseId: {},
+                updatedAt: '2026-02-10T00:00:30.000Z',
+              },
+            }
+          }
+          return { data: [], nextCursor: after ?? 0, latestCursor: after ?? 0, hasGap: false }
+        }
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha replay start')
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('baseline replay projection')
+
+    await waitFor(() => {
+      const alphaHistoryCalls = rpcMock.requests.filter(
+        (entry) =>
+          entry.method === 'thread/messages' &&
+          (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-alpha',
+      )
+      expect(alphaHistoryCalls).toHaveLength(0)
+    })
+  })
+
   it('ignores stale hasGap projection hydration after switching to another thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}

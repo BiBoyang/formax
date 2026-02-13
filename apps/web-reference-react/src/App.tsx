@@ -381,7 +381,7 @@ function asThreadReplay(value: unknown): {
           })
           .filter((input): input is PendingInput => Boolean(input))
       : []
-    const projectionRaw = hasGap ? stateRecord.projection : null
+    const projectionRaw = stateRecord.projection
     const projection =
       projectionRaw && typeof projectionRaw === 'object'
         ? (() => {
@@ -1351,31 +1351,6 @@ export function App() {
             return true
           }
 
-          const threadTranscriptSource = transcriptSourceByThreadRef.current[threadId]
-          const cachedThreadLogs =
-            activeThreadIdRef.current === threadId
-              ? stateLogsRef.current
-              : (logsByThreadIdRef.current[threadId] ?? [])
-          const canFastRebaseGapWithoutHistory =
-            (threadTranscriptSource === 'replay' || threadTranscriptSource === 'history') && cachedThreadLogs.length > 0
-          if (canFastRebaseGapWithoutHistory) {
-            replayCursorByThreadRef.current[threadId] = replay.latestCursor
-            if (activeThreadIdRef.current === threadId) {
-              if (replay.state) {
-                syncPendingInputsFromReplayState(threadId, replay.state)
-              }
-              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-              const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-              setMode(nextMode)
-              if (replay.state) {
-                cacheThreadMode(threadId, nextMode)
-              }
-            }
-            return true
-          }
-
-          const loaded = await loadThreadHistory(threadId)
-          if (!loaded) return false
           const baselineResult = await request('thread/replay', { threadId })
           const baselineReplay = asThreadReplay(baselineResult)
           if (baselineReplay.state) {
@@ -1400,6 +1375,55 @@ export function App() {
               })
             }
           }
+          if (baselineReplay.state?.projection) {
+            if (activeThreadIdRef.current !== threadId) return true
+            dispatch({
+              type: 'hydrate_projection_snapshot',
+              threadId,
+              snapshot: baselineReplay.state.projection,
+            })
+            setThreadTranscriptSource(threadId, 'replay')
+            clearThreadHistoryCursor(threadId)
+            replayCursorByThreadRef.current[threadId] = baselineReplay.latestCursor
+            syncPendingInputsFromReplayState(threadId, baselineReplay.state)
+            dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+            const nextMode = baselineReplay.state.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+            setMode(nextMode)
+            cacheThreadMode(threadId, nextMode)
+            return true
+          }
+          const threadTranscriptSource = transcriptSourceByThreadRef.current[threadId]
+          const cachedThreadLogs =
+            activeThreadIdRef.current === threadId
+              ? stateLogsRef.current
+              : (logsByThreadIdRef.current[threadId] ?? [])
+          const canFastRebaseGapWithoutHistory =
+            (threadTranscriptSource === 'replay' || threadTranscriptSource === 'history') && cachedThreadLogs.length > 0
+          if (canFastRebaseGapWithoutHistory) {
+            replayCursorByThreadRef.current[threadId] = replay.latestCursor
+            if (activeThreadIdRef.current === threadId) {
+              if (replay.state) {
+                syncPendingInputsFromReplayState(threadId, replay.state)
+              }
+              dispatch({ type: 'set_active_turn', turnId: runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+              const nextMode = replay.state?.mode ?? runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+              setMode(nextMode)
+              if (replay.state) {
+                cacheThreadMode(threadId, nextMode)
+              }
+            }
+            return true
+          }
+          if (activeThreadIdRef.current === threadId) {
+            dispatch({ type: 'replace_logs', logs: [] })
+          } else {
+            setLogsByThreadId((prev) => ({
+              ...prev,
+              [threadId]: [],
+            }))
+          }
+          setThreadTranscriptSource(threadId, 'replay')
+          clearThreadHistoryCursor(threadId)
           replayCursorByThreadRef.current[threadId] =
             baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
           if (activeThreadIdRef.current === threadId) {

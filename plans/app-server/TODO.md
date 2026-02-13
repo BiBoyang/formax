@@ -111,7 +111,7 @@
     - 已完成：`App.tsx` 在线程切换/新线程场景优先 `thread/replay(after=0)` 重建；`hasGap` 与 replay 空窗口时才走 `thread/messages` fallback。
     - 已完成：历史上翻分页仅在 history fallback 模式可用；一旦 replay 成为该线程 canonical 来源会清理 history cursor 并关闭 messages 分页入口。
 
-- [ ] T6 app-server replay 状态快照补齐可恢复信息
+- [x] T6 app-server replay 状态快照补齐可恢复信息
   - 文件：
     - `src/app-server/server.ts`
     - `src/app-server/threadStore.ts`
@@ -123,11 +123,11 @@
   - 当前进展：
     - 已完成：`thread/replay.state` 补充 `toolNameByUseId` sticky cache，Web hydration 会把该映射注入 canonical projection seed。
     - 已完成：`thread/replay.state` 补充 `pendingInputs` 详情快照（不再仅 `pendingInputCount`），Web replay hydration 会恢复 pending approval/ask 输入态。
-    - 已完成：`thread/replay.state` 补充 `projection` 快照（segments + sticky maps），`hasGap=true` 时 Web 优先用 projection 直恢复并仅在缺 snapshot 时回退 `thread/messages`。
+    - 已完成：`thread/replay.state` 补充 `projection` 快照（segments + sticky maps），`hasGap=true` 时 Web 优先用 projection 直恢复。
     - 已完成：`hasGap=true` 且 runtime cache 缺失时，server 仍会返回可恢复的 projection state 快照（避免降级到历史拼接）。
     - 已完成：Web 在 replay-source 线程遇到 `hasGap=true` 且无 projection 时，直接重基线 cursor，不再回退 `thread/messages`。
     - 已完成：Web 在 history-source 且已有 transcript 缓存时遇到 `hasGap=true`，直接重基线 cursor，避免重复请求 `thread/messages`。
-    - 未完成：`hasGap=true` 的完整重建链路仍依赖 `thread/messages`，尚未完全收敛到 replay-only 语义恢复。
+    - 已完成：server baseline replay（`after` 省略）也返回 projection 快照；Web 在 `hasGap=true` 且首包无 projection 时会二次拉取 baseline snapshot 恢复，不再回退 `thread/messages`。
 
 - [x] T7 文档契约统一（以结构化语义为准）
   - 文件：
