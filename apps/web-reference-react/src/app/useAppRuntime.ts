@@ -15,15 +15,7 @@ import {
   asThreadMessages,
   asThreadReplay,
   asThreadSummaries,
-  type ReplayStateSnapshot,
 } from './core/rpcParsers'
-import {
-  buildAskUiStateFromPendingInputs,
-  mapsAreShallowEqual,
-  pruneMapByPendingIds,
-  resolveSelectedInputId,
-  toPendingInputIdSet,
-} from './core/inputStateMachine'
 import {
   type ThreadTranscriptSource,
 } from './core/replayMachine'
@@ -43,6 +35,7 @@ import { processNotification } from './runtime/processNotification'
 import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
 import { createComposerActions } from './runtime/composerActions'
 import { createThreadActions } from './runtime/threadActions'
+import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -67,9 +60,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [inputText, setInputText] = useState('')
-  const [submitStatusByInputId, setSubmitStatusByInputId] = useState<
-    Record<string, { status: string; kind: 'success' | 'error'; message?: string }>
-  >({})
   const [lastRpcError, setLastRpcError] = useState<RpcErrorDetails | null>(null)
   const [diffSnapshot, setDiffSnapshot] = useState<DiffSnapshot | null>(null)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
@@ -78,9 +68,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [isInterruptingTurn, setIsInterruptingTurn] = useState(false)
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
-  const [askDockOpenByInputId, setAskDockOpenByInputId] = useState<Record<string, boolean>>({})
-  const [askDraftByInputId, setAskDraftByInputId] = useState<Record<string, Record<string, string>>>({})
-  const [askPageIndexByInputId, setAskPageIndexByInputId] = useState<Record<string, number>>({})
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
@@ -104,14 +91,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const canonicalReplaySeqRef = useRef(0)
-  const selectedInput = state.selectedInputId ? state.pendingInputs[state.selectedInputId] : null
-  const selectedAskDraft = selectedInput ? (askDraftByInputId[selectedInput.inputId] ?? {}) : {}
-  const selectedAskPageIndex = selectedInput ? (askPageIndexByInputId[selectedInput.inputId] ?? 0) : 0
-  const isSelectedAskOpen =
-    selectedInput?.kind === 'ask_user_question' ? Boolean(askDockOpenByInputId[selectedInput.inputId] ?? true) : false
-  const composerLocked =
-    selectedInput != null &&
-    (selectedInput.kind === 'approval' || (selectedInput.kind === 'ask_user_question' && isSelectedAskOpen))
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
@@ -175,59 +154,29 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     },
     [captureError],
   )
-
-  const syncPendingInputsFromReplayState = useCallback(
-    (threadId: string, replayState: ReplayStateSnapshot | null) => {
-      if (activeThreadIdRef.current !== threadId) return
-      const pendingInputs = replayState?.pendingInputs ?? []
-      const pendingInputIdSet = new Set(pendingInputs.map((input) => input.inputId))
-      const selectedInputIdBeforeSync = selectedInputIdRef.current
-
-      dispatch({ type: 'clear_pending_inputs' })
-      for (const input of pendingInputs) {
-        dispatch({ type: 'input_requested', input })
-      }
-      if (selectedInputIdBeforeSync && pendingInputIdSet.has(selectedInputIdBeforeSync)) {
-        dispatch({ type: 'set_selected_input', inputId: selectedInputIdBeforeSync })
-      }
-
-      setSubmitStatusByInputId((prev) => {
-        if (Object.keys(prev).length === 0) return prev
-        const next: Record<string, { status: string; kind: 'success' | 'error'; message?: string }> = {}
-        for (const [inputId, status] of Object.entries(prev)) {
-          if (!pendingInputIdSet.has(inputId)) continue
-          next[inputId] = status
-        }
-        return next
-      })
-
-      setAskDockOpenByInputId((prevAskDockOpenByInputId) => {
-        return buildAskUiStateFromPendingInputs({
-          pendingInputs,
-          prevAskDockOpenByInputId,
-          prevAskDraftByInputId: {},
-          prevAskPageIndexByInputId: {},
-        }).askDockOpenByInputId
-      })
-      setAskDraftByInputId((prevAskDraftByInputId) => {
-        return buildAskUiStateFromPendingInputs({
-          pendingInputs,
-          prevAskDockOpenByInputId: {},
-          prevAskDraftByInputId,
-          prevAskPageIndexByInputId: {},
-        }).askDraftByInputId
-      })
-      setAskPageIndexByInputId((prevAskPageIndexByInputId) => {
-        return buildAskUiStateFromPendingInputs({
-          pendingInputs,
-          prevAskDockOpenByInputId: {},
-          prevAskDraftByInputId: {},
-          prevAskPageIndexByInputId,
-        }).askPageIndexByInputId
-      })
-    },
-    [],
-  )
+  const {
+    selectedInput,
+    selectedAskDraft,
+    selectedAskPageIndex,
+    isSelectedAskOpen,
+    composerLocked,
+    submitStatus,
+    setSubmitStatusByInputId,
+    setAskDockOpenByInputId,
+    setAskDraftByInputId,
+    setAskPageIndexByInputId,
+    onAskOpen,
+    onAskDismiss,
+    onAskPageChange,
+    onAskDraftChange,
+    syncPendingInputsFromReplayState,
+  } = usePendingInputUiState({
+    pendingInputs: state.pendingInputs,
+    selectedInputId: state.selectedInputId,
+    dispatch,
+    activeThreadIdRef,
+    selectedInputIdRef,
+  })
 
   const nextCanonicalReplaySeq = useCallback((candidate?: unknown): number => {
     if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
@@ -487,61 +436,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   }, [state.selectedInputId])
 
   useEffect(() => {
-    const pendingIdSet = toPendingInputIdSet(state.pendingInputs)
-    const nextSelectedInputId = resolveSelectedInputId({
-      pendingInputsById: state.pendingInputs,
-      selectedInputId: state.selectedInputId,
-    })
-    if (nextSelectedInputId !== state.selectedInputId) {
-      dispatch({ type: 'set_selected_input', inputId: nextSelectedInputId })
-    }
-
-    setAskDockOpenByInputId((prev) => {
-      const next = pruneMapByPendingIds(prev, pendingIdSet)
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-    setAskDraftByInputId((prev) => {
-      const next = pruneMapByPendingIds(prev, pendingIdSet)
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-    setAskPageIndexByInputId((prev) => {
-      const next = pruneMapByPendingIds(prev, pendingIdSet)
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-  }, [state.pendingInputs, state.selectedInputId])
-
-  useEffect(() => {
-    const pendingInputs = Object.values(state.pendingInputs)
-    setAskDockOpenByInputId((prev) => {
-      const next = buildAskUiStateFromPendingInputs({
-        pendingInputs,
-        prevAskDockOpenByInputId: prev,
-        prevAskDraftByInputId: {},
-        prevAskPageIndexByInputId: {},
-      }).askDockOpenByInputId
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-    setAskDraftByInputId((prev) => {
-      const next = buildAskUiStateFromPendingInputs({
-        pendingInputs,
-        prevAskDockOpenByInputId: {},
-        prevAskDraftByInputId: prev,
-        prevAskPageIndexByInputId: {},
-      }).askDraftByInputId
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-    setAskPageIndexByInputId((prev) => {
-      const next = buildAskUiStateFromPendingInputs({
-        pendingInputs,
-        prevAskDockOpenByInputId: {},
-        prevAskDraftByInputId: {},
-        prevAskPageIndexByInputId: prev,
-      }).askPageIndexByInputId
-      return mapsAreShallowEqual(prev, next) ? prev : next
-    })
-  }, [state.pendingInputs])
-
-  useEffect(() => {
     const threadId = state.activeThreadId
     if (!threadId) return
     setLogsByThreadId((prev) => ({ ...prev, [threadId]: state.logs }))
@@ -761,30 +655,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     isSelectedAskOpen,
     selectedAskPageIndex,
     selectedAskDraft,
-    submitStatus: selectedInput ? (submitStatusByInputId[selectedInput.inputId] ?? null) : null,
+    submitStatus,
     isSubmittingInput,
-    onAskOpen: () => {
-      if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
-      setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: true }))
-    },
-    onAskDismiss: () => {
-      if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
-      setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: false }))
-    },
-    onAskPageChange: (page) => {
-      if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
-      setAskPageIndexByInputId((prev) => ({ ...prev, [selectedInput.inputId]: Math.max(0, page) }))
-    },
-    onAskDraftChange: (fieldId, value) => {
-      if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
-      setAskDraftByInputId((prev) => ({
-        ...prev,
-        [selectedInput.inputId]: {
-          ...(prev[selectedInput.inputId] ?? {}),
-          [fieldId]: value,
-        },
-      }))
-    },
+    onAskOpen,
+    onAskDismiss,
+    onAskPageChange,
+    onAskDraftChange,
     onSubmitInput: (inputId, answers) => void submitInputById(inputId, answers).catch(() => undefined),
     diffSnapshot,
     onRefreshDiff: () => void refreshWorkspaceDiff().catch(() => undefined),
