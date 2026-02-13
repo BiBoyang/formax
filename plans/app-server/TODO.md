@@ -229,7 +229,7 @@
 ## 现有基线（保留）
 
 - [x] `thread/replay` 已落地（含 `hasGap` 与 runtime state）
-- [x] `command/dispatch` 已落地（`/init`、`/compact`、`/todos`）
+- [x] `command/dispatch` 已落地（`/init`、`/clear`、`/compact`、`/todos`）
 - [x] mode/input 语义层已有基础（`threadRuntimeState`、`inputStateMachine`、`commandRouting`）
 - [x] Web 审批输入区 dock 已落地（ask 分页 / approval submit）
 - [x] Canonical transcript projection 基础已落地（`canonicalEvents` + `transcriptProjection`）
@@ -239,6 +239,6 @@
 
 ## 其他 backlog（不在本次 WebGPT 主线内）
 
-- [ ] commander 能力增量扩展（超出 `/init`、`/clear`、`/compact`、`/todos`）
+- [x] commander 命令范围确认（当前仅支持 `/init`、`/clear`、`/compact`、`/todos`，其余能力暂不扩展）
 - [ ] 配置类命令（如 `/agents`、`/hooks`、`/permissions`）默认不接入 Web
 - [ ] 远程暴露场景安全增强（TLS/WSS、细粒度鉴权、限流与审计）
