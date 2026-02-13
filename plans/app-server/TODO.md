@@ -124,6 +124,7 @@
     - 已完成：`thread/replay.state` 补充 `toolNameByUseId` sticky cache，Web hydration 会把该映射注入 canonical projection seed。
     - 已完成：`thread/replay.state` 补充 `pendingInputs` 详情快照（不再仅 `pendingInputCount`），Web replay hydration 会恢复 pending approval/ask 输入态。
     - 已完成：`thread/replay.state` 补充 `projection` 快照（segments + sticky maps），`hasGap=true` 时 Web 优先用 projection 直恢复并仅在缺 snapshot 时回退 `thread/messages`。
+    - 已完成：`hasGap=true` 且 runtime cache 缺失时，server 仍会返回可恢复的 projection state 快照（避免降级到历史拼接）。
     - 未完成：`hasGap=true` 的完整重建链路仍依赖 `thread/messages`，尚未完全收敛到 replay-only 语义恢复。
 
 - [x] T7 文档契约统一（以结构化语义为准）

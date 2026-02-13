@@ -569,14 +569,30 @@ export class AppServer {
     const hasGap = args.after != null && args.after < trimmedBefore
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
     const projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
-    const stateSnapshot = state
+    const fallbackSnapshotState: ThreadRuntimeState | null =
+      !state && hasGap && projection
+        ? {
+            threadId: args.threadId,
+            mode: 'normal',
+            activeTurnId: null,
+            lastTurnId: null,
+            lastTurnStatus: null,
+            pendingInputs: {},
+            toolNameByUseId: { ...projection.toolNameByUseId },
+            updatedAt: new Date(0).toISOString(),
+            lastNotificationMethod: null,
+            lastReplaySeq: latestCursor,
+          }
+        : null
+    const stateForSnapshot = state ?? fallbackSnapshotState
+    const stateSnapshot = stateForSnapshot
       ? {
-          mode: state.mode,
-          activeTurnId: state.activeTurnId,
-          lastTurnId: state.lastTurnId,
-          lastTurnStatus: state.lastTurnStatus,
-          pendingInputCount: Object.keys(state.pendingInputs).length,
-          pendingInputs: Object.values(state.pendingInputs).map((input) => ({
+          mode: stateForSnapshot.mode,
+          activeTurnId: stateForSnapshot.activeTurnId,
+          lastTurnId: stateForSnapshot.lastTurnId,
+          lastTurnStatus: stateForSnapshot.lastTurnStatus,
+          pendingInputCount: Object.keys(stateForSnapshot.pendingInputs).length,
+          pendingInputs: Object.values(stateForSnapshot.pendingInputs).map((input) => ({
             inputId: input.inputId,
             threadId: input.threadId,
             turnId: input.turnId,
@@ -596,8 +612,8 @@ export class AppServer {
                 openThinkingSegmentIdByTurn: { ...projection.openThinkingSegmentIdByTurn },
               }
             : null,
-          toolNameByUseId: { ...state.toolNameByUseId },
-          updatedAt: state.updatedAt,
+          toolNameByUseId: { ...stateForSnapshot.toolNameByUseId },
+          updatedAt: stateForSnapshot.updatedAt,
         }
       : null
 

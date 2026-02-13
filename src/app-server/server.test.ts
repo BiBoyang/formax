@@ -1021,6 +1021,41 @@ describe('AppServer', () => {
     )
   })
 
+  it('returns projection snapshot on hasGap even when runtime state cache is missing', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    for (let index = 0; index < 2050; index += 1) {
+      emit('turn/event', {
+        threadId: 'thread-gap-state',
+        turnId: 'turn-gap-state',
+        event: { type: 'assistant_delta', text: `delta-${index}` },
+      })
+    }
+
+    const runtimeStateByThreadId = (server as any).runtimeStateByThreadId as Map<string, unknown>
+    runtimeStateByThreadId.delete('thread-gap-state')
+
+    const out = await server.handleMessage(
+      request(2, 'thread/replay', {
+        threadId: 'thread-gap-state',
+        after: 1,
+        limit: 10,
+      }),
+    )
+    const result = (out[0] as any).result
+    expect(result.hasGap).toBe(true)
+    expect(result.state).toEqual(
+      expect.objectContaining({
+        mode: 'normal',
+        projection: expect.objectContaining({
+          segments: expect.any(Array),
+          lastReplaySeq: expect.any(Number),
+        }),
+      }),
+    )
+  })
+
   it('validates turn/start mode params', async () => {
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
