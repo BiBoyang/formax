@@ -163,7 +163,7 @@
     - 已完成：新增跨端共享展示文案基元 `src/features/tools/presentation/labels.ts`，Web/TUI 的 AskUserQuestion/TodoWrite 共用计数标签与状态摘要规则。
     - 已完成：EnterPlanMode/ExitPlanMode 的状态摘要规则收敛到共享 labels 基元，减少 Web/TUI 规则分叉。
     - 已完成：AskUserQuestion 答案解析逻辑下沉到共享基元 `src/features/tools/presentation/askAnswers.ts`，Web 与 TUI 复用同一解析函数。
-    - 未完成：TUI presenter 仍有独立工具语义层（ask/todo/plan 等），尚未统一到共享 presentation IR registry。
+    - 未完成：TUI 的交互式 prompt 渲染（ask/plan）仍是端内实现，尚未统一到共享 presentation IR registry。
 
 ---
 
