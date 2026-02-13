@@ -22,7 +22,6 @@ import {
   toRuntimePendingInputsById,
   toToolUseId,
   toTurnFooterStatus,
-  type RpcErrorDetails,
 } from './core/threadTransforms'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
@@ -36,16 +35,14 @@ import { createThreadDataOps } from './runtime/threadDataOps'
 import { connectRpcClient } from './runtime/connectRpcClient'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
+import { useRpcRequest } from './runtime/useRpcRequest'
+import { useCanonicalMeta } from './runtime/useCanonicalMeta'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from '../../../../src/features/semantics/threadRuntimeState'
 import { isReplMode, type ReplMode } from '../../../../src/features/semantics/replModeTransition'
-import {
-  isCanonicalEventSource,
-  type CanonicalEventSource,
-} from '../../../../src/features/semantics/canonicalEvents'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -60,7 +57,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [inputText, setInputText] = useState('')
-  const [lastRpcError, setLastRpcError] = useState<RpcErrorDetails | null>(null)
   const [diffSnapshot, setDiffSnapshot] = useState<DiffSnapshot | null>(null)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const [isThreadActionBusy, setIsThreadActionBusy] = useState(false)
@@ -90,7 +86,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
-  const canonicalReplaySeqRef = useRef(0)
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
@@ -99,6 +94,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
   }, [])
+  const { lastRpcError, captureError, request } = useRpcRequest({ clientRef, log })
+  const { toCanonicalMeta } = useCanonicalMeta({
+    activeThreadIdRef,
+    nowIso: runtimePorts.nowIso,
+  })
 
   const cacheThreadMode = useCallback((threadId: string | null | undefined, nextMode: ReplMode) => {
     if (!threadId) return
@@ -131,29 +131,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [],
   )
 
-  const captureError = useCallback(
-    (method: string, error: unknown) => {
-      const details = toRpcError(method, error)
-      setLastRpcError(details)
-      log(`[${method}] ${details.message}${details.code != null ? ` (code ${details.code})` : ''}`, 'error')
-      return details
-    },
-    [log],
-  )
-
-  const request = useCallback(
-    async (method: string, params?: unknown): Promise<any> => {
-      const client = clientRef.current
-      if (!client) throw new Error('RPC client is not ready')
-      try {
-        return await client.request(method, params)
-      } catch (error) {
-        captureError(method, error)
-        throw error
-      }
-    },
-    [captureError],
-  )
   const {
     selectedInput,
     selectedAskDraft,
@@ -177,48 +154,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadIdRef,
     selectedInputIdRef,
   })
-
-  const nextCanonicalReplaySeq = useCallback((candidate?: unknown): number => {
-    if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
-      const replaySeq = candidate > canonicalReplaySeqRef.current ? candidate : canonicalReplaySeqRef.current + 1
-      canonicalReplaySeqRef.current = replaySeq
-      return replaySeq
-    }
-    canonicalReplaySeqRef.current += 1
-    return canonicalReplaySeqRef.current
-  }, [])
-
-  const toCanonicalMeta = useCallback(
-    (args: {
-      threadId: string | null | undefined
-      turnId: string
-      kind: string
-      params?: Record<string, unknown> | null | undefined
-    }): {
-      threadId: string
-      replaySeq: number
-      eventId: string
-      ts: string
-      source: CanonicalEventSource
-    } => {
-      const resolvedThreadId = args.threadId ?? activeThreadIdRef.current ?? '__active_thread__'
-      const params = args.params
-      const replaySeq = nextCanonicalReplaySeq(params?.replaySeq)
-      const eventIdRaw = typeof params?.eventId === 'string' ? params.eventId.trim() : ''
-      const eventId = eventIdRaw || `${resolvedThreadId}:${args.turnId}:${args.kind}:${replaySeq}`
-      const ts = typeof params?.ts === 'string' && params.ts.trim() ? params.ts : runtimePorts.nowIso()
-      const sourceRaw = params?.source
-      const source = isCanonicalEventSource(sourceRaw) ? sourceRaw : 'engine'
-      return {
-        threadId: resolvedThreadId,
-        replaySeq,
-        eventId,
-        ts,
-        source,
-      }
-    },
-    [nextCanonicalReplaySeq, runtimePorts],
-  )
 
   const {
     refreshThreads,
