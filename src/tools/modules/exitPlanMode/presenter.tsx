@@ -13,7 +13,7 @@ import { ToolSubline } from '../../../components/tool/ToolSubline'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
-import { EXIT_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
+import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -114,10 +114,9 @@ function ExitPlanModePrompt({
   const theme = getTheme()
   const scope = 'prompt:exitPlanMode'
   useScopeActivation(scope)
-  const options = EXIT_PLAN_MODE_QUESTIONS[0]?.options ?? []
-  const autoLabel = options[0]?.label ?? 'Yes, and auto-accept edits'
-  const manualLabel = options[1]?.label ?? 'Yes, and manually approve edits'
-  const feedbackPlaceholder = options[2]?.label ?? 'Type here to tell Claude what to change'
+  const autoLabel = EXIT_PLAN_MODE_PROMPT.options[0]?.label ?? 'Yes, and auto-accept edits'
+  const manualLabel = EXIT_PLAN_MODE_PROMPT.options[1]?.label ?? 'Yes, and manually approve edits'
+  const feedbackPlaceholder = EXIT_PLAN_MODE_PROMPT.options[2]?.label ?? 'Type here to tell Claude what to change'
   const { stdout } = useStdout()
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
@@ -251,7 +250,7 @@ function ExitPlanModePrompt({
       <Text color={theme.secondaryText}>{separator}</Text>
 
       <Box flexDirection="column" marginTop={1} marginLeft={1}>
-        <Text bold>Ready to code?</Text>
+        <Text bold>{EXIT_PLAN_MODE_PROMPT.question}</Text>
       </Box>
 
       <Box flexDirection="column" marginLeft={1} marginTop={1}>

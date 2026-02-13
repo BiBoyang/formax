@@ -7,7 +7,7 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
-import { ENTER_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
+import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -107,16 +107,15 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
     },
   )
 
-  const options = ENTER_PLAN_MODE_QUESTIONS[0]?.options ?? []
-  const yesLabel = options[0]?.label ?? 'Yes, enter plan mode'
-  const noLabel = options[1]?.label ?? 'No, start implementing now'
+  const yesLabel = ENTER_PLAN_MODE_PROMPT.options[0]?.label ?? 'Yes, enter plan mode'
+  const noLabel = ENTER_PLAN_MODE_PROMPT.options[1]?.label ?? 'No, start implementing now'
 
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={theme.secondaryText}>{separator}</Text>
 
       <Box flexDirection="column" marginLeft={1}>
-        <Text bold>Enter plan mode?</Text>
+        <Text bold>{ENTER_PLAN_MODE_PROMPT.question}</Text>
 
         <Box flexDirection="column" marginTop={1}>
           <Text color={theme.secondaryText}>

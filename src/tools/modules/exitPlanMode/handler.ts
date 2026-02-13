@@ -2,9 +2,9 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildExitedPlanModeSystemReminder } from '../../../utils/planMode'
-import { EXIT_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
+import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
-const QUESTIONS: AskUserQuestion[] = EXIT_PLAN_MODE_QUESTIONS
+const QUESTIONS: AskUserQuestion[] = [EXIT_PLAN_MODE_PROMPT]
 
 export function createExitPlanModeToolHandler(userInput: UserInputManager): ToolHandler {
   return {
@@ -95,7 +95,7 @@ function resolveExitPlanChoice(answers: Record<string, string>): {
   const rawChoice = String(answers.choice || '').trim()
   const direct = rawChoice.toLowerCase()
   const directFeedback = String(answers.feedback || '').trim()
-  const normalizedOptionLabels = new Set(QUESTIONS[0]?.options.map((option) => option.label.toLowerCase()) ?? [])
+  const normalizedOptionLabels = new Set(EXIT_PLAN_MODE_PROMPT.options.map((option) => option.label.toLowerCase()))
 
   if (direct === 'auto' || direct === 'manual' || direct === 'feedback' || direct === 'cancel') {
     return {

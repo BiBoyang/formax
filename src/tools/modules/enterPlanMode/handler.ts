@@ -2,9 +2,9 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
-import { ENTER_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
+import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
-const QUESTIONS: AskUserQuestion[] = ENTER_PLAN_MODE_QUESTIONS
+const QUESTIONS: AskUserQuestion[] = [ENTER_PLAN_MODE_PROMPT]
 
 export function createEnterPlanModeToolHandler(userInput: UserInputManager): ToolHandler {
   return {
