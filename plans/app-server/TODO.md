@@ -82,7 +82,7 @@
     - 已完成：TUI `useReplStreaming` 增加 `StreamEvent -> CanonicalEvent` 语义桥接，并将事件实时喂给共享 `reduceTranscriptProjection`（先并行桥接，不改现有 TUI 渲染）。
     - 未完成：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
 
-- [ ] T4 建立跨端语义一致性测试矩阵
+- [x] T4 建立跨端语义一致性测试矩阵
   - 文件：
     - 新增 `src/features/semantics/__tests__/projectionParity.test.ts`
     - 视情况新增 web/tui 适配层测试
@@ -95,7 +95,7 @@
     - 已完成：新增 stream canonical adapter 与 turn notification canonical adapter 的单测，以及 `useReplStreaming` canonical bridge 投影回归测试（assistant/tool/footer）。
     - 已完成：补充 parity fixture 覆盖 `toolName` sticky 与 duplicate canonical event 去重一致性。
     - 已完成：补充 `turnNotificationCanonicalAdapter` 的 tool input 交错测试（`inputRequested/inputResolved` 与 tool event 混排）。
-    - 未完成：parity 矩阵尚未覆盖 replay gap 场景。
+    - 已完成：补充 replay gap 场景 parity 覆盖（snapshot + tail 恢复与全量连续投影一致）。
 
 ### P1：刷新与实时统一为 replay-first
 

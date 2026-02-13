@@ -344,4 +344,180 @@ describe('projection parity', () => {
       },
     ])
   })
+
+  it('keeps projection parity when a stale cursor rebuilds from snapshot plus tail events', () => {
+    const threadId = 'thread-gap'
+    const turnId = 'turn-gap'
+    let streamSeq = 0
+
+    const streamCanonicalEvents = [
+      ...toCanonicalEventsFromStreamEvent({ type: 'assistant_delta', text: 'hello ' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent({ type: 'assistant_delta', text: 'world' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'tool-gap', name: 'Bash' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'tool-gap', result: { content: 'done', is_error: false, tool_use_id: 'tool-gap' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'assistant_delta', text: ' after tool' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent({ type: 'complete' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+    ]
+
+    const webCanonicalEvents = [
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 1,
+            event: { type: 'assistant_delta', text: 'hello ' },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 2,
+            event: { type: 'assistant_delta', text: 'world' },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 3,
+            event: { type: 'tool_start', id: 'tool-gap', name: 'Bash' },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 4,
+            event: { type: 'tool_end', id: 'tool-gap', result: { content: 'done', is_error: false } },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 5,
+            event: { type: 'assistant_delta', text: ' after tool' },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/completed',
+          params: {
+            threadId,
+            turn: { id: turnId, threadId },
+            replaySeq: 6,
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+    ]
+
+    const streamFull = streamCanonicalEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const webFull = webCanonicalEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    const streamStaleClient = streamCanonicalEvents.slice(0, 1).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const webStaleClient = webCanonicalEvents.slice(0, 1).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    expect(normalizeSegments(streamStaleClient.segments)).not.toEqual(normalizeSegments(streamFull.segments))
+    expect(normalizeSegments(webStaleClient.segments)).not.toEqual(normalizeSegments(webFull.segments))
+
+    const streamSnapshot = streamCanonicalEvents.slice(0, 4).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const webSnapshot = webCanonicalEvents.slice(0, 4).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    const streamRecovered = streamCanonicalEvents.slice(4).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      streamSnapshot,
+    )
+    const webRecovered = webCanonicalEvents.slice(4).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      webSnapshot,
+    )
+
+    expect(normalizeSegments(streamRecovered.segments)).toEqual(normalizeSegments(streamFull.segments))
+    expect(normalizeSegments(webRecovered.segments)).toEqual(normalizeSegments(webFull.segments))
+    expect(normalizeSegments(streamRecovered.segments)).toEqual(normalizeSegments(webRecovered.segments))
+  })
 })
