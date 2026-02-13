@@ -7,7 +7,7 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
-import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
+import { resolveInteractivePromptModel } from '../../../features/tools/presentation/interactivePrompts'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -65,6 +65,20 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
 
 function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
   const theme = getTheme()
+  const model = resolveInteractivePromptModel({ toolName: 'EnterPlanMode', input: {} })
+  const question =
+    model?.kind === 'enter_plan_mode'
+      ? model.question
+      : 'Claude wants to enter plan mode before implementing. Continue?'
+  const yesLabel =
+    model?.kind === 'enter_plan_mode'
+      ? (model.options.find((option) => option.choice === 'enter')?.label ?? 'Yes, enter plan mode')
+      : 'Yes, enter plan mode'
+  const noLabel =
+    model?.kind === 'enter_plan_mode'
+      ? (model.options.find((option) => option.choice === 'skip')?.label ?? 'No, start implementing now')
+      : 'No, start implementing now'
+
   const scope = 'prompt:enterPlanMode'
   useScopeActivation(scope)
   const { stdout } = useStdout()
@@ -107,15 +121,12 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
     },
   )
 
-  const yesLabel = ENTER_PLAN_MODE_PROMPT.options[0]?.label ?? 'Yes, enter plan mode'
-  const noLabel = ENTER_PLAN_MODE_PROMPT.options[1]?.label ?? 'No, start implementing now'
-
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={theme.secondaryText}>{separator}</Text>
 
       <Box flexDirection="column" marginLeft={1}>
-        <Text bold>{ENTER_PLAN_MODE_PROMPT.question}</Text>
+        <Text bold>{question}</Text>
 
         <Box flexDirection="column" marginTop={1}>
           <Text color={theme.secondaryText}>

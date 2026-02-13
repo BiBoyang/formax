@@ -13,7 +13,7 @@ import { ToolSubline } from '../../../components/tool/ToolSubline'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
-import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
+import { resolveInteractivePromptModel } from '../../../features/tools/presentation/interactivePrompts'
 
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -112,11 +112,25 @@ function ExitPlanModePrompt({
   onCancel: () => void
 }): React.ReactNode {
   const theme = getTheme()
+  const model = resolveInteractivePromptModel({ toolName: 'ExitPlanMode', input: {} })
+  const question =
+    model?.kind === 'exit_plan_mode' ? model.question : 'Would you like to exit plan mode and start implementation?'
+  const autoLabel =
+    model?.kind === 'exit_plan_mode'
+      ? (model.options.find((option) => option.choice === 'auto')?.label ?? 'Yes, and auto-accept edits')
+      : 'Yes, and auto-accept edits'
+  const manualLabel =
+    model?.kind === 'exit_plan_mode'
+      ? (model.options.find((option) => option.choice === 'manual')?.label ?? 'Yes, and manually approve edits')
+      : 'Yes, and manually approve edits'
+  const feedbackPlaceholder =
+    model?.kind === 'exit_plan_mode'
+      ? (model.options.find((option) => option.choice === 'feedback')?.label ??
+        'Type here to tell Claude what to change')
+      : 'Type here to tell Claude what to change'
+
   const scope = 'prompt:exitPlanMode'
   useScopeActivation(scope)
-  const autoLabel = EXIT_PLAN_MODE_PROMPT.options[0]?.label ?? 'Yes, and auto-accept edits'
-  const manualLabel = EXIT_PLAN_MODE_PROMPT.options[1]?.label ?? 'Yes, and manually approve edits'
-  const feedbackPlaceholder = EXIT_PLAN_MODE_PROMPT.options[2]?.label ?? 'Type here to tell Claude what to change'
   const { stdout } = useStdout()
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
@@ -250,7 +264,7 @@ function ExitPlanModePrompt({
       <Text color={theme.secondaryText}>{separator}</Text>
 
       <Box flexDirection="column" marginTop={1} marginLeft={1}>
-        <Text bold>{EXIT_PLAN_MODE_PROMPT.question}</Text>
+        <Text bold>{question}</Text>
       </Box>
 
       <Box flexDirection="column" marginLeft={1} marginTop={1}>

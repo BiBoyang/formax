@@ -23,44 +23,6 @@ vi.mock('../../presenters/AskUserQuestionToolBlock', () => ({
     lastBlockProps = props
     return React.createElement(Text, null, 'AskUserQuestion Interactive')
   },
-  parseQuestions: (input: unknown) => {
-    const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null
-    const raw = Array.isArray(rec?.questions) ? rec?.questions : []
-
-    return raw.map((q, i) => {
-      const qRec = typeof q === 'object' && q !== null ? (q as Record<string, unknown>) : null
-      const optionsRaw = Array.isArray(qRec?.options) ? (qRec?.options as unknown[]) : []
-      const options = optionsRaw.map((o) => {
-        const oRec = typeof o === 'object' && o !== null ? (o as Record<string, unknown>) : null
-        return {
-          label: typeof oRec?.label === 'string' ? oRec.label : '',
-          description: typeof oRec?.description === 'string' ? oRec.description : '',
-        }
-      })
-
-      return {
-        question: typeof qRec?.question === 'string' ? qRec.question : '',
-        header: typeof qRec?.header === 'string' && qRec.header ? qRec.header : `Q${i + 1}`,
-        fieldId: typeof qRec?.fieldId === 'string' && qRec.fieldId ? qRec.fieldId : undefined,
-        options,
-        multiSelect: Boolean(qRec?.multiSelect),
-      }
-    })
-  },
-  parseAnswers: (raw: string) => {
-    const trimmed = (raw || '').trim()
-    if (!trimmed) return null
-    try {
-      const parsed = JSON.parse(trimmed)
-      const answers = parsed?.answers
-      if (!answers || typeof answers !== 'object') return null
-      const out: Record<string, string> = {}
-      for (const [k, v] of Object.entries(answers)) out[String(k)] = String(v)
-      return out
-    } catch {
-      return null
-    }
-  },
 }))
 
 function createRunningAskMessage(): Msg {

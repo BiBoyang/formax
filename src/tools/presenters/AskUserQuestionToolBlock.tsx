@@ -4,10 +4,8 @@ import { getTheme } from '../../utils/theme'
 import { useUserInputManager } from '../runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
-import { parseAskAnswers } from '../../features/tools/presentation/askAnswers'
 import {
   fieldIdForAskQuestion,
-  normalizeAskQuestions,
   type PresentationAskQuestion,
 } from '../../features/tools/presentation/askQuestions'
 
@@ -640,16 +638,4 @@ function formatAnswerForSubmit(q: AskQuestion, s: QuestionState | undefined): st
 
 function formatAnswerForDisplay(q: AskQuestion, s: QuestionState | undefined): string {
   return formatAnswerForSubmit(q, s)
-}
-
-export function parseQuestions(input: unknown): AskQuestion[] {
-  const normalized = normalizeAskQuestions(input)
-  return normalized.map((question, index) => ({
-    ...question,
-    header: question.header || `Q${index + 1}`,
-  }))
-}
-
-export function parseAnswers(raw: string): Record<string, string> | null {
-  return parseAskAnswers(raw)
 }

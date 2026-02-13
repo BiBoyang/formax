@@ -4,13 +4,16 @@ import { getTheme } from '../../../utils/theme'
 import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
-import { AskUserQuestionToolBlock, parseQuestions, parseAnswers } from '../../presenters/AskUserQuestionToolBlock'
+import { AskUserQuestionToolBlock } from '../../presenters/AskUserQuestionToolBlock'
 import { formatQuestionCountLabel, summarizeAskUserQuestionStatus } from '../../../features/tools/presentation/labels'
 import { fieldIdForAskQuestion } from '../../../features/tools/presentation/askQuestions'
+import { parseAskAnswers } from '../../../features/tools/presentation/askAnswers'
+import {
+  resolveInteractivePromptModel,
+  type AskPromptQuestion,
+} from '../../../features/tools/presentation/interactivePrompts'
 
-type ParsedAskQuestion = ReturnType<typeof parseQuestions>[number]
-
-function buildAnswerLabelMap(questions: ParsedAskQuestion[]): Map<string, string> {
+function buildAnswerLabelMap(questions: AskPromptQuestion[]): Map<string, string> {
   const labels = new Map<string, string>()
   questions.forEach((question, index) => {
     const key = fieldIdForAskQuestion(question, index)
@@ -33,11 +36,16 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
 
     const { input, status } = message.toolInfo
 
+    const promptModel = resolveInteractivePromptModel({
+      toolName: message.toolInfo.name,
+      input,
+    })
+    const questions = promptModel?.kind === 'ask_user_question' ? promptModel.questions : []
+
     const toolUseId =
       message.toolInfo.toolUseId ??
       (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
-    const questions = parseQuestions(input)
-    const answers = parseAnswers(typeof message.toolInfo.result === 'string' ? message.toolInfo.result : '')
+    const answers = parseAskAnswers(typeof message.toolInfo.result === 'string' ? message.toolInfo.result : '')
 
     const blocks: ToolBlocksOutput['blocks'] = [
       {
