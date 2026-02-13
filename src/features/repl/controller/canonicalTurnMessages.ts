@@ -98,24 +98,19 @@ export function replaceTurnTailWithCanonicalMessages(args: {
   const tail = args.messages.slice(userIndex + 1)
   const usedTailIndexes = new Set<number>()
 
-  const withFallbackTimestamp = (message: Msg): Msg => {
-    return { ...message }
-  }
-
   const isAuxiliaryAssistantMessage = (message: Msg): boolean =>
     message.role === 'assistant' &&
     (message.ui?.kind === 'command_subline' ||
       message.ui?.kind === 'compact_boundary' ||
       message.ui?.kind === 'compact_banner')
+  const normalizeAssistantText = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim()
+  const matchesCanonicalAssistantMessage = (message: Msg, canonicalMessage: Msg): boolean => {
+    const canonicalText = normalizeAssistantText(canonicalMessage.content)
+    if (!canonicalText) return false
+    return normalizeAssistantText(message.content) === canonicalText
+  }
   const shouldKeepLeftoverMessage = (message: Msg): boolean =>
     !(message.role === 'tool') && (message.role !== 'assistant' || isAuxiliaryAssistantMessage(message))
-
-  const matchesCanonicalAssistantMessage = (message: Msg, canonicalMessage: Msg): boolean => {
-    const canonicalText = String(canonicalMessage.content ?? '').trim()
-    if (!canonicalText) return false
-    const candidateText = String(message.content ?? '').trim()
-    return candidateText === canonicalText || candidateText.includes(canonicalText)
-  }
 
   const takeTailMessage = (predicate: (message: Msg) => boolean): Msg | null => {
     for (let index = 0; index < tail.length; index += 1) {
@@ -136,7 +131,7 @@ export function replaceTurnTailWithCanonicalMessages(args: {
         toolUseId && toolUseId.length > 0
           ? takeTailMessage((message) => message.role === 'tool' && message.toolInfo?.toolUseId === toolUseId)
           : null
-      reorderedTail.push(legacyTool ?? withFallbackTimestamp(canonicalMessage))
+      reorderedTail.push(mergeCanonicalToolMessage(canonicalMessage, legacyTool))
       continue
     }
 
@@ -144,7 +139,7 @@ export function replaceTurnTailWithCanonicalMessages(args: {
       const legacyThinking = takeTailMessage(
         (message) => message.role === 'assistant' && message.ui?.kind === 'thinking_block',
       )
-      reorderedTail.push(legacyThinking ?? withFallbackTimestamp(canonicalMessage))
+      reorderedTail.push(mergeCanonicalAssistantMessage(canonicalMessage, legacyThinking))
       continue
     }
 
@@ -153,13 +148,11 @@ export function replaceTurnTailWithCanonicalMessages(args: {
         message.role === 'assistant' &&
         message.ui?.kind !== 'thinking_block' &&
         message.ui?.kind !== 'command_subline' &&
+        message.ui?.kind !== 'compact_boundary' &&
+        message.ui?.kind !== 'compact_banner' &&
         matchesCanonicalAssistantMessage(message, canonicalMessage),
     )
-    reorderedTail.push(
-      legacyAssistant
-        ? { ...legacyAssistant, isStreaming: false }
-        : { ...withFallbackTimestamp(canonicalMessage), isStreaming: false },
-    )
+    reorderedTail.push(mergeCanonicalAssistantMessage(canonicalMessage, legacyAssistant))
   }
 
   if (usedTailIndexes.size === 0) {
@@ -178,6 +171,56 @@ export function replaceTurnTailWithCanonicalMessages(args: {
         !usedTailIndexes.has(firstConsumedIndex + offset) && shouldKeepLeftoverMessage(message),
     )
   return normalizeTailTimestamps([...head, ...leftoverPrefix, ...reorderedTail, ...leftoverSuffix], userIndex)
+}
+
+function mergeCanonicalAssistantMessage(canonical: Msg, legacy: Msg | null): Msg {
+  if (!legacy) return { ...canonical, isStreaming: false }
+  return {
+    ...legacy,
+    ...canonical,
+    id: legacy.id,
+    timestamp: legacy.timestamp,
+    isStreaming: false,
+  }
+}
+
+function mergeCanonicalToolMessage(canonical: Msg, legacy: Msg | null): Msg {
+  if (!legacy) return { ...canonical }
+  const canonicalToolInfo = canonical.toolInfo ?? undefined
+  const legacyToolInfo = legacy.toolInfo ?? undefined
+  const canonicalInput = canonicalToolInfo?.input
+  const canonicalInputHasKeys =
+    canonicalInput && typeof canonicalInput === 'object' && Object.keys(canonicalInput).length > 0
+  const mergedName = legacyToolInfo?.name ?? canonicalToolInfo?.name
+  const mergedStatus = legacyToolInfo?.status ?? canonicalToolInfo?.status
+  const mergedToolInfo =
+    mergedName && mergedStatus
+      ? {
+          ...(legacyToolInfo ?? {}),
+          ...(canonicalToolInfo ?? {}),
+          name: mergedName,
+          status: mergedStatus,
+          input: canonicalInputHasKeys ? canonicalInput : legacyToolInfo?.input ?? canonicalInput ?? {},
+          result: legacyToolInfo?.result ?? canonicalToolInfo?.result,
+          middleLines: legacyToolInfo?.middleLines ?? canonicalToolInfo?.middleLines,
+          expandInfo: legacyToolInfo?.expandInfo ?? canonicalToolInfo?.expandInfo,
+          resultLines: legacyToolInfo?.resultLines ?? canonicalToolInfo?.resultLines,
+          transcriptLines: legacyToolInfo?.transcriptLines ?? canonicalToolInfo?.transcriptLines,
+          nestedTools: legacyToolInfo?.nestedTools ?? canonicalToolInfo?.nestedTools,
+          toolUses: legacyToolInfo?.toolUses ?? canonicalToolInfo?.toolUses,
+          usage: legacyToolInfo?.usage ?? canonicalToolInfo?.usage,
+          durationMs: legacyToolInfo?.durationMs ?? canonicalToolInfo?.durationMs,
+          patchStartLineNumber: legacyToolInfo?.patchStartLineNumber ?? canonicalToolInfo?.patchStartLineNumber,
+        }
+      : undefined
+  return {
+    ...legacy,
+    ...canonical,
+    id: legacy.id,
+    timestamp: legacy.timestamp,
+    content: legacy.content ?? canonical.content,
+    ...(mergedToolInfo ? { toolInfo: mergedToolInfo } : {}),
+  }
 }
 
 function normalizeTailTimestamps(messages: Msg[], anchorIndex: number): Msg[] {

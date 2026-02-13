@@ -84,6 +84,7 @@
     - 已完成：TUI 在 canonical transient 激活后不再回退 legacy transient，避免 turn footer 之后被晚到 legacy delta 抢占展示。
     - 已完成：TUI 在 turn 结束时用 canonical segment 序列回填当轮 tail（替换 legacy 当轮 assistant/tool 拼接结果），减少“完成态顺序与刷新后不一致”。
     - 已完成：canonical bridge 激活时，TUI 停止写入 legacy assistant/thinking turn 内消息（工具消息仍保留用于完成态细节），进一步收敛到“projector 驱动顺序、legacy 仅补细节”。
+    - 已完成：turn 完成态 tail 合并改为“assistant 仅匹配复用 legacy id/timestamp，tool 保留 legacy 细节字段并补 canonical 标准字段”，修复 canonical 回填下的内容/顺序回归。
     - 未完成：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
 
 - [x] T4 建立跨端语义一致性测试矩阵
