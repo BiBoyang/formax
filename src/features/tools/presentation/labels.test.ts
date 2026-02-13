@@ -3,6 +3,7 @@ import {
   formatItemCountLabel,
   formatQuestionCountLabel,
   summarizeAskUserQuestionStatus,
+  summarizePlanModeStatus,
   summarizeTodoWriteStatus,
 } from './labels'
 
@@ -52,5 +53,39 @@ describe('presentation labels', () => {
     expect(summarizeTodoWriteStatus({ status: 'running', fallbackSummary: 'custom' })).toBe('Updating todo list')
     expect(summarizeTodoWriteStatus({ status: 'completed', fallbackSummary: 'custom' })).toBe('Updated todo list')
     expect(summarizeTodoWriteStatus({ status: 'error', fallbackSummary: 'Failed' })).toBe('Failed')
+  })
+
+  it('summarizes plan-mode tool status consistently', () => {
+    expect(
+      summarizePlanModeStatus({
+        kind: 'enter',
+        status: 'running',
+        fallbackSummary: '',
+      }),
+    ).toBe('Waiting for confirmation')
+
+    expect(
+      summarizePlanModeStatus({
+        kind: 'enter',
+        status: 'completed',
+        fallbackSummary: 'Entered plan mode.',
+      }),
+    ).toBe('Entered plan mode')
+
+    expect(
+      summarizePlanModeStatus({
+        kind: 'enter',
+        status: 'completed',
+        fallbackSummary: 'User declined plan mode.',
+      }),
+    ).toBe('Plan mode skipped')
+
+    expect(
+      summarizePlanModeStatus({
+        kind: 'exit',
+        status: 'completed',
+        fallbackSummary: 'User has approved your plan. You can now start coding.',
+      }),
+    ).toBe('Plan approved. You can start coding.')
   })
 })

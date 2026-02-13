@@ -6,6 +6,7 @@ import {
   formatItemCountLabel,
   formatQuestionCountLabel,
   summarizeAskUserQuestionStatus,
+  summarizePlanModeStatus,
   summarizeTodoWriteStatus,
 } from '../../../../../src/features/tools/presentation/labels'
 
@@ -259,18 +260,11 @@ function getPlanModeSummary(args: {
   kind: 'enter' | 'exit'
   context: ToolRenderContext
 }): string {
-  if (args.item.status === 'running') {
-    return args.kind === 'enter' ? 'Waiting for confirmation' : 'Waiting for implementation decision'
-  }
-
-  const summary = sanitizeToolTextPaths(args.item.summary, args.context.cwd).trim()
-  if (!summary) return args.item.status === 'error' ? 'Failed' : 'Completed'
-  if (args.kind === 'exit' && /User has approved your plan/i.test(summary)) {
-    return 'Plan approved. You can start coding.'
-  }
-  if (args.kind === 'enter' && /Entered plan mode/i.test(summary)) return 'Entered plan mode'
-  if (args.kind === 'enter' && /declined plan mode/i.test(summary)) return 'Plan mode skipped'
-  return summary
+  return summarizePlanModeStatus({
+    kind: args.kind,
+    status: toToolStatus(args.item.status),
+    fallbackSummary: sanitizeToolTextPaths(args.item.summary, args.context.cwd),
+  })
 }
 
 const enterPlanModeRenderer: ToolBlockRenderer = (item, context) => {

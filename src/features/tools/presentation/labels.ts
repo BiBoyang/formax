@@ -38,3 +38,23 @@ export function summarizeTodoWriteStatus(args: {
   if (args.status === 'completed') return 'Updated todo list'
   return args.fallbackSummary
 }
+
+export function summarizePlanModeStatus(args: {
+  kind: 'enter' | 'exit'
+  status: PresentationToolStatus
+  fallbackSummary: string
+}): string {
+  if (args.status === 'running') {
+    return args.kind === 'enter' ? 'Waiting for confirmation' : 'Waiting for implementation decision'
+  }
+
+  const summary = args.fallbackSummary.trim()
+  if (!summary) return args.status === 'error' ? 'Failed' : 'Completed'
+
+  if (args.kind === 'exit' && /User has approved your plan/i.test(summary)) {
+    return 'Plan approved. You can start coding.'
+  }
+  if (args.kind === 'enter' && /Entered plan mode/i.test(summary)) return 'Entered plan mode'
+  if (args.kind === 'enter' && /declined plan mode/i.test(summary)) return 'Plan mode skipped'
+  return summary
+}

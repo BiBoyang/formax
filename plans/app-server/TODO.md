@@ -161,6 +161,7 @@
     - 已完成：语义层 canonical adapters（stream/turn notification）统一使用共享 `formatToolInputAsParamsText` 产出可解析 `key=value` 形式的 `paramsText`。
     - 已完成：共享参数解析兼容旧 replay 的 JSON-object `paramsText`，避免历史数据回放出现原始 `{...}` 退化展示。
     - 已完成：新增跨端共享展示文案基元 `src/features/tools/presentation/labels.ts`，Web/TUI 的 AskUserQuestion/TodoWrite 共用计数标签与状态摘要规则。
+    - 已完成：EnterPlanMode/ExitPlanMode 的状态摘要规则收敛到共享 labels 基元，减少 Web/TUI 规则分叉。
     - 未完成：TUI presenter 仍有独立工具语义层（ask/todo/plan 等），尚未统一到共享 presentation IR registry。
 
 ---

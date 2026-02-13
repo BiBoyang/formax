@@ -53,4 +53,16 @@ describe('buildToolUiBlocks', () => {
     expect(header?.kind).toBe('header')
     expect(header?.summary).toBe('Write running')
   })
+
+  it('normalizes exit plan mode approval summary', () => {
+    const item = makeToolItem({
+      toolName: 'ExitPlanMode',
+      status: 'completed',
+      summary: 'User has approved your plan. You can now start coding.',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.summary).toBe('Plan approved. You can start coding.')
+  })
 })

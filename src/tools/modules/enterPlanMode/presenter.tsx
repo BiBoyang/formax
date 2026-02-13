@@ -6,6 +6,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
+import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -38,7 +39,12 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
     return null
   }
 
-  const entered = resultStr.includes('Entered plan mode')
+  const summary = summarizePlanModeStatus({
+    kind: 'enter',
+    status,
+    fallbackSummary: resultStr,
+  })
+  const entered = summary === 'Entered plan mode'
   const dotColor = entered ? theme.success : theme.secondaryText
 
   return (
