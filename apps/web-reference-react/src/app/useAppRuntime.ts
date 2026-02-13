@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { RpcClient } from '../rpcClient'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
@@ -10,7 +10,6 @@ import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
-import { isWebSupportedCommand } from './core/commandSupport'
 import {
   asResolvedInputs,
   asThreadMessages,
@@ -33,7 +32,6 @@ import {
   summarizeToolEvent,
   toRpcError,
   toRuntimePendingInputsById,
-  toSubmitUiStatus,
   toToolUseId,
   toTurnFooterStatus,
   type RpcErrorDetails,
@@ -43,12 +41,12 @@ import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
 import { processNotification } from './runtime/processNotification'
 import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
+import { createComposerActions } from './runtime/composerActions'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
 } from '../../../../src/features/semantics/threadRuntimeState'
-import { resolveCommandRouting } from '../../../../src/features/semantics/commandRouting'
 import { isReplMode, type ReplMode } from '../../../../src/features/semantics/replModeTransition'
 import {
   isCanonicalEventSource,
@@ -655,143 +653,51 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     }
   }
 
-  const startTurn = async () => {
-    const text = inputText.trim()
-    if (!text || isSendingTurn) return
-
-    const commandRouting = resolveCommandRouting(text)
-    if (
-      commandRouting.isSlashCommandAfterTrim &&
-      commandRouting.commandName &&
-      !isWebSupportedCommand(commandRouting.commandName)
-    ) {
-      setInputText('')
-      dispatch({
-        type: 'push_message',
-        role: 'assistant',
-        text: `Web reference does not support ${commandRouting.commandName} yet. Please use TUI for this command.`,
-      })
-      return
-    }
-
-    if (commandRouting.isExactClear) {
-      setInputText('')
-      if (commandRouting.commandArgs) {
-        dispatch({ type: 'push_message', role: 'assistant', text: 'Usage: /clear' })
-        return
-      }
-      await startThread()
-      return
-    }
-    if (!state.activeThreadId) {
-      log('Please select or create a thread first', 'warn')
-      return
-    }
-
-    const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
-    const activeThread = state.threads.find((thread) => thread.id === state.activeThreadId)
-    const requestCwd = selectedCwd ?? activeThread?.cwd
-    dispatch({ type: 'push_message', role: 'user', text })
-    setInputText('')
-    if (shouldDispatchCommand) {
-      log(`Command queued: ${text}`, 'info')
-    }
-
-    setIsSendingTurn(true)
-    try {
-      const result = shouldDispatchCommand
-        ? await request('command/dispatch', {
-            threadId: state.activeThreadId,
-            command: text,
-            mode,
-            ...(requestCwd ? { cwd: requestCwd } : {}),
-          })
-        : await request('turn/start', {
-            threadId: state.activeThreadId,
-            input: { text },
-            mode,
-            ...(requestCwd ? { cwd: requestCwd } : {}),
-          })
-      const localStdout =
-        typeof (result as { local?: { stdout?: unknown } } | null)?.local?.stdout === 'string'
-          ? ((result as { local?: { stdout?: string } }).local?.stdout ?? '')
-          : ''
-      if (localStdout) {
-        dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
-        return
-      }
-      const turnId = String((result as any)?.turn?.id ?? '')
-      if (turnId) {
-        dispatch({ type: 'set_active_turn', turnId })
-        dispatch({ type: 'bind_last_user_message_turn', turnId })
-        if (shouldDispatchCommand) {
-          commandByTurnRef.current.set(turnId, text)
-        }
-      }
-    } finally {
-      setIsSendingTurn(false)
-    }
-  }
-
-  const interruptTurn = async () => {
-    if (!state.activeThreadId || !state.activeTurnId || isInterruptingTurn) return
-    setIsInterruptingTurn(true)
-    try {
-      await request('turn/interrupt', {
-        threadId: state.activeThreadId,
-        turnId: state.activeTurnId,
-      })
-      log(`Interrupt requested: ${state.activeTurnId}`, 'warn', state.activeTurnId)
-    } finally {
-      setIsInterruptingTurn(false)
-    }
-  }
-
-  const submitInputById = async (inputId: string, answers: Record<string, string>) => {
-    const input = state.pendingInputs[inputId]
-    if (!input || isSubmittingInput) return
-
-    setIsSubmittingInput(true)
-    try {
-      const response = await request('turn/input/submit', {
-        threadId: input.threadId,
-        turnId: input.turnId,
-        inputId: input.inputId,
-        toolUseId: input.toolUseId,
-        answers,
-        submissionId: `web-${runtimePorts.nowMs()}`,
-      })
-      const status = String((response as { status?: string })?.status ?? 'unknown')
-      const uiStatus = toSubmitUiStatus(status)
-      setSubmitStatusByInputId((prev) => ({
-        ...prev,
-        [input.inputId]: {
-          status,
-          kind: uiStatus.kind,
-          message: uiStatus.message,
+  const { interruptTurn, submitInputById, onSend } = useMemo(
+    () =>
+      createComposerActions({
+        inputText,
+        setInputText,
+        isSendingTurn,
+        isInterruptingTurn,
+        isSubmittingInput,
+        mode,
+        selectedCwd,
+        state: {
+          activeThreadId: state.activeThreadId,
+          activeTurnId: state.activeTurnId,
+          threads: state.threads,
+          pendingInputs: state.pendingInputs,
         },
-      }))
-      log(`Input submit: ${status}`, uiStatus.kind === 'error' ? 'error' : 'info', input.turnId)
-    } catch (error) {
-      const details = toRpcError('turn/input/submit', error)
-      setSubmitStatusByInputId((prev) => ({
-        ...prev,
-        [input.inputId]: {
-          status: details.code != null ? `rpc_${details.code}` : 'error',
-          kind: 'error',
-          message: details.message,
-        },
-      }))
-      throw error
-    } finally {
-      setIsSubmittingInput(false)
-    }
-  }
-
-  const onSend = (event: FormEvent) => {
-    event.preventDefault()
-    void startTurn().catch(() => undefined)
-  }
+        request,
+        dispatch,
+        log,
+        commandByTurnRef,
+        setIsSendingTurn,
+        setIsInterruptingTurn,
+        setIsSubmittingInput,
+        setSubmitStatusByInputId,
+        toRpcError,
+        nowMs: runtimePorts.nowMs,
+        startThread,
+      }),
+    [
+      inputText,
+      isInterruptingTurn,
+      isSendingTurn,
+      isSubmittingInput,
+      log,
+      mode,
+      request,
+      runtimePorts.nowMs,
+      selectedCwd,
+      startThread,
+      state.activeThreadId,
+      state.activeTurnId,
+      state.pendingInputs,
+      state.threads,
+    ],
+  )
 
   const selectThread = useCallback(
     (threadId: string) => {
