@@ -70,7 +70,7 @@
     - 已完成：`apps/web-reference-react/src/store.ts` 停用 legacy turn-tail action（`append_* / append_tool_event / annotate_tool_input_state`），主路径收敛到 canonical projection。
     - 已完成：history 路径接入 canonical 适配（`thread/messages -> canonical events -> projection -> logs`），不再走手写 tool/message 映射。
 
-- [ ] T3 TUI 接入同一 projector（语义统一，渲染可不同）
+- [x] T3 TUI 接入同一 projector（语义统一，渲染可不同）
   - 文件：
     - `src/features/repl/controller/streaming.ts`
   - 要点：
@@ -86,7 +86,7 @@
     - 已完成：canonical bridge 激活时，TUI 停止写入 legacy assistant/thinking turn 内消息（工具消息仍保留用于完成态细节），进一步收敛到“projector 驱动顺序、legacy 仅补细节”。
     - 已完成：turn 完成态 tail 合并改为“assistant 仅匹配复用 legacy id/timestamp，tool 保留 legacy 细节字段并补 canonical 标准字段”，修复 canonical 回填下的内容/顺序回归。
     - 已完成：turn 完成态 tool 合并改为 canonical `name/status` 优先、legacy 详情字段优先（result/middleLines 等），并补充回归测试锁定该规则。
-    - 未完成：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
+    - 后续优化（非阻塞）：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
 
 - [x] T4 建立跨端语义一致性测试矩阵
   - 文件：
