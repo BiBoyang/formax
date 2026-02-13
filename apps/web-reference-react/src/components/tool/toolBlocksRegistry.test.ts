@@ -40,6 +40,20 @@ describe('buildToolUiBlocks', () => {
     expect(header?.summary).toBe('Answered 2 questions')
   })
 
+  it('normalizes raw-json ask summary when detail lines are missing', () => {
+    const item = makeToolItem({
+      summary: '{"answers":{"platform":"Mac","theme":"dark"}}',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const details = blocks.find((block) => block.kind === 'details')
+    expect(header?.kind).toBe('header')
+    expect(header?.summary).toBe('Answered 2 questions')
+    expect(details?.kind).toBe('details')
+    expect(details?.lines).toEqual(['platform: Mac', 'theme: dark'])
+  })
+
   it('does not use completed write summary while write is still running', () => {
     const item = makeToolItem({
       toolName: 'Write',

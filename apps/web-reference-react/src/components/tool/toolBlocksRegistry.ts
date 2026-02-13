@@ -21,6 +21,13 @@ type ToolRenderContext = {
 
 type ToolBlockRenderer = (item: ToolCallItem, context: ToolRenderContext) => ToolUiBlock[]
 
+function looksLikeRawJsonPayload(summary: string): boolean {
+  const trimmed = summary.trim()
+  if (!trimmed) return false
+  if (trimmed === '{' || trimmed === '}' || trimmed === '[]' || trimmed === '{}') return true
+  return trimmed.startsWith('{') || trimmed.startsWith('[')
+}
+
 function toToolStatus(status: ToolCallItem['status']): ToolStatus {
   if (status === 'running' || status === 'completed' || status === 'error') return status
   return 'pending'
@@ -201,8 +208,13 @@ const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
   const questions = params.find((param) => param.label === 'questions')
   const count = questions ? parseJsonArrayLength(questions.value) : null
   const title = count == null ? item.toolName : `${item.toolName} ${formatQuestionCountLabel(count)}`
-  const parsedAnswers = item.status === 'completed' ? parseAskAnswerLines(item.detailLines) : null
-  const fallbackSummary = sanitizeToolTextPaths(item.summary, context.cwd)
+  const parsedAnswers =
+    item.status === 'completed'
+      ? parseAskAnswerLines(item.detailLines) ?? parseAskAnswerLines([item.summary])
+      : null
+  const sanitizedSummary = sanitizeToolTextPaths(item.summary, context.cwd)
+  const fallbackSummary =
+    item.status === 'completed' && !parsedAnswers && looksLikeRawJsonPayload(sanitizedSummary) ? '' : sanitizedSummary
   const summary = summarizeAskUserQuestionStatus({
     status: toToolStatus(item.status),
     fallbackSummary,
