@@ -80,6 +80,7 @@
     - Web/TUI 同输入事件序列下，segment 顺序与边界一致。
   - 当前进展：
     - 已完成：TUI `useReplStreaming` 增加 `StreamEvent -> CanonicalEvent` 语义桥接，并将事件实时喂给共享 `reduceTranscriptProjection`（先并行桥接，不改现有 TUI 渲染）。
+    - 已完成：TUI 在 turn 进行中优先使用 canonical projection 生成 transient transcript（assistant/thinking/tool），减少流式阶段的顺序漂移。
     - 未完成：TUI transcript 渲染仍基于原 `Msg` 更新路径，尚未由 projector 输出直接驱动。
 
 - [x] T4 建立跨端语义一致性测试矩阵

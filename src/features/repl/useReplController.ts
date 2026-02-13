@@ -23,6 +23,7 @@ import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
+import { canonicalTurnSegmentsToMessages } from './controller/canonicalTurnMessages'
 import {
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -52,6 +53,7 @@ import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../sema
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
+  type TranscriptSegment,
 } from '../semantics/transcriptProjection'
 import type { CanonicalEvent } from '../semantics/canonicalEvents'
 
@@ -59,6 +61,24 @@ function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
     setImmediate(resolve)
   })
+}
+
+function tailSegmentsForTurn(segments: TranscriptSegment[], turnId: string): TranscriptSegment[] {
+  const out: TranscriptSegment[] = []
+  let seenTurn = false
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+    if (!segment) continue
+    if (segment.turnId === turnId) {
+      out.push(segment)
+      seenTurn = true
+      continue
+    }
+    if (seenTurn) break
+  }
+
+  return out.reverse()
 }
 
 export type ReplControllerState = {
@@ -125,6 +145,7 @@ export function useReplController(deps: {
   const runtimeCwd = deps.cwd ?? process.cwd()
   const runtimeFlags = deps.runtimeFlags ?? createRuntimeFlags(runtimeEnv)
   const [messages, setMessages] = useState<Msg[]>(() => deps.initialSession?.messages ?? [])
+  const [canonicalTurnMessages, setCanonicalTurnMessages] = useState<Msg[]>([])
   const [transcriptSeq, setTranscriptSeq] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
@@ -303,11 +324,22 @@ export function useReplController(deps: {
     canonicalReplaySeqRef.current = 0
     canonicalTurnIdRef.current = null
     canonicalTurnSeqRef.current = 0
+    setCanonicalTurnMessages([])
     lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
     canonicalProjectionRef.current = reduceTranscriptProjection(canonicalProjectionRef.current, event)
+    const turnId = canonicalTurnIdRef.current ?? event.turnId
+    const turnTailSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, turnId)
+    setCanonicalTurnMessages(
+      canonicalTurnSegmentsToMessages({
+        turnId,
+        segments: turnTailSegments,
+        transientOnly: true,
+        openAssistantSegmentId: canonicalProjectionRef.current.openAssistantSegmentIdByTurn[turnId],
+      }),
+    )
     if (event.kind === 'turn_footer') {
       canonicalTurnIdRef.current = null
     }
@@ -404,9 +436,12 @@ export function useReplController(deps: {
     [deps.onModeChange],
   )
 
-  const { staticMessages, transientMessages } = useMemo(() => {
-    return partitionMessages(messages)
-  }, [messages])
+  const partitionedMessages = useMemo(() => partitionMessages(messages), [messages])
+  const staticMessages = partitionedMessages.staticMessages
+  const transientMessages = useMemo(
+    () => (isLoading && canonicalTurnMessages.length > 0 ? canonicalTurnMessages : partitionedMessages.transientMessages),
+    [canonicalTurnMessages, isLoading, partitionedMessages.transientMessages],
+  )
 
   useEffect(() => {
     if (!sessionSaveEnabled) return
@@ -501,6 +536,7 @@ export function useReplController(deps: {
     userInput?.rejectAllPending(new Error('Request aborted'))
 
     resetStreamingBuffers()
+    setCanonicalTurnMessages([])
     setIsLoading(false)
     setError(null)
 
@@ -902,6 +938,7 @@ export function useReplController(deps: {
         })
       } finally {
         canonicalTurnIdRef.current = null
+        setCanonicalTurnMessages([])
       }
     },
     [

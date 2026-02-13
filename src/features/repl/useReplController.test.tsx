@@ -139,6 +139,65 @@ beforeEach(() => {
 })
 
 describe('useReplController', () => {
+  it('uses canonical projected transient messages while a turn is streaming', async () => {
+    let releaseToolEnd!: () => void
+    const toolEndGate = new Promise<void>((resolve) => {
+      releaseToolEnd = resolve
+    })
+    let releaseComplete!: () => void
+    const completeGate = new Promise<void>((resolve) => {
+      releaseComplete = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' } as StreamEvent)
+        onEvent({
+          type: 'tool_input',
+          id: 'tool-1',
+          input: { command: 'ls -la', cwd: '/repo' },
+        } as StreamEvent)
+        await toolEndGate
+        onEvent({
+          type: 'tool_end',
+          id: 'tool-1',
+          result: { tool_use_id: 'tool-1', content: 'ok', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'assistant_delta', text: 'done' } as StreamEvent)
+        await completeGate
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('run canonical')
+    await waitFor(() => controller.state.isLoading)
+    await waitFor(() =>
+      controller.state.transientMessages.some((m) => m.id.startsWith('canonical:') && m.role === 'tool'),
+    )
+
+    const canonicalTool = controller.state.transientMessages.find((m) => m.id.startsWith('canonical:') && m.role === 'tool')
+    expect(canonicalTool?.toolInfo?.name).toBe('Bash')
+    expect(canonicalTool?.toolInfo?.input).toEqual({ command: 'ls -la', cwd: '/repo' })
+
+    releaseToolEnd()
+    await waitFor(() => controller.state.isLoading)
+    expect(
+      controller.state.transientMessages.some(
+        (m) => m.id.startsWith('canonical:') && m.role === 'tool' && m.toolInfo?.status !== 'running',
+      ),
+    ).toBe(false)
+
+    releaseComplete()
+    await sendPromise
+    await waitFor(() => !controller.state.isLoading)
+    expect(controller.state.transientMessages.some((m) => m.id.startsWith('canonical:'))).toBe(false)
+  })
+
   it('bash mode: runs local command and injects into the next turn', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {
