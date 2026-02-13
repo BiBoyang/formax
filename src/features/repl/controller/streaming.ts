@@ -132,14 +132,14 @@ export function useReplStreaming(args: {
   }, [args])
 
   const finalizeThinkingSegment = useCallback(() => {
-    const messageId = args.currentThinkingMessageIdRef.current
-    if (!messageId) return
-
     const text = args.thinkingBufferRef.current
+    const messageId = args.currentThinkingMessageIdRef.current
     // Ensure the latest buffered thinking is reflected in state even if the last delta
     // was throttled and we never flushed it.
     args.setThinkingText(text)
-    args.setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)))
+    if (messageId) {
+      args.setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)))
+    }
 
     args.currentThinkingMessageIdRef.current = null
     args.thinkingBufferRef.current = ''
@@ -158,6 +158,7 @@ export function useReplStreaming(args: {
     (ev: StreamEvent) => {
       const canonicalTurnId = args.canonical?.getTurnId()
       const shouldForwardCanonical = !(ev.type === 'error' && isAbortLikeError(ev.error))
+      const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
       if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
         const canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
           threadId: args.canonical.threadId,
@@ -172,6 +173,7 @@ export function useReplStreaming(args: {
       switch (ev.type) {
         case 'assistant_delta': {
           stopThinkingIfActive()
+          if (canonicalBridgeActive) return
           if (args.assistantTextMode === 'buffered') {
             args.assistantBufferRef.current += ev.text
             return
@@ -206,6 +208,15 @@ export function useReplStreaming(args: {
 
         case 'thinking_delta': {
           startThinkingIfNeeded()
+          if (canonicalBridgeActive) {
+            args.thinkingBufferRef.current += ev.thinking
+            const now = Date.now()
+            if (args.thinkingLastFlushAtRef.current === 0 || now - args.thinkingLastFlushAtRef.current > 200) {
+              args.thinkingLastFlushAtRef.current = now
+              args.setThinkingText(args.thinkingBufferRef.current)
+            }
+            return
+          }
           if (!args.currentThinkingMessageIdRef.current) {
             // Start a new thinking segment. This message is persisted in the transcript but
             // only rendered in the Expanded Transcript view (Ctrl+O).
@@ -550,6 +561,11 @@ export function useReplStreaming(args: {
 
         case 'complete': {
           stopThinkingIfActive()
+          if (canonicalBridgeActive) {
+            args.currentAssistantIdRef.current = null
+            args.assistantBufferRef.current = ''
+            return
+          }
           if (args.assistantTextMode === 'buffered') {
             flushAssistantBuffer()
           } else {

@@ -330,6 +330,7 @@ describe('useReplStreaming', () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const canonicalKindsRef = { current: [] as string[] }
     const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+    const messagesRef = { current: [] as Msg[] }
 
     function Harness(): React.ReactNode {
       const [messages, setMessages] = useState<Msg[]>([])
@@ -338,6 +339,9 @@ describe('useReplStreaming', () => {
       const [loadingText, setLoadingText] = useState('')
       const [ctx, setContext] = useState<any>(null)
       const [err, setError] = useState<string | null>(null)
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
 
       const assistantBufferRef = useRef('')
       const thinkingBufferRef = useRef('')
@@ -395,7 +399,6 @@ describe('useReplStreaming', () => {
         handleEventRef.current = handleEvent
       }, [handleEvent])
 
-      void messages
       void thinkingText
       void thinkingStartedAtMs
       void loadingText
@@ -440,5 +443,8 @@ describe('useReplStreaming', () => {
       { kind: 'assistant', text: 'done' },
       { kind: 'turn_footer', status: 'completed' },
     ])
+
+    // With canonical bridge active, assistant deltas should not also create legacy transcript rows.
+    expect(messagesRef.current.some((message) => message.role === 'assistant')).toBe(false)
   })
 })
