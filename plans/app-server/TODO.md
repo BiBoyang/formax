@@ -55,7 +55,7 @@
   - 验收：
     - 构造“同一 turn 多段 assistant/tool/assistant”序列，顺序稳定。
 
-- [ ] T2 Web 入口适配到 canonical projector（替换手写语义）
+- [x] T2 Web 入口适配到 canonical projector（替换手写语义）
   - 文件：
     - `apps/web-reference-react/src/App.tsx`
     - `apps/web-reference-react/src/store.ts`
@@ -68,7 +68,7 @@
   - 当前进展：
     - 已完成：notification + replay 路径接入 canonical（`apply_canonical_event`），并新增顺序回归测试。
     - 已完成：`apps/web-reference-react/src/store.ts` 停用 legacy turn-tail action（`append_* / append_tool_event / annotate_tool_input_state`），主路径收敛到 canonical projection。
-    - 未完成：history 路径仍是 `thread/messages -> logs` 映射，尚未 replay-first。
+    - 已完成：history 路径接入 canonical 适配（`thread/messages -> canonical events -> projection -> logs`），不再走手写 tool/message 映射。
 
 - [ ] T3 TUI 接入同一 projector（语义统一，渲染可不同）
   - 文件：

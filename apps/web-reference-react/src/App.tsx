@@ -8,9 +8,10 @@ import { appReducer, initialAppState } from './store'
 import type { PendingInput, ResolvedInput, RpcNotification, ThreadMessage, ThreadSummary, TranscriptItem } from './types'
 import { cn } from './lib/utils'
 import { Button } from './components/ui/button'
-import { formatToolInputAsParamsText, mapHistoryToolToTranscript } from './toolEventNormalizer'
+import { formatToolInputAsParamsText } from './toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from './turnEventCursor'
 import { WorktreeDiffPane, type DiffSnapshot } from './components/WorktreeDiffPane'
+import { mapThreadHistoryToCanonicalLogs } from './eventAdapters'
 import {
   createInitialThreadRuntimeState,
   extractThreadIdFromNotificationParams,
@@ -458,22 +459,6 @@ function asResolvedInputs(value: unknown): ResolvedInput[] {
     .filter((entry): entry is ResolvedInput => Boolean(entry))
 }
 
-function mapThreadHistoryToLogs(threadId: string, messages: ThreadMessage[]): TranscriptItem[] {
-  return messages.map((message) =>
-    message.kind === 'tool'
-      ? mapHistoryToolToTranscript({
-          id: `history-${threadId}-${message.id}`,
-          tool: message,
-        })
-      : {
-          id: `history-${threadId}-${message.id}`,
-          kind: 'message' as const,
-          role: message.role,
-          text: message.text,
-        },
-  )
-}
-
 function toRuntimePendingInputsById(pendingInputs: PendingInput[]): ThreadRuntimeState['pendingInputs'] {
   const next: ThreadRuntimeState['pendingInputs'] = {}
   for (const input of pendingInputs) {
@@ -890,7 +875,7 @@ export function App() {
         if (token !== historyLoadTokenRef.current) return false
         if (activeThreadIdRef.current !== threadId) return false
         const parsed = asThreadMessages(historyResult)
-        const logs = mapThreadHistoryToLogs(threadId, parsed.data)
+        const logs = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
         dispatch({ type: 'set_active_turn', turnId: null })
         dispatch({ type: 'clear_pending_inputs' })
         dispatch({ type: 'replace_logs', logs })
@@ -1900,7 +1885,7 @@ export function App() {
       if (token !== historyLoadTokenRef.current) return
       if (activeThreadIdRef.current !== threadId) return
       const parsed = asThreadMessages(result)
-      const prepended = mapThreadHistoryToLogs(threadId, parsed.data)
+      const prepended = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
       dispatch({ type: 'prepend_logs', logs: prepended })
       setLogsByThreadId((prev) => {
         const current = prev[threadId] ?? state.logs
