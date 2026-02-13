@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
+import { tmpdir } from 'node:os'
 import { startAppServerDevBridge } from './devBridge.js'
 
 const {
@@ -131,6 +135,10 @@ function createMockSocket(): MockSocket {
   }
 }
 
+function runGit(repoDir: string, args: string[]): void {
+  execFileSync('git', ['-C', repoDir, ...args], { stdio: 'ignore' })
+}
+
 afterEach(() => {
   resetState()
   vi.clearAllMocks()
@@ -181,6 +189,67 @@ describe('startAppServerDevBridge', () => {
     expect(Array.isArray(payload.result.files)).toBe(true)
 
     await bridge.close()
+  })
+
+  it('returns non-zero additions for untracked new files', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-untracked-'))
+    try {
+      runGit(repoDir, ['init'])
+      await writeFile(path.join(repoDir, 'new-file.txt'), 'first line\nsecond line\n', 'utf8')
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage('{"jsonrpc":"2.0","id":43,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+      await waitFor(() => socket.send.mock.calls.length > 0)
+
+      const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      const files = (payload.result?.files ?? []) as Array<{ path: string; additions: number; deletions: number; patch: string; untracked?: boolean }>
+      const target = files.find((file) => file.path === 'new-file.txt')
+      expect(target).toBeTruthy()
+      expect(target?.untracked).toBe(true)
+      expect(target?.additions).toBe(2)
+      expect(target?.deletions).toBe(0)
+      expect(target?.patch).toContain('new file mode 100644')
+      expect(target?.patch).toContain('+++ b/new-file.txt')
+      expect(target?.patch).toContain('+first line')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not dereference untracked symlinks when generating patches', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-symlink-'))
+    try {
+      runGit(repoDir, ['init'])
+      await writeFile(path.join(repoDir, 'outside.txt'), 'outside secret\n', 'utf8')
+      await symlink('./outside.txt', path.join(repoDir, 'link.txt'))
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage('{"jsonrpc":"2.0","id":44,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+      await waitFor(() => socket.send.mock.calls.length > 0)
+
+      const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      const files = (payload.result?.files ?? []) as Array<{ path: string; additions: number; deletions: number; patch: string; untracked?: boolean }>
+      const target = files.find((file) => file.path === 'link.txt')
+      expect(target).toBeTruthy()
+      expect(target?.untracked).toBe(true)
+      expect(target?.patch).toContain('new file mode 120000')
+      expect(target?.patch).toContain('+./outside.txt')
+      expect(target?.patch).not.toContain('outside secret')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
   })
 
   it('rejects websocket connection when auth token does not match', async () => {

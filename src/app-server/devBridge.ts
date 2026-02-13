@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage } from 'node:http'
 import { execFile } from 'node:child_process'
 import { PassThrough } from 'node:stream'
+import { lstat, readFile, readlink } from 'node:fs/promises'
+import path from 'node:path'
 import { WebSocket, WebSocketServer } from 'ws'
 import { authorizeBridgeConnection, buildWsUrl, type BridgeSecurityOptions } from '../network/runtime.js'
 import { runAppServer } from './index.js'
@@ -108,28 +110,118 @@ function parsePatchFiles(diffText: string): BridgeDiffFile[] {
   return files
 }
 
-function truncateDiffFilesByBytes(files: BridgeDiffFile[], maxBytes: number): { files: BridgeDiffFile[]; truncated: boolean } {
-  let used = 0
-  const out: BridgeDiffFile[] = []
-  for (const file of files) {
-    const baseBytes = Buffer.byteLength(file.path, 'utf8') + 128
-    if (used + baseBytes >= maxBytes) {
-      return { files: out, truncated: true }
-    }
-    let patch = file.patch
-    const patchBytes = Buffer.byteLength(patch, 'utf8')
-    const budget = maxBytes - used - baseBytes
-    let truncated = false
-    if (patchBytes > budget) {
-      const clipped = Buffer.from(patch, 'utf8').subarray(0, Math.max(0, budget - 64)).toString('utf8')
-      patch = `${clipped}\n... [file patch truncated]`
-      truncated = true
-    }
-    out.push({ ...file, patch })
-    used += baseBytes + Buffer.byteLength(patch, 'utf8')
-    if (truncated) return { files: out, truncated: true }
+function estimateDiffFileBaseBytes(filePath: string): number {
+  return Buffer.byteLength(filePath, 'utf8') + 128
+}
+
+function appendDiffFileWithinBudget(
+  out: BridgeDiffFile[],
+  file: BridgeDiffFile,
+  used: number,
+  maxBytes: number,
+): { used: number; truncated: boolean } {
+  const baseBytes = estimateDiffFileBaseBytes(file.path)
+  if (used + baseBytes >= maxBytes) {
+    return { used, truncated: true }
   }
-  return { files: out, truncated: false }
+
+  let patch = file.patch
+  const patchBytes = Buffer.byteLength(patch, 'utf8')
+  const budget = maxBytes - used - baseBytes
+  let truncated = false
+  if (patchBytes > budget) {
+    const clipped = Buffer.from(patch, 'utf8').subarray(0, Math.max(0, budget - 64)).toString('utf8')
+    patch = `${clipped}\n... [file patch truncated]`
+    truncated = true
+  }
+  out.push({ ...file, patch })
+  return { used: used + baseBytes + Buffer.byteLength(patch, 'utf8'), truncated }
+}
+
+function countContentLines(text: string): number {
+  if (text.length === 0) return 0
+  const normalized = text.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+  if (normalized.endsWith('\n')) lines.pop()
+  return lines.length
+}
+
+async function buildUntrackedDiffFile(cwd: string, filePath: string): Promise<BridgeDiffFile> {
+  const absPath = path.resolve(cwd, filePath)
+  try {
+    const stats = await lstat(absPath)
+    if (stats.isSymbolicLink()) {
+      const linkTarget = await readlink(absPath).catch(() => null)
+      const linkLine = linkTarget ? `+${linkTarget}` : '+(unavailable)'
+      return {
+        path: filePath,
+        additions: linkTarget ? 1 : 0,
+        deletions: 0,
+        patch: [
+          `diff --git a/${filePath} b/${filePath}`,
+          'new file mode 120000',
+          'index 0000000..0000000',
+          '--- /dev/null',
+          `+++ b/${filePath}`,
+          '@@ -0,0 +1 @@',
+          linkLine,
+        ].join('\n'),
+        untracked: true,
+      }
+    }
+
+    if (!stats.isFile()) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        patch: `diff --git a/${filePath} b/${filePath}\nnew file mode 100644\n(file content unavailable)`,
+        untracked: true,
+      }
+    }
+
+    const raw = await readFile(absPath)
+    const text = raw.toString('utf8')
+    if (text.includes('\u0000')) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        patch: `diff --git a/${filePath} b/${filePath}\nnew file mode 100644\nBinary files /dev/null and b/${filePath} differ`,
+        untracked: true,
+      }
+    }
+
+    const normalized = text.replace(/\r\n/g, '\n')
+    const lines = normalized.endsWith('\n') ? normalized.slice(0, -1).split('\n') : normalized.split('\n')
+    const additions = countContentLines(text)
+    const hunk =
+      additions > 0 ? `@@ -0,0 +1,${additions} @@\n${lines.map((line) => `+${line}`).join('\n')}` : ''
+    const patchLines = [
+      `diff --git a/${filePath} b/${filePath}`,
+      'new file mode 100644',
+      'index 0000000..0000000',
+      '--- /dev/null',
+      `+++ b/${filePath}`,
+      hunk,
+    ].filter((line) => line.length > 0)
+
+    return {
+      path: filePath,
+      additions,
+      deletions: 0,
+      patch: patchLines.join('\n'),
+      untracked: true,
+    }
+  } catch {
+    return {
+      path: filePath,
+      additions: 0,
+      deletions: 0,
+      patch: `diff --git a/${filePath} b/${filePath}\nnew file mode 100644\n(file content unavailable)`,
+      untracked: true,
+    }
+  }
 }
 
 async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | undefined): Promise<BridgeReadDiffResult> {
@@ -169,28 +261,49 @@ async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | und
         ? fallbackDiff.stdout
         : '') || ''
   const trackedFiles = parsePatchFiles(diffText)
-  const untrackedFiles = untracked.ok
+  const untrackedPaths = untracked.ok
     ? untracked.stdout
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter((line) => line.length > 0)
-        .map((path) => ({
-          path,
-          additions: 0,
-          deletions: 0,
-          patch: 'new file (untracked)',
-          untracked: true as const,
-        }))
     : []
-  const combinedFiles = [...trackedFiles, ...untrackedFiles]
-  const clipped = truncateDiffFilesByBytes(combinedFiles, maxBytes)
+
+  const files: BridgeDiffFile[] = []
+  let usedBytes = 0
+  let truncated = false
+
+  for (const file of trackedFiles) {
+    const appended = appendDiffFileWithinBudget(files, file, usedBytes, maxBytes)
+    usedBytes = appended.used
+    if (appended.truncated) {
+      truncated = true
+      break
+    }
+  }
+
+  if (!truncated) {
+    for (const filePath of untrackedPaths) {
+      // Stop before expensive file reads when there is no byte budget for another file.
+      if (usedBytes + estimateDiffFileBaseBytes(filePath) >= maxBytes) {
+        truncated = true
+        break
+      }
+      const file = await buildUntrackedDiffFile(cwd, filePath)
+      const appended = appendDiffFileWithinBudget(files, file, usedBytes, maxBytes)
+      usedBytes = appended.used
+      if (appended.truncated) {
+        truncated = true
+        break
+      }
+    }
+  }
 
   return {
     cwd,
     generatedAt,
-    hasChanges: combinedFiles.length > 0,
-    truncated: clipped.truncated,
-    files: clipped.files,
+    hasChanges: trackedFiles.length + untrackedPaths.length > 0,
+    truncated,
+    files,
   }
 }
 
