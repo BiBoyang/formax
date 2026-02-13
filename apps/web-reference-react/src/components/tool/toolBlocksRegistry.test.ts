@@ -79,4 +79,31 @@ describe('buildToolUiBlocks', () => {
     expect(header?.kind).toBe('header')
     expect(header?.summary).toBe('Plan approved. You can start coding.')
   })
+
+  it('keeps AskUserQuestion title unchanged when questions param is missing', () => {
+    const item = makeToolItem({
+      toolName: 'AskUserQuestion',
+      status: 'running',
+      summary: 'Waiting for answers',
+      paramsText: 'description="no questions field"',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('AskUserQuestion')
+  })
+
+  it('counts AskUserQuestion questions from raw params even when display params truncate', () => {
+    const longQuestion = 'x'.repeat(180)
+    const item = makeToolItem({
+      toolName: 'AskUserQuestion',
+      status: 'running',
+      summary: 'Waiting for answers',
+      paramsText: `questions=[{"question":"${longQuestion}","options":[{"label":"A"}]}]`,
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('AskUserQuestion 1 question')
+  })
 })

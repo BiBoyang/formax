@@ -2,7 +2,10 @@ import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
 import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
-import { parseJsonArrayLength } from '../../../../../src/features/tools/presentation/paramsText'
+import {
+  parseJsonArrayLength,
+  parseToolParamsText,
+} from '../../../../../src/features/tools/presentation/paramsText'
 import {
   formatItemCountLabel,
   formatQuestionCountLabel,
@@ -14,6 +17,7 @@ import {
   getToolPresentationSemantic,
   type ToolPresentationSemantic,
 } from '../../../../../src/features/tools/presentation/toolSemantics'
+import { resolveInteractivePromptModel } from '../../../../../src/features/tools/presentation/interactivePrompts'
 
 type ToolRenderContext = {
   cwd?: string
@@ -31,6 +35,17 @@ function looksLikeRawJsonPayload(summary: string): boolean {
 function toToolStatus(status: ToolCallItem['status']): ToolStatus {
   if (status === 'running' || status === 'completed' || status === 'error') return status
   return 'pending'
+}
+
+function parseJsonArray(raw: string | undefined): unknown[] | null {
+  const text = String(raw ?? '').trim()
+  if (!text) return null
+  try {
+    const parsed = JSON.parse(text)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function withStandardBlocks(args: {
@@ -206,7 +221,20 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
 const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const questions = params.find((param) => param.label === 'questions')
-  const count = questions ? parseJsonArrayLength(questions.value) : null
+  const rawParams = parseToolParamsText(item.paramsText)
+  const rawQuestions = rawParams.find((param) => param.label === 'questions')
+  const questionValue = rawQuestions?.value ?? questions?.value
+  const parsedQuestions = parseJsonArray(questionValue)
+  const normalizedQuestions = resolveInteractivePromptModel({
+    toolName: item.toolName,
+    input: { questions: parsedQuestions ?? [] },
+  })
+  const count =
+    parsedQuestions && normalizedQuestions?.kind === 'ask_user_question'
+      ? normalizedQuestions.questions.length
+      : questionValue
+        ? parseJsonArrayLength(questionValue)
+        : null
   const title = count == null ? item.toolName : `${item.toolName} ${formatQuestionCountLabel(count)}`
   const parsedAnswers =
     item.status === 'completed'
