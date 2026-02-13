@@ -13,6 +13,7 @@ import { ToolSubline } from '../../../components/tool/ToolSubline'
 import TextInput from '../../../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
+import { EXIT_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
 
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -113,6 +114,10 @@ function ExitPlanModePrompt({
   const theme = getTheme()
   const scope = 'prompt:exitPlanMode'
   useScopeActivation(scope)
+  const options = EXIT_PLAN_MODE_QUESTIONS[0]?.options ?? []
+  const autoLabel = options[0]?.label ?? 'Yes, and auto-accept edits'
+  const manualLabel = options[1]?.label ?? 'Yes, and manually approve edits'
+  const feedbackPlaceholder = options[2]?.label ?? 'Type here to tell Claude what to change'
   const { stdout } = useStdout()
   const separator = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
@@ -264,8 +269,8 @@ function ExitPlanModePrompt({
       </Box>
 
       <Box flexDirection="column" marginLeft={1}>
-        <MenuRow cursor={cursor === 0} label="1. Yes, and auto-accept edits" />
-        <MenuRow cursor={cursor === 1} label="2. Yes, and manually approve edits" />
+        <MenuRow cursor={cursor === 0} label={`1. ${autoLabel}`} />
+        <MenuRow cursor={cursor === 1} label={`2. ${manualLabel}`} />
         <Box>
           <Text>{cursor === 2 ? '❯ ' : '  '}</Text>
           <Text color={cursor === 2 ? theme.text : theme.secondaryText}>3. </Text>
@@ -282,7 +287,7 @@ function ExitPlanModePrompt({
           ) : feedbackLine ? (
             <Text color={cursor === 2 ? theme.text : theme.secondaryText}>{feedbackLine}</Text>
           ) : (
-            <Text color={theme.secondaryText}>Type here to tell Claude what to change</Text>
+            <Text color={theme.secondaryText}>{feedbackPlaceholder}</Text>
           )}
         </Box>
       </Box>

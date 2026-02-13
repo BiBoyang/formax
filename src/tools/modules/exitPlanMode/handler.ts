@@ -2,20 +2,9 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildExitedPlanModeSystemReminder } from '../../../utils/planMode'
+import { EXIT_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
 
-const QUESTIONS: AskUserQuestion[] = [
-  {
-    header: 'Submit',
-    question: 'Ready to code?',
-    fieldId: 'choice',
-    options: [
-      { label: 'Yes, and auto-accept edits', description: 'Proceed and allow edits without per-edit prompts.' },
-      { label: 'Yes, and manually approve edits', description: 'Proceed but confirm each edit.' },
-      { label: 'Type here to tell Claude what to change', description: 'Request plan changes and stay in plan mode.' },
-    ],
-    multiSelect: false,
-  },
-]
+const QUESTIONS: AskUserQuestion[] = EXIT_PLAN_MODE_QUESTIONS
 
 export function createExitPlanModeToolHandler(userInput: UserInputManager): ToolHandler {
   return {

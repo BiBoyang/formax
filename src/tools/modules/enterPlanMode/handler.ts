@@ -2,19 +2,9 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { ENTER_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
 
-const QUESTIONS: AskUserQuestion[] = [
-  {
-    header: 'Plan',
-    question: 'Enter plan mode?',
-    fieldId: 'choice',
-    options: [
-      { label: 'Yes, enter plan mode', description: 'Explore and design an implementation plan first.' },
-      { label: 'No, start implementing now', description: 'Skip planning and start making changes.' },
-    ],
-    multiSelect: false,
-  },
-]
+const QUESTIONS: AskUserQuestion[] = ENTER_PLAN_MODE_QUESTIONS
 
 export function createEnterPlanModeToolHandler(userInput: UserInputManager): ToolHandler {
   return {

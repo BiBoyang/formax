@@ -168,6 +168,7 @@
     - 已完成：AskUserQuestion 题目归一化与 `fieldId` 解析下沉到共享基元 `src/features/tools/presentation/askQuestions.ts`，Web/TUI 统一键名策略。
     - 已完成：新增共享 `toolSemantics`（`ask/todo/plan` 语义分类 + interactive 判定），并接入 Web tool blocks 路由与 TUI prompt-mode 判定，减少端内硬编码分叉。
     - 已完成：Web AskUserQuestion 在 detail 缺失时会尝试从 summary JSON 提取答案，并对原始 `{...}` 摘要降噪为语义文案（避免折叠行出现孤立 `{`）。
+    - 已完成：Enter/ExitPlanMode 的问题与选项定义抽到共享 `planModeQuestions` 基元，handler 与 TUI prompt 展示共用同一份文案/顺序，减少交互规则漂移。
     - 未完成：TUI 的交互式 prompt 渲染（ask/plan）仍是端内实现，尚未统一到共享 presentation IR registry。
 
 ---

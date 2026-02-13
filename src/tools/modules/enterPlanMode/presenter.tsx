@@ -7,6 +7,7 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
+import { ENTER_PLAN_MODE_QUESTIONS } from '../../../features/tools/presentation/planModeQuestions'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -106,6 +107,10 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
     },
   )
 
+  const options = ENTER_PLAN_MODE_QUESTIONS[0]?.options ?? []
+  const yesLabel = options[0]?.label ?? 'Yes, enter plan mode'
+  const noLabel = options[1]?.label ?? 'No, start implementing now'
+
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={theme.secondaryText}>{separator}</Text>
@@ -132,8 +137,8 @@ function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip:
         </Box>
 
         <Box flexDirection="column" marginTop={1}>
-          <MenuRow cursor={cursor === 0} label="1. Yes, enter plan mode" />
-          <MenuRow cursor={cursor === 1} label="2. No, start implementing now" />
+          <MenuRow cursor={cursor === 0} label={`1. ${yesLabel}`} />
+          <MenuRow cursor={cursor === 1} label={`2. ${noLabel}`} />
         </Box>
       </Box>
     </Box>
