@@ -42,6 +42,7 @@ import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
 import { processNotification } from './runtime/processNotification'
 import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
 import { createComposerActions } from './runtime/composerActions'
+import { createThreadActions } from './runtime/threadActions'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -615,43 +616,59 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     }
   }, [cwdOptions, selectedCwd, state.activeThreadId, state.threads])
 
-  const startThread = async () => {
-      const previousThreadId = state.activeThreadId
-      const previousLogs = state.logs
-      setIsThreadActionBusy(true)
-      try {
-      const result = await request('thread/start', selectedCwd ? { cwd: selectedCwd } : {})
-      const thread = result?.thread as { id?: string; cwd?: string } | undefined
-      if (thread?.id) {
-        if (thread.cwd) {
-          setSelectedCwd(thread.cwd)
-        }
-        setMode(runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
-        activeThreadIdRef.current = thread.id
-        dispatch({ type: 'set_active_thread', threadId: thread.id })
-        dispatch({ type: 'set_active_turn', turnId: null })
-        dispatch({ type: 'clear_pending_inputs' })
-        dispatch({ type: 'replace_logs', logs: logsByThreadId[thread.id] ?? [] })
-        const replayLoaded = await replayThreadEvents(thread.id, { fromStart: true })
-        if (!replayLoaded) {
-          activeThreadIdRef.current = previousThreadId
-          dispatch({ type: 'set_active_thread', threadId: previousThreadId })
-          dispatch({
-            type: 'replace_logs',
-            logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
-          })
-          log('Failed to hydrate new thread transcript. Restored previous thread.', 'warn')
-          return
-        }
-        await resumeThreadInputs(thread.id)
-        await refreshThreads()
-        await refreshWorkspaceDiff()
-        log(`Thread created: ${thread.id}`)
-      }
-    } finally {
-      setIsThreadActionBusy(false)
-    }
-  }
+  const { startThread, selectThread, selectCwd, renameThread, loadEarlierHistory } = useMemo(
+    () =>
+      createThreadActions({
+        selectedCwd,
+        setSelectedCwd,
+        state: {
+          activeThreadId: state.activeThreadId,
+          activeTurnId: state.activeTurnId,
+          logs: state.logs,
+          threads: state.threads,
+        },
+        sortedThreads,
+        logsByThreadId,
+        historyCursorByThreadId,
+        request,
+        dispatch,
+        log,
+        setMode,
+        runtimeStateByThreadRef,
+        replayCursorByThreadRef,
+        activeThreadIdRef,
+        historyLoadTokenRef,
+        historyLoadingRef,
+        transcriptSourceByThreadRef,
+        beginThreadHistoryRequest,
+        endThreadHistoryRequest,
+        setIsThreadActionBusy,
+        setLogsByThreadId,
+        setHistoryCursorByThreadId,
+        replayThreadEvents,
+        resumeThreadInputs,
+        refreshThreads,
+        refreshWorkspaceDiff,
+      }),
+    [
+      beginThreadHistoryRequest,
+      endThreadHistoryRequest,
+      historyCursorByThreadId,
+      log,
+      logsByThreadId,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      replayThreadEvents,
+      request,
+      resumeThreadInputs,
+      selectedCwd,
+      sortedThreads,
+      state.activeThreadId,
+      state.activeTurnId,
+      state.logs,
+      state.threads,
+    ],
+  )
 
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
@@ -698,121 +715,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       state.threads,
     ],
   )
-
-  const selectThread = useCallback(
-    (threadId: string) => {
-      if (threadId === state.activeThreadId) return
-      const nextThread = state.threads.find((thread) => thread.id === threadId)
-      if (nextThread?.cwd) {
-        setSelectedCwd(nextThread.cwd)
-      }
-      const previousThreadId = state.activeThreadId
-      const previousLogs = state.logs
-      const cachedLogs = logsByThreadId[threadId] ?? []
-      setMode(runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal')
-      activeThreadIdRef.current = threadId
-      dispatch({ type: 'set_active_thread', threadId })
-      dispatch({ type: 'set_active_turn', turnId: null })
-      dispatch({ type: 'clear_pending_inputs' })
-      dispatch({ type: 'replace_logs', logs: cachedLogs })
-      void (async () => {
-        const hasReplayCursor = typeof replayCursorByThreadRef.current[threadId] === 'number'
-        const replayLoaded = await replayThreadEvents(threadId, { fromStart: !hasReplayCursor }).catch(() => false)
-        if (!replayLoaded) {
-          if (activeThreadIdRef.current === threadId) {
-            activeThreadIdRef.current = previousThreadId
-            dispatch({ type: 'set_active_thread', threadId: previousThreadId })
-            dispatch({
-              type: 'replace_logs',
-              logs: previousThreadId ? (logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
-            })
-            log('Failed to hydrate selected thread transcript. Restored previous thread.', 'warn')
-          }
-          return
-        }
-        if (activeThreadIdRef.current !== threadId) return
-        await resumeThreadInputs(threadId)
-      })().catch(() => undefined)
-    },
-    [
-      log,
-      logsByThreadId,
-      replayThreadEvents,
-      resumeThreadInputs,
-      state.activeThreadId,
-      state.logs,
-      state.threads,
-    ],
-  )
-
-  const selectCwd = useCallback(
-    (cwd: string) => {
-      if (!cwd || cwd === selectedCwd) return
-      setSelectedCwd(cwd)
-      const targetThread = sortedThreads.find((thread) => thread.cwd === cwd)
-      if (!targetThread) {
-        activeThreadIdRef.current = null
-        setMode('normal')
-        dispatch({ type: 'set_active_thread', threadId: null })
-        dispatch({ type: 'set_active_turn', turnId: null })
-        dispatch({ type: 'clear_pending_inputs' })
-        dispatch({ type: 'replace_logs', logs: [] })
-        return
-      }
-      if (targetThread.id !== state.activeThreadId) {
-        selectThread(targetThread.id)
-      }
-    },
-    [selectThread, selectedCwd, sortedThreads, state.activeThreadId],
-  )
-
-  const renameThread = useCallback(
-    async (threadId: string, label: string) => {
-      const nextLabel = label.trim()
-      if (!threadId || !nextLabel) return
-      setIsThreadActionBusy(true)
-      try {
-        await request('thread/rename', { threadId, label: nextLabel })
-        await refreshThreads()
-      } finally {
-        setIsThreadActionBusy(false)
-      }
-    },
-    [refreshThreads, request],
-  )
-
-  const loadEarlierHistory = useCallback(async () => {
-    const threadId = state.activeThreadId
-    if (!threadId || historyLoadingRef.current[threadId]) return
-    if (transcriptSourceByThreadRef.current[threadId] !== 'history') return
-    const cursor = historyCursorByThreadId[threadId]
-    if (!cursor) return
-
-    const token = historyLoadTokenRef.current
-    const seq = beginThreadHistoryRequest(threadId)
-    try {
-      const result = await request('thread/messages', { threadId, limit: 50, cursor })
-      if (token !== historyLoadTokenRef.current) return
-      if (activeThreadIdRef.current !== threadId) return
-      const parsed = asThreadMessages(result)
-      const prepended = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
-      dispatch({ type: 'prepend_logs', logs: prepended })
-      setLogsByThreadId((prev) => {
-        const current = prev[threadId] ?? state.logs
-        return { ...prev, [threadId]: [...prepended, ...current] }
-      })
-      setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
-    } finally {
-      endThreadHistoryRequest(threadId, seq)
-    }
-  }, [
-    beginThreadHistoryRequest,
-    endThreadHistoryRequest,
-    historyCursorByThreadId,
-    request,
-    state.activeThreadId,
-    state.logs,
-  ])
 
   const activeThread = useMemo(
     () => state.threads.find((t) => t.id === state.activeThreadId),
