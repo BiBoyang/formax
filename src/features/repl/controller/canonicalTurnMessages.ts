@@ -45,7 +45,7 @@ export function canonicalTurnSegmentsToMessages(args: {
         role: 'assistant' as const,
         content: segment.text,
         timestamp: new Date(0),
-        isStreaming: true,
+        ...(args.transientOnly ? { isStreaming: true } : {}),
       }
     }
 

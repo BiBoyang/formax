@@ -198,6 +198,47 @@ describe('useReplController', () => {
     expect(controller.state.transientMessages.some((m) => m.id.startsWith('canonical:'))).toBe(false)
   })
 
+  it('keeps canonical transient ownership after turn footer (no legacy fallback while loading)', async () => {
+    let releaseReturn!: () => void
+    const returnGate = new Promise<void>((resolve) => {
+      releaseReturn = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' } as StreamEvent)
+        onEvent({
+          type: 'tool_end',
+          id: 'tool-1',
+          result: { tool_use_id: 'tool-1', content: 'ok', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        // Late assistant deltas after footer should not steal transient rendering ownership.
+        onEvent({ type: 'assistant_delta', text: 'late text' } as StreamEvent)
+        await returnGate
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <Harness
+        engine={engine}
+        cfg={createCfg({ ui: { ...createCfg().ui, assistantTextMode: 'stream' } })}
+        onController={(c) => (controller = c)}
+      />,
+    )
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('run canonical ownership')
+    await waitFor(() => controller.state.isLoading)
+    await waitFor(() => controller.state.transientMessages.length === 0)
+    expect(controller.state.transientMessages).toEqual([])
+
+    releaseReturn()
+    await sendPromise
+  })
+
   it('bash mode: runs local command and injects into the next turn', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {

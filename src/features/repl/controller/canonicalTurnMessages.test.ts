@@ -50,7 +50,6 @@ describe('canonicalTurnSegmentsToMessages', () => {
       id: 'canonical:turn-1:assistant:2',
       role: 'assistant',
       content: 'answer',
-      isStreaming: true,
     })
     expect(msgs[2]).toMatchObject({
       id: 'canonical:turn-1:tool:3:tool-1',

@@ -146,6 +146,7 @@ export function useReplController(deps: {
   const runtimeFlags = deps.runtimeFlags ?? createRuntimeFlags(runtimeEnv)
   const [messages, setMessages] = useState<Msg[]>(() => deps.initialSession?.messages ?? [])
   const [canonicalTurnMessages, setCanonicalTurnMessages] = useState<Msg[]>([])
+  const [canonicalTransientActive, setCanonicalTransientActive] = useState(false)
   const [transcriptSeq, setTranscriptSeq] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('Thinking')
@@ -325,11 +326,13 @@ export function useReplController(deps: {
     canonicalTurnIdRef.current = null
     canonicalTurnSeqRef.current = 0
     setCanonicalTurnMessages([])
+    setCanonicalTransientActive(false)
     lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
     canonicalProjectionRef.current = reduceTranscriptProjection(canonicalProjectionRef.current, event)
+    setCanonicalTransientActive(true)
     const turnId = canonicalTurnIdRef.current ?? event.turnId
     const turnTailSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, turnId)
     setCanonicalTurnMessages(
@@ -439,8 +442,8 @@ export function useReplController(deps: {
   const partitionedMessages = useMemo(() => partitionMessages(messages), [messages])
   const staticMessages = partitionedMessages.staticMessages
   const transientMessages = useMemo(
-    () => (isLoading && canonicalTurnMessages.length > 0 ? canonicalTurnMessages : partitionedMessages.transientMessages),
-    [canonicalTurnMessages, isLoading, partitionedMessages.transientMessages],
+    () => (isLoading && canonicalTransientActive ? canonicalTurnMessages : partitionedMessages.transientMessages),
+    [canonicalTransientActive, canonicalTurnMessages, isLoading, partitionedMessages.transientMessages],
   )
 
   useEffect(() => {
@@ -537,6 +540,7 @@ export function useReplController(deps: {
 
     resetStreamingBuffers()
     setCanonicalTurnMessages([])
+    setCanonicalTransientActive(false)
     setIsLoading(false)
     setError(null)
 
@@ -897,6 +901,7 @@ export function useReplController(deps: {
 
       canonicalTurnSeqRef.current += 1
       canonicalTurnIdRef.current = `turn-${canonicalTurnSeqRef.current}`
+      setCanonicalTransientActive(false)
       try {
         await runMainSendTurn({
           input: { text, slashEffect, provider },
@@ -939,6 +944,7 @@ export function useReplController(deps: {
       } finally {
         canonicalTurnIdRef.current = null
         setCanonicalTurnMessages([])
+        setCanonicalTransientActive(false)
       }
     },
     [
