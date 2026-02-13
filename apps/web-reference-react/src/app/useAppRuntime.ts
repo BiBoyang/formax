@@ -5,16 +5,12 @@ import type { RpcNotification, TranscriptItem } from '../types'
 import { formatToolInputAsParamsText } from '../toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from '../turnEventCursor'
 import { type DiffSnapshot } from '../components/WorktreeDiffPane'
-import { mapThreadHistoryToCanonicalLogs } from '../eventAdapters'
 import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
 import {
-  asResolvedInputs,
-  asThreadMessages,
   asThreadReplay,
-  asThreadSummaries,
 } from './core/rpcParsers'
 import {
   type ThreadTranscriptSource,
@@ -36,6 +32,7 @@ import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThr
 import { createComposerActions } from './runtime/composerActions'
 import { createThreadActions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
+import { createThreadDataOps } from './runtime/threadDataOps'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -220,131 +217,33 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [nextCanonicalReplaySeq, runtimePorts],
   )
 
-  const refreshThreads = useCallback(async () => {
-    const result = await request('thread/list', { limit: 50 })
-    dispatch({ type: 'set_threads', threads: asThreadSummaries(result) })
-  }, [request])
-
-  const refreshWorkspaceDiff = useCallback(async () => {
-    setIsRefreshingDiff(true)
-    try {
-      const result = await request('bridge/readDiff', { maxBytes: 180 * 1024 })
-      if (result && typeof result === 'object') {
-        setDiffSnapshot(result as DiffSnapshot)
-      }
-    } finally {
-      setIsRefreshingDiff(false)
-    }
-  }, [request])
-
-  const setThreadHistoryLoading = useCallback((threadId: string, loading: boolean) => {
-    if (loading) {
-      historyLoadingRef.current = { ...historyLoadingRef.current, [threadId]: true }
-    } else {
-      const nextRef = { ...historyLoadingRef.current }
-      delete nextRef[threadId]
-      historyLoadingRef.current = nextRef
-    }
-    setHistoryLoadingByThreadId((prev) => {
-      const current = Boolean(prev[threadId])
-      if (current === loading) return prev
-      if (loading) return { ...prev, [threadId]: true }
-      const next = { ...prev }
-      delete next[threadId]
-      return next
-    })
-  }, [])
-
-  const setThreadTranscriptSource = useCallback((threadId: string, source: ThreadTranscriptSource) => {
-    transcriptSourceByThreadRef.current = { ...transcriptSourceByThreadRef.current, [threadId]: source }
-    setTranscriptSourceByThreadId((prev) => {
-      if (prev[threadId] === source) return prev
-      return { ...prev, [threadId]: source }
-    })
-  }, [])
-
-  const clearThreadHistoryCursor = useCallback((threadId: string) => {
-    const nextHistoryLoadingRef = { ...historyLoadingRef.current }
-    delete nextHistoryLoadingRef[threadId]
-    historyLoadingRef.current = nextHistoryLoadingRef
-    setHistoryLoadingByThreadId((prev) => {
-      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
-      const next = { ...prev }
-      delete next[threadId]
-      return next
-    })
-    setHistoryCursorByThreadId((prev) => {
-      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
-      const next = { ...prev }
-      delete next[threadId]
-      return next
-    })
-  }, [])
-
-  const beginThreadHistoryRequest = useCallback(
-    (threadId: string) => {
-      const nextSeq = (historyLoadSeqByThreadRef.current[threadId] ?? 0) + 1
-      historyLoadSeqByThreadRef.current = { ...historyLoadSeqByThreadRef.current, [threadId]: nextSeq }
-      setThreadHistoryLoading(threadId, true)
-      return nextSeq
-    },
-    [setThreadHistoryLoading],
-  )
-
-  const endThreadHistoryRequest = useCallback(
-    (threadId: string, seq: number) => {
-      if (historyLoadSeqByThreadRef.current[threadId] !== seq) return
-      setThreadHistoryLoading(threadId, false)
-    },
-    [setThreadHistoryLoading],
-  )
-
-  const loadThreadHistory = useCallback(
-    async (threadId: string) => {
-      const token = ++historyLoadTokenRef.current
-      const seq = beginThreadHistoryRequest(threadId)
-      try {
-        const historyResult = await request('thread/messages', { threadId, limit: 50 })
-        if (token !== historyLoadTokenRef.current) return false
-        if (activeThreadIdRef.current !== threadId) return false
-        const parsed = asThreadMessages(historyResult)
-        const logs = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
-        dispatch({ type: 'set_active_turn', turnId: null })
-        dispatch({ type: 'clear_pending_inputs' })
-        dispatch({ type: 'replace_logs', logs })
-        setLogsByThreadId((prev) => ({ ...prev, [threadId]: logs }))
-        setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
-        setThreadTranscriptSource(threadId, 'history')
-        return true
-      } catch {
-        if (token !== historyLoadTokenRef.current) return false
-        if (activeThreadIdRef.current !== threadId) return false
-        return false
-      } finally {
-        endThreadHistoryRequest(threadId, seq)
-      }
-    },
-    [beginThreadHistoryRequest, endThreadHistoryRequest, request, setThreadTranscriptSource],
-  )
-
-  const resumeThreadInputs = useCallback(
-    async (threadId: string) => {
-      try {
-        const resumeResult = await request('thread/resume', { threadId })
-        const staleInputs = asResolvedInputs(resumeResult)
-        for (const input of staleInputs) {
-          if (seenStaleInputIdRef.current.has(input.inputId)) continue
-          seenStaleInputIdRef.current.add(input.inputId)
-          log(
-            `Recovered stale input: ${input.kind} (${input.status})${input.reason ? ` - ${input.reason}` : ''}`,
-            input.status === 'failed' ? 'error' : 'warn',
-            input.turnId,
-          )
-        }
-      } catch {
-        // best-effort resume
-      }
-    },
+  const {
+    refreshThreads,
+    refreshWorkspaceDiff,
+    setThreadTranscriptSource,
+    clearThreadHistoryCursor,
+    loadThreadHistory,
+    resumeThreadInputs,
+    loadEarlierHistory: loadEarlierHistoryAction,
+  } = useMemo(
+    () =>
+      createThreadDataOps({
+        request,
+        dispatch,
+        log,
+        activeThreadIdRef,
+        historyLoadTokenRef,
+        historyLoadSeqByThreadRef,
+        historyLoadingRef,
+        transcriptSourceByThreadRef,
+        seenStaleInputIdRef,
+        setIsRefreshingDiff,
+        setDiffSnapshot,
+        setHistoryLoadingByThreadId,
+        setHistoryCursorByThreadId,
+        setTranscriptSourceByThreadId,
+        setLogsByThreadId,
+      }),
     [log, request],
   )
 
@@ -531,22 +430,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         runtimeStateByThreadRef,
         replayCursorByThreadRef,
         activeThreadIdRef,
-        historyLoadTokenRef,
-        historyLoadingRef,
-        transcriptSourceByThreadRef,
-        beginThreadHistoryRequest,
-        endThreadHistoryRequest,
         setIsThreadActionBusy,
-        setLogsByThreadId,
-        setHistoryCursorByThreadId,
         replayThreadEvents,
         resumeThreadInputs,
         refreshThreads,
         refreshWorkspaceDiff,
+        loadEarlierHistoryAction,
       }),
     [
-      beginThreadHistoryRequest,
-      endThreadHistoryRequest,
       historyCursorByThreadId,
       log,
       logsByThreadId,

@@ -1,6 +1,3 @@
-import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
-import { asThreadMessages } from '../core/rpcParsers'
-import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { TranscriptItem } from '../../types'
 
 export type ThreadActionsContext = {
@@ -22,20 +19,16 @@ export type ThreadActionsContext = {
   runtimeStateByThreadRef: { current: Record<string, { mode: 'normal' | 'plan' | 'acceptEdits' }> }
   replayCursorByThreadRef: { current: Record<string, number> }
   activeThreadIdRef: { current: string | null }
-  historyLoadTokenRef: { current: number }
-  historyLoadingRef: { current: Record<string, boolean> }
-  transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
-  beginThreadHistoryRequest: (threadId: string) => number
-  endThreadHistoryRequest: (threadId: string, seq: number) => void
   setIsThreadActionBusy: (busy: boolean) => void
-  setLogsByThreadId: (updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>) => void
-  setHistoryCursorByThreadId: (
-    updater: (prev: Record<string, string | null>) => Record<string, string | null>,
-  ) => void
   replayThreadEvents: (threadId: string, options?: { fromStart?: boolean }) => Promise<boolean>
   resumeThreadInputs: (threadId: string) => Promise<void>
   refreshThreads: () => Promise<void>
   refreshWorkspaceDiff: () => Promise<void>
+  loadEarlierHistoryAction: (args: {
+    activeThreadId: string | null
+    historyCursorByThreadId: Record<string, string | null>
+    activeLogs: TranscriptItem[]
+  }) => Promise<void>
 }
 
 export function createThreadActions(ctx: ThreadActionsContext) {
@@ -142,31 +135,12 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     }
   }
 
-  const loadEarlierHistory = async () => {
-    const threadId = ctx.state.activeThreadId
-    if (!threadId || ctx.historyLoadingRef.current[threadId]) return
-    if (ctx.transcriptSourceByThreadRef.current[threadId] !== 'history') return
-    const cursor = ctx.historyCursorByThreadId[threadId]
-    if (!cursor) return
-
-    const token = ctx.historyLoadTokenRef.current
-    const seq = ctx.beginThreadHistoryRequest(threadId)
-    try {
-      const result = await ctx.request('thread/messages', { threadId, limit: 50, cursor })
-      if (token !== ctx.historyLoadTokenRef.current) return
-      if (ctx.activeThreadIdRef.current !== threadId) return
-      const parsed = asThreadMessages(result)
-      const prepended = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
-      ctx.dispatch({ type: 'prepend_logs', logs: prepended })
-      ctx.setLogsByThreadId((prev) => {
-        const current = prev[threadId] ?? ctx.state.logs
-        return { ...prev, [threadId]: [...prepended, ...current] }
-      })
-      ctx.setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
-    } finally {
-      ctx.endThreadHistoryRequest(threadId, seq)
-    }
-  }
+  const loadEarlierHistory = async () =>
+    ctx.loadEarlierHistoryAction({
+      activeThreadId: ctx.state.activeThreadId,
+      historyCursorByThreadId: ctx.historyCursorByThreadId,
+      activeLogs: ctx.state.logs,
+    })
 
   return {
     startThread,
