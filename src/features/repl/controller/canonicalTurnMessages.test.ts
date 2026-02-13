@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../semantics/transcriptProjection'
-import { canonicalTurnSegmentsToMessages } from './canonicalTurnMessages'
+import type { Msg } from '../../../components/tool/ToolMessage'
+import { canonicalTurnSegmentsToMessages, replaceTurnTailWithCanonicalMessages } from './canonicalTurnMessages'
 
 describe('canonicalTurnSegmentsToMessages', () => {
   it('maps assistant/thinking/tool segments into transcript messages', () => {
@@ -183,5 +184,182 @@ describe('canonicalTurnSegmentsToMessages', () => {
       role: 'tool',
       toolInfo: { name: 'Bash', status: 'running' },
     })
+  })
+
+  it('replaces turn tail after user message with canonical turn messages', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date() },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: 'legacy tool',
+          timestamp: new Date(),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+        { id: 'legacy-a', role: 'assistant', content: 'canonical', timestamp: new Date(), isStreaming: true },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        { id: 'canonical:a', role: 'assistant', content: 'canonical', timestamp: new Date(0), isStreaming: false },
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: 'tool',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-a', 'legacy-t'])
+    expect(replaced[1]?.isStreaming).toBe(false)
+  })
+
+  it('returns original messages when user anchor is missing', () => {
+    const original: Msg[] = [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date() }]
+    expect(
+      replaceTurnTailWithCanonicalMessages({
+        messages: original,
+        userMessageId: 'missing',
+        canonicalTurnMessages: [{ id: 'canonical:a', role: 'assistant', content: 'x', timestamp: new Date(0) }],
+      }),
+    ).toEqual(original)
+  })
+
+  it('assigns non-epoch timestamps for fallback canonical insertions', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date() }],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [{ id: 'canonical:a', role: 'assistant', content: 'x', timestamp: new Date(0) }],
+    })
+
+    expect(replaced).toHaveLength(2)
+    expect(replaced[1]?.timestamp.getTime()).toBeGreaterThan(0)
+  })
+
+  it('keeps unmatched tail prefix before canonical-reordered turn messages', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date() },
+        {
+          id: 'notice',
+          role: 'assistant',
+          ui: { kind: 'command_subline' },
+          content: 'Conversation history auto-compacted',
+          timestamp: new Date(),
+        },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: 'legacy tool',
+          timestamp: new Date(),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+        { id: 'legacy-a', role: 'assistant', content: 'answer', timestamp: new Date(), isStreaming: false },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        { id: 'canonical:a', role: 'assistant', content: 'answer', timestamp: new Date(0) },
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: 'tool',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'notice', 'legacy-a', 'legacy-t'])
+  })
+
+  it('drops unmatched legacy assistant/tool tail when falling back to canonical messages', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date() },
+        { id: 'legacy-a', role: 'assistant', content: 'legacy answer', timestamp: new Date() },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: 'legacy tool',
+          timestamp: new Date(),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+        {
+          id: 'subline',
+          role: 'assistant',
+          ui: { kind: 'command_subline' },
+          content: 'Error: aborted',
+          timestamp: new Date(),
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        { id: 'canonical:a', role: 'assistant', content: 'canonical answer', timestamp: new Date(0) },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'subline', 'canonical:a'])
+  })
+
+  it('drops unmatched legacy assistant when only part of turn tail matches canonical', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date() },
+        { id: 'legacy-a', role: 'assistant', content: 'legacy answer', timestamp: new Date() },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: 'legacy tool',
+          timestamp: new Date(),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        { id: 'canonical:a', role: 'assistant', content: 'canonical answer', timestamp: new Date(0) },
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: 'canonical tool',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'canonical:a', 'legacy-t'])
+  })
+
+  it('normalizes reordered tail timestamps to keep reload ordering stable', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'legacy-a', role: 'assistant', content: 'answer', timestamp: new Date(150) },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: 'tool',
+          timestamp: new Date(200),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: 'tool',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+        { id: 'canonical:a', role: 'assistant', content: 'answer', timestamp: new Date(0) },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-t', 'legacy-a'])
+    expect(replaced[1]?.timestamp.getTime()).toBe(200)
+    expect(replaced[2]?.timestamp.getTime()).toBe(200)
   })
 })

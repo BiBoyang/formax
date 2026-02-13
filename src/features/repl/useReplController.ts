@@ -23,7 +23,7 @@ import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { canonicalTurnSegmentsToMessages } from './controller/canonicalTurnMessages'
+import { canonicalTurnSegmentsToMessages, replaceTurnTailWithCanonicalMessages } from './controller/canonicalTurnMessages'
 import {
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -900,10 +900,13 @@ export function useReplController(deps: {
       }
 
       canonicalTurnSeqRef.current += 1
-      canonicalTurnIdRef.current = `turn-${canonicalTurnSeqRef.current}`
+      const canonicalTurnId = `turn-${canonicalTurnSeqRef.current}`
+      canonicalTurnIdRef.current = canonicalTurnId
       setCanonicalTransientActive(false)
+      let turnUserMessageId: string | null = null
+      let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
       try {
-        await runMainSendTurn({
+        const runResult = await runMainSendTurn({
           input: { text, slashEffect, provider },
           deps: {
             engine: deps.engine,
@@ -941,7 +944,25 @@ export function useReplController(deps: {
             setContext,
           },
         })
+        turnUserMessageId = runResult.userMessageId
+        turnOutcome = runResult.turnOutcome
       } finally {
+        if (turnUserMessageId && turnOutcome === 'completed') {
+          const turnSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, canonicalTurnId)
+          const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
+            turnId: canonicalTurnId,
+            segments: turnSegments,
+          })
+          if (canonicalFinalMessages.length > 0) {
+            setMessages((prev) =>
+              replaceTurnTailWithCanonicalMessages({
+                messages: prev,
+                userMessageId: turnUserMessageId,
+                canonicalTurnMessages: canonicalFinalMessages,
+              }),
+            )
+          }
+        }
         canonicalTurnIdRef.current = null
         setCanonicalTurnMessages([])
         setCanonicalTransientActive(false)

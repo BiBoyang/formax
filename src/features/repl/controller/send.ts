@@ -438,7 +438,7 @@ export async function runMainSendTurn(raw: {
       >
     >
   }
-}): Promise<void> {
+}): Promise<{ userMessageId: string; turnOutcome: 'completed' | 'aborted' | 'failed' }> {
   const args = {
     text: raw.input.text,
     slashEffect: raw.input.slashEffect,
@@ -468,6 +468,7 @@ export async function runMainSendTurn(raw: {
   args.assistantBufferRef.current = ''
   args.contextBudgetConfigRef.current = null
   const sendSeq = (args.sendSeqRef.current += 1)
+  let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
 
   try {
     if (!args.reminderServiceRef.current) args.reminderServiceRef.current = new ReminderService()
@@ -573,6 +574,7 @@ export async function runMainSendTurn(raw: {
               {
                 id: makeMessageId('assistant'),
                 role: 'assistant',
+                ui: { kind: 'command_subline' as const },
                 content: 'Conversation history auto-compacted (summary kept for future turns).',
                 timestamp: new Date(),
               },
@@ -680,7 +682,10 @@ export async function runMainSendTurn(raw: {
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to send message'
-    if (!isAbortLikeError(e)) {
+    if (isAbortLikeError(e)) {
+      turnOutcome = 'aborted'
+    } else {
+      turnOutcome = 'failed'
       args.setError(msg)
       args.setMessages((prev) => [
         ...prev.filter(
@@ -699,6 +704,8 @@ export async function runMainSendTurn(raw: {
     args.setIsLoading(false)
     args.abortControllerRef.current = null
   }
+
+  return { userMessageId: userMsg.id, turnOutcome }
 }
 
 function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
