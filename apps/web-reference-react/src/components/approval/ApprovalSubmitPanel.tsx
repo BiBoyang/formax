@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
 
 type ApprovalSubmitPanelProps = {
   inputId: string
@@ -74,18 +75,14 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
   }
 
   return (
-    <form
-      data-testid={`approval-submit-panel-${inputId}`}
-      onSubmit={submit}
-      className="rounded-[24px] border bg-background/98 px-6 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)]"
-    >
-      <h3 className="text-[38px] leading-tight font-semibold tracking-tight text-foreground">{getPanelTitle(payloadRecord)}</h3>
+    <ApprovalPanelSurface testId={`approval-submit-panel-${inputId}`} onSubmit={submit}>
+      <h3 className="px-3 py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{getPanelTitle(payloadRecord)}</h3>
 
-      <div className="mt-4 rounded-xl bg-muted/35 px-4 py-3">
+      <div className="mt-1.5 rounded-xl bg-muted/35 px-3 py-1.5">
         {command ? (
-          <div className="font-mono text-[32px] text-foreground/85 [overflow-wrap:anywhere]">{command}</div>
+          <div className="font-mono text-[12px] leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">{command}</div>
         ) : (
-          <div className="text-sm text-muted-foreground">Tool: {toolName}</div>
+          <div className="text-xs text-muted-foreground">Tool: {toolName}</div>
         )}
       </div>
 
@@ -97,21 +94,16 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
         </div>
       ) : null}
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-1.5 space-y-0.5">
         {decisionOptions.map((option, index) => {
           const selected = decision === option.key
           return (
-            <button
+            <ApprovalOptionButton
               key={option.key}
-              type="button"
               onClick={() => setDecision(option.key)}
-              className={[
-                'w-full rounded-xl px-4 py-3 text-left transition',
-                selected ? 'bg-muted text-foreground' : 'hover:bg-muted/60 text-foreground/90',
-              ].join(' ')}
-            >
-              <span className="text-[33px] leading-tight font-medium">{`${index + 1}. ${option.label}`}</span>
-            </button>
+              selected={selected}
+              primaryText={`${index + 1}. ${option.label}`}
+            />
           )
         })}
       </div>
@@ -144,11 +136,11 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
         </div>
       ) : null}
 
-      <div className="mt-5 flex justify-end">
-        <Button type="submit" disabled={isSubmitting || !canSubmit} className="rounded-full px-6">
+      <div className="mt-2 flex justify-end">
+        <Button type="submit" disabled={isSubmitting || !canSubmit} className="h-8 rounded-full px-6 text-sm font-medium">
           {isSubmitting ? 'Submitting...' : 'Submit'}
         </Button>
       </div>
-    </form>
+    </ApprovalPanelSurface>
   )
 }

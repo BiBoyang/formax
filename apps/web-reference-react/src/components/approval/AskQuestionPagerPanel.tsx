@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
 import {
   buildAskAnswersFromDraft,
   fieldIdForAskQuestion,
@@ -59,7 +60,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
 
   if (!current) {
     return (
-      <div data-testid={`ask-question-panel-${inputId}`} className="rounded-[24px] border bg-background/98 px-6 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+      <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
         <h3 className="text-xl font-semibold tracking-tight text-foreground">No questions available</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           This request does not include any valid questions. You can dismiss it and continue in composer.
@@ -72,25 +73,25 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
             <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
           </div>
         </div>
-      </div>
+      </ApprovalPanelSurface>
     )
   }
   const options = Array.isArray(current.options) ? current.options : []
   const title = current.question?.trim() || current.header?.trim() || 'Question'
 
   return (
-    <div data-testid={`ask-question-panel-${inputId}`} className="rounded-[24px] border bg-background/98 px-6 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
-      <div className="flex items-start justify-between gap-4">
-        <h3 className="text-[26px] leading-tight font-semibold tracking-tight text-foreground">{title}</h3>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
+      <div className="flex items-start justify-between gap-2 px-3">
+        <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{title}</h3>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <button
             type="button"
             aria-label="Previous question"
             onClick={() => onPageChange(Math.max(0, clampedPageIndex - 1))}
             disabled={clampedPageIndex <= 0}
-            className="rounded-md p-1 transition hover:bg-muted disabled:opacity-40"
+            className="rounded-md p-0.5 transition hover:bg-muted disabled:opacity-40"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <span aria-label="Question index">{`${clampedPageIndex + 1} of ${totalPages}`}</span>
           <button
@@ -98,34 +99,25 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
             aria-label="Next question"
             onClick={() => onPageChange(Math.min(totalPages - 1, clampedPageIndex + 1))}
             disabled={isLastPage || !canMoveForward}
-            className="rounded-md p-1 transition hover:bg-muted disabled:opacity-40"
+            className="rounded-md p-0.5 transition hover:bg-muted disabled:opacity-40"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-1 space-y-0.5">
         {options.length > 0 ? (
           options.map((option, optionIndex) => {
             const selected = currentValue === option.label
             return (
-              <button
+              <ApprovalOptionButton
                 key={`${currentFieldId}-${option.label}`}
-                type="button"
                 onClick={() => onDraftChange(currentFieldId, option.label)}
-                className={[
-                  'w-full rounded-xl px-4 py-3 text-left transition',
-                  selected ? 'bg-muted text-foreground' : 'hover:bg-muted/60 text-foreground/90',
-                ].join(' ')}
-              >
-                <div className="text-[33px] leading-tight font-medium">
-                  {`${optionIndex + 1}. ${option.label}`}
-                </div>
-                {option.description ? (
-                  <div className="mt-0.5 text-[13px] text-muted-foreground">{option.description}</div>
-                ) : null}
-              </button>
+                selected={selected}
+                primaryText={`${optionIndex + 1}. ${option.label}`}
+                secondaryText={option.description}
+              />
             )
           })
         ) : (
@@ -134,14 +126,14 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
             value={currentValue}
             onChange={(event) => onDraftChange(currentFieldId, event.target.value)}
             placeholder="Type your answer"
-            className="h-11 rounded-xl"
+            className="h-9 rounded-xl text-sm"
           />
         )}
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-3 text-sm" onClick={onDismiss}>
             Dismiss
           </Button>
           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
@@ -156,11 +148,11 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
             onPageChange(clampedPageIndex + 1)
           }}
           disabled={isSubmitting || (isLastPage ? !canSubmitAll : !canMoveForward)}
-          className="rounded-full px-5"
+          className="h-8 rounded-full px-6 text-sm font-medium"
         >
           {isSubmitting ? 'Submitting...' : isLastPage ? 'Submit' : 'Continue'}
         </Button>
       </div>
-    </div>
+    </ApprovalPanelSurface>
   )
 }
