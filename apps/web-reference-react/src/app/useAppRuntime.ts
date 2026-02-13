@@ -34,6 +34,8 @@ import { createThreadActions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
 import { connectRpcClient } from './runtime/connectRpcClient'
+import { useThreadSelection } from './runtime/useThreadSelection'
+import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -319,27 +321,17 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     ],
   )
 
-  useEffect(() => {
-    activeThreadIdRef.current = state.activeThreadId
-  }, [state.activeThreadId])
-
-  useEffect(() => {
-    stateLogsRef.current = state.logs
-  }, [state.logs])
-
-  useEffect(() => {
-    logsByThreadIdRef.current = logsByThreadId
-  }, [logsByThreadId])
-
-  useEffect(() => {
-    selectedInputIdRef.current = state.selectedInputId
-  }, [state.selectedInputId])
-
-  useEffect(() => {
-    const threadId = state.activeThreadId
-    if (!threadId) return
-    setLogsByThreadId((prev) => ({ ...prev, [threadId]: state.logs }))
-  }, [state.activeThreadId, state.logs])
+  useRuntimeRefSync({
+    activeThreadId: state.activeThreadId,
+    logs: state.logs,
+    selectedInputId: state.selectedInputId,
+    logsByThreadId,
+    activeThreadIdRef,
+    stateLogsRef,
+    selectedInputIdRef,
+    logsByThreadIdRef,
+    setLogsByThreadId,
+  })
 
   useEffect(() => {
     return connectRpcClient({
@@ -368,33 +360,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     resumeThreadInputs,
   ])
 
-  const sortedThreads = useMemo(
-    () => [...state.threads].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
-    [state.threads],
-  )
-  const cwdOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const values: string[] = []
-    for (const thread of sortedThreads) {
-      const cwd = typeof thread.cwd === 'string' ? thread.cwd : ''
-      if (!cwd || seen.has(cwd)) continue
-      seen.add(cwd)
-      values.push(cwd)
-    }
-    return values
-  }, [sortedThreads])
-  useEffect(() => {
-    const activeThread = state.activeThreadId ? state.threads.find((thread) => thread.id === state.activeThreadId) : null
-    if (activeThread?.cwd && activeThread.cwd !== selectedCwd) {
-      setSelectedCwd(activeThread.cwd)
-      return
-    }
-    if (selectedCwd && cwdOptions.includes(selectedCwd)) return
-    const fallback = cwdOptions[0] ?? null
-    if (fallback !== selectedCwd) {
-      setSelectedCwd(fallback)
-    }
-  }, [cwdOptions, selectedCwd, state.activeThreadId, state.threads])
+  const { sortedThreads } = useThreadSelection({
+    threads: state.threads,
+    activeThreadId: state.activeThreadId,
+    selectedCwd,
+    setSelectedCwd,
+  })
 
   const { startThread, selectThread, selectCwd, renameThread, loadEarlierHistory } = useMemo(
     () =>
