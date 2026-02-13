@@ -120,6 +120,45 @@ describe('TranscriptPane', () => {
     expect(screen.queryByTestId('composer-locked')).not.toBeInTheDocument()
   })
 
+  it('cycles mode with Shift+Tab in composer input', () => {
+    const onModeChange = vi.fn()
+    render(
+      <TranscriptPane
+        {...baseProps({
+          mode: 'normal',
+          onModeChange,
+        })}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true })
+
+    expect(onModeChange).toHaveBeenCalledWith('acceptEdits')
+  })
+
+  it('does not send on Enter while IME composition is active', () => {
+    const onSend = vi.fn((event) => event.preventDefault())
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: 'zhang',
+          onSend,
+        })}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.compositionStart(input)
+    fireEvent.keyDown(input, {
+      key: 'Enter',
+      shiftKey: false,
+      nativeEvent: { isComposing: true, keyCode: 229 },
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
   it('renders running thinking as lightweight label without delta body text', () => {
     render(
       <TranscriptPane

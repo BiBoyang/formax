@@ -168,6 +168,21 @@ describe('App thread history integration', () => {
     })
   })
 
+  const MODE_ORDER = ['Ask before edits', 'Edit automatically', 'Plan mode'] as const
+
+  async function setComposerMode(target: (typeof MODE_ORDER)[number]) {
+    const modeButton = screen.getByLabelText('Execution mode')
+    for (let index = 0; index <= MODE_ORDER.length; index += 1) {
+      const before = modeButton.textContent ?? ''
+      if (before.includes(target)) return
+      fireEvent.click(modeButton)
+      await waitFor(() => {
+        expect(modeButton.textContent ?? '').not.toBe(before)
+      })
+    }
+    throw new Error(`Unable to set composer mode to ${target}`)
+  }
+
   it('restores persisted sidebar and right rail widths', async () => {
     const originalInnerWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 })
@@ -384,8 +399,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    await setComposerMode('Plan mode')
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello plan' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -401,8 +415,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Auto edit' }))
+    await setComposerMode('Edit automatically')
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello auto' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -432,8 +445,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    await setComposerMode('Plan mode')
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), {
       target: { value: '/compact summarize the conversation' },
     })
@@ -506,8 +518,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    await setComposerMode('Plan mode')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
@@ -534,8 +545,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    await setComposerMode('Plan mode')
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
@@ -646,8 +656,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
 
-    fireEvent.click(screen.getByLabelText('Execution mode'))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    await setComposerMode('Plan mode')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'fast switch send' } })

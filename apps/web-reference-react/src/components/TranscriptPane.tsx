@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, MessageSquare, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { ScrollArea } from './ui/scroll-area'
 import { Textarea } from './ui/textarea'
 import type { TranscriptItem, ThreadSummary } from '../types'
@@ -25,6 +24,38 @@ type RpcErrorLike = {
   message: string
   code?: number
   data?: unknown
+}
+
+type ComposerMode = 'normal' | 'acceptEdits' | 'plan'
+
+const MODE_CYCLE: ComposerMode[] = ['normal', 'acceptEdits', 'plan']
+
+function nextComposerMode(mode: ComposerMode): ComposerMode {
+  const idx = MODE_CYCLE.indexOf(mode)
+  if (idx < 0) return 'normal'
+  return MODE_CYCLE[(idx + 1) % MODE_CYCLE.length] ?? 'normal'
+}
+
+function modeMeta(mode: ComposerMode): { label: string; icon: typeof Pencil; toneClass: string } {
+  if (mode === 'plan') {
+    return {
+      label: 'Plan mode',
+      icon: Pause,
+      toneClass: 'text-[#7a7d86] bg-[#efede3] hover:bg-[#e8e4d6]',
+    }
+  }
+  if (mode === 'acceptEdits') {
+    return {
+      label: 'Edit automatically',
+      icon: MessageSquare,
+      toneClass: 'text-[#7a7d86] bg-[#eceae0] hover:bg-[#e6e1d1]',
+    }
+  }
+  return {
+    label: 'Ask before edits',
+    icon: Pencil,
+    toneClass: 'text-[#7a7d86] bg-[#eceae0] hover:bg-[#e6e1d1]',
+  }
 }
 
 export type TranscriptPaneProps = {
@@ -137,6 +168,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [autoStick, setAutoStick] = useState(true)
+  const [isImeComposing, setIsImeComposing] = useState(false)
   const [renderLimit, setRenderLimit] = useState(TURN_INIT_RENDER_LIMIT)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
@@ -245,6 +277,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     setAutoStick(true)
     onSend(event)
   }
+
+  const modeInfo = modeMeta(mode)
 
   const increaseRenderLimit = (delta: number, preserveAnchor: boolean, maxLimit: number) => {
     if (delta <= 0) return
@@ -463,8 +497,17 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                   onChange={(event) => onInputTextChange(event.target.value)}
                   placeholder="Ask for follow-up changes"
                   className="min-h-[90px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-5 pb-0 text-[15px] leading-relaxed placeholder:text-muted-foreground/40 focus-visible:ring-0 shadow-none"
+                  onCompositionStart={() => setIsImeComposing(true)}
+                  onCompositionEnd={() => setIsImeComposing(false)}
                   onKeyDown={(e) => {
+                      if (e.key === 'Tab' && e.shiftKey) {
+                          e.preventDefault()
+                          onModeChange(nextComposerMode(mode))
+                          return
+                      }
                       if (e.key === 'Enter' && !e.shiftKey) {
+                          const nativeEvent = e.nativeEvent as KeyboardEvent
+                          if (isImeComposing || nativeEvent.isComposing || nativeEvent.keyCode === 229) return
                           e.preventDefault();
                           if (activeThreadId && connectionStatus === 'connected' && !inputText.trim()) return;
                           if (activeThreadId && connectionStatus === 'connected' && !isSending) {
@@ -476,17 +519,18 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
               <div className="flex items-center justify-between px-3 h-12">
                 <div className="flex items-center gap-3">
-                  <Select value={mode} onValueChange={(value) => onModeChange(value as 'normal' | 'acceptEdits' | 'plan')}>
-                    <SelectTrigger aria-label="Execution mode" className="h-8 w-[180px] border-border/60 bg-background text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">Ask before edits</SelectItem>
-                      <SelectItem value="acceptEdits">Auto edit</SelectItem>
-                      <SelectItem value="plan">Plan mode</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="text-xs text-muted-foreground">Enter to send, Shift+Enter for newline</div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label="Execution mode"
+                    onClick={() => onModeChange(nextComposerMode(mode))}
+                    className={cn('h-8 rounded-md px-2.5 text-[15px] font-medium tracking-tight transition-colors', modeInfo.toneClass)}
+                    title="Click to cycle mode (Shift+Tab)"
+                  >
+                    <modeInfo.icon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{modeInfo.label}</span>
+                  </Button>
+                  <div className="text-[12px] text-muted-foreground">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
                 </div>
                 <div className="flex items-center gap-1 pr-1">
                   {isSending || isInterrupting ? (
