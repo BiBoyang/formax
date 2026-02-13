@@ -166,6 +166,7 @@
     - 已完成：EnterPlanMode/ExitPlanMode 的状态摘要规则收敛到共享 labels 基元，减少 Web/TUI 规则分叉。
     - 已完成：AskUserQuestion 答案解析逻辑下沉到共享基元 `src/features/tools/presentation/askAnswers.ts`，Web 与 TUI 复用同一解析函数。
     - 已完成：AskUserQuestion 题目归一化与 `fieldId` 解析下沉到共享基元 `src/features/tools/presentation/askQuestions.ts`，Web/TUI 统一键名策略。
+    - 已完成：新增共享 `toolSemantics`（`ask/todo/plan` 语义分类 + interactive 判定），并接入 Web tool blocks 路由与 TUI prompt-mode 判定，减少端内硬编码分叉。
     - 未完成：TUI 的交互式 prompt 渲染（ask/plan）仍是端内实现，尚未统一到共享 presentation IR registry。
 
 ---

@@ -10,6 +10,10 @@ import {
   summarizePlanModeStatus,
   summarizeTodoWriteStatus,
 } from '../../../../../src/features/tools/presentation/labels'
+import {
+  getToolPresentationSemantic,
+  type ToolPresentationSemantic,
+} from '../../../../../src/features/tools/presentation/toolSemantics'
 
 type ToolRenderContext = {
   cwd?: string
@@ -271,13 +275,17 @@ const renderers: Record<string, ToolBlockRenderer> = {
   WebSearch: webSearchRenderer,
   WebFetch: webFetchRenderer,
   Task: taskRenderer,
-  AskUserQuestion: askQuestionRenderer,
-  TodoWrite: todoWriteRenderer,
-  EnterPlanMode: enterPlanModeRenderer,
-  ExitPlanMode: exitPlanModeRenderer,
+}
+
+const semanticRenderers: Partial<Record<ToolPresentationSemantic, ToolBlockRenderer>> = {
+  ask_user_question: askQuestionRenderer,
+  todo_write: todoWriteRenderer,
+  enter_plan_mode: enterPlanModeRenderer,
+  exit_plan_mode: exitPlanModeRenderer,
 }
 
 export function buildToolUiBlocks(item: ToolCallItem, context: ToolRenderContext = {}): ToolUiBlock[] {
-  const renderer = renderers[item.toolName] ?? defaultRenderer
+  const semantic = getToolPresentationSemantic(item.toolName)
+  const renderer = semanticRenderers[semantic] ?? renderers[item.toolName] ?? defaultRenderer
   return renderer(item, context)
 }
