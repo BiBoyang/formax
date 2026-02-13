@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
@@ -41,20 +41,20 @@ function modeMeta(mode: ComposerMode): { label: string; icon: typeof Pencil; ton
     return {
       label: 'Plan mode',
       icon: Pause,
-      toneClass: 'text-[#7a7d86] bg-[#efede3] hover:bg-[#e8e4d6]',
+      toneClass: 'text-foreground/70 hover:text-foreground',
     }
   }
   if (mode === 'acceptEdits') {
     return {
       label: 'Edit automatically',
-      icon: MessageSquare,
-      toneClass: 'text-[#7a7d86] bg-[#eceae0] hover:bg-[#e6e1d1]',
+      icon: ChevronsRight,
+      toneClass: 'text-foreground/70 hover:text-foreground',
     }
   }
   return {
     label: 'Ask before edits',
     icon: Pencil,
-    toneClass: 'text-[#7a7d86] bg-[#eceae0] hover:bg-[#e6e1d1]',
+    toneClass: 'text-foreground/70 hover:text-foreground',
   }
 }
 
@@ -489,14 +489,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
               </div>
             ) : null}
             <form
-              className="group relative flex flex-col rounded-[26px] border border-border bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] focus-within:ring-1 focus-within:ring-ring/10 focus-within:border-ring/20 transition-all duration-200"
+              className="group relative flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm focus-within:border-ring/30 focus-within:shadow-md transition-all duration-200"
               onSubmit={handleSend}
             >
               <Textarea
                   value={inputText}
                   onChange={(event) => onInputTextChange(event.target.value)}
                   placeholder="Ask for follow-up changes"
-                  className="min-h-[90px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-5 pb-0 text-[15px] leading-relaxed placeholder:text-muted-foreground/40 focus-visible:ring-0 shadow-none"
+                  className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 text-[14px] leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
                   onCompositionStart={() => setIsImeComposing(true)}
                   onCompositionEnd={() => setIsImeComposing(false)}
                   onKeyDown={(e) => {
@@ -517,33 +517,32 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                   }}
               />
 
-              <div className="flex items-center justify-between px-3 h-12">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2.5">
                   <Button
                     type="button"
                     variant="ghost"
                     aria-label="Execution mode"
                     onClick={() => onModeChange(nextComposerMode(mode))}
-                    className={cn('h-8 rounded-md px-2.5 text-[15px] font-medium tracking-tight transition-colors', modeInfo.toneClass)}
+                    className={cn('h-7 rounded-md px-2 text-[12px] font-medium tracking-tight transition-colors', modeInfo.toneClass)}
                     title="Click to cycle mode (Shift+Tab)"
                   >
-                    <modeInfo.icon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                    <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
                     <span>{modeInfo.label}</span>
                   </Button>
-                  <div className="text-[12px] text-muted-foreground">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
+                  <div className="hidden lg:block text-[12px] text-muted-foreground/85">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
                 </div>
-                <div className="flex items-center gap-1 pr-1">
+                <div className="flex items-center gap-1 pr-1 text-muted-foreground">
                   {isSending || isInterrupting ? (
                     <Button
                       type="button"
                       aria-label="Interrupt turn"
-                      variant="destructive"
                       size="icon"
                       disabled={isInterrupting}
-                      className="h-8 w-8 rounded-full shrink-0 shadow-sm"
+                      className="h-7 w-7 rounded-full shrink-0 border-0 bg-black text-white shadow-none hover:bg-black/90"
                       onClick={onInterrupt}
                     >
-                      <Square className="h-3.5 w-3.5 fill-current" />
+                      <Square className="size-3 fill-current" />
                     </Button>
                   ) : (
                     <Button
@@ -552,11 +551,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                       disabled={!activeThreadId || connectionStatus !== 'connected' || !inputText.trim()}
                       size="icon"
                       className={cn(
-                        'h-8 w-8 rounded-full shrink-0 shadow-none transition-all duration-200 border-0',
-                        !inputText.trim() ? 'bg-[#E5E5E5] text-white' : 'bg-muted-foreground text-background hover:bg-foreground',
+                        'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
+                        !inputText.trim() ? 'bg-[#8a8a8a] text-white hover:bg-[#8a8a8a]' : 'bg-black text-white hover:bg-black/90',
                       )}
                     >
-                      <ArrowUp className="h-4.5 w-4.5" />
+                      <ArrowUp className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
