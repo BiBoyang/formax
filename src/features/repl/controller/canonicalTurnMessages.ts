@@ -191,8 +191,8 @@ function mergeCanonicalToolMessage(canonical: Msg, legacy: Msg | null): Msg {
   const canonicalInput = canonicalToolInfo?.input
   const canonicalInputHasKeys =
     canonicalInput && typeof canonicalInput === 'object' && Object.keys(canonicalInput).length > 0
-  const mergedName = legacyToolInfo?.name ?? canonicalToolInfo?.name
-  const mergedStatus = legacyToolInfo?.status ?? canonicalToolInfo?.status
+  const mergedName = canonicalToolInfo?.name ?? legacyToolInfo?.name
+  const mergedStatus = canonicalToolInfo?.status ?? legacyToolInfo?.status
   const mergedToolInfo =
     mergedName && mergedStatus
       ? {

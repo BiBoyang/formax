@@ -332,6 +332,45 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(replaced.map((message) => message.id)).toEqual(['u1', 'canonical:a', 'legacy-t'])
   })
 
+  it('prefers canonical tool status while preserving legacy tool detail fields', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date() },
+        {
+          id: 'legacy-t',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(),
+          toolInfo: {
+            toolUseId: 'tool-1',
+            name: 'Bash',
+            status: 'running',
+            input: { command: 'ls -la' },
+            result: 'legacy-result',
+            middleLines: ['legacy-line'],
+          },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: 'canonical-summary',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-t'])
+    const toolMessage = replaced[1]
+    expect(toolMessage?.toolInfo?.status).toBe('completed')
+    expect(toolMessage?.toolInfo?.result).toBe('legacy-result')
+    expect(toolMessage?.toolInfo?.middleLines).toEqual(['legacy-line'])
+    expect(toolMessage?.content).toBe('')
+  })
+
   it('normalizes reordered tail timestamps to keep reload ordering stable', () => {
     const replaced = replaceTurnTailWithCanonicalMessages({
       messages: [
