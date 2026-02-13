@@ -48,6 +48,12 @@ describe('streamCanonicalAdapter', () => {
       phase: 'start',
       toolName: 'Bash',
     })
+    expect(events[3]).toMatchObject({
+      kind: 'tool_event',
+      toolUseId: 'tool-1',
+      phase: 'update',
+      paramsText: 'command="ls -la"',
+    })
     expect(events[events.length - 1]).toMatchObject({
       kind: 'turn_footer',
       status: 'completed',

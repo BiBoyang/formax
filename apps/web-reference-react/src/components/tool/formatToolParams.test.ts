@@ -112,6 +112,18 @@ describe('formatToolParams', () => {
     ])
   })
 
+  it('supports json-object paramsText payloads from older replay data', () => {
+    const params = formatToolParams({
+      toolName: 'Bash',
+      paramsText: '{"command":"ls -la","cwd":"/repo"}',
+    })
+
+    expect(params).toEqual([
+      { label: 'command', value: 'ls -la', valueType: 'string' },
+      { label: 'cwd', value: '/repo', valueType: 'string' },
+    ])
+  })
+
   it('maps grep/search pattern + path + output_mode', () => {
     const grep = formatToolParams({
       toolName: 'Grep',

@@ -156,6 +156,8 @@
   - 当前进展：
     - 已完成：新增跨端共享参数解析基元 `src/features/tools/presentation/paramsText.ts`（parse/order/stringify/json-array count）。
     - 已完成：Web `formatToolParams` 与 `toolBlocksRegistry` 改为消费共享基元，减少 tool 参数解析分叉。
+    - 已完成：语义层 canonical adapters（stream/turn notification）统一使用共享 `formatToolInputAsParamsText` 产出可解析 `key=value` 形式的 `paramsText`。
+    - 已完成：共享参数解析兼容旧 replay 的 JSON-object `paramsText`，避免历史数据回放出现原始 `{...}` 退化展示。
     - 未完成：TUI presenter 仍有独立工具语义层（ask/todo/plan 等），尚未统一到共享 presentation IR registry。
 
 ---

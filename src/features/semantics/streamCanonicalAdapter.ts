@@ -4,6 +4,7 @@ import type {
   CanonicalEventEnvelope,
   CanonicalEventSource,
 } from './canonicalEvents'
+import { formatToolInputAsParamsText } from '../tools/presentation/paramsText'
 
 type StreamCanonicalContext = {
   threadId: string
@@ -55,17 +56,6 @@ function readToolEndSummary(ev: Extract<StreamEvent, { type: 'tool_end' }>): str
   if (content) return content
   if (ev.result?.is_error) return 'error'
   return 'completed'
-}
-
-function formatParamsText(input: unknown): string | undefined {
-  if (input == null) return undefined
-  try {
-    const text = JSON.stringify(input)
-    if (!text || text === '{}') return undefined
-    return text.length > 220 ? `${text.slice(0, 220)}...` : text
-  } catch {
-    return undefined
-  }
 }
 
 export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCanonicalContext): CanonicalEvent[] {
@@ -125,7 +115,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
 
   if (ev.type === 'tool_input') {
     const seq = replaySeq()
-    const paramsText = formatParamsText(ev.input)
+    const paramsText = formatToolInputAsParamsText(ev.input)
     return [
       {
         ...createEnvelope(ctx, 'tool_event', seq),

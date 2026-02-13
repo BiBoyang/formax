@@ -8,6 +8,9 @@ export type ToolParamDisplay = {
 
 const REDACTED_VALUE = '[REDACTED]'
 const DEFAULT_MAX_PARAMS_TEXT_LENGTH = 180
+const DEFAULT_MAX_STRING_VALUE_LENGTH = 120
+const DEFAULT_MAX_JSON_VALUE_LENGTH = 2000
+const DEFAULT_MAX_PARAM_COUNT = 12
 
 function splitParamPairs(paramsText: string): string[] {
   const pairs: string[] = []
@@ -79,6 +82,47 @@ function truncate(value: string, limit: number): string {
   return `${value.slice(0, Math.max(0, limit - 3))}...`
 }
 
+function normalizeUnknownValue(
+  value: unknown,
+  options?: { maxStringLength?: number; maxJsonLength?: number },
+): Pick<ToolParamDisplay, 'value' | 'valueType'> {
+  const maxStringLength = options?.maxStringLength ?? DEFAULT_MAX_STRING_VALUE_LENGTH
+  const maxJsonLength = options?.maxJsonLength ?? DEFAULT_MAX_JSON_VALUE_LENGTH
+
+  if (typeof value === 'string') {
+    return { value: truncate(value, maxStringLength), valueType: 'string' }
+  }
+
+  const asJson = JSON.stringify(value)
+  if (typeof asJson !== 'string') return { value: '', valueType: 'string' }
+
+  if (asJson.length <= maxJsonLength) {
+    return { value: asJson, valueType: 'json' }
+  }
+
+  return { value: JSON.stringify({ truncated: true }), valueType: 'json' }
+}
+
+function parseJsonObjectParams(paramsText: string): ToolParamDisplay[] | null {
+  const trimmed = paramsText.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+
+    return Object.entries(parsed as Record<string, unknown>).map(([label, value]) => {
+      if (shouldRedact(label)) {
+        return { label, value: REDACTED_VALUE, valueType: 'string' as const }
+      }
+      const normalized = normalizeUnknownValue(value)
+      return { label, value: normalized.value, valueType: normalized.valueType }
+    })
+  } catch {
+    return null
+  }
+}
+
 function pickValue(
   parsed: ToolParamDisplay[],
   usedLabels: Set<string>,
@@ -99,6 +143,8 @@ function pickValue(
 
 export function parseToolParamsText(paramsText: string | undefined): ToolParamDisplay[] {
   if (!paramsText) return []
+  const parsedJsonObject = parseJsonObjectParams(paramsText)
+  if (parsedJsonObject) return parsedJsonObject
   const pairs = splitParamPairs(paramsText)
   const parsed: ToolParamDisplay[] = []
 
@@ -117,6 +163,34 @@ export function parseToolParamsText(paramsText: string | undefined): ToolParamDi
   }
 
   return parsed
+}
+
+export function formatToolInputAsParamsText(
+  input: unknown,
+  options?: {
+    maxStringLength?: number
+    maxJsonLength?: number
+    maxParams?: number
+  },
+): string | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined
+
+  const maxParams = options?.maxParams ?? DEFAULT_MAX_PARAM_COUNT
+  const entries = Object.entries(input as Record<string, unknown>).slice(0, maxParams)
+  if (entries.length === 0) return undefined
+
+  const params: ToolParamDisplay[] = entries.map(([label, value]) => {
+    if (shouldRedact(label)) {
+      return { label, value: REDACTED_VALUE, valueType: 'string' as const }
+    }
+    const normalized = normalizeUnknownValue(value, {
+      maxStringLength: options?.maxStringLength,
+      maxJsonLength: options?.maxJsonLength,
+    })
+    return { label, value: normalized.value, valueType: normalized.valueType }
+  })
+
+  return stringifyToolParams(params, Number.MAX_SAFE_INTEGER)
 }
 
 export function orderToolParamsByToolName(toolName: string, parsed: ToolParamDisplay[]): ToolParamDisplay[] {
@@ -197,4 +271,3 @@ export function parseJsonArrayLength(value: string): number | null {
     return null
   }
 }
-

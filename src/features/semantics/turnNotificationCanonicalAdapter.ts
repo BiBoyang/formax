@@ -1,4 +1,5 @@
 import type { CanonicalEvent, CanonicalEventSource } from './canonicalEvents'
+import { formatToolInputAsParamsText } from '../tools/presentation/paramsText'
 
 type TurnNotification = {
   method: string
@@ -177,17 +178,6 @@ function readToolEndSummary(event: Record<string, unknown>): string | undefined 
   return isError ? 'error' : 'completed'
 }
 
-function formatParamsText(input: unknown): string | undefined {
-  if (input == null) return undefined
-  try {
-    const text = JSON.stringify(input)
-    if (!text || text === '{}') return undefined
-    return text.length > 220 ? `${text.slice(0, 220)}...` : text
-  } catch {
-    return undefined
-  }
-}
-
 export function toCanonicalEventsFromTurnNotification(
   notification: TurnNotification,
   ctx: TurnNotificationCanonicalContext,
@@ -243,7 +233,7 @@ export function toCanonicalEventsFromTurnNotification(
         eventType === 'tool_start' ? 'start' : eventType === 'tool_end' ? 'end' : 'update'
       const line = eventType === 'tool_update' ? readToolUpdateLine(streamEvent) : undefined
       const summary = eventType === 'tool_end' ? readToolEndSummary(streamEvent) : undefined
-      const paramsText = formatParamsText(streamEvent.input)
+      const paramsText = formatToolInputAsParamsText(streamEvent.input)
       const isError =
         eventType === 'tool_end' &&
         Boolean((streamEvent.result as Record<string, unknown> | undefined)?.is_error)

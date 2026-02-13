@@ -24,7 +24,7 @@ describe('turnNotificationCanonicalAdapter', () => {
             threadId: 'thread-1',
             turnId: 'turn-1',
             replaySeq: 11,
-            event: { type: 'tool_update', id: 'tool-1', middleLines: ['OUT total 1'] },
+            event: { type: 'tool_input', id: 'tool-1', input: { command: 'ls -la', cwd: '/repo' } },
           },
         },
         { fallbackThreadId: 'thread-fallback' },
@@ -36,6 +36,18 @@ describe('turnNotificationCanonicalAdapter', () => {
             threadId: 'thread-1',
             turnId: 'turn-1',
             replaySeq: 12,
+            event: { type: 'tool_update', id: 'tool-1', middleLines: ['OUT total 1'] },
+          },
+        },
+        { fallbackThreadId: 'thread-fallback' },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            replaySeq: 13,
             event: {
               type: 'tool_end',
               id: 'tool-1',
@@ -47,15 +59,21 @@ describe('turnNotificationCanonicalAdapter', () => {
       ),
     ]
 
-    expect(events.map((event) => event.kind)).toEqual(['tool_event', 'tool_event', 'tool_event'])
-    expect(events.map((event) => event.replaySeq)).toEqual([10, 11, 12])
+    expect(events.map((event) => event.kind)).toEqual(['tool_event', 'tool_event', 'tool_event', 'tool_event'])
+    expect(events.map((event) => event.replaySeq)).toEqual([10, 11, 12, 13])
     expect(events[0]).toMatchObject({
       kind: 'tool_event',
       phase: 'start',
       toolUseId: 'tool-1',
       toolName: 'Bash',
     })
-    expect(events[2]).toMatchObject({
+    expect(events[1]).toMatchObject({
+      kind: 'tool_event',
+      phase: 'update',
+      toolUseId: 'tool-1',
+      paramsText: 'command="ls -la", cwd="/repo"',
+    })
+    expect(events[3]).toMatchObject({
       kind: 'tool_event',
       phase: 'end',
       summary: 'done',
