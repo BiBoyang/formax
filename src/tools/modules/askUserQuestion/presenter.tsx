@@ -5,6 +5,7 @@ import { createToolBlocksPresenter } from '../../presenters/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 import { AskUserQuestionToolBlock, parseQuestions, parseAnswers } from '../../presenters/AskUserQuestionToolBlock'
+import { formatQuestionCountLabel, summarizeAskUserQuestionStatus } from '../../../features/tools/presentation/labels'
 
 export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {
@@ -29,7 +30,7 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
         kind: 'header',
         status,
         label: 'AskUserQuestion',
-        params: `${String(questions.length)} questions`,
+        params: formatQuestionCountLabel(questions.length),
       },
     ]
 
@@ -48,10 +49,15 @@ export const AskUserQuestionToolPresenter = createToolBlocksPresenter(
     }
 
     if (answers) {
+      const summary = summarizeAskUserQuestionStatus({
+        status,
+        fallbackSummary: '',
+        answerCount: Object.keys(answers).length,
+      })
       blocks.push({
         kind: 'subline',
         status: 'completed',
-        children: <Text>Answered</Text>,
+        children: <Text>{summary}</Text>,
       })
       blocks.push({
         kind: 'lines',

@@ -2,6 +2,12 @@ import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
 import { parseJsonArrayLength } from '../../../../../src/features/tools/presentation/paramsText'
+import {
+  formatItemCountLabel,
+  formatQuestionCountLabel,
+  summarizeAskUserQuestionStatus,
+  summarizeTodoWriteStatus,
+} from '../../../../../src/features/tools/presentation/labels'
 
 type ToolRenderContext = {
   cwd?: string
@@ -214,19 +220,14 @@ const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const questions = params.find((param) => param.label === 'questions')
   const count = questions ? parseJsonArrayLength(questions.value) : null
-  const title = count == null ? item.toolName : `${item.toolName} ${count} questions`
+  const title = count == null ? item.toolName : `${item.toolName} ${formatQuestionCountLabel(count)}`
   const parsedAnswers = item.status === 'completed' ? parseAskAnswerLines(item.detailLines) : null
-  let summary = sanitizeToolTextPaths(item.summary, context.cwd)
-  if (item.status === 'running') {
-    summary = 'Waiting for answers'
-  } else if (item.status === 'completed') {
-    if (parsedAnswers) {
-      const answers = parsedAnswers.answerCount
-      summary = answers > 0 ? `Answered ${answers} question${answers > 1 ? 's' : ''}` : 'Answered'
-    } else if (!summary.trim()) {
-      summary = 'Answered'
-    }
-  }
+  const fallbackSummary = sanitizeToolTextPaths(item.summary, context.cwd)
+  const summary = summarizeAskUserQuestionStatus({
+    status: toToolStatus(item.status),
+    fallbackSummary,
+    answerCount: parsedAnswers?.answerCount ?? null,
+  })
   return withStandardBlocks({
     item,
     title,
@@ -240,10 +241,11 @@ const todoWriteRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const todos = params.find((param) => param.label === 'todos')
   const count = todos ? parseJsonArrayLength(todos.value) : null
-  const title = count == null ? item.toolName : `${item.toolName} ${count} items`
-  let summary = sanitizeToolTextPaths(item.summary, context.cwd)
-  if (item.status === 'running') summary = 'Updating todo list'
-  if (item.status === 'completed') summary = 'Updated todo list'
+  const title = count == null ? item.toolName : `${item.toolName} ${formatItemCountLabel(count)}`
+  const summary = summarizeTodoWriteStatus({
+    status: toToolStatus(item.status),
+    fallbackSummary: sanitizeToolTextPaths(item.summary, context.cwd),
+  })
   return withStandardBlocks({
     item,
     title,

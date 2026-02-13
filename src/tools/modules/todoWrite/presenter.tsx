@@ -6,6 +6,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 import type { TodoItem } from './handler'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
 import { ToolIndented } from '../../../components/tool/ToolSubline'
+import { formatItemCountLabel, summarizeTodoWriteStatus } from '../../../features/tools/presentation/labels'
 
 export const TodoWriteToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {
@@ -21,7 +22,7 @@ export const TodoWriteToolPresenter = createToolBlocksPresenter(
   const todos = Array.isArray((input as any)?.todos) ? ((input as any).todos as TodoItem[]) : []
 
   const blocks: ToolBlocksOutput['blocks'] = [
-    { kind: 'header', status, label: 'TodoWrite', params: `${todos.length} items` },
+    { kind: 'header', status, label: 'TodoWrite', params: formatItemCountLabel(todos.length) },
   ]
 
   if (status === 'running') {
@@ -34,7 +35,7 @@ export const TodoWriteToolPresenter = createToolBlocksPresenter(
     children:
       status === 'error'
         ? <Text color={theme.error}>{message.content}</Text>
-        : <Text>Updated todo list</Text>,
+        : <Text>{summarizeTodoWriteStatus({ status, fallbackSummary: message.content || '' })}</Text>,
   })
 
   if (todos.length > 0) {

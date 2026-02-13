@@ -102,7 +102,7 @@ describe('AskUserQuestionToolPresenter', () => {
 
     const frame = lastFrame()
     expect(frame).toContain('AskUserQuestion(')
-    expect(frame).toContain('1 questions')
+    expect(frame).toContain('1 question')
     expect(frame).toContain('AskUserQuestion Interactive')
     expect(lastBlockProps).not.toBe(null)
     expect(lastBlockProps?.toolUseId).toBe('1')
