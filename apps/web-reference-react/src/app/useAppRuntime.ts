@@ -37,6 +37,8 @@ import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
 import { useRpcRequest } from './runtime/useRpcRequest'
 import { useCanonicalMeta } from './runtime/useCanonicalMeta'
+import { useThreadModeCache } from './runtime/useThreadModeCache'
+import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -99,30 +101,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadIdRef,
     nowIso: runtimePorts.nowIso,
   })
-
-  const cacheThreadMode = useCallback((threadId: string | null | undefined, nextMode: ReplMode) => {
-    if (!threadId) return
-    const existing = runtimeStateByThreadRef.current[threadId]
-    if (existing) {
-      if (existing.mode === nextMode) return
-      runtimeStateByThreadRef.current[threadId] = {
-        ...existing,
-        mode: nextMode,
-        updatedAt: runtimePorts.nowIso(),
-      }
-      return
-    }
-    const seed = createInitialThreadRuntimeState({
-      threadId,
-      replaySeq: 0,
-      method: 'ui/modeSelected',
-      ts: runtimePorts.nowIso(),
-    })
-    runtimeStateByThreadRef.current[threadId] = {
-      ...seed,
-      mode: nextMode,
-    }
-  }, [runtimePorts])
+  const { cacheThreadMode } = useThreadModeCache({
+    runtimeStateByThreadRef,
+    nowIso: runtimePorts.nowIso,
+  })
+  const { initializeHandshake } = useInitializeHandshake({ clientRef })
 
   const shouldProcessSequencedNotification = useCallback(
     (params: any): boolean => {
@@ -184,13 +167,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       }),
     [log, request],
   )
-
-  const initializeHandshake = useCallback(async () => {
-    const client = clientRef.current
-    if (!client) return
-    await client.request('initialize', { clientInfo: { name: 'web-reference-react', version: '0.0.1' } })
-    client.notify('initialized')
-  }, [])
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
