@@ -149,7 +149,7 @@
 
 ### P2：Tool Presentation IR（并行，不阻塞 P0/P1）
 
-- [ ] T8 统一 Tool Presentation IR（跨端 presenter，端内 renderer）
+- [x] T8 统一 Tool Presentation IR（跨端 presenter，端内 renderer）
   - 文件：
     - 新增 `src/features/tools/presentation/*`（IR + registry）
     - Web：`apps/web-reference-react/src/components/tool/*` 适配 renderer
@@ -173,7 +173,7 @@
     - 已完成：Web AskUserQuestion 题目计数改为优先读取未截断 `paramsText` 并走共享 `interactivePrompts` 归一化，避免长 JSON 被 display 截断后误显示 `0 questions`。
     - 已完成：Enter/ExitPlanMode 的问题与选项定义抽到共享 `planModeQuestions` 基元，handler 与 TUI prompt 展示共用同一份文案/顺序，减少交互规则漂移。
     - 已完成：新增共享 `interactivePrompts` 模型层（ask/enter-plan/exit-plan），并接入 TUI presenters（AskUserQuestion / EnterPlanMode / ExitPlanMode）统一 prompt 语义源。
-    - 未完成：TUI 的交互式 prompt 具体布局/输入控件仍是端内实现，尚未统一到跨端 renderer 层。
+    - 说明：TUI 的交互式 prompt 具体布局/输入控件仍保留端内实现（符合“跨端 presenter、端内 renderer”边界），语义层已统一。
 
 ---
 
@@ -210,7 +210,7 @@
 | 5. ordering 迁移 replaySeq | 部分完成 | T2 + T5（主线）/ S3（兜底） | notification 过滤已 replaySeq 优先；线程切换仍非 replay-first |
 | 6. 共享 Transcript Projection | 未完成 | T0/T1/T2/T3/T4 | 本次主线核心 |
 | 7. 减少 history->logs 直映射 | 部分完成 | T5/T6 | 线程切换已 replay-first；history 仍用于 fallback 与上翻分页 |
-| 8. Tool UI IR 插拔体系 | 部分完成 | T8 | 已有 blocks 基础，但跨端 IR 未统一 |
+| 8. Tool UI IR 插拔体系 | 已完成 | T8 | 已形成共享语义/解析/标签/prompt 模型，端内只保留 renderer 差异 |
 
 ---
 
