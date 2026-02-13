@@ -153,6 +153,10 @@
     - 全局 UI 基元调整只改 renderer
   - 验收：
     - 新增一个工具 renderer 时，不需要同时改多端多处语义代码。
+  - 当前进展：
+    - 已完成：新增跨端共享参数解析基元 `src/features/tools/presentation/paramsText.ts`（parse/order/stringify/json-array count）。
+    - 已完成：Web `formatToolParams` 与 `toolBlocksRegistry` 改为消费共享基元，减少 tool 参数解析分叉。
+    - 未完成：TUI presenter 仍有独立工具语义层（ask/todo/plan 等），尚未统一到共享 presentation IR registry。
 
 ---
 

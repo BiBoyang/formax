@@ -1,6 +1,7 @@
 import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
+import { parseJsonArrayLength } from '../../../../../src/features/tools/presentation/paramsText'
 
 type ToolRenderContext = {
   cwd?: string
@@ -39,15 +40,6 @@ function withStandardBlocks(args: {
     blocks.push({ kind: 'details', lines: detailLines })
   }
   return blocks
-}
-
-function arrayCountFromParamValue(value: string): number | null {
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return Array.isArray(parsed) ? parsed.length : null
-  } catch {
-    return null
-  }
 }
 
 function parseFirstJsonObjectFromLines(lines: string[]): Record<string, unknown> | null {
@@ -221,7 +213,7 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
 const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const questions = params.find((param) => param.label === 'questions')
-  const count = questions ? arrayCountFromParamValue(questions.value) : null
+  const count = questions ? parseJsonArrayLength(questions.value) : null
   const title = count == null ? item.toolName : `${item.toolName} ${count} questions`
   const parsedAnswers = item.status === 'completed' ? parseAskAnswerLines(item.detailLines) : null
   let summary = sanitizeToolTextPaths(item.summary, context.cwd)
@@ -247,7 +239,7 @@ const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
 const todoWriteRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const todos = params.find((param) => param.label === 'todos')
-  const count = todos ? arrayCountFromParamValue(todos.value) : null
+  const count = todos ? parseJsonArrayLength(todos.value) : null
   const title = count == null ? item.toolName : `${item.toolName} ${count} items`
   let summary = sanitizeToolTextPaths(item.summary, context.cwd)
   if (item.status === 'running') summary = 'Updating todo list'
