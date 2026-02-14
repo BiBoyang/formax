@@ -82,7 +82,7 @@ Run targeted tests close to your change:
 1) **Lock behavior first**: add/extend tests for the exact keypaths (↑↓, Enter, Esc, numeric select).
 2) **Implement smallest change**: preserve UI copy/spacing/colors unless explicitly requested.
 3) **Run targeted tests** (above).
-4) **Run review**: `codex review --uncommitted` (fix high/medium findings).
+4) **Run review**: follow `AGENTS.md` -> `Review Profile (Single Source of Truth)` (fix high/medium findings).
 5) Commit with Conventional Commit (`fix(permissions): ...` / `refactor(approval): ...`).
 
 ## Guardrails

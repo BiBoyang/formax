@@ -93,7 +93,7 @@ Minimum gate for cross-surface semantic changes:
 - `bun run test -- src/App.test.tsx src/store.test.ts src/turnEventCursor.test.ts src/toolEventNormalizer.test.ts`
 
 5. If committing:
-- `codex review --uncommitted -c model="gpt-5.2" -c model_reasoning_effort="high"`
+- Run review using `AGENTS.md` -> `Review Profile (Single Source of Truth)`
 
 For fixture selection and required assertions, read:
 - `references/fixtures-checklist.md`

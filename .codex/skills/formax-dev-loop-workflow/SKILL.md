@@ -1,6 +1,6 @@
 ---
 name: formax-dev-loop-workflow
-description: "Use when working on Formax code changes and you need a disciplined dev loop: keep a single mainline task, avoid scope drift, run only targeted tests (no coverage), avoid partial staging (MM), run review with `gpt-5.2` + `high` reasoning before commit, include an incremental optimization check, and keep commits small and reviewable."
+description: "Use when working on Formax code changes and you need a disciplined dev loop: keep a single mainline task, avoid scope drift, run only targeted tests (no coverage), avoid partial staging (MM), run mandatory review before commit, include an incremental optimization check, and keep commits small and reviewable."
 ---
 
 # Formax Dev Loop (Mainline Discipline)
@@ -30,11 +30,7 @@ description: "Use when working on Formax code changes and you need a disciplined
 6) **Pre-commit hygiene**
    - Avoid partial staging (“MM” state). If needed, check with:
      - `bun run check:partial-stage`
-   - Run review before every commit (required profile):
-     - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
-   - Use a long command timeout for review runs:
-     - In Codex tool calls: set `timeout_ms` to **at least 900000** (15 minutes), preferred **1200000** (20 minutes).
-     - Do not use short default timeouts for review loops.
+   - Run review before every commit using `AGENTS.md` -> `Review Profile (Single Source of Truth)`.
    - If review returns findings: fix -> re-run targeted tests -> re-run review.
 
 7) **Commit**
@@ -61,8 +57,5 @@ bun run test:changed
 bun run test:changed -- --all
 
 # Required before commit (review profile)
-codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"
-
-# If your shell supports it, wrap with an explicit process timeout (20 minutes)
-timeout 1200 codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"
+# See AGENTS.md -> "Review Profile (Single Source of Truth)"
 ```

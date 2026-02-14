@@ -19,7 +19,7 @@
 - 运行命令时不要使用任何 shell 重定向/管道（例如 `2>&1`、`| head`、`| tail`、`| tee`），直接运行原命令即可（避免 UI 被控制符/重定向搞乱）。
 - 不要做 UI 文案/颜色/间距 的“顺手优化”，除非迁移后为了保持现状一致不得不做。
 - 不要升级依赖、不要大重构、不要顺手清理无关代码。
-- 每个 commit 前必须跑：`codex review --uncommitted`（不要加 `2>&1` 或管道）。
+- 每个 commit 前必须跑 review：按 `AGENTS.md` 的 `Review Profile (Single Source of Truth)` 执行（不要加 `2>&1` 或管道）。
 - commit 尽量小：建议 edit 一次 commit，write 一次 commit。
 - 质量约束（从 edit/write 迁移踩坑里总结的，必须遵守）：
   - **不允许**在实现/测试里使用 `(xxx as any)`、`as any`、`// @ts-ignore` 来“糊过去”
@@ -64,8 +64,8 @@
    - 测试里不要写 `(Presenter as any)`：用 `isToolBlocksPresenter` 分支拿 `blocks`（参考已迁移工具的测试写法）。
 
 4) 执行步骤（建议）
-   - Step A：只做 edit（含必要测试调整）→ 跑 targeted tests → `codex review --uncommitted` → commit
-   - Step B：只做 write（含必要测试调整）→ 跑 targeted tests → `codex review --uncommitted` → commit
+   - Step A：只做 edit（含必要测试调整）→ 跑 targeted tests → 按 `AGENTS.md` 的 `Review Profile (Single Source of Truth)` 跑 review → commit
+   - Step B：只做 write（含必要测试调整）→ 跑 targeted tests → 按 `AGENTS.md` 的 `Review Profile (Single Source of Truth)` 跑 review → commit
 
 只跑 targeted tests（示例，按你实际改动调整）：
 - `bun run test -- src/tools/modules/edit/presenter.test.tsx`

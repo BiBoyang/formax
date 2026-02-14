@@ -88,4 +88,4 @@ Add or change `/config` settings in Formax while keeping:
 - **Stability-first**
   - Add/extend tests before refactors; tests are not the full spec—manual parity matters.
 - **Review + commit discipline**
-  - Before committing, run `codex review --uncommitted` and fix high/medium findings.
+  - Before committing, run review using `AGENTS.md` -> `Review Profile (Single Source of Truth)` and fix high/medium findings.

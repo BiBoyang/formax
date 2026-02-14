@@ -83,7 +83,7 @@ Formax 也按这个语义实现：
 
 - `bun run type-check`
 - `bun run test`
-- `codex review --uncommitted`
+- 按 `AGENTS.md` 的 `Review Profile (Single Source of Truth)` 执行 review
 - 提交 commit（Conventional Commit）
 
 ## 关键文件速查

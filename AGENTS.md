@@ -41,7 +41,12 @@
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
 - **Coverage mindset**: Prioritize adding/strengthening tests when behavior is user-visible or stability-critical (tools, permissions, hooks, REPL input, UI flows). Avoid “happy-path only” tests—cover edge cases and regressions you’ve already seen.
 - **Refactor safety**: Before refactoring, add/extend tests to lock current behavior. Do not rely on “tests pass” if manual behavior regresses.
-- **Code review (mandatory in loops)**: After tests pass, run `codex review --uncommitted` before committing; fix all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
+- **Code review (mandatory in loops)**: After tests pass, run review using the **Review Profile (Single Source of Truth)** below before committing; fix all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
+
+### Review Profile (Single Source of Truth)
+- Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
+- Tool-call timeout for review: `timeout_ms >= 1200000`
+- Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 
 ## Refactor Guardrails (Important)
 - **Refactor != rewrite**: refactors must preserve existing functionality and user-visible behavior; do not add/remove features as a side-effect.
@@ -71,7 +76,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 ## Documentation Hygiene
 - Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
 - **CODEMAP update triggers**: If you (a) add a new entrypoint/wiring point, (b) extract a cross-cutting helper used by multiple subsystems (e.g. audit/logging), or (c) move/rename user-facing UI/tool files, update `CODEMAP.md` in the same commit so future debugging follows the new “go-to” path.
-- Treat `docs/LEARNINGS/` as the long-term “how Claude Code works (as observed) + how Formax maps to it” knowledge base; when you ship a behavior-alignment change, add/update a short learning note there.
+- When you ship a behavior-alignment change, add/update a short learning note in the active planning docs under `plans/app-server/` so mapping decisions remain traceable.
 - For complex subsystems that have a local deep-dive README, keep it in sync when you change boundaries, control-flow, invariants, or extension points:
   - `src/tools/README.md`
   - `src/core/README.md`

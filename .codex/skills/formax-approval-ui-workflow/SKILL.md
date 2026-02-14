@@ -80,4 +80,4 @@ description: Use when adding or changing any Approval prompt/presenter.
   - hard caps for quadratic diff algorithms
 - Loop discipline:
   - run targeted tests first, then `bun run test` if needed
-  - run `codex review --uncommitted` before committing; fix all high/medium findings
+  - run review before committing using `AGENTS.md` -> `Review Profile (Single Source of Truth)`; fix all high/medium findings

@@ -92,10 +92,7 @@ bun run test -- src/tools/modules/<name>/presenter.test.tsx
 
 ### 5) Run Codex review before committing
 
-```bash
-codex review --uncommitted
-```
-
+Follow `AGENTS.md` -> `Review Profile (Single Source of Truth)`.
 Fix high/medium findings; only take low-risk low findings when low-churn.
 
 ### 6) Commit

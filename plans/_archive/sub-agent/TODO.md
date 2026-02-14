@@ -78,7 +78,7 @@
   - [x] 摘要行更像 Claude Code：`Done (25 tool uses · 66.6k tokens · 1m 30s)`（tokens/耗时/工具次数）
 - [x] 多个 Explore 并发的展示（`3 Explore agents finished (ctrl+o to expand)`）
   - [ ] 仍待增强：目前用“主日志追加一行 + 面板展开”的实现（避免 Static append-only 的可逆折叠问题）；并发分组目前用短时间窗口启发式识别
-- [x] 文档沉淀：在 `docs/LEARNINGS/subagents/` 写一篇“抓包事实 → Formax 映射”
+- [x] 文档沉淀：写一篇“抓包事实 → Formax 映射”
 
 ## 待确认（建议后续再抓包补齐）
 
