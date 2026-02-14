@@ -12,6 +12,24 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 
 ---
 
+## UI refactor drift (mixed ownership + mixed goals)
+- **Problem**: a small UI change took too many iterations and repeatedly regressed.
+- **Repro**:
+  1) keep more than one implementation path active for the same interaction
+  2) change behavior and visuals in the same loop
+  3) rely on implementation-level checks instead of user-behavior checks
+  4) observe “fix one break one” cycles
+- **Root cause**:
+  - ownership of state/interaction was not single-source
+  - scope was not isolated (architecture and styling changed together)
+  - tests did not guard the exact user action that kept regressing
+- **Fix**:
+  - first converge to one interaction path and one owner for state
+  - lock key user behavior with a minimal end-to-end check before refactor
+  - split work into phases: behavior correctness first, visual polish second
+  - reject compatibility/branching work unless runtime evidence proves it is necessary
+- **Keywords**: ui refactor, single ownership, behavior first, phase separation, e2e guard
+
 ## Repomix respects `.gitignore` (proxy JSON missing)
 - **Problem**: repomix export sometimes “misses” `proxy/*.json` and other artifacts.
 - **Repro**: run repomix without flags in a repo where `.gitignore` ignores `proxy/`.

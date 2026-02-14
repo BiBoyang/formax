@@ -80,6 +80,7 @@ describe('App thread history integration', () => {
 
   beforeEach(() => {
     rpcMock.reset()
+    window.history.replaceState(null, '', '/')
     window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
@@ -186,15 +187,20 @@ describe('App thread history integration', () => {
   it('restores persisted sidebar and right rail widths', async () => {
     const originalInnerWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 })
-    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, '320')
-    window.localStorage.setItem(RIGHT_RAIL_WIDTH_STORAGE_KEY, '460')
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, '18')
+    window.localStorage.setItem(RIGHT_RAIL_WIDTH_STORAGE_KEY, '31')
 
     try {
       render(<App />)
       await waitFor(() => {
-        expect(screen.getByTestId('left-rail')).toHaveStyle('width: 320px')
+        const leftRail = screen.getByTestId('left-rail')
+        const panelSize = Number.parseFloat(leftRail.parentElement?.getAttribute('data-panel-size') ?? '0')
+        expect(panelSize).toBeGreaterThan(17.5)
+        expect(panelSize).toBeLessThan(18.5)
       })
-      expect(screen.getByTestId('right-rail')).toHaveStyle('width: 460px')
+      const rightPanelSize = Number.parseFloat(screen.getByTestId('right-rail').parentElement?.getAttribute('data-panel-size') ?? '0')
+      expect(rightPanelSize).toBeGreaterThan(30.5)
+      expect(rightPanelSize).toBeLessThan(31.5)
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
       window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
@@ -232,6 +238,36 @@ describe('App thread history integration', () => {
             (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-alpha',
         ),
       ).toBe(true)
+    })
+  })
+
+  it('hydrates active thread from url query param', async () => {
+    window.history.replaceState(null, '', '/?thread=thread-beta')
+    render(<App />)
+
+    expect(await screen.findByText('beta reply')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/messages' &&
+            (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-beta',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('updates url query when switching threads', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await waitFor(() => {
+      expect(new URL(window.location.href).searchParams.get('thread')).toBe('thread-alpha')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await waitFor(() => {
+      expect(new URL(window.location.href).searchParams.get('thread')).toBe('thread-beta')
     })
   })
 
@@ -294,8 +330,8 @@ describe('App thread history integration', () => {
     render(<App />)
     await screen.findByRole('button', { name: /Alpha Session/i })
 
-    fireEvent.click(screen.getAllByLabelText('Thread actions')[0]!)
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename thread' }))
+    fireEvent.contextMenu(await screen.findByRole('button', { name: /Alpha Session/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename thread' }), { detail: 1, button: 0 })
     fireEvent.change(await screen.findByPlaceholderText('Thread title'), {
       target: { value: 'Renamed Session' },
     })

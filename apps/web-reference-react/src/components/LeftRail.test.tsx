@@ -45,7 +45,7 @@ describe('LeftRail', () => {
     fireEvent.click(screen.getByRole('button', { name: /new thread/i }))
     expect(onStartThread).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByText('hello').closest('button') as HTMLButtonElement)
+    fireEvent.click(screen.getByRole('button', { name: /hello/i }))
     expect(onSelectThread).toHaveBeenCalledWith('thread-11111111')
 
     expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
@@ -75,8 +75,15 @@ describe('LeftRail', () => {
         />,
       )
 
-      fireEvent.click(screen.getAllByLabelText('Thread actions')[0]!)
-      fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename thread' }))
+      const helloButton = screen.getByRole('button', { name: /hello/i })
+      const worldButton = screen.getByRole('button', { name: /world/i })
+
+      // Opening another row context menu should not auto-open rename dialog.
+      fireEvent.contextMenu(worldButton)
+      expect(screen.queryByRole('dialog', { name: /Rename thread/i })).not.toBeInTheDocument()
+
+      fireEvent.contextMenu(helloButton)
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename thread' }), { detail: 1, button: 0 })
       const input = await screen.findByPlaceholderText('Thread title')
       fireEvent.change(input, { target: { value: 'Renamed by menu' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -85,14 +92,14 @@ describe('LeftRail', () => {
         expect(onRenameThread).toHaveBeenCalledWith('thread-11111111', 'Renamed by menu')
       })
 
-      fireEvent.click(screen.getAllByLabelText('Thread actions')[0]!)
-      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy working directory' }))
+      fireEvent.contextMenu(helloButton)
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy working directory' }), { detail: 1, button: 0 })
       await waitFor(() => {
         expect(writeText).toHaveBeenCalledWith('/repo')
       })
 
-      fireEvent.click(screen.getAllByLabelText('Thread actions')[0]!)
-      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy session ID' }))
+      fireEvent.contextMenu(helloButton)
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy session ID' }), { detail: 1, button: 0 })
       await waitFor(() => {
         expect(writeText).toHaveBeenCalledWith('thread-11111111')
       })
