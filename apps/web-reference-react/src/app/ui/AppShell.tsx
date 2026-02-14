@@ -62,7 +62,6 @@ export type AppShellProps = {
 }
 
 export function AppShell(props: AppShellProps) {
-
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE

@@ -21,8 +21,12 @@ const ResizablePanelGroup = React.forwardRef<
 })
 ResizablePanelGroup.displayName = 'ResizablePanelGroup'
 
-function ResizablePanel(props: React.ComponentProps<typeof Panel>) {
-  return <Panel data-slot="resizable-panel" {...props} />
+type ResizablePanelProps = React.ComponentProps<typeof Panel> & {
+  size?: number
+}
+
+function ResizablePanel({ size, defaultSize, ...props }: ResizablePanelProps) {
+  return <Panel data-slot="resizable-panel" defaultSize={size ?? defaultSize} {...props} />
 }
 
 function ResizableHandle({
