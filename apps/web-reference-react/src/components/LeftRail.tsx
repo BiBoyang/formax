@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Circle, Ellipsis, Folder, FolderOpen, SquarePen } from 'lucide-react'
+import { ChevronDown, Folder, FolderOpen, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadSummary } from '../types'
 import { Button } from './ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from './ui/context-menu'
 import {
   Dialog,
   DialogContent,
@@ -103,7 +103,6 @@ export function LeftRail(props: LeftRailProps) {
   const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
   const activeThreadCwd = activeThread?.cwd ?? null
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>({})
-  const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null)
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadSummary | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
@@ -132,6 +131,19 @@ export function LeftRail(props: LeftRailProps) {
     setRenameValue(thread.label?.trim() || threadTitle(thread))
   }
 
+  const handleRenameFromContextMenu = (thread: ThreadSummary) => {
+    if (!onRenameThread) return
+    openRenameDialog(thread)
+  }
+
+  const handleCopyContextCwd = (thread: ThreadSummary) => {
+    void copyToClipboard(thread.cwd).catch(() => undefined)
+  }
+
+  const handleCopyContextThreadId = (thread: ThreadSummary) => {
+    void copyToClipboard(thread.id).catch(() => undefined)
+  }
+
   const submitRename = async () => {
     if (!renameThreadTarget || !onRenameThread) return
     const nextLabel = renameValue.trim()
@@ -149,7 +161,7 @@ export function LeftRail(props: LeftRailProps) {
   }
 
   return (
-    <aside className="flex flex-col h-screen flex-none w-full border-r bg-sidebar overflow-hidden">
+    <aside className="flex flex-col h-screen flex-none w-full bg-sidebar overflow-hidden">
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col min-h-full">
           <div className="px-2 pt-4 space-y-0.5 flex-none">
@@ -206,85 +218,51 @@ export function LeftRail(props: LeftRailProps) {
                       {group.threads.map((thread) => {
                         const isActive = activeThreadId === thread.id
                         return (
-                          <div
-                            key={thread.id}
-                            className={cn(
-                              'w-full h-9 flex items-center rounded-md transition-all group/thread',
-                              isActive ? 'bg-muted/60 text-foreground' : 'text-foreground/70 hover:bg-muted/40',
-                            )}
-                          >
-                            <Button
-                              variant="ghost"
-                              className={cn(
-                                'h-9 min-w-0 flex-1 justify-between pl-8 pr-2 font-normal text-[13.5px] transition-all hover:bg-transparent',
-                                isActive ? 'font-medium text-foreground' : 'text-foreground/70',
-                              )}
-                              onClick={() => onSelectThread(thread.id)}
-                            >
-                              <span className="min-w-0 flex-1 truncate text-left">{threadTitle(thread)}</span>
-                              <div className="ml-2 flex w-14 flex-none items-center justify-end opacity-50">
-                                <span className="inline-flex h-2 w-2 items-center justify-center">
-                                  {thread.id === activeThreadId ? (
-                                    <Circle className="h-1.5 w-1.5 fill-emerald-500 text-emerald-500" />
-                                  ) : null}
+                          <ContextMenu key={thread.id}>
+                            <ContextMenuTrigger asChild>
+                              <div
+                                className={cn(
+                                  'relative w-full h-9 flex items-center rounded-md transition-colors group/thread',
+                                  isActive
+                                    ? 'bg-sidebar-accent text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
+                                    : 'text-foreground/85 hover:bg-sidebar-accent/45',
+                                )}
+                              >
+                              <Button
+                                variant="ghost"
+                                className={cn(
+                                  'h-9 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal text-[13.5px] transition-none hover:bg-transparent',
+                                  isActive ? 'text-foreground' : 'text-foreground/85',
+                                )}
+                                onClick={() => onSelectThread(thread.id)}
+                              >
+                                <span className="min-w-0 flex-1 truncate text-left">{threadTitle(thread)}</span>
+                                <span className={cn('shrink-0 text-right text-[11px] font-mono tabular-nums', isActive ? 'text-foreground/58' : 'text-foreground/52')}>
+                                  {relativeTime(thread.updatedAt)}
                                 </span>
-                                <span className="w-10 text-right text-[11px] font-mono">{relativeTime(thread.updatedAt)}</span>
+                              </Button>
                               </div>
-                            </Button>
-
-                            <DropdownMenu
-                              open={openMenuThreadId === thread.id}
-                              onOpenChange={(open) => setOpenMenuThreadId(open ? thread.id : null)}
-                            >
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className={cn(
-                                    'h-7 w-7 mr-1 p-0 opacity-0 transition-opacity',
-                                    'group-hover/thread:opacity-100 data-[state=open]:opacity-100',
-                                  )}
-                                  aria-label="Thread actions"
-                                  onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    setOpenMenuThreadId((current) => (current === thread.id ? null : thread.id))
-                                  }}
-                                >
-                                  <Ellipsis className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" sideOffset={6}>
-                                <DropdownMenuItem
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                                <ContextMenuItem
                                   disabled={!onRenameThread}
-                                  onSelect={(event) => {
-                                    event.preventDefault()
-                                    setOpenMenuThreadId(null)
-                                    openRenameDialog(thread)
-                                  }}
+                                  onSelect={() => handleRenameFromContextMenu(thread)}
                                 >
                                   Rename thread
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onSelect={() => {
-                                    setOpenMenuThreadId(null)
-                                    void copyToClipboard(thread.cwd).catch(() => undefined)
-                                  }}
+                                </ContextMenuItem>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem
+                                  onSelect={() => handleCopyContextCwd(thread)}
                                 >
                                   Copy working directory
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => {
-                                    setOpenMenuThreadId(null)
-                                    void copyToClipboard(thread.id).catch(() => undefined)
-                                  }}
+                                </ContextMenuItem>
+                                <ContextMenuItem
+                                  onSelect={() => handleCopyContextThreadId(thread)}
                                 >
                                   Copy session ID
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                          </ContextMenu>
                         )
                       })}
                     </CollapsibleContent>

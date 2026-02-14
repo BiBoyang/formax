@@ -10,6 +10,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'react-resizable-panels': fileURLToPath(
+        new URL('./node_modules/react-resizable-panels/dist/react-resizable-panels.browser.esm.js', import.meta.url),
+      ),
     },
   },
   server: {
