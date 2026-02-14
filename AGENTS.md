@@ -34,6 +34,8 @@
 - Match existing formatting: 2-space indentation, single quotes, no semicolons.
 - `PascalCase` for components/classes (`REPL`, `StreamClient`), `camelCase` for functions/hooks (`useReplController`).
 - Tool modules follow `src/tools/modules/<name>/{index,handler,presenter}.ts(x)` and `createXToolModule` factory naming.
+- **GLOBAL CLARIFICATION RULE (MANDATORY)**: In ANY task, if user intent is ambiguous (UI, behavior, scope, risk, tradeoff, or acceptance criteria), you MUST ask the user BEFORE making directional choices. DO NOT infer beyond explicit requirements.
+- **QUESTION TOOL RULE (MANDATORY)**: When clarification is needed, you MUST use the user-input question tool first (e.g. `request_user_input`) when available. If that tool is unavailable in the current mode, you MUST ask the user directly in chat instead of guessing.
 
 ## Testing Guidelines
 - Framework: Vitest; Ink UI tests use `ink-testing-library`.
@@ -52,7 +54,7 @@
 - **Refactor != rewrite**: refactors must preserve existing functionality and user-visible behavior; do not add/remove features as a side-effect.
 - **Tests are not the spec**: before refactoring, first check whether missing/weak tests can be added to lock current behavior; use those tests to validate the refactor.
 - **UI parity**: UI refactors must keep layout/spacing/keys/interaction the same unless the user explicitly requests a UI change; do not “improve” UI by default.
-- **When uncertain**: if behavior/UI expectations are unclear, ask the user before changing it.
+- **When uncertain**: if expectations are unclear (not limited to UI), ask the user before changing behavior.
 - **UI refactor workflow (mandatory)**:
   - Before refactor: write/extend `ink-testing-library` tests that lock the current UI text + key paths (Enter/Esc/Tab/↑↓/←→/Backspace).
   - During refactor: do not change copy/spacing/colors unless explicitly requested; treat “simplifying UI” as a behavior change.
