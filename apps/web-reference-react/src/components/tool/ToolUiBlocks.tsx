@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import type { ToolInputState, ToolUiBlock, ToolUiBlockDetails, ToolUiBlockHeader, ToolStatus } from './toolUiBlocksTypes'
+import { DiffPatchView } from '../diff/DiffPatchView'
+import { truncatePathFromLeft } from '../diff/diffTypes'
+import type { ToolInputState, ToolUiBlock, ToolUiBlockDetails, ToolUiBlockHeader, ToolStatus, ToolUiBlockDiff } from './toolUiBlocksTypes'
 
 export type ToolUiBlocksProps = {
   blocks: ToolUiBlock[]
@@ -79,10 +81,35 @@ function DetailsBlock({ block }: { block: ToolUiBlockDetails }) {
   )
 }
 
+function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
+  return (
+    <div className="ml-3 mt-2 space-y-2">
+      {block.files.map((file) => (
+        <div key={`${file.path}-${file.patch.length}`} className="rounded-[10px] overflow-hidden">
+          <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 bg-sidebar-accent/55 border border-transparent rounded-t-[10px]">
+            <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
+              <span title={file.path} className="font-mono min-w-0 truncate text-[#1f2328] text-[12.5px] leading-4 font-medium">
+                {truncatePathFromLeft(file.path)}
+              </span>
+              <div className="flex items-center gap-1 text-[12px] leading-4 font-mono font-normal shrink-0">
+                <span className="text-[#00a86b]">+{file.additions}</span>
+                <span className="text-[#d63a3a]">-{file.deletions}</span>
+              </div>
+            </div>
+          </div>
+          <DiffPatchView patch={file.patch} maxHeightClassName="max-h-[420px]" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function ToolUiBlocks({ blocks, open, onToggle }: ToolUiBlocksProps) {
   const header = blocks.find((block): block is ToolUiBlockHeader => block.kind === 'header')
   const details = blocks.find((block): block is ToolUiBlockDetails => block.kind === 'details')
   const info = blocks.find((block) => block.kind === 'info')
+  const diff = blocks.find((block): block is ToolUiBlockDiff => block.kind === 'diff')
+  const showDiff = Boolean(diff) && (open || !header || !header.expandable)
 
   return (
     <div className="py-0.5">
@@ -90,6 +117,7 @@ export function ToolUiBlocks({ blocks, open, onToggle }: ToolUiBlocksProps) {
       {info && info.kind === 'info' ? (
         <div className="ml-[18px] text-[12px] text-muted-foreground">{info.text}</div>
       ) : null}
+      {showDiff && diff ? <DiffBlock block={diff} /> : null}
       {details && open ? <DetailsBlock block={details} /> : null}
     </div>
   )

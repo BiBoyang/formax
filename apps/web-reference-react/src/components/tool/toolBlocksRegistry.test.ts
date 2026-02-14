@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptItem } from '../../types'
 import { buildToolUiBlocks } from './toolBlocksRegistry'
+import { formatToolInputAsParamsText } from '../../../../../src/features/tools/presentation/paramsText'
 
 function makeToolItem(
   overrides: Partial<Extract<TranscriptItem, { kind: 'tool_call' }>> = {},
@@ -66,6 +67,79 @@ describe('buildToolUiBlocks', () => {
     const header = blocks.find((block) => block.kind === 'header')
     expect(header?.kind).toBe('header')
     expect(header?.summary).toBe('Write running')
+  })
+
+  it('renders write tool as diff block when content exists', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote snake-game/index.html',
+      paramsText: 'file_path="snake-game/index.html", content="line1\\nline2"',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.path).toBe('snake-game/index.html')
+    expect(diff?.files[0]?.additions).toBe(2)
+    expect(diff?.files[0]?.deletions).toBe(0)
+  })
+
+  it('renders empty write content with zero added lines', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote snake-game/empty.txt',
+      paramsText: 'file_path="snake-game/empty.txt", content=""',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.additions).toBe(0)
+    expect(diff?.files[0]?.deletions).toBe(0)
+    const addedLines =
+      diff?.files[0]?.patch
+        .split('\n')
+        .filter((line) => line.startsWith('+') && !line.startsWith('+++')) ?? []
+    expect(addedLines).toEqual([])
+  })
+
+  it('omits write diff when params text is truncated', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote snake-game/index.html',
+      paramsText:
+        'file_path="snake-game/index.html", content="line1\\nline2\\nline3\\nline4\\nline5\\nline6...',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(diff).toBeUndefined()
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('Diff preview unavailable (tool input was truncated).')
+  })
+
+  it('omits write diff when content value is clipped by params formatter', () => {
+    const paramsText = formatToolInputAsParamsText({
+      file_path: 'snake-game/index.html',
+      content: 'x'.repeat(300),
+    })
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      summary: 'Wrote snake-game/index.html',
+      paramsText: paramsText ?? undefined,
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(diff).toBeUndefined()
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('Diff preview unavailable (tool input was truncated).')
   })
 
   it('normalizes exit plan mode approval summary', () => {

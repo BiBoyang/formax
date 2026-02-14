@@ -237,6 +237,34 @@ describe('ToolTranscriptItem', () => {
     expect(screen.queryByText(/\/Users\/david\/Documents\/github\/formax/)).not.toBeInTheDocument()
   })
 
+  it('shows write diff even when closed and header is non-expandable', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      paramsText: 'file_path="snake-game/index.html", content="line1\\nline2"',
+      summary: 'Wrote snake-game/index.html',
+      detailLines: [],
+    })
+
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText('line1')).toBeInTheDocument()
+    expect(screen.getByText('line2')).toBeInTheDocument()
+  })
+
+  it('shows write diff truncation notice when params text is clipped', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'completed',
+      paramsText:
+        'file_path="snake-game/index.html", content="line1\\nline2\\nline3\\nline4\\nline5\\nline6...',
+      summary: 'Wrote snake-game/index.html',
+      detailLines: [],
+    })
+
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText('Diff preview unavailable (tool input was truncated).')).toBeInTheDocument()
+  })
+
   it('renders Enter/ExitPlanMode with semantic titles', () => {
     const enterItem = makeToolItem({
       toolName: 'EnterPlanMode',

@@ -3,14 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import { ScrollArea } from './ui/scroll-area'
 import { cn } from '../lib/utils'
 import { shouldStopWheelPropagation } from './scrollBoundary'
+import { DiffPatchView } from './diff/DiffPatchView'
+import { truncatePathFromLeft, type DiffFileViewModel } from './diff/diffTypes'
 
-type DiffFile = {
-  path: string
-  additions: number
-  deletions: number
-  patch: string
-  untracked?: boolean
-}
+type DiffFile = DiffFileViewModel
 
 export type DiffSnapshot = {
   cwd: string
@@ -20,84 +16,11 @@ export type DiffSnapshot = {
   files: DiffFile[]
 }
 
-type DiffRow = {
-  kind: 'meta' | 'add' | 'del' | 'ctx'
-  text: string
-  oldLine: number | null
-  newLine: number | null
-}
-
 export type WorktreeDiffPaneProps = {
   diffSnapshot?: DiffSnapshot | null
   onRefreshDiff?: () => void
   isRefreshingDiff?: boolean
   showHeader?: boolean
-}
-
-function parsePatchRows(patch: string): DiffRow[] {
-  const rows: DiffRow[] = []
-  let oldLine = 0
-  let newLine = 0
-  let inHunk = false
-
-  for (const line of patch.split('\n')) {
-    if (line.startsWith('@@')) {
-      const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
-      if (m) {
-        oldLine = Number(m[1])
-        newLine = Number(m[2])
-        inHunk = true
-      }
-      rows.push({ kind: 'meta', text: line.replace(/^@@.*?@@\s?/, '').trim() || '···', oldLine: null, newLine: null })
-      continue
-    }
-
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      rows.push({ kind: 'add', text: line, oldLine: null, newLine })
-      newLine += 1
-    } else if (line.startsWith('-') && !line.startsWith('---')) {
-      rows.push({ kind: 'del', text: line, oldLine, newLine: null })
-      oldLine += 1
-    } else if (inHunk && !line.startsWith('\\')) {
-      rows.push({ kind: 'ctx', text: line, oldLine, newLine })
-      oldLine += 1
-      newLine += 1
-    }
-  }
-  return rows
-}
-
-function DiffPatchView({ file }: { file: DiffFile }) {
-  const rows = parsePatchRows(file.patch)
-  return (
-    <div className="bg-white rounded-b-[10px] overflow-hidden">
-      <div className="max-h-[1200px] min-w-0 overflow-x-hidden font-mono text-[12px] leading-relaxed">
-        {rows.map((row, index) => (
-          <div key={index} className={cn(
-              "grid grid-cols-[48px_minmax(0,1fr)] relative group/line",
-              row.kind === 'add' && "bg-emerald-500/[0.04] hover:bg-emerald-500/[0.07]",
-              row.kind === 'del' && "bg-red-500/[0.04] hover:bg-red-500/[0.07]",
-              row.kind === 'meta' && "bg-muted/30 text-muted-foreground/40 italic text-[11px] py-1"
-          )}>
-            {(row.kind === 'add' || row.kind === 'del') && (
-                <div className={cn("absolute left-0 top-0 bottom-0 w-[4px]", row.kind === 'add' ? "bg-emerald-500/60" : "bg-red-500/60")} />
-            )}
-            <div className="select-none px-2 text-right text-muted-foreground/30 text-[10px] flex items-center justify-end border-r border-border/10">
-              {row.kind === 'del' ? row.oldLine : (row.newLine ?? '')}
-            </div>
-            <div className={cn("min-w-0 px-4 flex items-start", row.kind === 'add' && "text-emerald-700/90", row.kind === 'del' && "text-red-700/90")}>
-              <span className="opacity-30 mr-3 w-2 shrink-0 select-none text-[13px]">
-                {row.kind === 'add' ? '+' : row.kind === 'del' ? '-' : ' '}
-              </span>
-              <span className="min-w-0 flex-1 whitespace-pre-wrap break-all py-0.5">
-                {row.text.startsWith('+') || row.text.startsWith('-') ? row.text.slice(1) : row.text}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
@@ -168,46 +91,64 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
             <div className="sticky top-0 h-4 w-full bg-white z-[15] -mt-1 pointer-events-none" />
 
             {listOpen ? (
-              <div className="space-y-2 pt-1">
-                {files.map((file) => {
-                  const open = Boolean(openFiles[file.path])
-                  return (
-                    <div key={file.path} className="flex min-w-0 flex-col group relative">
-                      <button
-                        data-testid={`diff-file-row-${file.path}`}
+              !diffSnapshot ? null : files.length === 0 && !diffSnapshot.hasChanges ? (
+                <div className="min-h-[55vh] grid place-items-center">
+                  <div className="text-center">
+                    <div className="text-[30px] leading-none">🧹</div>
+                    <h3 className="mt-4 text-[28px] font-semibold tracking-tight text-foreground/85">No unstaged changes</h3>
+                    <p className="mt-2 text-[16px] text-muted-foreground">Code changes will appear here</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {files.map((file) => {
+                    const open = Boolean(openFiles[file.path])
+                    return (
+                      <div key={file.path} className="flex min-w-0 flex-col group relative">
+                        <button
+                          data-testid={`diff-file-row-${file.path}`}
                         className={cn(
-                          "flex min-w-0 items-center justify-between w-full text-left px-4 py-2 transition-colors sticky top-0 z-[20]",
-                          "bg-[#F3F4F6]/95 supports-[backdrop-filter]:backdrop-blur-sm hover:bg-[#EDEFF2]",
+                          "flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 transition-colors sticky top-0 z-[20]",
+                          "bg-sidebar-accent/55 supports-[backdrop-filter]:backdrop-blur-sm",
                           "border border-transparent",
                           open && "border-b-border/50",
                           open ? "rounded-t-[10px]" : "rounded-[10px]"
                         )}
-                        onClick={() => setOpenFiles((prev) => ({ ...prev, [file.path]: !open }))}
-                      >
-                        <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
-                          <span className="font-mono text-[12px] text-foreground/60 group-hover:text-foreground/80 transition-colors truncate [overflow-wrap:anywhere] tracking-[-0.01em]">
-                            {file.path}
-                          </span>
-                          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold shrink-0">
-                            <span className="text-emerald-500">+{file.additions}</span>
-                            <span className="text-red-500">-{file.deletions}</span>
-                            {file.untracked ? <div className="size-1.5 rounded-full bg-blue-500 ml-1" /> : null}
+                          onClick={() => setOpenFiles((prev) => ({ ...prev, [file.path]: !open }))}
+                        >
+                          <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
+                            <span
+                              title={file.path}
+                              className={cn(
+                                "font-mono min-w-0 truncate text-[#1f2328] transition-colors",
+                                open
+                                  ? "text-[12.5px] leading-4 font-medium"
+                                  : "text-[12.5px] leading-4 font-normal",
+                              )}
+                            >
+                              {truncatePathFromLeft(file.path)}
+                            </span>
+                            <div className="flex items-center gap-1 text-[12px] leading-4 font-mono font-normal shrink-0">
+                              <span className="text-[#00a86b]">+{file.additions}</span>
+                              <span className="text-[#d63a3a]">-{file.deletions}</span>
+                              {file.untracked ? <div className="size-1.5 rounded-full bg-blue-500 ml-1" /> : null}
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {open ? (
-                            <ChevronDown className="size-4 text-muted-foreground/50" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground/45" />
-                          )}
-                        </div>
-                      </button>
-                      {open ? <DiffPatchView file={file} /> : null}
-                    </div>
-                  )
-                })}
-              </div>
+                          <div className="flex items-center shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {open ? (
+                              <ChevronDown className="size-4 text-muted-foreground/50" />
+                            ) : (
+                              <ChevronRight className="size-4 text-muted-foreground/45" />
+                            )}
+                          </div>
+                        </button>
+                        {open ? <DiffPatchView patch={file.patch} /> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             ) : null}
           </div>
         </ScrollArea>

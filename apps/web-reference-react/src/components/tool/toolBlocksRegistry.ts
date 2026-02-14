@@ -1,6 +1,6 @@
 import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
-import { sanitizeToolTextPaths } from './pathDisplay'
+import { formatPathForToolDisplay, sanitizeToolTextPaths } from './pathDisplay'
 import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
 import {
   parseJsonArrayLength,
@@ -151,6 +151,53 @@ function readLikeSummary(item: ToolCallItem, file: string | undefined, context: 
   return fallback
 }
 
+const WRITE_DIFF_MAX_LINES = 220
+const WRITE_PARAM_STRING_CLIP_LEN = 120
+
+function isLikelyTruncatedParamsText(paramsText: string | undefined): boolean {
+  if (typeof paramsText !== 'string') return false
+  return paramsText.trimEnd().endsWith('...')
+}
+
+function isLikelyClippedWriteContent(content: string, paramsText: string | undefined): boolean {
+  if (typeof paramsText !== 'string') return false
+  if (!content.endsWith('...')) return false
+  return content.length === WRITE_PARAM_STRING_CLIP_LEN
+}
+
+function toWriteContentLines(content: string): string[] {
+  if (content.length === 0) return []
+  const normalized = content.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+  if (normalized.endsWith('\n')) lines.pop()
+  return lines
+}
+
+function makeWritePatch(content: string): { patch: string; additions: number; deletions: number } {
+  const sourceLines = toWriteContentLines(content)
+  const clipped = sourceLines.slice(0, WRITE_DIFF_MAX_LINES)
+  const clippedCount = Math.max(0, sourceLines.length - clipped.length)
+  const patchLines = clipped.map((line) => `+${line}`)
+  if (clippedCount > 0) {
+    patchLines.push(`+… (${clippedCount} more lines not shown)`)
+  }
+  const startLine = sourceLines.length > 0 ? 1 : 0
+  const patch = [`@@ -0,0 +${startLine},${sourceLines.length} @@`, ...patchLines].join('\n')
+  return {
+    patch,
+    additions: sourceLines.length,
+    deletions: 0,
+  }
+}
+
+function pickRawParam(parsed: ReturnType<typeof parseToolParamsText>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const hit = parsed.find((entry) => entry.label === key)
+    if (hit) return hit.value
+  }
+  return undefined
+}
+
 const readLikeRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const file = params.find((param) => param.label === 'file')?.value
@@ -163,6 +210,49 @@ const readLikeRenderer: ToolBlockRenderer = (item, context) => {
     cwd: context.cwd,
     ...(paramsText ? { paramsText } : {}),
   })
+}
+
+const writeRenderer: ToolBlockRenderer = (item, context) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
+  const file = params.find((param) => param.label === 'file')?.value
+  const title = file ? `${item.toolName} ${file}` : item.toolName
+  const summary = readLikeSummary(item, file, context)
+  const paramsTextTruncated = isLikelyTruncatedParamsText(item.paramsText)
+  const rawParams = parseToolParamsText(item.paramsText)
+  const rawContent = pickRawParam(rawParams, ['content'])
+  const contentTruncated =
+    typeof rawContent === 'string' && isLikelyClippedWriteContent(rawContent, item.paramsText)
+  const rawFilePath = pickRawParam(rawParams, ['file_path', 'path'])
+  const displayPath = formatPathForToolDisplay(rawFilePath ?? file ?? 'untitled', context.cwd)
+
+  const blocks = withStandardBlocks({
+    item,
+    title,
+    summary,
+    cwd: context.cwd,
+  })
+
+  if (item.status === 'completed' && (paramsTextTruncated || contentTruncated)) {
+    blocks.push({
+      kind: 'info',
+      text: 'Diff preview unavailable (tool input was truncated).',
+    })
+  } else if (item.status === 'completed' && typeof rawContent === 'string') {
+    const writePatch = makeWritePatch(rawContent)
+    blocks.push({
+      kind: 'diff',
+      files: [
+        {
+          path: displayPath,
+          additions: writePatch.additions,
+          deletions: writePatch.deletions,
+          patch: writePatch.patch,
+        },
+      ],
+    })
+  }
+
+  return blocks
 }
 
 const webSearchRenderer: ToolBlockRenderer = (item, context) => {
@@ -310,7 +400,7 @@ const renderers: Record<string, ToolBlockRenderer> = {
   Grep: searchRenderer,
   Search: searchRenderer,
   Read: readLikeRenderer,
-  Write: readLikeRenderer,
+  Write: writeRenderer,
   Edit: readLikeRenderer,
   WebSearch: webSearchRenderer,
   WebFetch: webFetchRenderer,

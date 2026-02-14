@@ -1,4 +1,5 @@
 import type { TranscriptItem } from '../../types'
+import type { DiffFileViewModel } from '../diff/diffTypes'
 
 export type ToolCallItem = Extract<TranscriptItem, { kind: 'tool_call' }>
 export type ToolInputState = NonNullable<ToolCallItem['inputState']>
@@ -25,4 +26,9 @@ export type ToolUiBlockInfo = {
   text: string
 }
 
-export type ToolUiBlock = ToolUiBlockHeader | ToolUiBlockDetails | ToolUiBlockInfo
+export type ToolUiBlockDiff = {
+  kind: 'diff'
+  files: DiffFileViewModel[]
+}
+
+export type ToolUiBlock = ToolUiBlockHeader | ToolUiBlockDetails | ToolUiBlockInfo | ToolUiBlockDiff

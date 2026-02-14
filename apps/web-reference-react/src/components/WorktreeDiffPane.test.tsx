@@ -51,5 +51,50 @@ describe('WorktreeDiffPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }))
     expect(onRefreshDiff).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('No unstaged changes')).toBeInTheDocument()
+    expect(screen.getByText('Code changes will appear here')).toBeInTheDocument()
+  })
+
+  it('left-truncates long file path but keeps full path as title', () => {
+    const longPath = 'apps/web-reference-react/src/some/really/deeply/nested/folder/with/a/very/long/file/path/example.ts'
+    render(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: longPath, additions: 1, deletions: 0, patch: '' }],
+        }}
+      />,
+    )
+
+    const row = screen.getByTestId(`diff-file-row-${longPath}`)
+    const pathLabel = row.querySelector('span[title]') as HTMLSpanElement | null
+    expect(pathLabel).not.toBeNull()
+    expect(pathLabel?.title).toBe(longPath)
+    expect(pathLabel?.textContent?.startsWith('…')).toBe(true)
+  })
+
+  it('does not show clean-state message before diff snapshot is loaded', () => {
+    render(<WorktreeDiffPane diffSnapshot={null} />)
+    expect(screen.queryByText('No unstaged changes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Code changes will appear here')).not.toBeInTheDocument()
+  })
+
+  it('does not show clean-state message when snapshot reports changes but files are empty', () => {
+    render(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: true,
+          files: [],
+        }}
+      />,
+    )
+    expect(screen.queryByText('No unstaged changes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Code changes will appear here')).not.toBeInTheDocument()
   })
 })
