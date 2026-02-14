@@ -168,15 +168,18 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
             <div className="sticky top-0 h-4 w-full bg-white z-[15] -mt-1 pointer-events-none" />
 
             {listOpen ? (
-              <div className="space-y-[8px] pt-1">
+              <div className="space-y-2 pt-1">
                 {files.map((file) => {
                   const open = Boolean(openFiles[file.path])
                   return (
                     <div key={file.path} className="flex min-w-0 flex-col group relative">
                       <button
+                        data-testid={`diff-file-row-${file.path}`}
                         className={cn(
-                          "flex min-w-0 items-center justify-between w-full text-left px-5 py-[11px] transition-all sticky top-0 z-[20]",
-                          "bg-[#F3F4F6] hover:bg-[#EDEFF2]",
+                          "flex min-w-0 items-center justify-between w-full text-left px-4 py-2 transition-colors sticky top-0 z-[20]",
+                          "bg-[#F3F4F6]/95 supports-[backdrop-filter]:backdrop-blur-sm hover:bg-[#EDEFF2]",
+                          "border border-transparent",
+                          open && "border-b-border/50",
                           open ? "rounded-t-[10px]" : "rounded-[10px]"
                         )}
                         onClick={() => setOpenFiles((prev) => ({ ...prev, [file.path]: !open }))}

@@ -55,6 +55,35 @@ function resolveBridgeUrl(): string {
   return DEFAULT_BRIDGE_URL
 }
 
+function isDevRuntime(): boolean {
+  const meta = import.meta as ImportMeta & { env?: { DEV?: boolean } }
+  return meta.env?.DEV === true
+}
+
+const THREAD_QUERY_PARAM = 'thread'
+
+function readThreadIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  const raw = new URL(window.location.href).searchParams.get(THREAD_QUERY_PARAM)
+  if (!raw) return null
+  const trimmed = raw.trim()
+  return trimmed ? trimmed : null
+}
+
+function replaceThreadIdInUrl(threadId: string | null): void {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  const current = url.searchParams.get(THREAD_QUERY_PARAM)
+  if (threadId) {
+    if (current === threadId) return
+    url.searchParams.set(THREAD_QUERY_PARAM, threadId)
+  } else {
+    if (!current) return
+    url.searchParams.delete(THREAD_QUERY_PARAM)
+  }
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const [bridgeUrl] = useState(resolveBridgeUrl)
@@ -88,6 +117,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
+  const hasInitializedThreadFromUrlRef = useRef(false)
+  const pendingThreadIdFromUrlRef = useRef<string | null>(null)
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
@@ -377,7 +408,48 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const activeThreadTitle = displayThreadTitle(activeThread)
 
   useEffect(() => {
-    if (!import.meta.env.DEV || typeof window === 'undefined') return
+    if (hasInitializedThreadFromUrlRef.current) return
+    const threadIdFromUrl = readThreadIdFromUrl()
+    if (!threadIdFromUrl) {
+      hasInitializedThreadFromUrlRef.current = true
+      return
+    }
+    if (state.activeThreadId === threadIdFromUrl) {
+      hasInitializedThreadFromUrlRef.current = true
+      return
+    }
+    if (state.activeThreadId) {
+      hasInitializedThreadFromUrlRef.current = true
+      return
+    }
+    if (state.threads.length === 0) return
+    const matched = state.threads.some((thread) => thread.id === threadIdFromUrl)
+    hasInitializedThreadFromUrlRef.current = true
+    if (!matched) {
+      replaceThreadIdInUrl(null)
+      return
+    }
+    pendingThreadIdFromUrlRef.current = threadIdFromUrl
+    selectThread(threadIdFromUrl)
+  }, [selectThread, state.activeThreadId, state.threads])
+
+  useEffect(() => {
+    if (!hasInitializedThreadFromUrlRef.current) return
+    const pending = pendingThreadIdFromUrlRef.current
+    if (pending) {
+      if (state.activeThreadId === pending) {
+        pendingThreadIdFromUrlRef.current = null
+      } else if (!state.activeThreadId) {
+        return
+      } else {
+        pendingThreadIdFromUrlRef.current = null
+      }
+    }
+    replaceThreadIdInUrl(state.activeThreadId)
+  }, [state.activeThreadId])
+
+  useEffect(() => {
+    if (!isDevRuntime() || typeof window === 'undefined') return
     type DevApiWindow = Window & {
       __formaxDevAskUserQuestion?: (overrides?: {
         inputId?: string
