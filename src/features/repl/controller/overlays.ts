@@ -8,6 +8,7 @@ import type {
   AgentsDialogSaveResult,
 } from '../../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../../ui/config/ConfigDialog.js'
+import type { ModelDialogExit } from '../../../ui/model/ModelDialog.js'
 import type { ResumeDialogExit } from '../../../ui/resume/ResumeDialog.js'
 import type { OverlaySpec } from '../../commands/contracts'
 import { createOverlayManager } from '../overlays/OverlayManager'
@@ -29,6 +30,7 @@ export function useReplOverlays(args: {
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
   closeConfigDialog: (exit: ConfigDialogExit) => void
+  closeModelDialog: (exit: ModelDialogExit) => void
   closeResumeDialog: (exit?: ResumeDialogExit) => void
   generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
   saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
@@ -92,6 +94,15 @@ export function useReplOverlays(args: {
       return
     }
     appendCommandSublines(['Status dialog dismissed'])
+  }, [appendCommandSublines])
+
+  const closeModelDialog = useCallback((exit: ModelDialogExit) => {
+    overlayManagerRef.current.close()
+    if (exit.kind === 'changed') {
+      appendCommandSublines(exit.message.split('\n'))
+      return
+    }
+    appendCommandSublines(['Model selection dismissed'])
   }, [appendCommandSublines])
 
   const closeResumeDialog = useCallback((exit?: ResumeDialogExit) => {
@@ -174,6 +185,7 @@ export function useReplOverlays(args: {
     closePermissionsDialog,
     closeHooksDialog,
     closeConfigDialog,
+    closeModelDialog,
     closeResumeDialog,
     generateAgentDraft,
     saveAgentFromDialog,

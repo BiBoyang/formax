@@ -27,6 +27,7 @@ import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
+import { ModelDialog } from '../ui/model/ModelDialog'
 import { ResumeDialog } from '../ui/resume/ResumeDialog'
 import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
@@ -44,7 +45,7 @@ import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/errorSubline'
-import { parseModelTier, type ModelTier } from '../env/modelTier'
+import { parseModelTier, resolveModelForTier, type ModelTier } from '../env/modelTier'
 import { updateConfigPatchFile } from '../core/config/persist'
 
 type Props = {
@@ -145,6 +146,30 @@ export function REPL({
     return path.join(globalConfigDir, 'agents')
   }, [])
 
+  const modelByTier = useMemo(
+    () => ({
+      haiku: resolveModelForTier({
+        tier: 'haiku',
+        env: process.env,
+        configuredModel: runtimeCfg.llm.configuredModel,
+        configuredTierModels: runtimeCfg.llm.tierModels,
+      }),
+      sonnet: resolveModelForTier({
+        tier: 'sonnet',
+        env: process.env,
+        configuredModel: runtimeCfg.llm.configuredModel,
+        configuredTierModels: runtimeCfg.llm.tierModels,
+      }),
+      opus: resolveModelForTier({
+        tier: 'opus',
+        env: process.env,
+        configuredModel: runtimeCfg.llm.configuredModel,
+        configuredTierModels: runtimeCfg.llm.tierModels,
+      }),
+    }),
+    [runtimeCfg.llm.configuredModel, runtimeCfg.llm.tierModels],
+  )
+
   const reloadCfg = useCallback(async (opts?: { syncPromptProfile?: boolean }) => {
     const next = await loadRuntimeConfig(process.env, process.cwd())
     setRuntimeCfg(next)
@@ -152,7 +177,7 @@ export function REPL({
     return next
   }, [])
 
-  const setDefaultModelTier = useCallback(
+  const applyDefaultModelTier = useCallback(
     async (nextTier: ModelTier) => {
       const store = createNodeFileStore()
       const paths = getConfigPaths({ cwd: process.cwd(), env: process.env })
@@ -163,9 +188,19 @@ export function REPL({
         label: 'llm.defaultTier',
       })
       const nextCfg = await reloadCfg()
-      return parseModelTier(nextCfg.llm.defaultTier) ?? 'sonnet'
+      return {
+        effectiveTier: parseModelTier(nextCfg.llm.defaultTier) ?? 'sonnet',
+      }
     },
     [reloadCfg],
+  )
+
+  const setDefaultModelTier = useCallback(
+    async (nextTier: ModelTier) => {
+      const out = await applyDefaultModelTier(nextTier)
+      return out.effectiveTier
+    },
+    [applyDefaultModelTier],
   )
 
   useEffect(() => {
@@ -239,6 +274,13 @@ export function REPL({
     [actions, reloadCfg],
   )
 
+  const handleModelExit = useCallback(
+    (exit: { kind: 'dismissed' } | { kind: 'changed'; message: string }) => {
+      actions.closeModelDialog(exit)
+    },
+    [actions],
+  )
+
   useEffect(() => {
     if (state.isLoading) {
       setLoadingStartedAtMs((prev) => prev ?? Date.now())
@@ -254,6 +296,7 @@ export function REPL({
       state.permissionsDialogOpen,
       state.hooksDialogOpen,
       state.configDialogOpen,
+      state.modelDialogOpen,
       state.resumeDialogOpen,
       state.transientMessages,
       toolRegistry,
@@ -385,6 +428,7 @@ export function REPL({
       agentsDialogOpen: state.agentsDialogOpen,
       permissionsDialogOpen: state.permissionsDialogOpen,
       hooksDialogOpen: state.hooksDialogOpen,
+      modelDialogOpen: state.modelDialogOpen,
       configDialogOpen: state.configDialogOpen,
       isLoading: state.isLoading,
       thinkingText: state.thinkingText,
@@ -663,6 +707,14 @@ export function REPL({
             {state.permissionsDialogOpen && <PermissionsDialog onExit={actions.closePermissionsDialog} />}
             {state.hooksDialogOpen && <HooksDialog onExit={actions.closeHooksDialog} />}
             {state.configDialogOpen && <ConfigDialog onExit={handleConfigExit} />}
+            {state.modelDialogOpen && (
+              <ModelDialog
+                currentTier={parseModelTier(runtimeCfg.llm.defaultTier) ?? 'sonnet'}
+                modelByTier={modelByTier}
+                onApplyTier={applyDefaultModelTier}
+                onExit={handleModelExit}
+              />
+            )}
             {state.resumeDialogOpen && (
               <ResumeDialog
                 onExit={actions.closeResumeDialog}

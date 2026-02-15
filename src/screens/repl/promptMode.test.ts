@@ -14,6 +14,7 @@ function makeState(partial: any = {}) {
     agentsDialogOpen: false,
     permissionsDialogOpen: false,
     hooksDialogOpen: false,
+    modelDialogOpen: false,
     transientMessages: [],
     ...partial,
   } as any
@@ -36,6 +37,12 @@ describe('isPromptMode', () => {
     expect(
       isPromptMode({
         state: makeState({ hooksDialogOpen: true }),
+        userInput: null,
+      }),
+    ).toBe(true)
+    expect(
+      isPromptMode({
+        state: makeState({ modelDialogOpen: true }),
         userInput: null,
       }),
     ).toBe(true)
@@ -133,4 +140,3 @@ describe('isPromptMode', () => {
     ).toBe(false)
   })
 })
-

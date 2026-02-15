@@ -2021,7 +2021,7 @@ describe('useReplController injected blocks', () => {
 })
 
 	describe('useReplController consumed slash commands', () => {
-  it('opens agents/permissions overlays without calling the engine', async () => {
+  it('opens agents/permissions/model overlays without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
 
@@ -2031,6 +2031,7 @@ describe('useReplController injected blocks', () => {
       dispatch: (input) => {
         if (input === '/agents') return { kind: 'open_agents_dialog' }
         if (input === '/permissions') return { kind: 'open_permissions_dialog' }
+        if (input === '/model') return { kind: 'open_model_dialog' }
         return null
       },
     }
@@ -2053,6 +2054,10 @@ describe('useReplController injected blocks', () => {
 
     await controller.actions.send('/permissions')
     await waitFor(() => controller.state.permissionsDialogOpen === true)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+
+    await controller.actions.send('/model')
+    await waitFor(() => controller.state.modelDialogOpen === true)
     expect(runTurn).toHaveBeenCalledTimes(0)
   })
 

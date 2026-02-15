@@ -18,6 +18,7 @@ import type {
   AgentsDialogSaveResult,
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
+import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
 import { resolveCommandRouting } from '../semantics/commandRouting'
 import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
@@ -96,6 +97,7 @@ export type ReplControllerState = {
   permissionsDialogOpen: boolean
   hooksDialogOpen: boolean
   configDialogOpen: boolean
+  modelDialogOpen: boolean
   resumeDialogOpen: boolean
   context: null | {
     usedTokens: number
@@ -116,6 +118,7 @@ export type ReplController = {
     closePermissionsDialog: () => void
     closeHooksDialog: () => void
     closeConfigDialog: (exit: ConfigDialogExit) => void
+    closeModelDialog: (exit: ModelDialogExit) => void
     closeResumeDialog: () => void
     resumeSession: (filePath: string) => Promise<void>
     renameSession: (filePath: string, label: string) => Promise<void>
@@ -163,6 +166,7 @@ export function useReplController(deps: {
     closePermissionsDialog,
     closeHooksDialog,
     closeConfigDialog,
+    closeModelDialog,
     closeResumeDialog,
     generateAgentDraft,
     saveAgentFromDialog,
@@ -1013,6 +1017,7 @@ export function useReplController(deps: {
       permissionsDialogOpen: overlay?.kind === 'permissions',
       hooksDialogOpen: overlay?.kind === 'hooks',
       configDialogOpen: overlay?.kind === 'config',
+      modelDialogOpen: overlay?.kind === 'model',
       resumeDialogOpen: overlay?.kind === 'resume',
       context,
     },
@@ -1025,6 +1030,7 @@ export function useReplController(deps: {
       closePermissionsDialog,
       closeHooksDialog,
       closeConfigDialog: closeConfigDialogWithInjection,
+      closeModelDialog,
       closeResumeDialog,
       resumeSession,
       renameSession,

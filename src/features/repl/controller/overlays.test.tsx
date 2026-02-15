@@ -99,6 +99,7 @@ type HarnessApi = {
   closeAgentsDialog: (args: { createdAgents: string[] }) => void
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
+  closeModelDialog: (exit: { kind: 'dismissed' } | { kind: 'changed'; message: string }) => void
   closeResumeDialog: (exit?: { kind: 'dismissed' }) => void
   saveAgentFromDialog: (args: any) => Promise<any>
 }
@@ -136,6 +137,7 @@ function Harness(props: {
     closeAgentsDialog: overlayApi.closeAgentsDialog,
     closePermissionsDialog: overlayApi.closePermissionsDialog,
     closeHooksDialog: overlayApi.closeHooksDialog,
+    closeModelDialog: overlayApi.closeModelDialog,
     closeResumeDialog: overlayApi.closeResumeDialog,
     saveAgentFromDialog: overlayApi.saveAgentFromDialog,
   }
@@ -283,6 +285,35 @@ describe('useReplOverlays', () => {
 
     const frame = app.lastFrame() || ''
     expect(frame).not.toContain('Resume cancelled')
+  })
+
+  it('closeModelDialog appends changed/dismissed messages', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        initialOverlay={{ kind: 'model' }}
+        initialMessages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: '/model',
+            timestamp: new Date(),
+          },
+        ]}
+      />,
+    )
+    await waitForApiRef(apiRef)
+    await tick()
+
+    apiRef.current?.closeModelDialog({ kind: 'changed', message: 'Set model to Default' })
+    await waitForText(app.lastFrame, 'Set model to Default')
+
+    apiRef.current?.openOverlay({ kind: 'model' })
+    await waitForText(app.lastFrame, 'overlay=model')
+
+    apiRef.current?.closeModelDialog({ kind: 'dismissed' })
+    await waitForText(app.lastFrame, 'Model selection dismissed')
   })
 
   it('saveAgentFromDialog triggers reloadSubagents success and openInEditor message', async () => {

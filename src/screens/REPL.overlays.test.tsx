@@ -140,6 +140,7 @@ function baseState(overrides?: Partial<any>): any {
     agentsDialogOpen: false,
     permissionsDialogOpen: false,
     hooksDialogOpen: false,
+    modelDialogOpen: false,
     context: null,
     ...overrides,
   }
@@ -157,6 +158,7 @@ describe('REPL overlay input gating', () => {
       closeAgentsDialog: vi.fn(),
       closePermissionsDialog: vi.fn(),
       closeHooksDialog: vi.fn(),
+      closeModelDialog: vi.fn(),
       generateAgentDraft: vi.fn(),
       saveAgentFromDialog: vi.fn(),
     }
@@ -625,6 +627,32 @@ describe('REPL overlay input gating', () => {
 
       const afterOpen = await waitForFrame(ui.lastFrame, (f) => f.includes('Hook Configuration'))
       expect(afterOpen).not.toContain('Try "fix typecheck errors"')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('updates prompt mode when /model overlay opens', async () => {
+    try {
+      mockState = baseState({ modelDialogOpen: true })
+
+      const { REPL } = await import('./REPL')
+      const ui = render(
+        <InputScopeProvider initialScope="repl">
+          <ScopeSpy />
+          <InputProbe />
+          <REPL engine={{ runTurn: async () => [] }} tools={[]} cfg={makeCfg()} />
+        </InputScopeProvider>,
+      )
+
+      const frame = await waitForFrame(ui.lastFrame, (f) => f.includes('Select model'))
+      expect(frame).not.toContain('Try "fix typecheck errors"')
+
+      ui.stdin.write('\u001B')
+      await tick()
+      expect(mockActions.closeModelDialog).toHaveBeenCalledTimes(1)
     } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR

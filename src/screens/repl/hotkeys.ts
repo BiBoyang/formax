@@ -11,6 +11,7 @@ type ReplHotkeyUiState = {
   agentsDialogOpen: boolean
   permissionsDialogOpen: boolean
   hooksDialogOpen: boolean
+  modelDialogOpen?: boolean
   configDialogOpen?: boolean
   isLoading: boolean
   thinkingText: string
@@ -21,6 +22,7 @@ function hasBlockingOverlay(state: ReplHotkeyUiState): boolean {
   if (state.agentsDialogOpen) return true
   if (state.permissionsDialogOpen) return true
   if (state.hooksDialogOpen) return true
+  if (state.modelDialogOpen) return true
   if (state.configDialogOpen) return true
   return false
 }

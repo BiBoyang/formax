@@ -50,6 +50,9 @@ export type SlashCommandEffect =
       kind: 'open_resume_dialog'
     }
   | {
+      kind: 'open_model_dialog'
+    }
+  | {
       kind: 'local_async'
       loadingText?: string
       run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
@@ -86,7 +89,14 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/hooks', source: 'builtin', command: '/hooks', description: 'Configure hooks (PreToolUse / PermissionRequest / PostToolUse)', implemented: true },
   { id: 'builtin:/config', source: 'builtin', command: '/config', description: 'Configure Formax (preview UI)', implemented: true },
   { id: 'builtin:/resume', source: 'builtin', command: '/resume', description: 'Resume a previous session', implemented: true },
-  { id: 'builtin:/model', source: 'builtin', command: '/model', description: 'Set default model tier (haiku/sonnet/opus)', implemented: true },
+  {
+    id: 'builtin:/model',
+    source: 'builtin',
+    command: '/model',
+    description: 'Set the AI model for Formax',
+    argHint: '[model]',
+    implemented: true,
+  },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -121,7 +131,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/init', source: 'builtin', command: '/init', description: 'Initialize a CLAUDE.md file with repo documentation', implemented: true },
 ]
 
-const MODEL_TIER_USAGE = ['Usage:', '- /model haiku', '- /model sonnet', '- /model opus'].join('\n')
+const MODEL_TIER_USAGE = ['Usage:', '- /model default', '- /model haiku', '- /model sonnet', '- /model opus'].join('\n')
 
 export function createSlashCommandRegistry(deps: {
   cwd: string
@@ -220,15 +230,12 @@ export function createSlashCommandRegistry(deps: {
 
   setBuiltinDispatcher('/model', (invocation) => {
     if (!deps.modelTier) return { kind: 'local', stdout: 'Model controls are not available in this context.' }
-    const current = deps.modelTier.get()
     const raw = (invocation.args || '').trim().toLowerCase()
     if (!raw) {
-      return {
-        kind: 'local',
-        stdout: `Default model tier: ${current}\n\n${MODEL_TIER_USAGE}`,
-      }
+      return { kind: 'open_model_dialog' }
     }
-    const next = parseModelTier(raw)
+    const normalizedRaw = raw === 'default' ? 'sonnet' : raw
+    const next = parseModelTier(normalizedRaw)
     if (!next) return { kind: 'local', stdout: `Unknown model tier: ${raw}\n\n${MODEL_TIER_USAGE}` }
     return {
       kind: 'local_async',

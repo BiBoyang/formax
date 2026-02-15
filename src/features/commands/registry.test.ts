@@ -152,7 +152,7 @@ describe('SlashCommandRegistry', () => {
     }
   })
 
-  it('dispatches /model to show current default tier', async () => {
+  it('dispatches /model to open model dialog', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
     try {
       const reg = createSlashCommandRegistry({
@@ -161,9 +161,26 @@ describe('SlashCommandRegistry', () => {
         modelTier: { get: () => 'sonnet', set: async () => 'sonnet' },
       })
       const effect = reg.dispatch('/model')
-      expect(effect?.kind).toBe('local')
-      if (!effect || effect.kind !== 'local') return
-      expect(effect.stdout).toContain('Default model tier: sonnet')
+      expect(effect?.kind).toBe('open_model_dialog')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts /model default as sonnet tier', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const set = vi.fn(async () => 'sonnet' as const)
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        modelTier: { get: () => 'sonnet', set },
+      })
+      const effect = reg.dispatch('/model default')
+      expect(effect?.kind).toBe('local_async')
+      if (!effect || effect.kind !== 'local_async') return
+      await effect.run()
+      expect(set).toHaveBeenCalledWith('sonnet')
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }
