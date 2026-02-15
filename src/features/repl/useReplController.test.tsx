@@ -622,6 +622,46 @@ describe('useReplController', () => {
     expect(controller.state.staticMessages.filter((m) => m.role === 'assistant')).toHaveLength(1)
   })
 
+  it('buffered mode: does not expose assistant streaming in transient messages while loading', async () => {
+    let releaseComplete!: () => void
+    const completeGate = new Promise<void>((resolve) => {
+      releaseComplete = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'assistant_delta', text: 'Hi' } as StreamEvent)
+        onEvent({ type: 'tool_start', id: 't1', name: 'Bash' } as StreamEvent)
+        await completeGate
+        onEvent({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: 'ok', is_error: false } } as StreamEvent)
+        onEvent({ type: 'assistant_delta', text: ' there' } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('hello')
+    await waitFor(() => controller.state.isLoading)
+    await waitFor(() => controller.state.transientMessages.some((m) => m.role === 'tool'))
+    expect(controller.state.transientMessages.some((m) => m.role === 'assistant' && m.isStreaming)).toBe(false)
+    expect(controller.state.staticMessages.some((m) => m.role === 'assistant')).toBe(false)
+
+    releaseComplete()
+    await sendPromise
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('Hi')))
+    const assistantTexts = controller.state.messages
+      .filter((m) => m.role === 'assistant')
+      .map((m) => String(m.content))
+      .join('')
+    expect(assistantTexts).toContain('Hi')
+    expect(assistantTexts).toContain(' there')
+    expect(controller.state.messages.some((m) => m.role === 'assistant' && m.isStreaming === true)).toBe(false)
+  })
+
   it('thinking_delta is throttled (updates only after 200ms)', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user }) {

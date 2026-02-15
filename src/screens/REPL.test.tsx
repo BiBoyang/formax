@@ -662,6 +662,41 @@ describe('REPL', () => {
     }, 20000)
   })
 
+  describe('loading indicator', () => {
+    it('keeps loading visible while assistant text is streaming', async () => {
+      let releaseTurn: (() => void) | null = null
+      const turnGate = new Promise<void>((resolve) => {
+        releaseTurn = resolve
+      })
+
+      const streamingEngine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'assistant_delta', text: 'streaming assistant text' })
+          await turnGate
+          onEvent({ type: 'complete' })
+          return [
+            ...history,
+            user,
+            { role: 'assistant', content: [{ type: 'text', text: 'streaming assistant text' }] as any },
+          ]
+        },
+      }
+
+      const { stdin, lastFrame } = render(<REPL engine={streamingEngine} tools={[]} cfg={cfg} />)
+      await tick()
+
+      stdin.write('start')
+      await tick()
+      stdin.write('\r')
+
+      await waitForFrame(lastFrame, (f) => f.includes('streaming assistant text'), 15000)
+      await waitForFrame(lastFrame, (f) => f.includes('✻'), 15000)
+
+      releaseTurn?.()
+      await waitForCondition(() => !(lastFrame() || '').includes('✻'), 15000)
+    }, 20000)
+  })
+
   describe('auto-compact', () => {
     it('auto-compacts prompt history before sending when over the limit', async () => {
       function getUserText(msg: PromptMessage): string {

@@ -546,7 +546,13 @@ export function useReplStreaming(args: {
             ok: !ev.result.is_error,
           })
 
-          args.currentAssistantIdRef.current = null
+          const activeAssistantId = args.currentAssistantIdRef.current
+          if (activeAssistantId) {
+            args.setMessages((prev) =>
+              prev.map((m) => (m.id === activeAssistantId ? { ...m, isStreaming: false } : m)),
+            )
+            args.currentAssistantIdRef.current = null
+          }
 
           return
         }

@@ -138,6 +138,37 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(msgs[0]).toMatchObject({ role: 'assistant', content: 'continuing' })
   })
 
+  it('omits assistant streaming in transient-only mode when disabled by adapter', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-3:assistant:2',
+        kind: 'assistant',
+        turnId: 'turn-3',
+        text: 'continuing',
+      },
+      {
+        id: 'turn-3:tool:3:tool-3',
+        kind: 'tool',
+        turnId: 'turn-3',
+        toolUseId: 'tool-3',
+        toolName: 'Read',
+        status: 'running',
+        summary: 'Read running',
+        detailLines: [],
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-3',
+      segments,
+      transientOnly: true,
+      openAssistantSegmentId: 'turn-3:assistant:2',
+      includeAssistantStreaming: false,
+    })
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({ role: 'tool', toolInfo: { name: 'Read', status: 'running' } })
+  })
+
   it('keeps only open assistant + running tool in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {

@@ -341,12 +341,13 @@ export function useReplController(deps: {
         segments: turnTailSegments,
         transientOnly: true,
         openAssistantSegmentId: canonicalProjectionRef.current.openAssistantSegmentIdByTurn[turnId],
+        includeAssistantStreaming: assistantTextMode === 'stream',
       }),
     )
     if (event.kind === 'turn_footer') {
       canonicalTurnIdRef.current = null
     }
-  }, [])
+  }, [assistantTextMode])
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])

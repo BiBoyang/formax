@@ -33,12 +33,15 @@ export function canonicalTurnSegmentsToMessages(args: {
   segments: TranscriptSegment[]
   transientOnly?: boolean
   openAssistantSegmentId?: string
+  includeAssistantStreaming?: boolean
 }): Msg[] {
   const turnSegments = args.segments.filter((segment) => segment.turnId === args.turnId)
   if (turnSegments.length === 0) return []
 
   const mapped = turnSegments.map((segment): Msg | null => {
     if (segment.kind === 'assistant') {
+      const allowAssistantStreaming = args.includeAssistantStreaming ?? true
+      if (args.transientOnly && !allowAssistantStreaming) return null
       if (args.transientOnly && segment.id !== args.openAssistantSegmentId) return null
       return {
         id: `canonical:${segment.id}`,

@@ -541,14 +541,8 @@ export function REPL({
 
   const showLoadingBlock = useMemo(() => {
     if (!state.isLoading || isPromptMode) return false
-
-    const hasStreamingAssistant = state.transientMessages.some(
-      (m) => m.role === 'assistant' && Boolean(m.isStreaming),
-    )
-    if (hasStreamingAssistant) return false
-
     return true
-  }, [isPromptMode, state.isLoading, state.transientMessages])
+  }, [isPromptMode, state.isLoading])
 
   const expandedTranscriptTask = useMemo(() => {
     if (!expandedViewActive) return null
