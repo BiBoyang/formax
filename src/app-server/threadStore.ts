@@ -1,8 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
-  findSessionFileBySessionId,
-  listRecentSessions,
   readSessionFile,
   readSessionPreview,
   readSessionSummary,
@@ -19,12 +17,14 @@ import type {
   ThreadSummary,
 } from './protocol.js'
 import { readPersistedToolMessagesFromSession, readStaleInputsFromSession } from './store/sessionEventReader.js'
+import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
 
 export type ThreadStoreOptions = {
   cwd?: string
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  archiveStore?: ThreadArchiveStore
 }
 
 export type ThreadListResult = {
@@ -75,7 +75,16 @@ export type ThreadRenameResult = {
   thread: ThreadSummary
 }
 
-function toThreadSummary(summary: SessionSummary): ThreadSummary {
+export type ThreadArchiveResult = {
+  thread: ThreadSummary
+}
+
+function toThreadSummary(
+  summary: SessionSummary,
+  archived: boolean,
+  options?: { archivedAt?: string | null },
+): ThreadSummary {
+  const archivedAt = archived ? options?.archivedAt ?? null : null
   return {
     id: summary.meta.sessionId,
     cwd: summary.meta.cwd,
@@ -84,6 +93,7 @@ function toThreadSummary(summary: SessionSummary): ThreadSummary {
     messageCount: summary.messageCount,
     lastUserPrompt: summary.lastUserPrompt,
     label: summary.label,
+    archivedAt,
   }
 }
 
@@ -276,12 +286,14 @@ export class ThreadStore {
   private readonly env?: NodeJS.ProcessEnv
   private readonly platform?: string
   private readonly homedir?: string
+  private readonly archiveStore: ThreadArchiveStore
 
   constructor(args: ThreadStoreOptions = {}) {
     this.cwd = args.cwd ? path.resolve(args.cwd) : process.cwd()
     this.env = args.env
     this.platform = args.platform
     this.homedir = args.homedir
+    this.archiveStore = args.archiveStore ?? new FileThreadArchiveStore()
   }
 
   async startThread(params: ThreadStartParams): Promise<Thread> {
@@ -304,7 +316,7 @@ export class ThreadStore {
   }
 
   async resumeThread(threadId: string): Promise<ThreadResumeResult> {
-    const filePath = await findSessionFileBySessionId({
+    const filePath = await this.archiveStore.locateThreadFile({
       cwd: this.cwd,
       sessionId: threadId,
       env: this.env,
@@ -324,26 +336,28 @@ export class ThreadStore {
   }
 
   async listThreads(params: ThreadListParams): Promise<ThreadListResult> {
+    const archived = Boolean(params.archived)
     const offset = parseCursorOffset(params.cursor)
     const limit = params.limit
     const needed = Math.min(800, offset + limit + 1)
 
-    const all = await listRecentSessions({
+    const all = await this.archiveStore.listThreads({
       cwd: this.cwd,
       env: this.env,
       platform: this.platform,
       homedir: this.homedir,
       includeAllProjects: true,
       limit: needed,
+      archived,
     })
 
-    const page = all.slice(offset, offset + limit).map(toThreadSummary)
+    const page = all.slice(offset, offset + limit).map((summary) => toThreadSummary(summary, archived))
     const nextCursor = offset + limit < all.length ? String(offset + limit) : null
     return { data: page, nextCursor }
   }
 
   async readThread(threadId: string): Promise<ThreadReadResult> {
-    const filePath = await findSessionFileBySessionId({
+    const filePath = await this.archiveStore.locateThreadFile({
       cwd: this.cwd,
       sessionId: threadId,
       env: this.env,
@@ -364,7 +378,7 @@ export class ThreadStore {
   }
 
   async listThreadMessages(params: ThreadMessagesParams): Promise<ThreadMessagesResult> {
-    const filePath = await findSessionFileBySessionId({
+    const filePath = await this.archiveStore.locateThreadFile({
       cwd: this.cwd,
       sessionId: params.threadId,
       env: this.env,
@@ -430,7 +444,7 @@ export class ThreadStore {
   }
 
   async renameThread(params: ThreadRenameParams): Promise<ThreadRenameResult> {
-    const filePath = await findSessionFileBySessionId({
+    const filePath = await this.archiveStore.locateThreadFile({
       cwd: this.cwd,
       sessionId: params.threadId,
       env: this.env,
@@ -447,6 +461,49 @@ export class ThreadStore {
     }
 
     const summary = await readSessionSummary(filePath)
-    return { thread: toThreadSummary(summary) }
+    return { thread: toThreadSummary(summary, false) }
+  }
+
+  async archiveThread(threadId: string): Promise<ThreadArchiveResult> {
+    const archivedAt = new Date().toISOString()
+    await this.archiveStore.archiveThread({
+      cwd: this.cwd,
+      sessionId: threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    const summary = await this.readThreadSummary(threadId, true, { archivedAt })
+    return { thread: summary }
+  }
+
+  async unarchiveThread(threadId: string): Promise<ThreadArchiveResult> {
+    await this.archiveStore.unarchiveThread({
+      cwd: this.cwd,
+      sessionId: threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    const summary = await this.readThreadSummary(threadId, false)
+    return { thread: summary }
+  }
+
+  private async readThreadSummary(
+    threadId: string,
+    archived: boolean,
+    options?: { archivedAt?: string | null },
+  ): Promise<ThreadSummary> {
+    const filePath = await this.archiveStore.locateThreadFile({
+      cwd: this.cwd,
+      sessionId: threadId,
+      archived,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    if (!filePath) throw new Error(`Thread not found: ${threadId}`)
+    const summary = await readSessionSummary(filePath)
+    return toThreadSummary(summary, archived, options)
   }
 }

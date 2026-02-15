@@ -295,4 +295,49 @@ describe('ThreadStore', () => {
     expect(resumed.staleInputs[0]?.status).toBe('expired')
     expect(resumed.staleInputs[0]?.reason).toBe('server_restart')
   })
+
+  it('moves threads between active and archived storage', async () => {
+    const { cwd, env, store } = await createStore()
+    const started = await store.startThread({})
+
+    const activePath = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activePath).toBeTruthy()
+
+    const archivedOut = await store.archiveThread(started.id)
+    expect(archivedOut.thread.id).toBe(started.id)
+    expect(archivedOut.thread.archivedAt).toBeTypeOf('string')
+
+    const activeAfterArchive = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activeAfterArchive).toBeNull()
+    const archivedPath = await findSessionFileBySessionId({
+      cwd,
+      env,
+      sessionId: started.id,
+      archived: true,
+    })
+    expect(archivedPath).toBeTruthy()
+
+    const archivedList = await store.listThreads({ limit: 20, archived: true })
+    expect(archivedList.data.some((thread) => thread.id === started.id)).toBe(true)
+    await expect(store.resumeThread(started.id)).rejects.toThrow('Thread not found')
+
+    const unarchivedOut = await store.unarchiveThread(started.id)
+    expect(unarchivedOut.thread.id).toBe(started.id)
+    expect(unarchivedOut.thread.archivedAt).toBeNull()
+
+    const activeAgain = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activeAgain).toBeTruthy()
+    const archivedAfterUnarchive = await findSessionFileBySessionId({
+      cwd,
+      env,
+      sessionId: started.id,
+      archived: true,
+    })
+    expect(archivedAfterUnarchive).toBeNull()
+  })
+
+  it('returns thread-not-found when unarchiving unknown thread id', async () => {
+    const { store } = await createStore()
+    await expect(store.unarchiveThread('missing-thread')).rejects.toThrow('Thread not found: missing-thread')
+  })
 })

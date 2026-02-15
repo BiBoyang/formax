@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { ChatHistory } from '../../../chat/engine'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { HistoryStateRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
-import { getSessionsRoot } from './paths'
+import { getArchivedSessionsRoot, getSessionsRoot } from './paths'
 
 export type SessionReplay = {
   meta: SessionMetaRecord
@@ -33,6 +33,61 @@ function reviveMsg(raw: Msg): Msg {
 
 function reviveHistory(history: ChatHistory): ChatHistory {
   return history
+}
+
+async function collectSessionCandidates(args: { root: string; archived: boolean }): Promise<string[]> {
+  const candidates: string[] = []
+  if (args.archived) {
+    const entries = await fsp.readdir(args.root, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        candidates.push(path.join(args.root, entry.name))
+        continue
+      }
+      if (!entry.isDirectory()) continue
+      const yearDir = path.join(args.root, entry.name)
+      const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
+      for (const m of months) {
+        if (!m.isDirectory()) continue
+        const monthDir = path.join(yearDir, m.name)
+        const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
+        for (const d of days) {
+          if (!d.isDirectory()) continue
+          const dayDir = path.join(monthDir, d.name)
+          const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
+          for (const f of files) {
+            if (!f.isFile()) continue
+            if (!f.name.endsWith('.jsonl')) continue
+            candidates.push(path.join(dayDir, f.name))
+          }
+        }
+      }
+    }
+    return candidates
+  }
+
+  const years = await fsp.readdir(args.root, { withFileTypes: true }).catch(() => [])
+  for (const y of years) {
+    if (!y.isDirectory()) continue
+    const yearDir = path.join(args.root, y.name)
+    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
+    for (const m of months) {
+      if (!m.isDirectory()) continue
+      const monthDir = path.join(yearDir, m.name)
+      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
+      for (const d of days) {
+        if (!d.isDirectory()) continue
+        const dayDir = path.join(monthDir, d.name)
+        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
+        for (const f of files) {
+          if (!f.isFile()) continue
+          if (!f.name.endsWith('.jsonl')) continue
+          candidates.push(path.join(dayDir, f.name))
+        }
+      }
+    }
+  }
+  return candidates
 }
 
 export async function readSessionFile(filePath: string): Promise<SessionReplay> {
@@ -90,33 +145,11 @@ export async function findLatestSessionFile(args: {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  archived?: boolean
 }): Promise<string | null> {
-  const sessionsRoot = getSessionsRoot(args)
+  const sessionsRoot = args.archived ? getArchivedSessionsRoot(args) : getSessionsRoot(args)
   const cwdReal = await fsp.realpath(args.cwd).catch(() => null)
-
-  const candidates: string[] = []
-
-  const years = await fsp.readdir(sessionsRoot, { withFileTypes: true }).catch(() => [])
-  for (const y of years) {
-    if (!y.isDirectory()) continue
-    const yearDir = path.join(sessionsRoot, y.name)
-    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
-    for (const m of months) {
-      if (!m.isDirectory()) continue
-      const monthDir = path.join(yearDir, m.name)
-      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
-      for (const d of days) {
-        if (!d.isDirectory()) continue
-        const dayDir = path.join(monthDir, d.name)
-        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
-        for (const f of files) {
-          if (!f.isFile()) continue
-          if (!f.name.endsWith('.jsonl')) continue
-          candidates.push(path.join(dayDir, f.name))
-        }
-      }
-    }
-  }
+  const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
   candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
 
@@ -142,34 +175,12 @@ export async function findSessionFileBySessionId(args: {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  archived?: boolean
 }): Promise<string | null> {
-  const sessionsRoot = getSessionsRoot(args)
+  const sessionsRoot = args.archived ? getArchivedSessionsRoot(args) : getSessionsRoot(args)
   const sessionId = String(args.sessionId ?? '').trim()
   if (!sessionId) return null
-
-  const candidates: string[] = []
-
-  const years = await fsp.readdir(sessionsRoot, { withFileTypes: true }).catch(() => [])
-  for (const y of years) {
-    if (!y.isDirectory()) continue
-    const yearDir = path.join(sessionsRoot, y.name)
-    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
-    for (const m of months) {
-      if (!m.isDirectory()) continue
-      const monthDir = path.join(yearDir, m.name)
-      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
-      for (const d of days) {
-        if (!d.isDirectory()) continue
-        const dayDir = path.join(monthDir, d.name)
-        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
-        for (const f of files) {
-          if (!f.isFile()) continue
-          if (!f.name.endsWith('.jsonl')) continue
-          candidates.push(path.join(dayDir, f.name))
-        }
-      }
-    }
-  }
+  const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
   // Newer files first, in case duplicate session ids exist due to manual edits.
   candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
@@ -305,35 +316,13 @@ export async function listRecentSessions(args: {
   limit?: number
   platform?: string
   homedir?: string
+  archived?: boolean
 }): Promise<SessionSummary[]> {
-  const sessionsRoot = getSessionsRoot(args)
+  const sessionsRoot = args.archived ? getArchivedSessionsRoot(args) : getSessionsRoot(args)
   const cwdReal = await fsp.realpath(args.cwd).catch(() => null)
   const includeAllProjects = Boolean(args.includeAllProjects)
   const limit = args.limit ?? 200
-
-  const candidates: string[] = []
-
-  const years = await fsp.readdir(sessionsRoot, { withFileTypes: true }).catch(() => [])
-  for (const y of years) {
-    if (!y.isDirectory()) continue
-    const yearDir = path.join(sessionsRoot, y.name)
-    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
-    for (const m of months) {
-      if (!m.isDirectory()) continue
-      const monthDir = path.join(yearDir, m.name)
-      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
-      for (const d of days) {
-        if (!d.isDirectory()) continue
-        const dayDir = path.join(monthDir, d.name)
-        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
-        for (const f of files) {
-          if (!f.isFile()) continue
-          if (!f.name.endsWith('.jsonl')) continue
-          candidates.push(path.join(dayDir, f.name))
-        }
-      }
-    }
-  }
+  const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
   candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
 
