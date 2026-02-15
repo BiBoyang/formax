@@ -75,6 +75,8 @@ export function createSkillPreflight(args: {
 
     const answersPromise = args.userInput.requestAnswers({
       toolUseId: call.id,
+      // Intentionally empty: approval UI (approve / remember / feedback) is driven
+      // by tool context and the consumer, not AskUserQuestion-style prompts.
       questions: [],
       signal: ctx.signal,
     })

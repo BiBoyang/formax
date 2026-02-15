@@ -15,25 +15,26 @@ describe('SkillToolHandler', () => {
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      const skillPath = path.join(cwd, '.formax', 'skills', 'pdf', 'SKILL.md')
+      await writeFileEnsuringDir(skillPath, ['---', 'description: PDF skill', '---', '', 'Do PDF stuff'].join('\n'))
 
-    const skillPath = path.join(cwd, '.formax', 'skills', 'pdf', 'SKILL.md')
-    await writeFileEnsuringDir(skillPath, ['---', 'description: PDF skill', '---', '', 'Do PDF stuff'].join('\n'))
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-1', name: 'Skill', input: { skill: 'pdf' } } as any,
+        { cwd, agentDepth: 0 },
+      )
 
-    const res = await SkillToolHandler.execute(
-      { id: 'skill-1', name: 'Skill', input: { skill: 'pdf' } } as any,
-      { cwd, agentDepth: 0 },
-    )
-
-    expect(res.is_error).toBeUndefined()
-    expect(res.content).toBe('Launching skill: pdf')
-    expect(res.extraTextBlocks).toBeTruthy()
-    expect(res.extraTextBlocks![0]).toContain(`Base directory for this skill: ${path.dirname(skillPath)}`)
-    expect(res.extraTextBlocks![0]).toContain('Do PDF stuff')
-
-    if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-    else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-    await fsp.rm(cwd, { recursive: true, force: true })
-    await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      expect(res.is_error).toBeUndefined()
+      expect(res.content).toBe('Launching skill: pdf')
+      expect(res.extraTextBlocks).toBeTruthy()
+      expect(res.extraTextBlocks![0]).toContain(`Base directory for this skill: ${path.dirname(skillPath)}`)
+      expect(res.extraTextBlocks![0]).toContain('Do PDF stuff')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
   })
 
   it('reports unknown skills and includes available list', async () => {
@@ -41,26 +42,27 @@ describe('SkillToolHandler', () => {
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      await writeFileEnsuringDir(
+        path.join(cwd, '.formax', 'skills', 'xlsx', 'SKILL.md'),
+        ['---', 'description: XLSX skill', '---', '', 'Do XLSX stuff'].join('\n'),
+      )
 
-    await writeFileEnsuringDir(
-      path.join(cwd, '.formax', 'skills', 'xlsx', 'SKILL.md'),
-      ['---', 'description: XLSX skill', '---', '', 'Do XLSX stuff'].join('\n'),
-    )
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-unknown', name: 'Skill', input: { skill: 'nope' } } as any,
+        { cwd, agentDepth: 0 },
+      )
 
-    const res = await SkillToolHandler.execute(
-      { id: 'skill-unknown', name: 'Skill', input: { skill: 'nope' } } as any,
-      { cwd, agentDepth: 0 },
-    )
-
-    expect(res.is_error).toBe(true)
-    expect(res.content).toContain('Unknown skill: nope')
-    expect(res.content).toContain('Available skills:')
-    expect(res.content).toContain('xlsx')
-
-    if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-    else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-    await fsp.rm(cwd, { recursive: true, force: true })
-    await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      expect(res.is_error).toBe(true)
+      expect(res.content).toContain('Unknown skill: nope')
+      expect(res.content).toContain('Available skills:')
+      expect(res.content).toContain('xlsx')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
   })
 
   it('rejects disabled skills', async () => {
@@ -68,24 +70,25 @@ describe('SkillToolHandler', () => {
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      await writeFileEnsuringDir(
+        path.join(cwd, '.formax', 'skills', 'secret', 'SKILL.md'),
+        ['---', 'description: Secret skill', 'disable-model-invocation: true', '---', '', 'Top secret'].join('\n'),
+      )
 
-    await writeFileEnsuringDir(
-      path.join(cwd, '.formax', 'skills', 'secret', 'SKILL.md'),
-      ['---', 'description: Secret skill', 'disable-model-invocation: true', '---', '', 'Top secret'].join('\n'),
-    )
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-disabled', name: 'Skill', input: { skill: 'secret' } } as any,
+        { cwd, agentDepth: 0 },
+      )
 
-    const res = await SkillToolHandler.execute(
-      { id: 'skill-disabled', name: 'Skill', input: { skill: 'secret' } } as any,
-      { cwd, agentDepth: 0 },
-    )
-
-    expect(res.is_error).toBe(true)
-    expect(res.content).toContain('disabled for model invocation')
-
-    if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-    else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-    await fsp.rm(cwd, { recursive: true, force: true })
-    await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      expect(res.is_error).toBe(true)
+      expect(res.content).toContain('disabled for model invocation')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
   })
 
   it('rejects unknown fields', async () => {
