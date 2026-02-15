@@ -1,5 +1,4 @@
 export type RuntimeFlags = {
-  startAgentsDialog: boolean
   sessionSaveEnabled: boolean
   isVitest: boolean
   toolLoopLimit: number | null
@@ -38,7 +37,6 @@ function parseSessionSaveEnabled(env: NodeJS.ProcessEnv): boolean {
 
 export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): RuntimeFlags {
   return {
-    startAgentsDialog: String(env.FORMAX_START_AGENTS_DIALOG ?? '').trim() === '1',
     sessionSaveEnabled: parseSessionSaveEnabled(env),
     isVitest: String(env.VITEST ?? '').trim().length > 0,
     toolLoopLimit: parseToolLoopLimit(env.FORMAX_TOOL_LOOP_LIMIT),

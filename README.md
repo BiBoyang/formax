@@ -107,11 +107,20 @@ formax setup
 ```bash
 export FORMAX_API_KEY="..."
 export FORMAX_BASE_URL="https://api.anthropic.com"   # normalized to .../v1
-export FORMAX_MODEL="..."                            # provider-specific model id
 
 # optional
 export FORMAX_TIMEOUT_MS="600000"
 ```
+
+Model-tier overrides:
+
+```bash
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-3-5-haiku-latest"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-4-5-20250929"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-3-opus-latest"
+```
+
+Full list: `docs/environment-variables.md`
 
 ### Providers
 

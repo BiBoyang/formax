@@ -4,7 +4,6 @@ import { createRuntimeFlags } from './runtimeFlags'
 describe('createRuntimeFlags', () => {
   it('defaults to session save enabled and no optional flags', () => {
     const flags = createRuntimeFlags({})
-    expect(flags.startAgentsDialog).toBe(false)
     expect(flags.sessionSaveEnabled).toBe(true)
     expect(flags.isVitest).toBe(false)
     expect(flags.toolLoopLimit).toBe(null)
@@ -15,12 +14,10 @@ describe('createRuntimeFlags', () => {
 
   it('parses truthy flags and normalized shell values', () => {
     const flags = createRuntimeFlags({
-      FORMAX_START_AGENTS_DIALOG: '1',
       FORMAX_HOOKS_DEBUG: 'Yes',
       FORMAX_BASH_MODE_SHELL: ' /bin/zsh ',
       SHELL: ' /bin/bash ',
     })
-    expect(flags.startAgentsDialog).toBe(true)
     expect(flags.hooksDebugEnabled).toBe(true)
     expect(flags.bashModeShellOverride).toBe('/bin/zsh')
     expect(flags.userShellPath).toBe('/bin/bash')

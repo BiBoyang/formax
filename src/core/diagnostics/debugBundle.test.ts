@@ -32,7 +32,6 @@ describe('createDebugBundle', () => {
         FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
         FORMAX_PLAN_DIR: path.join(dir, 'plans'),
         FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
-        FORMAX_MODEL: 'claude-test',
       } as any
 
       const [shown, runtime, policy] = await Promise.all([
@@ -109,7 +108,6 @@ describe('createDebugBundle', () => {
         FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
         FORMAX_PLAN_DIR: path.join(dir, 'plans'),
         FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
-        FORMAX_MODEL: 'claude-test',
       } as any
 
       const [shown, runtime, policy] = await Promise.all([

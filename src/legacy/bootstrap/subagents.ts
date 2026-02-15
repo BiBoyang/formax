@@ -69,9 +69,7 @@ export async function createSubagentRuntime(args: {
   })
 
   args.toolRegistry.register(createTaskToolModule(taskHandler))
-  if (args.env.FORMAX_PATCH_TASK_TOOL === 'true') {
-    args.toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
-  }
+  args.toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
 
   const tools = await args.toolRegistry.listSpecs()
   return {

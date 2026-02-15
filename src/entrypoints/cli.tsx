@@ -11,9 +11,6 @@ async function main(): Promise<void> {
     process.env.NO_COLOR = '1'
     process.env.FORCE_COLOR = '0'
   }
-  if (parsed.flags.agents) {
-    process.env.FORMAX_START_AGENTS_DIALOG = '1'
-  }
   if (parsed.flags.resumeLast) {
     process.env.FORMAX_RESUME_LAST = '1'
   }

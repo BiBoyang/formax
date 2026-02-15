@@ -191,18 +191,20 @@ Formax uses a layered configuration system (merges in order of precedence):
 ```
 
 **Environment variables** (override config files):
-- `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_MODEL`, `FORMAX_TIMEOUT_MS`
+- `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`
+- `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`
 - `FORMAX_WEBFETCH_MODEL`, `FORMAX_WEBFETCH_MAX_TOKENS`, `FORMAX_WEBFETCH_MAX_INPUT_CHARS`
-- `FORMAX_PATCH_TASK_TOOL` - Enable Task tool sub-agent patching (default: true)
 - `CONSOLE_LOGGER_PORT`, `ENABLE_CONSOLE_LOGGER` - Debug logging server
 - `FORMAX_FORCE_SETUP` - Force setup wizard to run on startup
 
 **Path overrides**:
 - `FORMAX_CONFIG_DIR` - Global config directory (default: `~/.formax/`)
-- `FORMAX_TOOLS_JSON_PATH` - Tool spec JSON (default: `src/tools/specs/reference/tools.json`)
 - `FORMAX_LOGS_DIR` - Traffic logs directory (default: `proxy/logs`)
 - `FORMAX_SUBAGENTS_DIR` - Project sub-agent definitions directory (default: `.formax/agents`)
 - `FORMAX_PLAN_DIR` - Plan mode directory (default: `.formax/plans/`)
+
+Full list and classification (public/internal/deprecated):
+- `docs/environment-variables.md`
 
 ### Testing
 

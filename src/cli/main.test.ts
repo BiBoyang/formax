@@ -164,7 +164,6 @@ describe('dispatchCli', () => {
         FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
         FORMAX_PLAN_DIR: path.join(dir, 'plans'),
         FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
-        FORMAX_MODEL: 'claude-test',
       } as any
 
       const tarGz = async ({ outPath }: { sourceDir: string; outPath: string }) => {
@@ -613,7 +612,6 @@ describe('dispatchCli', () => {
         env: {
           FORMAX_CONFIG_DIR: globalConfigDir,
           FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
-          FORMAX_MODEL: 'claude-test',
           FORMAX_LOGS_DIR: path.join(dir, 'logs'),
           FORMAX_SUBAGENTS_DIR: path.join(dir, 'subagents'),
           FORMAX_PLAN_DIR: path.join(dir, 'plans'),

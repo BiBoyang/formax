@@ -173,7 +173,7 @@ export function useReplController(deps: {
     reloadSubagents: deps.reloadSubagents,
     setAllowedSubagents,
     setMessages,
-    initialOverlay: runtimeFlags.startAgentsDialog ? { kind: 'agents' } : null,
+    initialOverlay: null,
   })
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode

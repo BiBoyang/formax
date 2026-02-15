@@ -15,15 +15,6 @@ describe('resolveRuntimeConfig', () => {
     expect(res.sources['llm.model']).toBe('flags')
   })
 
-  it('ignores legacy FORMAX_MODEL env var', () => {
-    const res = resolveRuntimeConfig({
-      env: { FORMAX_MODEL: 'legacy-env-model' },
-    })
-
-    expect(res.config.llm.model).toBe('')
-    expect(res.sources['llm.model']).toBe('default')
-  })
-
   it('does not overwrite missing fields with defaults from intermediate sources', () => {
     const res = resolveRuntimeConfig({
       globalConfig: { llm: { model: 'g' } },
