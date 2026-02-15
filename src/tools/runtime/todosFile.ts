@@ -8,7 +8,7 @@ let cachedTodosSessionId: string | null = null
 export function getTodosSessionId(): string {
   if (cachedTodosSessionId) return cachedTodosSessionId
 
-  const fromEnv = process.env.FORMAX_TODOS_SESSION_ID || process.env.FORMAX_SESSION_ID
+  const fromEnv = process.env.FORMAX_TODOS_SESSION_ID
   const normalized = typeof fromEnv === 'string' ? fromEnv.trim() : ''
 
   cachedTodosSessionId = normalized || randomUUID()

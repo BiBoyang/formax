@@ -51,7 +51,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       flags.help = true
       continue
     }
-    if (arg === '--resume-last') {
+    if (arg === '--continue' || arg === '-c') {
       flags.resumeLast = true
       continue
     }

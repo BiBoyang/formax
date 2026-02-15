@@ -25,4 +25,20 @@ describe('parseCliArgs', () => {
     expect(res.flags.json).toBe(false)
     expect(res.positionals).toEqual(['doctor'])
   })
+
+  it('parses -c/--continue flags', () => {
+    const shortFlag = parseCliArgs(['-c'])
+    expect(shortFlag.flags.resumeLast).toBe(true)
+    expect(shortFlag.positionals).toEqual([])
+
+    const longFlag = parseCliArgs(['--continue'])
+    expect(longFlag.flags.resumeLast).toBe(true)
+    expect(longFlag.positionals).toEqual([])
+  })
+
+  it('treats --resume-last as an unknown positional', () => {
+    const res = parseCliArgs(['--resume-last'])
+    expect(res.flags.resumeLast).toBe(false)
+    expect(res.positionals).toEqual(['--resume-last'])
+  })
 })

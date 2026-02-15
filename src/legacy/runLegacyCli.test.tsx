@@ -2,18 +2,12 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RuntimeConfig } from '../env/config.js'
 
 const clearTerminal = vi.fn(async () => {})
-const stopConsoleLogger = vi.fn()
 const createRuntime = vi.fn()
 const resolveInitialSession = vi.fn()
 const renderReplApp = vi.fn()
 
 vi.mock('../utils/terminal.js', () => ({
   clearTerminal,
-}))
-
-vi.mock('../utils/consoleLogger.js', () => ({
-  startConsoleLogger: vi.fn(),
-  stopConsoleLogger,
 }))
 
 vi.mock('../runtime/createRuntime.js', () => ({
@@ -127,8 +121,7 @@ describe('runLegacyCli', () => {
     expect(processExit).not.toHaveBeenCalled()
   })
 
-  it('resolves initial session when FORMAX_RESUME_LAST=1', async () => {
-    process.env.FORMAX_RESUME_LAST = '1'
+  it('resolves initial session when resumeLast=true', async () => {
     resolveInitialSession.mockResolvedValueOnce({
       filePath: '/tmp/session.jsonl',
       messages: [],
@@ -136,11 +129,12 @@ describe('runLegacyCli', () => {
     })
 
     const { runLegacyCli } = await import('./runLegacyCli.js')
-    await runLegacyCli()
+    await runLegacyCli({ resumeLast: true })
 
     expect(resolveInitialSession).toHaveBeenCalledWith({
       cwd: '/repo',
       env: process.env,
+      resumeLast: true,
     })
     expect(renderReplApp).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -153,13 +147,23 @@ describe('runLegacyCli', () => {
     )
   })
 
+  it('passes forceSetup through to runtime bootstrap', async () => {
+    const { runLegacyCli } = await import('./runLegacyCli.js')
+    await runLegacyCli({ forceSetup: true })
+
+    expect(createRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        forceSetup: true,
+      }),
+    )
+  })
+
   it('prints error and exits when setup/bootstrap fails', async () => {
     createRuntime.mockRejectedValueOnce(new Error('Setup canceled'))
 
     const { runLegacyCli } = await import('./runLegacyCli.js')
     await runLegacyCli()
 
-    expect(stopConsoleLogger).toHaveBeenCalledTimes(1)
     expect(clearTerminal).toHaveBeenCalledTimes(2)
     expect(stderrWrite).toHaveBeenCalledWith('Error: Setup canceled\n')
     expect(processExit).toHaveBeenCalledWith(1)

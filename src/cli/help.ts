@@ -25,7 +25,7 @@ export function formatCliHelp(): string {
     `  formax policy delete <ruleId> [--json]\n\n` +
     `Flags:\n` +
     `  --json     Output machine-readable JSON\n` +
-    `  --resume-last Resume the latest session for this cwd\n` +
+    `  -c, --continue Resume the latest session for this cwd\n` +
     `  --bundle   Write a redacted debug bundle (doctor only)\n` +
     `  --bundle-tar Also write <bundleDir>.tgz (doctor only)\n` +
     `  --no-color Disable ANSI colors\n` +

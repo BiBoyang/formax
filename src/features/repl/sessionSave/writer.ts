@@ -19,13 +19,6 @@ function isoNow(now: Date = new Date()): string {
   return now.toISOString()
 }
 
-function bestEffortProvider(): 'anthropic' | 'openai' | 'unknown' {
-  const raw = String(process.env.FORMAX_PROVIDER ?? '').trim().toLowerCase()
-  if (raw === 'openai') return 'openai'
-  if (raw === 'anthropic') return 'anthropic'
-  return 'anthropic'
-}
-
 function bestEffortGitBranch(cwd: string): string | null {
   try {
     const res = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
@@ -197,7 +190,7 @@ export class SessionWriter {
       cwd: args.cwd,
       ...(cwdReal ? { cwdReal } : {}),
       ...(gitBranch ? { gitBranch } : {}),
-      provider: bestEffortProvider(),
+      provider: 'anthropic',
       ...(args.model ? { model: args.model } : {}),
     }
 

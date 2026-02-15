@@ -300,18 +300,9 @@ describe('dispatchCli', () => {
     expect(res.stderr).toContain('Invalid --port')
   })
 
-  it('setup triggers repl and sets FORMAX_FORCE_SETUP', async () => {
-    const prev = process.env.FORMAX_FORCE_SETUP
-    try {
-      delete (process.env as any).FORMAX_FORCE_SETUP
-
-      const res = await dispatchCli(['setup'])
-      expect(res.kind).toBe('repl')
-      expect(process.env.FORMAX_FORCE_SETUP).toBe('1')
-    } finally {
-      if (prev == null) delete (process.env as any).FORMAX_FORCE_SETUP
-      else process.env.FORMAX_FORCE_SETUP = prev
-    }
+  it('setup triggers repl', async () => {
+    const res = await dispatchCli(['setup'])
+    expect(res.kind).toBe('repl')
   })
 
   it('returns usage error for setup --json', async () => {

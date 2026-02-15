@@ -11,9 +11,6 @@ async function main(): Promise<void> {
     process.env.NO_COLOR = '1'
     process.env.FORCE_COLOR = '0'
   }
-  if (parsed.flags.resumeLast) {
-    process.env.FORMAX_RESUME_LAST = '1'
-  }
 
   const res = await dispatchCli(argv)
   if (res.kind === 'handled') {
@@ -44,7 +41,11 @@ async function main(): Promise<void> {
   const { createApp } = await import('../core/app/createApp.js')
   const { runLegacyCli } = await import('../legacy/runLegacyCli.js')
   const app = createApp()
-  await runLegacyCli({ app })
+  await runLegacyCli({
+    app,
+    resumeLast: parsed.flags.resumeLast,
+    forceSetup: parsed.positionals[0] === 'setup',
+  })
 }
 
 main().catch((err) => {

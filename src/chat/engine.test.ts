@@ -610,91 +610,44 @@ describe('ChatEngine', () => {
     expect(outJson).not.toContain('CTX_STOP')
   })
 
-  it('enforces a configurable tool loop iteration limit (with diagnostics)', async () => {
-    const prev = process.env.FORMAX_TOOL_LOOP_LIMIT
-    process.env.FORMAX_TOOL_LOOP_LIMIT = '2'
-    try {
-      let callCount = 0
+  it('supports long tool-only loops until the model returns end_turn', async () => {
+    let callCount = 0
+    const maxToolCalls = 250
 
-      const client: LlmStreamClient = {
-        async streamOnce(_args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-          callCount++
+    const client: LlmStreamClient = {
+      async streamOnce(_args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount++
+        if (callCount <= maxToolCalls) {
           return {
             assistantBlocks: [{ type: 'tool_use', id: `t${callCount}`, name: 'Read', input: { file_path: '/tmp/a' } }],
             stopReason: 'tool_use',
             toolResults: [{ tool_use_id: `t${callCount}`, content: 'ok' }],
           }
-        },
-      }
+        }
 
-      const executor: ToolExecutor = async () => {
-        throw new Error('executor should not be called by ChatEngine')
-      }
-
-      const engine = createChatEngine({ client, executor })
-      await expect(
-        engine.runTurn({
-          history: [],
-          user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
-          system: [],
-          tools: [],
-          onEvent: (_ev: StreamEvent) => undefined,
-          cwd: '/tmp',
-        }),
-      ).rejects.toThrow(/Tool loop exceeded iteration limit \(2\).*recent: Read/)
-    } finally {
-      if (prev == null) delete process.env.FORMAX_TOOL_LOOP_LIMIT
-      else process.env.FORMAX_TOOL_LOOP_LIMIT = prev
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
     }
-  })
 
-  it('does not enforce a tool loop iteration limit by default', async () => {
-    const prev = process.env.FORMAX_TOOL_LOOP_LIMIT
-    delete process.env.FORMAX_TOOL_LOOP_LIMIT
-    try {
-      let callCount = 0
-      const maxToolCalls = 250
-
-      const client: LlmStreamClient = {
-        async streamOnce(_args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-          callCount++
-          if (callCount <= maxToolCalls) {
-            return {
-              assistantBlocks: [
-                { type: 'tool_use', id: `t${callCount}`, name: 'Read', input: { file_path: '/tmp/a' } },
-              ],
-              stopReason: 'tool_use',
-              toolResults: [{ tool_use_id: `t${callCount}`, content: 'ok' }],
-            }
-          }
-
-          return {
-            assistantBlocks: [{ type: 'text', text: 'done' }],
-            stopReason: 'end_turn',
-            toolResults: [],
-          }
-        },
-      }
-
-      const executor: ToolExecutor = async () => {
-        throw new Error('executor should not be called by ChatEngine')
-      }
-
-      const engine = createChatEngine({ client, executor })
-      const out = await engine.runTurn({
-        history: [],
-        user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
-        system: [],
-        tools: [],
-        onEvent: (_ev: StreamEvent) => undefined,
-        cwd: '/tmp',
-      })
-
-      expect(callCount).toBe(maxToolCalls + 1)
-      expect(out[out.length - 1]?.role).toBe('assistant')
-    } finally {
-      if (prev == null) delete process.env.FORMAX_TOOL_LOOP_LIMIT
-      else process.env.FORMAX_TOOL_LOOP_LIMIT = prev
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
     }
+
+    const engine = createChatEngine({ client, executor })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(callCount).toBe(maxToolCalls + 1)
+    expect(out[out.length - 1]?.role).toBe('assistant')
   })
 })

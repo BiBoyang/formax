@@ -9,7 +9,6 @@ function pickBashShell(args: { runtimeFlags: RuntimeFlags }): string | undefined
   if (process.platform === 'win32') return undefined
 
   const candidates = [
-    args.runtimeFlags.bashModeShellOverride,
     '/bin/bash',
     '/usr/bin/bash',
     args.runtimeFlags.userShellPath,

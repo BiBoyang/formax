@@ -3,6 +3,7 @@ import { findLatestSessionFile, readSessionFile } from '../../features/repl/sess
 export async function resolveInitialSession(args: {
   cwd: string
   env: NodeJS.ProcessEnv
+  resumeLast: boolean
 }): Promise<
   | {
       filePath: string
@@ -11,8 +12,7 @@ export async function resolveInitialSession(args: {
     }
   | null
 > {
-  const resumeLast = String(args.env.FORMAX_RESUME_LAST ?? '').trim() === '1'
-  if (!resumeLast) return null
+  if (!args.resumeLast) return null
 
   try {
     const filePath = await findLatestSessionFile({ cwd: args.cwd, env: args.env })

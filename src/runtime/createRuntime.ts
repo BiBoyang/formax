@@ -21,6 +21,7 @@ export type RuntimeBundle = BootstrapContext &
 export async function createRuntime(args: {
   cwd: string
   env: NodeJS.ProcessEnv
+  forceSetup?: boolean
   onBeforeConfigLoad?: () => Promise<void>
   onAfterSetupCompleted?: () => Promise<void>
   runtimeFlags?: RuntimeFlags
@@ -28,6 +29,7 @@ export async function createRuntime(args: {
   const bootstrap = await createRuntimeConfigContext({
     cwd: args.cwd,
     env: args.env,
+    forceSetup: args.forceSetup === true,
     onBeforeConfigLoad: args.onBeforeConfigLoad,
     onAfterSetupCompleted: args.onAfterSetupCompleted,
   })

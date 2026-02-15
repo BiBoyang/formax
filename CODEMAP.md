@@ -206,7 +206,6 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Config / Auth / Paths
 - Runtime config loader: `src/env/config.ts`
 - Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `src/env/runtimeFlags.ts`
-- Config directory default: `src/utils/env.ts` (`FORMAX_CONFIG_DIR`)
 - Config paths + migration/legacy behavior: `src/adapters/fs/configPaths.ts`
 - Reading config files (auth.json, etc): `src/adapters/fs/configFiles.ts`
 

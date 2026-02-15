@@ -102,6 +102,16 @@ describe('resolveRuntimeConfig', () => {
     expect(res.warnings.some((w) => w.includes('FORMAX_TIMEOUT_MS'))).toBe(true)
   })
 
+  it('ignores FORMAX_ENABLE_AUTO_COMPACT env override', () => {
+    const res = resolveRuntimeConfig({
+      env: { FORMAX_ENABLE_AUTO_COMPACT: '0' },
+    })
+
+    expect(res.config.context.enableAutoCompact).toBe(true)
+    expect(res.sources['context.enableAutoCompact']).toBe('default')
+    expect(res.warnings.some((w) => w.includes('FORMAX_ENABLE_AUTO_COMPACT'))).toBe(false)
+  })
+
   it('adds a warning and ignores invalid patches', () => {
     const res = resolveRuntimeConfig({
       globalConfig: { llm: { timeoutMs: 'nope' } },

@@ -63,7 +63,6 @@ export function createChatEngine(deps: {
   let pendingStopText: string[] | null = null
   let didAttemptSessionStart = false
   const runtimeFlags = deps.runtimeFlags ?? createRuntimeFlags()
-  const toolLoopLimit = runtimeFlags.toolLoopLimit
   const hooksDebugEnabled = runtimeFlags.hooksDebugEnabled
 
   return {
@@ -322,12 +321,6 @@ export function createChatEngine(deps: {
           if (recentTools.length > 20) recentTools.splice(0, recentTools.length - 20)
 
           iteration++
-          if (toolLoopLimit != null && iteration > toolLoopLimit) {
-            const suffix = recentTools.length ? ` (recent: ${recentTools.join(', ')})` : ''
-            throw new Error(
-              `Tool loop exceeded iteration limit (${toolLoopLimit})${suffix} — set FORMAX_TOOL_LOOP_LIMIT to override (default unlimited)`,
-            )
-          }
         }
 
         await runStop()

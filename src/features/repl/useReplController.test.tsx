@@ -135,7 +135,6 @@ afterEach(async () => {
 
 beforeEach(() => {
   process.env.FORMAX_SESSION_SAVE = '0'
-  delete process.env.FORMAX_SESSION_SAVE_DISABLED
 })
 
 describe('useReplController', () => {

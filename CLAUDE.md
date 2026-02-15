@@ -194,8 +194,6 @@ Formax uses a layered configuration system (merges in order of precedence):
 - `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`
 - `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`
 - `FORMAX_WEBFETCH_MODEL`, `FORMAX_WEBFETCH_MAX_TOKENS`, `FORMAX_WEBFETCH_MAX_INPUT_CHARS`
-- `CONSOLE_LOGGER_PORT`, `ENABLE_CONSOLE_LOGGER` - Debug logging server
-- `FORMAX_FORCE_SETUP` - Force setup wizard to run on startup
 
 **Path overrides**:
 - `FORMAX_CONFIG_DIR` - Global config directory (default: `~/.formax/`)

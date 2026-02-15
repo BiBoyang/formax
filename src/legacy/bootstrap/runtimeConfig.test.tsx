@@ -80,6 +80,17 @@ describe('createRuntimeConfigContext', () => {
     expect(render).not.toHaveBeenCalled()
   })
 
+  it('forces setup wizard when forceSetup=true', async () => {
+    loadRuntimeConfig
+      .mockResolvedValueOnce({ llm: { apiKey: 'key' } })
+      .mockResolvedValueOnce({ llm: { apiKey: 'key' } })
+    const { createRuntimeConfigContext } = await import('./runtimeConfig.js')
+    await createRuntimeConfigContext({ cwd: '/repo', env: process.env, forceSetup: true })
+
+    expect(render).toHaveBeenCalledTimes(1)
+    expect(loadRuntimeConfig).toHaveBeenCalledTimes(2)
+  })
+
   it('runs setup wizard then reloads config when key is missing', async () => {
     loadRuntimeConfig
       .mockResolvedValueOnce({ llm: { apiKey: '' } })

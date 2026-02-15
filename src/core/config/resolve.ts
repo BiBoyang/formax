@@ -213,17 +213,6 @@ function envToPatch(
     warnings.push('env FORMAX_COMPACT_KEEP_LAST_TURNS is invalid and was ignored')
   }
 
-  const enableAutoCompactRaw = (env.FORMAX_ENABLE_AUTO_COMPACT || '').trim().toLowerCase()
-  const enableAutoCompact =
-    enableAutoCompactRaw === '1' || enableAutoCompactRaw === 'true'
-      ? true
-      : enableAutoCompactRaw === '0' || enableAutoCompactRaw === 'false'
-        ? false
-        : undefined
-  if (enableAutoCompactRaw && enableAutoCompact === undefined) {
-    warnings.push('env FORMAX_ENABLE_AUTO_COMPACT is invalid and was ignored')
-  }
-
   const autoCompactMinTurnsBetweenRunsRaw = (env.FORMAX_AUTO_COMPACT_MIN_TURNS_BETWEEN_RUNS || '').trim()
   const autoCompactMinTurnsBetweenRunsParsed = autoCompactMinTurnsBetweenRunsRaw
     ? Number(autoCompactMinTurnsBetweenRunsRaw)
@@ -292,7 +281,6 @@ function envToPatch(
     autoCompactTokenLimitPercent !== undefined ||
     baselineTokens !== undefined ||
     compactKeepLastTurns !== undefined ||
-    enableAutoCompact !== undefined ||
     autoCompactMinTurnsBetweenRuns !== undefined
   ) {
     patch.context = {
@@ -301,7 +289,6 @@ function envToPatch(
       ...(autoCompactTokenLimitPercent !== undefined ? { autoCompactTokenLimitPercent } : {}),
       ...(baselineTokens !== undefined ? { baselineTokens } : {}),
       ...(compactKeepLastTurns !== undefined ? { compactKeepLastTurns } : {}),
-      ...(enableAutoCompact !== undefined ? { enableAutoCompact } : {}),
       ...(autoCompactMinTurnsBetweenRuns !== undefined ? { autoCompactMinTurnsBetweenRuns } : {}),
     }
   }

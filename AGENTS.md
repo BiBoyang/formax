@@ -95,7 +95,6 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - LLM: `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`
   - Tier mapping: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`
   - Paths: `FORMAX_CONFIG_DIR`, `FORMAX_LOGS_DIR`, `FORMAX_SUBAGENTS_DIR`, `FORMAX_PLAN_DIR`
-  - Setup: `FORMAX_FORCE_SETUP=1` (force the setup wizard)
   - Full list and classification: `docs/environment-variables.md`
 
 ## Security & Config Tips
