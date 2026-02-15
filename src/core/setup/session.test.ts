@@ -51,9 +51,12 @@ describe('createSetupSession', () => {
     await s.next()
 
     const stateAfterTest = s.getState()
-    expect(stateAfterTest.step).toBe('model')
+    expect(stateAfterTest.step).toBe('modelMode')
     expect(stateAfterTest.availableModels).toEqual(['model-a', 'model-b'])
     expect(testConnection).toHaveBeenCalledTimes(1)
+
+    await s.next()
+    expect(s.getState().step).toBe('model')
 
     s.setModel('model-a')
     await s.next()
@@ -90,6 +93,8 @@ describe('createSetupSession', () => {
     s.setApiKey('sk-test')
     await s.next()
 
+    expect(s.getState().step).toBe('modelMode')
+    await s.next()
     expect(s.getState().step).toBe('model')
     await s.next()
     expect(s.getState().step).toBe('model')
@@ -120,7 +125,7 @@ describe('createSetupSession', () => {
     await s.next()
 
     const stateAfterRetry = s.getState()
-    expect(stateAfterRetry.step).toBe('model')
+    expect(stateAfterRetry.step).toBe('modelMode')
     expect(stateAfterRetry.availableModels).toEqual(['model-a'])
     expect(testConnection).toHaveBeenCalledTimes(2)
   })
@@ -176,8 +181,66 @@ describe('createSetupSession', () => {
     expect(s.getState().step).toBe('apiKey')
     s.setApiKey('sk-test')
     await s.next()
+    expect(s.getState().step).toBe('modelMode')
+    await s.next()
     expect(s.getState().step).toBe('model')
     s.back()
-    expect(s.getState().step).toBe('apiKey')
+    expect(s.getState().step).toBe('modelMode')
+  })
+
+  it('supports advanced mode with per-tier model selection', async () => {
+    const testConnection = vi.fn(async () => ok(['m-a', 'm-b', 'm-c']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    expect(s.getState().step).toBe('modelMode')
+
+    s.setModelMode('advanced')
+    await s.next()
+    expect(s.getState().step).toBe('model')
+    expect(s.getState().modelTier).toBe('haiku')
+
+    s.setModel('m-a')
+    await s.next()
+    expect(s.getState().modelTier).toBe('sonnet')
+
+    s.setModel('m-b')
+    await s.next()
+    expect(s.getState().modelTier).toBe('opus')
+
+    s.setModel('m-c')
+    await s.next()
+
+    const state = s.getState()
+    expect(state.step).toBe('confirm')
+    expect(state.draft.tierModels).toEqual({ haiku: 'm-a', sonnet: 'm-b', opus: 'm-c' })
+    expect(state.draft.model).toBe('m-b')
+  })
+
+  it('quick mode maps one model to all tiers', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    expect(s.getState().step).toBe('modelMode')
+
+    s.setModelMode('quick')
+    await s.next()
+    s.setModel('m1')
+    await s.next()
+
+    const draft = s.getState().draft
+    expect(draft.tierModels).toEqual({ haiku: 'm1', sonnet: 'm1', opus: 'm1' })
+    expect(draft.model).toBe('m1')
   })
 })

@@ -47,6 +47,7 @@ async function runSetupWizard(args: { cwd: string; env: NodeJS.ProcessEnv }): Pr
               baseUrl: draft.baseUrl,
               apiKey: draft.apiKey,
               model: draft.model,
+              tierModels: draft.tierModels,
             })
           }}
           onDone={() => {

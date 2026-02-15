@@ -26,14 +26,30 @@ describe('modelTier', () => {
     expect(model).toBe('custom-sonnet')
   })
 
+  it('keeps llm.model as sonnet override and uses mappings for other tiers', () => {
+    const sonnet = resolveModelForTier({
+      tier: 'sonnet',
+      configuredModel: 'custom-sonnet',
+      configuredTierModels: { sonnet: 'mapped-sonnet' },
+      env: {},
+    })
+    const haiku = resolveModelForTier({
+      tier: 'haiku',
+      configuredTierModels: { haiku: 'mapped-haiku' },
+      env: {},
+    })
+    expect(sonnet).toBe('custom-sonnet')
+    expect(haiku).toBe('mapped-haiku')
+  })
+
   it('resolves active model from default tier', () => {
     const out = resolveActiveModel({
       defaultTierRaw: 'opus',
       configuredModel: 'custom-sonnet',
+      configuredTierModels: { opus: 'mapped-opus' },
       env: {},
     })
     expect(out.defaultTier).toBe('opus')
-    expect(out.model).toBe('claude-3-opus-latest')
+    expect(out.model).toBe('mapped-opus')
   })
 })
-

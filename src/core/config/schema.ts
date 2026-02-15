@@ -15,6 +15,15 @@ export type OutputStyle = z.infer<typeof OutputStyleSchema>
 export const ModelTierSchema = z.enum(['haiku', 'sonnet', 'opus'])
 export type ModelTier = z.infer<typeof ModelTierSchema>
 
+export const TierModelMappingSchema = z
+  .object({
+    haiku: z.string(),
+    sonnet: z.string(),
+    opus: z.string(),
+  })
+  .strict()
+export type TierModelMapping = z.infer<typeof TierModelMappingSchema>
+
 const TimeoutMsSchema = z.number().int().positive()
 const ContextWindowTokensSchema = z.number().int().positive()
 const Percent01Schema = z.number().min(0).max(1)
@@ -26,6 +35,7 @@ export const LlmConfigSchema = z
     baseUrl: z.string().default(''),
     model: z.string().default(''),
     defaultTier: ModelTierSchema.default('sonnet'),
+    tierModels: TierModelMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
@@ -42,6 +52,7 @@ export const LlmConfigPatchSchema = z
     baseUrl: z.string().optional(),
     model: z.string().optional(),
     defaultTier: ModelTierSchema.optional(),
+    tierModels: TierModelMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),

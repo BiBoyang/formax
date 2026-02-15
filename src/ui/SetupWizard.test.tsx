@@ -96,13 +96,17 @@ describe('SetupWizard', () => {
     stdin.write('\r')
     await waitForText(lastFrame, 'API Key')
 
-    // apiKey -> test -> model
+    // apiKey -> test -> model mode
     stdin.write('sk-test')
     await tick()
     stdin.write('\r')
     await tick()
     await tick()
-    await waitForText(lastFrame, 'Select a model')
+    await waitForText(lastFrame, 'Choose model setup mode')
+
+    // model mode -> model
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select model for quick mode')
 
     // model -> confirm
     stdin.write('\r')
@@ -114,6 +118,47 @@ describe('SetupWizard', () => {
     await tick()
     expect(onWrite).toHaveBeenCalledTimes(1)
     await waitForText(lastFrame, 'Write failed')
+  })
+
+  it('supports advanced model mapping flow in setup', async () => {
+    const { lastFrame, stdin } = renderSetupWizard({
+      testConnection: async () => ({ ok: true, models: ['m1', 'm2', 'm3'] }),
+    })
+
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select a provider')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Base URL')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'API Key')
+
+    stdin.write('sk-test')
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Choose model setup mode')
+
+    // move to advanced and confirm
+    stdin.write('\u001B[B')
+    await waitForText(lastFrame, '❯ Advanced')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select model for haiku')
+
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select model for sonnet')
+    stdin.write('2')
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select model for opus')
+    stdin.write('3')
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Review your settings')
+    const frame = lastFrame() || ''
+    expect(frame).toContain('Mode: Advanced')
+    expect(frame).toContain('Haiku: m1')
+    expect(frame).toContain('Sonnet: m2')
+    expect(frame).toContain('Opus: m3')
   })
 
   it('allows moving focus onto disabled provider options', async () => {

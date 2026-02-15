@@ -86,6 +86,7 @@ export function createTaskSubAgentToolHandler(deps: {
         tier: selectedModelTier,
         env: process.env,
         configuredModel: currentCfg.llm.configuredModel,
+        configuredTierModels: currentCfg.llm.tierModels,
       })
       const contextWindowTokens =
         currentCfg.llm.contextWindowTokens ??

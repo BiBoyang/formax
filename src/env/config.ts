@@ -14,6 +14,7 @@ export type RuntimeConfig = {
     apiKey: string
     model: string
     configuredModel?: string
+    tierModels?: Partial<Record<ModelTier, string>>
     defaultTier?: ModelTier
     timeoutMs: number
     contextWindowTokens?: number
@@ -98,9 +99,11 @@ export async function loadRuntimeConfig(
   const { defaultTier, model } = resolveActiveModel({
     defaultTierRaw: resolved.config.llm.defaultTier,
     configuredModel: resolved.config.llm.model,
+    configuredTierModels: resolved.config.llm.tierModels,
     env: env as Record<string, string | undefined>,
   })
   const configuredModel = String(resolved.config.llm.model || '').trim()
+  const tierModels = resolved.config.llm.tierModels
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const contextWindowTokens = resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
@@ -119,6 +122,7 @@ export async function loadRuntimeConfig(
       apiKey,
       model,
       configuredModel,
+      ...(tierModels ? { tierModels } : {}),
       defaultTier,
       timeoutMs,
       ...(contextWindowTokens ? { contextWindowTokens } : {}),

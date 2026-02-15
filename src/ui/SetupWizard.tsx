@@ -9,7 +9,7 @@ import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
 import { getConnectionTestHint } from '../core/setup/hints.js'
 import type { SetupDraft, SetupProviderOption } from '../core/setup/types.js'
-import type { ProviderId } from '../core/config/schema.js'
+import type { ModelTier, ProviderId } from '../core/config/schema.js'
 import type { ErrorCode as ErrorCodeValue } from '../core/errors/codes.js'
 
 type ChoiceOption = {
@@ -91,6 +91,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
 
   const [sessionState, setSessionState] = useState(() => session.getState())
   const [providerFocus, setProviderFocus] = useState(0)
+  const [modelModeFocus, setModelModeFocus] = useState(0)
   const [modelFocus, setModelFocus] = useState(0)
   const [confirmFocus, setConfirmFocus] = useState(0)
   const [writing, setWriting] = useState<{ status: 'idle' | 'running' | 'error'; error: string | null }>({ status: 'idle', error: null })
@@ -113,10 +114,31 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   }, [refresh, session])
 
   const providerOptions = useMemo(() => toProviderOptions(providers), [providers])
+  const modelModeOptions = useMemo<ChoiceOption[]>(
+    () => [
+      {
+        value: 'quick',
+        label: 'Quick (recommended)',
+        description: 'Use one model for haiku/sonnet/opus',
+      },
+      {
+        value: 'advanced',
+        label: 'Advanced',
+        description: 'Pick separate models for each tier',
+      },
+    ],
+    [],
+  )
   const modelOptions = useMemo<ChoiceOption[]>(() => {
     const models = sessionState.availableModels || []
     return models.map((m) => ({ value: m, label: m }))
   }, [sessionState.availableModels])
+  const selectedModelValue = useMemo(() => {
+    if (sessionState.draft.modelMode === 'advanced' && sessionState.modelTier) {
+      return sessionState.draft.tierModels[sessionState.modelTier] || undefined
+    }
+    return sessionState.draft.model || undefined
+  }, [sessionState.draft.model, sessionState.draft.modelMode, sessionState.draft.tierModels, sessionState.modelTier])
 
   useEffect(() => {
     setProviderFocus((prev) => {
@@ -124,6 +146,13 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       return Number.isFinite(prev) && prev >= 0 && prev < providerOptions.length ? prev : next
     })
   }, [providerOptions])
+
+  useEffect(() => {
+    setModelModeFocus((prev) => {
+      const next = firstEnabledIndex(modelModeOptions)
+      return Number.isFinite(prev) && prev >= 0 && prev < modelModeOptions.length ? prev : next
+    })
+  }, [modelModeOptions])
 
   const onProviderSelect = useCallback(
     (value: string) => {
@@ -137,6 +166,15 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const onModelSelect = useCallback(
     (value: string) => {
       session.setModel(value)
+      refresh()
+      void runNext()
+    },
+    [refresh, runNext, session],
+  )
+
+  const onModelModeSelect = useCallback(
+    (value: string) => {
+      session.setModelMode(value === 'advanced' ? 'advanced' : 'quick')
       refresh()
       void runNext()
     },
@@ -218,6 +256,35 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     [goBack, modelFocus, modelOptions, onModelSelect],
   )
 
+  const handleModelModeInput = useCallback(
+    (input: string, key: any) => {
+      if (modelModeOptions.length === 0) return
+      if (key.tab && key.shift) {
+        goBack()
+        return
+      }
+      if (key.downArrow) {
+        setModelModeFocus((idx) => nextIndex(modelModeOptions, idx, 1))
+        return
+      }
+      if (key.upArrow) {
+        setModelModeFocus((idx) => nextIndex(modelModeOptions, idx, -1))
+        return
+      }
+      if (input && /^[1-9]$/.test(input)) {
+        const idx = Number.parseInt(input, 10) - 1
+        if (idx >= 0 && idx < modelModeOptions.length) setModelModeFocus(idx)
+        return
+      }
+      if (key.return) {
+        const opt = modelModeOptions[modelModeFocus]
+        if (!opt || opt.disabled) return
+        onModelModeSelect(opt.value)
+      }
+    },
+    [goBack, modelModeFocus, modelModeOptions, onModelModeSelect],
+  )
+
   const handleConfirmInput = useCallback(
     (input: string, key: any) => {
       if (writing.status === 'running') return
@@ -294,6 +361,11 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         return
       }
 
+      if (step === 'modelMode') {
+        handleModelModeInput(input, key)
+        return
+      }
+
       if (step === 'model') {
         handleModelInput(input, key)
         return
@@ -354,11 +426,20 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
           onBack={goBack}
           onRetry={runNext}
         />
+      ) : step === 'modelMode' ? (
+        <ModelModeStep
+          options={modelModeOptions}
+          focusedIndex={modelModeFocus}
+          selectedValue={draft.modelMode}
+          error={sessionState.error}
+        />
       ) : step === 'model' ? (
         <ModelStep
           options={modelOptions}
           focusedIndex={modelFocus}
-          selectedValue={draft.model || undefined}
+          mode={draft.modelMode}
+          tier={sessionState.modelTier}
+          selectedValue={selectedModelValue}
           error={sessionState.error}
           onBack={goBack}
           onEnsureSelected={(value) => {
@@ -369,6 +450,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       ) : step === 'confirm' ? (
         <ConfirmStep
           draft={draft}
+          currentTier={sessionState.modelTier}
           focusIndex={confirmFocus}
           writing={writing}
           onBack={goBack}
@@ -592,9 +674,41 @@ function TestStep({
   )
 }
 
+function ModelModeStep({
+  options,
+  focusedIndex,
+  selectedValue,
+  error,
+}: {
+  options: ChoiceOption[]
+  focusedIndex: number
+  selectedValue?: string
+  error: string | null
+}): React.ReactNode {
+  const theme = getTheme()
+  return (
+    <Box flexDirection="column" paddingTop={1}>
+      <Text bold>Choose model setup mode</Text>
+      <Box marginTop={1}>
+        <ChoiceListView options={options} focusedIndex={focusedIndex} selectedValue={selectedValue} />
+      </Box>
+      {error ? (
+        <Box marginTop={1}>
+          <Text color={theme.error}>Error: {error}</Text>
+        </Box>
+      ) : null}
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Shift+Tab to go back · Esc to cancel</Text>
+      </Box>
+    </Box>
+  )
+}
+
 function ModelStep({
   options,
   focusedIndex,
+  mode,
+  tier,
   selectedValue,
   error,
   onBack,
@@ -602,6 +716,8 @@ function ModelStep({
 }: {
   options: ChoiceOption[]
   focusedIndex: number
+  mode: 'quick' | 'advanced'
+  tier: ModelTier | null
   selectedValue?: string
   error: string | null
   onBack: () => void
@@ -615,9 +731,19 @@ function ModelStep({
     if (first) onEnsureSelected(first)
   }, [onEnsureSelected, options, selectedValue])
 
+  const title =
+    mode === 'quick'
+      ? 'Select model for quick mode'
+      : `Select model for ${tier || 'current tier'}`
+
   return (
     <Box flexDirection="column" paddingTop={1}>
-      <Text bold>Select a model</Text>
+      <Text bold>{title}</Text>
+      {mode === 'quick' ? (
+        <Box marginTop={1}>
+          <Text color={theme.secondaryText}>This selection will be used for haiku, sonnet, and opus.</Text>
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         {options.length ? (
           <ChoiceListView options={options} focusedIndex={Math.min(focusedIndex, options.length - 1)} selectedValue={selectedValue} />
@@ -639,12 +765,14 @@ function ModelStep({
 
 function ConfirmStep({
   draft,
+  currentTier,
   focusIndex,
   writing,
   onBack,
   onConfirm,
 }: {
   draft: SetupDraft
+  currentTier: ModelTier | null
   focusIndex: number
   writing: { status: 'idle' | 'running' | 'error'; error: string | null }
   onBack: () => void
@@ -669,6 +797,28 @@ function ConfirmStep({
           <Text color={theme.secondaryText}>Model: </Text>
           {draft.model}
         </Text>
+        <Text>
+          <Text color={theme.secondaryText}>Mode: </Text>
+          {draft.modelMode === 'quick' ? 'Quick (recommended)' : 'Advanced'}
+        </Text>
+        <Text>
+          <Text color={theme.secondaryText}>Haiku: </Text>
+          {draft.tierModels.haiku}
+        </Text>
+        <Text>
+          <Text color={theme.secondaryText}>Sonnet: </Text>
+          {draft.tierModels.sonnet}
+        </Text>
+        <Text>
+          <Text color={theme.secondaryText}>Opus: </Text>
+          {draft.tierModels.opus}
+        </Text>
+        {currentTier ? (
+          <Text>
+            <Text color={theme.secondaryText}>Editing tier: </Text>
+            {currentTier}
+          </Text>
+        ) : null}
       </Box>
 
       <Box marginTop={2} flexDirection="column">

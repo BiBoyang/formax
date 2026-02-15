@@ -1,5 +1,12 @@
-import type { ProviderId } from '../config/schema.js'
-import type { ConnectionTestResult, SetupDraft, SetupProviderOption, SetupStep } from './types.js'
+import type { ModelTier, ProviderId } from '../config/schema.js'
+import type {
+  ConnectionTestResult,
+  SetupDraft,
+  SetupModelMode,
+  SetupProviderOption,
+  SetupStep,
+  SetupTierModels,
+} from './types.js'
 import { mapUnknownError } from './errorMapping.js'
 
 export type ConnectionTester = (input: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
@@ -9,6 +16,7 @@ export type SetupSessionState = {
   draft: SetupDraft
   providers: SetupProviderOption[]
   availableModels: string[]
+  modelTier: ModelTier | null
   test: { status: 'idle' | 'running' | 'error'; lastError: ConnectionTestResult | null }
   error: string | null
 }
@@ -18,6 +26,7 @@ export type SetupSession = {
   setProvider: (provider: ProviderId) => void
   setBaseUrl: (baseUrl: string) => void
   setApiKey: (apiKey: string) => void
+  setModelMode: (mode: SetupModelMode) => void
   setModel: (model: string) => void
   back: () => void
   next: () => Promise<void>
@@ -27,6 +36,12 @@ const DEFAULT_BASE_URL: Record<ProviderId, string> = {
   anthropic: 'https://api.anthropic.com/v1',
   openai: 'https://api.openai.com/v1',
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
+}
+
+const ADVANCED_MODEL_TIERS: ModelTier[] = ['haiku', 'sonnet', 'opus']
+
+function createEmptyTierModels(): SetupTierModels {
+  return { haiku: '', sonnet: '', opus: '' }
 }
 
 function normalizeBaseUrl(_provider: ProviderId, input: string): string {
@@ -40,18 +55,48 @@ export function createSetupSession(args: {
   providers: SetupProviderOption[]
   testConnection: ConnectionTester
 }): SetupSession {
+  let modelTierIndex = 0
+
   const state: SetupSessionState = {
     step: 'welcome',
-    draft: { provider: null, baseUrl: '', apiKey: '', model: '' },
+    draft: {
+      provider: null,
+      baseUrl: '',
+      apiKey: '',
+      modelMode: 'quick',
+      model: '',
+      tierModels: createEmptyTierModels(),
+    },
     providers: args.providers,
     availableModels: [],
+    modelTier: null,
     test: { status: 'idle', lastError: null },
     error: null,
+  }
+
+  const getCurrentModelTier = (): ModelTier | null => {
+    if (state.step !== 'model') return null
+    if (state.draft.modelMode !== 'advanced') return null
+    return ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))] ?? null
+  }
+
+  const syncModelTierState = () => {
+    state.modelTier = getCurrentModelTier()
   }
 
   const resetTest = () => {
     state.availableModels = []
     state.test = { status: 'idle', lastError: null }
+    modelTierIndex = 0
+    syncModelTierState()
+  }
+
+  const resetModelSelection = () => {
+    state.draft.modelMode = 'quick'
+    state.draft.model = ''
+    state.draft.tierModels = createEmptyTierModels()
+    modelTierIndex = 0
+    syncModelTierState()
   }
 
   const setError = (message: string | null) => {
@@ -65,7 +110,7 @@ export function createSetupSession(args: {
     } else {
       state.draft.baseUrl = normalizeBaseUrl(provider, state.draft.baseUrl)
     }
-    state.draft.model = ''
+    resetModelSelection()
     resetTest()
     setError(null)
   }
@@ -73,20 +118,62 @@ export function createSetupSession(args: {
   const setBaseUrl = (baseUrl: string) => {
     const provider = state.draft.provider
     state.draft.baseUrl = provider ? normalizeBaseUrl(provider, baseUrl) : String(baseUrl || '').trim()
-    state.draft.model = ''
+    resetModelSelection()
     resetTest()
     setError(null)
   }
 
   const setApiKey = (apiKey: string) => {
     state.draft.apiKey = String(apiKey || '').trim()
-    state.draft.model = ''
+    resetModelSelection()
     resetTest()
     setError(null)
   }
 
+  const setModelMode = (mode: SetupModelMode) => {
+    const nextMode: SetupModelMode = mode === 'advanced' ? 'advanced' : 'quick'
+    state.draft.modelMode = nextMode
+
+    const tierModels = { ...state.draft.tierModels }
+    if (nextMode === 'quick') {
+      const quickModel =
+        state.draft.model.trim() || tierModels.sonnet.trim() || tierModels.haiku.trim() || tierModels.opus.trim()
+      if (quickModel) {
+        state.draft.model = quickModel
+        state.draft.tierModels = { haiku: quickModel, sonnet: quickModel, opus: quickModel }
+      } else {
+        state.draft.model = ''
+        state.draft.tierModels = createEmptyTierModels()
+      }
+    } else {
+      const seed = state.draft.model.trim()
+      if (seed) {
+        state.draft.tierModels = {
+          haiku: tierModels.haiku.trim() || seed,
+          sonnet: tierModels.sonnet.trim() || seed,
+          opus: tierModels.opus.trim() || seed,
+        }
+      }
+      state.draft.model = state.draft.tierModels.sonnet.trim()
+    }
+
+    modelTierIndex = 0
+    syncModelTierState()
+    setError(null)
+  }
+
   const setModel = (model: string) => {
-    state.draft.model = String(model || '').trim()
+    const value = String(model || '').trim()
+    if (state.draft.modelMode === 'quick') {
+      state.draft.model = value
+      state.draft.tierModels = { haiku: value, sonnet: value, opus: value }
+    } else {
+      const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
+      if (tier) {
+        state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
+        if (tier === 'sonnet') state.draft.model = value
+      }
+    }
     setError(null)
   }
 
@@ -97,10 +184,20 @@ export function createSetupSession(args: {
     else if (state.step === 'baseUrl') state.step = 'provider'
     else if (state.step === 'apiKey') state.step = 'baseUrl'
     else if (state.step === 'test') state.step = 'apiKey'
-    else if (state.step === 'model') state.step = 'apiKey'
-    else if (state.step === 'confirm') state.step = 'model'
-    else if (state.step === 'write') state.step = 'confirm'
+    else if (state.step === 'modelMode') state.step = 'apiKey'
+    else if (state.step === 'model') {
+      if (state.draft.modelMode === 'advanced' && modelTierIndex > 0) {
+        modelTierIndex -= 1
+      } else {
+        state.step = 'modelMode'
+        modelTierIndex = 0
+      }
+    } else if (state.step === 'confirm') {
+      state.step = 'model'
+      if (state.draft.modelMode === 'advanced') modelTierIndex = ADVANCED_MODEL_TIERS.length - 1
+    } else if (state.step === 'write') state.step = 'confirm'
     else if (state.step === 'done') state.step = 'write'
+    syncModelTierState()
   }
 
   const runTest = async () => {
@@ -131,7 +228,9 @@ export function createSetupSession(args: {
     if (res.ok === true) {
       state.availableModels = res.models
       state.test = { status: 'idle', lastError: null }
-      state.step = 'model'
+      state.step = 'modelMode'
+      modelTierIndex = 0
+      syncModelTierState()
       setError(null)
       return
     }
@@ -182,12 +281,39 @@ export function createSetupSession(args: {
       return
     }
 
+    if (state.step === 'modelMode') {
+      modelTierIndex = 0
+      state.step = 'model'
+      syncModelTierState()
+      return
+    }
+
     if (state.step === 'model') {
-      if (!state.draft.model.trim()) {
-        setError('Select a model')
+      if (state.draft.modelMode === 'quick') {
+        if (!state.draft.model.trim()) {
+          setError('Select a model')
+          return
+        }
+        state.step = 'confirm'
+        syncModelTierState()
         return
       }
+
+      const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
+      if (!tier || !state.draft.tierModels[tier].trim()) {
+        setError(`Select a model for ${tier ?? 'this tier'}`)
+        return
+      }
+
+      if (modelTierIndex < ADVANCED_MODEL_TIERS.length - 1) {
+        modelTierIndex += 1
+        syncModelTierState()
+        return
+      }
+
+      state.draft.model = state.draft.tierModels.sonnet.trim()
       state.step = 'confirm'
+      syncModelTierState()
       return
     }
 
@@ -207,6 +333,7 @@ export function createSetupSession(args: {
     setProvider,
     setBaseUrl,
     setApiKey,
+    setModelMode,
     setModel,
     back,
     next,

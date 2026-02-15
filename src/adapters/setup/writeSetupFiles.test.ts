@@ -23,6 +23,11 @@ describe('writeSetupFiles', () => {
         baseUrl: 'https://api.anthropic.com/v1',
         apiKey: 'sk-test',
         model: 'claude-3-5-sonnet-latest',
+        tierModels: {
+          haiku: 'claude-3-5-haiku-latest',
+          sonnet: 'claude-3-5-sonnet-latest',
+          opus: 'claude-3-opus-latest',
+        },
       })
 
       const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
@@ -30,6 +35,11 @@ describe('writeSetupFiles', () => {
       expect(config.llm.provider).toBe('anthropic')
       expect(config.llm.baseUrl).toBe('https://api.anthropic.com/v1')
       expect(config.llm.model).toBe('claude-3-5-sonnet-latest')
+      expect(config.llm.tierModels).toEqual({
+        haiku: 'claude-3-5-haiku-latest',
+        sonnet: 'claude-3-5-sonnet-latest',
+        opus: 'claude-3-opus-latest',
+      })
       expect(config.llm.authRef).toBe('default')
       expect(config.llm.timeoutMs).toBe(600000)
       expect(config.paths.logsDir).toBe(res.logsDir)
@@ -74,5 +84,35 @@ describe('writeSetupFiles', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('uses sonnet tier mapping when model is empty', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-tier-model-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: '',
+        tierModels: {
+          haiku: 'h',
+          sonnet: 's',
+          opus: 'o',
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.model).toBe('s')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

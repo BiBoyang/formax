@@ -31,17 +31,21 @@ export function resolveModelForTier(args: {
   tier: ModelTier
   env?: Record<string, string | undefined>
   configuredModel?: string
+  configuredTierModels?: Partial<Record<ModelTier, string>>
 }): string {
   const env = args.env ?? process.env
   const key = ENV_KEY_BY_TIER[args.tier]
   const fromEnv = normalizeNonEmptyString(env[key])
   if (fromEnv) return fromEnv
 
-  // Keep existing setup behavior: selected llm.model remains the default sonnet model.
+  // Preserve legacy behavior: llm.model can always override sonnet.
   if (args.tier === 'sonnet') {
     const configured = normalizeNonEmptyString(args.configuredModel)
     if (configured) return configured
   }
+
+  const fromConfigMap = normalizeNonEmptyString(args.configuredTierModels?.[args.tier])
+  if (fromConfigMap) return fromConfigMap
 
   return DEFAULT_MODEL_BY_TIER[args.tier]
 }
@@ -49,11 +53,17 @@ export function resolveModelForTier(args: {
 export function resolveActiveModel(args: {
   defaultTierRaw?: string | null
   configuredModel?: string
+  configuredTierModels?: Partial<Record<ModelTier, string>>
   env?: Record<string, string | undefined>
 }): { defaultTier: ModelTier; model: string } {
   const defaultTier = normalizeModelTier(args.defaultTierRaw, 'sonnet')
   return {
     defaultTier,
-    model: resolveModelForTier({ tier: defaultTier, configuredModel: args.configuredModel, env: args.env }),
+    model: resolveModelForTier({
+      tier: defaultTier,
+      configuredModel: args.configuredModel,
+      configuredTierModels: args.configuredTierModels,
+      env: args.env,
+    }),
   }
 }

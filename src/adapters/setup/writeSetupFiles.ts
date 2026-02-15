@@ -5,7 +5,7 @@ import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../core/config/schema.js'
-import type { ProviderId } from '../../core/config/schema.js'
+import type { ProviderId, TierModelMapping } from '../../core/config/schema.js'
 
 export type WriteSetupFilesResult = {
   configPath: string
@@ -71,6 +71,7 @@ export async function writeSetupFiles(args: {
   baseUrl: string
   apiKey: string
   model: string
+  tierModels?: TierModelMapping
   authRef?: string
 }): Promise<WriteSetupFilesResult> {
   const cwd = args.cwd ?? process.cwd()
@@ -87,12 +88,16 @@ export async function writeSetupFiles(args: {
   const logsDir = path.join(paths.globalConfigDir, 'logs')
 
   const existing = await readJsonIfExists(args.fileStore, configPath, 'config', warnings)
+  const tierModels = args.tierModels
+  const modelFromTier = tierModels?.sonnet?.trim() || ''
+  const resolvedModel = args.model.trim() || modelFromTier
   const nextPatch = {
     version: 1,
     llm: {
       provider: args.provider,
       baseUrl: args.baseUrl,
-      model: args.model,
+      model: resolvedModel,
+      ...(tierModels ? { tierModels } : {}),
       authRef,
     },
     paths: { logsDir },
@@ -117,4 +122,3 @@ export async function writeSetupFiles(args: {
 
   return { configPath, authPath, logsDir, warnings }
 }
-
