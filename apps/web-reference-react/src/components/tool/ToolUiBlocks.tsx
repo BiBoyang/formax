@@ -54,9 +54,9 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         data-testid="tool-status-dot"
         className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
       />
-      <span className="min-w-0 truncate text-[13px] leading-5 font-normal text-foreground/80">{label}</span>
+      <span className="min-w-0 truncate ui-text-base leading-5 font-normal ui-text-primary">{label}</span>
       {block.inputState ? (
-        <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
+        <span className={cn('shrink-0 rounded-full border px-2 py-0.5 ui-text-micro font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
           {inputStateLabel(block.inputState)}
         </span>
       ) : null}
@@ -70,7 +70,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
 function DetailsBlock({ block }: { block: ToolUiBlockDetails }) {
   return (
     <div className="ml-3 mt-1 border-l border-border/60 pl-4">
-      <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground/90">
+      <div className="space-y-0.5 font-mono ui-text-meta ui-text-secondary">
         {block.lines.map((line, index) => (
           <div key={`tool-line-${index}`} className="whitespace-pre-wrap break-all leading-5">
             {line}
@@ -86,14 +86,14 @@ function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
     <div className="ml-3 mt-2 space-y-2">
       {block.files.map((file) => (
         <div key={`${file.path}-${file.patch.length}`} className="rounded-[10px] overflow-hidden">
-          <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 bg-sidebar-accent/55 border border-transparent rounded-t-[10px]">
+          <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 ui-surface-subtle border border-transparent rounded-t-[10px]">
             <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
-              <span title={file.path} className="font-mono min-w-0 truncate text-[#1f2328] text-[12.5px] leading-4 font-medium">
+              <span title={file.path} className="font-mono min-w-0 truncate ui-text-primary ui-text-base leading-4 font-medium">
                 {truncatePathFromLeft(file.path)}
               </span>
-              <div className="flex items-center gap-1 text-[12px] leading-4 font-mono font-normal shrink-0">
-                <span className="text-[#00a86b]">+{file.additions}</span>
-                <span className="text-[#d63a3a]">-{file.deletions}</span>
+              <div className="flex items-center gap-1 ui-text-base leading-4 font-mono font-normal shrink-0">
+                <span className="ui-text-diff-add">+{file.additions}</span>
+                <span className="ui-text-diff-del">-{file.deletions}</span>
               </div>
             </div>
           </div>
@@ -115,7 +115,7 @@ export function ToolUiBlocks({ blocks, open, onToggle }: ToolUiBlocksProps) {
     <div className="py-0.5">
       {header ? <HeaderBlock block={header} open={open} onToggle={onToggle} /> : null}
       {info && info.kind === 'info' ? (
-        <div className="ml-[18px] text-[12px] text-muted-foreground">{info.text}</div>
+        <div className="ml-[18px] ui-text-base text-muted-foreground">{info.text}</div>
       ) : null}
       {showDiff && diff ? <DiffBlock block={diff} /> : null}
       {details && open ? <DetailsBlock block={details} /> : null}

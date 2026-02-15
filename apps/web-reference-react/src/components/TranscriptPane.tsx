@@ -98,7 +98,7 @@ function ThinkingItem(props: {
     return (
       <div className="flex items-center gap-2 py-1">
         <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-pulse" />
-        <div className="text-[11px] text-muted-foreground tracking-tight animate-pulse">{'thinking'}</div>
+        <div className="ui-text-meta ui-text-muted tracking-tight animate-pulse">{'thinking'}</div>
       </div>
     )
   }
@@ -111,12 +111,12 @@ function ThinkingItem(props: {
       >
         <div className="flex min-w-0 items-center gap-2">
           {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="text-[11px] text-muted-foreground">thinking</span>
+          <span className="ui-text-meta ui-text-muted">thinking</span>
         </div>
-        <span className="max-w-[320px] truncate text-[11px] text-muted-foreground/80">{compactSummary}</span>
+        <span className="max-w-[320px] truncate ui-text-meta text-muted-foreground/80">{compactSummary}</span>
       </button>
       {open ? (
-        <div className="border-t bg-background/70 px-3 py-2 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+        <div className="border-t bg-background/70 px-3 py-2 font-mono ui-text-meta text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
           {item.text}
         </div>
       ) : null}
@@ -137,9 +137,9 @@ function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_
   } as const
   return (
     <div className="flex items-center gap-2 py-1 pl-1">
-      <span className={cn('text-[11px] font-medium', styleByStatus[item.status])}>{labelByStatus[item.status]}</span>
-      <span className="text-[10px] text-muted-foreground/70 font-mono">{item.turnId.slice(0, 8)}</span>
-      {item.message ? <span className="text-[10px] text-muted-foreground/70 truncate max-w-[320px]">{item.message}</span> : null}
+      <span className={cn('ui-text-meta font-medium', styleByStatus[item.status])}>{labelByStatus[item.status]}</span>
+      <span className="ui-text-micro text-muted-foreground/70 font-mono">{item.turnId.slice(0, 8)}</span>
+      {item.message ? <span className="ui-text-micro text-muted-foreground/70 truncate max-w-[320px]">{item.message}</span> : null}
     </div>
   )
 }
@@ -371,7 +371,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
             {renderedLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
                     <MessageSquare className="h-8 w-8 text-muted-foreground/20" />
-                    <span className="text-sm">Start a thread to begin</span>
+                    <span className="ui-text-base ui-text-muted">Start a thread to begin</span>
                 </div>
             ) : null}
 
@@ -393,11 +393,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     )}
                   >
                     {item.kind === 'log' ? (
-                      <div className={cn('rounded-lg border px-3 py-2 text-xs bg-muted/20')}>
+                      <div className={cn('rounded-lg border px-3 py-2 ui-text-meta bg-muted/20')}>
                         <div className="mb-1 flex items-center gap-2">
-                          <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 text-[10px] uppercase font-bold tracking-wider">{item.level}</Badge>
+                          <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 ui-text-micro uppercase font-bold tracking-wider">{item.level}</Badge>
                         </div>
-                        <div className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
+                        <div className="text-muted-foreground font-mono ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
                       </div>
                     ) : item.kind === 'thinking' ? (
                       <ThinkingItem
@@ -420,14 +420,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                           className={cn(
                             'max-w-[85%] transition-all duration-300',
                             item.role === 'user'
-                              ? 'rounded-[14px] bg-[#F4F4F7] px-3 py-1 text-foreground selection:bg-primary/20'
+                              ? 'rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20'
                               : 'text-foreground py-2'
                           )}
                         >
                           {item.role === 'assistant' ? (
-                            <MarkdownRenderer text={item.text} cacheKey={item.id} className="text-[14px] leading-relaxed" />
+                            <MarkdownRenderer text={item.text} cacheKey={item.id} className="ui-text-base leading-relaxed" />
                           ) : (
-                            <div className="text-[14px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
+                            <div className="ui-text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
                               {item.text}
                             </div>
                           )}
@@ -449,17 +449,17 @@ export function TranscriptPane(props: TranscriptPaneProps) {
               <Collapsible open={showErrorDetails} onOpenChange={setShowErrorDetails}>
                 <Card className="gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none mx-4">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-destructive font-medium">
+                    <div className="ui-text-meta text-destructive font-medium">
                       Rpc Error: {lastRpcError.message}
                     </div>
                     <CollapsibleTrigger asChild>
-                      <Button type="button" variant="ghost" size="xs" className="h-6 px-2 text-xs hover:bg-destructive/10">
+                      <Button type="button" variant="ghost" size="xs" className="h-6 px-2 ui-text-meta hover:bg-destructive/10">
                         {showErrorDetails ? 'Hide' : 'Details'}
                       </Button>
                     </CollapsibleTrigger>
                   </div>
                   <CollapsibleContent>
-                    <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 text-[10px] whitespace-pre-wrap font-mono">
+                    <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
                       {JSON.stringify(lastRpcError, null, 2)}
                     </pre>
                   </CollapsibleContent>
@@ -496,7 +496,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                   value={inputText}
                   onChange={(event) => onInputTextChange(event.target.value)}
                   placeholder="Ask for follow-up changes"
-                  className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 text-[14px] leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
+                  className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 ui-text-base leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
                   onCompositionStart={() => setIsImeComposing(true)}
                   onCompositionEnd={() => setIsImeComposing(false)}
                   onKeyDown={(e) => {
@@ -524,13 +524,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     variant="ghost"
                     aria-label="Execution mode"
                     onClick={() => onModeChange(nextComposerMode(mode))}
-                    className={cn('h-7 rounded-md px-2 text-[12px] font-medium tracking-tight transition-colors', modeInfo.toneClass)}
+                    className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
                     title="Click to cycle mode (Shift+Tab)"
                   >
                     <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
                     <span>{modeInfo.label}</span>
                   </Button>
-                  <div className="hidden lg:block text-[12px] text-muted-foreground/85">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
+                  <div className="hidden lg:block ui-text-base text-muted-foreground/85">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
                 </div>
                 <div className="flex items-center gap-1 pr-1 text-muted-foreground">
                   {isSending || isInterrupting ? (
@@ -552,7 +552,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                       size="icon"
                       className={cn(
                         'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
-                        !inputText.trim() ? 'bg-[#8a8a8a] text-white hover:bg-[#8a8a8a]' : 'bg-black text-white hover:bg-black/90',
+                        !inputText.trim() ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
                       )}
                     >
                       <ArrowUp className="h-4 w-4" />

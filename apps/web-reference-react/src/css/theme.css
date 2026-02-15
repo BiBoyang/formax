@@ -57,6 +57,22 @@
   --shadow-2xl: 0px 4px 10px 0px hsl(0 0% 0% / 0.13);
   --tracking-normal: -0.01em;
   --spacing: 0.25rem;
+  --font-size-base: 13px;
+  --font-size-meta: 11px;
+  --font-size-micro: 10px;
+  --line-height-base: 1.5;
+  --line-height-meta: 1.35;
+  --line-height-micro: 1.25;
+  --text-primary: var(--foreground);
+  --text-secondary: color-mix(in oklch, var(--foreground) 90%, transparent);
+  --text-muted-ui: color-mix(in oklch, var(--foreground) 78%, transparent);
+  --surface-subtle: color-mix(in srgb, var(--background) 94%, black);
+  --surface-user-bubble: color-mix(in srgb, var(--background) 94%, black);
+  --surface-selected: color-mix(in oklch, var(--foreground) 10%, var(--background));
+  --diff-add: oklch(0.68 0.17 152);
+  --diff-del: oklch(0.62 0.21 27);
+  --diff-untracked: oklch(0.62 0.18 258);
+  --button-disabled: color-mix(in oklch, var(--foreground) 46%, white);
 }
 
 .dark {
@@ -110,6 +126,22 @@
   --shadow-lg: 0px 8px 20px 0px hsl(0 0% 0% / 0.20), 0px 4px 6px -1px hsl(0 0% 0% / 0.20);
   --shadow-xl: 0px 8px 20px 0px hsl(0 0% 0% / 0.20), 0px 8px 10px -1px hsl(0 0% 0% / 0.20);
   --shadow-2xl: 0px 8px 20px 0px hsl(0 0% 0% / 0.50);
+  --font-size-base: 13px;
+  --font-size-meta: 11px;
+  --font-size-micro: 10px;
+  --line-height-base: 1.5;
+  --line-height-meta: 1.35;
+  --line-height-micro: 1.25;
+  --text-primary: var(--foreground);
+  --text-secondary: color-mix(in oklch, var(--foreground) 88%, transparent);
+  --text-muted-ui: color-mix(in oklch, var(--foreground) 76%, transparent);
+  --surface-subtle: color-mix(in oklch, var(--foreground) 10%, var(--background));
+  --surface-user-bubble: color-mix(in oklch, var(--foreground) 10%, var(--background));
+  --surface-selected: color-mix(in oklch, var(--foreground) 15%, var(--background));
+  --diff-add: oklch(0.74 0.16 152);
+  --diff-del: oklch(0.70 0.19 27);
+  --diff-untracked: oklch(0.72 0.15 258);
+  --button-disabled: color-mix(in oklch, var(--foreground) 52%, var(--background));
 }
 
 @theme inline {

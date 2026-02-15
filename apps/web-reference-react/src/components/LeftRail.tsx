@@ -165,10 +165,10 @@ export function LeftRail(props: LeftRailProps) {
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col min-h-full">
           <div className="px-2 pt-4 space-y-0.5 flex-none">
-            {connectionStatus ? <div className="px-3 pb-2 text-xs text-muted-foreground">{connectionStatus}</div> : null}
+            {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-text-muted">{connectionStatus}</div> : null}
             <Button
               variant="ghost"
-              className="w-full justify-start h-9 px-3 text-[14px] font-medium text-foreground/80 hover:bg-muted/40"
+              className="w-full justify-start h-9 px-3 ui-text-base font-medium ui-text-secondary hover:bg-muted/40"
               onClick={onStartThread}
               disabled={isBusy}
             >
@@ -178,10 +178,10 @@ export function LeftRail(props: LeftRailProps) {
           </div>
 
           <div className="flex-1 flex flex-col mt-4 pb-12">
-            <div className="px-5 py-2 text-[12px] font-medium text-muted-foreground/50 tracking-wide flex-none">Threads</div>
+            <div className="px-5 py-2 ui-text-base font-medium ui-text-muted tracking-wide flex-none">Threads</div>
 
             <div className="space-y-0.5 px-2">
-              {groupedThreads.length === 0 ? <div className="px-4 py-4 text-xs text-muted-foreground/60 italic">No recent threads</div> : null}
+              {groupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-text-muted italic">No recent threads</div> : null}
               {groupedThreads.map((group) => {
                 const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
@@ -196,8 +196,8 @@ export function LeftRail(props: LeftRailProps) {
                       <Button
                         variant="ghost"
                         className={cn(
-                          'w-full justify-start h-9 px-3 text-[13px] font-medium transition-colors group/folder',
-                          isSelectedGroup ? 'bg-muted/50 text-foreground' : 'text-foreground/65 hover:bg-muted/35',
+                          'w-full justify-start h-9 px-3 ui-text-base font-normal transition-colors group/folder',
+                          isSelectedGroup ? 'ui-surface-subtle ui-text-secondary' : 'ui-text-muted hover:bg-muted/30',
                         )}
                         onClick={() => onSelectCwd(group.cwd)}
                         title={group.cwd}
@@ -224,20 +224,20 @@ export function LeftRail(props: LeftRailProps) {
                                 className={cn(
                                   'relative w-full h-9 flex items-center rounded-md transition-colors group/thread',
                                   isActive
-                                    ? 'bg-sidebar-accent text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-                                    : 'text-foreground/85 hover:bg-sidebar-accent/45',
+                                    ? 'ui-surface-selected text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
+                                    : 'ui-text-secondary hover:bg-[var(--surface-subtle)]',
                                 )}
                               >
                               <Button
                                 variant="ghost"
                                 className={cn(
-                                  'h-9 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal text-[13.5px] transition-none hover:bg-transparent',
-                                  isActive ? 'text-foreground' : 'text-foreground/85',
+                                  'h-9 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent',
+                                  isActive ? 'ui-text-primary' : 'ui-text-secondary',
                                 )}
                                 onClick={() => onSelectThread(thread.id)}
                               >
                                 <span className="min-w-0 flex-1 truncate text-left">{threadTitle(thread)}</span>
-                                <span className={cn('shrink-0 text-right text-[11px] font-mono tabular-nums', isActive ? 'text-foreground/58' : 'text-foreground/52')}>
+                                <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
                                   {relativeTime(thread.updatedAt)}
                                 </span>
                               </Button>

@@ -112,7 +112,7 @@ export function AppShell(props: AppShellProps) {
   }
 
   return (
-    <div data-testid="app-shell" className="h-screen w-screen min-w-0 bg-sidebar overflow-hidden text-sm relative">
+    <div data-testid="app-shell" className="h-screen w-screen min-w-0 bg-sidebar overflow-hidden ui-text-base relative">
       <ResizablePanelGroup
         direction="horizontal"
         className="h-full w-full"
@@ -175,16 +175,16 @@ export function AppShell(props: AppShellProps) {
                     <PanelLeft className="h-4 w-4" />
                   </Button>
                   <div className="min-w-0 flex flex-col leading-tight">
-                    <div className="truncate text-[14px] font-semibold text-foreground">{props.activeThreadTitle}</div>
+                    <div className="truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
                   {props.activeTurnId ? (
-                    <div className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                    <div className="rounded-full border border-border bg-background px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
                       turn {props.activeTurnId.slice(0, 8)}
                     </div>
                   ) : null}
-                  <div className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  <div className="rounded-full bg-muted px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
                     {props.connectionStatus}
                   </div>
                 </div>

@@ -70,13 +70,70 @@ body {
 
 /* Markdown content styling aligned with theme */
 .markdown-body {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   overflow-wrap: anywhere;
   word-break: break-word;
   max-width: 100%;
   min-width: 0;
   color: var(--foreground);
+}
+
+@layer utilities {
+  .ui-text-base {
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+  }
+
+  .ui-text-meta {
+    font-size: var(--font-size-meta);
+    line-height: var(--line-height-meta);
+  }
+
+  .ui-text-micro {
+    font-size: var(--font-size-micro);
+    line-height: var(--line-height-micro);
+  }
+
+  .ui-text-primary {
+    color: var(--text-primary);
+  }
+
+  .ui-text-secondary {
+    color: var(--text-secondary);
+  }
+
+  .ui-text-muted {
+    color: var(--text-muted-ui);
+  }
+
+  .ui-surface-subtle {
+    background: var(--surface-subtle);
+  }
+
+  .ui-surface-user-bubble {
+    background: var(--surface-user-bubble);
+  }
+
+  .ui-surface-selected {
+    background: var(--surface-selected);
+  }
+
+  .ui-text-diff-add {
+    color: var(--diff-add);
+  }
+
+  .ui-text-diff-del {
+    color: var(--diff-del);
+  }
+
+  .ui-dot-untracked {
+    background: var(--diff-untracked);
+  }
+
+  .ui-button-disabled {
+    background: var(--button-disabled);
+  }
 }
 
 .markdown-body > * {
