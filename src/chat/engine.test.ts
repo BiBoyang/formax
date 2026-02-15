@@ -57,6 +57,69 @@ describe('ChatEngine', () => {
     expect(events.some((e) => e.type === 'complete')).toBe(true)
   })
 
+  it('appends ToolResult.extraTextBlocks as text blocks after tool_result', async () => {
+    let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount++
+        if (callCount === 1) {
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Skill', input: { skill: 'frontend-design' } }],
+            stopReason: 'tool_use',
+            toolResults: [
+              {
+                tool_use_id: 't1',
+                content: 'Launching skill: frontend-design',
+                extraTextBlocks: ['Base directory for this skill: /tmp/skill\n\n(skill body)'],
+              },
+            ],
+          }
+        }
+        secondCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => {
+      throw new Error('executor should not be called by ChatEngine')
+    }
+
+    const engine = createChatEngine({ client, executor })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(callCount).toBe(2)
+    expect(secondCallMessages).not.toBeNull()
+
+    const injectedUserMsg = secondCallMessages!.find(
+      (m) =>
+        m.role === 'user' &&
+        Array.isArray(m.content) &&
+        (m.content as any[]).some((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1'),
+    )
+    expect(injectedUserMsg).toBeTruthy()
+
+    const blocks = (injectedUserMsg as any).content as any[]
+    const idx = blocks.findIndex((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
+    expect(idx).toBeGreaterThanOrEqual(0)
+    expect(blocks[idx]?.content).toBe('Launching skill: frontend-design')
+    expect(blocks[idx + 1]?.type).toBe('text')
+    expect(String(blocks[idx + 1]?.text || '')).toContain('Base directory for this skill: /tmp/skill')
+    expect(String(blocks[idx + 1]?.text || '')).toContain('(skill body)')
+  })
+
   it('prunes oversized tool loop messages when promptBudget is provided', async () => {
     const tailMark = 'TAIL_MARK_SHOULD_NOT_SURVIVE'
     const huge = 'x'.repeat(9000) + tailMark

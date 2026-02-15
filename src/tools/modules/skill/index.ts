@@ -19,17 +19,31 @@ function getSkillToolCharBudget(): number {
 function buildAvailableSkillsSection(cwd: string): string {
   const configPaths = getConfigPaths({ cwd, env: process.env })
   const store = createSkillStore({ cwd, globalConfigDir: configPaths.globalConfigDir })
-  const lines = store
+  const entries = store
     .list()
     .filter((s) => !s.disableModelInvocation)
-    .map((s) => `- ${s.name}: ${s.description}`)
+    .map((s) => {
+      const scopedDescription = `${s.description} (${s.scope})`
+      return [
+        '<skill>',
+        '<name>',
+        escapeXml(s.name),
+        '</name>',
+        '<description>',
+        escapeXml(scopedDescription),
+        '</description>',
+        '<location>',
+        'managed',
+        '</location>',
+        '</skill>',
+        '',
+      ].join('\n')
+    })
 
-  if (lines.length === 0) return ''
+  if (entries.length === 0) return ''
 
-  const { kept, truncated } = truncateByCharBudget(lines, getSkillToolCharBudget())
-  const out = [...kept]
-  if (truncated) out.push('… (truncated)')
-  return out.join('\n') + '\n'
+  const { kept } = truncateByCharBudget(entries, getSkillToolCharBudget())
+  return kept.join('')
 }
 
 function injectAvailableSkills(desc: string, skillsSection: string): string {
@@ -37,6 +51,15 @@ function injectAvailableSkills(desc: string, skillsSection: string): string {
   const marker = '<available_skills>\n\n</available_skills>'
   if (!desc.includes(marker)) return desc
   return desc.replace(marker, `<available_skills>\n${skillsSection}</available_skills>`)
+}
+
+function escapeXml(value: string): string {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
 }
 
 export function buildSkillToolSpecForCwd(cwd: string): ToolDefinition {
