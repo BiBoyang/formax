@@ -122,8 +122,8 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                         <button
                           data-testid={`diff-file-row-${file.path}`}
                         className={cn(
-                          "flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 transition-colors sticky top-0 z-[20]",
-                          "bg-sidebar-accent/55 supports-[backdrop-filter]:backdrop-blur-sm",
+                          "flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 transition-colors",
+                          "bg-sidebar-accent/55",
                           "border border-transparent",
                           open && "border-b-border/50",
                           open ? "rounded-t-[10px]" : "rounded-[10px]"

@@ -196,7 +196,7 @@ export function LeftRail(props: LeftRailProps) {
                       <Button
                         variant="ghost"
                         className={cn(
-                          'w-full justify-start h-9 px-3 text-[13px] font-medium transition-all group/folder',
+                          'w-full justify-start h-9 px-3 text-[13px] font-medium transition-colors group/folder',
                           isSelectedGroup ? 'bg-muted/50 text-foreground' : 'text-foreground/65 hover:bg-muted/35',
                         )}
                         onClick={() => onSelectCwd(group.cwd)}

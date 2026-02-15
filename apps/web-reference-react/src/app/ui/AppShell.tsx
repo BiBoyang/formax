@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
@@ -69,17 +70,42 @@ export function AppShell(props: AppShellProps) {
   const rightRailMinPercent = RIGHT_RAIL_MIN_SIZE
   const rightRailMaxPercent = RIGHT_RAIL_MAX_SIZE
   const centerPercent = Math.max(0, 100 - rightRailPercent)
+  const pendingSidebarPercentRef = useRef(sidebarPercent)
+  const pendingRightRailPercentRef = useRef(rightRailPercent)
+  const isLeftDraggingRef = useRef(false)
+  const isRightDraggingRef = useRef(false)
 
   const onLeftResize = (sidebarSizePercent: number) => {
     if (!props.isSidebarOpen) return
     const clampedSidebar = clampSidebarWidth(sidebarSizePercent)
-    if (Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
+    pendingSidebarPercentRef.current = clampedSidebar
+    if (!isLeftDraggingRef.current && Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
       props.setSidebarWidth(clampedSidebar)
     }
   }
 
   const onRightResize = (rightSizePercent: number) => {
     const clampedRight = clampRightRailWidth(rightSizePercent)
+    pendingRightRailPercentRef.current = clampedRight
+    if (!isRightDraggingRef.current && Math.abs(clampedRight - props.rightRailWidth) >= 1) {
+      props.setRightRailWidth(clampedRight)
+    }
+  }
+
+  const onLeftDragStateChange = (isDragging: boolean) => {
+    isLeftDraggingRef.current = isDragging
+    if (isDragging) return
+    if (!props.isSidebarOpen) return
+    const clampedSidebar = pendingSidebarPercentRef.current
+    if (Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
+      props.setSidebarWidth(clampedSidebar)
+    }
+  }
+
+  const onRightDragStateChange = (isDragging: boolean) => {
+    isRightDraggingRef.current = isDragging
+    if (isDragging) return
+    const clampedRight = pendingRightRailPercentRef.current
     if (Math.abs(clampedRight - props.rightRailWidth) >= 1) {
       props.setRightRailWidth(clampedRight)
     }
@@ -124,6 +150,7 @@ export function AppShell(props: AppShellProps) {
             'relative z-[120]',
             !props.isSidebarOpen && 'pointer-events-none opacity-0',
           )}
+          onDragging={onLeftDragStateChange}
         />
 
         <ResizablePanel defaultSize={100 - (props.isSidebarOpen ? sidebarPercent : 0)} minSize={35}>
@@ -203,7 +230,7 @@ export function AppShell(props: AppShellProps) {
                 </div>
               </ResizablePanel>
 
-              <ResizableHandle className="relative z-[120]" />
+              <ResizableHandle className="relative z-[120]" onDragging={onRightDragStateChange} />
 
               <ResizablePanel
                 defaultSize={rightRailPercent}
