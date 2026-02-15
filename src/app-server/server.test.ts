@@ -81,6 +81,7 @@ describe('AppServer', () => {
   })
 
   it('routes thread methods to threadStore after initialize', async () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
     const baseThread: Thread = {
       id: 't-1',
       cwd: '/tmp/workspace',
@@ -116,6 +117,33 @@ describe('AppServer', () => {
             },
           }
         },
+        async archiveThread(threadId) {
+          return {
+            thread: {
+              ...baseThread,
+              id: threadId,
+              messageCount: 1,
+              lastUserPrompt: 'hi',
+              label: null,
+              archivedAt: '2026-02-08T00:00:03.000Z',
+            },
+          }
+        },
+        async unarchiveThread(threadId) {
+          return {
+            thread: {
+              ...baseThread,
+              id: threadId,
+              messageCount: 1,
+              lastUserPrompt: 'hi',
+              label: null,
+              archivedAt: null,
+            },
+          }
+        },
+      },
+      emitNotification(message) {
+        notifications.push(message)
       },
     })
 
@@ -141,6 +169,25 @@ describe('AppServer', () => {
     )
     expect((renameOut[0] as any).result.thread.id).toBe('t-1')
     expect((renameOut[0] as any).result.thread.label).toBe('Renamed in web')
+
+    const archiveOut = await server.handleMessage(request(8, 'thread/archive', { threadId: 't-1', opId: 'op-1' }))
+    expect((archiveOut[0] as any).result.thread.id).toBe('t-1')
+    expect((archiveOut[0] as any).result.thread.archivedAt).toBe('2026-02-08T00:00:03.000Z')
+    expect(notifications).toContainEqual(
+      expect.objectContaining({
+        jsonrpc: '2.0',
+        method: 'thread/archived',
+        params: expect.objectContaining({
+          threadId: 't-1',
+          opId: 'op-1',
+          replaySeq: expect.any(Number),
+        }),
+      }),
+    )
+
+    const unarchiveOut = await server.handleMessage(request(9, 'thread/unarchive', { threadId: 't-1' }))
+    expect((unarchiveOut[0] as any).result.thread.id).toBe('t-1')
+    expect((unarchiveOut[0] as any).result.thread.archivedAt).toBeNull()
   })
 
   it('validates thread/messages params', async () => {
@@ -149,6 +196,14 @@ describe('AppServer', () => {
     const out = await server.handleMessage(request(2, 'thread/messages', { limit: 10 }))
     expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
     expect((out[0] as any).error.message).toContain('params.threadId')
+  })
+
+  it('validates thread/list archived param type', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/list', { limit: 10, archived: 'yes' }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('params.archived')
   })
 
   it('returns METHOD_NOT_FOUND for thread/rename when threadStore does not support rename', async () => {
@@ -183,6 +238,84 @@ describe('AppServer', () => {
     const out = await server.handleMessage(request(2, 'thread/rename', { threadId: 't-1', label: 'new name' }))
     expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
     expect((out[0] as any).error.message).toBe('Method not found: thread/rename')
+  })
+
+  it('returns METHOD_NOT_FOUND for archive endpoints when threadStore does not support them', async () => {
+    const baseThread: Thread = {
+      id: 't-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread(threadId) {
+          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
+        },
+        async listThreads() {
+          return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
+        },
+        async readThread() {
+          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const archiveOut = await server.handleMessage(request(2, 'thread/archive', { threadId: 't-1' }))
+    expect((archiveOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
+    expect((archiveOut[0] as any).error.message).toBe('Method not found: thread/archive')
+
+    const unarchiveOut = await server.handleMessage(request(3, 'thread/unarchive', { threadId: 't-1' }))
+    expect((unarchiveOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
+    expect((unarchiveOut[0] as any).error.message).toBe('Method not found: thread/unarchive')
+  })
+
+  it('maps missing thread/unarchive target to INVALID_PARAMS', async () => {
+    const baseThread: Thread = {
+      id: 't-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread(threadId) {
+          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
+        },
+        async listThreads() {
+          return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
+        },
+        async readThread() {
+          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+        },
+        async archiveThread() {
+          return { thread: { ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null, archivedAt: null } }
+        },
+        async unarchiveThread() {
+          throw new Error('Thread not found: missing-thread')
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/unarchive', { threadId: 'missing-thread' }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_PARAMS)
+    expect((out[0] as any).error.message).toContain('Thread not found: missing-thread')
   })
 
   it('validates thread/rename params', async () => {

@@ -22,7 +22,8 @@ export async function runAppServer(args?: {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
-  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'>
+  threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   maxRequestBytes?: number
   maxEventBytes?: number

@@ -12,6 +12,7 @@ import {
   APP_SERVER_PROTOCOL_VERSION,
   parseCommandDispatchParams,
   parseInitializeParams,
+  parseThreadArchiveParams,
   parseThreadByIdParams,
   parseThreadListParams,
   parseThreadMessagesParams,
@@ -68,7 +69,7 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
-    Partial<Pick<ThreadStore, 'renameThread'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -88,7 +89,7 @@ export class AppServer {
     ThreadStore,
     'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
   > &
-    Partial<Pick<ThreadStore, 'renameThread'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -255,6 +256,47 @@ export class AppServer {
       try {
         const params = parseThreadRenameParams(req.params)
         const result = await this.threadStore.renameThread(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/archive') {
+      if (!this.threadStore.archiveThread) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseThreadArchiveParams(req.params)
+        const result = await this.threadStore.archiveThread(params.threadId)
+        this.emitServerNotification('thread/archived', {
+          threadId: params.threadId,
+          opId: params.opId ?? null,
+          archivedAt: result.thread.archivedAt ?? new Date().toISOString(),
+        })
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/unarchive') {
+      if (!this.threadStore.unarchiveThread) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseThreadByIdParams(req.params)
+        const result = await this.threadStore.unarchiveThread(params.threadId)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -444,13 +486,17 @@ export class AppServer {
 
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
     return (method, params) => {
-      const replayWrapped = this.captureReplayAndRuntimeState(method, params)
-      this.emitNotification?.({
-        jsonrpc: '2.0',
-        method,
-        ...(replayWrapped === undefined ? {} : { params: replayWrapped }),
-      })
+      this.emitServerNotification(method, params)
     }
+  }
+
+  private emitServerNotification(method: string, params?: unknown): void {
+    const replayWrapped = this.captureReplayAndRuntimeState(method, params)
+    this.emitNotification?.({
+      jsonrpc: '2.0',
+      method,
+      ...(replayWrapped === undefined ? {} : { params: replayWrapped }),
+    })
   }
 
   private captureReplayAndRuntimeState(method: string, params?: unknown): Record<string, unknown> | undefined {

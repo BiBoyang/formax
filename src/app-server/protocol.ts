@@ -37,6 +37,7 @@ export type ThreadSummary = Thread & {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  archivedAt?: string | null
 }
 
 export type ThreadStartParams = {
@@ -47,6 +48,10 @@ export type ThreadByIdParams = {
   threadId: string
 }
 
+export type ThreadArchiveParams = ThreadByIdParams & {
+  opId?: string
+}
+
 export type ThreadRenameParams = {
   threadId: string
   label: string
@@ -55,6 +60,7 @@ export type ThreadRenameParams = {
 export type ThreadListParams = {
   limit: number
   cursor?: string
+  archived?: boolean
 }
 
 export type ThreadMessagesParams = {
@@ -156,6 +162,13 @@ export function parseThreadByIdParams(params: unknown): ThreadByIdParams {
   return { threadId }
 }
 
+export function parseThreadArchiveParams(params: unknown): ThreadArchiveParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const opId = parseOptionalNonEmptyString(params.opId, 'params.opId')
+  return opId ? { threadId, opId } : { threadId }
+}
+
 export function parseThreadRenameParams(params: unknown): ThreadRenameParams {
   if (!isObject(params)) throw new Error('Invalid params: expected object')
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
@@ -170,8 +183,19 @@ export function parseThreadListParams(params: unknown): ThreadListParams {
   const limit = 'limit' in params ? parsePositiveInt(params.limit, 'params.limit') : 20
   if (limit > 200) throw new Error('Invalid params.limit: max 200')
   const cursor = parseOptionalNonEmptyString(params.cursor, 'params.cursor')
+  const archived =
+    'archived' in params
+      ? (() => {
+          if (typeof params.archived !== 'boolean') throw new Error('Invalid params.archived: expected boolean')
+          return params.archived
+        })()
+      : undefined
 
-  return cursor ? { limit, cursor } : { limit }
+  return {
+    limit,
+    ...(cursor ? { cursor } : {}),
+    ...(archived !== undefined ? { archived } : {}),
+  }
 }
 
 export function parseThreadMessagesParams(params: unknown): ThreadMessagesParams {
