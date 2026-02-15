@@ -98,10 +98,10 @@ describe('buildToolUiBlocks', () => {
     expect(diff?.kind).toBe('diff')
     expect(diff?.files[0]?.additions).toBe(0)
     expect(diff?.files[0]?.deletions).toBe(0)
-    const addedLines =
-      diff?.files[0]?.patch
-        .split('\n')
-        .filter((line) => line.startsWith('+') && !line.startsWith('+++')) ?? []
+    const patch = diff?.files[0]?.patch ?? ''
+    const addedLines = patch
+      .split('\n')
+      .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
     expect(addedLines).toEqual([])
   })
 

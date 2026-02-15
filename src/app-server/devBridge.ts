@@ -29,6 +29,17 @@ type BridgeReadDiffParams = {
   cwd?: string
 }
 
+type BridgeReadDiffSummaryParams = {
+  maxFiles?: number
+  cwd?: string
+}
+
+type BridgeReadDiffFilePatchParams = {
+  path?: string
+  maxBytes?: number
+  cwd?: string
+}
+
 type BridgeDiffFile = {
   path: string
   additions: number
@@ -36,6 +47,8 @@ type BridgeDiffFile = {
   patch: string
   untracked?: boolean
 }
+
+type BridgeDiffSummaryFile = Omit<BridgeDiffFile, 'patch'>
 
 type BridgeReadDiffResult = {
   cwd: string
@@ -45,10 +58,33 @@ type BridgeReadDiffResult = {
   files: BridgeDiffFile[]
 }
 
+type BridgeReadDiffSummaryResult = {
+  cwd: string
+  generatedAt: string
+  hasChanges: boolean
+  truncated: boolean
+  files: BridgeDiffSummaryFile[]
+}
+
+type BridgeReadDiffFilePatchResult = {
+  cwd: string
+  generatedAt: string
+  path: string
+  found: boolean
+  truncated: boolean
+  file: BridgeDiffFile | null
+}
+
 function normalizeMaxBytes(value: unknown, fallback = 180 * 1024): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.max(32 * 1024, Math.min(parsed, 2 * 1024 * 1024))
+}
+
+function normalizeMaxFiles(value: unknown, fallback = 600): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(20, Math.min(Math.floor(parsed), 5000))
 }
 
 function resolveDiffCwd(defaultCwd: string, requestedCwd: unknown): string {
@@ -116,6 +152,86 @@ function parsePatchFiles(diffText: string): BridgeDiffFile[] {
     })
   }
   return files
+}
+
+type GitRenamePair = {
+  oldPath: string
+  newPath: string
+}
+
+function parseRenamePairs(nameStatusText: string): GitRenamePair[] {
+  if (!nameStatusText.trim()) return []
+  const out: GitRenamePair[] = []
+  for (const rawLine of nameStatusText.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const parts = line.split('\t')
+    if (parts.length < 3) continue
+    const status = parts[0] ?? ''
+    if (!status.startsWith('R')) continue
+    const oldPath = parts[1]?.trim()
+    const newPath = parts[2]?.trim()
+    if (!oldPath || !newPath) continue
+    out.push({ oldPath, newPath })
+  }
+  return out
+}
+
+function parseNumstatFiles(diffText: string, renamePairs: GitRenamePair[]): BridgeDiffSummaryFile[] {
+  if (!diffText.trim()) return []
+  const files: BridgeDiffSummaryFile[] = []
+  for (const rawLine of diffText.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const match = /^([0-9-]+)\t([0-9-]+)\t(.+)$/.exec(line)
+    if (!match) continue
+    const [, addText, delText, rawPath] = match
+    const filePath = normalizeNumstatPath(rawPath, renamePairs)
+    files.push({
+      path: filePath,
+      additions: addText === '-' ? 0 : Number(addText),
+      deletions: delText === '-' ? 0 : Number(delText),
+    })
+  }
+  return files
+}
+
+function normalizeNumstatPath(rawPath: string, renamePairs: GitRenamePair[]): string {
+  if (!rawPath.includes(' => ')) return rawPath
+  if (renamePairs.length === 0) return rawPath
+
+  // Plain rename shape: old/path.ts => new/path.ts
+  const direct = renamePairs.find((pair) => `${pair.oldPath} => ${pair.newPath}` === rawPath)
+  if (direct) return direct.newPath
+
+  // Brace shape: path/{old => new}.ts or {old => new}/path.ts.
+  const braceExpanded = rawPath.replace(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2')
+  if (braceExpanded !== rawPath) {
+    const matched = renamePairs.find((pair) => pair.newPath === braceExpanded)
+    if (matched) return matched.newPath
+  }
+
+  return rawPath
+}
+
+function mergeSummaryFiles(
+  tracked: BridgeDiffSummaryFile[],
+  untrackedPaths: string[],
+): BridgeDiffSummaryFile[] {
+  const merged = new Map<string, BridgeDiffSummaryFile>()
+  for (const file of tracked) {
+    merged.set(file.path, file)
+  }
+  for (const filePath of untrackedPaths) {
+    if (merged.has(filePath)) continue
+    merged.set(filePath, {
+      path: filePath,
+      additions: 0,
+      deletions: 0,
+      untracked: true,
+    })
+  }
+  return Array.from(merged.values())
 }
 
 function estimateDiffFileBaseBytes(filePath: string): number {
@@ -315,6 +431,159 @@ async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | und
   }
 }
 
+async function readWorkspaceDiffSummary(
+  cwd: string,
+  params: BridgeReadDiffSummaryParams | undefined,
+): Promise<BridgeReadDiffSummaryResult> {
+  const maxFiles = normalizeMaxFiles(params?.maxFiles)
+  const generatedAt = new Date().toISOString()
+
+  const [diffFromHeadNumstat, fallbackDiffNumstat, diffFromHeadNameStatus, fallbackDiffNameStatus, untracked] = await Promise.all([
+    runGit(cwd, ['diff', 'HEAD', '--no-color', '--numstat', '--find-renames']),
+    runGit(cwd, ['diff', '--no-color', '--numstat', '--find-renames']),
+    runGit(cwd, ['diff', 'HEAD', '--name-status', '--find-renames']),
+    runGit(cwd, ['diff', '--name-status', '--find-renames']),
+    runGit(cwd, ['ls-files', '--others', '--exclude-standard']),
+  ])
+
+  if (!diffFromHeadNumstat.ok && !fallbackDiffNumstat.ok && !untracked.ok) {
+    return {
+      cwd,
+      generatedAt,
+      hasChanges: true,
+      truncated: false,
+      files: [{ path: 'git-diff-error', additions: 0, deletions: 0 }],
+    }
+  }
+
+  const trackedDiff =
+    (diffFromHeadNumstat.ok && diffFromHeadNumstat.stdout.trim()
+      ? diffFromHeadNumstat.stdout
+      : fallbackDiffNumstat.ok
+        ? fallbackDiffNumstat.stdout
+        : '') || ''
+  const renameStatusText =
+    (diffFromHeadNameStatus.ok && diffFromHeadNameStatus.stdout.trim()
+      ? diffFromHeadNameStatus.stdout
+      : fallbackDiffNameStatus.ok
+        ? fallbackDiffNameStatus.stdout
+        : '') || ''
+  const renamePairs = parseRenamePairs(renameStatusText)
+  const trackedFiles = parseNumstatFiles(trackedDiff, renamePairs)
+  const untrackedPaths = untracked.ok
+    ? untracked.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    : []
+
+  const merged = mergeSummaryFiles(trackedFiles, untrackedPaths)
+  const truncated = merged.length > maxFiles
+  const files = truncated ? merged.slice(0, maxFiles) : merged
+  return {
+    cwd,
+    generatedAt,
+    hasChanges: merged.length > 0,
+    truncated,
+    files,
+  }
+}
+
+function findPatchByRequestedPath(files: BridgeDiffFile[], requestedPath: string): BridgeDiffFile | null {
+  for (const file of files) {
+    if (file.path === requestedPath) return file
+  }
+  for (const file of files) {
+    if (file.path.endsWith(`/${requestedPath}`) || requestedPath.endsWith(`/${file.path}`)) return file
+  }
+  return null
+}
+
+function clipDiffFileWithinBudget(file: BridgeDiffFile, maxBytes: number): { file: BridgeDiffFile; truncated: boolean } {
+  const out: BridgeDiffFile[] = []
+  const appended = appendDiffFileWithinBudget(out, file, 0, maxBytes)
+  if (out.length === 0) {
+    return {
+      file: { ...file, patch: '' },
+      truncated: true,
+    }
+  }
+  return {
+    file: out[0],
+    truncated: appended.truncated,
+  }
+}
+
+async function readWorkspaceDiffFilePatch(
+  cwd: string,
+  params: BridgeReadDiffFilePatchParams | undefined,
+): Promise<BridgeReadDiffFilePatchResult> {
+  const generatedAt = new Date().toISOString()
+  const requestedPath = typeof params?.path === 'string' ? params.path.trim() : ''
+  const maxBytes = normalizeMaxBytes(params?.maxBytes, 256 * 1024)
+  if (!requestedPath) {
+    return {
+      cwd,
+      generatedAt,
+      path: '',
+      found: false,
+      truncated: false,
+      file: null,
+    }
+  }
+
+  const [diffFromHead, fallbackDiff, untracked] = await Promise.all([
+    runGit(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
+    runGit(cwd, ['diff', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
+    runGit(cwd, ['ls-files', '--others', '--exclude-standard', '--', requestedPath]),
+  ])
+
+  const trackedPatch =
+    (diffFromHead.ok && diffFromHead.stdout.trim()
+      ? diffFromHead.stdout
+      : fallbackDiff.ok
+        ? fallbackDiff.stdout
+        : '') || ''
+
+  let file: BridgeDiffFile | null = null
+  if (trackedPatch.trim()) {
+    file = findPatchByRequestedPath(parsePatchFiles(trackedPatch), requestedPath)
+  }
+
+  if (!file) {
+    const untrackedPaths = untracked.ok
+      ? untracked.stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+      : []
+    if (untrackedPaths.includes(requestedPath)) {
+      file = await buildUntrackedDiffFile(cwd, requestedPath)
+    }
+  }
+
+  if (!file) {
+    return {
+      cwd,
+      generatedAt,
+      path: requestedPath,
+      found: false,
+      truncated: false,
+      file: null,
+    }
+  }
+
+  const clipped = clipDiffFileWithinBudget(file, maxBytes)
+  return {
+    cwd,
+    generatedAt,
+    path: requestedPath,
+    found: true,
+    truncated: clipped.truncated,
+    file: clipped.file,
+  }
+}
+
 export async function startAppServerDevBridge(options: AppServerDevBridgeOptions = {}): Promise<AppServerDevBridgeHandle> {
   const input = new PassThrough()
   const output = new PassThrough()
@@ -378,11 +647,23 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
           parsed.id !== undefined &&
           typeof parsed.method === 'string'
 
-        if (isRequest && parsed.method === 'bridge/readDiff') {
-          const params = (parsed.params ?? {}) as BridgeReadDiffParams
+        if (
+          isRequest &&
+          (parsed.method === 'bridge/readDiff' ||
+            parsed.method === 'bridge/readDiffSummary' ||
+            parsed.method === 'bridge/readDiffFilePatch')
+        ) {
           const baseCwd = options.cwd ?? process.cwd()
-          const diffCwd = resolveDiffCwd(baseCwd, params.cwd)
-          void readWorkspaceDiff(diffCwd, params)
+          const rawParams = (parsed.params ?? {}) as { cwd?: unknown }
+          const diffCwd = resolveDiffCwd(baseCwd, rawParams.cwd)
+          const rpcPromise =
+            parsed.method === 'bridge/readDiff'
+              ? readWorkspaceDiff(diffCwd, (parsed.params ?? {}) as BridgeReadDiffParams)
+              : parsed.method === 'bridge/readDiffSummary'
+                ? readWorkspaceDiffSummary(diffCwd, (parsed.params ?? {}) as BridgeReadDiffSummaryParams)
+                : readWorkspaceDiffFilePatch(diffCwd, (parsed.params ?? {}) as BridgeReadDiffFilePatchParams)
+
+          void rpcPromise
             .then((result) => {
               if (socket.readyState !== WebSocket.OPEN) return
               socket.send(JSON.stringify({ jsonrpc: '2.0', id: parsed.id, result }))

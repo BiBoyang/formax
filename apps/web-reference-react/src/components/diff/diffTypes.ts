@@ -2,7 +2,7 @@ export type DiffFileViewModel = {
   path: string
   additions: number
   deletions: number
-  patch: string
+  patch?: string
   untracked?: boolean
 }
 

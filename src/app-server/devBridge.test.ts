@@ -191,6 +191,25 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('handles bridge/readDiffSummary locally without forwarding to app-server input', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":142,"method":"bridge/readDiffSummary","params":{"maxFiles":64}}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+
+    expect(readInputBuffer()).toBe('')
+    const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(payload.id).toBe(142)
+    expect(payload.result).toBeTruthy()
+    expect(Array.isArray(payload.result.files)).toBe(true)
+    expect(payload.result.files.every((file: any) => typeof file.patch === 'undefined')).toBe(true)
+
+    await bridge.close()
+  })
+
   it('returns non-zero additions for untracked new files', async () => {
     const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-untracked-'))
     try {
@@ -245,6 +264,113 @@ describe('startAppServerDevBridge', () => {
       expect(target?.patch).toContain('new file mode 120000')
       expect(target?.patch).toContain('+./outside.txt')
       expect(target?.patch).not.toContain('outside secret')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads a single file patch via bridge/readDiffFilePatch', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-single-patch-'))
+    try {
+      runGit(repoDir, ['init'])
+      runGit(repoDir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(repoDir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(repoDir, 'tracked.txt'), 'one\ntwo\n', 'utf8')
+      runGit(repoDir, ['add', 'tracked.txt'])
+      runGit(repoDir, ['commit', '-m', 'init'])
+      await writeFile(path.join(repoDir, 'tracked.txt'), 'one\ntwo-updated\nthree\n', 'utf8')
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage(
+        '{"jsonrpc":"2.0","id":244,"method":"bridge/readDiffFilePatch","params":{"path":"tracked.txt","maxBytes":4096}}\n',
+      )
+      await waitFor(() => socket.send.mock.calls.length > 0)
+
+      const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      expect(payload.id).toBe(244)
+      expect(payload.result?.found).toBe(true)
+      expect(payload.result?.file?.path).toBe('tracked.txt')
+      expect(payload.result?.file?.patch).toContain('@@')
+      expect(payload.result?.file?.patch).toContain('+two-updated')
+      expect(payload.result?.file?.patch).toContain('+three')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
+  it('normalizes renamed summary paths so single-file patch lookup succeeds', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-rename-'))
+    try {
+      runGit(repoDir, ['init'])
+      runGit(repoDir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(repoDir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(repoDir, 'old-name.txt'), 'same\n', 'utf8')
+      runGit(repoDir, ['add', 'old-name.txt'])
+      runGit(repoDir, ['commit', '-m', 'init'])
+      runGit(repoDir, ['mv', 'old-name.txt', 'new-name.txt'])
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage('{"jsonrpc":"2.0","id":344,"method":"bridge/readDiffSummary","params":{"maxFiles":256}}\n')
+      await waitFor(() => socket.send.mock.calls.length > 0)
+      const summaryPayload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      const renamedPath = (summaryPayload.result?.files ?? []).find((file: any) => file.path.includes('new-name'))?.path
+      expect(renamedPath).toBe('new-name.txt')
+
+      socket.emitMessage(
+        `{"jsonrpc":"2.0","id":345,"method":"bridge/readDiffFilePatch","params":{"path":"${renamedPath}","maxBytes":4096}}\n`,
+      )
+      await waitFor(() => socket.send.mock.calls.length > 1)
+      const patchPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+      expect(patchPayload.result?.found).toBe(true)
+      expect(patchPayload.result?.file?.path).toBe('new-name.txt')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not rewrite non-rename filenames containing arrow token', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-arrow-file-'))
+    try {
+      runGit(repoDir, ['init'])
+      runGit(repoDir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(repoDir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(repoDir, 'foo => bar.txt'), 'one\n', 'utf8')
+      runGit(repoDir, ['add', 'foo => bar.txt'])
+      runGit(repoDir, ['commit', '-m', 'init'])
+      await writeFile(path.join(repoDir, 'foo => bar.txt'), 'two\n', 'utf8')
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage('{"jsonrpc":"2.0","id":346,"method":"bridge/readDiffSummary","params":{"maxFiles":256}}\n')
+      await waitFor(() => socket.send.mock.calls.length > 0)
+      const summaryPayload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      const targetPath = (summaryPayload.result?.files ?? []).find((file: any) => file.path.includes('foo'))?.path
+      expect(targetPath).toBe('foo => bar.txt')
+
+      socket.emitMessage(
+        '{"jsonrpc":"2.0","id":347,"method":"bridge/readDiffFilePatch","params":{"path":"foo => bar.txt","maxBytes":4096}}\n',
+      )
+      await waitFor(() => socket.send.mock.calls.length > 1)
+      const patchPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+      expect(patchPayload.result?.found).toBe(true)
+      expect(patchPayload.result?.file?.path).toBe('foo => bar.txt')
 
       await bridge.close()
     } finally {

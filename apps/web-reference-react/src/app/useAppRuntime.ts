@@ -182,6 +182,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const {
     refreshThreads,
     refreshWorkspaceDiff,
+    requestDiffFilePatch,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     loadThreadHistory,
@@ -599,6 +600,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onSubmitInput: (inputId, answers) => void submitInputById(inputId, answers).catch(() => undefined),
     diffSnapshot,
     onRefreshDiff: () => void refreshWorkspaceDiff().catch(() => undefined),
+    onRequestDiffPatch: (filePath) => requestDiffFilePatch(filePath),
     isRefreshingDiff,
   }
 }

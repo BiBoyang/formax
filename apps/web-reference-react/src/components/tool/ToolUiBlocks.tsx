@@ -85,7 +85,7 @@ function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
   return (
     <div className="ml-3 mt-2 space-y-2">
       {block.files.map((file) => (
-        <div key={`${file.path}-${file.patch.length}`} className="rounded-[10px] overflow-hidden">
+        <div key={`${file.path}-${(file.patch ?? '').length}`} className="rounded-[10px] overflow-hidden">
           <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 ui-surface-subtle border border-transparent rounded-t-[10px]">
             <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
               <span title={file.path} className="font-mono min-w-0 truncate ui-text-primary ui-text-base leading-4 font-medium">
@@ -97,7 +97,7 @@ function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
               </div>
             </div>
           </div>
-          <DiffPatchView patch={file.patch} maxHeightClassName="max-h-[420px]" />
+          <DiffPatchView patch={file.patch ?? ''} maxHeightClassName="max-h-[420px]" />
         </div>
       ))}
     </div>

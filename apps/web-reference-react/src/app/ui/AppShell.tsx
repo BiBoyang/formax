@@ -4,7 +4,7 @@ import { PanelLeft } from 'lucide-react'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
 import { TranscriptPane } from '../../components/TranscriptPane'
-import { WorktreeDiffPane, type DiffSnapshot } from '../../components/WorktreeDiffPane'
+import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
@@ -59,6 +59,7 @@ export type AppShellProps = {
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
   diffSnapshot: DiffSnapshot | null
   onRefreshDiff: () => void
+  onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
   isRefreshingDiff: boolean
 }
 
@@ -245,6 +246,7 @@ export function AppShell(props: AppShellProps) {
                   <WorktreeDiffPane
                     diffSnapshot={props.diffSnapshot}
                     onRefreshDiff={props.onRefreshDiff}
+                    onRequestPatch={props.onRequestDiffPatch}
                     isRefreshingDiff={props.isRefreshingDiff}
                     showHeader
                   />
