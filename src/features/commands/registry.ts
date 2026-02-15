@@ -10,6 +10,7 @@ import { getConfigPaths } from '../../adapters/fs/configPaths'
 import { createCommandStore } from '../../commands/CommandStore'
 import { buildFileCommandContent } from '../../commands/render'
 import { ansiBold, ansiGray, ansiStrike } from '../../utils/terminal'
+import { parseModelTier, type ModelTier } from '../../env/modelTier.js'
 
 export type SlashCommandSpec = {
   id: string
@@ -85,6 +86,7 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/hooks', source: 'builtin', command: '/hooks', description: 'Configure hooks (PreToolUse / PermissionRequest / PostToolUse)', implemented: true },
   { id: 'builtin:/config', source: 'builtin', command: '/config', description: 'Configure Formax (preview UI)', implemented: true },
   { id: 'builtin:/resume', source: 'builtin', command: '/resume', description: 'Resume a previous session', implemented: true },
+  { id: 'builtin:/model', source: 'builtin', command: '/model', description: 'Set default model tier (haiku/sonnet/opus)', implemented: true },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
   { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
@@ -119,12 +121,15 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
   { id: 'builtin:/init', source: 'builtin', command: '/init', description: 'Initialize a CLAUDE.md file with repo documentation', implemented: true },
 ]
 
+const MODEL_TIER_USAGE = ['Usage:', '- /model haiku', '- /model sonnet', '- /model opus'].join('\n')
+
 export function createSlashCommandRegistry(deps: {
   cwd: string
   globalConfigDir?: string
   taskManager?: TaskManager
   plan?: { getPlanPath: () => string | null }
   promptProfile?: { get: () => PromptProfile; set: (next: PromptProfile) => void }
+  modelTier?: { get: () => ModelTier; set: (next: ModelTier) => Promise<ModelTier> }
   status?: { get: () => StatusSnapshot }
   doctor?: { run: () => Promise<string> }
 }): SlashCommandRegistry {
@@ -211,6 +216,40 @@ export function createSlashCommandRegistry(deps: {
     const rawArgs = (invocation.args || '').trim()
     if (rawArgs) return { kind: 'local', stdout: 'Usage: /resume' }
     return { kind: 'open_resume_dialog' }
+  })
+
+  setBuiltinDispatcher('/model', (invocation) => {
+    if (!deps.modelTier) return { kind: 'local', stdout: 'Model controls are not available in this context.' }
+    const current = deps.modelTier.get()
+    const raw = (invocation.args || '').trim().toLowerCase()
+    if (!raw) {
+      return {
+        kind: 'local',
+        stdout: `Default model tier: ${current}\n\n${MODEL_TIER_USAGE}`,
+      }
+    }
+    const next = parseModelTier(raw)
+    if (!next) return { kind: 'local', stdout: `Unknown model tier: ${raw}\n\n${MODEL_TIER_USAGE}` }
+    return {
+      kind: 'local_async',
+      loadingText: 'Updating model',
+      run: async () => {
+        const effective = await deps.modelTier.set(next)
+        if (effective !== next) {
+          return {
+            stdout:
+              `Saved global default model tier: ${next}\n` +
+              `Current effective tier: ${effective}\n` +
+              `Hint: project-level .formax/config.json is overriding global tier.`,
+          }
+        }
+        const stdout =
+          next === 'sonnet'
+            ? 'Default model tier set to sonnet (default, not written to config).'
+            : `Default model tier set to: ${next}`
+        return { stdout }
+      },
+    }
   })
 
   setBuiltinDispatcher('/plan', () => {

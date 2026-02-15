@@ -22,6 +22,8 @@ export interface SubAgentRunner {
     agentId?: string
     replMode?: 'normal' | 'acceptEdits' | 'plan'
     interactive?: boolean
+    model?: string
+    promptBudget?: ContextBudgetConfig | null
     signal?: AbortSignal
     onEvent?: StreamSink
 }): Promise<SubAgentResult>
@@ -58,6 +60,8 @@ export function createSubAgentRunner(deps: {
       agentId: requestedAgentId,
       replMode,
       interactive,
+      model,
+      promptBudget,
       signal,
       onEvent,
     }): Promise<SubAgentResult> {
@@ -111,6 +115,7 @@ export function createSubAgentRunner(deps: {
           response += ev.text
         }
       }
+      const resolvedPromptBudget = promptBudget === undefined ? (deps.promptBudget ?? null) : promptBudget
 
       try {
         const nextHistory = await engine.runTurn({
@@ -121,7 +126,8 @@ export function createSubAgentRunner(deps: {
           onEvent: handleEvent,
           cwd: process.cwd(),
           signal,
-          promptBudget: deps.promptBudget ?? null,
+          model,
+          promptBudget: resolvedPromptBudget,
           exec: {
             agentDepth: 1,
             replMode: currentMode,

@@ -10,7 +10,7 @@ function tool(name: string): ToolDefinition {
 }
 
 class RecordingClient {
-  public calls: Array<{ tools: ToolDefinition[] }> = []
+  public calls: Array<{ tools: ToolDefinition[]; model?: string }> = []
   private responseText: string
 
   constructor(responseText: string) {
@@ -18,7 +18,7 @@ class RecordingClient {
   }
 
   async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-    this.calls.push({ tools: args.tools })
+    this.calls.push({ tools: args.tools, model: args.model })
     args.onEvent({ type: 'assistant_delta', text: this.responseText } as any)
     return {
       assistantBlocks: [{ type: 'text', text: this.responseText }],
@@ -29,12 +29,12 @@ class RecordingClient {
 }
 
 class ToolUseClient {
-  public calls: Array<{ tools: ToolDefinition[] }> = []
+  public calls: Array<{ tools: ToolDefinition[]; model?: string }> = []
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
   async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-    this.calls.push({ tools: args.tools })
+    this.calls.push({ tools: args.tools, model: args.model })
     this.callCount++
 
     if (this.callCount === 1) {
@@ -62,12 +62,12 @@ class ToolUseClient {
 }
 
 class AskUserQuestionClient {
-  public calls: Array<{ tools: ToolDefinition[] }> = []
+  public calls: Array<{ tools: ToolDefinition[]; model?: string }> = []
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
   async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-    this.calls.push({ tools: args.tools })
+    this.calls.push({ tools: args.tools, model: args.model })
     this.callCount++
 
     if (this.callCount === 1) {
@@ -95,12 +95,12 @@ class AskUserQuestionClient {
 }
 
 class WildcardToolUseClient {
-  public calls: Array<{ tools: ToolDefinition[] }> = []
+  public calls: Array<{ tools: ToolDefinition[]; model?: string }> = []
   public firstToolResult: ToolResult | null = null
   private callCount = 0
 
   async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
-    this.calls.push({ tools: args.tools })
+    this.calls.push({ tools: args.tools, model: args.model })
     this.callCount++
 
     if (this.callCount === 1) {
@@ -209,6 +209,63 @@ describe('SubAgentRunner', () => {
     expect(result.summary).toBe('ok')
     expect(client.calls).toHaveLength(1)
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Glob', 'Read'])
+  })
+
+  it('passes per-run model override to stream client', async () => {
+    const client = new RecordingClient('ok')
+    const executor = createToolExecutor([])
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [tool('Read')],
+    })
+
+    const result = await runner.run({
+      agent: {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: ['Read'],
+        systemPrompt: 'Return a summary.',
+      },
+      task: 'review',
+      model: 'glm-4.7',
+    })
+
+    expect(result.success).toBe(true)
+    expect(client.calls[0]?.model).toBe('glm-4.7')
+  })
+
+  it('supports per-run prompt budget override', async () => {
+    const executor = createToolExecutor([])
+    const agent = {
+      name: 'any',
+      description: 'any',
+      tools: ['*'],
+      systemPrompt: 'Return summary only.',
+    }
+    const responseText = 'a'.repeat(8000)
+    const client = new SizeLimitClient({ responseText, maxChars: 5000 })
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [],
+    })
+
+    const budget = {
+      contextWindowTokens: 200,
+      effectiveContextWindowPercent: 1,
+      autoCompactLimitPercent: 1,
+      baselineTokens: 0,
+    }
+
+    const first = await runner.run({ agent, task: 'one', promptBudget: budget })
+    const second = await runner.run({
+      agent,
+      task: 'two',
+      resume: first.agentId,
+      promptBudget: budget,
+    })
+    expect(second.success).toBe(true)
   })
 
   it('truncates summary to 500 characters', async () => {
@@ -441,5 +498,33 @@ describe('SubAgentRunner', () => {
     const firstBudget = await budgetRunner.run({ agent, task: 'one' })
     const secondBudget = await budgetRunner.run({ agent, task: 'two', resume: firstBudget.agentId })
     expect(secondBudget.success).toBe(true)
+  })
+
+  it('treats promptBudget:null as an explicit override', async () => {
+    const executor = createToolExecutor([])
+    const agent = {
+      name: 'any',
+      description: 'any',
+      tools: ['*'],
+      systemPrompt: 'Return summary only.',
+    }
+    const responseText = 'a'.repeat(8000)
+    const client = new SizeLimitClient({ responseText, maxChars: 5000 })
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [],
+      promptBudget: {
+        contextWindowTokens: 200,
+        effectiveContextWindowPercent: 1,
+        autoCompactLimitPercent: 1,
+        baselineTokens: 0,
+      },
+    })
+
+    const first = await runner.run({ agent, task: 'one', promptBudget: null })
+    const second = await runner.run({ agent, task: 'two', resume: first.agentId, promptBudget: null })
+    expect(second.success).toBe(false)
+    expect(second.error).toContain('too big')
   })
 })

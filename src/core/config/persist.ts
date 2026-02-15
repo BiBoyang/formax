@@ -72,6 +72,7 @@ export function stripDefaultsFromPatch(patch: FormaxConfigV1Patch): FormaxConfig
     if (llm.provider === DEFAULT_CONFIG.llm.provider) delete llm.provider
     if (llm.baseUrl === DEFAULT_CONFIG.llm.baseUrl) delete llm.baseUrl
     if (llm.model === DEFAULT_CONFIG.llm.model) delete llm.model
+    if (llm.defaultTier === DEFAULT_CONFIG.llm.defaultTier) delete llm.defaultTier
     if (llm.timeoutMs === DEFAULT_CONFIG.llm.timeoutMs) delete llm.timeoutMs
     if (llm.authRef === DEFAULT_CONFIG.llm.authRef) delete llm.authRef
     if (llm.contextWindowTokens === DEFAULT_CONFIG.llm.contextWindowTokens) delete llm.contextWindowTokens
@@ -131,4 +132,3 @@ export async function updateConfigPatchFile(args: {
   await args.fileStore.writeJsonAtomic(args.filePath, patchWritten)
   return { filePath: args.filePath, patchWritten, warnings: read.warnings }
 }
-

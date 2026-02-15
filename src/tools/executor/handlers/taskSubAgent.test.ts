@@ -4,6 +4,9 @@ import type { SubAgentRegistry } from '../../../subagents/registry'
 import type { SubAgentRunner } from '../../../subagents/runner'
 import type { ToolCall } from '../../types'
 import { TaskManager } from '../../runtime/taskManager'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
 
 describe('TaskSubAgentToolHandler', () => {
   const registry: SubAgentRegistry = {
@@ -274,6 +277,175 @@ describe('TaskSubAgentToolHandler', () => {
     const resUnsupported = await handler.execute(badUnsupported, { cwd: process.cwd(), agentDepth: 0 })
     expect(resUnsupported.is_error).toBe(true)
     expect(resUnsupported.content).toContain('Unsupported model')
+  })
+
+  it('resolves Task.model tier to concrete model id', async () => {
+    const prevHaiku = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+    process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'glm-4.5-air'
+    try {
+      const agent = {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: [],
+        systemPrompt: 'Return summary only.',
+      }
+      const registryOk: SubAgentRegistry = {
+        async loadFromDirectory() {},
+        async loadFromDirectories() {},
+        get() {
+          return agent
+        },
+        list() {
+          return [{ name: agent.name, description: agent.description }]
+        },
+      }
+      const seenModels: Array<string | undefined> = []
+      const seenBudgets: Array<any> = []
+      const runner: SubAgentRunner = {
+        async run(args) {
+          seenModels.push(args.model)
+          seenBudgets.push(args.promptBudget)
+          return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+        },
+      }
+
+      const handler = createTaskSubAgentToolHandler({
+        registry: registryOk,
+        runner,
+        taskManager: new TaskManager(),
+      })
+
+      const call: ToolCall = {
+        id: '1',
+        name: 'Task',
+        input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', model: 'haiku' },
+      }
+      const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+      expect(result.is_error).toBeFalsy()
+      expect(seenModels).toEqual(['glm-4.5-air'])
+    } finally {
+      if (prevHaiku === undefined) delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+      else process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = prevHaiku
+    }
+  })
+
+  it('uses configured default tier when Task.model is omitted', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-model-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-model-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      await fsp.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({ version: 1, llm: { defaultTier: 'opus', model: 'custom-sonnet' } }, null, 2),
+        'utf8',
+      )
+
+      const agent = {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: [],
+        systemPrompt: 'Return summary only.',
+      }
+      const registryOk: SubAgentRegistry = {
+        async loadFromDirectory() {},
+        async loadFromDirectories() {},
+        get() {
+          return agent
+        },
+        list() {
+          return [{ name: agent.name, description: agent.description }]
+        },
+      }
+      const seenModels: Array<string | undefined> = []
+      const seenBudgets: Array<any> = []
+      const runner: SubAgentRunner = {
+        async run(args) {
+          seenModels.push(args.model)
+          seenBudgets.push(args.promptBudget)
+          return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+        },
+      }
+
+      const handler = createTaskSubAgentToolHandler({
+        registry: registryOk,
+        runner,
+        taskManager: new TaskManager(),
+      })
+
+      const call: ToolCall = {
+        id: '1',
+        name: 'Task',
+        input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
+      }
+      const result = await handler.execute(call, { cwd, agentDepth: 0 })
+      expect(result.is_error).toBeFalsy()
+      expect(seenModels).toEqual(['claude-3-opus-latest'])
+      expect(seenBudgets[0]?.contextWindowTokens).toBe(200_000)
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses sonnet fallback model when Task.model explicitly selects sonnet', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-sonnet-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-sonnet-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      await fsp.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({ version: 1, llm: { defaultTier: 'opus', model: 'custom-sonnet' } }, null, 2),
+        'utf8',
+      )
+
+      const agent = {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: [],
+        systemPrompt: 'Return summary only.',
+      }
+      const registryOk: SubAgentRegistry = {
+        async loadFromDirectory() {},
+        async loadFromDirectories() {},
+        get() {
+          return agent
+        },
+        list() {
+          return [{ name: agent.name, description: agent.description }]
+        },
+      }
+      const seenModels: Array<string | undefined> = []
+      const runner: SubAgentRunner = {
+        async run(args) {
+          seenModels.push(args.model)
+          return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+        },
+      }
+
+      const handler = createTaskSubAgentToolHandler({
+        registry: registryOk,
+        runner,
+        taskManager: new TaskManager(),
+      })
+
+      const call: ToolCall = {
+        id: '1',
+        name: 'Task',
+        input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', model: 'sonnet' },
+      }
+      const result = await handler.execute(call, { cwd, agentDepth: 0 })
+      expect(result.is_error).toBeFalsy()
+      expect(seenModels).toEqual(['custom-sonnet'])
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
   })
 
   it('uses resume agent_id when run_in_background is true', async () => {

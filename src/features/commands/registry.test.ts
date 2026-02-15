@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
@@ -147,6 +147,63 @@ describe('SlashCommandRegistry', () => {
       expect(effect?.kind).toBe('local')
       if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
       expect(effect.stdout).toBe('Usage: /hooks')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /model to show current default tier', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        modelTier: { get: () => 'sonnet', set: async () => 'sonnet' },
+      })
+      const effect = reg.dispatch('/model')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toContain('Default model tier: sonnet')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /model <tier> as an async local command', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const set = vi.fn(async () => 'haiku' as const)
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        modelTier: { get: () => 'sonnet', set },
+      })
+      const effect = reg.dispatch('/model haiku')
+      expect(effect?.kind).toBe('local_async')
+      if (!effect || effect.kind !== 'local_async') return
+      const out = await effect.run()
+      expect(set).toHaveBeenCalledWith('haiku')
+      expect(out.stdout).toContain('haiku')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('reports effective tier when project override wins over global /model update', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const set = vi.fn(async () => 'opus' as const)
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        modelTier: { get: () => 'sonnet', set },
+      })
+      const effect = reg.dispatch('/model haiku')
+      expect(effect?.kind).toBe('local_async')
+      if (!effect || effect.kind !== 'local_async') return
+      const out = await effect.run()
+      expect(out.stdout).toContain('Saved global default model tier: haiku')
+      expect(out.stdout).toContain('Current effective tier: opus')
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }

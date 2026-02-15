@@ -74,6 +74,8 @@ export type LlmStreamOnceArgs = {
   executeTool: (call: ToolCall) => Promise<ToolResult>
   signal?: AbortSignal
   maxTokens?: number
+  /** Optional per-turn model override. When omitted, client default model is used. */
+  model?: string
   /** When false, omit thinking fields/headers (no thinking_delta expected). */
   thinkingEnabled?: boolean
 }

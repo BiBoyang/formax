@@ -10,6 +10,7 @@ describe('FormaxConfigV1Schema', () => {
         provider: 'anthropic',
         baseUrl: '',
         model: '',
+        defaultTier: 'sonnet',
         timeoutMs: 600000,
         authRef: 'default',
         thinkingMode: true,

@@ -51,6 +51,7 @@ export type GenerateSessionTitleArgs = {
   cwd: string
   userText: string
   assistantText?: string | null
+  model?: string
   signal?: AbortSignal
 }
 
@@ -86,6 +87,7 @@ export async function generateSessionTitle(args: GenerateSessionTitleArgs): Prom
       if (event.type === 'assistant_delta') streamedAssistantText += event.text
     },
     cwd: args.cwd,
+    model: args.model,
     signal: args.signal,
     thinkingEnabled: false,
     exec: { interactive: false },
@@ -118,6 +120,7 @@ export type DetectNewTopicArgs = {
   engine: Pick<ChatEngine, 'runTurn'>
   cwd: string
   userText: string
+  model?: string
   signal?: AbortSignal
 }
 
@@ -146,6 +149,7 @@ export async function detectNewTopicTitleCandidate(args: DetectNewTopicArgs): Pr
       if (event.type === 'assistant_delta') streamedAssistantText += event.text
     },
     cwd: args.cwd,
+    model: args.model,
     signal: args.signal,
     thinkingEnabled: false,
     exec: { interactive: false },

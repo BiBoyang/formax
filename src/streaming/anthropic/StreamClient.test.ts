@@ -110,6 +110,47 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(init.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14')
   })
 
+  it('uses per-turn model override when provided', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }
+    })
+
+    const events: any[] = []
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm-default',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      model: 'm-override',
+      onEvent: (e) => events.push(e),
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.model).toBe('m-override')
+    expect(events.some((e) => e.type === 'usage' && e.model === 'm-override')).toBe(true)
+  })
+
   it('omits thinking and thinking headers when thinkingEnabled is false', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 

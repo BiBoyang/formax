@@ -27,6 +27,7 @@ export async function runCompactFlow(args: {
   cwd: string
   signal: AbortSignal
   promptBudget: ContextBudgetConfig | null
+  model?: string
   thinkingEnabled: boolean
   mode: ReplMode
   getReplMode: () => ReplMode
@@ -59,6 +60,7 @@ export async function runCompactFlow(args: {
       cwd: args.cwd,
       signal: args.signal,
       promptBudget: args.promptBudget,
+      model: args.model,
       thinkingEnabled: args.thinkingEnabled,
       exec: {
         replMode: args.mode,

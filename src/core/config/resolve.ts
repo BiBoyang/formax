@@ -31,6 +31,7 @@ const KNOWN_SOURCE_KEYS = [
   'llm.provider',
   'llm.baseUrl',
   'llm.model',
+  'llm.defaultTier',
   'llm.timeoutMs',
   'llm.authRef',
   'llm.contextWindowTokens',
@@ -99,7 +100,6 @@ function envToPatch(
 
   const apiKey = (env.FORMAX_API_KEY || '').trim()
   const baseUrl = normalizeAnthropicBaseUrl((env.FORMAX_BASE_URL || '').trim())
-  const model = (env.FORMAX_MODEL || '').trim()
   const timeoutMsRaw = (env.FORMAX_TIMEOUT_MS || '').trim()
   const timeoutMsParsed = timeoutMsRaw ? Number(timeoutMsRaw) : undefined
   const timeoutMs =
@@ -238,13 +238,12 @@ function envToPatch(
     warnings.push('env FORMAX_AUTO_COMPACT_MIN_TURNS_BETWEEN_RUNS is invalid and was ignored')
   }
 
-  const hasAnthropic = Boolean(apiKey || baseUrl || model || timeoutMsRaw)
+  const hasAnthropic = Boolean(apiKey || baseUrl || timeoutMsRaw)
   if (hasAnthropic) {
     patch.llm = {
       ...(patch.llm || {}),
       provider: 'anthropic',
       ...(baseUrl ? { baseUrl } : {}),
-      ...(model ? { model } : {}),
       ...(Number.isFinite(timeoutMs) ? { timeoutMs: timeoutMs as number } : {}),
     }
   }

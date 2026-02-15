@@ -15,6 +15,7 @@ import { makeMessageId } from './ids'
 
 export function useReplOverlays(args: {
   engine: ChatEngine
+  model?: string
   projectAgentsDir: string
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   setAllowedSubagents: (next: Array<{ name: string; description: string }>) => void
@@ -32,7 +33,7 @@ export function useReplOverlays(args: {
   generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
   saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
 } {
-  const { engine, projectAgentsDir, reloadSubagents, setAllowedSubagents, setMessages } = args
+  const { engine, model, projectAgentsDir, reloadSubagents, setAllowedSubagents, setMessages } = args
   const overlayManagerRef = useRef(createOverlayManager(args.initialOverlay))
   const [overlay, setOverlay] = useState(overlayManagerRef.current.current())
 
@@ -106,10 +107,11 @@ export function useReplOverlays(args: {
         engine,
         description,
         cwd: process.cwd(),
+        model,
         signal,
       })
     },
-    [engine],
+    [engine, model],
   )
 
   const saveAgentFromDialog = useCallback(

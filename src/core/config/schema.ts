@@ -12,6 +12,9 @@ export type PromptProfile = z.infer<typeof PromptProfileSchema>
 export const OutputStyleSchema = z.enum(['default', 'explanatory', 'learning'])
 export type OutputStyle = z.infer<typeof OutputStyleSchema>
 
+export const ModelTierSchema = z.enum(['haiku', 'sonnet', 'opus'])
+export type ModelTier = z.infer<typeof ModelTierSchema>
+
 const TimeoutMsSchema = z.number().int().positive()
 const ContextWindowTokensSchema = z.number().int().positive()
 const Percent01Schema = z.number().min(0).max(1)
@@ -22,6 +25,7 @@ export const LlmConfigSchema = z
     provider: ProviderIdSchema.default('anthropic'),
     baseUrl: z.string().default(''),
     model: z.string().default(''),
+    defaultTier: ModelTierSchema.default('sonnet'),
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
@@ -37,6 +41,7 @@ export const LlmConfigPatchSchema = z
     provider: ProviderIdSchema.optional(),
     baseUrl: z.string().optional(),
     model: z.string().optional(),
+    defaultTier: ModelTierSchema.optional(),
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),

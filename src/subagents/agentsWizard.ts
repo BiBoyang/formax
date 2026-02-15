@@ -378,6 +378,7 @@ export async function generateAgentDraftWithClaude(args: {
   engine: ChatEngine
   description: string
   cwd: string
+  model?: string
   signal?: AbortSignal
 }): Promise<{ name: string; description: string; systemPrompt: string }> {
   const userDescription = String(args.description || '').trim()
@@ -413,6 +414,7 @@ export async function generateAgentDraftWithClaude(args: {
     tools: [],
     onEvent: () => {},
     cwd: args.cwd,
+    model: args.model,
     signal: args.signal,
     exec: { agentDepth: 1 },
   })

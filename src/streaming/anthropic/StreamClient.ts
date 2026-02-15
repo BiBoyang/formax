@@ -112,9 +112,10 @@ export class AnthropicStreamClient implements LlmStreamClient {
 
   async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
     const thinkingEnabled = args.thinkingEnabled ?? true
+    const modelForRequest = String(args.model || this.config.model || '').trim() || this.config.model
     const basePayload = {
       stream: true,
-      model: this.config.model,
+      model: modelForRequest,
       max_tokens: args.maxTokens ?? 16000,
       messages: args.messages,
       system: args.system,
@@ -249,7 +250,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
       )
 
       if (result.usage && Object.keys(result.usage).length > 0) {
-        args.onEvent({ type: 'usage', usage: result.usage, model: this.config.model })
+        args.onEvent({ type: 'usage', usage: result.usage, model: modelForRequest })
       }
 
       await Promise.all(Array.from(pendingToolExecutions.values()))

@@ -908,6 +908,7 @@ describe('useReplController', () => {
 	    const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
 	    const runTurn = vi.fn(async (args: any) => {
 	      if (Array.isArray(args.tools) && args.tools.length === 0) {
+        expect(args.model).toBe('m')
         expect(String(args.user?.role)).toBe('user')
         const text = String(args.user?.content?.[0]?.text ?? '')
         expect(text).toContain('Summarize the conversation so far')
@@ -1728,6 +1729,7 @@ describe('useReplController auto-compact', () => {
     const tools: ToolDefinition[] = [{ name: 'T', description: 't', input_schema: {} }]
     const runTurn = vi.fn(async (args: any) => {
       if (Array.isArray(args.tools) && args.tools.length === 0) {
+        expect(args.model).toBe('m')
         return [
           ...args.history,
           args.user,

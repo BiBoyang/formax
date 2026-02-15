@@ -10,6 +10,7 @@ import { configShow } from '../../core/config/show'
 import { testSetupConnection } from '../../adapters/setup/connectionTest'
 import { checkWritableDir } from '../../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
+import type { ModelTier } from '../../env/modelTier'
 
 export function createReplCommandRegistry(args: {
   cfg: RuntimeConfig
@@ -17,6 +18,7 @@ export function createReplCommandRegistry(args: {
   planSession: PlanSessionManager
   promptProfile: RuntimeConfig['ui']['promptProfile']
   setPromptProfile: (next: RuntimeConfig['ui']['promptProfile']) => void
+  setDefaultModelTier: (next: ModelTier) => Promise<ModelTier>
   workspaceRoots: string[]
   workspaceRootWarnings: string[]
 }): ReturnType<typeof createSlashCommandRegistry> {
@@ -26,6 +28,7 @@ export function createReplCommandRegistry(args: {
     planSession,
     promptProfile,
     setPromptProfile,
+    setDefaultModelTier,
     workspaceRoots,
     workspaceRootWarnings,
   } = args
@@ -35,6 +38,10 @@ export function createReplCommandRegistry(args: {
     taskManager,
     plan: planSession,
     promptProfile: { get: () => promptProfile, set: setPromptProfile },
+    modelTier: {
+      get: () => (cfg.llm.defaultTier ?? 'sonnet') as ModelTier,
+      set: setDefaultModelTier,
+    },
     status: {
       get: () =>
         (() => {
@@ -93,4 +100,3 @@ export function createReplCommandRegistry(args: {
     },
   })
 }
-

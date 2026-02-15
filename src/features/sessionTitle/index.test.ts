@@ -150,4 +150,31 @@ describe('maybeAutoGenerateSessionTitle', () => {
 
     expect(out).toEqual({ isNewTopic: true, title: '闲聊' })
   })
+
+  it('passes model override to title generation turns', async () => {
+    const fixture = await createSessionFixture()
+    const attempted = new Set<string>()
+    let seenModel: string | undefined
+
+    const generated = await maybeAutoGenerateSessionTitle({
+      filePath: fixture.filePath,
+      cwd: fixture.cwd,
+      attemptedSessionIds: attempted,
+      userText: 'title please',
+      model: 'glm-4.7',
+      engine: {
+        async runTurn(args) {
+          seenModel = args.model
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'Model Aware Title' }] },
+          ] as ChatHistory
+        },
+      },
+    })
+
+    expect(generated).toBe('Model Aware Title')
+    expect(seenModel).toBe('glm-4.7')
+  })
 })

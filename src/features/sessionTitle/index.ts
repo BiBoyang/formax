@@ -15,6 +15,7 @@ export type MaybeAutoGenerateSessionTitleArgs = {
   userText?: string | null
   topicUserText?: string | null
   assistantText?: string | null
+  model?: string
   signal?: AbortSignal
 }
 
@@ -43,6 +44,7 @@ export async function maybeAutoGenerateSessionTitle(args: MaybeAutoGenerateSessi
       engine: args.engine,
       cwd: args.cwd,
       userText: topicCandidateUserText,
+      model: args.model,
       signal: args.signal,
     }).catch((error) => {
       checkedTopicPromptKeys?.delete(topicKey)
@@ -67,6 +69,7 @@ export async function maybeAutoGenerateSessionTitle(args: MaybeAutoGenerateSessi
       cwd: args.cwd,
       userText: candidateUserText,
       assistantText: args.assistantText,
+      model: args.model,
       signal: args.signal,
     })
     if (!generated) {

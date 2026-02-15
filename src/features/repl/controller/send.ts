@@ -159,6 +159,7 @@ export async function maybeHandleCompactCommand(args: {
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
+      model: args.cfg.llm.model,
       thinkingEnabled: args.cfg.llm.thinkingMode,
       mode: args.mode,
       getReplMode: args.getReplMode,
@@ -549,6 +550,7 @@ export async function runMainSendTurn(raw: {
             cwd,
             signal: abortController.signal,
             promptBudget: args.contextBudgetConfigRef.current,
+            model: args.cfg.llm.model,
             thinkingEnabled: args.cfg.llm.thinkingMode,
             mode: args.mode,
             getReplMode: args.getReplMode,
@@ -639,6 +641,7 @@ export async function runMainSendTurn(raw: {
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
+      model: args.cfg.llm.model,
       thinkingEnabled: args.cfg.llm.thinkingMode,
       exec,
     })

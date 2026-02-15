@@ -23,6 +23,7 @@ export interface ChatEngine {
     cwd: string
     signal?: AbortSignal
     promptBudget?: ContextBudgetConfig | null
+    model?: string
     thinkingEnabled?: boolean
     exec?: Partial<
       Pick<
@@ -82,6 +83,7 @@ export function createChatEngine(deps: {
       cwd,
       signal,
       promptBudget,
+      model,
       thinkingEnabled,
       exec,
     }): Promise<ChatHistory> {
@@ -289,6 +291,7 @@ export function createChatEngine(deps: {
               onEvent,
               executeTool,
               signal,
+              model,
               thinkingEnabled,
             })
 

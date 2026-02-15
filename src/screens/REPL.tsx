@@ -44,6 +44,8 @@ import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/messages'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/errorSubline'
+import { parseModelTier, type ModelTier } from '../env/modelTier'
+import { updateConfigPatchFile } from '../core/config/persist'
 
 type Props = {
   onExit?: () => void
@@ -143,6 +145,29 @@ export function REPL({
     return path.join(globalConfigDir, 'agents')
   }, [])
 
+  const reloadCfg = useCallback(async (opts?: { syncPromptProfile?: boolean }) => {
+    const next = await loadRuntimeConfig(process.env, process.cwd())
+    setRuntimeCfg(next)
+    if (opts?.syncPromptProfile) setPromptProfile(next.ui.promptProfile)
+    return next
+  }, [])
+
+  const setDefaultModelTier = useCallback(
+    async (nextTier: ModelTier) => {
+      const store = createNodeFileStore()
+      const paths = getConfigPaths({ cwd: process.cwd(), env: process.env })
+      await updateConfigPatchFile({
+        fileStore: store,
+        filePath: paths.globalConfigPath,
+        nextPatch: { llm: { defaultTier: nextTier } },
+        label: 'llm.defaultTier',
+      })
+      const nextCfg = await reloadCfg()
+      return parseModelTier(nextCfg.llm.defaultTier) ?? 'sonnet'
+    },
+    [reloadCfg],
+  )
+
   useEffect(() => {
     let cancelled = false
     const store = createNodeFileStore()
@@ -164,6 +189,7 @@ export function REPL({
         planSession,
         promptProfile,
         setPromptProfile,
+        setDefaultModelTier,
         workspaceRoots,
         workspaceRootWarnings,
       }),
@@ -171,6 +197,7 @@ export function REPL({
       runtimeCfg.llm.apiKey,
       runtimeCfg.llm.baseUrl,
       runtimeCfg.llm.model,
+      runtimeCfg.llm.defaultTier,
       runtimeCfg.llm.provider,
       runtimeCfg.llm.timeoutMs,
       runtimeCfg.paths,
@@ -180,6 +207,7 @@ export function REPL({
       workspaceRoots,
       workspaceRootWarnings,
       taskManager,
+      setDefaultModelTier,
     ],
   )
   const { state, actions } = useReplController({
@@ -203,16 +231,10 @@ export function REPL({
     runtimeFlags,
   })
 
-  const reloadCfg = useCallback(async () => {
-    const next = await loadRuntimeConfig(process.env, process.cwd())
-    setRuntimeCfg(next)
-    setPromptProfile(next.ui.promptProfile)
-  }, [])
-
   const handleConfigExit = useCallback(
     (exit: ConfigDialogExit) => {
       actions.closeConfigDialog(exit)
-      if (exit.kind === 'changed') void reloadCfg()
+      if (exit.kind === 'changed') void reloadCfg({ syncPromptProfile: true })
     },
     [actions, reloadCfg],
   )
@@ -523,7 +545,7 @@ export function REPL({
   const renderExpandedMessage = useCallback((msg: Msg) => renderReplMessage(msg, 'expanded'), [renderReplMessage])
 
   const modelLabel = useMemo(() => {
-    const model = runtimeCfg.llm.model || process.env.FORMAX_MODEL || 'Model not set'
+    const model = runtimeCfg.llm.model || 'Model not set'
     return `Model: ${model}`
   }, [runtimeCfg.llm.model])
 

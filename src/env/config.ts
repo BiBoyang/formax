@@ -4,6 +4,8 @@ import type { FileStore } from '../adapters/fs/fileStore.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { loadConfigFiles } from '../adapters/fs/configFiles.js'
 import { getConfigPaths } from '../adapters/fs/configPaths.js'
+import { resolveActiveModel } from './modelTier.js'
+import type { ModelTier } from '../core/config/schema.js'
 
 export type RuntimeConfig = {
   llm: {
@@ -11,6 +13,8 @@ export type RuntimeConfig = {
     baseUrl: string
     apiKey: string
     model: string
+    configuredModel?: string
+    defaultTier?: ModelTier
     timeoutMs: number
     contextWindowTokens?: number
     thinkingMode: boolean
@@ -91,7 +95,12 @@ export async function loadRuntimeConfig(
 
   const apiKey = resolved.auth?.apiKey || ''
   const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.FORMAX_BASE_URL || '')
-  const model = resolved.config.llm.model || ''
+  const { defaultTier, model } = resolveActiveModel({
+    defaultTierRaw: resolved.config.llm.defaultTier,
+    configuredModel: resolved.config.llm.model,
+    env: env as Record<string, string | undefined>,
+  })
+  const configuredModel = String(resolved.config.llm.model || '').trim()
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const contextWindowTokens = resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
@@ -109,6 +118,8 @@ export async function loadRuntimeConfig(
       baseUrl,
       apiKey,
       model,
+      configuredModel,
+      defaultTier,
       timeoutMs,
       ...(contextWindowTokens ? { contextWindowTokens } : {}),
       thinkingMode,

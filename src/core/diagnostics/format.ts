@@ -84,6 +84,7 @@ export function formatStatusHuman(snapshot: StatusSnapshot): string {
         'llm.provider',
         'llm.baseUrl',
         'llm.model',
+        'llm.defaultTier',
         'llm.timeoutMs',
         'llm.authRef',
         'ui.promptProfile',

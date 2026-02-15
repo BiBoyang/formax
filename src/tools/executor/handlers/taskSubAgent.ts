@@ -6,6 +6,9 @@ import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'
 import { formatToolCallParts, formatToolResult } from '../../../utils/toolFormatting'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { loadRuntimeConfig } from '../../../env/config.js'
+import { parseModelTier, resolveModelForTier, type ModelTier } from '../../../env/modelTier.js'
+import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow.js'
 
 type NestedToolEntry = {
   id: string
@@ -22,6 +25,7 @@ const MAX_LINE_CHARS = 80
 const MAX_ENTRIES = 200
 const MAX_LISTED_PATHS = 25
 const MAX_RESPONSE_CHARS = 10_000
+const TASK_MODEL_USAGE_ERROR = 'Error: model must be one of: sonnet, opus, haiku.'
 
 export function createTaskSubAgentToolHandler(deps: {
   registry: SubAgentRegistry
@@ -57,14 +61,9 @@ export function createTaskSubAgentToolHandler(deps: {
         }
       }
 
-      if (model !== undefined && model !== null && model !== '') {
-        const raw = String(model).trim().toLowerCase()
-        if (!raw) {
-          return { tool_use_id: call.id, content: 'Error: model must be one of: sonnet, opus, haiku.', is_error: true }
-        }
-        if (!['sonnet', 'opus', 'haiku'].includes(raw)) {
-          return { tool_use_id: call.id, content: `Error: Unsupported model: ${raw}`, is_error: true }
-        }
+      const { tier: explicitModelTier, error: explicitModelError } = parseExplicitModelTier(model)
+      if (explicitModelError) {
+        return { tool_use_id: call.id, content: explicitModelError, is_error: true }
       }
 
       const agent = deps.registry.get(subagentType)
@@ -75,6 +74,30 @@ export function createTaskSubAgentToolHandler(deps: {
           is_error: true,
         }
       }
+
+      const currentCfg = await loadRuntimeConfig(process.env, ctx.cwd || process.cwd())
+      const agentModelTier = parseModelTier(agent.model)
+      const selectedModelTier =
+        explicitModelTier ??
+        (agentModelTier === null ? undefined : agentModelTier) ??
+        parseModelTier(currentCfg.llm.defaultTier) ??
+        'sonnet'
+      const resolvedModel = resolveModelForTier({
+        tier: selectedModelTier,
+        env: process.env,
+        configuredModel: currentCfg.llm.configuredModel,
+      })
+      const contextWindowTokens =
+        currentCfg.llm.contextWindowTokens ??
+        getKnownContextWindowTokens({ provider: currentCfg.llm.provider, model: resolvedModel })
+      const promptBudget = contextWindowTokens
+        ? {
+            contextWindowTokens,
+            effectiveContextWindowPercent: currentCfg.context.effectiveContextWindowPercent,
+            autoCompactLimitPercent: currentCfg.context.autoCompactTokenLimitPercent,
+            baselineTokens: currentCfg.context.baselineTokens,
+          }
+        : null
 
       const run = async (
         signal?: AbortSignal,
@@ -193,6 +216,8 @@ export function createTaskSubAgentToolHandler(deps: {
         const result = await deps.runner.run({
           agent,
           task: prompt,
+          model: resolvedModel,
+          promptBudget,
           resume: typeof resume === 'string' && resume.trim() ? resume.trim() : undefined,
           agentId: opts?.agentId,
           replMode: subMode,
@@ -272,6 +297,15 @@ export function createTaskSubAgentToolHandler(deps: {
       }
     },
   }
+}
+
+function parseExplicitModelTier(rawModel: unknown): { tier?: ModelTier; error?: string } {
+  if (rawModel === undefined || rawModel === null || rawModel === '') return {}
+  const raw = String(rawModel).trim().toLowerCase()
+  if (!raw) return { error: TASK_MODEL_USAGE_ERROR }
+  const parsed = parseModelTier(raw)
+  if (!parsed) return { error: `Error: Unsupported model: ${raw}` }
+  return { tier: parsed }
 }
 
 function formatNestedHeader(name: string, input: Record<string, any>): string {

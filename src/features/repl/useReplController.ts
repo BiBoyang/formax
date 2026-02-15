@@ -168,6 +168,7 @@ export function useReplController(deps: {
     saveAgentFromDialog,
   } = useReplOverlays({
     engine: deps.engine,
+    model: deps.cfg.llm.model,
     projectAgentsDir: deps.cfg.paths.subagentsDir,
     reloadSubagents: deps.reloadSubagents,
     setAllowedSubagents,
@@ -495,9 +496,10 @@ export function useReplController(deps: {
         userText: firstUserPrompt ?? lastUserPrompt,
         topicUserText: lastUserPrompt,
         assistantText,
+        model: deps.cfg.llm.model,
       }).catch(() => null)
     }
-  }, [deps.engine, isLoading, messages, runtimeCwd])
+  }, [deps.cfg.llm.model, deps.engine, isLoading, messages, runtimeCwd])
 
   const { handleEvent } = useReplStreaming({
     assistantTextMode,

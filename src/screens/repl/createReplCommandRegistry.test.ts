@@ -58,6 +58,7 @@ describe('createReplCommandRegistry', () => {
       planSession: {} as any,
       promptProfile: 'full',
       setPromptProfile: () => {},
+      setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
     })
@@ -82,6 +83,7 @@ describe('createReplCommandRegistry', () => {
       planSession: {} as any,
       promptProfile: 'full',
       setPromptProfile: () => {},
+      setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: ['extra-1', 'extra-2'],
     })
@@ -106,6 +108,7 @@ describe('createReplCommandRegistry', () => {
       planSession: {} as any,
       promptProfile: 'full',
       setPromptProfile: () => {},
+      setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
     })

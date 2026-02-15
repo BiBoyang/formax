@@ -7,12 +7,21 @@ describe('resolveRuntimeConfig', () => {
       defaults: { llm: { model: 'd' } },
       globalConfig: { llm: { model: 'g' } },
       projectConfig: { llm: { model: 'p' } },
-      env: { FORMAX_MODEL: 'e' },
+      env: { FORMAX_BASE_URL: 'https://env.example.com' },
       flags: { llm: { model: 'f' } },
     })
 
     expect(res.config.llm.model).toBe('f')
     expect(res.sources['llm.model']).toBe('flags')
+  })
+
+  it('ignores legacy FORMAX_MODEL env var', () => {
+    const res = resolveRuntimeConfig({
+      env: { FORMAX_MODEL: 'legacy-env-model' },
+    })
+
+    expect(res.config.llm.model).toBe('')
+    expect(res.sources['llm.model']).toBe('default')
   })
 
   it('does not overwrite missing fields with defaults from intermediate sources', () => {
@@ -86,12 +95,14 @@ describe('resolveRuntimeConfig', () => {
   it('fills source map for defaulted fields', () => {
     const res = resolveRuntimeConfig({})
     expect(res.sources['llm.provider']).toBe('default')
+    expect(res.sources['llm.defaultTier']).toBe('default')
     expect(res.sources['ui.promptProfile']).toBe('default')
   })
 
   it('ignores invalid FORMAX_TIMEOUT_MS with warning', () => {
     const res = resolveRuntimeConfig({
-      env: { FORMAX_TIMEOUT_MS: '-1', FORMAX_MODEL: 'x' },
+      env: { FORMAX_TIMEOUT_MS: '-1' },
+      projectConfig: { llm: { model: 'x' } },
     })
 
     expect(res.config.llm.model).toBe('x')
