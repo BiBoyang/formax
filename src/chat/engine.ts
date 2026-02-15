@@ -309,14 +309,7 @@ export function createChatEngine(deps: {
           loopMessages.push(
             ...toolResults.map((r) => ({
               role: 'user' as const,
-              content: [
-                {
-                  type: 'tool_result',
-                  tool_use_id: r.tool_use_id,
-                  content: r.content,
-                  ...(r.is_error ? { is_error: true } : {}),
-                },
-              ],
+              content: buildToolResultMessageBlocks(r),
             })),
           )
 
@@ -345,6 +338,23 @@ export function createChatEngine(deps: {
       }
     },
   }
+}
+
+function buildToolResultMessageBlocks(result: ToolResult): PromptBlock[] {
+  const blocks: PromptBlock[] = [
+    {
+      type: 'tool_result',
+      tool_use_id: result.tool_use_id,
+      content: result.content,
+      ...(result.is_error ? { is_error: true } : {}),
+    },
+  ]
+
+  for (const text of result.extraTextBlocks ?? []) {
+    blocks.push({ type: 'text', text: String(text) })
+  }
+
+  return blocks
 }
 
 function buildMessagesWithPostToolUseText(

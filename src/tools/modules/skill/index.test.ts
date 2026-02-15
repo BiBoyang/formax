@@ -31,10 +31,15 @@ describe('buildSkillToolSpecForCwd', () => {
       const specA = buildSkillToolSpecForCwd(projectA)
       const specB = buildSkillToolSpecForCwd(projectB)
 
-      expect(specA.description).toContain('- alpha: Alpha skill')
-      expect(specA.description).not.toContain('- beta: Beta skill')
-      expect(specB.description).toContain('- beta: Beta skill')
-      expect(specB.description).not.toContain('- alpha: Alpha skill')
+      expect(specA.description).toContain('<skill>\n<name>\nalpha\n</name>')
+      expect(specA.description).toContain('<description>\nAlpha skill (project)\n</description>')
+      expect(specA.description).toContain('<location>\nmanaged\n</location>')
+      expect(specA.description).not.toContain('<name>\nbeta\n</name>')
+
+      expect(specB.description).toContain('<skill>\n<name>\nbeta\n</name>')
+      expect(specB.description).toContain('<description>\nBeta skill (project)\n</description>')
+      expect(specB.description).toContain('<location>\nmanaged\n</location>')
+      expect(specB.description).not.toContain('<name>\nalpha\n</name>')
 
       // The tool description should not leak absolute filesystem paths for skills.
       expect(specA.description).not.toContain(path.join(projectA, '.formax', 'skills'))
@@ -49,4 +54,3 @@ describe('buildSkillToolSpecForCwd', () => {
     }
   })
 })
-
