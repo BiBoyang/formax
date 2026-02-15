@@ -40,6 +40,7 @@ export type ProcessNotificationContext = {
   setAskDraftByInputId: Dispatch<SetStateAction<Record<string, Record<string, string>>>>
   setSubmitStatusByInputId: Dispatch<SetStateAction<Record<string, { status: string; kind: 'success' | 'error'; message?: string }>>>
   reduceThreadRuntimeState: typeof reduceThreadRuntimeState
+  onThreadArchivedNotification?: (params: unknown) => void
 }
 
 export function processNotification(notification: RpcNotification, ctx: ProcessNotificationContext): void {
@@ -310,6 +311,11 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
           },
         }))
       }
+      break
+    }
+
+    case 'thread/archived': {
+      ctx.onThreadArchivedNotification?.(params)
       break
     }
 

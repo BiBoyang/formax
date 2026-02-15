@@ -55,6 +55,7 @@ describe('LeftRail', () => {
 
   it('supports thread action menu for rename/copy', async () => {
     const onRenameThread = vi.fn(async () => undefined)
+    const onArchiveThread = vi.fn(async () => undefined)
     const writeText = vi.fn(async () => undefined)
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
     Object.defineProperty(navigator, 'clipboard', {
@@ -71,6 +72,7 @@ describe('LeftRail', () => {
           activeThreadId={threads[0].id}
           onSelectThread={() => undefined}
           onRenameThread={onRenameThread}
+          onArchiveThread={onArchiveThread}
           onStartThread={() => undefined}
         />,
       )
@@ -90,6 +92,12 @@ describe('LeftRail', () => {
 
       await waitFor(() => {
         expect(onRenameThread).toHaveBeenCalledWith('thread-11111111', 'Renamed by menu')
+      })
+
+      fireEvent.contextMenu(helloButton)
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive thread' }), { detail: 1, button: 0 })
+      await waitFor(() => {
+        expect(onArchiveThread).toHaveBeenCalledWith('thread-11111111')
       })
 
       fireEvent.contextMenu(helloButton)

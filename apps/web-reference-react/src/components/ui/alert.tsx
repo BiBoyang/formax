@@ -1,0 +1,32 @@
+import * as React from 'react'
+import { cva, type VariantProps } from 'class-variance-authority'
+import { cn } from '../../lib/utils'
+
+const alertVariants = cva(
+  'relative w-full rounded-lg border px-4 py-3 ui-text-base text-foreground',
+  {
+    variants: {
+      variant: {
+        default: 'bg-background text-foreground',
+        destructive: 'border-destructive/60 text-destructive',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+    },
+  },
+)
+
+function Alert({ className, variant, ...props }: React.ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
+  return <div role="status" className={cn(alertVariants({ variant }), className)} {...props} />
+}
+
+function AlertTitle({ className, ...props }: React.ComponentProps<'h5'>) {
+  return <h5 className={cn('mb-1 leading-none font-medium', className)} {...props} />
+}
+
+function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {
+  return <div className={cn('ui-text-base text-muted-foreground', className)} {...props} />
+}
+
+export { Alert, AlertTitle, AlertDescription }

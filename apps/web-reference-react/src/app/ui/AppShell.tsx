@@ -5,6 +5,7 @@ import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
 import { TranscriptPane } from '../../components/TranscriptPane'
 import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
@@ -20,6 +21,7 @@ export type AppShellProps = {
   activeThreadId: string | null
   onSelectThread: (threadId: string) => void
   onRenameThread: (threadId: string, label: string) => void
+  onArchiveThread: (threadId: string) => void
   onStartThread: () => void
   isThreadActionBusy: boolean
   isSidebarOpen: boolean
@@ -61,6 +63,7 @@ export type AppShellProps = {
   onRefreshDiff: () => void
   onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
   isRefreshingDiff: boolean
+  noticeMessage: string | null
 }
 
 export function AppShell(props: AppShellProps) {
@@ -140,6 +143,7 @@ export function AppShell(props: AppShellProps) {
               activeThreadId={props.activeThreadId}
               onSelectThread={props.onSelectThread}
               onRenameThread={props.onRenameThread}
+              onArchiveThread={props.onArchiveThread}
               onStartThread={props.onStartThread}
               isBusy={props.isThreadActionBusy}
             />
@@ -195,6 +199,14 @@ export function AppShell(props: AppShellProps) {
             <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 min-w-0">
               <ResizablePanel defaultSize={centerPercent} minSize={35}>
                 <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
+                  {props.noticeMessage ? (
+                    <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
+                      <Alert className="pointer-events-auto border-border/70 bg-background/95 shadow-sm backdrop-blur">
+                        <AlertTitle>Session archived</AlertTitle>
+                        <AlertDescription>{props.noticeMessage}</AlertDescription>
+                      </Alert>
+                    </div>
+                  ) : null}
                   <TranscriptPane
                     activeThread={props.activeThread}
                     activeThreadId={props.activeThreadId}

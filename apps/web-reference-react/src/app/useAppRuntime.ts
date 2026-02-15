@@ -23,6 +23,11 @@ import {
   toToolUseId,
   toTurnFooterStatus,
 } from './core/threadTransforms'
+import {
+  formatArchiveNotice,
+  resolveArchiveSelection,
+  type ArchiveThreadLike,
+} from '../../../../src/features/semantics/threadArchiveSemantics'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
@@ -30,6 +35,7 @@ import { processNotification } from './runtime/processNotification'
 import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
 import { createComposerActions } from './runtime/composerActions'
 import { createThreadActions } from './runtime/threadActions'
+import type { SelectThreadOptions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
 import { connectRpcClient } from './runtime/connectRpcClient'
@@ -95,6 +101,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [isInterruptingTurn, setIsInterruptingTurn] = useState(false)
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
@@ -118,6 +125,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
+  const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
+  const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const hasInitializedThreadFromUrlRef = useRef(false)
   const pendingThreadIdFromUrlRef = useRef<string | null>(null)
@@ -216,6 +225,53 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [log, request],
   )
 
+  const handleThreadArchivedNotification = useCallback(
+    (params: unknown) => {
+      const event = params && typeof params === 'object' ? (params as Record<string, unknown>) : null
+      const threadId = typeof event?.threadId === 'string' ? event.threadId.trim() : ''
+      if (!threadId) return
+
+      const opId = typeof event?.opId === 'string' ? event.opId.trim() : ''
+      if (opId) {
+        const tracked = pendingArchiveOpsRef.current.get(opId)
+        if (tracked) {
+          pendingArchiveOpsRef.current.delete(opId)
+          setNoticeMessage(formatArchiveNotice(tracked.thread))
+        }
+      }
+
+      const currentThreads = threadsRef.current
+      if (!currentThreads.some((thread) => thread.id === threadId)) return
+      const nextThreads = currentThreads.filter((thread) => thread.id !== threadId)
+      dispatch({ type: 'set_threads', threads: nextThreads })
+
+      if (activeThreadIdRef.current !== threadId) return
+
+      const orderedThreadIds = [...currentThreads]
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .map((thread) => thread.id)
+      const selection = resolveArchiveSelection({
+        activeThreadId: threadId,
+        archivedThreadId: threadId,
+        orderedThreadIds,
+      })
+      if (selection.nextActiveThreadId) {
+        selectThreadRef.current(selection.nextActiveThreadId, { restoreOnReplayFailure: false })
+        return
+      }
+
+      activeThreadIdRef.current = null
+      setMode('normal')
+      dispatch({ type: 'set_active_thread', threadId: null })
+      dispatch({ type: 'set_active_turn', turnId: null })
+      dispatch({ type: 'clear_pending_inputs' })
+      dispatch({ type: 'replace_logs', logs: [] })
+      setSelectedCwd(null)
+      void refreshWorkspaceDiff(null).catch(() => undefined)
+    },
+    [dispatch, refreshWorkspaceDiff, setSelectedCwd],
+  )
+
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
       processNotification(notification, {
@@ -242,9 +298,18 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setAskDraftByInputId,
         setSubmitStatusByInputId,
         reduceThreadRuntimeState,
+        onThreadArchivedNotification: handleThreadArchivedNotification,
       })
     },
-    [cacheThreadMode, log, refreshThreads, refreshWorkspaceDiff, shouldProcessSequencedNotification, toCanonicalMeta],
+    [
+      cacheThreadMode,
+      handleThreadArchivedNotification,
+      log,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      shouldProcessSequencedNotification,
+      toCanonicalMeta,
+    ],
   )
 
   const replayThreadEvents = useCallback(
@@ -326,7 +391,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setSelectedCwd,
   })
 
-  const { startThread, selectThread, selectCwd, renameThread, loadEarlierHistory } = useMemo(
+  const { startThread, selectThread, selectCwd, renameThread, archiveThread, loadEarlierHistory } = useMemo(
     () =>
       createThreadActions({
         selectedCwd,
@@ -334,6 +399,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         state: {
           activeThreadId: state.activeThreadId,
           activeTurnId: state.activeTurnId,
+          selectedInputId: state.selectedInputId,
+          pendingInputs: state.pendingInputs,
           logs: state.logs,
           threads: state.threads,
         },
@@ -352,6 +419,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         resumeThreadInputs,
         refreshThreads,
         refreshWorkspaceDiff,
+        trackArchiveOp: ({ opId, threadId, thread }) => {
+          pendingArchiveOpsRef.current.set(opId, { threadId, thread: thread ?? null })
+        },
+        clearArchiveOp: (opId) => {
+          return pendingArchiveOpsRef.current.delete(opId)
+        },
         loadEarlierHistoryAction,
       }),
     [
@@ -367,10 +440,22 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       sortedThreads,
       state.activeThreadId,
       state.activeTurnId,
+      state.selectedInputId,
       state.logs,
+      state.pendingInputs,
       state.threads,
     ],
   )
+
+  useEffect(() => {
+    selectThreadRef.current = selectThread
+  }, [selectThread])
+
+  useEffect(() => {
+    if (!noticeMessage) return
+    const timer = window.setTimeout(() => setNoticeMessage(null), 2600)
+    return () => window.clearTimeout(timer)
+  }, [noticeMessage])
 
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
@@ -558,6 +643,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadId: state.activeThreadId,
     onSelectThread: selectThread,
     onRenameThread: (threadId, label) => void renameThread(threadId, label),
+    onArchiveThread: (threadId) => void archiveThread(threadId),
     onStartThread: () => void startThread().catch(() => undefined),
     isThreadActionBusy,
     isSidebarOpen,
@@ -602,5 +688,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onRefreshDiff: () => void refreshWorkspaceDiff().catch(() => undefined),
     onRequestDiffPatch: (filePath) => requestDiffFilePatch(filePath),
     isRefreshingDiff,
+    noticeMessage,
   }
 }

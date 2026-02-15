@@ -34,6 +34,7 @@ export type ThreadSummary = {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  archivedAt?: string | null
 }
 
 export type ThreadHistoryMessage = {

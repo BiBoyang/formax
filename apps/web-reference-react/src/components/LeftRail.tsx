@@ -35,6 +35,7 @@ export type LeftRailProps = {
   activeThreadId: string | null
   onSelectThread: (threadId: string) => void
   onRenameThread?: (threadId: string, label: string) => Promise<void> | void
+  onArchiveThread?: (threadId: string) => Promise<void> | void
   onStartThread: () => void
   isBusy?: boolean
 }
@@ -96,6 +97,7 @@ export function LeftRail(props: LeftRailProps) {
     connectionStatus,
     onSelectThread,
     onRenameThread,
+    onArchiveThread,
     onStartThread,
     isBusy = false,
   } = props
@@ -142,6 +144,11 @@ export function LeftRail(props: LeftRailProps) {
 
   const handleCopyContextThreadId = (thread: ThreadSummary) => {
     void copyToClipboard(thread.id).catch(() => undefined)
+  }
+
+  const handleArchiveFromContextMenu = (thread: ThreadSummary) => {
+    if (!onArchiveThread) return
+    void onArchiveThread(thread.id)
   }
 
   const submitRename = async () => {
@@ -249,6 +256,12 @@ export function LeftRail(props: LeftRailProps) {
                                   onSelect={() => handleRenameFromContextMenu(thread)}
                                 >
                                   Rename thread
+                                </ContextMenuItem>
+                                <ContextMenuItem
+                                  disabled={!onArchiveThread || isBusy}
+                                  onSelect={() => handleArchiveFromContextMenu(thread)}
+                                >
+                                  Archive thread
                                 </ContextMenuItem>
                                 <ContextMenuSeparator />
                                 <ContextMenuItem
