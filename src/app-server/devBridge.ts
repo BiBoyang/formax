@@ -26,6 +26,7 @@ export type AppServerDevBridgeHandle = {
 
 type BridgeReadDiffParams = {
   maxBytes?: number
+  cwd?: string
 }
 
 type BridgeDiffFile = {
@@ -48,6 +49,13 @@ function normalizeMaxBytes(value: unknown, fallback = 180 * 1024): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.max(32 * 1024, Math.min(parsed, 2 * 1024 * 1024))
+}
+
+function resolveDiffCwd(defaultCwd: string, requestedCwd: unknown): string {
+  if (typeof requestedCwd !== 'string') return defaultCwd
+  const trimmed = requestedCwd.trim()
+  if (!trimmed) return defaultCwd
+  return path.resolve(trimmed)
 }
 
 function writeJsonlLine(stream: PassThrough, text: string): void {
@@ -372,7 +380,9 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
 
         if (isRequest && parsed.method === 'bridge/readDiff') {
           const params = (parsed.params ?? {}) as BridgeReadDiffParams
-          void readWorkspaceDiff(options.cwd ?? process.cwd(), params)
+          const baseCwd = options.cwd ?? process.cwd()
+          const diffCwd = resolveDiffCwd(baseCwd, params.cwd)
+          void readWorkspaceDiff(diffCwd, params)
             .then((result) => {
               if (socket.readyState !== WebSocket.OPEN) return
               socket.send(JSON.stringify({ jsonrpc: '2.0', id: parsed.id, result }))

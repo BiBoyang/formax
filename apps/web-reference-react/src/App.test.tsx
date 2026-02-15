@@ -271,6 +271,72 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('refreshes right diff with selected thread cwd', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: (params as { cwd?: string } | undefined)?.cwd ?? '/repo-default',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-a',
+              cwd: '/repo-a',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'a',
+              label: 'Thread A',
+            },
+            {
+              id: 'thread-b',
+              cwd: '/repo-b',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'b',
+              label: 'Thread B',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        return { data: [], nextCursor: null }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Thread A/i }))
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'bridge/readDiff' &&
+            (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-a',
+        ),
+      ).toBe(true)
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: /Thread B/i }))
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'bridge/readDiff' &&
+            (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-b',
+        ),
+      ).toBe(true)
+    })
+  })
+
   it('switches thread transcript to the newly selected thread history', async () => {
     render(<App />)
 

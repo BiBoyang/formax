@@ -111,6 +111,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const historyLoadingRef = useRef<Record<string, boolean>>({})
   const transcriptSourceByThreadRef = useRef<Record<string, ThreadTranscriptSource>>({})
   const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
+  const selectedCwdRef = useRef<string | null>(selectedCwd)
+  const threadsRef = useRef(state.threads)
   const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
   const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
@@ -123,6 +125,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
+
+  useEffect(() => {
+    selectedCwdRef.current = selectedCwd
+  }, [selectedCwd])
+
+  useEffect(() => {
+    threadsRef.current = state.threads
+  }, [state.threads])
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -195,6 +205,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
         setLogsByThreadId,
+        resolveDiffCwd: () => {
+          if (selectedCwdRef.current) return selectedCwdRef.current
+          const activeThreadId = activeThreadIdRef.current
+          if (!activeThreadId) return null
+          return threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
+        },
       }),
     [log, request],
   )

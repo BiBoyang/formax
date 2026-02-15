@@ -94,7 +94,28 @@ describe('WorktreeDiffPane', () => {
         }}
       />,
     )
-    expect(screen.queryByText('No unstaged changes')).not.toBeInTheDocument()
-    expect(screen.queryByText('Code changes will appear here')).not.toBeInTheDocument()
+    expect(screen.getByText('Change set too large to preview')).toBeInTheDocument()
+    expect(screen.getByText('Refine the scope to inspect file diffs here')).toBeInTheDocument()
+  })
+
+  it('shows large-change-set message when file count exceeds render limit', () => {
+    render(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: Array.from({ length: 121 }, (_, index) => ({
+            path: `src/file-${index}.ts`,
+            additions: 1,
+            deletions: 0,
+            patch: '',
+          })),
+        }}
+      />,
+    )
+    expect(screen.getByText('Change set too large to preview')).toBeInTheDocument()
+    expect(screen.queryByTestId('diff-file-row-src/file-0.ts')).not.toBeInTheDocument()
   })
 })

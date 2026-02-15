@@ -67,5 +67,26 @@ describe('threadActions', () => {
     expect(ctx.setMode).toHaveBeenCalledWith('normal')
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: null })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'replace_logs', logs: [] })
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-missing')
+  })
+
+  it('refreshes workspace diff with selected thread cwd', async () => {
+    const ctx = createBaseContext({
+      state: {
+        activeThreadId: 'prev-thread',
+        activeTurnId: 'turn-prev',
+        logs: [{ id: 'l-prev', kind: 'message', role: 'assistant', text: 'prev' }],
+        threads: [
+          { id: 'prev-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z' },
+          { id: 'thread-b', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z' },
+        ],
+      },
+    })
+    const actions = createThreadActions(ctx)
+
+    actions.selectThread('thread-b')
+    await vi.waitFor(() => {
+      expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-b')
+    })
   })
 })

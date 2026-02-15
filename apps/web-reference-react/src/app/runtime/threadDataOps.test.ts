@@ -45,6 +45,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
       logsByThread = updater(logsByThread)
       return logsByThread
     }),
+    resolveDiffCwd: vi.fn(() => '/repo'),
     ...overrides,
   }
 }
@@ -60,6 +61,7 @@ describe('threadDataOps', () => {
 
     expect(ctx.setIsRefreshingDiff).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsRefreshingDiff).toHaveBeenLastCalledWith(false)
+    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiff', { maxBytes: 180 * 1024, cwd: '/repo' })
     expect(ctx.setDiffSnapshot).toHaveBeenCalledWith({ diff: 'ok' })
   })
 

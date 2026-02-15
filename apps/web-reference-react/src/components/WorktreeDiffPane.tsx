@@ -23,6 +23,8 @@ export type WorktreeDiffPaneProps = {
   showHeader?: boolean
 }
 
+const MAX_RENDERABLE_DIFF_FILES = 120
+
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const {
     diffSnapshot = null,
@@ -34,6 +36,11 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const [listOpen, setListOpen] = useState(true)
   const diffScrollAreaRef = useRef<HTMLDivElement | null>(null)
   const files = diffSnapshot?.files ?? []
+  const isLargeChangeSet = Boolean(
+    diffSnapshot &&
+      diffSnapshot.hasChanges &&
+      (diffSnapshot.truncated || files.length > MAX_RENDERABLE_DIFF_FILES),
+  )
 
   useEffect(() => {
     const root = diffScrollAreaRef.current
@@ -91,11 +98,18 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
             <div className="sticky top-0 h-4 w-full bg-white z-[15] -mt-1 pointer-events-none" />
 
             {listOpen ? (
-              !diffSnapshot ? null : files.length === 0 && !diffSnapshot.hasChanges ? (
+              !diffSnapshot ? null : isLargeChangeSet ? (
+                <div className="min-h-[55vh] grid place-items-center">
+                  <div className="text-center">
+                    <h3 className="mt-4 text-[14px] font-semibold tracking-tight text-foreground/85">Change set too large to preview</h3>
+                    <p className="mt-2 text-[14px] text-muted-foreground">Refine the scope to inspect file diffs here</p>
+                  </div>
+                </div>
+              ) : files.length === 0 && !diffSnapshot.hasChanges ? (
                 <div className="min-h-[55vh] grid place-items-center">
                   <div className="text-center">
                     <div className="text-[30px] leading-none">🧹</div>
-                    <h3 className="mt-4 text-[28px] font-semibold tracking-tight text-foreground/85">No unstaged changes</h3>
+                    <h3 className="mt-4 text-[14px] font-semibold tracking-tight text-foreground/85">No unstaged changes</h3>
                     <p className="mt-2 text-[16px] text-muted-foreground">Code changes will appear here</p>
                   </div>
                 </div>

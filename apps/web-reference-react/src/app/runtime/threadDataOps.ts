@@ -34,6 +34,7 @@ export type ThreadDataOpsContext = {
   setLogsByThreadId: (
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
   ) => void
+  resolveDiffCwd: () => string | null
 }
 
 export function createThreadDataOps(ctx: ThreadDataOpsContext) {
@@ -42,10 +43,11 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     ctx.dispatch({ type: 'set_threads', threads: asThreadSummaries(result) })
   }
 
-  const refreshWorkspaceDiff = async () => {
+  const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {
     ctx.setIsRefreshingDiff(true)
     try {
-      const result = await ctx.request('bridge/readDiff', { maxBytes: 180 * 1024 })
+      const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+      const result = await ctx.request('bridge/readDiff', { maxBytes: 180 * 1024, ...(cwd ? { cwd } : {}) })
       if (result && typeof result === 'object') {
         ctx.setDiffSnapshot(result as DiffSnapshot)
       }

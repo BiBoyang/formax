@@ -23,7 +23,7 @@ export type ThreadActionsContext = {
   replayThreadEvents: (threadId: string, options?: { fromStart?: boolean }) => Promise<boolean>
   resumeThreadInputs: (threadId: string) => Promise<void>
   refreshThreads: () => Promise<void>
-  refreshWorkspaceDiff: () => Promise<void>
+  refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
   loadEarlierHistoryAction: (args: {
     activeThreadId: string | null
     historyCursorByThreadId: Record<string, string | null>
@@ -63,7 +63,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       }
       await ctx.resumeThreadInputs(thread.id)
       await ctx.refreshThreads()
-      await ctx.refreshWorkspaceDiff()
+      await ctx.refreshWorkspaceDiff(thread.cwd ?? ctx.selectedCwd ?? null)
       ctx.log(`Thread created: ${thread.id}`)
     } finally {
       ctx.setIsThreadActionBusy(false)
@@ -102,6 +102,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       }
       if (ctx.activeThreadIdRef.current !== threadId) return
       await ctx.resumeThreadInputs(threadId)
+      await ctx.refreshWorkspaceDiff(nextThread?.cwd ?? null)
     })().catch(() => undefined)
   }
 
@@ -116,11 +117,14 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs: [] })
+      void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
       return
     }
     if (targetThread.id !== ctx.state.activeThreadId) {
       selectThread(targetThread.id)
+      return
     }
+    void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
   }
 
   const renameThread = async (threadId: string, label: string) => {
