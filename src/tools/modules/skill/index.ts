@@ -42,8 +42,10 @@ function buildAvailableSkillsSection(cwd: string): string {
 
   if (entries.length === 0) return ''
 
-  const { kept } = truncateByCharBudget(entries, getSkillToolCharBudget())
-  return kept.join('')
+  const { kept, truncated } = truncateByCharBudget(entries, getSkillToolCharBudget())
+  const out = kept.join('')
+  if (!truncated) return out
+  return `${out}<truncated>true</truncated>\n`
 }
 
 function injectAvailableSkills(desc: string, skillsSection: string): string {

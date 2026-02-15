@@ -53,4 +53,37 @@ describe('buildSkillToolSpecForCwd', () => {
       await fsp.rm(projectB, { recursive: true, force: true })
     }
   })
+
+  it('adds truncation marker when available skills exceed char budget', async () => {
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevBudget = process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET = '10'
+
+    const project = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-project-'))
+
+    try {
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'alpha', 'SKILL.md'),
+        ['---', 'description: Alpha skill', '---', '', 'Do alpha'].join('\n'),
+      )
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'beta', 'SKILL.md'),
+        ['---', 'description: Beta skill', '---', '', 'Do beta'].join('\n'),
+      )
+
+      const spec = buildSkillToolSpecForCwd(project)
+      expect(spec.description).toContain('<truncated>true</truncated>')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+
+      if (prevBudget === undefined) delete process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET
+      else process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET = prevBudget
+
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      await fsp.rm(project, { recursive: true, force: true })
+    }
+  })
 })
