@@ -14,6 +14,5 @@ export type ToolResult = {
   tool_use_id: string
   content: string
   is_error?: boolean
-  // Optional additional text blocks appended after tool_result in the next model call.
-  extraTextBlocks?: string[]
 }
+

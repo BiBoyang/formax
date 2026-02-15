@@ -25,10 +25,9 @@ describe('SkillToolHandler', () => {
     )
 
     expect(res.is_error).toBeUndefined()
-    expect(res.content).toBe('Launching skill: pdf')
-    expect(res.extraTextBlocks).toBeTruthy()
-    expect(res.extraTextBlocks![0]).toContain(`Base directory for this skill: ${path.dirname(skillPath)}`)
-    expect(res.extraTextBlocks![0]).toContain('Do PDF stuff')
+    expect(res.content).toContain('Launching skill: pdf')
+    expect(res.content).toContain(`Base directory for this skill: ${path.dirname(skillPath)}`)
+    expect(res.content).toContain('Do PDF stuff')
 
     if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
     else process.env.FORMAX_CONFIG_DIR = prevConfigDir

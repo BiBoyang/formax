@@ -61,14 +61,12 @@ export function createSkillStore(args: { cwd: string; globalConfigDir: string })
 
 function createSkillStoreUncached(args: { projectRoot: string; globalConfigDir: string }): SkillStore {
   const projectDir = path.join(args.projectRoot, '.formax', 'skills')
-  const projectCompatDir = path.join(args.projectRoot, '.skills')
   const userDir = path.join(args.globalConfigDir, 'skills')
 
   const skillsByName = new Map<string, SkillMeta>()
 
-  // Lower precedence first, then stronger project-local overrides.
+  // Lower precedence first (user), then project overrides.
   for (const meta of scanDir(userDir, 'user')) skillsByName.set(meta.name, meta)
-  for (const meta of scanDir(projectCompatDir, 'project')) skillsByName.set(meta.name, meta)
   for (const meta of scanDir(projectDir, 'project')) skillsByName.set(meta.name, meta)
 
   const list = () =>

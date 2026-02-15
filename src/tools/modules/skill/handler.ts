@@ -64,7 +64,7 @@ export const SkillToolHandler: ToolHandler = {
 
       return {
         tool_use_id: call.id,
-        ...buildSkillLoadedResult({
+        content: buildSkillLoadedText({
           name: meta.name,
           baseDir: path.dirname(meta.filePath),
           body,
@@ -78,20 +78,17 @@ export const SkillToolHandler: ToolHandler = {
   },
 }
 
-function buildSkillLoadedResult(args: {
+function buildSkillLoadedText(args: {
   name: string
   baseDir: string
   body: string
   truncated: boolean
-}): { content: string; extraTextBlocks: string[] } {
-  const extraLines: string[] = []
-  extraLines.push(`Base directory for this skill: ${args.baseDir}`)
-  extraLines.push('')
-  extraLines.push(args.body)
-  if (args.truncated) extraLines.push('\n… (truncated)')
-
-  return {
-    content: `Launching skill: ${args.name}`,
-    extraTextBlocks: [extraLines.join('\n')],
-  }
+}): string {
+  const lines: string[] = []
+  lines.push(`Launching skill: ${args.name}`)
+  lines.push(`Base directory for this skill: ${args.baseDir}`)
+  lines.push('')
+  lines.push(args.body)
+  if (args.truncated) lines.push('\n… (truncated)')
+  return lines.join('\n')
 }
