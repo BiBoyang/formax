@@ -1,4 +1,4 @@
-export type LlmProvider = 'anthropic' | 'openai' | 'unknown'
+export type LlmProvider = 'anthropic' | 'openai' | 'gemini' | 'unknown'
 
 export function getKnownContextWindowTokens(args: {
   provider: LlmProvider
@@ -23,4 +23,3 @@ export function getKnownContextWindowTokens(args: {
 
   return null
 }
-

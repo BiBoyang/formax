@@ -36,6 +36,27 @@ describe('resolveRuntimeConfig', () => {
     expect(res.sources['llm.baseUrl']).toBe('env')
   })
 
+  it('does not force provider to anthropic when env only sets baseUrl/timeout', () => {
+    const res = resolveRuntimeConfig({
+      projectConfig: { llm: { provider: 'openai' } },
+      env: { FORMAX_BASE_URL: 'https://openai.example.com/v1', FORMAX_TIMEOUT_MS: '1234' },
+    })
+
+    expect(res.config.llm.provider).toBe('openai')
+    expect(res.config.llm.baseUrl).toBe('https://openai.example.com/v1')
+    expect(res.config.llm.timeoutMs).toBe(1234)
+  })
+
+  it('preserves explicit versioned env baseUrl (e.g. /v2)', () => {
+    const res = resolveRuntimeConfig({
+      projectConfig: { llm: { provider: 'openai' } },
+      env: { FORMAX_BASE_URL: 'https://openai.example.com/v2' },
+    })
+
+    expect(res.config.llm.provider).toBe('openai')
+    expect(res.config.llm.baseUrl).toBe('https://openai.example.com/v2')
+  })
+
   it('exposes env auth when FORMAX_API_KEY is present', () => {
     const res = resolveRuntimeConfig({
       env: { FORMAX_API_KEY: 'sk-ant-123' },

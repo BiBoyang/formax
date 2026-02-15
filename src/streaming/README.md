@@ -20,11 +20,13 @@ Anthropic API 流式通信层：处理 SSE 解析、tool 并行执行与事件�
 
 | 入口                        | 说明                                   |
 | --------------------------- | -------------------------------------- |
+| `index.ts`                  | provider -> StreamClient 工厂（Anthropic/OpenAI） |
 | `anthropic/StreamClient.ts` | AnthropicStreamClient 类，发起流式请求 |
+| `openai/StreamClient.ts`    | OpenAIStreamClient 类，发起流式请求 |
 | `anthropic/sseParser.ts`    | parseAnthropicSSEStream 解析 SSE 流    |
 | `types.ts`                  | StreamEvent / StreamSink / TokenUsage / LlmStreamClient |
 
-上层 chat engine (`src/chat/engine.ts`) 依赖 `LlmStreamClient` 接口；legacy wiring 目前注入的是 `AnthropicStreamClient`（实现 `LlmStreamClient`）。
+上层 chat engine (`src/chat/engine.ts`) 依赖 `LlmStreamClient` 接口；legacy wiring 通过 `src/streaming/index.ts` 按 provider 注入具体实现。
 
 ## 3) 流程（Flow）
 

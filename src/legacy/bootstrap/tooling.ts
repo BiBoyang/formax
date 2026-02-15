@@ -7,7 +7,7 @@ import { createUserInputManager } from '../../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../../tools/modules/killShell/index.js'
 import { LocalBashPresenter } from '../../tools/presenters/LocalBashPresenter.js'
-import type { AnthropicStreamClient } from '../../streaming/anthropic/StreamClient.js'
+import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 
 export type ToolingRuntime = {
   toolRegistry: ToolRegistry
@@ -18,7 +18,7 @@ export type ToolingRuntime = {
 export function createToolingRuntime(args: {
   cwd: string
   env: NodeJS.ProcessEnv
-  webFetchClient: AnthropicStreamClient
+  webFetchClient: AnthropicCompatibleStreamClient
 }): ToolingRuntime {
   const toolRegistry = new ToolRegistry()
   const taskManager = new TaskManager()

@@ -1,10 +1,10 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import type { AnthropicStreamClient } from '../../../streaming/anthropic/StreamClient'
+import type { AnthropicCompatibleStreamClient } from '../../../streaming/index'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export function createWebFetchToolHandler(deps: {
-  client: AnthropicStreamClient
+  client: AnthropicCompatibleStreamClient
   maxTokens?: number
   maxInputChars?: number
 }): ToolHandler {

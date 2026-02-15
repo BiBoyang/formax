@@ -9,7 +9,7 @@ import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import type { RuntimeConfig } from '../../env/config.js'
 import type { ToolRegistry } from '../../tools/registry.js'
 import type { TaskManager } from '../../tools/runtime/taskManager.js'
-import type { AnthropicStreamClient } from '../../streaming/anthropic/StreamClient.js'
+import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 import type { ToolPreflight } from '../../tools/executor/index.js'
 import { createToolExecutor } from '../../tools/executor/index.js'
 
@@ -23,7 +23,7 @@ export async function createSubagentRuntime(args: {
   cfg: RuntimeConfig
   env: NodeJS.ProcessEnv
   cwd: string
-  client: AnthropicStreamClient
+  client: AnthropicCompatibleStreamClient
   toolRegistry: ToolRegistry
   taskManager: TaskManager
   preflight: ToolPreflight
@@ -41,9 +41,8 @@ export async function createSubagentRuntime(args: {
   }
 
   const toolsForSubagents = await args.toolRegistry.listSpecs()
-  const providerForBudget = 'anthropic' as const
   const contextWindowTokens = args.cfg.llm.contextWindowTokens
-    ?? getKnownContextWindowTokens({ provider: providerForBudget, model: args.cfg.llm.model })
+    ?? getKnownContextWindowTokens({ provider: args.cfg.llm.provider, model: args.cfg.llm.model })
   const promptBudget = contextWindowTokens
     ? {
         contextWindowTokens,

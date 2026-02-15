@@ -1,25 +1,32 @@
 import type { RuntimeConfig } from '../../env/config.js'
-import { AnthropicStreamClient } from '../../streaming/anthropic/StreamClient.js'
+import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
+import { createAnthropicCompatibleStreamClient } from '../../streaming/index.js'
 
 export type LlmClients = {
   model: string
-  client: AnthropicStreamClient
-  webFetchClient: AnthropicStreamClient
+  client: AnthropicCompatibleStreamClient
+  webFetchClient: AnthropicCompatibleStreamClient
 }
 
 export function createLlmClients(args: {
   cfg: RuntimeConfig
   env: NodeJS.ProcessEnv
 }): LlmClients {
-  const model = args.cfg.llm.model || 'claude-sonnet-4-5-20250929'
-  const client = new AnthropicStreamClient({
+  const model = String(args.cfg.llm.model || '').trim()
+  if (!model) {
+    throw new Error('Missing llm.model in runtime config')
+  }
+
+  const client = createAnthropicCompatibleStreamClient({
+    provider: args.cfg.llm.provider,
     apiKey: args.cfg.llm.apiKey,
     baseUrl: args.cfg.llm.baseUrl,
     model,
     timeoutMs: args.cfg.llm.timeoutMs,
   })
 
-  const webFetchClient = new AnthropicStreamClient({
+  const webFetchClient = createAnthropicCompatibleStreamClient({
+    provider: args.cfg.llm.provider,
     apiKey: args.cfg.llm.apiKey,
     baseUrl: args.cfg.llm.baseUrl,
     model: args.env.FORMAX_WEBFETCH_MODEL || model,

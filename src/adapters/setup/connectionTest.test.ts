@@ -1,13 +1,19 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { testSetupConnection } from './connectionTest.js'
-import { fetchAnthropicModels } from '../../services/models.js'
+import { fetchAnthropicModels, fetchCustomModels } from '../../services/models.js'
 
-vi.mock('../../services/models.js', () => ({ fetchAnthropicModels: vi.fn() }))
+vi.mock('../../services/models.js', () => ({ fetchAnthropicModels: vi.fn(), fetchCustomModels: vi.fn() }))
 
 const mockedFetchAnthropicModels = fetchAnthropicModels as unknown as ReturnType<typeof vi.fn>
+const mockedFetchCustomModels = fetchCustomModels as unknown as ReturnType<typeof vi.fn>
 
 describe('testSetupConnection', () => {
+  beforeEach(() => {
+    mockedFetchAnthropicModels.mockReset()
+    mockedFetchCustomModels.mockReset()
+  })
+
   it('returns models for anthropic', async () => {
     mockedFetchAnthropicModels.mockResolvedValueOnce([
       { model: 'm1', provider: 'anthropic' },
@@ -39,11 +45,18 @@ describe('testSetupConnection', () => {
     expect(res.code).toBe(expectedCode)
   })
 
-  it('returns a clear placeholder for unimplemented providers', async () => {
+  it('returns models for openai-compatible providers', async () => {
+    mockedFetchCustomModels.mockResolvedValueOnce([{ id: 'gpt-4o' }, { model: 'gpt-4.1-mini' }] as any)
+
+    const res = await testSetupConnection({ provider: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' })
+    expect(res).toEqual({ ok: true, models: ['gpt-4o', 'gpt-4.1-mini'] })
+  })
+
+  it('maps openai-compatible errors to stable codes', async () => {
+    mockedFetchCustomModels.mockRejectedValueOnce(new Error('401 Unauthorized'))
     const res = await testSetupConnection({ provider: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk' })
     if (!('code' in res)) throw new Error('Expected error result')
-    expect(res.code).toBe(ErrorCode.SetupRequired)
-    expect(res.message).toContain('not implemented')
+    expect(res.code).toBe(ErrorCode.Unauthorized)
   })
 
   it('returns a clear placeholder for gemini', async () => {

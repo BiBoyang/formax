@@ -1,4 +1,4 @@
-import { fetchAnthropicModels } from '../../services/models.js'
+import { fetchAnthropicModels, fetchCustomModels } from '../../services/models.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { mapUnknownError } from '../../core/setup/errorMapping.js'
 import type { ProviderId } from '../../core/config/schema.js'
@@ -22,7 +22,19 @@ export async function testSetupConnection(args: {
   }
 
   if (provider === 'openai') {
-    return { ok: false, code: ErrorCode.SetupRequired, message: 'OpenAI setup is not implemented yet.' }
+    try {
+      const rawModels = await fetchCustomModels(args.baseUrl, args.apiKey)
+      const models = rawModels
+        .map((m: any) => String(m?.id || m?.model || m?.name || '').trim())
+        .filter((m: string) => m.length > 0)
+      if (models.length > 0) {
+        return { ok: true, models }
+      }
+      return { ok: false, code: ErrorCode.Unknown, message: 'No models returned from provider.' }
+    } catch (err) {
+      const mapped = mapUnknownError(err)
+      return { ok: false, code: mapped.code, message: mapped.message }
+    }
   }
 
   if (provider === 'gemini') {
@@ -31,4 +43,3 @@ export async function testSetupConnection(args: {
 
   return { ok: false, code: ErrorCode.Unknown, message: `Unknown provider: ${String(provider)}` }
 }
-

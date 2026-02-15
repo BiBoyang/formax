@@ -58,6 +58,7 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
   const raw = (baseUrl || '').trim()
   if (!raw) return ''
   const trimmed = raw.replace(/\/+$/, '')
+  if (/\/v\d+$/i.test(trimmed)) return trimmed
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 }
 
@@ -228,11 +229,10 @@ function envToPatch(
     warnings.push('env FORMAX_AUTO_COMPACT_MIN_TURNS_BETWEEN_RUNS is invalid and was ignored')
   }
 
-  const hasAnthropic = Boolean(apiKey || baseUrl || timeoutMsRaw)
-  if (hasAnthropic) {
+  const hasLlmEnv = Boolean(baseUrl || timeoutMsRaw)
+  if (hasLlmEnv) {
     patch.llm = {
       ...(patch.llm || {}),
-      provider: 'anthropic',
       ...(baseUrl ? { baseUrl } : {}),
       ...(Number.isFinite(timeoutMs) ? { timeoutMs: timeoutMs as number } : {}),
     }

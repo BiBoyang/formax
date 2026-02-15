@@ -18,8 +18,7 @@ const SETUP_PROVIDER_OPTIONS: SetupProviderOption[] = [
   {
     id: 'openai',
     label: 'OpenAI-compatible',
-    description: 'Not supported yet in Formax REPL',
-    disabled: true,
+    description: 'OpenAI-compatible API (streaming + tools supported)',
   },
   {
     id: 'gemini',

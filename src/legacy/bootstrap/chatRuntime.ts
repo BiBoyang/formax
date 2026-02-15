@@ -1,5 +1,5 @@
 import { createChatEngine } from '../../chat/engine.js'
-import type { AnthropicStreamClient } from '../../streaming/anthropic/StreamClient.js'
+import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 import type { ToolRegistry } from '../../tools/registry.js'
 import type { ToolPreflight } from '../../tools/executor/index.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
@@ -8,7 +8,7 @@ import { createToolExecutor } from '../../tools/executor/index.js'
 import type { RuntimeFlags } from '../../env/runtimeFlags.js'
 
 export function createChatRuntime(args: {
-  client: AnthropicStreamClient
+  client: AnthropicCompatibleStreamClient
   toolRegistry: ToolRegistry
   preflight: ToolPreflight
   hooks: HooksRuntime

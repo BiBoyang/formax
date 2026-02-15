@@ -5,11 +5,11 @@ import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { loadConfigFiles } from '../adapters/fs/configFiles.js'
 import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { resolveActiveModel } from './modelTier.js'
-import type { ModelTier } from '../core/config/schema.js'
+import type { ModelTier, ProviderId } from '../core/config/schema.js'
 
 export type RuntimeConfig = {
   llm: {
-    provider: 'anthropic'
+    provider: ProviderId
     baseUrl: string
     apiKey: string
     model: string
@@ -43,11 +43,10 @@ export type RuntimeConfig = {
   }
 }
 
-function normalizeAnthropicBaseUrl(baseUrl: string): string {
+function normalizeBaseUrl(baseUrl: string): string {
   const raw = (baseUrl || '').trim()
   if (!raw) return ''
-  const trimmed = raw.replace(/\/+$/, '')
-  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+  return raw.replace(/\/+$/, '')
 }
 
 export async function loadRuntimeConfig(
@@ -95,7 +94,8 @@ export async function loadRuntimeConfig(
   const planDir = planDirRaw ? path.resolve(cwd, planDirRaw) : defaultPlanDir
 
   const apiKey = resolved.auth?.apiKey || ''
-  const baseUrl = normalizeAnthropicBaseUrl(resolved.config.llm.baseUrl || env.FORMAX_BASE_URL || '')
+  const provider = resolved.config.llm.provider
+  const baseUrl = normalizeBaseUrl(resolved.config.llm.baseUrl || env.FORMAX_BASE_URL || '')
   const { defaultTier, model } = resolveActiveModel({
     defaultTierRaw: resolved.config.llm.defaultTier,
     configuredModel: resolved.config.llm.model,
@@ -117,7 +117,7 @@ export async function loadRuntimeConfig(
 
   return {
     llm: {
-      provider: 'anthropic',
+      provider,
       baseUrl,
       apiKey,
       model,

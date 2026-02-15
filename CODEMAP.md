@@ -57,7 +57,9 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Chat loop + tool loop: `src/chat/engine.ts`
   - TodoWrite reminders (prompt injection): `src/prompts/reminders/todos.ts` + wiring in `src/chat/engine.ts`
   - Runtime flags used by loop debug/limits: `src/env/runtimeFlags.ts`
+- Streaming provider factory (provider -> client): `src/streaming/index.ts`
 - Anthropic streaming client: `src/streaming/anthropic/StreamClient.ts`
+- OpenAI-compatible streaming client: `src/streaming/openai/StreamClient.ts`
 - SSE parser: `src/streaming/anthropic/sseParser.ts`
 - Stream events/types: `src/streaming/types.ts`
 

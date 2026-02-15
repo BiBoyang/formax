@@ -63,4 +63,34 @@ describe('loadRuntimeConfig', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('uses provider from config (openai) instead of hardcoded anthropic', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        llm: {
+          provider: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          model: 'gpt-4o-mini',
+          authRef: 'default',
+        },
+      })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+        version: 1,
+        providers: { openai: { default: { apiKey: 'sk-openai' } } },
+      })
+
+      const cfg = await loadRuntimeConfig({ FORMAX_CONFIG_DIR: globalConfigDir } as any, projectDir)
+      expect(cfg.llm.provider).toBe('openai')
+      expect(cfg.llm.apiKey).toBe('sk-openai')
+      expect(cfg.llm.model).toBe('gpt-4o-mini')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
 })
