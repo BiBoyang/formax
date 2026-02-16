@@ -741,3 +741,51 @@ Status: `completed`
 
 **结果**:
 - 文档从“执行脚本”转为“已完成演进记录 + 当前状态”，阅读成本更低。
+
+### F.32 下沉 send 中 Local Bash turn 执行分支
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/bashMode.ts`
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `runLocalBashTurn(...)`，收敛 Local Bash 的消息创建、canonical 事件发射、命令执行、结果写回与 finally 清理。
+- `useReplController.send()` 的 `!` 分支改为调用该 helper，主流程仅保留 gating 与 turn id 编排。
+
+**结果**:
+- `send()` 主体进一步收敛，bash 执行路径在 controller 层单点维护。
+- 行为不变（复用原有 emitter/result 格式化逻辑）。
+
+### F.33 补齐 send pre-main 路由独立测试
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/send.test.ts`
+
+**做法**:
+- 新增 `resolvePreMainSendRouting(...)` 单测，覆盖：
+  - `/clear` 命中 pre-main 并触发 `newSession`；
+  - consumed local slash 命令输出 command_subline 并回调 `onSlashLocalRecordForNextTurn`；
+  - `llm` slash effect 返回 `shouldReturn=false` 继续主 turn。
+
+**结果**:
+- pre-main 路由关键分支获得独立回归保护，不再只依赖 `useReplController` 集成覆盖。
+
+### F.34 收敛 turn-flow refs 定义区
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `turnFlowRefs` 容器，统一承载：
+  - `pendingExitPlanReminderRef`
+  - `reminderServiceRef`
+  - `contextBudgetConfigRef`
+  - `pendingInjectedBlocksRef`
+- 全量替换相关调用点，减少主文件 refs 平铺噪音。
+
+**结果**:
+- refs 定义区进一步压缩，按职责分组更清晰。
+- 行为不变（仅访问路径调整）。

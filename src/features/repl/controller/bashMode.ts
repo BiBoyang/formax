@@ -1,8 +1,11 @@
+import type { Dispatch, SetStateAction } from 'react'
 import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRuntimeFlags, type RuntimeFlags } from '../../../env/runtimeFlags'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import type { PromptBlock } from '../../../prompts'
+import { buildBashModeInjectedBlocks } from '../injectedBlocks'
 
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000
 const MAX_OUTPUT_CHARS = 30000
@@ -65,6 +68,105 @@ export function applyLocalBashCompletionToMessages(args: {
       },
     }
   })
+}
+
+export async function runLocalBashTurn(args: {
+  command: string
+  cwd: string
+  env: NodeJS.ProcessEnv
+  runtimeFlags: RuntimeFlags
+  threadId: string
+  turnId: string
+  nextReplaySeq: () => number
+  onCanonicalEvent: (event: CanonicalEvent) => void
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  abortControllerRef: { current: AbortController | null }
+  clearCanonicalTransientState: () => void
+  runCommand?: (args: {
+    command: string
+    cwd: string
+    signal?: AbortSignal
+    env?: NodeJS.ProcessEnv
+    runtimeFlags?: RuntimeFlags
+  }) => Promise<BashModeRunResult>
+}): Promise<void> {
+  const bashAbort = new AbortController()
+  args.abortControllerRef.current = bashAbort
+  const messageId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const emitter = createLocalBashCanonicalEmitter({
+    threadId: args.threadId,
+    turnId: args.turnId,
+    toolUseId: messageId,
+    onCanonicalEvent: args.onCanonicalEvent,
+    nextReplaySeq: args.nextReplaySeq,
+  })
+
+  args.setMessages((prev) => [
+    ...prev,
+    {
+      id: messageId,
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'LocalBash',
+        input: { command: args.command },
+        status: 'running',
+      },
+    },
+  ])
+  emitter.emitUserMessage(args.command)
+  emitter.emitToolEvent({ phase: 'start' })
+  emitter.emitToolEvent({ phase: 'update', line: `$ ${args.command}` })
+
+  try {
+    const runCommand = args.runCommand ?? runBashModeCommand
+    const res = await runCommand({
+      command: args.command,
+      cwd: args.cwd,
+      signal: bashAbort.signal,
+      env: args.env,
+      runtimeFlags: args.runtimeFlags,
+    })
+
+    if (bashAbort.signal.aborted) {
+      emitter.emitToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
+      emitter.emitFooter('interrupted', 'Request aborted')
+      return
+    }
+
+    const outputText = formatBashModeOutput({
+      stdout: res.stdout,
+      stderr: res.stderr,
+      timedOut: res.timedOut,
+      exitCode: res.exitCode,
+      exitSignal: res.exitSignal,
+    })
+    args.pendingInjectedBlocksRef.current.push(
+      ...buildBashModeInjectedBlocks({
+        input: args.command,
+        stdout: res.stdout,
+        stderr: res.stderr,
+      }),
+    )
+
+    const isError = isBashModeResultError(res)
+    args.setMessages((prev) =>
+      applyLocalBashCompletionToMessages({
+        messages: prev,
+        messageId,
+        command: args.command,
+        outputText,
+        isError,
+      }),
+    )
+    emitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
+    emitter.emitFooter(isError ? 'failed' : 'completed')
+  } finally {
+    if (args.abortControllerRef.current === bashAbort) args.abortControllerRef.current = null
+    args.clearCanonicalTransientState()
+  }
 }
 
 export function createLocalBashCanonicalEmitter(args: {

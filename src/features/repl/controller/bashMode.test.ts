@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import {
   applyLocalBashCompletionToMessages,
   createLocalBashCanonicalEmitter,
   isBashModeResultError,
+  runLocalBashTurn,
 } from './bashMode'
 
 describe('createLocalBashCanonicalEmitter', () => {
@@ -106,5 +107,61 @@ describe('applyLocalBashCompletionToMessages', () => {
       },
     })
     expect(after[2]).toBe(before[2])
+  })
+})
+
+describe('runLocalBashTurn', () => {
+  it('runs local bash command, emits canonical events, updates message, and injects blocks', async () => {
+    const events: CanonicalEvent[] = []
+    let replaySeq = 0
+    let messages: Msg[] = []
+    const pendingInjectedBlocksRef = { current: [] as any[] }
+    const abortControllerRef: { current: AbortController | null } = { current: null }
+    const clearCanonicalTransientState = vi.fn()
+
+    await runLocalBashTurn({
+      command: 'pwd',
+      cwd: '/repo',
+      env: process.env,
+      runtimeFlags: { userShellPath: undefined } as any,
+      threadId: 'tui-live',
+      turnId: 'local-bash-1',
+      nextReplaySeq: () => {
+        replaySeq += 1
+        return replaySeq
+      },
+      onCanonicalEvent: (event) => events.push(event),
+      setMessages: (updater: any) => {
+        messages = typeof updater === 'function' ? updater(messages) : updater
+      },
+      pendingInjectedBlocksRef: pendingInjectedBlocksRef as any,
+      abortControllerRef,
+      clearCanonicalTransientState,
+      runCommand: async () => ({
+        stdout: '/repo\n',
+        stderr: '',
+        exitCode: 0,
+        exitSignal: null,
+        timedOut: false,
+      }),
+    })
+
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({
+      role: 'tool',
+      content: '$ pwd',
+      toolInfo: { name: 'LocalBash', status: 'completed' },
+    })
+    expect((messages[0]?.toolInfo?.result || '').includes('/repo')).toBe(true)
+    expect(pendingInjectedBlocksRef.current.length).toBeGreaterThan(0)
+    expect(events.map((event) => event.kind)).toEqual([
+      'user_message',
+      'tool_event',
+      'tool_event',
+      'tool_event',
+      'turn_footer',
+    ])
+    expect(abortControllerRef.current).toBeNull()
+    expect(clearCanonicalTransientState).toHaveBeenCalledTimes(1)
   })
 })

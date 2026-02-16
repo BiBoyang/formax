@@ -20,7 +20,7 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
 import { partitionMessages } from './controller/messages'
-import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
+import { getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
@@ -50,11 +50,7 @@ import {
 import type { CompactLifecycleEvent } from './controller/compactFlow'
 import { emitCanonicalUiMessageForTurn } from './controller/canonicalUiMessages'
 import {
-  applyLocalBashCompletionToMessages,
-  createLocalBashCanonicalEmitter,
-  formatBashModeOutput,
-  isBashModeResultError,
-  runBashModeCommand,
+  runLocalBashTurn,
 } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
@@ -204,9 +200,12 @@ export function useReplController(deps: {
     currentRef: useRef<ReplMode>(deps.mode),
     previousRef: useRef<ReplMode>(deps.mode),
   }
-  const pendingExitPlanReminderRef = useRef(false)
-  const reminderServiceRef = useRef<ReminderService | null>(null)
-  const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
+  const turnFlowRefs = {
+    pendingExitPlanReminderRef: useRef(false),
+    reminderServiceRef: useRef<ReminderService | null>(null),
+    contextBudgetConfigRef: useRef<ContextBudgetConfig | null>(null),
+    pendingInjectedBlocksRef: useRef<PromptBlock[]>([]),
+  }
   const runtimeStateRefs = {
     sendSeqRef: useRef(0),
     autoCompactSeqRef: useRef(-1_000_000),
@@ -231,7 +230,6 @@ export function useReplController(deps: {
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const userInput = useUserInputManager()
-  const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
   const startNewSessionWriter = useCallback(async (): Promise<void> => {
     await startNewSessionWriterInternal({
       sessionSaveEnabled,
@@ -279,7 +277,7 @@ export function useReplController(deps: {
         exit,
         sessionSaveEnabled,
         writer: sessionWriterRef.current,
-        pendingInjectedBlocksRef,
+        pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
       })
     },
     [closeConfigDialog, sessionSaveEnabled],
@@ -330,12 +328,12 @@ export function useReplController(deps: {
 
   const resetSessionState = useCallback(() => {
     historyRef.current = []
-    pendingInjectedBlocksRef.current = []
-    pendingExitPlanReminderRef.current = false
+    turnFlowRefs.pendingInjectedBlocksRef.current = []
+    turnFlowRefs.pendingExitPlanReminderRef.current = false
     resetStreamingBuffers()
     setError(null)
     currentAssistantIdRef.current = null
-    contextBudgetConfigRef.current = null
+    turnFlowRefs.contextBudgetConfigRef.current = null
     runtimeStateRefs.sendSeqRef.current = 0
     runtimeStateRefs.autoCompactSeqRef.current = -1_000_000
     setContext(null)
@@ -383,7 +381,7 @@ export function useReplController(deps: {
     modeRefs.currentRef.current = deps.mode
     const prev = modeRefs.previousRef.current
     if (shouldInjectExitPlanReminder({ current: prev, next: deps.mode })) {
-      pendingExitPlanReminderRef.current = true
+      turnFlowRefs.pendingExitPlanReminderRef.current = true
     }
     modeRefs.previousRef.current = deps.mode
   }, [deps.mode])
@@ -547,8 +545,8 @@ export function useReplController(deps: {
     toolMessageIdByToolUseIdRef: toolRuntimeRefs.messageIdByToolUseIdRef,
     cwd: runtimeCwd,
     exploreBatchRef: toolRuntimeRefs.exploreBatchRef,
-    reminderServiceRef,
-    contextBudgetConfigRef,
+    reminderServiceRef: turnFlowRefs.reminderServiceRef,
+    contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
     canonical: {
       threadId: CANONICAL_THREAD_ID,
       getTurnId: () => canonicalRefs.turnIdRef.current,
@@ -723,84 +721,26 @@ export function useReplController(deps: {
         // Treat bash-mode as an in-flight operation: prevent overlapping sends and allow Ctrl+C to abort.
         // We intentionally avoid the LLM "isLoading" spinner here; the tool message itself is the UI.
         bashModeInFlightRef.current = true
-        const bashAbort = new AbortController()
-        abortControllerRef.current = bashAbort
 
         const localTurnId = `local-bash-${nextCanonicalTurnSeq()}`
-        const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
-        const localCanonicalEmitter = createLocalBashCanonicalEmitter({
-          threadId: CANONICAL_THREAD_ID,
-          turnId: localTurnId,
-          toolUseId: msgId,
-          onCanonicalEvent,
-          nextReplaySeq: nextCanonicalReplaySeq,
-        })
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: msgId,
-            role: 'tool',
-            content: '',
-            timestamp: new Date(),
-            toolInfo: {
-              name: 'LocalBash',
-              input: { command },
-              status: 'running',
-            },
-          },
-        ])
-        localCanonicalEmitter.emitUserMessage(command)
-        localCanonicalEmitter.emitToolEvent({ phase: 'start' })
-        localCanonicalEmitter.emitToolEvent({ phase: 'update', line: `$ ${command}` })
 
         try {
-          const res = await runBashModeCommand({
+          await runLocalBashTurn({
             command,
             cwd: runtimeCwd,
-            signal: bashAbort.signal,
             env: runtimeEnv,
             runtimeFlags,
+            threadId: CANONICAL_THREAD_ID,
+            turnId: localTurnId,
+            nextReplaySeq: nextCanonicalReplaySeq,
+            onCanonicalEvent,
+            setMessages,
+            pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
+            abortControllerRef,
+            clearCanonicalTransientState,
           })
-
-          // If the user aborted, `abort()` already marked running tool messages as error; don't overwrite.
-          if (bashAbort.signal.aborted) {
-            localCanonicalEmitter.emitToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
-            localCanonicalEmitter.emitFooter('interrupted', 'Request aborted')
-            return
-          }
-
-          const outputText = formatBashModeOutput({
-            stdout: res.stdout,
-            stderr: res.stderr,
-            timedOut: res.timedOut,
-            exitCode: res.exitCode,
-            exitSignal: res.exitSignal,
-          })
-
-          pendingInjectedBlocksRef.current.push(
-            ...buildBashModeInjectedBlocks({
-              input: command,
-              stdout: res.stdout,
-              stderr: res.stderr,
-            }),
-          )
-
-          const isError = isBashModeResultError(res)
-          setMessages((prev) =>
-            applyLocalBashCompletionToMessages({
-              messages: prev,
-              messageId: msgId,
-              command,
-              outputText,
-              isError,
-            }),
-          )
-          localCanonicalEmitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
-          localCanonicalEmitter.emitFooter(isError ? 'failed' : 'completed')
         } finally {
           bashModeInFlightRef.current = false
-          if (abortControllerRef.current === bashAbort) abortControllerRef.current = null
-          clearCanonicalTransientState()
         }
 
         return
@@ -834,8 +774,8 @@ export function useReplController(deps: {
       }
       const sendTurnSharedRefs = {
         historyRef,
-        pendingInjectedBlocksRef,
-        contextBudgetConfigRef,
+        pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
+        contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
         abortControllerRef,
         assistantBufferRef,
         thinkingBufferRef: thinkingRefs.bufferRef,
@@ -898,7 +838,7 @@ export function useReplController(deps: {
         cfg: deps.cfg,
         promptProfile: deps.promptProfile,
         planSession: deps.planSession ?? null,
-        reminderServiceRef,
+        reminderServiceRef: turnFlowRefs.reminderServiceRef,
         tools: deps.tools,
         allowedSubagents,
         mode: deps.mode,
@@ -907,7 +847,7 @@ export function useReplController(deps: {
       }
       const mainTurnRefs = {
         ...sendTurnSharedRefs,
-        pendingExitPlanReminderRef,
+        pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
         sendSeqRef: runtimeStateRefs.sendSeqRef,
         lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
         onCompactLifecycle,
