@@ -471,6 +471,21 @@ Status: `completed`
 - ID 工厂与非 message 分发具备独立回归保护。
 - 后续继续拆分 projection reducer 时，能更快定位边界回归。
 
+### F.13 补齐 non-message 分发的生命周期收口单测
+Status: `completed`
+
+**位置**:
+- `semantics/transcriptProjectionEventReducer.ts`
+
+**做法**:
+- 在 `transcriptProjectionEventReducer.test.ts` 增加两个场景：
+  - `tool_event` 到达前会先关闭当前 turn 的 assistant/thinking 打开段；
+  - `turn_footer` 到达前会先关闭当前 turn 的打开文本段。
+
+**结果**:
+- non-message 分发与 lifecycle reducer 的协同语义被显式锁定。
+- 后续如果调整事件顺序或 close 逻辑，能第一时间暴露回归。
+
 ---
 
 ## 建议执行顺序

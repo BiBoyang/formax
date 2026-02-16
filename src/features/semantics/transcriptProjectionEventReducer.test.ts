@@ -100,4 +100,91 @@ describe('transcriptProjectionEventReducer', () => {
       inputState: { kind: 'approval', status: 'pending' },
     })
   })
+
+  it('closes open text segments before applying tool_event', () => {
+    const draft: ProjectionDraft = {
+      segments: [
+        {
+          id: 'turn-1:assistant:1',
+          kind: 'assistant',
+          turnId: 'turn-1',
+          text: 'reply',
+        },
+        {
+          id: 'turn-1:thinking:2',
+          kind: 'thinking',
+          turnId: 'turn-1',
+          text: 'reasoning',
+          status: 'running',
+        },
+      ],
+      toolNameByUseId: {},
+      openAssistantSegmentIdByTurn: { 'turn-1': 'turn-1:assistant:1' },
+      openThinkingSegmentIdByTurn: { 'turn-1': 'turn-1:thinking:2' },
+    }
+
+    applyNonMessageProjectionEvent({
+      draft,
+      event: makeEvent({
+        kind: 'tool_event',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        phase: 'start',
+        toolName: 'Bash',
+      }),
+      toSegmentId: createTranscriptSegmentId,
+    })
+
+    expect(draft.openAssistantSegmentIdByTurn['turn-1']).toBeUndefined()
+    expect(draft.openThinkingSegmentIdByTurn['turn-1']).toBeUndefined()
+    expect(draft.segments[1]).toMatchObject({
+      kind: 'thinking',
+      status: 'finalized',
+    })
+    expect(draft.segments[2]).toMatchObject({
+      kind: 'tool',
+      toolUseId: 'tool-1',
+      toolName: 'Bash',
+    })
+  })
+
+  it('closes open text segments before applying turn_footer', () => {
+    const draft: ProjectionDraft = {
+      segments: [
+        {
+          id: 'turn-1:thinking:1',
+          kind: 'thinking',
+          turnId: 'turn-1',
+          text: 'reasoning',
+          status: 'running',
+        },
+      ],
+      toolNameByUseId: {},
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: { 'turn-1': 'turn-1:thinking:1' },
+    }
+
+    applyNonMessageProjectionEvent({
+      draft,
+      event: makeEvent({
+        kind: 'turn_footer',
+        turnId: 'turn-1',
+        status: 'completed',
+        message: 'Done',
+      }),
+      toSegmentId: createTranscriptSegmentId,
+    })
+
+    expect(draft.openThinkingSegmentIdByTurn['turn-1']).toBeUndefined()
+    expect(draft.segments[0]).toMatchObject({
+      kind: 'thinking',
+      status: 'finalized',
+    })
+    expect(draft.segments[1]).toMatchObject({
+      kind: 'turn_footer',
+      turnId: 'turn-1',
+      status: 'completed',
+      message: 'Done',
+    })
+  })
 })
