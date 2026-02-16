@@ -6,9 +6,8 @@ import type {
 } from './canonicalEvents'
 import type { TokenUsage } from '../../streaming/types'
 import {
-  findToolSegmentIndex,
-  rebindToolSummaryForName,
   reduceToolEvent,
+  reduceToolInputStateEvent,
 } from './transcriptProjectionToolReducer'
 
 export type UserSegment = {
@@ -275,51 +274,7 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
 
   if (event.kind === 'tool_input_state') {
     closeTurnTextSegments(draft, event.turnId)
-    if (event.toolName) {
-      draft.toolNameByUseId[event.toolUseId] = event.toolName
-    }
-    const toolName = event.toolName ?? draft.toolNameByUseId[event.toolUseId] ?? 'Tool'
-    const toolIndex = findToolSegmentIndex({
-      segments: draft.segments,
-      turnId: event.turnId,
-      toolUseId: event.toolUseId,
-    })
-    if (toolIndex >= 0) {
-      const current = draft.segments[toolIndex]
-      if (current.kind === 'tool') {
-        const summary = rebindToolSummaryForName({
-          summary: current.summary,
-          currentToolName: current.toolName,
-          nextToolName: toolName,
-          status: current.status,
-        })
-        draft.segments[toolIndex] = {
-          ...current,
-          toolName,
-          summary,
-          inputState: {
-            kind: event.inputKind,
-            status: event.status,
-          },
-        }
-      }
-    } else {
-      const next: ToolSegment = {
-        id: toSegmentId({ kind: 'tool', replaySeq: event.replaySeq, turnId: event.turnId, suffix: event.toolUseId }),
-        kind: 'tool',
-        turnId: event.turnId,
-        toolUseId: event.toolUseId,
-        toolName,
-        status: 'running',
-        summary: `${toolName} running`,
-        detailLines: [],
-        inputState: {
-          kind: event.inputKind,
-          status: event.status,
-        },
-      }
-      draft.segments.push(next)
-    }
+    reduceToolInputStateEvent({ draft, event, toSegmentId })
   }
 
   if (event.kind === 'turn_footer') {

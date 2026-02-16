@@ -310,6 +310,19 @@ Status: `completed`
 - `reduceTranscriptProjection` 主体长度下降，tool 行 merge/补全逻辑集中。
 - 现有 `transcriptProjection.test.ts` 全量通过，行为保持不变。
 
+### F.2 抽出 tool_input_state reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 `event.kind === 'tool_input_state'` 分支。
+
+**做法**:
+- 在 `transcriptProjectionToolReducer.ts` 新增 `reduceToolInputStateEvent(...)`。
+- 主 reducer 分支改为 `reduceToolInputStateEvent({ draft, event, toSegmentId })`。
+
+**结果**:
+- tool 相关分支进一步集中到同一模块（`tool_event + tool_input_state`）。
+- `transcriptProjection.ts` 主函数继续收敛，同时保留原有行为。
+
 ---
 
 ## 建议执行顺序
