@@ -124,12 +124,18 @@ Status: `in_progress`（先做发射器抽离）
 ---
 
 ### 6. 将「send 入口路由」从 send 中拆成独立函数
+Status: `completed`（先做 pre-main 路由聚合）
 
 **位置**: `send()` 开头到 `runMainSendTurn` 之前：provider、ensureSessionWriter、bash 分支、sessionSave 的 claude_md、`resolveCommandRouting`、clear/compact/slash 分支等。
 
 **做法**: 在 `controller/send.ts` 中增加 `routeSendInput(text, opts, deps, refs)` 或类似，返回 `{ handled: true }` 或 `{ handled: false, text, ... }`；hook 的 `send` 内先 `const routed = routeSendInput(...)`，若 `routed.handled` 则 return，否则用 `routed` 中的信息调用 `runMainSendTurn`。
 
 **验收**: `send` 从「一长串 if/return」变为「路由 + 一次 runMainSendTurn + finally」，可读性更好。
+
+**阶段结果（D.2）**:
+- `controller/send.ts` 新增 `resolvePreMainSendRouting(...)`，统一 pre-main 的 clear/compact/slash 入口路由。
+- `useReplController.send()` 已改为调用该 helper，移除对应内联路由分支。
+- slash local / local_async 的 session writer 记录回调保持原语义（只移动调用位置，不改行为）。
 
 ---
 

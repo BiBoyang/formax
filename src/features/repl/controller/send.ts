@@ -27,6 +27,7 @@ import { makeMessageId } from './ids'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 import { buildTurnInput } from '../../semantics/turnInputBuilder'
 import { formatErrorSubline } from './errorSubline'
+import { resolveCommandRouting } from '../../semantics/commandRouting'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
@@ -392,6 +393,127 @@ export async function maybeHandleConsumedSlashCommand(args: {
   }
 
   return { slashEffect, shouldReturn: true }
+}
+
+export async function resolvePreMainSendRouting(args: {
+  text: string
+  preferredSlashSpecId?: string
+  isLoading: boolean
+  provider: 'openai' | 'anthropic'
+  engine: ChatEngine
+  cfg: RuntimeConfig
+  promptProfile?: SystemPromptProfile
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: ReplMode
+  getReplMode: () => ReplMode
+  setReplMode: (next: ReplMode) => void
+  getPlanPath: () => string | null
+  historyRef: { current: ChatHistory }
+  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+  abortControllerRef: { current: AbortController | null }
+  assistantBufferRef: { current: string }
+  thinkingBufferRef: { current: string }
+  thinkingLastFlushAtRef: { current: number }
+  currentAssistantIdRef: { current: string | null }
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  commandRegistry?: SlashCommandRegistry
+  openOverlay: (spec: OverlaySpec) => void
+  closeOverlay: () => void
+  newSession: () => void
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+  setContext: Dispatch<
+    SetStateAction<
+      | {
+          usedTokens: number
+          limitTokens: number
+          percentRemaining: number
+          source: 'estimate'
+        }
+      | null
+    >
+  >
+  handleEvent: (ev: StreamEvent) => void
+  onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+  onCompactRequested?: () => void
+  onSlashLocalAsyncRecordForNextTurn?: (rec: LocalCommandRecord) => void
+  onSlashLocalRecordForNextTurn?: (rec: LocalCommandRecord) => void
+}): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
+  const commandRouting = resolveCommandRouting(args.text)
+  if (
+    commandRouting.isExactClear &&
+    maybeHandleClearCommand({
+      text: args.text,
+      isLoading: args.isLoading,
+      setMessages: args.setMessages,
+      newSession: args.newSession,
+    })
+  ) {
+    return { slashEffect: null, shouldReturn: true }
+  }
+
+  if (commandRouting.isExactCompact) {
+    args.onCompactRequested?.()
+    await maybeHandleCompactCommand({
+      text: args.text,
+      provider: args.provider,
+      engine: args.engine,
+      cfg: args.cfg,
+      promptProfile: args.promptProfile,
+      allowedSubagents: args.allowedSubagents,
+      mode: args.mode,
+      getReplMode: args.getReplMode,
+      setReplMode: args.setReplMode,
+      getPlanPath: args.getPlanPath,
+      historyRef: args.historyRef,
+      contextBudgetConfigRef: args.contextBudgetConfigRef,
+      abortControllerRef: args.abortControllerRef,
+      assistantBufferRef: args.assistantBufferRef,
+      thinkingBufferRef: args.thinkingBufferRef,
+      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
+      currentAssistantIdRef: args.currentAssistantIdRef,
+      setMessages: args.setMessages,
+      setIsLoading: args.setIsLoading,
+      setLoadingText: args.setLoadingText,
+      setThinkingText: args.setThinkingText,
+      setError: args.setError,
+      setContext: args.setContext,
+      handleEvent: args.handleEvent,
+      onCompactLifecycle: args.onCompactLifecycle,
+    })
+    return { slashEffect: null, shouldReturn: true }
+  }
+
+  let slashEffect: SlashCommandEffect | null = null
+  if (commandRouting.isSlashCommand) {
+    const res = await maybeHandleConsumedSlashCommand({
+      text: args.text,
+      preferredSlashSpecId: args.preferredSlashSpecId,
+      commandRegistry: args.commandRegistry,
+      openOverlay: args.openOverlay,
+      closeOverlay: args.closeOverlay,
+      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+      onLocalCommandRecordForNextTurn: args.onSlashLocalAsyncRecordForNextTurn,
+      thinkingBufferRef: args.thinkingBufferRef,
+      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
+      currentAssistantIdRef: args.currentAssistantIdRef,
+      setMessages: args.setMessages,
+      setIsLoading: args.setIsLoading,
+      setLoadingText: args.setLoadingText,
+      setThinkingText: args.setThinkingText,
+      setError: args.setError,
+    })
+    slashEffect = res.slashEffect
+    if (slashEffect?.kind === 'local' && slashEffect.recordForNextTurn) {
+      args.onSlashLocalRecordForNextTurn?.(slashEffect.recordForNextTurn)
+    }
+    if (res.shouldReturn) return { slashEffect, shouldReturn: true }
+  }
+
+  return { slashEffect, shouldReturn: false }
 }
 
 export async function runMainSendTurn(raw: {

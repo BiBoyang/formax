@@ -6,7 +6,7 @@ import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
-import type { SlashCommandEffect, SlashCommandRegistry } from '../commands/registry'
+import type { SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
@@ -19,7 +19,6 @@ import type {
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
-import { resolveCommandRouting } from '../semantics/commandRouting'
 import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
@@ -47,9 +46,7 @@ import {
 } from './controller/localCommandInjection'
 import {
   type CanonicalUiMessage,
-  maybeHandleClearCommand,
-  maybeHandleCompactCommand,
-  maybeHandleConsumedSlashCommand,
+  resolvePreMainSendRouting,
   runMainSendTurn,
 } from './controller/send'
 import type { CompactLifecycleEvent } from './controller/compactFlow'
@@ -820,91 +817,63 @@ export function useReplController(deps: {
         }
       }
 
-      const commandRouting = resolveCommandRouting(text)
-
-      if (
-        commandRouting.isExactClear &&
-        maybeHandleClearCommand({
-          text,
-          isLoading,
-          setMessages,
-          newSession,
-        })
-      ) {
-        return
-      }
-
-      if (commandRouting.isExactCompact) {
-        if (sessionSaveEnabled) void sessionWriterRef.current?.appendEvent('compact_requested')
-        await maybeHandleCompactCommand({
-          text,
-          provider,
-          engine: deps.engine,
-          cfg: deps.cfg,
-          promptProfile: deps.promptProfile,
-          allowedSubagents,
-          mode: deps.mode,
-          getReplMode: () => modeRef.current,
-          setReplMode,
-          getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-          historyRef,
-          contextBudgetConfigRef,
-          abortControllerRef,
-          assistantBufferRef,
-          thinkingBufferRef,
-          thinkingLastFlushAtRef,
-          currentAssistantIdRef,
-          setMessages,
-          setIsLoading,
-          setLoadingText,
-          setThinkingText,
-          setError,
-          setContext,
-          handleEvent,
-          onCompactLifecycle,
-        })
-        return
-      }
-
-      let slashEffect: SlashCommandEffect | null = null
-      if (commandRouting.isSlashCommand) {
-        const res = await maybeHandleConsumedSlashCommand({
-          text,
-          preferredSlashSpecId: opts?.preferredSlashSpecId,
-          commandRegistry: deps.commandRegistry,
-          openOverlay,
-          closeOverlay,
-          pendingInjectedBlocksRef,
-          onLocalCommandRecordForNextTurn: (rec) => {
-            if (!sessionSaveEnabled) return
-            const stats = getLocalCommandInjectionStats(rec)
-            void sessionWriterRef.current?.appendEvent('local_command_injection', {
-              source: 'slash_local_async',
-              commandName: rec.commandName,
-              ...stats,
-            })
-          },
-          thinkingBufferRef,
-          thinkingLastFlushAtRef,
-          currentAssistantIdRef,
-          setMessages,
-          setIsLoading,
-          setLoadingText,
-          setThinkingText,
-          setError,
-        })
-        slashEffect = res.slashEffect
-        if (sessionSaveEnabled && slashEffect?.kind === 'local' && slashEffect.recordForNextTurn) {
-          const rec = slashEffect.recordForNextTurn
+      const preMainRouting = await resolvePreMainSendRouting({
+        text,
+        preferredSlashSpecId: opts?.preferredSlashSpecId,
+        isLoading,
+        provider,
+        engine: deps.engine,
+        cfg: deps.cfg,
+        promptProfile: deps.promptProfile,
+        allowedSubagents,
+        mode: deps.mode,
+        getReplMode: () => modeRef.current,
+        setReplMode,
+        getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
+        historyRef,
+        contextBudgetConfigRef,
+        abortControllerRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        thinkingLastFlushAtRef,
+        currentAssistantIdRef,
+        pendingInjectedBlocksRef,
+        commandRegistry: deps.commandRegistry,
+        openOverlay,
+        closeOverlay,
+        newSession,
+        setMessages,
+        setIsLoading,
+        setLoadingText,
+        setThinkingText,
+        setError,
+        setContext,
+        handleEvent,
+        onCompactLifecycle,
+        onCompactRequested: () => {
+          if (sessionSaveEnabled) void sessionWriterRef.current?.appendEvent('compact_requested')
+        },
+        onSlashLocalAsyncRecordForNextTurn: (rec) => {
+          if (!sessionSaveEnabled) return
+          const stats = getLocalCommandInjectionStats(rec)
+          void sessionWriterRef.current?.appendEvent('local_command_injection', {
+            source: 'slash_local_async',
+            commandName: rec.commandName,
+            ...stats,
+          })
+        },
+        onSlashLocalRecordForNextTurn: (rec) => {
+          if (!sessionSaveEnabled) return
           const stats = getLocalCommandInjectionStats(rec)
           void sessionWriterRef.current?.appendEvent('local_command_injection', {
             source: 'slash_local',
             commandName: rec.commandName,
             ...stats,
           })
-        }
-        if (res.shouldReturn) return
-      }
+        },
+      })
+      if (preMainRouting.shouldReturn) return
+      const slashEffect = preMainRouting.slashEffect
 
       canonicalTurnSeqRef.current += 1
       const canonicalTurnId = `turn-${canonicalTurnSeqRef.current}`
