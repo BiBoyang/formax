@@ -36,6 +36,19 @@ function formatBasename(filePathRaw: unknown): string {
   return path.basename(normalized)
 }
 
+function resolveEditPatchStartLineNumber(args: {
+  cwd: string
+  toolName: string | undefined
+  isError: boolean
+  toolInput: unknown
+}): number | null {
+  if (args.toolName !== 'Edit' || args.isError) return null
+  return computeEditPatchStartLineNumber({
+    cwd: args.cwd,
+    input: args.toolInput ?? {},
+  })
+}
+
 export function useReplStreaming(args: {
   assistantTextMode: string
   setMessages: Dispatch<SetStateAction<Msg[]>>
@@ -127,6 +140,13 @@ export function useReplStreaming(args: {
     finalizeThinkingSegment()
   }, [args, finalizeThinkingSegment])
 
+  const endActiveAssistantStreamIfAny = useCallback(() => {
+    const activeAssistantId = args.currentAssistantIdRef.current
+    if (!activeAssistantId) return
+    args.setMessages((prev) => prev.map((m) => (m.id === activeAssistantId ? { ...m, isStreaming: false } : m)))
+    args.currentAssistantIdRef.current = null
+  }, [args])
+
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
       const canonicalTurnId = args.canonical?.getTurnId()
@@ -141,19 +161,18 @@ export function useReplStreaming(args: {
         })
         if (ev.type === 'tool_end') {
           const toolName = args.toolNameByIdRef.current.get(ev.id)
-          if (toolName === 'Edit' && !ev.result.is_error) {
-            const toolInput = args.toolInputByIdRef.current.get(ev.id) ?? {}
-            const patchStartLineNumber = computeEditPatchStartLineNumber({
-              cwd: workingCwd,
-              input: toolInput,
-            })
-            if (patchStartLineNumber !== null) {
-              canonicalEvents = canonicalEvents.map((event) =>
-                event.kind === 'tool_event' && event.phase === 'end' && event.toolUseId === ev.id
-                  ? { ...event, patchStartLineNumber }
-                  : event,
-              )
-            }
+          const patchStartLineNumber = resolveEditPatchStartLineNumber({
+            cwd: workingCwd,
+            toolName,
+            isError: Boolean(ev.result.is_error),
+            toolInput: args.toolInputByIdRef.current.get(ev.id),
+          })
+          if (patchStartLineNumber !== null) {
+            canonicalEvents = canonicalEvents.map((event) =>
+              event.kind === 'tool_event' && event.phase === 'end' && event.toolUseId === ev.id
+                ? { ...event, patchStartLineNumber }
+                : event,
+            )
           }
         }
         for (const event of canonicalEvents) {
@@ -270,11 +289,7 @@ export function useReplStreaming(args: {
           if (args.assistantTextMode === 'buffered' && !canonicalOnly) {
             flushAssistantBuffer()
           } else if (!canonicalOnly) {
-            if (args.currentAssistantIdRef.current) {
-              const id = args.currentAssistantIdRef.current
-              args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)))
-              args.currentAssistantIdRef.current = null
-            }
+            endActiveAssistantStreamIfAny()
           }
 
           args.toolNameByIdRef.current.set(ev.id, ev.name)
@@ -438,10 +453,12 @@ export function useReplStreaming(args: {
             const baseId = toolMsg?.id ?? toolMsgId
             const baseTimestamp = toolMsg?.timestamp ?? new Date()
 
-            const editPatchStartLineNumber =
-              toolName === 'Edit' && !ev.result.is_error
-                ? computeEditPatchStartLineNumber({ cwd: workingCwd, input: toolInput })
-                : null
+            const editPatchStartLineNumber = resolveEditPatchStartLineNumber({
+              cwd: workingCwd,
+              toolName,
+              isError: Boolean(ev.result.is_error),
+              toolInput,
+            })
 
             const rawResult = ev.result.content
             const displayResult =
@@ -565,12 +582,8 @@ export function useReplStreaming(args: {
             ok: !ev.result.is_error,
           })
 
-          const activeAssistantId = args.currentAssistantIdRef.current
-          if (activeAssistantId && !canonicalOnly) {
-            args.setMessages((prev) =>
-              prev.map((m) => (m.id === activeAssistantId ? { ...m, isStreaming: false } : m)),
-            )
-            args.currentAssistantIdRef.current = null
+          if (!canonicalOnly) {
+            endActiveAssistantStreamIfAny()
           }
 
           return
@@ -597,11 +610,7 @@ export function useReplStreaming(args: {
           if (args.assistantTextMode === 'buffered') {
             flushAssistantBuffer()
           } else {
-            if (args.currentAssistantIdRef.current) {
-              const id = args.currentAssistantIdRef.current
-              args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)))
-              args.currentAssistantIdRef.current = null
-            }
+            endActiveAssistantStreamIfAny()
           }
 
           return
@@ -611,7 +620,7 @@ export function useReplStreaming(args: {
           return
       }
     },
-    [args, flushAssistantBuffer, startThinkingIfNeeded, stopThinkingIfActive],
+    [args, endActiveAssistantStreamIfAny, flushAssistantBuffer, startThinkingIfNeeded, stopThinkingIfActive],
   )
 
   return { handleEvent }
