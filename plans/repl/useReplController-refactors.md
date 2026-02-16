@@ -183,6 +183,19 @@ Status: `completed`
 - 降低 `handleEvent` 顶部桥接分支复杂度，业务分支（tool/task/thinking）行为不变。
 - 新增 `streamBridge.test.ts` 锁定策略与转发语义（含 abort-like error 不转发）。
 
+### E.2 抽出 tool_end 完成态构建器
+Status: `completed`
+
+**位置**: `controller/streaming.ts` `tool_end` 分支内 `buildCompletedToolMessage` 内联闭包。
+
+**做法**:
+- 新增 `controller/streamingToolCompletion.ts`，导出 `buildCompletedToolMessage(...)`。
+- `streaming.ts` 在 `tool_end` 分支只保留上下文收集（`toolInput/taskStats/editPatchStartLineNumber`）并调用 helper。
+
+**结果**:
+- `tool_end` 分支显著缩短，`streaming.ts` 更聚焦于事件调度。
+- 新增 `streamingToolCompletion.test.ts` 锁定 Task/Skill/Edit 完成态输出格式。
+
 ---
 
 ## 建议执行顺序

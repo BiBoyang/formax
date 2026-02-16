@@ -3,20 +3,13 @@ import path from 'node:path'
 import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { formatToolResult } from '../../../utils/toolFormatting'
 import type { ReminderService } from '../reminders/ReminderService'
 import { makeMessageId } from './ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
-import { parseBackgroundTaskId, parseTaskTranscript } from './taskResult'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
-import {
-  formatDuration,
-  formatTokenTotal,
-  formatToolUses,
-  isAbortLikeError,
-  sumInputTokens,
-} from './utils'
+import { buildCompletedToolMessage } from './streamingToolCompletion'
+import { isAbortLikeError, sumInputTokens } from './utils'
 
 export type ExploreTaskBatch = {
   toolUseIds: Set<string>
@@ -454,107 +447,25 @@ export function useReplStreaming(args: {
           const taskStats = args.taskStatsByToolUseIdRef.current.get(ev.id)
           args.taskStatsByToolUseIdRef.current.delete(ev.id)
 
-          const buildCompletedToolMessage = (toolMsg: Msg | undefined): Msg => {
-            const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
-            const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
-            const priorToolInfo = toolMsg?.toolInfo
-            const baseId = toolMsg?.id ?? toolMsgId
-            const baseTimestamp = toolMsg?.timestamp ?? new Date()
-
-            const editPatchStartLineNumber = resolveEditPatchStartLineNumber({
-              cwd: workingCwd,
-              toolName,
-              isError: Boolean(ev.result.is_error),
-              toolInput,
-            })
-
-            const rawResult = ev.result.content
-            const displayResult =
-              ev.result.is_error && rawResult.startsWith('Error: ')
-                ? rawResult.slice('Error: '.length)
-                : rawResult
-
-            if (toolName === 'Task') {
-              const startedAt = taskStats?.startedAt ?? Date.now()
-              const durationMs = Date.now() - startedAt
-              const tokens = formatTokenTotal(taskStats?.usage)
-              const backgroundTaskId = parseBackgroundTaskId(rawResult)
-              const parsedTranscript = parseTaskTranscript(rawResult)
-              const doneText = ev.result.is_error
-                ? displayResult || 'Error'
-                : backgroundTaskId
-                    ? `Started (task_id: ${backgroundTaskId})`
-                    : `Done (${formatToolUses(taskStats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                      durationMs,
-                    )})`
-
-              return {
-                id: baseId,
-                role: 'tool',
-                content: doneText,
-                timestamp: baseTimestamp,
-                toolInfo: {
-                  ...(priorToolInfo ?? {}),
-                  name: toolName,
-                  toolUseId: ev.id,
-                  input: (toolInput as any) || {},
-                  status: ev.result.is_error ? 'error' : 'completed',
-                  result: rawResult,
-                  ...(parsedTranscript
-                    ? { transcriptLines: parsedTranscript }
-                    : priorToolInfo?.transcriptLines
-                      ? { transcriptLines: priorToolInfo.transcriptLines }
-                      : {}),
-                  ...(taskStats ? { toolUses: taskStats.toolUses, usage: taskStats.usage, durationMs } : { durationMs }),
-                },
-              }
-            }
-
-            if (toolName === 'Skill' && !ev.result.is_error) {
-              return {
-                id: baseId,
-                role: 'tool',
-                content: '',
-                timestamp: baseTimestamp,
-                toolInfo: {
-                  name: toolName,
-                  toolUseId: ev.id,
-                  input: (toolInput as any) || {},
-                  status: 'completed',
-                  result: rawResult,
-                },
-              }
-            }
-
-            const { summary, middleLines, expandInfo, lines } = formatToolResult(
-              toolName,
-              displayResult,
-              Boolean(ev.result.is_error),
-            )
-
-            return {
-              id: baseId,
-              role: 'tool',
-              content: summary,
-              timestamp: baseTimestamp,
-              toolInfo: {
-                name: toolName,
-                toolUseId: ev.id,
-                input: (toolInput as any) || {},
-                status: ev.result.is_error ? 'error' : 'completed',
-                result: rawResult,
-                resultLines: lines,
-                expandInfo,
-                middleLines,
-                ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
-              },
-            }
-          }
-
           if (canWriteLegacyTranscript) {
             updateLegacyMessages((prev) => {
               const toolMsg = prev.find((m) => m.id === toolMsgId)
-              const completedToolMessage = buildCompletedToolMessage(toolMsg)
+              const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
+              const editPatchStartLineNumber = resolveEditPatchStartLineNumber({
+                cwd: workingCwd,
+                toolName: toolNameFromStart || toolMsg?.toolInfo?.name,
+                isError: Boolean(ev.result.is_error),
+                toolInput,
+              })
+              const completedToolMessage = buildCompletedToolMessage({
+                toolMessage: toolMsg,
+                toolUseId: ev.id,
+                toolNameFromStart,
+                toolInputFromStart,
+                result: ev.result,
+                taskStats,
+                editPatchStartLineNumber,
+              })
               return prev.map((m) =>
                 m.id === toolMsgId ? { ...completedToolMessage, id: m.id, timestamp: m.timestamp } : m,
               )
