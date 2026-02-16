@@ -710,22 +710,34 @@ Status: `completed`
 **结果**:
 - turn 收尾 helper 的关键分支具备直接回归保护，不再仅依赖 `useReplController` 集成测试覆盖。
 
----
+### F.30 收敛 send 中 pre-main/main-turn 参数组织
+Status: `completed`
 
-## 建议执行顺序
+**位置**:
+- `src/features/repl/useReplController.ts`
 
-1. **先做小重构 1 + 4**：将 turn-finalization 的「是否 append」与「merge」都迁入 `canonicalTurnMessages.ts`，并补单测。
-2. **再做 2**：abort 的 messages 计算抽出。
-3. **然后 3**：`tailSegmentsForTurn` 挪到语义层。
-4. 若希望继续减负 `send`，再考虑 **5（Bash + canonical）** 与 **6（路由）**。
-5. **7、8** 可作为后续架构/可读性优化单独排期。
+**做法**:
+- 在 `send()` 内新增小对象参数聚合：
+  - `sendStateSetters`
+  - `replModeAccess`
+  - `sendTurnSharedRefs`
+  - `mainTurnDeps`
+  - `mainTurnRefs`
+- `resolvePreMainSendRouting(...)` 与 `runMainSendTurn(...)` 改为消费这些聚合对象，移除同字段重复展开。
 
----
+**结果**:
+- `send()` 的参数编排噪音显著减少，可读性提升。
+- 行为不变（仅组织方式收敛）。
 
-## 相关文件
+### F.31 计划文档降噪（移除过期执行顺序）
+Status: `completed`
 
-- `src/features/repl/useReplController.ts` — 主 hook
-- `src/features/repl/controller/canonicalTurnMessages.ts` — canonical 转 messages、insert index、replace 等
-- `src/features/repl/controller/send.ts` — 路由与 runMainSendTurn
-- `src/features/repl/controller/bashMode.ts` — bash 执行与输出格式化
-- `plans/repl/semantic-single-writer-todo.md` — 已完成的前置计划
+**位置**:
+- `plans/repl/useReplController-refactors.md`
+
+**做法**:
+- 删除已过期的“建议执行顺序”与重复的“相关文件”尾段。
+- 保留 slice 记录与当前阶段结论，避免后续阅读时被历史执行步骤干扰。
+
+**结果**:
+- 文档从“执行脚本”转为“已完成演进记录 + 当前状态”，阅读成本更低。

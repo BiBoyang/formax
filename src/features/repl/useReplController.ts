@@ -820,6 +820,29 @@ export function useReplController(deps: {
         }
       }
 
+      const sendStateSetters = {
+        setMessages,
+        setIsLoading,
+        setLoadingText,
+        setThinkingText,
+        setError,
+        setContext,
+      }
+      const replModeAccess = {
+        getReplMode: () => modeRefs.currentRef.current,
+        setReplMode,
+      }
+      const sendTurnSharedRefs = {
+        historyRef,
+        pendingInjectedBlocksRef,
+        contextBudgetConfigRef,
+        abortControllerRef,
+        assistantBufferRef,
+        thinkingBufferRef: thinkingRefs.bufferRef,
+        thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
+        currentAssistantIdRef,
+      }
+
       const preMainRouting = await resolvePreMainSendRouting({
         text,
         preferredSlashSpecId: opts?.preferredSlashSpecId,
@@ -830,27 +853,14 @@ export function useReplController(deps: {
         promptProfile: deps.promptProfile,
         allowedSubagents,
         mode: deps.mode,
-        getReplMode: () => modeRefs.currentRef.current,
-        setReplMode,
+        ...replModeAccess,
         getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-        historyRef,
-        contextBudgetConfigRef,
-        abortControllerRef,
-        assistantBufferRef,
-        thinkingBufferRef: thinkingRefs.bufferRef,
-        thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
-        currentAssistantIdRef,
-        pendingInjectedBlocksRef,
+        ...sendTurnSharedRefs,
         commandRegistry: deps.commandRegistry,
         openOverlay,
         closeOverlay,
         newSession,
-        setMessages,
-        setIsLoading,
-        setLoadingText,
-        setThinkingText,
-        setError,
-        setContext,
+        ...sendStateSetters,
         handleEvent,
         onCompactLifecycle,
         onCompactRequested: () => {
@@ -883,43 +893,32 @@ export function useReplController(deps: {
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
+      const mainTurnDeps = {
+        engine: deps.engine,
+        cfg: deps.cfg,
+        promptProfile: deps.promptProfile,
+        planSession: deps.planSession ?? null,
+        reminderServiceRef,
+        tools: deps.tools,
+        allowedSubagents,
+        mode: deps.mode,
+        ...replModeAccess,
+        handleEvent,
+      }
+      const mainTurnRefs = {
+        ...sendTurnSharedRefs,
+        pendingExitPlanReminderRef,
+        sendSeqRef: runtimeStateRefs.sendSeqRef,
+        lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
+        onCompactLifecycle,
+      }
       try {
         const runResult = await runMainSendTurn({
           input: { text, slashEffect, provider },
-          deps: {
-            engine: deps.engine,
-            cfg: deps.cfg,
-            promptProfile: deps.promptProfile,
-            planSession: deps.planSession ?? null,
-            reminderServiceRef,
-            tools: deps.tools,
-            allowedSubagents,
-            mode: deps.mode,
-            getReplMode: () => modeRefs.currentRef.current,
-            setReplMode,
-            handleEvent,
-          },
-          refs: {
-            historyRef,
-            pendingInjectedBlocksRef,
-            pendingExitPlanReminderRef,
-            contextBudgetConfigRef,
-            abortControllerRef,
-            assistantBufferRef,
-            thinkingBufferRef: thinkingRefs.bufferRef,
-            thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
-            currentAssistantIdRef,
-            sendSeqRef: runtimeStateRefs.sendSeqRef,
-            lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
-            onCompactLifecycle,
-          },
+          deps: mainTurnDeps,
+          refs: mainTurnRefs,
           state: {
-            setMessages,
-            setIsLoading,
-            setLoadingText,
-            setThinkingText,
-            setError,
-            setContext,
+            ...sendStateSetters,
             emitCanonicalUiMessage: (message) =>
               emitCanonicalUiMessageForTurn({
                 threadId: CANONICAL_THREAD_ID,
