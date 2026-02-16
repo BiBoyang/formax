@@ -1,6 +1,6 @@
 # useReplController 后续重构计划
 
-Status: `in_progress`
+Status: `completed`
 前置条件: semantic-single-writer 计划已完成（见 `semantic-single-writer-todo.md`）。
 目标: 在保持行为不变的前提下，将 `useReplController.ts` 从「巨型协调器」收窄为「薄壳 + 调用 controller 纯函数」，提升可读性与可测性。
 
@@ -13,7 +13,7 @@ Status: `in_progress`
 - [x] Slice E（streaming）: canonical bridge 策略/转发下沉
 - [x] Slice F（transcriptProjection）: tool_event reducer 拆分
 
-当前进行中: `none`（后续按需开新 slice）
+当前进行中: `none`
 
 ## 原则
 
@@ -789,3 +789,67 @@ Status: `completed`
 **结果**:
 - refs 定义区进一步压缩，按职责分组更清晰。
 - 行为不变（仅访问路径调整）。
+
+### F.35 下沉 send 的 provider/session 预处理
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/provider.ts`
+- `src/features/repl/controller/sessionEvents.ts`
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `resolveTurnProvider(...)`，统一 `'openai' | 'anthropic'` 解析，移除 `send()` 中的 `as any` provider 判断。
+- 新增 `recordClaudeMdInjectionEvent(...)`、`recordCompactRequestedEvent(...)`、`recordLocalCommandInjectionEvent(...)`。
+- `useReplController.send()` 改为调用 session event helper，移除内联事件写盘逻辑。
+
+**结果**:
+- `send()` 入口预处理逻辑进一步下沉到 controller，主流程更聚焦于 turn 编排。
+- provider 选择路径改为类型化 helper，减少弱类型入口。
+
+### F.36 提供 send 参数分组工厂
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/send.ts`
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 在 `send.ts` 新增 `createSendTurnContext(...)` 与 `SendStateSetters` / `ReplModeAccess` / `SendTurnSharedRefs` 类型别名。
+- `useReplController.send()` 改为通过该工厂生成 `sendStateSetters/replModeAccess/sendTurnSharedRefs`。
+
+**结果**:
+- `send()` 中参数组装噪音进一步收敛，后续变更点更集中。
+
+### F.37 分层 reset/abort 运行态收口
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 session reset 细分为：
+  - `resetSessionRefs()`
+  - `resetCanonicalProjectionState()`
+  - `resetSessionUiState()`
+- `abort()` 复用 `resetSessionUiState()`，并保留现有 abort transcript 合并语义。
+
+**结果**:
+- reset/abort 路径职责更清晰，后续 UI 与 runtime 调整时冲突更少。
+- 行为不变（仅组织方式调整）。
+
+### F.38 新增混合路径回归测试（slash+bash+tool+assistant）
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.test.tsx`
+
+**做法**:
+- 新增混合场景测试：`/todos`（local slash）+ `! pwd`（bash）+ 两次主 turn。
+- 断言：
+  - 第一个主 turn 注入同时包含 local 命令与 bash 注入块；
+  - 每个 turn 的 tool row 仅 1 条（无重复）；
+  - assistant 输出 `done-1/done-2` 均存在。
+
+**结果**:
+- 进一步锁定“复杂路径下不重复 tool 行且 assistant 不丢失”的回归风险。

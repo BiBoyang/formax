@@ -39,6 +39,72 @@ export type CanonicalUiMessage = {
   uiKind?: 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
 }
 
+export type SendStateSetters = {
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+  setContext: Dispatch<
+    SetStateAction<
+      | {
+          usedTokens: number
+          limitTokens: number
+          percentRemaining: number
+          source: 'estimate'
+        }
+      | null
+    >
+  >
+}
+
+export type ReplModeAccess = {
+  getReplMode: () => ReplMode
+  setReplMode: (next: ReplMode) => void
+}
+
+export type SendTurnSharedRefs = {
+  historyRef: { current: ChatHistory }
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+  abortControllerRef: { current: AbortController | null }
+  assistantBufferRef: { current: string }
+  thinkingBufferRef: { current: string }
+  thinkingLastFlushAtRef: { current: number }
+  currentAssistantIdRef: { current: string | null }
+}
+
+export function createSendTurnContext(args: SendStateSetters & ReplModeAccess & SendTurnSharedRefs): {
+  sendStateSetters: SendStateSetters
+  replModeAccess: ReplModeAccess
+  sendTurnSharedRefs: SendTurnSharedRefs
+} {
+  return {
+    sendStateSetters: {
+      setMessages: args.setMessages,
+      setIsLoading: args.setIsLoading,
+      setLoadingText: args.setLoadingText,
+      setThinkingText: args.setThinkingText,
+      setError: args.setError,
+      setContext: args.setContext,
+    },
+    replModeAccess: {
+      getReplMode: args.getReplMode,
+      setReplMode: args.setReplMode,
+    },
+    sendTurnSharedRefs: {
+      historyRef: args.historyRef,
+      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+      contextBudgetConfigRef: args.contextBudgetConfigRef,
+      abortControllerRef: args.abortControllerRef,
+      assistantBufferRef: args.assistantBufferRef,
+      thinkingBufferRef: args.thinkingBufferRef,
+      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
+      currentAssistantIdRef: args.currentAssistantIdRef,
+    },
+  }
+}
+
 export function maybeHandleClearCommand(args: {
   text: string
   isLoading: boolean
@@ -405,43 +471,19 @@ export async function resolvePreMainSendRouting(args: {
   promptProfile?: SystemPromptProfile
   allowedSubagents: Array<{ name: string; description: string }>
   mode: ReplMode
-  getReplMode: () => ReplMode
-  setReplMode: (next: ReplMode) => void
   getPlanPath: () => string | null
-  historyRef: { current: ChatHistory }
-  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
-  abortControllerRef: { current: AbortController | null }
-  assistantBufferRef: { current: string }
-  thinkingBufferRef: { current: string }
-  thinkingLastFlushAtRef: { current: number }
-  currentAssistantIdRef: { current: string | null }
-  pendingInjectedBlocksRef: { current: PromptBlock[] }
   commandRegistry?: SlashCommandRegistry
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
   newSession: () => void
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  setIsLoading: Dispatch<SetStateAction<boolean>>
-  setLoadingText: Dispatch<SetStateAction<string>>
-  setThinkingText: Dispatch<SetStateAction<string>>
-  setError: Dispatch<SetStateAction<string | null>>
-  setContext: Dispatch<
-    SetStateAction<
-      | {
-          usedTokens: number
-          limitTokens: number
-          percentRemaining: number
-          source: 'estimate'
-        }
-      | null
-    >
-  >
   handleEvent: (ev: StreamEvent) => void
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   onCompactRequested?: () => void
   onSlashLocalAsyncRecordForNextTurn?: (rec: LocalCommandRecord) => void
   onSlashLocalRecordForNextTurn?: (rec: LocalCommandRecord) => void
-}): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
+} & ReplModeAccess &
+  SendTurnSharedRefs &
+  SendStateSetters): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
   const commandRouting = resolveCommandRouting(args.text)
   if (
     commandRouting.isExactClear &&
@@ -548,24 +590,8 @@ export async function runMainSendTurn(raw: {
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
-  }
-  state: {
-    setMessages: Dispatch<SetStateAction<Msg[]>>
-    setIsLoading: Dispatch<SetStateAction<boolean>>
-    setLoadingText: Dispatch<SetStateAction<string>>
-    setThinkingText: Dispatch<SetStateAction<string>>
-    setError: Dispatch<SetStateAction<string | null>>
-    setContext: Dispatch<
-      SetStateAction<
-        | {
-            usedTokens: number
-            limitTokens: number
-            percentRemaining: number
-            source: 'estimate'
-          }
-        | null
-      >
-    >
+  } & SendTurnSharedRefs
+  state: SendStateSetters & {
     emitCanonicalUiMessage?: (message: CanonicalUiMessage) => void
   }
 }): Promise<{ userMessageId: string; turnOutcome: 'completed' | 'aborted' | 'failed' }> {

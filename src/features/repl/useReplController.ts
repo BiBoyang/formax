@@ -20,7 +20,6 @@ import type {
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
 import { partitionMessages } from './controller/messages'
-import { getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
@@ -41,12 +40,18 @@ import {
 } from './controller/sessionLifecycle'
 import {
   applyConfigExitInjection,
-  getLocalCommandInjectionStats,
 } from './controller/localCommandInjection'
 import {
+  createSendTurnContext,
   resolvePreMainSendRouting,
   runMainSendTurn,
 } from './controller/send'
+import { resolveTurnProvider } from './controller/provider'
+import {
+  recordClaudeMdInjectionEvent,
+  recordCompactRequestedEvent,
+  recordLocalCommandInjectionEvent,
+} from './controller/sessionEvents'
 import type { CompactLifecycleEvent } from './controller/compactFlow'
 import { emitCanonicalUiMessageForTurn } from './controller/canonicalUiMessages'
 import {
@@ -326,25 +331,37 @@ export function useReplController(deps: {
     [sessionSaveEnabled],
   )
 
-  const resetSessionState = useCallback(() => {
+  const resetSessionRefs = useCallback(() => {
     historyRef.current = []
     turnFlowRefs.pendingInjectedBlocksRef.current = []
     turnFlowRefs.pendingExitPlanReminderRef.current = false
-    resetStreamingBuffers()
-    setError(null)
     currentAssistantIdRef.current = null
     turnFlowRefs.contextBudgetConfigRef.current = null
     runtimeStateRefs.sendSeqRef.current = 0
     runtimeStateRefs.autoCompactSeqRef.current = -1_000_000
-    setContext(null)
     clearToolRuntimeState()
+    runtimeStateRefs.claudeMdMetaSigRef.current = null
+  }, [clearToolRuntimeState])
+
+  const resetCanonicalProjectionState = useCallback(() => {
     canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })
     canonicalRefs.replaySeqRef.current = 0
     canonicalRefs.turnIdRef.current = null
     canonicalRefs.turnSeqRef.current = 0
     clearCanonicalTransientState()
-    runtimeStateRefs.claudeMdMetaSigRef.current = null
-  }, [clearCanonicalTransientState, clearToolRuntimeState, resetStreamingBuffers])
+  }, [clearCanonicalTransientState])
+
+  const resetSessionUiState = useCallback(() => {
+    resetStreamingBuffers()
+    setError(null)
+    setContext(null)
+  }, [resetStreamingBuffers])
+
+  const resetSessionState = useCallback(() => {
+    resetSessionRefs()
+    resetCanonicalProjectionState()
+    resetSessionUiState()
+  }, [resetCanonicalProjectionState, resetSessionRefs, resetSessionUiState])
 
   const nextCanonicalReplaySeq = useCallback(() => {
     canonicalRefs.replaySeqRef.current += 1
@@ -556,6 +573,7 @@ export function useReplController(deps: {
   })
 
   const abort = useCallback(() => {
+    const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
     const hadInFlightRequest = Boolean(abortControllerRef.current) || isLoading
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
@@ -564,11 +582,9 @@ export function useReplController(deps: {
     userInput?.clearBufferedAnswers()
     userInput?.rejectAllPending(new Error('Request aborted'))
 
-    resetStreamingBuffers()
+    resetSessionUiState()
     clearCanonicalTransientState()
     setIsLoading(false)
-    setError(null)
-    const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
     clearToolRuntimeState()
 
     if (currentAssistantIdRef.current) {
@@ -584,7 +600,7 @@ export function useReplController(deps: {
         hadInFlightRequest,
       })
     })
-  }, [clearCanonicalTransientState, clearToolRuntimeState, isLoading, resetStreamingBuffers, userInput])
+  }, [clearCanonicalTransientState, clearToolRuntimeState, isLoading, resetSessionUiState, userInput])
 
   const newSession = useCallback(() => {
     deps.engine.beginNewSession?.({ source: 'clear' })
@@ -698,7 +714,7 @@ export function useReplController(deps: {
       const text = value.trim()
       if (!text || isLoading || bashModeInFlightRef.current) return
 
-      const provider = (deps.cfg.llm as any).provider === 'openai' ? 'openai' : 'anthropic'
+      const provider = resolveTurnProvider(deps.cfg.llm.provider)
 
       // Thinking/streaming state is per-turn; clear buffers so stale thinking
       // from previous turns can't leak into the next status line/panel.
@@ -746,33 +762,24 @@ export function useReplController(deps: {
         return
       }
 
-      if (sessionSaveEnabled) {
-        const promptProfile = deps.promptProfile ?? deps.cfg.ui.promptProfile
-        if (promptProfile === 'full') {
-          const meta = getClaudeMdInjectionMeta({ cwd: runtimeCwd, env: runtimeEnv })
-          if (meta.global || meta.project) {
-            const sig = JSON.stringify(meta)
-            if (runtimeStateRefs.claudeMdMetaSigRef.current !== sig) {
-              runtimeStateRefs.claudeMdMetaSigRef.current = sig
-              void sessionWriterRef.current?.appendEvent('claude_md_injection', meta)
-            }
-          }
-        }
-      }
+      recordClaudeMdInjectionEvent({
+        sessionSaveEnabled,
+        promptProfile: deps.promptProfile ?? deps.cfg.ui.promptProfile,
+        cwd: runtimeCwd,
+        env: runtimeEnv,
+        lastSigRef: runtimeStateRefs.claudeMdMetaSigRef,
+        writer: sessionWriterRef.current,
+      })
 
-      const sendStateSetters = {
+      const { sendStateSetters, replModeAccess, sendTurnSharedRefs } = createSendTurnContext({
         setMessages,
         setIsLoading,
         setLoadingText,
         setThinkingText,
         setError,
         setContext,
-      }
-      const replModeAccess = {
         getReplMode: () => modeRefs.currentRef.current,
         setReplMode,
-      }
-      const sendTurnSharedRefs = {
         historyRef,
         pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
         contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
@@ -781,7 +788,7 @@ export function useReplController(deps: {
         thinkingBufferRef: thinkingRefs.bufferRef,
         thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
         currentAssistantIdRef,
-      }
+      })
 
       const preMainRouting = await resolvePreMainSendRouting({
         text,
@@ -803,27 +810,21 @@ export function useReplController(deps: {
         ...sendStateSetters,
         handleEvent,
         onCompactLifecycle,
-        onCompactRequested: () => {
-          if (sessionSaveEnabled) void sessionWriterRef.current?.appendEvent('compact_requested')
-        },
-        onSlashLocalAsyncRecordForNextTurn: (rec) => {
-          if (!sessionSaveEnabled) return
-          const stats = getLocalCommandInjectionStats(rec)
-          void sessionWriterRef.current?.appendEvent('local_command_injection', {
+        onCompactRequested: () => recordCompactRequestedEvent({ sessionSaveEnabled, writer: sessionWriterRef.current }),
+        onSlashLocalAsyncRecordForNextTurn: (rec) =>
+          recordLocalCommandInjectionEvent({
+            sessionSaveEnabled,
+            writer: sessionWriterRef.current,
             source: 'slash_local_async',
-            commandName: rec.commandName,
-            ...stats,
-          })
-        },
-        onSlashLocalRecordForNextTurn: (rec) => {
-          if (!sessionSaveEnabled) return
-          const stats = getLocalCommandInjectionStats(rec)
-          void sessionWriterRef.current?.appendEvent('local_command_injection', {
+            record: rec,
+          }),
+        onSlashLocalRecordForNextTurn: (rec) =>
+          recordLocalCommandInjectionEvent({
+            sessionSaveEnabled,
+            writer: sessionWriterRef.current,
             source: 'slash_local',
-            commandName: rec.commandName,
-            ...stats,
-          })
-        },
+            record: rec,
+          }),
       })
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect

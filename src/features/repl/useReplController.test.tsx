@@ -410,6 +410,101 @@ describe('useReplController', () => {
     expect(finalToolRows).toHaveLength(1)
   })
 
+  it('keeps single tool rows and assistant output in mixed slash+bash+llm flows', async () => {
+    const capturedTurns: PromptBlock[][] = []
+    let turnCount = 0
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        turnCount += 1
+        capturedTurns.push(user.content as PromptBlock[])
+        const toolId = `mix-tool-${turnCount}`
+        onEvent({ type: 'tool_start', id: toolId, name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: toolId, input: { command: 'pwd' } } as StreamEvent)
+        onEvent({
+          type: 'tool_end',
+          id: toolId,
+          result: { tool_use_id: toolId, content: `ok-${turnCount}`, is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'assistant_delta', text: `done-${turnCount}` } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    const commandRegistry = {
+      dispatch(input: string) {
+        if (!input.startsWith('/todos')) return null
+        return {
+          kind: 'local' as const,
+          stdout: 'Todos output',
+          recordForNextTurn: {
+            commandName: '/todos',
+            commandMessage: 'todos',
+            commandArgs: '',
+            stdout: 'Todos output',
+          },
+        }
+      },
+    } as any
+
+    runBashModeCommandMock.mockResolvedValue({
+      stdout: '/Users/david/Documents/github/formax\n',
+      stderr: '',
+      exitCode: 0,
+      exitSignal: null,
+      timedOut: false,
+    })
+
+    const userInput = createUserInputManager()
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <UserInputProvider userInput={userInput}>
+        <Harness engine={engine} commandRegistry={commandRegistry} onController={(c) => (controller = c)} />
+      </UserInputProvider>,
+    )
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('/todos')
+    await controller.actions.send('! pwd')
+    expect(turnCount).toBe(0)
+
+    await controller.actions.send('first')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(
+      () =>
+        controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'mix-tool-1').length === 1,
+    )
+
+    await controller.actions.send('second')
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(
+      () =>
+        controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'mix-tool-2').length === 1,
+    )
+    await waitFor(() => {
+      const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
+      return assistantTexts.includes('done-1') && assistantTexts.includes('done-2')
+    })
+
+    expect(turnCount).toBe(2)
+
+    const turn1Text = capturedTurns[0]
+      .filter(isTextPromptBlock)
+      .map((b) => b.text)
+      .join('\n')
+    expect(turn1Text).toContain('<local-command-stdout>')
+    expect(turn1Text).toContain('<bash-input>pwd</bash-input>')
+
+    const toolRowsTurn1 = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'mix-tool-1')
+    const toolRowsTurn2 = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'mix-tool-2')
+    expect(toolRowsTurn1.length).toBeLessThanOrEqual(1)
+    expect(toolRowsTurn2).toHaveLength(1)
+
+    const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
+    expect(assistantTexts).toContain('done-1')
+    expect(assistantTexts).toContain('done-2')
+  })
+
   it('bash mode: runs local command and injects into the next turn', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {
