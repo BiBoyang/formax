@@ -67,7 +67,6 @@ export function useReplStreaming(args: {
   }
   taskKindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
   toolMessageIdByToolUseIdRef?: { current: Map<string, string> }
-  completedToolMessageByToolUseIdRef?: { current: Map<string, Msg> }
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
@@ -80,9 +79,6 @@ export function useReplStreaming(args: {
 }): { handleEvent: (ev: StreamEvent) => void } {
   const internalToolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const toolMessageIdByToolUseIdRef = args.toolMessageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
-  const internalCompletedToolMessageByToolUseIdRef = useRef<Map<string, Msg>>(new Map())
-  const completedToolMessageByToolUseIdRef =
-    args.completedToolMessageByToolUseIdRef ?? internalCompletedToolMessageByToolUseIdRef
 
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
@@ -519,8 +515,6 @@ export function useReplStreaming(args: {
                 m.id === toolMsgId ? { ...completedToolMessage, id: m.id, timestamp: m.timestamp } : m,
               )
             })
-          } else {
-            completedToolMessageByToolUseIdRef.current.set(ev.id, buildCompletedToolMessage(undefined))
           }
 
           if (toolNameFromStart === 'Task' && taskKind === 'explore') {

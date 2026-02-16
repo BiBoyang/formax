@@ -118,7 +118,7 @@ Result:
 - Empty `middleLines` no longer clears previously visible detail lines in projection.
 
 ### Slice 6: Remove Legacy Completed-Tool Fallback Cache
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/useReplController.ts`
 - `src/features/repl/controller/canonicalTurnMessages.ts`
@@ -131,6 +131,11 @@ Changes:
 Acceptance:
 - Final tool rows are produced from canonical messages without fallback cache dependency.
 - No duplicate/lost tool rows across normal turn completion and abort paths.
+
+Result:
+- Removed `completedToolMessageByToolUseIdRef` from REPL controller + streaming path.
+- Final-tail merge now relies on canonical rows plus tail legacy rows only (no out-of-band cache merge).
+- Added timestamp normalization for canonical tool rows when legacy timestamps are unavailable.
 
 ### Slice 7: Move Edit Patch Metadata to Semantic Write-Time
 Status: `pending`

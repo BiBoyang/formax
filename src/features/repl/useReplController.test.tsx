@@ -914,6 +914,7 @@ describe('useReplController', () => {
 	    expect(msg?.toolInfo?.status).toBe('completed')
 	    expect(msg?.toolInfo?.result).toContain('ok')
 	    expect(msg?.content).toBeTruthy()
+	    expect((msg?.timestamp?.getTime?.() ?? 0) > 0).toBe(true)
     expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
     expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
   })
