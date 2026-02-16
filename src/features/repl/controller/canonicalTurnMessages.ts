@@ -362,6 +362,39 @@ export function mergeCanonicalTurnIntoMessages(args: {
   })
 }
 
+export function appendCanonicalTurnFinalRows(args: {
+  messages: Msg[]
+  userMessageId: string | null
+  turnId: string
+  turnOutcome: CanonicalTurnOutcome
+  projectionSegments: TranscriptSegment[]
+  isFailureSubline: (message: Msg | undefined) => boolean
+}): Msg[] {
+  if (!args.userMessageId) return args.messages
+
+  const turnSegments = tailSegmentsForTurn(args.projectionSegments, args.turnId)
+  const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
+    turnId: args.turnId,
+    segments: turnSegments,
+    includeUserSystem: false,
+  })
+  const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
+    turnOutcome: args.turnOutcome,
+    canonicalFinalMessages,
+  })
+  if (!shouldAppendCanonicalFinal || canonicalRowsForAppend.length === 0) {
+    return args.messages
+  }
+
+  return mergeCanonicalTurnIntoMessages({
+    messages: args.messages,
+    userMessageId: args.userMessageId,
+    canonicalRowsForAppend,
+    turnOutcome: args.turnOutcome,
+    isFailureSubline: args.isFailureSubline,
+  })
+}
+
 export function replaceTurnTailWithCanonicalMessages(args: {
   messages: Msg[]
   userMessageId: string

@@ -653,6 +653,47 @@ Status: `completed`
 **结果**:
 - canonical UI message 发射规则具备独立回归保护。
 
+### F.26 收敛 runtime/surface/loading refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `sendSeq/lastAutoCompactSeq/prevIsLoading/lastClaudeMdMetaSig/surfaceOpQueue` 收敛到 `runtimeStateRefs` 容器。
+- 统一替换 `resetSessionState`、loading 侧效应、`enqueueSurfaceOp`、`/config` metadata 记录、`runMainSendTurn` refs 传递中的读取路径。
+
+**结果**:
+- runtime/surface/loading 运行态引用进一步集中，降低后续重构时的散点修改成本。
+- 行为不变（仅访问路径调整）。
+
+### F.27 抽出 send turn 收尾 merge helper
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `appendCanonicalTurnFinalRows(...)`，封装 `tail -> toMessages -> computeAppend -> merge` 的收尾链路。
+- `useReplController.send()` finally 分支改为直接调用该 helper。
+
+**结果**:
+- `send()` finally 进一步瘦身，turn 收尾逻辑下沉到 controller 层单点维护。
+- 行为不变（复用现有 `canonicalTurnMessages` 规则）。
+
+### F.28 新增单写入源回归测试（同 turn tool 行不重复）
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.test.tsx`
+
+**做法**:
+- 新增回归用例：在 canonical transient 生效的单 turn 中，断言 loading 阶段 `transientMessages` 仅 1 行目标 tool，turn 完成后 `messages` 也仅 1 行目标 tool。
+
+**结果**:
+- 覆盖「同一 turn tool 行重复追加」的核心回归风险，后续重构可快速发现重复渲染问题。
+
 ---
 
 ## 建议执行顺序

@@ -24,9 +24,8 @@ import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injecte
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
-  computeCanonicalTurnAppend,
+  appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
-  mergeCanonicalTurnIntoMessages,
   tailSegmentsForTurn,
 } from './controller/canonicalTurnMessages'
 import { isErrorLikeSubline } from './controller/errorSubline'
@@ -208,7 +207,13 @@ export function useReplController(deps: {
   const pendingExitPlanReminderRef = useRef(false)
   const reminderServiceRef = useRef<ReminderService | null>(null)
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
-  const sendSeqRef = useRef(0)
+  const runtimeStateRefs = {
+    sendSeqRef: useRef(0),
+    autoCompactSeqRef: useRef(-1_000_000),
+    previousIsLoadingRef: useRef(false),
+    claudeMdMetaSigRef: useRef<string | null>(null),
+    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
+  }
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
   const bashModeInFlightRef = useRef(false)
   const sessionWriterRef = useRef<SessionWriter | null>(null)
@@ -219,16 +224,12 @@ export function useReplController(deps: {
     sessionWriterInitPromiseRef,
     lastPersistedSigByMsgIdRef,
   }
-  const prevIsLoadingRef = useRef(false)
-  const lastClaudeMdMetaSigRef = useRef<string | null>(null)
-  const surfaceOpQueueRef = useRef<Promise<void>>(Promise.resolve())
   const autoTitleRefs = {
     attemptedSessionIdsRef: useRef<Set<string>>(new Set()),
     checkedTopicPromptKeysRef: useRef<Set<string>>(new Set()),
   }
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
-  const lastAutoCompactSeqRef = useRef(-1_000_000)
   const userInput = useUserInputManager()
   const pendingInjectedBlocksRef = useRef<PromptBlock[]>([])
   const startNewSessionWriter = useCallback(async (): Promise<void> => {
@@ -335,8 +336,8 @@ export function useReplController(deps: {
     setError(null)
     currentAssistantIdRef.current = null
     contextBudgetConfigRef.current = null
-    sendSeqRef.current = 0
-    lastAutoCompactSeqRef.current = -1_000_000
+    runtimeStateRefs.sendSeqRef.current = 0
+    runtimeStateRefs.autoCompactSeqRef.current = -1_000_000
     setContext(null)
     clearToolRuntimeState()
     canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })
@@ -344,7 +345,7 @@ export function useReplController(deps: {
     canonicalRefs.turnIdRef.current = null
     canonicalRefs.turnSeqRef.current = 0
     clearCanonicalTransientState()
-    lastClaudeMdMetaSigRef.current = null
+    runtimeStateRefs.claudeMdMetaSigRef.current = null
   }, [clearCanonicalTransientState, clearToolRuntimeState, resetStreamingBuffers])
 
   const nextCanonicalReplaySeq = useCallback(() => {
@@ -496,8 +497,8 @@ export function useReplController(deps: {
 
   useEffect(() => {
     const writer = sessionWriterRef.current
-    const wasLoading = prevIsLoadingRef.current
-    prevIsLoadingRef.current = isLoading
+    const wasLoading = runtimeStateRefs.previousIsLoadingRef.current
+    runtimeStateRefs.previousIsLoadingRef.current = isLoading
     if (!writer) return
     if (wasLoading && !isLoading) {
       void writer.appendHistorySnapshot(historyRef.current)
@@ -621,8 +622,8 @@ export function useReplController(deps: {
   }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
   const enqueueSurfaceOp = useCallback((op: () => Promise<void>) => {
-    const next = surfaceOpQueueRef.current.catch(() => undefined).then(op)
-    surfaceOpQueueRef.current = next.catch(() => undefined)
+    const next = runtimeStateRefs.surfaceOpQueueRef.current.catch(() => undefined).then(op)
+    runtimeStateRefs.surfaceOpQueueRef.current = next.catch(() => undefined)
     return next
   }, [])
 
@@ -811,8 +812,8 @@ export function useReplController(deps: {
           const meta = getClaudeMdInjectionMeta({ cwd: runtimeCwd, env: runtimeEnv })
           if (meta.global || meta.project) {
             const sig = JSON.stringify(meta)
-            if (lastClaudeMdMetaSigRef.current !== sig) {
-              lastClaudeMdMetaSigRef.current = sig
+            if (runtimeStateRefs.claudeMdMetaSigRef.current !== sig) {
+              runtimeStateRefs.claudeMdMetaSigRef.current = sig
               void sessionWriterRef.current?.appendEvent('claude_md_injection', meta)
             }
           }
@@ -908,8 +909,8 @@ export function useReplController(deps: {
             thinkingBufferRef: thinkingRefs.bufferRef,
             thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
             currentAssistantIdRef,
-            sendSeqRef,
-            lastAutoCompactSeqRef,
+            sendSeqRef: runtimeStateRefs.sendSeqRef,
+            lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
             onCompactLifecycle,
           },
           state: {
@@ -932,35 +933,22 @@ export function useReplController(deps: {
         turnUserMessageId = runResult.userMessageId
         turnOutcome = runResult.turnOutcome
       } finally {
-        if (turnUserMessageId) {
-          const turnSegments = tailSegmentsForTurn(canonicalRefs.projectionRef.current.segments, canonicalTurnId)
-          const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
+        setMessages((prev) =>
+          appendCanonicalTurnFinalRows({
+            messages: prev,
+            userMessageId: turnUserMessageId,
             turnId: canonicalTurnId,
-            segments: turnSegments,
-            includeUserSystem: false,
-          })
-          const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
             turnOutcome,
-            canonicalFinalMessages,
-          })
-          if (shouldAppendCanonicalFinal && canonicalRowsForAppend.length > 0) {
-            setMessages((prev) => {
-              return mergeCanonicalTurnIntoMessages({
-                messages: prev,
-                userMessageId: turnUserMessageId,
-                canonicalRowsForAppend,
-                turnOutcome,
-                isFailureSubline: (message) =>
-                  Boolean(
-                    message &&
-                      message.role === 'assistant' &&
-                      message.ui?.kind === 'command_subline' &&
-                      isErrorLikeSubline(String(message.content || '')),
-                  ),
-              })
-            })
-          }
-        }
+            projectionSegments: canonicalRefs.projectionRef.current.segments,
+            isFailureSubline: (message) =>
+              Boolean(
+                message &&
+                  message.role === 'assistant' &&
+                  message.ui?.kind === 'command_subline' &&
+                  isErrorLikeSubline(String(message.content || '')),
+              ),
+          }),
+        )
         canonicalRefs.turnIdRef.current = null
         clearCanonicalTransientState()
       }

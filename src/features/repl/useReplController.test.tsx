@@ -364,6 +364,52 @@ describe('useReplController', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  it('does not duplicate a tool row within one turn when canonical transient is enabled', async () => {
+    let releaseEnd!: () => void
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'dup-turn-tool', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'dup-turn-tool', input: { command: 'pwd' } } as StreamEvent)
+        await endGate
+        onEvent({
+          type: 'tool_end',
+          id: 'dup-turn-tool',
+          result: { tool_use_id: 'dup-turn-tool', content: 'ok', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('check duplicate tool rows')
+    await waitFor(() => controller.state.isLoading)
+    await waitFor(() =>
+      controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-turn-tool'),
+    )
+
+    const transientToolRows = controller.state.transientMessages.filter(
+      (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-turn-tool',
+    )
+    expect(transientToolRows).toHaveLength(1)
+
+    releaseEnd()
+    await sendPromise
+    await waitFor(() => controller.state.isLoading === false)
+
+    const finalToolRows = controller.state.messages.filter(
+      (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-turn-tool',
+    )
+    expect(finalToolRows).toHaveLength(1)
+  })
+
   it('bash mode: runs local command and injects into the next turn', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {
