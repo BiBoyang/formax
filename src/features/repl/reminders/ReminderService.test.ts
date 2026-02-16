@@ -1,9 +1,21 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { ReminderService } from './ReminderService'
 import { resolveTodosPath } from '../../../tools/runtime/todosFile'
+
+function restoreEnv(
+  name: 'FORMAX_TODOS_PATH' | 'FORMAX_CONFIG_DIR' | 'FORMAX_TODOS_SESSION_ID',
+  value: string | undefined,
+): void {
+  if (typeof value === 'string') process.env[name] = value
+  else delete process.env[name]
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe('ReminderService', () => {
   it('injects CLAUDE.md context when present', async () => {
@@ -14,8 +26,8 @@ describe('ReminderService', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = dir
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       await fsp.writeFile(path.join(dir, 'CLAUDE.md'), '# CLAUDE.md\n\nHello\n', 'utf8')
       const todosPath = resolveTodosPath(dir)
@@ -34,12 +46,9 @@ describe('ReminderService', () => {
       expect((blocks[0] as any).text).toContain('Contents of')
       expect((blocks[0] as any).text).toContain('# CLAUDE.md')
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -52,8 +61,8 @@ describe('ReminderService', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = dir
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       const service = new ReminderService({ config: { todoEmptyTtlMs: 1000 } })
 
@@ -69,12 +78,9 @@ describe('ReminderService', () => {
       expect(third).toHaveLength(1)
       expect((third[0] as any).text).toContain('todo list is currently empty')
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -87,8 +93,8 @@ describe('ReminderService', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = dir
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       const service = new ReminderService({
         config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY, todoUnusedCooldownMs: 0, todoUnusedWithListCooldownMs: 0 },
@@ -126,12 +132,9 @@ describe('ReminderService', () => {
       const afterTodoWrite = service.generateInjectedBlocks({ cwd: dir, now: 8 })
       expect(afterTodoWrite).toHaveLength(0)
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
@@ -144,8 +147,8 @@ describe('ReminderService', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = dir
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       const service = new ReminderService({ config: { maxRemindersPerSession: 0 } })
 
@@ -153,12 +156,9 @@ describe('ReminderService', () => {
       expect(first).toHaveLength(1)
       expect((first[0] as any).text).toContain('todo list is currently empty')
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })

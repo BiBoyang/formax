@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
@@ -8,6 +8,18 @@ import { createSlashCommandRegistry } from './registry'
 function stripAnsi(text: string): string {
   return String(text || '').replace(/\u001b\[[0-9;]*m/g, '')
 }
+
+function restoreEnv(
+  name: 'FORMAX_TODOS_PATH' | 'FORMAX_CONFIG_DIR' | 'FORMAX_TODOS_SESSION_ID',
+  value: string | undefined,
+): void {
+  if (typeof value === 'string') process.env[name] = value
+  else delete process.env[name]
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe('SlashCommandRegistry', () => {
   it('returns empty when not a slash command', async () => {
@@ -379,8 +391,8 @@ describe('SlashCommandRegistry', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = cwd
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', cwd)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       const reg = createSlashCommandRegistry({ cwd })
       const effect = reg.dispatch('/todos')
@@ -388,12 +400,9 @@ describe('SlashCommandRegistry', () => {
       if (!effect || effect.kind !== 'local') return
       expect(effect.stdout).toBe('No todos currently tracked')
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(cwd, { recursive: true, force: true })
     }
   })
@@ -406,8 +415,8 @@ describe('SlashCommandRegistry', () => {
 
     try {
       if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
-      process.env.FORMAX_CONFIG_DIR = cwd
-      process.env.FORMAX_TODOS_SESSION_ID = 'test-session'
+      vi.stubEnv('FORMAX_CONFIG_DIR', cwd)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
 
       const todosPath = path.join(cwd, 'todos', 'test-session-agent-test-session.json')
       await fsp.mkdir(path.dirname(todosPath), { recursive: true })
@@ -425,12 +434,9 @@ describe('SlashCommandRegistry', () => {
       expect(stdout).toContain('1 todo:')
       expect(stdout).toContain('☐ x')
     } finally {
-      if (prevTodosPath === undefined) delete process.env.FORMAX_TODOS_PATH
-      else process.env.FORMAX_TODOS_PATH = prevTodosPath
-      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
-      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      if (prevTodosSessionId === undefined) delete process.env.FORMAX_TODOS_SESSION_ID
-      else process.env.FORMAX_TODOS_SESSION_ID = prevTodosSessionId
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(cwd, { recursive: true, force: true })
     }
   })
