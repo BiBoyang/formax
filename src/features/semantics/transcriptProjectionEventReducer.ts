@@ -9,7 +9,7 @@ import {
   reduceThinkingDeltaEvent,
 } from './transcriptProjectionTextReducer'
 import { closeAssistantSegment, closeThinkingSegment, closeTurnTextSegments } from './transcriptProjectionLifecycleReducer'
-import type { TranscriptSegment } from './transcriptProjection'
+import type { TranscriptSegment } from './transcriptProjectionTypes'
 import type { ProjectionDraft } from './transcriptProjectionCore'
 
 export function applyNonMessageProjectionEvent(args: {

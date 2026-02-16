@@ -5,7 +5,7 @@ import {
   closeTurnTextSegments,
   type TranscriptLifecycleDraft,
 } from './transcriptProjectionLifecycleReducer'
-import type { TranscriptSegment } from './transcriptProjection'
+import type { TranscriptSegment } from './transcriptProjectionTypes'
 
 function makeDraft(): TranscriptLifecycleDraft {
   const segments: TranscriptSegment[] = [

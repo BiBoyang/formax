@@ -1,5 +1,5 @@
 import type { CanonicalToolEvent, CanonicalToolInputStateEvent } from './canonicalEvents'
-import type { ToolSegment, TranscriptSegment } from './transcriptProjection'
+import type { ToolSegment, TranscriptSegment } from './transcriptProjectionTypes'
 
 export function dedupeAppend(lines: string[], line: string | undefined): string[] {
   const text = String(line ?? '').trim()

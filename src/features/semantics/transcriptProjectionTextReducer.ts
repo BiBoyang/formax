@@ -1,5 +1,5 @@
 import type { CanonicalAssistantDeltaEvent, CanonicalThinkingDeltaEvent } from './canonicalEvents'
-import type { AssistantSegment, ThinkingSegment, TranscriptSegment } from './transcriptProjection'
+import type { AssistantSegment, ThinkingSegment, TranscriptSegment } from './transcriptProjectionTypes'
 
 function findOpenSegmentIndexById(segments: TranscriptSegment[], id: string | undefined): number {
   if (!id) return -1

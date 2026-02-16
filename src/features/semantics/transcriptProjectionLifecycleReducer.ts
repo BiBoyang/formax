@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from './transcriptProjection'
+import type { TranscriptSegment } from './transcriptProjectionTypes'
 
 export type TranscriptLifecycleDraft = {
   segments: TranscriptSegment[]

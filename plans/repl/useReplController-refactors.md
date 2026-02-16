@@ -412,6 +412,20 @@ Status: `completed`
 - 主 reducer 进一步变薄，核心流程更清晰（prepare -> apply -> finalize）。
 - draft 结构定义集中，event reducer 复用同一类型避免重复定义。
 
+### F.9 抽出 transcript projection 类型模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中全部 segment/state 类型定义。
+
+**做法**:
+- 新增 `transcriptProjectionTypes.ts`，承载 `*Segment` 与 `TranscriptProjectionState` 类型。
+- `transcriptProjection.ts` 改为 import + re-export 类型。
+- 各 reducer 模块的 type import 统一切换到 `transcriptProjectionTypes.ts`，减少对主 reducer 文件的反向依赖。
+
+**结果**:
+- 类型定义与行为 reducer 解耦，模块边界更清晰。
+- 减少 type-only 循环依赖风险，后续拆分成本更低。
+
 ---
 
 ## 建议执行顺序

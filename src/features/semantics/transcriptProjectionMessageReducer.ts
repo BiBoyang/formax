@@ -1,5 +1,5 @@
 import type { CanonicalMessageUiKind, CanonicalSystemMessageEvent, CanonicalUserMessageEvent } from './canonicalEvents'
-import type { SystemSegment, TranscriptSegment, UserSegment } from './transcriptProjection'
+import type { SystemSegment, TranscriptSegment, UserSegment } from './transcriptProjectionTypes'
 
 export function shouldSkipMessageSegment(args: { text: string; uiKind?: CanonicalMessageUiKind }): boolean {
   return !args.text && !args.uiKind

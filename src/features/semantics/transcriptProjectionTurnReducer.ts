@@ -1,5 +1,5 @@
 import type { CanonicalTurnFooterEvent } from './canonicalEvents'
-import type { TranscriptSegment, TurnFooterSegment } from './transcriptProjection'
+import type { TranscriptSegment, TurnFooterSegment } from './transcriptProjectionTypes'
 
 export function reduceTurnFooterEvent(args: {
   draft: {
