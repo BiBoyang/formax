@@ -24,7 +24,10 @@ import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { canonicalTurnSegmentsToMessages } from './controller/canonicalTurnMessages'
+import {
+  canonicalTurnSegmentsToMessages,
+  resolveCanonicalTurnTailInsertIndex,
+} from './controller/canonicalTurnMessages'
 import { isErrorLikeSubline } from './controller/errorSubline'
 import {
   buildPersistedSigMap,
@@ -1161,40 +1164,24 @@ export function useReplController(deps: {
                 return canonicalToolUseIds.has(toolUseId)
               }
 
-              let insertAtTail = -1
               const mergedTail: Msg[] = []
               for (const message of tail) {
                 if (isReplacedLegacyRow(message)) {
-                  if (insertAtTail < 0) insertAtTail = mergedTail.length
                   continue
                 }
                 mergedTail.push(message)
               }
-
-              if (insertAtTail < 0 && turnOutcome === 'aborted') {
-                const firstToolIndex = mergedTail.findIndex((message) => message.role === 'tool')
-                if (firstToolIndex >= 0) insertAtTail = firstToolIndex
-              }
-
-              if (insertAtTail < 0 && turnOutcome === 'failed') {
-                const isFailureSubline = (message: Msg | undefined): boolean =>
+              const insertAtTail = resolveCanonicalTurnTailInsertIndex({
+                tail: mergedTail,
+                turnOutcome,
+                isFailureSubline: (message) =>
                   Boolean(
                     message &&
                       message.role === 'assistant' &&
                       message.ui?.kind === 'command_subline' &&
                       isErrorLikeSubline(String(message.content || '')),
-                  )
-                insertAtTail = mergedTail.length
-                while (insertAtTail > 0) {
-                  const maybeSubline = mergedTail[insertAtTail - 1]
-                  if (isFailureSubline(maybeSubline)) {
-                    insertAtTail -= 1
-                    continue
-                  }
-                  break
-                }
-              }
-              if (insertAtTail < 0) insertAtTail = mergedTail.length
+                  ),
+              })
 
               const anchorBefore = insertAtTail > 0 ? mergedTail[insertAtTail - 1] : head[head.length - 1]
               const anchorBeforeTs =

@@ -813,6 +813,120 @@ describe('useReplStreaming', () => {
     expect(messagesRef.current.some((message) => message.role === 'tool')).toBe(false)
   })
 
+  it('does not mutate legacy transcript for Task lifecycle when canonical bridge is enabled', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const messagesRef = { current: [] as Msg[] }
+    const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+      const replaySeqRef = useRef(0)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+        canonical: {
+          threadId: 'tui-live',
+          getTurnId: () => 'turn-canonical-task',
+          nextReplaySeq: () => {
+            replaySeqRef.current += 1
+            return replaySeqRef.current
+          },
+          onEvent: (event) => {
+            projectionRef.current = reduceTranscriptProjection(projectionRef.current, event)
+          },
+        },
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 'task-1', name: 'Task' })
+    handleEvent!({ type: 'tool_input', id: 'task-1', input: { description: 'run checks' } })
+    handleEvent!({
+      type: 'tool_update',
+      id: 'task-1',
+      middleLines: ['Progress: 50%'],
+      nestedTools: [{ id: 'nested-1', name: 'Bash', input: { command: 'ls' }, status: 'running' }],
+      toolUses: 1,
+      usage: { input_tokens: 12, output_tokens: 3 },
+    })
+    handleEvent!({ type: 'tool_end', id: 'task-1', result: { tool_use_id: 'task-1', content: 'ok' } })
+    await tick()
+    await tick()
+
+    expect(messagesRef.current).toEqual([])
+    const toolSegment = projectionRef.current.segments.find(
+      (segment) => segment.kind === 'tool' && segment.toolUseId === 'task-1',
+    )
+    expect(toolSegment?.kind).toBe('tool')
+    if (toolSegment?.kind === 'tool') {
+      expect(toolSegment.status).toBe('completed')
+      expect(toolSegment.middleLines).toEqual(['Progress: 50%'])
+      expect(toolSegment.nestedTools?.[0]?.name).toBe('Bash')
+      expect(toolSegment.toolUses).toBe(1)
+      expect(toolSegment.usage?.input_tokens).toBe(12)
+    }
+  })
+
   it('writes Edit patchStartLineNumber into canonical tool segment at tool_end', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-streaming-edit-'))
     const filePath = path.join(tmpDir, 'sample.ts')

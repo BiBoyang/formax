@@ -153,6 +153,13 @@ export function useReplStreaming(args: {
       const shouldForwardCanonical = !(ev.type === 'error' && isAbortLikeError(ev.error))
       const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
       const canonicalOnly = canonicalBridgeActive
+      // Canonical bridge is the single semantic writer. Legacy transcript mutations
+      // must stay disabled in this mode to avoid dual-write duplicates.
+      const canWriteLegacyTranscript = !canonicalOnly
+      const updateLegacyMessages = (next: SetStateAction<Msg[]>) => {
+        if (!canWriteLegacyTranscript) return
+        args.setMessages(next)
+      }
       if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
         let canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
           threadId: args.canonical.threadId,
@@ -286,9 +293,9 @@ export function useReplStreaming(args: {
 
         case 'tool_start': {
           stopThinkingIfActive()
-          if (args.assistantTextMode === 'buffered' && !canonicalOnly) {
+          if (args.assistantTextMode === 'buffered' && canWriteLegacyTranscript) {
             flushAssistantBuffer()
-          } else if (!canonicalOnly) {
+          } else if (canWriteLegacyTranscript) {
             endActiveAssistantStreamIfAny()
           }
 
@@ -309,14 +316,14 @@ export function useReplStreaming(args: {
                   : 'Working',
           )
 
-          if (canonicalOnly) return
+          if (!canWriteLegacyTranscript) return
 
           const activeToolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id)
           if (activeToolMsgId) return
 
           const toolMsgId = makeMessageId(`tool-${ev.id}`)
           toolMessageIdByToolUseIdRef.current.set(ev.id, toolMsgId)
-          args.setMessages((prev) => [
+          updateLegacyMessages((prev) => [
             ...prev,
             {
               id: toolMsgId,
@@ -368,9 +375,9 @@ export function useReplStreaming(args: {
             }
           }
 
-          if (canonicalOnly) return
+          if (!canWriteLegacyTranscript) return
 
-          args.setMessages((prev) =>
+          updateLegacyMessages((prev) =>
             prev.map((m) =>
               m.id === toolMsgId ? { ...m, toolInfo: { ...m.toolInfo!, input: ev.input as any } } : m,
             ),
@@ -400,7 +407,7 @@ export function useReplStreaming(args: {
             }
           }
 
-          if (canonicalOnly) return
+          if (!canWriteLegacyTranscript) return
 
           if (
             ev.middleLines ||
@@ -408,7 +415,7 @@ export function useReplStreaming(args: {
             ev.transcriptLines ||
             (toolName === 'Task' && (typeof ev.toolUses === 'number' || ev.usage))
           ) {
-            args.setMessages((prev) =>
+            updateLegacyMessages((prev) =>
               prev.map((m) =>
                 m.id === toolMsgId
                   ? {
@@ -543,8 +550,8 @@ export function useReplStreaming(args: {
             }
           }
 
-          if (!canonicalOnly) {
-            args.setMessages((prev) => {
+          if (canWriteLegacyTranscript) {
+            updateLegacyMessages((prev) => {
               const toolMsg = prev.find((m) => m.id === toolMsgId)
               const completedToolMessage = buildCompletedToolMessage(toolMsg)
               return prev.map((m) =>
@@ -561,9 +568,9 @@ export function useReplStreaming(args: {
 
               if (batch.toolUseIds.size >= 2 && batch.completedToolUseIds.size === batch.toolUseIds.size) {
                 args.exploreBatchRef.current = null
-                if (!canonicalOnly) {
+                if (canWriteLegacyTranscript) {
                   const count = batch.toolUseIds.size
-                  args.setMessages((prev) => [
+                  updateLegacyMessages((prev) => [
                     ...prev,
                     {
                       id: makeMessageId('assistant'),
@@ -582,7 +589,7 @@ export function useReplStreaming(args: {
             ok: !ev.result.is_error,
           })
 
-          if (!canonicalOnly) {
+          if (canWriteLegacyTranscript) {
             endActiveAssistantStreamIfAny()
           }
 
@@ -602,7 +609,7 @@ export function useReplStreaming(args: {
         case 'complete': {
           toolMessageIdByToolUseIdRef.current.clear()
           stopThinkingIfActive()
-          if (canonicalOnly) {
+          if (!canWriteLegacyTranscript) {
             args.currentAssistantIdRef.current = null
             args.assistantBufferRef.current = ''
             return

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../semantics/transcriptProjection'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { canonicalTurnSegmentsToMessages, replaceTurnTailWithCanonicalMessages } from './canonicalTurnMessages'
+import {
+  canonicalTurnSegmentsToMessages,
+  replaceTurnTailWithCanonicalMessages,
+  resolveCanonicalTurnTailInsertIndex,
+} from './canonicalTurnMessages'
 
 describe('canonicalTurnSegmentsToMessages', () => {
   it('maps assistant/thinking/tool segments into transcript messages', () => {
@@ -634,5 +638,54 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-t', 'legacy-a'])
     expect(replaced[1]?.timestamp.getTime()).toBe(200)
     expect(replaced[2]?.timestamp.getTime()).toBe(200)
+  })
+})
+
+describe('resolveCanonicalTurnTailInsertIndex', () => {
+  const tail: Msg[] = [
+    { id: 'a1', role: 'assistant', content: 'working', timestamp: new Date(1) },
+    { id: 't1', role: 'tool', content: '', timestamp: new Date(2), toolInfo: { toolUseId: 'x', name: 'Bash', status: 'running', input: {} } },
+    {
+      id: 'subline-1',
+      role: 'assistant',
+      content: 'Error: failed',
+      timestamp: new Date(3),
+      ui: { kind: 'command_subline' },
+    },
+    {
+      id: 'subline-2',
+      role: 'assistant',
+      content: 'Error: failed',
+      timestamp: new Date(4),
+      ui: { kind: 'command_subline' },
+    },
+  ]
+
+  it('uses tail end for completed turns', () => {
+    const index = resolveCanonicalTurnTailInsertIndex({
+      tail,
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+    expect(index).toBe(tail.length)
+  })
+
+  it('inserts before first tool for aborted turns when tools exist', () => {
+    const index = resolveCanonicalTurnTailInsertIndex({
+      tail,
+      turnOutcome: 'aborted',
+      isFailureSubline: () => false,
+    })
+    expect(index).toBe(1)
+  })
+
+  it('inserts before trailing failure sublines for failed turns', () => {
+    const index = resolveCanonicalTurnTailInsertIndex({
+      tail,
+      turnOutcome: 'failed',
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+    expect(index).toBe(2)
   })
 })

@@ -181,6 +181,34 @@ export function canonicalTurnSegmentsToMessages(args: {
   return mapped.filter((message): message is Msg => message !== null)
 }
 
+export type CanonicalTurnOutcome = 'completed' | 'aborted' | 'failed'
+
+export function resolveCanonicalTurnTailInsertIndex(args: {
+  tail: Msg[]
+  turnOutcome: CanonicalTurnOutcome
+  isFailureSubline: (message: Msg | undefined) => boolean
+}): number {
+  if (args.turnOutcome === 'aborted') {
+    const firstToolIndex = args.tail.findIndex((message) => message.role === 'tool')
+    if (firstToolIndex >= 0) return firstToolIndex
+  }
+
+  if (args.turnOutcome === 'failed') {
+    let insertAtTail = args.tail.length
+    while (insertAtTail > 0) {
+      const maybeSubline = args.tail[insertAtTail - 1]
+      if (args.isFailureSubline(maybeSubline)) {
+        insertAtTail -= 1
+        continue
+      }
+      break
+    }
+    return insertAtTail
+  }
+
+  return args.tail.length
+}
+
 export function replaceTurnTailWithCanonicalMessages(args: {
   messages: Msg[]
   userMessageId: string
