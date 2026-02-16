@@ -259,6 +259,19 @@ Status: `completed`
 - `assistant/thinking` 路径的消息行变更规则集中，后续优化节流/合并时改动面更小。
 - 新增 `streamingTextRows.test.ts` 直接覆盖构造/更新语义。
 
+### E.7 抽出 tool_end 生命周期状态消费 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` `tool_end` 分支开头读取/删除各类 ref map 的逻辑。
+
+**做法**:
+- 新增 `streamingToolLifecycle.ts`，提供 `consumeToolEndState(...)`。
+- `streaming.ts` 改为调用 helper，获取 `toolMsgId/toolNameFromStart/toolInputFromStart/taskKind/taskStats` 快照。
+
+**结果**:
+- `tool_end` 分支进一步减少样板代码，生命周期清理规则集中且可单测。
+- 新增 `streamingToolLifecycle.test.ts` 覆盖快照返回与 map 清理行为。
+
 ---
 
 ## 建议执行顺序

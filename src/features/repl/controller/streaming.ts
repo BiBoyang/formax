@@ -28,6 +28,7 @@ import {
   updateTaskStateFromToolInput,
 } from './streamingTaskState'
 import type { ExploreTaskBatch } from './streamingTaskState'
+import { consumeToolEndState } from './streamingToolLifecycle'
 import { isAbortLikeError, sumInputTokens } from './utils'
 
 export type { ExploreTaskBatch }
@@ -428,16 +429,14 @@ export function useReplStreaming(args: {
           // reset it to a generic value once the tool finishes so it doesn't linger.
           args.setLoadingText('Working')
 
-          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
-          toolMessageIdByToolUseIdRef.current.delete(ev.id)
-          const toolNameFromStart = args.toolNameByIdRef.current.get(ev.id)
-          args.toolNameByIdRef.current.delete(ev.id)
-          const toolInputFromStart = args.toolInputByIdRef.current.get(ev.id)
-          args.toolInputByIdRef.current.delete(ev.id)
-          const taskKind = args.taskKindByToolUseIdRef.current.get(ev.id)
-          args.taskKindByToolUseIdRef.current.delete(ev.id)
-          const taskStats = args.taskStatsByToolUseIdRef.current.get(ev.id)
-          args.taskStatsByToolUseIdRef.current.delete(ev.id)
+          const { toolMsgId, toolNameFromStart, toolInputFromStart, taskKind, taskStats } = consumeToolEndState({
+            toolUseId: ev.id,
+            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+            toolNameById: args.toolNameByIdRef.current,
+            toolInputById: args.toolInputByIdRef.current,
+            taskKindByToolUseId: args.taskKindByToolUseIdRef.current,
+            taskStatsByToolUseId: args.taskStatsByToolUseIdRef.current,
+          })
 
           if (canWriteLegacyTranscript) {
             updateLegacyMessages((prev) => {
