@@ -1,5 +1,4 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
-import path from 'node:path'
 import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
@@ -13,6 +12,7 @@ import {
   applyLegacyToolUpdateToMessages,
   createRunningToolMessage,
 } from './streamingLegacyToolRows'
+import { resolveLoadingTextForToolInput, resolveLoadingTextForToolStart } from './streamingLoadingText'
 import { buildCompletedToolMessage } from './streamingToolCompletion'
 import {
   appendAssistantDeltaToMessages,
@@ -32,18 +32,6 @@ import { consumeToolEndState } from './streamingToolLifecycle'
 import { isAbortLikeError, sumInputTokens } from './utils'
 
 export type { ExploreTaskBatch }
-
-function truncateLabel(text: string, max: number): string {
-  const s = (text || '').trim()
-  return s.length > max ? s.slice(0, max) + '…' : s
-}
-
-function formatBasename(filePathRaw: unknown): string {
-  const raw = String(filePathRaw || '').trim()
-  if (!raw) return ''
-  const normalized = raw.replace(/\\/g, '/')
-  return path.basename(normalized)
-}
 
 function resolveEditPatchStartLineNumber(args: {
   cwd: string
@@ -331,15 +319,7 @@ export function useReplStreaming(args: {
             args.taskKindByToolUseIdRef.current.set(ev.id, 'other')
           }
 
-          args.setLoadingText(
-            ev.name === 'AskUserQuestion'
-              ? 'Waiting'
-              : ev.name === 'Write'
-                ? 'Preparing write'
-                : ev.name === 'Edit'
-                  ? 'Preparing edit'
-                  : 'Working',
-          )
+          args.setLoadingText(resolveLoadingTextForToolStart(ev.name))
 
           if (!canWriteLegacyTranscript) return
 
@@ -366,13 +346,12 @@ export function useReplStreaming(args: {
 
           args.toolInputByIdRef.current.set(ev.id, ev.input as any)
 
-          if (toolName === 'Write' || toolName === 'Edit') {
-            const filePathRaw = (ev.input as any)?.file_path ?? (ev.input as any)?.path
-            const fileName = formatBasename(filePathRaw)
-            if (fileName) {
-              const verb = toolName === 'Write' ? 'Writing' : 'Editing'
-              args.setLoadingText(`${verb} ${truncateLabel(fileName, 28)}`)
-            }
+          const loadingTextFromInput = resolveLoadingTextForToolInput({
+            toolName,
+            input: ev.input,
+          })
+          if (loadingTextFromInput) {
+            args.setLoadingText(loadingTextFromInput)
           }
 
           args.exploreBatchRef.current = updateTaskStateFromToolInput({

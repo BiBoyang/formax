@@ -272,6 +272,21 @@ Status: `completed`
 - `tool_end` 分支进一步减少样板代码，生命周期清理规则集中且可单测。
 - 新增 `streamingToolLifecycle.test.ts` 覆盖快照返回与 map 清理行为。
 
+### E.8 抽出 loading 文案决策 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 的 `tool_start/tool_input` loadingText 设置逻辑。
+
+**做法**:
+- 新增 `streamingLoadingText.ts`：
+  - `resolveLoadingTextForToolStart(...)`
+  - `resolveLoadingTextForToolInput(...)`
+- `streaming.ts` 改为调用 helper，移除内联条件分支与 basename/truncate 细节。
+
+**结果**:
+- loading 文案规则集中，后续文案变更只需改 helper。
+- 新增 `streamingLoadingText.test.ts` 覆盖 tool_start/tool_input 文案映射语义。
+
 ---
 
 ## 建议执行顺序
