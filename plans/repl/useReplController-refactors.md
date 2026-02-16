@@ -1,6 +1,7 @@
 # useReplController 后续重构计划
 
 Status: `completed`
+后续迭代记录迁移到: `plans/repl/useReplController-refactors-phase2.md`
 前置条件: semantic-single-writer 计划已完成（见 `semantic-single-writer-todo.md`）。
 目标: 在保持行为不变的前提下，将 `useReplController.ts` 从「巨型协调器」收窄为「薄壳 + 调用 controller 纯函数」，提升可读性与可测性。
 
