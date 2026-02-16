@@ -10,16 +10,10 @@ import {
 } from './transcriptProjectionTextReducer'
 import { closeAssistantSegment, closeThinkingSegment, closeTurnTextSegments } from './transcriptProjectionLifecycleReducer'
 import type { TranscriptSegment } from './transcriptProjection'
-
-export type ProjectionEventDraft = {
-  segments: TranscriptSegment[]
-  toolNameByUseId: Record<string, string>
-  openAssistantSegmentIdByTurn: Record<string, string>
-  openThinkingSegmentIdByTurn: Record<string, string>
-}
+import type { ProjectionDraft } from './transcriptProjectionCore'
 
 export function applyNonMessageProjectionEvent(args: {
-  draft: ProjectionEventDraft
+  draft: ProjectionDraft
   event: CanonicalEvent
   toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
 }): void {

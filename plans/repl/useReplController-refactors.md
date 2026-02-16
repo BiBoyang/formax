@@ -396,6 +396,22 @@ Status: `completed`
 - `reduceTranscriptProjection` 主体进一步聚焦于顶层流程。
 - 事件分发逻辑集中，后续继续拆 case 时不再触碰主 reducer。
 
+### F.8 抽出 projection core（preflight + finalize）
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 顶部的 thread/event 去重/replay guard 与末尾 state 回写逻辑。
+
+**做法**:
+- 新增 `transcriptProjectionCore.ts`：
+  - `prepareProjectionReduction(...)`
+  - `finalizeProjectionReduction(...)`
+  - `ProjectionDraft` 类型。
+- 主 reducer 改为复用 core helper，并统一 `skip/proceed` 分支。
+
+**结果**:
+- 主 reducer 进一步变薄，核心流程更清晰（prepare -> apply -> finalize）。
+- draft 结构定义集中，event reducer 复用同一类型避免重复定义。
+
 ---
 
 ## 建议执行顺序

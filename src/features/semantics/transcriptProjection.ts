@@ -11,6 +11,10 @@ import {
   shouldSkipMessageSegment,
 } from './transcriptProjectionMessageReducer'
 import { applyNonMessageProjectionEvent } from './transcriptProjectionEventReducer'
+import {
+  finalizeProjectionReduction,
+  prepareProjectionReduction,
+} from './transcriptProjectionCore'
 
 export type UserSegment = {
   id: string
@@ -111,14 +115,6 @@ function toSegmentId(args: { kind: TranscriptSegment['kind']; replaySeq: number;
     : `${args.turnId}:${args.kind}:${args.replaySeq}`
 }
 
-type ProjectionDraft = {
-  segments: TranscriptSegment[]
-  toolNameByUseId: Record<string, string>
-  openAssistantSegmentIdByTurn: Record<string, string>
-  openThinkingSegmentIdByTurn: Record<string, string>
-}
-
-
 export function createInitialTranscriptProjectionState(args: { threadId: string }): TranscriptProjectionState {
   return {
     threadId: args.threadId,
@@ -132,24 +128,11 @@ export function createInitialTranscriptProjectionState(args: { threadId: string 
 }
 
 export function reduceTranscriptProjection(state: TranscriptProjectionState, event: CanonicalEvent): TranscriptProjectionState {
-  if (event.threadId !== state.threadId) return state
-  if (state.seenEventIds.has(event.eventId)) return state
-
-  const seenEventIds = new Set(state.seenEventIds)
-  seenEventIds.add(event.eventId)
-  if (event.replaySeq < state.lastReplaySeq) {
-    return {
-      ...state,
-      seenEventIds,
-    }
+  const prepared = prepareProjectionReduction({ state, event })
+  if (prepared.kind === 'skip') {
+    return prepared.state
   }
-
-  const draft: ProjectionDraft = {
-    segments: [...state.segments],
-    toolNameByUseId: { ...state.toolNameByUseId },
-    openAssistantSegmentIdByTurn: { ...state.openAssistantSegmentIdByTurn },
-    openThinkingSegmentIdByTurn: { ...state.openThinkingSegmentIdByTurn },
-  }
+  const { seenEventIds, draft } = prepared
 
   if (event.kind === 'user_message') {
     if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
@@ -175,15 +158,12 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
 
   applyNonMessageProjectionEvent({ draft, event, toSegmentId })
 
-  return {
-    ...state,
-    segments: draft.segments,
-    toolNameByUseId: draft.toolNameByUseId,
-    openAssistantSegmentIdByTurn: draft.openAssistantSegmentIdByTurn,
-    openThinkingSegmentIdByTurn: draft.openThinkingSegmentIdByTurn,
+  return finalizeProjectionReduction({
+    state,
+    event,
     seenEventIds,
-    lastReplaySeq: event.replaySeq,
-  }
+    draft,
+  })
 }
 
 export function projectCanonicalEvents(
