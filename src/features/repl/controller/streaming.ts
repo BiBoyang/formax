@@ -15,6 +15,13 @@ import {
 } from './streamingLegacyToolRows'
 import { buildCompletedToolMessage } from './streamingToolCompletion'
 import {
+  appendAssistantDeltaToMessages,
+  createAssistantStreamingMessage,
+  createThinkingBlockMessage,
+  finalizeAssistantStreamInMessages,
+  updateThinkingBlockContent,
+} from './streamingTextRows'
+import {
   applyTaskStatsFromToolUpdate,
   finalizeExploreBatchOnTaskEnd,
   shouldApplyLegacyToolUpdate,
@@ -125,7 +132,13 @@ export function useReplStreaming(args: {
     // was throttled and we never flushed it.
     args.setThinkingText(text)
     if (messageId) {
-      args.setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: text } : m)))
+      args.setMessages((prev) =>
+        updateThinkingBlockContent({
+          previous: prev,
+          thinkingId: messageId,
+          text,
+        }),
+      )
     }
 
     args.currentThinkingMessageIdRef.current = null
@@ -144,7 +157,12 @@ export function useReplStreaming(args: {
   const endActiveAssistantStreamIfAny = useCallback(() => {
     const activeAssistantId = args.currentAssistantIdRef.current
     if (!activeAssistantId) return
-    args.setMessages((prev) => prev.map((m) => (m.id === activeAssistantId ? { ...m, isStreaming: false } : m)))
+    args.setMessages((prev) =>
+      finalizeAssistantStreamInMessages({
+        previous: prev,
+        assistantId: activeAssistantId,
+      }),
+    )
     args.currentAssistantIdRef.current = null
   }, [args])
 
@@ -208,19 +226,20 @@ export function useReplStreaming(args: {
             args.currentAssistantIdRef.current = assistantId
             args.setMessages((prev) => [
               ...prev,
-              {
-                id: assistantId,
-                role: 'assistant',
-                content: ev.text,
-                timestamp: new Date(),
-                isStreaming: true,
-              },
+              createAssistantStreamingMessage({
+                assistantId,
+                text: ev.text,
+              }),
             ])
             return
           }
 
           args.setMessages((prev) =>
-            prev.map((m) => (m.id === existingId ? { ...m, content: m.content + ev.text, isStreaming: true } : m)),
+            appendAssistantDeltaToMessages({
+              previous: prev,
+              assistantId: existingId,
+              text: ev.text,
+            }),
           )
           return
         }
@@ -248,13 +267,10 @@ export function useReplStreaming(args: {
             args.setThinkingText(args.thinkingBufferRef.current)
             args.setMessages((prev) => [
               ...prev,
-              {
-                id: thinkingId,
-                role: 'assistant',
-                ui: { kind: 'thinking_block' },
-                content: args.thinkingBufferRef.current,
-                timestamp: new Date(),
-              },
+              createThinkingBlockMessage({
+                thinkingId,
+                text: args.thinkingBufferRef.current,
+              }),
             ])
             return
           }
@@ -267,7 +283,13 @@ export function useReplStreaming(args: {
             const id = args.currentThinkingMessageIdRef.current
             if (id) {
               const text = args.thinkingBufferRef.current
-              args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: text } : m)))
+              args.setMessages((prev) =>
+                updateThinkingBlockContent({
+                  previous: prev,
+                  thinkingId: id,
+                  text,
+                }),
+              )
             }
           }
           return

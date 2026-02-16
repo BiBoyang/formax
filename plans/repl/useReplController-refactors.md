@@ -241,6 +241,24 @@ Status: `completed`
 - legacy tool row 的对象构造与 map 更新规则集中，`streaming.ts` 分支进一步减重。
 - 新增 `streamingLegacyToolRows.test.ts` 直接覆盖 row 构造与更新语义。
 
+### E.6 抽出 assistant/thinking 文本行 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 的 `assistant_delta/thinking_delta` 分支，以及 active assistant/thinking 行更新。
+
+**做法**:
+- 新增 `streamingTextRows.ts`：
+  - `createAssistantStreamingMessage(...)`
+  - `appendAssistantDeltaToMessages(...)`
+  - `finalizeAssistantStreamInMessages(...)`
+  - `createThinkingBlockMessage(...)`
+  - `updateThinkingBlockContent(...)`
+- `streaming.ts` 对应分支改为调用 helper，移除内联对象构造与 map 更新。
+
+**结果**:
+- `assistant/thinking` 路径的消息行变更规则集中，后续优化节流/合并时改动面更小。
+- 新增 `streamingTextRows.test.ts` 直接覆盖构造/更新语义。
+
 ---
 
 ## 建议执行顺序
