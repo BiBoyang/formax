@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import path from 'node:path'
 import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
@@ -99,6 +99,7 @@ export function useReplStreaming(args: {
     current: Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   }
   taskKindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
+  toolMessageIdByToolUseIdRef?: { current: Map<string, string> }
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
@@ -109,6 +110,9 @@ export function useReplStreaming(args: {
     onEvent: (event: CanonicalEvent) => void
   }
 }): { handleEvent: (ev: StreamEvent) => void } {
+  const internalToolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
+  const toolMessageIdByToolUseIdRef = args.toolMessageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
+
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
     if (!text) return
@@ -304,33 +308,31 @@ export function useReplStreaming(args: {
                   : 'Working',
           )
 
-          const toolMsgId = `tool-${ev.id}`
+          const activeToolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id)
+          if (activeToolMsgId) return
+
+          const toolMsgId = makeMessageId(`tool-${ev.id}`)
+          toolMessageIdByToolUseIdRef.current.set(ev.id, toolMsgId)
           args.setMessages((prev) => [
             ...prev,
-            ...(
-              prev.some((m) => m.id === toolMsgId && m.toolInfo?.status === 'running')
-                ? []
-                : [
-                    {
-                      id: toolMsgId,
-                      role: 'tool' as const,
-                      content: '',
-                      timestamp: new Date(),
-                      toolInfo: {
-                        name: ev.name,
-                        toolUseId: ev.id,
-                        input: {},
-                        status: 'running' as const,
-                      },
-                    },
-                  ]
-            ),
+            {
+              id: toolMsgId,
+              role: 'tool' as const,
+              content: '',
+              timestamp: new Date(),
+              toolInfo: {
+                name: ev.name,
+                toolUseId: ev.id,
+                input: {},
+                status: 'running' as const,
+              },
+            },
           ])
           return
         }
 
         case 'tool_input': {
-          const toolMsgId = `tool-${ev.id}`
+          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
 
           args.toolInputByIdRef.current.set(ev.id, ev.input as any)
@@ -372,7 +374,7 @@ export function useReplStreaming(args: {
         }
 
         case 'tool_update': {
-          const toolMsgId = `tool-${ev.id}`
+          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
 
           if (typeof ev.toolUses === 'number') {
@@ -426,7 +428,8 @@ export function useReplStreaming(args: {
           // reset it to a generic value once the tool finishes so it doesn't linger.
           args.setLoadingText('Working')
 
-          const toolMsgId = `tool-${ev.id}`
+          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
+          toolMessageIdByToolUseIdRef.current.delete(ev.id)
           const toolNameFromStart = args.toolNameByIdRef.current.get(ev.id)
           args.toolNameByIdRef.current.delete(ev.id)
           const toolInputFromStart = args.toolInputByIdRef.current.get(ev.id)
@@ -566,13 +569,16 @@ export function useReplStreaming(args: {
 
         case 'error': {
           if (isAbortLikeError(ev.error)) {
+            toolMessageIdByToolUseIdRef.current.clear()
             return
           }
+          toolMessageIdByToolUseIdRef.current.clear()
           args.setError(ev.error.message)
           return
         }
 
         case 'complete': {
+          toolMessageIdByToolUseIdRef.current.clear()
           stopThinkingIfActive()
           if (canonicalOnly) {
             args.currentAssistantIdRef.current = null

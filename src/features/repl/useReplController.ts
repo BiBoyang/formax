@@ -199,6 +199,7 @@ export function useReplController(deps: {
     Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
   >(new Map())
   const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
+  const toolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
   const canonicalProjectionRef = useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' }))
   const canonicalReplaySeqRef = useRef(0)
@@ -327,6 +328,7 @@ export function useReplController(deps: {
     toolInputByIdRef.current.clear()
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
+    toolMessageIdByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
     canonicalProjectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
     canonicalReplaySeqRef.current = 0
@@ -523,6 +525,7 @@ export function useReplController(deps: {
     toolInputByIdRef,
     taskStatsByToolUseIdRef,
     taskKindByToolUseIdRef,
+    toolMessageIdByToolUseIdRef,
     exploreBatchRef,
     reminderServiceRef,
     contextBudgetConfigRef,
@@ -556,6 +559,7 @@ export function useReplController(deps: {
     toolInputByIdRef.current.clear()
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
+    toolMessageIdByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
 
     if (currentAssistantIdRef.current) {

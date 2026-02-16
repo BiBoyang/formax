@@ -405,10 +405,10 @@ describe('useReplStreaming', () => {
       await tick()
       await tick()
 
-      let toolMsg = messagesRef.current.find((m) => m.id === 'tool-t1')
+      let toolMsg = messagesRef.current.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
       for (let i = 0; i < 40 && toolMsg?.toolInfo?.status !== 'completed'; i++) {
         await tick()
-        toolMsg = messagesRef.current.find((m) => m.id === 'tool-t1')
+        toolMsg = messagesRef.current.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
       }
 
       expect(toolMsg?.toolInfo?.status).toBe('completed')
@@ -499,7 +499,7 @@ describe('useReplStreaming', () => {
     await tick()
     await tick()
 
-    const toolRows = messagesRef.current.filter((m) => m.id === 'tool-dup-1')
+    const toolRows = messagesRef.current.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-1')
     expect(toolRows).toHaveLength(1)
     expect(toolRows[0]?.toolInfo?.status).toBe('completed')
   })
