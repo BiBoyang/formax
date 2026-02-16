@@ -1,6 +1,6 @@
 # REPL Semantic Single-Writer TODO
 
-Status: `active`
+Status: `completed`
 Owner: `codex`
 Goal: remove patch-style transcript fixes by converging to a single semantic write path.
 
@@ -56,7 +56,7 @@ Result:
 - canonical bridge regression test now asserts no legacy `assistant/tool` rows are appended.
 
 ### Slice 3: Remove Turn-End Surface Reconcile Patch
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/useReplController.ts`
 - `src/screens/repl/transcript.tsx`
@@ -71,8 +71,12 @@ Acceptance:
 - No duplicate tool rows without forced turn-end reconcile.
 - Transcript tests validate single source behavior.
 
+Result:
+- Verified no turn-end `resetTranscriptSurface()` reconcile path remains in normal tool turn flow.
+- `transcript.tsx` remains presentation-only (no transient/static semantic recovery patching).
+
 ### Slice 4: Invariant-Focused Regression Tests
-Status: `pending`
+Status: `completed`
 Files:
 - `src/screens/repl/surfaceSmoke.test.tsx`
 - `scripts/surface-screen-model-smoke.tsx` (only if needed)
@@ -84,6 +88,10 @@ Changes:
 
 Acceptance:
 - Fewer, stronger tests (avoid one-test-per-bug growth).
+
+Result:
+- Added forced-Static invariant test in `surfaceSmoke.test.tsx` to assert one final tool row per `toolUseId`.
+- Added canonical-bridge invariant in `streaming.test.tsx` to prevent legacy transcript writes for tool/explore paths.
 
 ## Execution Order
 1. Slice 1

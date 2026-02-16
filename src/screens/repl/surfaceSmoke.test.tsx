@@ -92,6 +92,86 @@ const cfg: RuntimeConfig = {
 
 describe('surface smoke', () => {
   it(
+    'renders one final tool row per toolUseId in forced Static mode',
+    async () => {
+      const prevForceStatic = process.env.FORMAX_FORCE_INK_STATIC
+      process.env.FORMAX_FORCE_INK_STATIC = '1'
+
+      try {
+        const engine: ChatEngine = {
+          async runTurn({ history, user, onEvent }) {
+            const userText = getUserText(user)
+            if (!/pwd/.test(userText)) {
+              onEvent({ type: 'assistant_delta', text: `ECHO:${userText}` })
+              onEvent({ type: 'complete' })
+              return [
+                ...history,
+                user,
+                { role: 'assistant', content: [{ type: 'text', text: `ECHO:${userText}` }] as PromptBlock[] },
+              ]
+            }
+
+            onEvent({ type: 'tool_start', id: 'tool-pwd', name: 'Bash' })
+            onEvent({
+              type: 'tool_input',
+              id: 'tool-pwd',
+              input: { command: 'pwd', description: 'Print current working directory' },
+            })
+            await tick(10)
+            onEvent({
+              type: 'tool_end',
+              id: 'tool-pwd',
+              result: { tool_use_id: 'tool-pwd', content: '/Users/david/Documents/github/formax\n' },
+            })
+            onEvent({ type: 'assistant_delta', text: '当前工作目录：`/Users/david/Documents/github/formax`' })
+            onEvent({ type: 'complete' })
+
+            return [
+              ...history,
+              user,
+              {
+                role: 'assistant',
+                content: [{ type: 'tool_use', id: 'tool-pwd', name: 'Bash', input: { command: 'pwd' } }] as PromptBlock[],
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'tool_result', tool_use_id: 'tool-pwd', content: '/Users/david/Documents/github/formax\n' },
+                ] as PromptBlock[],
+              },
+              {
+                role: 'assistant',
+                content: [{ type: 'text', text: '当前工作目录：`/Users/david/Documents/github/formax`' }] as PromptBlock[],
+              },
+            ]
+          },
+        }
+
+        const ui = render(<REPL engine={engine} tools={[]} cfg={cfg} />)
+        await waitForFrame(ui.lastFrame, (frame) => frame.includes('Try "fix typecheck errors"'))
+
+        ui.stdin.write('运行下 pwd')
+        await tick()
+        ui.stdin.write('\r')
+
+        const finalFrame = await waitForFrame(
+          ui.lastFrame,
+          (frame) =>
+            frame.includes('当前工作目录：`/Users/david/Documents/github/formax`') &&
+            frame.includes('Try "fix typecheck errors"'),
+        )
+
+        const bashHeaderCount = (finalFrame.match(/Bash\(pwd\)/g) || []).length
+        expect(bashHeaderCount).toBe(1)
+      } finally {
+        if (prevForceStatic === undefined) delete process.env.FORMAX_FORCE_INK_STATIC
+        else process.env.FORMAX_FORCE_INK_STATIC = prevForceStatic
+      }
+    },
+    20000,
+  )
+
+  it(
     'supports cold ctrl+o and compact toggle sequence in forced Static mode',
     async () => {
       const prevForceStatic = process.env.FORMAX_FORCE_INK_STATIC
