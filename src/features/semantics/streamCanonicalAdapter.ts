@@ -127,6 +127,10 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
   if (ev.type === 'tool_input') {
     const seq = replaySeq()
     const paramsText = formatToolInputAsParamsText(ev.input)
+    const input =
+      ev.input && typeof ev.input === 'object' && !Array.isArray(ev.input)
+        ? (ev.input as Record<string, unknown>)
+        : undefined
     return [
       {
         ...createEnvelope(ctx, 'tool_event', seq),
@@ -134,6 +138,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
         turnId: ctx.turnId,
         toolUseId: ev.id,
         phase: 'update',
+        ...(input ? { input } : {}),
         ...(paramsText ? { paramsText } : {}),
       },
     ]
@@ -150,6 +155,11 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
         toolUseId: ev.id,
         phase: 'update',
         ...(line ? { line } : {}),
+        ...(Array.isArray(ev.middleLines) ? { middleLines: ev.middleLines } : {}),
+        ...(Array.isArray(ev.transcriptLines) ? { transcriptLines: ev.transcriptLines } : {}),
+        ...(Array.isArray(ev.nestedTools) ? { nestedTools: ev.nestedTools } : {}),
+        ...(typeof ev.toolUses === 'number' ? { toolUses: ev.toolUses } : {}),
+        ...(ev.usage ? { usage: ev.usage } : {}),
       },
     ]
   }
@@ -157,6 +167,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
   if (ev.type === 'tool_end') {
     const seq = replaySeq()
     const summary = readToolEndSummary(ev)
+    const result = String(ev.result?.content ?? '')
     return [
       {
         ...createEnvelope(ctx, 'tool_event', seq),
@@ -165,6 +176,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
         toolUseId: ev.id,
         phase: 'end',
         ...(summary ? { summary } : {}),
+        ...(result ? { result } : {}),
         isError: Boolean(ev.result?.is_error),
       },
     ]

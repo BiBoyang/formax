@@ -1,3 +1,5 @@
+import type { TokenUsage } from '../../streaming/types'
+
 export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui'
 
 export type ToolInputKind = 'approval' | 'ask_user_question'
@@ -37,10 +39,28 @@ export type CanonicalToolEvent = CanonicalEventEnvelope & {
   toolUseId: string
   phase: 'start' | 'update' | 'end'
   toolName?: string
+  input?: Record<string, unknown>
   paramsText?: string
   line?: string
   summary?: string
   isError?: boolean
+  result?: string
+  resultLines?: number
+  expandInfo?: string
+  middleLines?: string[]
+  transcriptLines?: string[]
+  nestedTools?: Array<{
+    id: string
+    name: string
+    input: Record<string, unknown>
+    status: 'running' | 'completed' | 'error'
+    summary?: string
+  }>
+  toolUses?: number
+  usage?: TokenUsage
+  durationMs?: number
+  patchStartLineNumber?: number
+  hideSummaryContent?: boolean
 }
 
 export type CanonicalToolInputStateEvent = CanonicalEventEnvelope & {

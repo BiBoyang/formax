@@ -3,12 +3,13 @@ import path from 'node:path'
 import { computeContextStats, type ContextBudgetConfig } from '../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import type { Msg } from '../../../components/tool/ToolMessage'
-import { formatToolResult, stripTrailingSystemReminderBlock } from '../../../utils/toolFormatting'
+import { formatToolResult } from '../../../utils/toolFormatting'
 import type { ReminderService } from '../reminders/ReminderService'
 import { makeMessageId } from './ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import { toCanonicalEventsFromStreamEvent } from '../../semantics/streamCanonicalAdapter'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
+import { parseBackgroundTaskId, parseTaskTranscript } from './taskResult'
 import {
   formatDuration,
   formatTokenTotal,
@@ -33,40 +34,6 @@ function formatBasename(filePathRaw: unknown): string {
   if (!raw) return ''
   const normalized = raw.replace(/\\/g, '/')
   return path.basename(normalized)
-}
-
-function parseBackgroundTaskId(rawResult: string): string | null {
-  const text = String(rawResult || '').trim()
-  if (!text) return null
-
-  try {
-    const parsed = JSON.parse(text)
-    const taskId = (parsed as any)?.task_id
-    const status = (parsed as any)?.status
-    if (typeof taskId === 'string' && taskId.trim() && status === 'running') {
-      return taskId.trim()
-    }
-  } catch {
-    // not JSON
-  }
-
-  return null
-}
-
-function parseTaskTranscript(rawResult: string): string[] | null {
-  const text = stripTrailingSystemReminderBlock(String(rawResult || ''))
-  const trimmed = text.trim()
-  if (!trimmed) return null
-
-  try {
-    const parsed = JSON.parse(trimmed)
-    const transcript = (parsed as any)?.transcript
-    if (!Array.isArray(transcript)) return null
-    const lines = transcript.map((l: any) => String(l ?? ''))
-    return lines.length ? lines : null
-  } catch {
-    return null
-  }
 }
 
 export function useReplStreaming(args: {

@@ -150,4 +150,83 @@ describe('transcriptProjection', () => {
     })
     expect(next.segments.filter((segment) => segment.kind === 'turn_footer')).toHaveLength(1)
   })
+
+  it('retains structured tool metadata and infers duration on tool end', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 'm1' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-1',
+          toolUseId: 'task-1',
+          phase: 'start',
+          toolName: 'Task',
+          ts: '2026-02-13T01:10:00.000Z',
+        },
+      ),
+      eventFactory(
+        { replaySeq: 2, eventId: 'm2' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-1',
+          toolUseId: 'task-1',
+          phase: 'update',
+          toolUses: 3,
+          usage: { input_tokens: 9, output_tokens: 4 },
+          nestedTools: [{ id: 'n1', name: 'Bash', input: { command: 'pwd' }, status: 'completed' }],
+        },
+      ),
+      eventFactory(
+        { replaySeq: 3, eventId: 'm3' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-1',
+          toolUseId: 'task-1',
+          phase: 'end',
+          summary: 'done',
+          result: '{"transcript":["a","b"]}',
+          ts: '2026-02-13T01:10:02.500Z',
+        },
+      ),
+    ])
+
+    const tool = next.segments.find((segment) => segment.kind === 'tool')
+    expect(tool).toMatchObject({
+      kind: 'tool',
+      toolUseId: 'task-1',
+      status: 'completed',
+      toolUses: 3,
+      usage: { input_tokens: 9, output_tokens: 4 },
+      nestedTools: [{ id: 'n1', name: 'Bash' }],
+      result: '{"transcript":["a","b"]}',
+    })
+    if (!tool || tool.kind !== 'tool') return
+    expect(tool.durationMs).toBeGreaterThanOrEqual(2500)
+  })
+
+  it('does not let empty middleLines overwrite existing tool detail lines', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 'x1' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'start', toolName: 'Bash' },
+      ),
+      eventFactory(
+        { replaySeq: 2, eventId: 'x2' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'update', middleLines: ['line-1'] },
+      ),
+      eventFactory(
+        { replaySeq: 3, eventId: 'x3' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'update', middleLines: [] },
+      ),
+    ])
+
+    const tool = next.segments.find((segment) => segment.kind === 'tool')
+    expect(tool).toMatchObject({
+      kind: 'tool',
+      detailLines: ['line-1'],
+      middleLines: ['line-1'],
+    })
+  })
 })

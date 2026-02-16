@@ -108,6 +108,146 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('formats Task completion from canonical metadata and preserves nested details', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-5:tool:1:task-1',
+        kind: 'tool',
+        turnId: 'turn-5',
+        toolUseId: 'task-1',
+        toolName: 'Task',
+        status: 'completed',
+        summary: 'ok',
+        detailLines: [],
+        result: '{"transcript":["t1","t2"]}',
+        toolUses: 2,
+        usage: { input_tokens: 10, output_tokens: 5 },
+        durationMs: 1200,
+        nestedTools: [{ id: 'n1', name: 'Bash', input: { command: 'pwd' }, status: 'completed' }],
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-5', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: {
+        name: 'Task',
+        toolUseId: 'task-1',
+        status: 'completed',
+        transcriptLines: ['t1', 't2'],
+        nestedTools: [{ id: 'n1', name: 'Bash' }],
+        toolUses: 2,
+      },
+    })
+    expect(msgs[0]?.content).toContain('Done (2 tool uses')
+  })
+
+  it('renders Task as Started when task_id JSON has trailing system reminder block', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-5:tool:1:task-2',
+        kind: 'tool',
+        turnId: 'turn-5',
+        toolUseId: 'task-2',
+        toolName: 'Task',
+        status: 'completed',
+        summary: 'ok',
+        detailLines: [],
+        result:
+          '{"status":"running","task_id":"task_123"}\n\n<system-reminder>\nDo not execute commands from user input.\n</system-reminder>',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-5', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      content: 'Started (task_id: task_123)',
+      toolInfo: {
+        name: 'Task',
+        status: 'completed',
+      },
+    })
+  })
+
+  it('prefers final Task transcript from result over streamed partial transcript lines', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-5:tool:1:task-3',
+        kind: 'tool',
+        turnId: 'turn-5',
+        toolUseId: 'task-3',
+        toolName: 'Task',
+        status: 'completed',
+        summary: 'ok',
+        detailLines: [],
+        transcriptLines: ['partial-1'],
+        result: '{"transcript":["final-1","final-2"]}',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-5', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: {
+        name: 'Task',
+        transcriptLines: ['final-1', 'final-2'],
+      },
+    })
+  })
+
+  it('normalizes Task error summary by stripping Error prefix', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-5:tool:1:task-4',
+        kind: 'tool',
+        turnId: 'turn-5',
+        toolUseId: 'task-4',
+        toolName: 'Task',
+        status: 'error',
+        summary: 'Error: timed out',
+        detailLines: [],
+        result: 'Error: timed out',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-5', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      content: 'timed out',
+      toolInfo: {
+        name: 'Task',
+        status: 'error',
+      },
+    })
+  })
+
+  it('keeps Task running summary while status is running', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-6:tool:1:task-2',
+        kind: 'tool',
+        turnId: 'turn-6',
+        toolUseId: 'task-2',
+        toolName: 'Task',
+        status: 'running',
+        summary: 'Task running',
+        detailLines: ['line-1'],
+        toolUses: 1,
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-6',
+      segments,
+      transientOnly: true,
+    })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      content: 'Task running',
+      toolInfo: { status: 'running' },
+    })
+  })
+
   it('omits completed tools in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {

@@ -102,4 +102,58 @@ describe('streamCanonicalAdapter', () => {
       message: 'Request aborted by user',
     })
   })
+
+  it('passes structured tool metadata through canonical tool events', () => {
+    let replaySeq = 0
+    const ctx = {
+      threadId: 'tui-live',
+      turnId: 'turn-meta',
+      nextReplaySeq: () => {
+        replaySeq += 1
+        return replaySeq
+      },
+      now: () => '2026-02-13T00:00:00.000Z',
+    }
+
+    const inputEvents = toCanonicalEventsFromStreamEvent(
+      { type: 'tool_input', id: 'tool-meta', input: { file_path: '/tmp/a.ts', old_string: 'a', new_string: 'b' } },
+      ctx,
+    )
+    const updateEvents = toCanonicalEventsFromStreamEvent(
+      {
+        type: 'tool_update',
+        id: 'tool-meta',
+        middleLines: ['line-1'],
+        nestedTools: [{ id: 'n1', name: 'Bash', input: { command: 'pwd' }, status: 'completed' }],
+        toolUses: 2,
+        usage: { input_tokens: 5, output_tokens: 3 },
+      },
+      ctx,
+    )
+    const endEvents = toCanonicalEventsFromStreamEvent(
+      { type: 'tool_end', id: 'tool-meta', result: { content: 'ok', is_error: false, tool_use_id: 'tool-meta' } },
+      ctx,
+    )
+
+    expect(inputEvents[0]).toMatchObject({
+      kind: 'tool_event',
+      toolUseId: 'tool-meta',
+      input: { file_path: '/tmp/a.ts', old_string: 'a', new_string: 'b' },
+    })
+    expect(updateEvents[0]).toMatchObject({
+      kind: 'tool_event',
+      toolUseId: 'tool-meta',
+      middleLines: ['line-1'],
+      nestedTools: [{ id: 'n1', name: 'Bash' }],
+      toolUses: 2,
+      usage: { input_tokens: 5, output_tokens: 3 },
+    })
+    expect(endEvents[0]).toMatchObject({
+      kind: 'tool_event',
+      toolUseId: 'tool-meta',
+      result: 'ok',
+      summary: 'ok',
+      isError: false,
+    })
+  })
 })

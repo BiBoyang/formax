@@ -234,9 +234,43 @@ export function toCanonicalEventsFromTurnNotification(
       const line = eventType === 'tool_update' ? readToolUpdateLine(streamEvent) : undefined
       const summary = eventType === 'tool_end' ? readToolEndSummary(streamEvent) : undefined
       const paramsText = formatToolInputAsParamsText(streamEvent.input)
+      const input =
+        streamEvent.input && typeof streamEvent.input === 'object' && !Array.isArray(streamEvent.input)
+          ? (streamEvent.input as Record<string, unknown>)
+          : undefined
       const isError =
         eventType === 'tool_end' &&
         Boolean((streamEvent.result as Record<string, unknown> | undefined)?.is_error)
+      const result =
+        eventType === 'tool_end'
+          ? String(((streamEvent.result as Record<string, unknown> | undefined)?.content ?? ''))
+          : ''
+      const middleLines = Array.isArray(streamEvent.middleLines) ? streamEvent.middleLines.map((l) => String(l)) : null
+      const transcriptLines = Array.isArray(streamEvent.transcriptLines)
+        ? streamEvent.transcriptLines.map((l) => String(l))
+        : null
+      const nestedTools = Array.isArray(streamEvent.nestedTools)
+        ? (streamEvent.nestedTools as Array<Record<string, unknown>>)
+            .map((item) => {
+              const id = typeof item.id === 'string' ? item.id : ''
+              const name = typeof item.name === 'string' ? item.name : ''
+              const status = item.status
+              if (!id || !name || (status !== 'running' && status !== 'completed' && status !== 'error')) return null
+              const nestedStatus = status as 'running' | 'completed' | 'error'
+              const inputValue =
+                item.input && typeof item.input === 'object' && !Array.isArray(item.input)
+                  ? (item.input as Record<string, unknown>)
+                  : {}
+              const summary = typeof item.summary === 'string' ? item.summary : undefined
+              return { id, name, input: inputValue, status: nestedStatus, ...(summary ? { summary } : {}) }
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+        : null
+      const toolUses = typeof streamEvent.toolUses === 'number' ? streamEvent.toolUses : undefined
+      const usage =
+        streamEvent.usage && typeof streamEvent.usage === 'object' && !Array.isArray(streamEvent.usage)
+          ? (streamEvent.usage as any)
+          : undefined
 
       return [
         {
@@ -246,9 +280,16 @@ export function toCanonicalEventsFromTurnNotification(
           toolUseId,
           phase,
           ...(toolName ? { toolName } : {}),
+          ...(input ? { input } : {}),
           ...(paramsText ? { paramsText } : {}),
           ...(line ? { line } : {}),
           ...(summary ? { summary } : {}),
+          ...(result ? { result } : {}),
+          ...(middleLines ? { middleLines } : {}),
+          ...(transcriptLines ? { transcriptLines } : {}),
+          ...(nestedTools ? { nestedTools } : {}),
+          ...(typeof toolUses === 'number' ? { toolUses } : {}),
+          ...(usage ? { usage } : {}),
           ...(isError ? { isError } : {}),
         },
       ]

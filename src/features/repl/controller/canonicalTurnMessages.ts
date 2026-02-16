@@ -1,6 +1,9 @@
 import type { Msg } from '../../../components/tool/ToolMessage'
 import type { TranscriptSegment } from '../../semantics/transcriptProjection'
 import { parseToolParamsText } from '../../tools/presentation/paramsText'
+import { formatDuration, formatTokenTotal, formatToolUses } from './utils'
+import { formatToolResult } from '../../../utils/toolFormatting'
+import { parseBackgroundTaskId, parseTaskTranscript } from './taskResult'
 
 function decodeParamValue(value: string, valueType: 'string' | 'json'): unknown {
   if (valueType === 'string') return value
@@ -90,11 +93,66 @@ export function canonicalTurnSegmentsToMessages(args: {
 
     if (segment.kind !== 'tool') return null
     if (args.transientOnly && segment.status !== 'running') return null
+    const input = segment.input ?? parseToolInputFromParamsText(segment.paramsText)
+    const rawResult = segment.result
+    const isError = segment.status === 'error'
     const summaryParts = splitSummaryLines(segment.summary)
-    const middleLines = segment.detailLines.length > 0 ? segment.detailLines : summaryParts.remainingLines
-    const resultLines = [summaryParts.firstLine, ...middleLines].filter((line) => line.length > 0)
-    const hideSummaryContent = segment.toolName === 'Skill' && segment.status === 'completed'
-    const content = hideSummaryContent ? '' : summaryParts.firstLine
+    const normalizedErrorSummary = summaryParts.firstLine.startsWith('Error: ')
+      ? summaryParts.firstLine.slice('Error: '.length)
+      : summaryParts.firstLine
+
+    if (segment.toolName === 'Task') {
+      const tokens = formatTokenTotal(segment.usage)
+      const backgroundTaskId = parseBackgroundTaskId(rawResult ?? '')
+      const summaryText =
+        segment.status === 'running'
+          ? summaryParts.firstLine || 'Task running'
+          : isError
+            ? normalizedErrorSummary || 'Error'
+            : backgroundTaskId
+                ? `Started (task_id: ${backgroundTaskId})`
+                : `Done (${formatToolUses(segment.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                  segment.durationMs ?? 0,
+                )})`
+      const transcriptLines = parseTaskTranscript(rawResult ?? '') ?? segment.transcriptLines ?? undefined
+      return {
+        id: `canonical:${segment.id}`,
+        role: 'tool' as const,
+        content: summaryText,
+        timestamp: new Date(0),
+        toolInfo: {
+          name: segment.toolName,
+          toolUseId: segment.toolUseId,
+          input,
+          status: segment.status,
+          result: rawResult ?? segment.summary,
+          ...(transcriptLines ? { transcriptLines } : {}),
+          ...(segment.nestedTools ? { nestedTools: segment.nestedTools } : {}),
+          ...(segment.toolUses !== undefined ? { toolUses: segment.toolUses } : {}),
+          ...(segment.usage ? { usage: segment.usage } : {}),
+          ...(segment.durationMs !== undefined ? { durationMs: segment.durationMs } : {}),
+          ...(segment.middleLines ? { middleLines: segment.middleLines } : {}),
+          ...(segment.expandInfo ? { expandInfo: segment.expandInfo } : {}),
+        },
+      }
+    }
+
+    const displayResult =
+      isError && typeof rawResult === 'string' && rawResult.startsWith('Error: ')
+        ? rawResult.slice('Error: '.length)
+        : rawResult
+    const formatted = typeof displayResult === 'string' ? formatToolResult(segment.toolName, displayResult, isError) : null
+    const firstLine = formatted?.summary ?? summaryParts.firstLine
+    const middleLines =
+      segment.middleLines ??
+      formatted?.middleLines ??
+      (segment.detailLines.length > 0 ? segment.detailLines : summaryParts.remainingLines)
+    const resultLines = (formatted?.lines ?? segment.resultLines ?? [firstLine, ...middleLines].join('\n').split(/\r?\n/).length)
+    const hideSummaryContent = Boolean(
+      segment.hideSummaryContent ?? (segment.toolName === 'Skill' && segment.status === 'completed' && !isError),
+    )
+    const content = hideSummaryContent ? '' : firstLine
+    const patchStartLineNumber = segment.patchStartLineNumber ?? null
 
     return {
       id: `canonical:${segment.id}`,
@@ -104,10 +162,18 @@ export function canonicalTurnSegmentsToMessages(args: {
       toolInfo: {
         name: segment.toolName,
         toolUseId: segment.toolUseId,
-        input: parseToolInputFromParamsText(segment.paramsText),
+        input,
         status: segment.status,
-        result: resultLines.join('\n') || summaryParts.firstLine,
+        result: rawResult ?? [firstLine, ...middleLines].filter((line) => line.length > 0).join('\n'),
         middleLines,
+        ...(formatted?.expandInfo || segment.expandInfo ? { expandInfo: segment.expandInfo ?? formatted?.expandInfo } : {}),
+        ...(resultLines ? { resultLines } : {}),
+        ...(segment.transcriptLines ? { transcriptLines: segment.transcriptLines } : {}),
+        ...(segment.nestedTools ? { nestedTools: segment.nestedTools } : {}),
+        ...(segment.toolUses !== undefined ? { toolUses: segment.toolUses } : {}),
+        ...(segment.usage ? { usage: segment.usage } : {}),
+        ...(segment.durationMs !== undefined ? { durationMs: segment.durationMs } : {}),
+        ...(patchStartLineNumber !== null ? { patchStartLineNumber } : {}),
       },
     }
   })
