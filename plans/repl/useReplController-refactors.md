@@ -623,6 +623,36 @@ Status: `completed`
 - tool 运行态引用集中，后续继续拆 streaming/controller 边界时改动范围更可控。
 - 行为不变（仅访问路径调整）。
 
+### F.24 抽出 canonical UI message 发射 helper
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/canonicalUiMessages.ts`
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `emitCanonicalUiMessageForTurn(...)`，封装 `CanonicalUiMessage -> canonical event` 的分发（`user_message/system_message`）。
+- `useReplController.send()` 中移除内联发射逻辑，改为在 `runMainSendTurn` 的 `state.emitCanonicalUiMessage` 回调里调用 helper。
+
+**结果**:
+- `send()` 主体进一步减重，UI canonical 事件构造规则收敛到独立模块。
+- 行为不变（事件 kind/字段/eventId 规则保持一致）。
+
+### F.25 补齐 canonical UI message helper 单测
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/canonicalUiMessages.test.ts`
+
+**做法**:
+- 新增 3 个单测，覆盖：
+  - 普通 user UI message -> `user_message`
+  - `compact_summary` user message -> `user_message` + `uiKind`
+  - assistant ui message -> `system_message`
+
+**结果**:
+- canonical UI message 发射规则具备独立回归保护。
+
 ---
 
 ## 建议执行顺序

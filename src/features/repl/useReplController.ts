@@ -45,11 +45,11 @@ import {
   getLocalCommandInjectionStats,
 } from './controller/localCommandInjection'
 import {
-  type CanonicalUiMessage,
   resolvePreMainSendRouting,
   runMainSendTurn,
 } from './controller/send'
 import type { CompactLifecycleEvent } from './controller/compactFlow'
+import { emitCanonicalUiMessageForTurn } from './controller/canonicalUiMessages'
 import {
   applyLocalBashCompletionToMessages,
   createLocalBashCanonicalEmitter,
@@ -882,38 +882,6 @@ export function useReplController(deps: {
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
-      const emitCanonicalUiMessage = (message: CanonicalUiMessage) => {
-        const replaySeq = nextCanonicalReplaySeq()
-        const ts = new Date().toISOString()
-
-        if (message.role === 'user' && (message.uiKind === undefined || message.uiKind === 'compact_summary')) {
-          onCanonicalEvent({
-            threadId: CANONICAL_THREAD_ID,
-            replaySeq,
-            eventId: `${CANONICAL_THREAD_ID}:${canonicalTurnId}:user_message:${replaySeq}`,
-            ts,
-            source: 'ui',
-            kind: 'user_message',
-            turnId: canonicalTurnId,
-            text: message.content,
-            ...(message.uiKind === 'compact_summary' ? { uiKind: 'compact_summary' } : {}),
-          })
-          return
-        }
-
-        onCanonicalEvent({
-          threadId: CANONICAL_THREAD_ID,
-          replaySeq,
-          eventId: `${CANONICAL_THREAD_ID}:${canonicalTurnId}:system_message:${replaySeq}`,
-          ts,
-          source: 'ui',
-          kind: 'system_message',
-          turnId: canonicalTurnId,
-          role: message.role,
-          text: message.content,
-          ...(message.uiKind ? { uiKind: message.uiKind } : {}),
-        })
-      }
       try {
         const runResult = await runMainSendTurn({
           input: { text, slashEffect, provider },
@@ -951,7 +919,14 @@ export function useReplController(deps: {
             setThinkingText,
             setError,
             setContext,
-            emitCanonicalUiMessage,
+            emitCanonicalUiMessage: (message) =>
+              emitCanonicalUiMessageForTurn({
+                threadId: CANONICAL_THREAD_ID,
+                turnId: canonicalTurnId,
+                message,
+                nextReplaySeq: nextCanonicalReplaySeq,
+                onCanonicalEvent,
+              }),
           },
         })
         turnUserMessageId = runResult.userMessageId
