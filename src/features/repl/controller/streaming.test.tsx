@@ -419,6 +419,89 @@ describe('useReplStreaming', () => {
     }
   })
 
+  it('preserves Task nestedTools from tool_update when tool_end finalizes', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const messagesRef = { current: [] as Msg[] }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 'task-1', name: 'Task' })
+    handleEvent!({
+      type: 'tool_update',
+      id: 'task-1',
+      nestedTools: [{ id: 'nested-1', name: 'Bash', input: { command: 'pwd' }, status: 'completed' }],
+    })
+    handleEvent!({ type: 'tool_end', id: 'task-1', result: { tool_use_id: 'task-1', content: 'ok' } })
+    await tick()
+    await tick()
+
+    const toolMsg = messagesRef.current.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'task-1')
+    expect(toolMsg?.toolInfo?.status).toBe('completed')
+    expect(toolMsg?.toolInfo?.nestedTools?.[0]?.name).toBe('Bash')
+  })
+
   it('does not append duplicate tool rows when tool_start repeats for the same id', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const messagesRef = { current: [] as Msg[] }
@@ -507,6 +590,7 @@ describe('useReplStreaming', () => {
   it('does not append Explore batch summary rows when canonical bridge is enabled', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const messagesRef = { current: [] as Msg[] }
+    const exploreBatchSnapshotRef = { current: null as any }
     const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
 
     function Harness(): React.ReactNode {
@@ -572,6 +656,9 @@ describe('useReplStreaming', () => {
       useEffect(() => {
         handleEventRef.current = handleEvent
       }, [handleEvent])
+      useEffect(() => {
+        exploreBatchSnapshotRef.current = exploreBatchRef.current
+      }, [messages])
 
       void thinkingText
       void thinkingStartedAtMs
@@ -598,6 +685,7 @@ describe('useReplStreaming', () => {
     await tick()
 
     expect(messagesRef.current).toEqual([])
+    expect(exploreBatchSnapshotRef.current).toBeNull()
   })
 
   it('forwards stream events into canonical projection when canonical bridge is enabled', async () => {

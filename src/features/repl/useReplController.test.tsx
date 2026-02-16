@@ -238,6 +238,81 @@ describe('useReplController', () => {
     await sendPromise
   })
 
+  it('preserves Edit patchStartLineNumber in canonical final tool rows', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-repl-canonical-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      const prefix = Array.from({ length: 21 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
+      await fsp.writeFile(filePath, prefix + 'hello world\n', 'utf8')
+
+      const engine: ChatEngine = {
+        async runTurn({ history, onEvent, user }) {
+          onEvent({ type: 'tool_start', id: 'edit-1', name: 'Edit' } as StreamEvent)
+          onEvent({
+            type: 'tool_input',
+            id: 'edit-1',
+            input: {
+              file_path: filePath,
+              old_string: 'hello world\n',
+              new_string: '   22  hello world\n',
+            },
+          } as StreamEvent)
+          onEvent({
+            type: 'tool_end',
+            id: 'edit-1',
+            result: { tool_use_id: 'edit-1', content: 'OK', is_error: false },
+          } as StreamEvent)
+          onEvent({ type: 'complete' } as StreamEvent)
+          return [...history, user]
+        },
+      }
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('run canonical edit')
+      await waitFor(() =>
+        controller.state.messages.some(
+          (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'edit-1' && m.toolInfo?.status === 'completed',
+        ),
+      )
+
+      const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'edit-1')
+      expect(msg?.toolInfo?.patchStartLineNumber).toBe(22)
+      expect(msg?.toolInfo?.input).toMatchObject({ file_path: filePath })
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps canonical tool row ids unique when tool_use_id repeats across turns', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'dup-tool', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'dup-tool', input: { command: 'pwd' } } as StreamEvent)
+        onEvent({ type: 'tool_end', id: 'dup-tool', result: { tool_use_id: 'dup-tool', content: 'ok' } } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('first')
+    await controller.actions.send('second')
+    await waitFor(() => {
+      const toolRows = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-tool')
+      return toolRows.length >= 2
+    })
+
+    const toolRows = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-tool')
+    const ids = toolRows.map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
   it('bash mode: runs local command and injects into the next turn', async () => {
     const captured: PromptBlock[][] = []
     const engine: ChatEngine = {
@@ -852,7 +927,12 @@ describe('useReplController', () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user }) {
         onEvent({ type: 'tool_start', id: 't-task', name: 'Task' } as StreamEvent)
-        onEvent({ type: 'tool_update', id: 't-task', toolUses: 2, usage: { input_tokens: 10, output_tokens: 5 } } as StreamEvent)
+        onEvent({
+          type: 'tool_update',
+          id: 't-task',
+          toolUses: 2,
+          usage: { input_tokens: 10, output_tokens: 5 },
+        } as StreamEvent)
         await endGate
         onEvent({ type: 'tool_end', id: 't-task', result: { tool_use_id: 't-task', content: 'ok' } } as StreamEvent)
         onEvent({ type: 'complete' } as StreamEvent)

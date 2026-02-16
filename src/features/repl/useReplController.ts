@@ -200,6 +200,7 @@ export function useReplController(deps: {
   >(new Map())
   const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
   const toolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
+  const completedToolMessageByToolUseIdRef = useRef<Map<string, Msg>>(new Map())
   const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
   const canonicalProjectionRef = useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' }))
   const canonicalReplaySeqRef = useRef(0)
@@ -329,6 +330,7 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
     toolMessageIdByToolUseIdRef.current.clear()
+    completedToolMessageByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
     canonicalProjectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
     canonicalReplaySeqRef.current = 0
@@ -526,6 +528,7 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef,
     taskKindByToolUseIdRef,
     toolMessageIdByToolUseIdRef,
+    completedToolMessageByToolUseIdRef,
     exploreBatchRef,
     reminderServiceRef,
     contextBudgetConfigRef,
@@ -560,6 +563,7 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef.current.clear()
     taskKindByToolUseIdRef.current.clear()
     toolMessageIdByToolUseIdRef.current.clear()
+    completedToolMessageByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
 
     if (currentAssistantIdRef.current) {
@@ -740,6 +744,7 @@ export function useReplController(deps: {
       // Thinking/streaming state is per-turn; clear buffers so stale thinking
       // from previous turns can't leak into the next status line/panel.
       resetStreamingBuffers()
+      completedToolMessageByToolUseIdRef.current.clear()
 
       await ensureSessionWriter()
 
@@ -1092,6 +1097,7 @@ export function useReplController(deps: {
         turnUserMessageId = runResult.userMessageId
         turnOutcome = runResult.turnOutcome
       } finally {
+        const completedToolMessagesByUseIdSnapshot = new Map(completedToolMessageByToolUseIdRef.current)
         if (turnUserMessageId) {
           const turnSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, canonicalTurnId)
           const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
@@ -1127,11 +1133,17 @@ export function useReplController(deps: {
               const head = prev.slice(0, userIndex + 1)
               const tail = prev.slice(userIndex + 1)
               const legacyToolByUseId = new Map<string, Msg>()
+              const tailLegacyToolUseIds = new Set<string>()
               for (const message of tail) {
                 if (message.role !== 'tool') continue
                 const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
                 if (!toolUseId) continue
                 legacyToolByUseId.set(toolUseId, message)
+                tailLegacyToolUseIds.add(toolUseId)
+              }
+              for (const [toolUseId, cachedToolMessage] of completedToolMessagesByUseIdSnapshot) {
+                if (legacyToolByUseId.has(toolUseId)) continue
+                legacyToolByUseId.set(toolUseId, cachedToolMessage)
               }
               const canonicalRows = canonicalRowsForAppend.map((message) => {
                 const baseMessage: Msg = {
@@ -1144,11 +1156,37 @@ export function useReplController(deps: {
                 if (!toolUseId) return baseMessage
                 const legacyTool = legacyToolByUseId.get(toolUseId)
                 if (!legacyTool || legacyTool.role !== 'tool') return baseMessage
+                const hasTailLegacyTool = tailLegacyToolUseIds.has(toolUseId)
+                const canonicalToolInfo = baseMessage.toolInfo
+                const legacyToolInfo = legacyTool.toolInfo
+                const canonicalInput = canonicalToolInfo?.input
+                const canonicalInputHasKeys =
+                  canonicalInput && typeof canonicalInput === 'object' && Object.keys(canonicalInput).length > 0
+                const mergedToolInfo =
+                  canonicalToolInfo && legacyToolInfo
+                    ? {
+                        ...legacyToolInfo,
+                        ...canonicalToolInfo,
+                        input: canonicalInputHasKeys ? canonicalInput : legacyToolInfo.input ?? canonicalInput ?? {},
+                        result: legacyToolInfo.result ?? canonicalToolInfo.result,
+                        middleLines: canonicalToolInfo.middleLines ?? legacyToolInfo.middleLines,
+                        expandInfo: legacyToolInfo.expandInfo ?? canonicalToolInfo.expandInfo,
+                        resultLines: legacyToolInfo.resultLines ?? canonicalToolInfo.resultLines,
+                        transcriptLines: legacyToolInfo.transcriptLines ?? canonicalToolInfo.transcriptLines,
+                        nestedTools: legacyToolInfo.nestedTools ?? canonicalToolInfo.nestedTools,
+                        toolUses: legacyToolInfo.toolUses ?? canonicalToolInfo.toolUses,
+                        usage: legacyToolInfo.usage ?? canonicalToolInfo.usage,
+                        durationMs: legacyToolInfo.durationMs ?? canonicalToolInfo.durationMs,
+                        patchStartLineNumber: legacyToolInfo.patchStartLineNumber ?? canonicalToolInfo.patchStartLineNumber,
+                      }
+                    : canonicalToolInfo ?? legacyToolInfo
                 return {
-                  ...legacyTool,
-                  id: legacyTool.id,
-                  timestamp: legacyTool.timestamp,
+                  ...baseMessage,
+                  id: hasTailLegacyTool ? legacyTool.id : baseMessage.id,
+                  timestamp: hasTailLegacyTool ? legacyTool.timestamp : baseMessage.timestamp,
+                  content: legacyTool.content || baseMessage.content,
                   isStreaming: false,
+                  ...(mergedToolInfo ? { toolInfo: mergedToolInfo } : {}),
                 }
               })
               const isReplacedLegacyRow = (message: Msg): boolean => {
@@ -1233,6 +1271,7 @@ export function useReplController(deps: {
             })
           }
         }
+        completedToolMessageByToolUseIdRef.current.clear()
         canonicalTurnIdRef.current = null
         setCanonicalTurnMessages([])
         setCanonicalTransientActive(false)

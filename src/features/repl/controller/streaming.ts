@@ -100,6 +100,7 @@ export function useReplStreaming(args: {
   }
   taskKindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
   toolMessageIdByToolUseIdRef?: { current: Map<string, string> }
+  completedToolMessageByToolUseIdRef?: { current: Map<string, Msg> }
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
@@ -112,6 +113,9 @@ export function useReplStreaming(args: {
 }): { handleEvent: (ev: StreamEvent) => void } {
   const internalToolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const toolMessageIdByToolUseIdRef = args.toolMessageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
+  const internalCompletedToolMessageByToolUseIdRef = useRef<Map<string, Msg>>(new Map())
+  const completedToolMessageByToolUseIdRef =
+    args.completedToolMessageByToolUseIdRef ?? internalCompletedToolMessageByToolUseIdRef
 
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
@@ -445,101 +449,114 @@ export function useReplStreaming(args: {
           const taskStats = args.taskStatsByToolUseIdRef.current.get(ev.id)
           args.taskStatsByToolUseIdRef.current.delete(ev.id)
 
+          const buildCompletedToolMessage = (toolMsg: Msg | undefined): Msg => {
+            const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
+            const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
+            const priorToolInfo = toolMsg?.toolInfo
+            const baseId = toolMsg?.id ?? toolMsgId
+            const baseTimestamp = toolMsg?.timestamp ?? new Date()
+
+            const editPatchStartLineNumber =
+              toolName === 'Edit' && !ev.result.is_error
+                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
+                : null
+
+            const rawResult = ev.result.content
+            const displayResult =
+              ev.result.is_error && rawResult.startsWith('Error: ')
+                ? rawResult.slice('Error: '.length)
+                : rawResult
+
+            if (toolName === 'Task') {
+              const startedAt = taskStats?.startedAt ?? Date.now()
+              const durationMs = Date.now() - startedAt
+              const tokens = formatTokenTotal(taskStats?.usage)
+              const backgroundTaskId = parseBackgroundTaskId(rawResult)
+              const parsedTranscript = parseTaskTranscript(rawResult)
+              const doneText = ev.result.is_error
+                ? displayResult || 'Error'
+                : backgroundTaskId
+                    ? `Started (task_id: ${backgroundTaskId})`
+                    : `Done (${formatToolUses(taskStats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                      durationMs,
+                    )})`
+
+              return {
+                id: baseId,
+                role: 'tool',
+                content: doneText,
+                timestamp: baseTimestamp,
+                toolInfo: {
+                  ...(priorToolInfo ?? {}),
+                  name: toolName,
+                  toolUseId: ev.id,
+                  input: (toolInput as any) || {},
+                  status: ev.result.is_error ? 'error' : 'completed',
+                  result: rawResult,
+                  ...(parsedTranscript
+                    ? { transcriptLines: parsedTranscript }
+                    : priorToolInfo?.transcriptLines
+                      ? { transcriptLines: priorToolInfo.transcriptLines }
+                      : {}),
+                  ...(taskStats ? { toolUses: taskStats.toolUses, usage: taskStats.usage, durationMs } : { durationMs }),
+                },
+              }
+            }
+
+            if (toolName === 'Skill' && !ev.result.is_error) {
+              return {
+                id: baseId,
+                role: 'tool',
+                content: '',
+                timestamp: baseTimestamp,
+                toolInfo: {
+                  name: toolName,
+                  toolUseId: ev.id,
+                  input: (toolInput as any) || {},
+                  status: 'completed',
+                  result: rawResult,
+                },
+              }
+            }
+
+            const { summary, middleLines, expandInfo, lines } = formatToolResult(
+              toolName,
+              displayResult,
+              Boolean(ev.result.is_error),
+            )
+
+            return {
+              id: baseId,
+              role: 'tool',
+              content: summary,
+              timestamp: baseTimestamp,
+              toolInfo: {
+                name: toolName,
+                toolUseId: ev.id,
+                input: (toolInput as any) || {},
+                status: ev.result.is_error ? 'error' : 'completed',
+                result: rawResult,
+                resultLines: lines,
+                expandInfo,
+                middleLines,
+                ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
+              },
+            }
+          }
+
           if (!canonicalOnly) {
             args.setMessages((prev) => {
               const toolMsg = prev.find((m) => m.id === toolMsgId)
-              const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
-              const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
-
-              const editPatchStartLineNumber =
-                toolName === 'Edit' && !ev.result.is_error
-                  ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
-                  : null
-
-              const rawResult = ev.result.content
-              const displayResult =
-                ev.result.is_error && rawResult.startsWith('Error: ')
-                  ? rawResult.slice('Error: '.length)
-                  : rawResult
-
-              if (toolName === 'Task') {
-                const startedAt = taskStats?.startedAt ?? Date.now()
-                const durationMs = Date.now() - startedAt
-
-                const tokens = formatTokenTotal(taskStats?.usage)
-                const backgroundTaskId = parseBackgroundTaskId(rawResult)
-                const parsedTranscript = parseTaskTranscript(rawResult)
-                const doneText = ev.result.is_error
-                  ? displayResult || 'Error'
-                  : backgroundTaskId
-                      ? `Started (task_id: ${backgroundTaskId})`
-                      : `Done (${formatToolUses(taskStats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                        durationMs,
-                      )})`
-
-                return prev.map((m) =>
-                  m.id === toolMsgId
-                    ? {
-                        ...m,
-                        content: doneText,
-                        toolInfo: {
-                          ...m.toolInfo!,
-                          status: ev.result.is_error ? 'error' : 'completed',
-                          result: rawResult,
-                          ...(parsedTranscript ? { transcriptLines: parsedTranscript } : {}),
-                          ...(taskStats
-                            ? { toolUses: taskStats.toolUses, usage: taskStats.usage, durationMs }
-                            : { durationMs }),
-                        },
-                      }
-                    : m,
-                )
-              }
-
-              if (toolName === 'Skill' && !ev.result.is_error) {
-                return prev.map((m) =>
-                  m.id === toolMsgId
-                    ? {
-                        ...m,
-                        content: '',
-                        toolInfo: {
-                          ...m.toolInfo!,
-                          status: 'completed',
-                          result: rawResult,
-                        },
-                      }
-                    : m,
-                )
-              }
-
-              const { summary, middleLines, expandInfo, lines } = formatToolResult(
-                toolName,
-                displayResult,
-                Boolean(ev.result.is_error),
-              )
-
+              const completedToolMessage = buildCompletedToolMessage(toolMsg)
               return prev.map((m) =>
-                m.id === toolMsgId
-                  ? {
-                      ...m,
-                      content: summary,
-                      toolInfo: {
-                        ...m.toolInfo!,
-                        ...(toolInput ? { input: toolInput as any } : {}),
-                        status: ev.result.is_error ? 'error' : 'completed',
-                        result: rawResult,
-                        resultLines: lines,
-                        expandInfo,
-                        middleLines,
-                        ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
-                      },
-                    }
-                  : m,
+                m.id === toolMsgId ? { ...completedToolMessage, id: m.id, timestamp: m.timestamp } : m,
               )
             })
+          } else {
+            completedToolMessageByToolUseIdRef.current.set(ev.id, buildCompletedToolMessage(undefined))
           }
 
-          if (toolNameFromStart === 'Task' && taskKind === 'explore' && !canonicalOnly) {
+          if (toolNameFromStart === 'Task' && taskKind === 'explore') {
             const batch = args.exploreBatchRef.current
             if (batch && batch.toolUseIds.has(ev.id)) {
               batch.completedToolUseIds.add(ev.id)
@@ -547,16 +564,18 @@ export function useReplStreaming(args: {
 
               if (batch.toolUseIds.size >= 2 && batch.completedToolUseIds.size === batch.toolUseIds.size) {
                 args.exploreBatchRef.current = null
-                const count = batch.toolUseIds.size
-                args.setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: makeMessageId('assistant'),
-                    role: 'assistant',
-                    content: `${count} Explore agents finished (ctrl+o to expand)`,
-                    timestamp: new Date(),
-                  },
-                ])
+                if (!canonicalOnly) {
+                  const count = batch.toolUseIds.size
+                  args.setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: makeMessageId('assistant'),
+                      role: 'assistant',
+                      content: `${count} Explore agents finished (ctrl+o to expand)`,
+                      timestamp: new Date(),
+                    },
+                  ])
+                }
               }
             }
           }

@@ -96,6 +96,7 @@ describe('surface smoke', () => {
     async () => {
       const prevForceStatic = process.env.FORMAX_FORCE_INK_STATIC
       process.env.FORMAX_FORCE_INK_STATIC = '1'
+      let ui: ReturnType<typeof render> | null = null
 
       try {
         const engine: ChatEngine = {
@@ -147,7 +148,7 @@ describe('surface smoke', () => {
           },
         }
 
-        const ui = render(<REPL engine={engine} tools={[]} cfg={cfg} />)
+        ui = render(<REPL engine={engine} tools={[]} cfg={cfg} />)
         await waitForFrame(ui.lastFrame, (frame) => frame.includes('Try "fix typecheck errors"'))
 
         ui.stdin.write('运行下 pwd')
@@ -164,6 +165,7 @@ describe('surface smoke', () => {
         const bashHeaderCount = (finalFrame.match(/Bash\(pwd\)/g) || []).length
         expect(bashHeaderCount).toBe(1)
       } finally {
+        ui?.unmount()
         if (prevForceStatic === undefined) delete process.env.FORMAX_FORCE_INK_STATIC
         else process.env.FORMAX_FORCE_INK_STATIC = prevForceStatic
       }
@@ -176,6 +178,7 @@ describe('surface smoke', () => {
     async () => {
       const prevForceStatic = process.env.FORMAX_FORCE_INK_STATIC
       process.env.FORMAX_FORCE_INK_STATIC = '1'
+      let ui: ReturnType<typeof render> | null = null
 
       try {
         const engine: ChatEngine = {
@@ -201,7 +204,7 @@ describe('surface smoke', () => {
         }
 
         const onClearTerminal = vi.fn(async () => {})
-        const ui = render(<REPL engine={engine} tools={[]} cfg={cfg} onClearTerminal={onClearTerminal} />)
+        ui = render(<REPL engine={engine} tools={[]} cfg={cfg} onClearTerminal={onClearTerminal} />)
 
         await waitForFrame(ui.lastFrame, (frame) => frame.includes('Try "fix typecheck errors"'))
 
@@ -316,6 +319,7 @@ describe('surface smoke', () => {
 
         expect(onClearTerminal.mock.calls.length).toBeGreaterThanOrEqual(4)
       } finally {
+        ui?.unmount()
         if (prevForceStatic === undefined) delete process.env.FORMAX_FORCE_INK_STATIC
         else process.env.FORMAX_FORCE_INK_STATIC = prevForceStatic
       }
