@@ -367,6 +367,22 @@ Status: `completed`
 - 消息 segment 构造逻辑集中，主 reducer 更聚焦于状态流转。
 - 保持原有空文本/空 uiKind 的跳过策略不变。
 
+### F.6 抽出 turn text lifecycle reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 `closeAssistantSegment/closeThinkingSegment/closeTurnTextSegments` 相关逻辑。
+
+**做法**:
+- 新增 `transcriptProjectionLifecycleReducer.ts`：
+  - `closeAssistantSegment(...)`
+  - `closeThinkingSegment(...)`
+  - `closeTurnTextSegments(...)`
+- 主 reducer 改为复用 lifecycle helper，移除本地实现。
+
+**结果**:
+- turn 文本 segment 生命周期规则集中，便于后续统一处理 finalize/close 语义。
+- 新增 `transcriptProjectionLifecycleReducer.test.ts` 直接覆盖 close/finalize 行为。
+
 ---
 
 ## 建议执行顺序

@@ -19,6 +19,11 @@ import {
   appendUserMessageSegment,
   shouldSkipMessageSegment,
 } from './transcriptProjectionMessageReducer'
+import {
+  closeAssistantSegment,
+  closeThinkingSegment,
+  closeTurnTextSegments,
+} from './transcriptProjectionLifecycleReducer'
 
 export type UserSegment = {
   id: string
@@ -119,43 +124,11 @@ function toSegmentId(args: { kind: TranscriptSegment['kind']; replaySeq: number;
     : `${args.turnId}:${args.kind}:${args.replaySeq}`
 }
 
-function findOpenSegmentIndexById(segments: TranscriptSegment[], id: string | undefined): number {
-  if (!id) return -1
-  return segments.findIndex((segment) => segment.id === id)
-}
-
 type ProjectionDraft = {
   segments: TranscriptSegment[]
   toolNameByUseId: Record<string, string>
   openAssistantSegmentIdByTurn: Record<string, string>
   openThinkingSegmentIdByTurn: Record<string, string>
-}
-
-function closeAssistantSegment(draft: ProjectionDraft, turnId: string): void {
-  if (!Object.prototype.hasOwnProperty.call(draft.openAssistantSegmentIdByTurn, turnId)) return
-  const next = { ...draft.openAssistantSegmentIdByTurn }
-  delete next[turnId]
-  draft.openAssistantSegmentIdByTurn = next
-}
-
-function closeThinkingSegment(draft: ProjectionDraft, turnId: string): void {
-  const segmentId = draft.openThinkingSegmentIdByTurn[turnId]
-  if (!segmentId) return
-  const segmentIndex = findOpenSegmentIndexById(draft.segments, segmentId)
-  if (segmentIndex >= 0) {
-    const current = draft.segments[segmentIndex]
-    if (current.kind === 'thinking' && current.status === 'running') {
-      draft.segments[segmentIndex] = { ...current, status: 'finalized' }
-    }
-  }
-  const next = { ...draft.openThinkingSegmentIdByTurn }
-  delete next[turnId]
-  draft.openThinkingSegmentIdByTurn = next
-}
-
-function closeTurnTextSegments(draft: ProjectionDraft, turnId: string): void {
-  closeAssistantSegment(draft, turnId)
-  closeThinkingSegment(draft, turnId)
 }
 
 
