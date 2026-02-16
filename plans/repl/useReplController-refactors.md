@@ -456,6 +456,21 @@ Status: `completed`
 - ID 规则与函数签名单点维护，减少重复定义。
 - 后续修改 segment id 结构时，改动范围显著缩小。
 
+### F.12 补齐 projection id / event reducer 单测
+Status: `completed`
+
+**位置**:
+- `semantics/transcriptProjectionIds.ts`
+- `semantics/transcriptProjectionEventReducer.ts`
+
+**做法**:
+- 新增 `transcriptProjectionIds.test.ts`，覆盖 segment id 在有/无 suffix 时的生成语义。
+- 新增 `transcriptProjectionEventReducer.test.ts`，覆盖非 message 分发中的关键路径（assistant delta、thinking finalized、tool input state）。
+
+**结果**:
+- ID 工厂与非 message 分发具备独立回归保护。
+- 后续继续拆分 projection reducer 时，能更快定位边界回归。
+
 ---
 
 ## 建议执行顺序
