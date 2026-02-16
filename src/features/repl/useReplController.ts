@@ -295,6 +295,11 @@ export function useReplController(deps: {
     exploreBatchRef.current = null
   }, [])
 
+  const clearCanonicalTransientState = useCallback(() => {
+    setCanonicalTurnMessages([])
+    setCanonicalTransientActive(false)
+  }, [])
+
   const onCompactLifecycle = useCallback(
     (event: CompactLifecycleEvent) => {
       if (!sessionSaveEnabled) return
@@ -330,10 +335,9 @@ export function useReplController(deps: {
     canonicalRefs.replaySeqRef.current = 0
     canonicalRefs.turnIdRef.current = null
     canonicalRefs.turnSeqRef.current = 0
-    setCanonicalTurnMessages([])
-    setCanonicalTransientActive(false)
+    clearCanonicalTransientState()
     lastClaudeMdMetaSigRef.current = null
-  }, [clearToolRuntimeState, resetStreamingBuffers])
+  }, [clearCanonicalTransientState, clearToolRuntimeState, resetStreamingBuffers])
 
   const nextCanonicalReplaySeq = useCallback(() => {
     canonicalRefs.replaySeqRef.current += 1
@@ -554,8 +558,7 @@ export function useReplController(deps: {
     userInput?.rejectAllPending(new Error('Request aborted'))
 
     resetStreamingBuffers()
-    setCanonicalTurnMessages([])
-    setCanonicalTransientActive(false)
+    clearCanonicalTransientState()
     setIsLoading(false)
     setError(null)
     const trackedRunningToolsSnapshot = Array.from(toolNameByIdRef.current.entries())
@@ -574,7 +577,7 @@ export function useReplController(deps: {
         hadInFlightRequest,
       })
     })
-  }, [clearToolRuntimeState, isLoading, resetStreamingBuffers, userInput])
+  }, [clearCanonicalTransientState, clearToolRuntimeState, isLoading, resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
     deps.engine.beginNewSession?.({ source: 'clear' })
@@ -788,8 +791,7 @@ export function useReplController(deps: {
         } finally {
           bashModeInFlightRef.current = false
           if (abortControllerRef.current === bashAbort) abortControllerRef.current = null
-          setCanonicalTurnMessages([])
-          setCanonicalTransientActive(false)
+          clearCanonicalTransientState()
         }
 
         return
@@ -977,8 +979,7 @@ export function useReplController(deps: {
           }
         }
         canonicalRefs.turnIdRef.current = null
-        setCanonicalTurnMessages([])
-        setCanonicalTransientActive(false)
+        clearCanonicalTransientState()
       }
     },
     [
@@ -992,6 +993,7 @@ export function useReplController(deps: {
       deps.reloadSubagents,
       deps.tools,
       closeOverlay,
+      clearCanonicalTransientState,
       handleEvent,
       onCanonicalEvent,
       nextCanonicalReplaySeq,

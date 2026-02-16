@@ -539,6 +539,20 @@ Status: `completed`
 - 减少重复清理代码，降低后续改字段时漏改风险。
 - 行为不变（仅复用清理实现）。
 
+### F.18 收敛 canonical transient UI 清理逻辑
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `clearCanonicalTransientState()`，统一执行 `setCanonicalTurnMessages([])` + `setCanonicalTransientActive(false)`。
+- 在 `resetSessionState`、`abort`、bash finally、主 turn finally 中复用该 helper。
+
+**结果**:
+- 减少重复的 UI 清理片段，降低后续状态字段调整时的漏改风险。
+- 行为不变（只做调用点收敛）。
+
 ---
 
 ## 建议执行顺序
