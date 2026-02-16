@@ -1,6 +1,7 @@
 import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRuntimeFlags, type RuntimeFlags } from '../../../env/runtimeFlags'
+import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000
 const MAX_OUTPUT_CHARS = 30000
@@ -30,6 +31,69 @@ export type BashModeRunResult = {
   exitCode: number | null
   exitSignal: string | null
   timedOut: boolean
+}
+
+export function createLocalBashCanonicalEmitter(args: {
+  threadId: string
+  turnId: string
+  toolUseId: string
+  onCanonicalEvent: (event: CanonicalEvent) => void
+  nextReplaySeq: () => number
+  nowIso?: () => string
+}): {
+  emitUserMessage: (command: string) => void
+  emitToolEvent: (args: { phase: 'start' | 'update' | 'end'; line?: string; summary?: string; isError?: boolean }) => void
+  emitFooter: (status: 'completed' | 'failed' | 'interrupted', message?: string) => void
+} {
+  const nowIso = args.nowIso ?? (() => new Date().toISOString())
+
+  return {
+    emitUserMessage: (command: string) => {
+      const replaySeq = args.nextReplaySeq()
+      args.onCanonicalEvent({
+        threadId: args.threadId,
+        replaySeq,
+        eventId: `${args.threadId}:${args.turnId}:user_message:${replaySeq}`,
+        ts: nowIso(),
+        source: 'ui',
+        kind: 'user_message',
+        turnId: args.turnId,
+        text: `! ${command}`,
+      })
+    },
+    emitToolEvent: (toolEventArgs) => {
+      const replaySeq = args.nextReplaySeq()
+      args.onCanonicalEvent({
+        threadId: args.threadId,
+        replaySeq,
+        eventId: `${args.threadId}:${args.turnId}:tool_event:${replaySeq}`,
+        ts: nowIso(),
+        source: 'tool',
+        kind: 'tool_event',
+        turnId: args.turnId,
+        toolUseId: args.toolUseId,
+        phase: toolEventArgs.phase,
+        toolName: 'LocalBash',
+        ...(toolEventArgs.line ? { line: toolEventArgs.line } : {}),
+        ...(toolEventArgs.summary ? { summary: toolEventArgs.summary } : {}),
+        ...(toolEventArgs.isError ? { isError: true } : {}),
+      })
+    },
+    emitFooter: (status, message) => {
+      const replaySeq = args.nextReplaySeq()
+      args.onCanonicalEvent({
+        threadId: args.threadId,
+        replaySeq,
+        eventId: `${args.threadId}:${args.turnId}:turn_footer:${replaySeq}`,
+        ts: nowIso(),
+        source: 'ui',
+        kind: 'turn_footer',
+        turnId: args.turnId,
+        status,
+        ...(message ? { message } : {}),
+      })
+    },
+  }
 }
 
 export async function runBashModeCommand(args: {

@@ -53,7 +53,7 @@ import {
   runMainSendTurn,
 } from './controller/send'
 import type { CompactLifecycleEvent } from './controller/compactFlow'
-import { formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
+import { createLocalBashCanonicalEmitter, formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
@@ -709,58 +709,14 @@ export function useReplController(deps: {
           canonicalReplaySeqRef.current += 1
           return canonicalReplaySeqRef.current
         }
-        const emitLocalUserMessage = () => {
-          const replaySeq = nextCanonicalReplaySeq()
-          onCanonicalEvent({
-            threadId: 'tui-live',
-            replaySeq,
-            eventId: `tui-live:${localTurnId}:user_message:${replaySeq}`,
-            ts: new Date().toISOString(),
-            source: 'ui',
-            kind: 'user_message',
-            turnId: localTurnId,
-            text: `! ${command}`,
-          })
-        }
-        const emitLocalToolEvent = (args: {
-          phase: 'start' | 'update' | 'end'
-          line?: string
-          summary?: string
-          isError?: boolean
-        }) => {
-          const replaySeq = nextCanonicalReplaySeq()
-          onCanonicalEvent({
-            threadId: 'tui-live',
-            replaySeq,
-            eventId: `tui-live:${localTurnId}:tool_event:${replaySeq}`,
-            ts: new Date().toISOString(),
-            source: 'tool',
-            kind: 'tool_event',
-            turnId: localTurnId,
-            toolUseId: msgId,
-            phase: args.phase,
-            toolName: 'LocalBash',
-            ...(args.line ? { line: args.line } : {}),
-            ...(args.summary ? { summary: args.summary } : {}),
-            ...(args.isError ? { isError: true } : {}),
-          })
-        }
-        const emitLocalFooter = (status: 'completed' | 'failed' | 'interrupted', message?: string) => {
-          const replaySeq = nextCanonicalReplaySeq()
-          onCanonicalEvent({
-            threadId: 'tui-live',
-            replaySeq,
-            eventId: `tui-live:${localTurnId}:turn_footer:${replaySeq}`,
-            ts: new Date().toISOString(),
-            source: 'ui',
-            kind: 'turn_footer',
-            turnId: localTurnId,
-            status,
-            ...(message ? { message } : {}),
-          })
-        }
-
         const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        const localCanonicalEmitter = createLocalBashCanonicalEmitter({
+          threadId: 'tui-live',
+          turnId: localTurnId,
+          toolUseId: msgId,
+          onCanonicalEvent,
+          nextReplaySeq: nextCanonicalReplaySeq,
+        })
         setMessages((prev) => [
           ...prev,
           {
@@ -775,9 +731,9 @@ export function useReplController(deps: {
             },
           },
         ])
-        emitLocalUserMessage()
-        emitLocalToolEvent({ phase: 'start' })
-        emitLocalToolEvent({ phase: 'update', line: `$ ${command}` })
+        localCanonicalEmitter.emitUserMessage(command)
+        localCanonicalEmitter.emitToolEvent({ phase: 'start' })
+        localCanonicalEmitter.emitToolEvent({ phase: 'update', line: `$ ${command}` })
 
         try {
           const res = await runBashModeCommand({
@@ -790,8 +746,8 @@ export function useReplController(deps: {
 
           // If the user aborted, `abort()` already marked running tool messages as error; don't overwrite.
           if (bashAbort.signal.aborted) {
-            emitLocalToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
-            emitLocalFooter('interrupted', 'Request aborted')
+            localCanonicalEmitter.emitToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
+            localCanonicalEmitter.emitFooter('interrupted', 'Request aborted')
             return
           }
 
@@ -838,8 +794,8 @@ export function useReplController(deps: {
             res.timedOut ||
             Boolean(res.exitSignal) ||
             (typeof res.exitCode === 'number' && res.exitCode !== 0)
-          emitLocalToolEvent({ phase: 'end', summary: outputText, isError })
-          emitLocalFooter(isError ? 'failed' : 'completed')
+          localCanonicalEmitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
+          localCanonicalEmitter.emitFooter(isError ? 'failed' : 'completed')
         } finally {
           bashModeInFlightRef.current = false
           if (abortControllerRef.current === bashAbort) abortControllerRef.current = null

@@ -105,6 +105,7 @@ Status: `completed`
 ## 二、中等重构（多文件、多步，需小步提交）
 
 ### 5. Bash 模式：将「执行 + canonical 发射」从 send 中拆出
+Status: `in_progress`（先做发射器抽离）
 
 **位置**: `send()` 中 `if (text.startsWith('!'))` 整块（约 748–910 行），含 `emitLocalUserMessage`、`emitLocalToolEvent`、`emitLocalFooter`、对 `runBashModeCommand` 的调用及 UI 更新。
 
@@ -115,6 +116,10 @@ Status: `completed`
 
 **验收**: `send` 少一大块；bash 与 canonical 的契约集中在一处，便于测试。
 **注意**: 需保留当前对 `pendingInjectedBlocksRef`、`setMessages` 的更新顺序与语义；拆时小步提交并用现有测试/手动 smoke 验证。
+
+**阶段结果（D.1）**:
+- 已在 `controller/bashMode.ts` 新增 `createLocalBashCanonicalEmitter(...)`，封装 LocalBash 的 canonical user/tool/footer 事件发射。
+- `useReplController.send()` 的 bash 分支已复用该发射器，移除内联事件构造逻辑。
 
 ---
 
