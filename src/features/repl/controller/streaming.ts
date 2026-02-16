@@ -8,6 +8,11 @@ import { makeMessageId } from './ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
+import {
+  applyLegacyToolInputToMessages,
+  applyLegacyToolUpdateToMessages,
+  createRunningToolMessage,
+} from './streamingLegacyToolRows'
 import { buildCompletedToolMessage } from './streamingToolCompletion'
 import {
   applyTaskStatsFromToolUpdate,
@@ -322,18 +327,11 @@ export function useReplStreaming(args: {
           toolMessageIdByToolUseIdRef.current.set(ev.id, toolMsgId)
           updateLegacyMessages((prev) => [
             ...prev,
-            {
-              id: toolMsgId,
-              role: 'tool' as const,
-              content: '',
-              timestamp: new Date(),
-              toolInfo: {
-                name: ev.name,
-                toolUseId: ev.id,
-                input: {},
-                status: 'running' as const,
-              },
-            },
+            createRunningToolMessage({
+              toolMsgId,
+              toolUseId: ev.id,
+              toolName: ev.name,
+            }),
           ])
           return
         }
@@ -366,9 +364,11 @@ export function useReplStreaming(args: {
           if (!canWriteLegacyTranscript) return
 
           updateLegacyMessages((prev) =>
-            prev.map((m) =>
-              m.id === toolMsgId ? { ...m, toolInfo: { ...m.toolInfo!, input: ev.input as any } } : m,
-            ),
+            applyLegacyToolInputToMessages({
+              previous: prev,
+              toolMsgId,
+              input: ev.input,
+            }),
           )
           return
         }
@@ -389,21 +389,12 @@ export function useReplStreaming(args: {
 
           if (shouldApplyLegacyToolUpdate({ toolName, event: ev })) {
             updateLegacyMessages((prev) =>
-              prev.map((m) =>
-                m.id === toolMsgId
-                  ? {
-                      ...m,
-                      toolInfo: {
-                        ...m.toolInfo!,
-                        ...(ev.middleLines ? { middleLines: ev.middleLines } : {}),
-                        ...(ev.transcriptLines ? { transcriptLines: ev.transcriptLines } : {}),
-                        ...(ev.nestedTools ? { nestedTools: ev.nestedTools } : {}),
-                        ...(toolName === 'Task' && typeof ev.toolUses === 'number' ? { toolUses: ev.toolUses } : {}),
-                        ...(toolName === 'Task' && ev.usage ? { usage: ev.usage } : {}),
-                      },
-                    }
-                  : m,
-              ),
+              applyLegacyToolUpdateToMessages({
+                previous: prev,
+                toolMsgId,
+                toolName,
+                event: ev,
+              }),
             )
           }
 

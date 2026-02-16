@@ -225,6 +225,22 @@ Status: `completed`
 - `tool_end` 分支进一步聚焦于消息拼接/副作用编排。
 - 批次完成判定规则可在 `streamingTaskState.test.ts` 直接单测。
 
+### E.5 抽出 legacy tool row 构造/更新 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 的 `tool_start/tool_input/tool_update` 分支。
+
+**做法**:
+- 新增 `streamingLegacyToolRows.ts`：
+  - `createRunningToolMessage(...)`
+  - `applyLegacyToolInputToMessages(...)`
+  - `applyLegacyToolUpdateToMessages(...)`
+- `streaming.ts` 对应分支改为调用 helper。
+
+**结果**:
+- legacy tool row 的对象构造与 map 更新规则集中，`streaming.ts` 分支进一步减重。
+- 新增 `streamingLegacyToolRows.test.ts` 直接覆盖 row 构造与更新语义。
+
 ---
 
 ## 建议执行顺序
