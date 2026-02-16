@@ -45,6 +45,20 @@ describe('transcriptProjectionCore', () => {
     }
   })
 
+  it('skips duplicate event id without creating a new state object', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    state.seenEventIds.add('dup-1')
+    const prepared = prepareProjectionReduction({
+      state,
+      event: makeEvent({ eventId: 'dup-1', replaySeq: 10 }),
+    })
+    expect(prepared.kind).toBe('skip')
+    if (prepared.kind === 'skip') {
+      expect(prepared.state).toBe(state)
+      expect(prepared.state.seenEventIds.size).toBe(1)
+    }
+  })
+
   it('proceeds for fresh events and finalizes state updates', () => {
     const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
     const event = makeEvent({ eventId: 'e2', replaySeq: 2 })

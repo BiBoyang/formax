@@ -486,6 +486,18 @@ Status: `completed`
 - non-message 分发与 lifecycle reducer 的协同语义被显式锁定。
 - 后续如果调整事件顺序或 close 逻辑，能第一时间暴露回归。
 
+### F.14 补齐 projection core 去重路径单测
+Status: `completed`
+
+**位置**:
+- `semantics/transcriptProjectionCore.ts`
+
+**做法**:
+- 在 `transcriptProjectionCore.test.ts` 新增 duplicate `eventId` 场景，验证 `prepareProjectionReduction(...)` 命中去重分支时直接返回原 state（不产生新对象、不重复记账）。
+
+**结果**:
+- core 去重路径具备更明确的回归保护，后续若调整 seen-event 逻辑可快速发现对象 churn 或去重失效。
+
 ---
 
 ## 建议执行顺序
