@@ -32,6 +32,12 @@ const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
 const MANUAL_COMPACT_KEEP_LAST_TURNS = 0
 
+export type CanonicalUiMessage = {
+  role: 'assistant' | 'user'
+  content: string
+  uiKind?: 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
+}
+
 export function maybeHandleClearCommand(args: {
   text: string
   isLoading: boolean
@@ -438,6 +444,7 @@ export async function runMainSendTurn(raw: {
         | null
       >
     >
+    emitCanonicalUiMessage?: (message: CanonicalUiMessage) => void
   }
 }): Promise<{ userMessageId: string; turnOutcome: 'completed' | 'aborted' | 'failed' }> {
   const args = {
@@ -456,6 +463,7 @@ export async function runMainSendTurn(raw: {
   }
 
   args.setMessages((prev) => [...prev, userMsg])
+  args.emitCanonicalUiMessage?.({ role: 'user', content: userMsg.content })
   args.setIsLoading(true)
   args.setLoadingText(args.slashEffect?.kind === 'llm' ? args.slashEffect.loadingText || 'Thinking' : 'Thinking')
   args.thinkingBufferRef.current = ''
@@ -571,6 +579,11 @@ export async function runMainSendTurn(raw: {
 
           args.lastAutoCompactSeqRef.current = sendSeq
           if (args.cfg.ui.showAutoCompactNotice) {
+            args.emitCanonicalUiMessage?.({
+              role: 'assistant',
+              content: 'Conversation history auto-compacted (summary kept for future turns).',
+              uiKind: 'command_subline',
+            })
             args.setMessages((prev) => [
               ...prev,
               {
@@ -690,6 +703,11 @@ export async function runMainSendTurn(raw: {
     } else {
       turnOutcome = 'failed'
       args.setError(msg)
+      args.emitCanonicalUiMessage?.({
+        role: 'assistant',
+        content: formatErrorSubline(msg),
+        uiKind: 'command_subline',
+      })
       args.setMessages((prev) => [
         ...prev.filter(
           (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),

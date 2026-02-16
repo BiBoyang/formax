@@ -81,4 +81,25 @@ describe('streamCanonicalAdapter', () => {
       message: 'boom',
     })
   })
+
+  it('maps abort-like stream errors to interrupted turn footer', () => {
+    let replaySeq = 0
+    const events = toCanonicalEventsFromStreamEvent(
+      { type: 'error', error: new Error('Request aborted by user') },
+      {
+        threadId: 'tui-live',
+        turnId: 'turn-interrupted',
+        nextReplaySeq: () => {
+          replaySeq += 1
+          return replaySeq
+        },
+      },
+    )
+
+    expect(events[1]).toMatchObject({
+      kind: 'turn_footer',
+      status: 'interrupted',
+      message: 'Request aborted by user',
+    })
+  })
 })

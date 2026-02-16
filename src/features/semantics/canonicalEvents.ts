@@ -2,6 +2,7 @@ export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui
 
 export type ToolInputKind = 'approval' | 'ask_user_question'
 export type ToolInputStatus = 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+export type CanonicalMessageUiKind = 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
 
 export type CanonicalEventEnvelope = {
   threadId: string
@@ -58,7 +59,24 @@ export type CanonicalTurnFooterEvent = CanonicalEventEnvelope & {
   message?: string
 }
 
+export type CanonicalUserMessageEvent = CanonicalEventEnvelope & {
+  kind: 'user_message'
+  turnId: string
+  text: string
+  uiKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
+}
+
+export type CanonicalSystemMessageEvent = CanonicalEventEnvelope & {
+  kind: 'system_message'
+  turnId: string
+  role: 'assistant' | 'user'
+  text: string
+  uiKind?: CanonicalMessageUiKind
+}
+
 export type CanonicalEvent =
+  | CanonicalUserMessageEvent
+  | CanonicalSystemMessageEvent
   | CanonicalAssistantDeltaEvent
   | CanonicalThinkingDeltaEvent
   | CanonicalThinkingFinalizedEvent

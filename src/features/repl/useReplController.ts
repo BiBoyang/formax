@@ -24,7 +24,8 @@ import { partitionMessages } from './controller/messages'
 import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
-import { canonicalTurnSegmentsToMessages, replaceTurnTailWithCanonicalMessages } from './controller/canonicalTurnMessages'
+import { canonicalTurnSegmentsToMessages } from './controller/canonicalTurnMessages'
+import { isErrorLikeSubline } from './controller/errorSubline'
 import {
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -39,6 +40,7 @@ import {
   getLocalCommandInjectionStats,
 } from './controller/localCommandInjection'
 import {
+  type CanonicalUiMessage,
   maybeHandleClearCommand,
   maybeHandleCompactCommand,
   maybeHandleConsumedSlashCommand,
@@ -347,11 +349,9 @@ export function useReplController(deps: {
         transientOnly: true,
         openAssistantSegmentId: canonicalProjectionRef.current.openAssistantSegmentIdByTurn[turnId],
         includeAssistantStreaming: assistantTextMode === 'stream',
+        includeUserSystem: false,
       }),
     )
-    if (event.kind === 'turn_footer') {
-      canonicalTurnIdRef.current = null
-    }
   }, [assistantTextMode])
 
   useEffect(() => {
@@ -538,6 +538,7 @@ export function useReplController(deps: {
   })
 
   const abort = useCallback(() => {
+    const hadInFlightRequest = Boolean(abortControllerRef.current) || isLoading
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     bashModeInFlightRef.current = false
@@ -550,6 +551,12 @@ export function useReplController(deps: {
     setCanonicalTransientActive(false)
     setIsLoading(false)
     setError(null)
+    const trackedRunningToolsSnapshot = Array.from(toolNameByIdRef.current.entries())
+    toolNameByIdRef.current.clear()
+    toolInputByIdRef.current.clear()
+    taskStatsByToolUseIdRef.current.clear()
+    taskKindByToolUseIdRef.current.clear()
+    exploreBatchRef.current = null
 
     if (currentAssistantIdRef.current) {
       const id = currentAssistantIdRef.current
@@ -560,6 +567,7 @@ export function useReplController(deps: {
     setMessages((prev) => {
       const abortedAt = Date.now()
       const abortResult = 'Error: Request aborted'
+      const trackedRunningTools = trackedRunningToolsSnapshot
 
       const markAborted = (m: Msg): Msg => {
         if (m.role !== 'tool' || !m.toolInfo || m.toolInfo.status !== 'running') return m
@@ -577,10 +585,28 @@ export function useReplController(deps: {
       const isAskRunning = (m: Msg) =>
         m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running'
 
-      const hadAsk = prev.some(isAskRunning)
+      const hadAsk = prev.some(isAskRunning) || trackedRunningTools.some(([, name]) => name === 'AskUserQuestion')
       const next = prev.map(markAborted)
 
-      if (hadAsk) {
+      for (const [toolUseId, toolName] of trackedRunningTools) {
+        const exists = next.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === toolUseId)
+        if (exists) continue
+        next.push({
+          id: `tool-${toolUseId}`,
+          role: 'tool',
+          content: abortResult,
+          timestamp: new Date(abortedAt),
+          toolInfo: {
+            name: toolName || 'Tool',
+            toolUseId,
+            input: {},
+            status: 'error',
+            result: abortResult,
+          },
+        })
+      }
+
+      if (hadAsk && hadInFlightRequest) {
         next.push({
           id: `assistant-${abortedAt}`,
           role: 'assistant',
@@ -591,7 +617,7 @@ export function useReplController(deps: {
 
       return next
     })
-  }, [resetStreamingBuffers, userInput])
+  }, [isLoading, resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
     deps.engine.beginNewSession?.({ source: 'clear' })
@@ -731,6 +757,63 @@ export function useReplController(deps: {
         const bashAbort = new AbortController()
         abortControllerRef.current = bashAbort
 
+        canonicalTurnSeqRef.current += 1
+        const localTurnId = `local-bash-${canonicalTurnSeqRef.current}`
+        const nextCanonicalReplaySeq = () => {
+          canonicalReplaySeqRef.current += 1
+          return canonicalReplaySeqRef.current
+        }
+        const emitLocalUserMessage = () => {
+          const replaySeq = nextCanonicalReplaySeq()
+          onCanonicalEvent({
+            threadId: 'tui-live',
+            replaySeq,
+            eventId: `tui-live:${localTurnId}:user_message:${replaySeq}`,
+            ts: new Date().toISOString(),
+            source: 'ui',
+            kind: 'user_message',
+            turnId: localTurnId,
+            text: `! ${command}`,
+          })
+        }
+        const emitLocalToolEvent = (args: {
+          phase: 'start' | 'update' | 'end'
+          line?: string
+          summary?: string
+          isError?: boolean
+        }) => {
+          const replaySeq = nextCanonicalReplaySeq()
+          onCanonicalEvent({
+            threadId: 'tui-live',
+            replaySeq,
+            eventId: `tui-live:${localTurnId}:tool_event:${replaySeq}`,
+            ts: new Date().toISOString(),
+            source: 'tool',
+            kind: 'tool_event',
+            turnId: localTurnId,
+            toolUseId: msgId,
+            phase: args.phase,
+            toolName: 'LocalBash',
+            ...(args.line ? { line: args.line } : {}),
+            ...(args.summary ? { summary: args.summary } : {}),
+            ...(args.isError ? { isError: true } : {}),
+          })
+        }
+        const emitLocalFooter = (status: 'completed' | 'failed' | 'interrupted', message?: string) => {
+          const replaySeq = nextCanonicalReplaySeq()
+          onCanonicalEvent({
+            threadId: 'tui-live',
+            replaySeq,
+            eventId: `tui-live:${localTurnId}:turn_footer:${replaySeq}`,
+            ts: new Date().toISOString(),
+            source: 'ui',
+            kind: 'turn_footer',
+            turnId: localTurnId,
+            status,
+            ...(message ? { message } : {}),
+          })
+        }
+
         const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
         setMessages((prev) => [
           ...prev,
@@ -746,6 +829,9 @@ export function useReplController(deps: {
             },
           },
         ])
+        emitLocalUserMessage()
+        emitLocalToolEvent({ phase: 'start' })
+        emitLocalToolEvent({ phase: 'update', line: `$ ${command}` })
 
         try {
           const res = await runBashModeCommand({
@@ -757,7 +843,11 @@ export function useReplController(deps: {
           })
 
           // If the user aborted, `abort()` already marked running tool messages as error; don't overwrite.
-          if (bashAbort.signal.aborted) return
+          if (bashAbort.signal.aborted) {
+            emitLocalToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
+            emitLocalFooter('interrupted', 'Request aborted')
+            return
+          }
 
           const outputText = formatBashModeOutput({
             stdout: res.stdout,
@@ -798,9 +888,17 @@ export function useReplController(deps: {
               }
             }),
           )
+          const isError =
+            res.timedOut ||
+            Boolean(res.exitSignal) ||
+            (typeof res.exitCode === 'number' && res.exitCode !== 0)
+          emitLocalToolEvent({ phase: 'end', summary: outputText, isError })
+          emitLocalFooter(isError ? 'failed' : 'completed')
         } finally {
           bashModeInFlightRef.current = false
           if (abortControllerRef.current === bashAbort) abortControllerRef.current = null
+          setCanonicalTurnMessages([])
+          setCanonicalTransientActive(false)
         }
 
         return
@@ -912,6 +1010,41 @@ export function useReplController(deps: {
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
+      const emitCanonicalUiMessage = (message: CanonicalUiMessage) => {
+        const replaySeq = (() => {
+          canonicalReplaySeqRef.current += 1
+          return canonicalReplaySeqRef.current
+        })()
+        const ts = new Date().toISOString()
+
+        if (message.role === 'user' && (message.uiKind === undefined || message.uiKind === 'compact_summary')) {
+          onCanonicalEvent({
+            threadId: 'tui-live',
+            replaySeq,
+            eventId: `tui-live:${canonicalTurnId}:user_message:${replaySeq}`,
+            ts,
+            source: 'ui',
+            kind: 'user_message',
+            turnId: canonicalTurnId,
+            text: message.content,
+            ...(message.uiKind === 'compact_summary' ? { uiKind: 'compact_summary' } : {}),
+          })
+          return
+        }
+
+        onCanonicalEvent({
+          threadId: 'tui-live',
+          replaySeq,
+          eventId: `tui-live:${canonicalTurnId}:system_message:${replaySeq}`,
+          ts,
+          source: 'ui',
+          kind: 'system_message',
+          turnId: canonicalTurnId,
+          role: message.role,
+          text: message.content,
+          ...(message.uiKind ? { uiKind: message.uiKind } : {}),
+        })
+      }
       try {
         const runResult = await runMainSendTurn({
           input: { text, slashEffect, provider },
@@ -949,25 +1082,151 @@ export function useReplController(deps: {
             setThinkingText,
             setError,
             setContext,
+            emitCanonicalUiMessage,
           },
         })
         turnUserMessageId = runResult.userMessageId
         turnOutcome = runResult.turnOutcome
       } finally {
-        if (turnUserMessageId && turnOutcome === 'completed') {
+        if (turnUserMessageId) {
           const turnSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, canonicalTurnId)
           const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
             turnId: canonicalTurnId,
             segments: turnSegments,
+            includeUserSystem: false,
           })
-          if (canonicalFinalMessages.length > 0) {
-            setMessages((prev) =>
-              replaceTurnTailWithCanonicalMessages({
-                messages: prev,
-                userMessageId: turnUserMessageId,
-                canonicalTurnMessages: canonicalFinalMessages,
-              }),
-            )
+          const canonicalRowsForAppend =
+            turnOutcome === 'aborted'
+              ? canonicalFinalMessages.filter((message) => message.role !== 'tool')
+              : canonicalFinalMessages
+          const canonicalToolUseIds = new Set(
+            canonicalRowsForAppend
+              .filter((message) => message.role === 'tool')
+              .map((message) => String(message.toolInfo?.toolUseId || '').trim())
+              .filter((id) => id.length > 0),
+          )
+          const hasStableCanonicalOutput = canonicalRowsForAppend.some((message) => {
+            if (message.role === 'assistant' && message.ui?.kind !== 'thinking_block') {
+              return String(message.content || '').trim().length > 0
+            }
+            return false
+          })
+          const shouldAppendCanonicalFinal =
+            turnOutcome !== 'aborted' || hasStableCanonicalOutput
+          if (shouldAppendCanonicalFinal && canonicalRowsForAppend.length > 0) {
+            setMessages((prev) => {
+              const userIndex = prev.findIndex((message) => message.id === turnUserMessageId)
+              if (userIndex < 0) {
+                return prev
+              }
+
+              const head = prev.slice(0, userIndex + 1)
+              const tail = prev.slice(userIndex + 1)
+              const legacyToolByUseId = new Map<string, Msg>()
+              for (const message of tail) {
+                if (message.role !== 'tool') continue
+                const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
+                if (!toolUseId) continue
+                legacyToolByUseId.set(toolUseId, message)
+              }
+              const canonicalRows = canonicalRowsForAppend.map((message) => {
+                const baseMessage: Msg = {
+                  ...message,
+                  isStreaming: false,
+                  timestamp: message.timestamp,
+                }
+                if (baseMessage.role !== 'tool') return baseMessage
+                const toolUseId = String(baseMessage.toolInfo?.toolUseId || '').trim()
+                if (!toolUseId) return baseMessage
+                const legacyTool = legacyToolByUseId.get(toolUseId)
+                if (!legacyTool || legacyTool.role !== 'tool') return baseMessage
+                return {
+                  ...legacyTool,
+                  id: legacyTool.id,
+                  timestamp: legacyTool.timestamp,
+                  isStreaming: false,
+                }
+              })
+              const isReplacedLegacyRow = (message: Msg): boolean => {
+                if (message.role !== 'tool') return false
+                const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
+                if (!toolUseId) return false
+                return canonicalToolUseIds.has(toolUseId)
+              }
+
+              let insertAtTail = -1
+              const mergedTail: Msg[] = []
+              for (const message of tail) {
+                if (isReplacedLegacyRow(message)) {
+                  if (insertAtTail < 0) insertAtTail = mergedTail.length
+                  continue
+                }
+                mergedTail.push(message)
+              }
+
+              if (insertAtTail < 0 && turnOutcome === 'aborted') {
+                const firstToolIndex = mergedTail.findIndex((message) => message.role === 'tool')
+                if (firstToolIndex >= 0) insertAtTail = firstToolIndex
+              }
+
+              if (insertAtTail < 0 && turnOutcome === 'failed') {
+                const isFailureSubline = (message: Msg | undefined): boolean =>
+                  Boolean(
+                    message &&
+                      message.role === 'assistant' &&
+                      message.ui?.kind === 'command_subline' &&
+                      isErrorLikeSubline(String(message.content || '')),
+                  )
+                insertAtTail = mergedTail.length
+                while (insertAtTail > 0) {
+                  const maybeSubline = mergedTail[insertAtTail - 1]
+                  if (isFailureSubline(maybeSubline)) {
+                    insertAtTail -= 1
+                    continue
+                  }
+                  break
+                }
+              }
+              if (insertAtTail < 0) insertAtTail = mergedTail.length
+
+              const anchorBefore = insertAtTail > 0 ? mergedTail[insertAtTail - 1] : head[head.length - 1]
+              const anchorBeforeTs =
+                anchorBefore?.timestamp instanceof Date ? anchorBefore.timestamp.getTime() : Date.now() - 1
+              let canonicalTsCursor = anchorBeforeTs
+              const datedCanonicalRows = canonicalRows.map((message) => {
+                if (message.role === 'tool') return message
+                canonicalTsCursor += 1
+                return { ...message, timestamp: new Date(canonicalTsCursor) }
+              })
+
+              const mergedMessages = [
+                ...head,
+                ...mergedTail.slice(0, insertAtTail),
+                ...datedCanonicalRows,
+                ...mergedTail.slice(insertAtTail),
+              ]
+              let lastTs =
+                head.length > 0 && head[head.length - 1]?.timestamp instanceof Date
+                  ? head[head.length - 1]!.timestamp.getTime()
+                  : 1
+              return mergedMessages.map((message, index) => {
+                if (index <= userIndex) {
+                  const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs
+                  lastTs = Math.max(lastTs, raw)
+                  return message
+                }
+                if (message.role === 'tool') {
+                  const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs
+                  lastTs = Math.max(lastTs, raw)
+                  return message
+                }
+                const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs + 1
+                const normalized = Math.max(lastTs + 1, raw)
+                lastTs = normalized
+                if (message.timestamp instanceof Date && message.timestamp.getTime() === normalized) return message
+                return { ...message, timestamp: new Date(normalized) }
+              })
+            })
           }
         }
         canonicalTurnIdRef.current = null
@@ -987,6 +1246,7 @@ export function useReplController(deps: {
       deps.tools,
       closeOverlay,
       handleEvent,
+      onCanonicalEvent,
       isLoading,
       newSession,
       openOverlay,

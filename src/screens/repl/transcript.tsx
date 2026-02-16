@@ -35,10 +35,11 @@ export function ReplTranscript(props: {
   staticMessages: Msg[]
   transientMessages: Msg[]
   renderMessage: (msg: Msg) => React.ReactNode
+  forceDynamic?: boolean
 }): React.ReactNode {
-  const { transcriptSeq, version, modelLabel, cwd, staticMessages, transientMessages, renderMessage } = props
+  const { transcriptSeq, version, modelLabel, cwd, staticMessages, transientMessages, renderMessage, forceDynamic } = props
 
-  const enableInkStatic = shouldEnableInkStatic()
+  const enableInkStatic = shouldEnableInkStatic() && !forceDynamic
 
   const staticItems = useMemo<StaticTranscriptItem[]>(
     () => [
@@ -104,10 +105,11 @@ export function ExpandedReplTranscript(props: {
   cwd: string
   messages: Msg[]
   renderMessage: (msg: Msg) => React.ReactNode
+  forceDynamic?: boolean
 }): React.ReactNode {
-  const { transcriptSeq, version, modelLabel, cwd, messages, renderMessage } = props
+  const { transcriptSeq, version, modelLabel, cwd, messages, renderMessage, forceDynamic } = props
 
-  const enableInkStatic = shouldEnableInkStatic()
+  const enableInkStatic = shouldEnableInkStatic() && !forceDynamic
 
   const staticItems = useMemo<StaticTranscriptItem[]>(
     () => [

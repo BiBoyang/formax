@@ -159,6 +159,7 @@ export function useReplStreaming(args: {
       const canonicalTurnId = args.canonical?.getTurnId()
       const shouldForwardCanonical = !(ev.type === 'error' && isAbortLikeError(ev.error))
       const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
+      const canonicalOnly = canonicalBridgeActive
       if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
         const canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
           threadId: args.canonical.threadId,
@@ -173,7 +174,7 @@ export function useReplStreaming(args: {
       switch (ev.type) {
         case 'assistant_delta': {
           stopThinkingIfActive()
-          if (canonicalBridgeActive) return
+          if (canonicalOnly) return
           if (args.assistantTextMode === 'buffered') {
             args.assistantBufferRef.current += ev.text
             return
@@ -276,9 +277,9 @@ export function useReplStreaming(args: {
 
         case 'tool_start': {
           stopThinkingIfActive()
-          if (args.assistantTextMode === 'buffered') {
+          if (args.assistantTextMode === 'buffered' && !canonicalOnly) {
             flushAssistantBuffer()
-          } else {
+          } else if (!canonicalOnly) {
             if (args.currentAssistantIdRef.current) {
               const id = args.currentAssistantIdRef.current
               args.setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)))
@@ -306,18 +307,24 @@ export function useReplStreaming(args: {
           const toolMsgId = `tool-${ev.id}`
           args.setMessages((prev) => [
             ...prev,
-            {
-              id: toolMsgId,
-              role: 'tool',
-              content: '',
-              timestamp: new Date(),
-              toolInfo: {
-                name: ev.name,
-                toolUseId: ev.id,
-                input: {},
-                status: 'running',
-              },
-            },
+            ...(
+              prev.some((m) => m.id === toolMsgId && m.toolInfo?.status === 'running')
+                ? []
+                : [
+                    {
+                      id: toolMsgId,
+                      role: 'tool' as const,
+                      content: '',
+                      timestamp: new Date(),
+                      toolInfo: {
+                        name: ev.name,
+                        toolUseId: ev.id,
+                        input: {},
+                        status: 'running' as const,
+                      },
+                    },
+                  ]
+            ),
           ])
           return
         }
@@ -428,96 +435,96 @@ export function useReplStreaming(args: {
           args.taskKindByToolUseIdRef.current.delete(ev.id)
 
           args.setMessages((prev) => {
-            const toolMsg = prev.find((m) => m.id === toolMsgId)
-            const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
-            const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
+              const toolMsg = prev.find((m) => m.id === toolMsgId)
+              const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
+              const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
 
-            const editPatchStartLineNumber =
-              toolName === 'Edit' && !ev.result.is_error
-                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
-                : null
+              const editPatchStartLineNumber =
+                toolName === 'Edit' && !ev.result.is_error
+                  ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
+                  : null
 
-            const rawResult = ev.result.content
-            const displayResult =
-              ev.result.is_error && rawResult.startsWith('Error: ')
-                ? rawResult.slice('Error: '.length)
-                : rawResult
+              const rawResult = ev.result.content
+              const displayResult =
+                ev.result.is_error && rawResult.startsWith('Error: ')
+                  ? rawResult.slice('Error: '.length)
+                  : rawResult
 
-            if (toolName === 'Task') {
-              const stats = args.taskStatsByToolUseIdRef.current.get(ev.id)
-              args.taskStatsByToolUseIdRef.current.delete(ev.id)
-              const startedAt = stats?.startedAt ?? Date.now()
-              const durationMs = Date.now() - startedAt
+              if (toolName === 'Task') {
+                const stats = args.taskStatsByToolUseIdRef.current.get(ev.id)
+                args.taskStatsByToolUseIdRef.current.delete(ev.id)
+                const startedAt = stats?.startedAt ?? Date.now()
+                const durationMs = Date.now() - startedAt
 
-              const tokens = formatTokenTotal(stats?.usage)
-              const backgroundTaskId = parseBackgroundTaskId(rawResult)
-              const parsedTranscript = parseTaskTranscript(rawResult)
-              const doneText = ev.result.is_error
-                ? displayResult || 'Error'
-                : backgroundTaskId
-                  ? `Started (task_id: ${backgroundTaskId})`
-                  : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                      durationMs,
-                    )})`
+                const tokens = formatTokenTotal(stats?.usage)
+                const backgroundTaskId = parseBackgroundTaskId(rawResult)
+                const parsedTranscript = parseTaskTranscript(rawResult)
+                const doneText = ev.result.is_error
+                  ? displayResult || 'Error'
+                  : backgroundTaskId
+                    ? `Started (task_id: ${backgroundTaskId})`
+                    : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                        durationMs,
+                      )})`
+
+                return prev.map((m) =>
+                  m.id === toolMsgId
+                    ? {
+                        ...m,
+                        content: doneText,
+                        toolInfo: {
+                          ...m.toolInfo!,
+                          status: ev.result.is_error ? 'error' : 'completed',
+                          result: rawResult,
+                          ...(parsedTranscript ? { transcriptLines: parsedTranscript } : {}),
+                          ...(stats ? { toolUses: stats.toolUses, usage: stats.usage, durationMs } : { durationMs }),
+                        },
+                      }
+                    : m,
+                )
+              }
+
+              if (toolName === 'Skill' && !ev.result.is_error) {
+                return prev.map((m) =>
+                  m.id === toolMsgId
+                    ? {
+                        ...m,
+                        content: '',
+                        toolInfo: {
+                          ...m.toolInfo!,
+                          status: 'completed',
+                          result: rawResult,
+                        },
+                      }
+                    : m,
+                )
+              }
+
+              const { summary, middleLines, expandInfo, lines } = formatToolResult(
+                toolName,
+                displayResult,
+                Boolean(ev.result.is_error),
+              )
 
               return prev.map((m) =>
                 m.id === toolMsgId
                   ? {
                       ...m,
-                      content: doneText,
+                      content: summary,
                       toolInfo: {
                         ...m.toolInfo!,
+                        ...(toolInput ? { input: toolInput as any } : {}),
                         status: ev.result.is_error ? 'error' : 'completed',
                         result: rawResult,
-                        ...(parsedTranscript ? { transcriptLines: parsedTranscript } : {}),
-                        ...(stats ? { toolUses: stats.toolUses, usage: stats.usage, durationMs } : { durationMs }),
+                        resultLines: lines,
+                        expandInfo,
+                        middleLines,
+                        ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
                       },
                     }
                   : m,
               )
-            }
-
-            if (toolName === 'Skill' && !ev.result.is_error) {
-              return prev.map((m) =>
-                m.id === toolMsgId
-                  ? {
-                      ...m,
-                      content: '',
-                      toolInfo: {
-                        ...m.toolInfo!,
-                        status: 'completed',
-                        result: rawResult,
-                      },
-                    }
-                  : m,
-              )
-            }
-
-            const { summary, middleLines, expandInfo, lines } = formatToolResult(
-              toolName,
-              displayResult,
-              Boolean(ev.result.is_error),
-            )
-
-            return prev.map((m) =>
-              m.id === toolMsgId
-                ? {
-                    ...m,
-                    content: summary,
-                    toolInfo: {
-                      ...m.toolInfo!,
-                      ...(toolInput ? { input: toolInput as any } : {}),
-                      status: ev.result.is_error ? 'error' : 'completed',
-                      result: rawResult,
-                      resultLines: lines,
-                      expandInfo,
-                      middleLines,
-                      ...(editPatchStartLineNumber !== null ? { patchStartLineNumber: editPatchStartLineNumber } : {}),
-                    },
-                  }
-                : m,
-            )
-          })
+            })
 
           if (toolNameFromStart === 'Task' && taskKind === 'explore') {
             const batch = args.exploreBatchRef.current
@@ -547,7 +554,7 @@ export function useReplStreaming(args: {
           })
 
           const activeAssistantId = args.currentAssistantIdRef.current
-          if (activeAssistantId) {
+          if (activeAssistantId && !canonicalOnly) {
             args.setMessages((prev) =>
               prev.map((m) => (m.id === activeAssistantId ? { ...m, isStreaming: false } : m)),
             )
@@ -567,7 +574,7 @@ export function useReplStreaming(args: {
 
         case 'complete': {
           stopThinkingIfActive()
-          if (canonicalBridgeActive) {
+          if (canonicalOnly) {
             args.currentAssistantIdRef.current = null
             args.assistantBufferRef.current = ''
             return

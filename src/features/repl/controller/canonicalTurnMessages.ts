@@ -34,11 +34,36 @@ export function canonicalTurnSegmentsToMessages(args: {
   transientOnly?: boolean
   openAssistantSegmentId?: string
   includeAssistantStreaming?: boolean
+  includeUserSystem?: boolean
 }): Msg[] {
   const turnSegments = args.segments.filter((segment) => segment.turnId === args.turnId)
   if (turnSegments.length === 0) return []
 
   const mapped = turnSegments.map((segment): Msg | null => {
+    if (segment.kind === 'user') {
+      if (args.includeUserSystem === false) return null
+      if (args.transientOnly) return null
+      return {
+        id: `canonical:${segment.id}`,
+        role: 'user' as const,
+        content: segment.text,
+        timestamp: new Date(0),
+        ...(segment.uiKind ? { ui: { kind: segment.uiKind } } : {}),
+      }
+    }
+
+    if (segment.kind === 'system') {
+      if (args.includeUserSystem === false) return null
+      if (args.transientOnly) return null
+      return {
+        id: `canonical:${segment.id}`,
+        role: segment.role,
+        content: segment.text,
+        timestamp: new Date(0),
+        ...(segment.uiKind ? { ui: { kind: segment.uiKind } } : {}),
+      }
+    }
+
     if (segment.kind === 'assistant') {
       const allowAssistantStreaming = args.includeAssistantStreaming ?? true
       if (args.transientOnly && !allowAssistantStreaming) return null
@@ -68,11 +93,13 @@ export function canonicalTurnSegmentsToMessages(args: {
     const summaryParts = splitSummaryLines(segment.summary)
     const middleLines = segment.detailLines.length > 0 ? segment.detailLines : summaryParts.remainingLines
     const resultLines = [summaryParts.firstLine, ...middleLines].filter((line) => line.length > 0)
+    const hideSummaryContent = segment.toolName === 'Skill' && segment.status === 'completed'
+    const content = hideSummaryContent ? '' : summaryParts.firstLine
 
     return {
       id: `canonical:${segment.id}`,
       role: 'tool' as const,
-      content: summaryParts.firstLine,
+      content,
       timestamp: new Date(0),
       toolInfo: {
         name: segment.toolName,
@@ -178,17 +205,30 @@ export function replaceTurnTailWithCanonicalMessages(args: {
 
 function mergeCanonicalAssistantMessage(canonical: Msg, legacy: Msg | null): Msg {
   if (!legacy) return { ...canonical, isStreaming: false }
+  const legacyUiKind = legacy.ui?.kind
+  const canonicalUiKind = canonical.ui?.kind
+  const nextContent = canonical.content ?? legacy.content
+  // Avoid rewriting stable assistant rows; Ink Static is append-only and would duplicate lines.
+  if (!legacy.isStreaming && nextContent === legacy.content && legacyUiKind === canonicalUiKind) {
+    return legacy
+  }
   return {
     ...legacy,
     ...canonical,
     id: legacy.id,
     timestamp: legacy.timestamp,
+    content: nextContent,
     isStreaming: false,
   }
 }
 
 function mergeCanonicalToolMessage(canonical: Msg, legacy: Msg | null): Msg {
   if (!legacy) return { ...canonical }
+  // Keep completed/error legacy tool rows immutable in TUI.
+  // Rewriting static rows causes duplicate append artifacts in Ink <Static>.
+  if (legacy.toolInfo?.status === 'completed' || legacy.toolInfo?.status === 'error') {
+    return legacy
+  }
   const canonicalToolInfo = canonical.toolInfo ?? undefined
   const legacyToolInfo = legacy.toolInfo ?? undefined
   const canonicalInput = canonicalToolInfo?.input

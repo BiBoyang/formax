@@ -53,9 +53,20 @@ function readToolUpdateLine(ev: Extract<StreamEvent, { type: 'tool_update' }>): 
 
 function readToolEndSummary(ev: Extract<StreamEvent, { type: 'tool_end' }>): string | undefined {
   const content = String(ev.result?.content ?? '').trim()
+  if (ev.result?.is_error) {
+    if (content) return content
+    return 'error'
+  }
   if (content) return content
-  if (ev.result?.is_error) return 'error'
-  return 'completed'
+  return undefined
+}
+
+function inferFailureStatus(errorText: string): 'failed' | 'interrupted' {
+  const normalized = errorText.toLowerCase()
+  if (normalized.includes('interrupt') || normalized.includes('abort') || normalized.includes('cancel')) {
+    return 'interrupted'
+  }
+  return 'failed'
 }
 
 export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCanonicalContext): CanonicalEvent[] {
@@ -178,6 +189,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
   }
 
   if (ev.type === 'error') {
+    const message = String(ev.error?.message ?? 'stream error')
     const seqFinalize = replaySeq()
     const seqFooter = replaySeq()
     return [
@@ -190,8 +202,8 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
         ...createEnvelope(ctx, 'turn_footer', seqFooter),
         kind: 'turn_footer',
         turnId: ctx.turnId,
-        status: 'failed',
-        message: String(ev.error?.message ?? 'stream error'),
+        status: inferFailureStatus(message),
+        message,
       },
     ]
   }

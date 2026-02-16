@@ -1,8 +1,26 @@
 import type {
   CanonicalEvent,
+  CanonicalMessageUiKind,
   ToolInputKind,
   ToolInputStatus,
 } from './canonicalEvents'
+
+export type UserSegment = {
+  id: string
+  kind: 'user'
+  turnId: string
+  text: string
+  uiKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
+}
+
+export type SystemSegment = {
+  id: string
+  kind: 'system'
+  turnId: string
+  role: 'assistant' | 'user'
+  text: string
+  uiKind?: CanonicalMessageUiKind
+}
 
 export type AssistantSegment = {
   id: string
@@ -43,7 +61,13 @@ export type TurnFooterSegment = {
   message?: string
 }
 
-export type TranscriptSegment = AssistantSegment | ThinkingSegment | ToolSegment | TurnFooterSegment
+export type TranscriptSegment =
+  | UserSegment
+  | SystemSegment
+  | AssistantSegment
+  | ThinkingSegment
+  | ToolSegment
+  | TurnFooterSegment
 
 export type TranscriptProjectionState = {
   threadId: string
@@ -165,6 +189,43 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
     toolNameByUseId: { ...state.toolNameByUseId },
     openAssistantSegmentIdByTurn: { ...state.openAssistantSegmentIdByTurn },
     openThinkingSegmentIdByTurn: { ...state.openThinkingSegmentIdByTurn },
+  }
+
+  if (event.kind === 'user_message') {
+    if (!event.text && !event.uiKind) {
+      return {
+        ...state,
+        seenEventIds,
+        lastReplaySeq: event.replaySeq,
+      }
+    }
+    const next: UserSegment = {
+      id: toSegmentId({ kind: 'user', replaySeq: event.replaySeq, turnId: event.turnId }),
+      kind: 'user',
+      turnId: event.turnId,
+      text: event.text,
+      ...(event.uiKind ? { uiKind: event.uiKind } : {}),
+    }
+    draft.segments.push(next)
+  }
+
+  if (event.kind === 'system_message') {
+    if (!event.text && !event.uiKind) {
+      return {
+        ...state,
+        seenEventIds,
+        lastReplaySeq: event.replaySeq,
+      }
+    }
+    const next: SystemSegment = {
+      id: toSegmentId({ kind: 'system', replaySeq: event.replaySeq, turnId: event.turnId }),
+      kind: 'system',
+      turnId: event.turnId,
+      role: event.role,
+      text: event.text,
+      ...(event.uiKind ? { uiKind: event.uiKind } : {}),
+    }
+    draft.segments.push(next)
   }
 
   if (event.kind === 'assistant_delta') {

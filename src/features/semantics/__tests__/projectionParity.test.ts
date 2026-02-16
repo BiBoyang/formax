@@ -5,6 +5,23 @@ import { toCanonicalEventsFromTurnNotification } from '../turnNotificationCanoni
 
 function normalizeSegments(segments: ReturnType<typeof createInitialTranscriptProjectionState>['segments']) {
   return segments.map((segment) => {
+    if (segment.kind === 'user') {
+      return {
+        kind: 'user',
+        turnId: segment.turnId,
+        text: segment.text,
+        ...(segment.uiKind ? { uiKind: segment.uiKind } : {}),
+      }
+    }
+    if (segment.kind === 'system') {
+      return {
+        kind: 'system',
+        turnId: segment.turnId,
+        role: segment.role,
+        text: segment.text,
+        ...(segment.uiKind ? { uiKind: segment.uiKind } : {}),
+      }
+    }
     if (segment.kind === 'assistant') {
       return {
         kind: 'assistant',

@@ -304,10 +304,7 @@ export function REPL({
     ],
   )
 
-  const allMessages = useMemo(
-    () => [...state.staticMessages, ...state.transientMessages],
-    [state.staticMessages, state.transientMessages],
-  )
+  const allMessages = useMemo(() => [...state.staticMessages, ...state.transientMessages], [state.staticMessages, state.transientMessages])
   const suppressGlobalError = useMemo(
     () => shouldSuppressGlobalError({ messages: allMessages, currentError: state.error }),
     [allMessages, state.error],

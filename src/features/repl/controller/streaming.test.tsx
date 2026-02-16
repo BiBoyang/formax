@@ -419,6 +419,91 @@ describe('useReplStreaming', () => {
     }
   })
 
+  it('does not append duplicate tool rows when tool_start repeats for the same id', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const messagesRef = { current: [] as Msg[] }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 'dup-1', name: 'Bash' })
+    handleEvent!({ type: 'tool_start', id: 'dup-1', name: 'Bash' })
+    handleEvent!({ type: 'tool_end', id: 'dup-1', result: { tool_use_id: 'dup-1', content: 'ok' } })
+    await tick()
+    await tick()
+
+    const toolRows = messagesRef.current.filter((m) => m.id === 'tool-dup-1')
+    expect(toolRows).toHaveLength(1)
+    expect(toolRows[0]?.toolInfo?.status).toBe('completed')
+  })
+
   it('forwards stream events into canonical projection when canonical bridge is enabled', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const canonicalKindsRef = { current: [] as string[] }
@@ -525,6 +610,8 @@ describe('useReplStreaming', () => {
     ])
 
     const normalizedSegments = projectionRef.current.segments.map((segment) => {
+      if (segment.kind === 'user') return { kind: 'user', text: segment.text }
+      if (segment.kind === 'system') return { kind: 'system', role: segment.role, text: segment.text }
       if (segment.kind === 'assistant') return { kind: 'assistant', text: segment.text }
       if (segment.kind === 'tool') return { kind: 'tool', tool: segment.toolName, status: segment.status }
       if (segment.kind === 'turn_footer') return { kind: 'turn_footer', status: segment.status }
@@ -537,7 +624,8 @@ describe('useReplStreaming', () => {
       { kind: 'turn_footer', status: 'completed' },
     ])
 
-    // With canonical bridge active, assistant deltas should not also create legacy transcript rows.
+    // With canonical bridge active, stream events should not also create legacy transcript rows.
     expect(messagesRef.current.some((message) => message.role === 'assistant')).toBe(false)
   })
+
 })

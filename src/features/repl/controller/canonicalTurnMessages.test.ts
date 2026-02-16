@@ -402,6 +402,44 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(toolMessage?.content).toBe('')
   })
 
+  it('keeps completed legacy tool rows immutable when canonical includes extra detail lines', () => {
+    const legacyTool: Msg = {
+      id: 'legacy-t',
+      role: 'tool',
+      content: '/Users/david/Documents/github/formax',
+      timestamp: new Date(),
+      toolInfo: {
+        toolUseId: 'tool-1',
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'pwd' },
+      },
+    }
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'run pwd', timestamp: new Date() }, legacyTool],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical:t',
+          role: 'tool',
+          content: '/Users/david/Documents/github/formax',
+          timestamp: new Date(0),
+          toolInfo: {
+            toolUseId: 'tool-1',
+            name: 'Bash',
+            status: 'completed',
+            input: { command: 'pwd' },
+            middleLines: ['Running PostToolUse hook…'],
+          },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-t'])
+    expect(replaced[1]).toBe(legacyTool)
+    expect(replaced[1]?.toolInfo?.middleLines).toBeUndefined()
+  })
+
   it('normalizes reordered tail timestamps to keep reload ordering stable', () => {
     const replaced = replaceTurnTailWithCanonicalMessages({
       messages: [
