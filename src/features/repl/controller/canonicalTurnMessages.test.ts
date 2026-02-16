@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../semantics/transcriptProjection'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import {
+  appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
   computeCanonicalTurnAppend,
   mergeCanonicalTurnIntoMessages,
@@ -793,6 +794,109 @@ describe('mergeCanonicalTurnIntoMessages', () => {
     })
 
     expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-a', 'subline-err'])
+  })
+})
+
+describe('appendCanonicalTurnFinalRows', () => {
+  it('returns original messages when userMessageId is null', () => {
+    const messages: Msg[] = [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }]
+    const next = appendCanonicalTurnFinalRows({
+      messages,
+      userMessageId: null,
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [],
+      isFailureSubline: () => false,
+    })
+    expect(next).toBe(messages)
+  })
+
+  it('skips aborted turns when canonical tail has only tool rows', () => {
+    const messages: Msg[] = [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }]
+    const projectionSegments: TranscriptSegment[] = [
+      {
+        id: 'turn-1:tool:1:tool-1',
+        kind: 'tool',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        toolName: 'Bash',
+        status: 'completed',
+        summary: 'ok',
+        detailLines: [],
+      },
+    ]
+
+    const next = appendCanonicalTurnFinalRows({
+      messages,
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'aborted',
+      projectionSegments,
+      isFailureSubline: () => false,
+    })
+    expect(next).toBe(messages)
+  })
+
+  it('inserts failed canonical assistant rows before trailing failure sublines', () => {
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'subline-err',
+          role: 'assistant',
+          content: 'Error: failed',
+          timestamp: new Date(200),
+          ui: { kind: 'command_subline' },
+        },
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'failed',
+      projectionSegments: [{ id: 'turn-1:assistant:1', kind: 'assistant', turnId: 'turn-1', text: 'final answer' }],
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+
+    expect(next.map((m) => m.id)).toEqual(['u1', 'canonical:turn-1:assistant:1', 'subline-err'])
+  })
+
+  it('preserves legacy tool row identity while applying canonical final tool info', () => {
+    const legacyTimestamp = new Date(200)
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: '/repo',
+          timestamp: legacyTimestamp,
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-1:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: ['line-1'],
+          paramsText: 'command="pwd"',
+        },
+      ],
+      isFailureSubline: () => false,
+    })
+
+    expect(next.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(next[1]?.timestamp).toBe(legacyTimestamp)
+    expect(next[1]?.content).toBe('/repo')
+    expect(next[1]?.toolInfo?.status).toBe('completed')
+    expect(next[1]?.toolInfo?.middleLines).toEqual(['line-1'])
   })
 })
 

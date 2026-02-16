@@ -694,6 +694,22 @@ Status: `completed`
 **结果**:
 - 覆盖「同一 turn tool 行重复追加」的核心回归风险，后续重构可快速发现重复渲染问题。
 
+### F.29 补齐 turn 收尾 helper 独立单测
+Status: `completed`
+
+**位置**:
+- `src/features/repl/controller/canonicalTurnMessages.test.ts`
+
+**做法**:
+- 为 `appendCanonicalTurnFinalRows(...)` 新增独立测试，覆盖：
+  - `userMessageId` 缺失时 no-op；
+  - `aborted` 且仅 tool 行时不追加；
+  - `failed` 时插入到 trailing failure subline 前；
+  - `completed` 时复用 legacy tool row id/timestamp/content 且应用 canonical tool status。
+
+**结果**:
+- turn 收尾 helper 的关键分支具备直接回归保护，不再仅依赖 `useReplController` 集成测试覆盖。
+
 ---
 
 ## 建议执行顺序
