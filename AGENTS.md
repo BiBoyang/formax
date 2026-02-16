@@ -44,6 +44,7 @@
 - **Coverage mindset**: Prioritize adding/strengthening tests when behavior is user-visible or stability-critical (tools, permissions, hooks, REPL input, UI flows). Avoid “happy-path only” tests—cover edge cases and regressions you’ve already seen.
 - **Refactor safety**: Before refactoring, add/extend tests to lock current behavior. Do not rely on “tests pass” if manual behavior regresses.
 - **Code review (mandatory in loops)**: After tests pass, run review using the **Review Profile (Single Source of Truth)** below before committing; fix all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
+- **REPL semantics pre-review gate**: For `src/features/repl/**` semantic-flow changes, run `bun run test:repl-semantic-gate` before `codex review`.
 
 ### Review Profile (Single Source of Truth)
 - Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

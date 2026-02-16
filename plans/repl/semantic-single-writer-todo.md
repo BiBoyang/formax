@@ -1,6 +1,6 @@
 # REPL Semantic Single-Writer TODO
 
-Status: `in_progress` (Phase 1-2 completed, Phase 3 active)
+Status: `completed` (Phase 1-3 completed)
 Owner: `codex`
 Goal: remove patch-style transcript fixes by converging to a single semantic write path.
 
@@ -221,7 +221,7 @@ Result:
 - Removed redundant tail-tool set bookkeeping in final-tail merge path.
 
 ### Slice 10: Enforce Single-Writer Boundaries
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/controller/streaming.ts`
 - `src/features/repl/useReplController.ts`
@@ -235,8 +235,13 @@ Acceptance:
 - Tool transcript rows are produced only by canonical projection when bridge is active.
 - Regression test fails on any reintroduced dual-write path.
 
+Result:
+- Added explicit `canWriteLegacyTranscript` gate in `streaming.ts`; tool lifecycle transcript writes now flow through one guarded legacy-update helper.
+- Canonical bridge mode continues to process semantic events while blocking legacy tool row writes, preventing dual-write drift.
+- Added canonical Task lifecycle regression test to assert no legacy transcript mutation while canonical tool metadata still updates correctly.
+
 ### Slice 11: Unify Tool-Turn Finalize Ordering
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/controller/canonicalTurnMessages.ts`
 - `src/features/repl/useReplController.ts`
@@ -250,8 +255,13 @@ Acceptance:
 - Canonical final rows keep deterministic order across all outcomes.
 - No controller-local tail merge algorithm remains.
 
+Result:
+- Extracted turn-tail insertion rules (`completed` / `aborted` / `failed`) into `resolveCanonicalTurnTailInsertIndex` in `canonicalTurnMessages.ts`.
+- `useReplController` now reuses the shared helper, removing controller-local outcome-specific insert-position branching.
+- Added helper-level regression tests covering completed/aborted/failed insertion indices.
+
 ### Slice 12: Add Pre-Review Gate (Reduce Review Loops)
-Status: `pending`
+Status: `completed`
 Files:
 - `scripts/`
 - `AGENTS.md`
@@ -264,3 +274,8 @@ Changes:
 Acceptance:
 - Fewer review cycles caused by avoidable local misses.
 - Process is documented and reproducible.
+
+Result:
+- Added `scripts/repl-semantic-pre-review.mjs` and `package.json` script `test:repl-semantic-gate`.
+- Gate sequence now standardizes: partial-stage check -> targeted REPL semantic tests -> deterministic surface smoke -> type-check/boundaries.
+- Documented the gate in `AGENTS.md` as a required pre-review step for REPL semantic-flow changes.
