@@ -498,6 +498,20 @@ Status: `completed`
 **结果**:
 - core 去重路径具备更明确的回归保护，后续若调整 seen-event 逻辑可快速发现对象 churn 或去重失效。
 
+### F.15 收敛 useReplController 的 canonical refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `canonicalProjectionRef / canonicalReplaySeqRef / canonicalTurnIdRef / canonicalTurnSeqRef` 收敛为单一 `canonicalRefs` 容器对象。
+- 全量替换读取/写入路径，仅调整访问形式，不改执行顺序与生命周期。
+
+**结果**:
+- canonical 运行态引用聚合，后续继续做 ref 分组（streaming/session）时改动点更集中。
+- 行为不变（仅结构性重构）。
+
 ---
 
 ## 建议执行顺序

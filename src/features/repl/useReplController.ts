@@ -191,10 +191,12 @@ export function useReplController(deps: {
   const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
   const toolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
-  const canonicalProjectionRef = useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' }))
-  const canonicalReplaySeqRef = useRef(0)
-  const canonicalTurnIdRef = useRef<string | null>(null)
-  const canonicalTurnSeqRef = useRef(0)
+  const canonicalRefs = {
+    projectionRef: useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' })),
+    replaySeqRef: useRef(0),
+    turnIdRef: useRef<string | null>(null),
+    turnSeqRef: useRef(0),
+  }
   const modeRef = useRef<ReplMode>(deps.mode)
   const prevModeRef = useRef<ReplMode>(deps.mode)
   const pendingExitPlanReminderRef = useRef(false)
@@ -320,26 +322,26 @@ export function useReplController(deps: {
     taskKindByToolUseIdRef.current.clear()
     toolMessageIdByToolUseIdRef.current.clear()
     exploreBatchRef.current = null
-    canonicalProjectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
-    canonicalReplaySeqRef.current = 0
-    canonicalTurnIdRef.current = null
-    canonicalTurnSeqRef.current = 0
+    canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
+    canonicalRefs.replaySeqRef.current = 0
+    canonicalRefs.turnIdRef.current = null
+    canonicalRefs.turnSeqRef.current = 0
     setCanonicalTurnMessages([])
     setCanonicalTransientActive(false)
     lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
-    canonicalProjectionRef.current = reduceTranscriptProjection(canonicalProjectionRef.current, event)
+    canonicalRefs.projectionRef.current = reduceTranscriptProjection(canonicalRefs.projectionRef.current, event)
     setCanonicalTransientActive(true)
-    const turnId = canonicalTurnIdRef.current ?? event.turnId
-    const turnTailSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, turnId)
+    const turnId = canonicalRefs.turnIdRef.current ?? event.turnId
+    const turnTailSegments = tailSegmentsForTurn(canonicalRefs.projectionRef.current.segments, turnId)
     setCanonicalTurnMessages(
       canonicalTurnSegmentsToMessages({
         turnId,
         segments: turnTailSegments,
         transientOnly: true,
-        openAssistantSegmentId: canonicalProjectionRef.current.openAssistantSegmentIdByTurn[turnId],
+        openAssistantSegmentId: canonicalRefs.projectionRef.current.openAssistantSegmentIdByTurn[turnId],
         includeAssistantStreaming: assistantTextMode === 'stream',
         includeUserSystem: false,
       }),
@@ -522,10 +524,10 @@ export function useReplController(deps: {
     contextBudgetConfigRef,
     canonical: {
       threadId: 'tui-live',
-      getTurnId: () => canonicalTurnIdRef.current,
+      getTurnId: () => canonicalRefs.turnIdRef.current,
       nextReplaySeq: () => {
-        canonicalReplaySeqRef.current += 1
-        return canonicalReplaySeqRef.current
+        canonicalRefs.replaySeqRef.current += 1
+        return canonicalRefs.replaySeqRef.current
       },
       onEvent: onCanonicalEvent,
     },
@@ -706,11 +708,11 @@ export function useReplController(deps: {
         const bashAbort = new AbortController()
         abortControllerRef.current = bashAbort
 
-        canonicalTurnSeqRef.current += 1
-        const localTurnId = `local-bash-${canonicalTurnSeqRef.current}`
+        canonicalRefs.turnSeqRef.current += 1
+        const localTurnId = `local-bash-${canonicalRefs.turnSeqRef.current}`
         const nextCanonicalReplaySeq = () => {
-          canonicalReplaySeqRef.current += 1
-          return canonicalReplaySeqRef.current
+          canonicalRefs.replaySeqRef.current += 1
+          return canonicalRefs.replaySeqRef.current
         }
         const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
         const localCanonicalEmitter = createLocalBashCanonicalEmitter({
@@ -864,16 +866,16 @@ export function useReplController(deps: {
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect
 
-      canonicalTurnSeqRef.current += 1
-      const canonicalTurnId = `turn-${canonicalTurnSeqRef.current}`
-      canonicalTurnIdRef.current = canonicalTurnId
+      canonicalRefs.turnSeqRef.current += 1
+      const canonicalTurnId = `turn-${canonicalRefs.turnSeqRef.current}`
+      canonicalRefs.turnIdRef.current = canonicalTurnId
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
       const emitCanonicalUiMessage = (message: CanonicalUiMessage) => {
         const replaySeq = (() => {
-          canonicalReplaySeqRef.current += 1
-          return canonicalReplaySeqRef.current
+          canonicalRefs.replaySeqRef.current += 1
+          return canonicalRefs.replaySeqRef.current
         })()
         const ts = new Date().toISOString()
 
@@ -949,7 +951,7 @@ export function useReplController(deps: {
         turnOutcome = runResult.turnOutcome
       } finally {
         if (turnUserMessageId) {
-          const turnSegments = tailSegmentsForTurn(canonicalProjectionRef.current.segments, canonicalTurnId)
+          const turnSegments = tailSegmentsForTurn(canonicalRefs.projectionRef.current.segments, canonicalTurnId)
           const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
             turnId: canonicalTurnId,
             segments: turnSegments,
@@ -977,7 +979,7 @@ export function useReplController(deps: {
             })
           }
         }
-        canonicalTurnIdRef.current = null
+        canonicalRefs.turnIdRef.current = null
         setCanonicalTurnMessages([])
         setCanonicalTransientActive(false)
       }
