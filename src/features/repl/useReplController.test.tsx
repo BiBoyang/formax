@@ -126,17 +126,23 @@ function isTextPromptBlock(b: PromptBlock): b is PromptBlock & { type: 'text'; t
   return (b as any).type === 'text' && typeof (b as any).text === 'string'
 }
 
+function restoreStubbedEnv(name: 'FORMAX_CONFIG_DIR' | 'FORMAX_SESSION_SAVE', value: string | undefined): void {
+  if (typeof value === 'string') vi.stubEnv(name, value)
+  else delete process.env[name]
+}
+
 afterEach(async () => {
   vi.useRealTimers()
   for (const unmount of unmountFns.splice(0)) unmount()
   // Allow async cleanup (SessionWriter shutdown) to complete.
   await tick(20)
   estimatePromptTokensMock.mockReset()
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
 
 beforeEach(() => {
-  process.env.FORMAX_SESSION_SAVE = '0'
+  vi.stubEnv('FORMAX_SESSION_SAVE', '0')
 })
 
 describe('useReplController', () => {
@@ -794,7 +800,7 @@ describe('useReplController', () => {
 
     const tmpConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
-    process.env.FORMAX_CONFIG_DIR = tmpConfigDir
+    vi.stubEnv('FORMAX_CONFIG_DIR', tmpConfigDir)
 
     try {
       let controller!: ReturnType<typeof useReplController>
@@ -837,7 +843,7 @@ describe('useReplController', () => {
       ).toBe(false)
       expect(firstUserFromHistory.content).toEqual([{ type: 'text', text: 'hello' }])
     } finally {
-      if (typeof prevConfigDir === 'string') process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (typeof prevConfigDir === 'string') restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
       else delete process.env.FORMAX_CONFIG_DIR
       await fsp.rm(tmpConfigDir, { recursive: true, force: true })
     }
@@ -1384,8 +1390,8 @@ describe('useReplController /clear', () => {
     const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     const listSessionFiles = async (): Promise<string[]> => {
       const root = path.join(configDir, 'sessions')
@@ -1456,8 +1462,8 @@ describe('useReplController /clear', () => {
       expect(historyLens[2]).toBe(0)
       expect(runTurn).toHaveBeenCalledTimes(3)
     } finally {
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(configDir, { recursive: true, force: true })
     }
   })
@@ -1466,8 +1472,8 @@ describe('useReplController /clear', () => {
     const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-save-race-'))
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     const listSessionFiles = async (): Promise<string[]> => {
       const root = path.join(configDir, 'sessions')
@@ -1538,8 +1544,8 @@ describe('useReplController /clear', () => {
       expect(filesAfter.length).toBeGreaterThanOrEqual(2)
     } finally {
       createNewSpy.mockRestore()
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(configDir, { recursive: true, force: true })
     }
   })
@@ -1553,8 +1559,8 @@ describe('useReplController sessionSave resume', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     try {
       process.chdir(cwdDir)
@@ -1615,8 +1621,8 @@ describe('useReplController sessionSave resume', () => {
       expect(observedResume).toBe(true)
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }
@@ -1629,8 +1635,8 @@ describe('useReplController sessionSave resume', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     try {
       process.chdir(cwdDir)
@@ -1668,8 +1674,8 @@ describe('useReplController sessionSave resume', () => {
       expect(runTurn).toHaveBeenCalled()
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }
@@ -1684,8 +1690,8 @@ describe('useReplController sessionSave injected events', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     await fsp.writeFile(path.join(cwdDir, 'CLAUDE.md'), '# PROJECT\n', 'utf8')
     await fsp.writeFile(path.join(configDir, 'CLAUDE.md'), '# GLOBAL\n', 'utf8')
@@ -1757,8 +1763,8 @@ describe('useReplController sessionSave injected events', () => {
       expect(JSON.stringify(ev)).not.toContain('# claudeMd')
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }
@@ -1771,8 +1777,8 @@ describe('useReplController sessionSave injected events', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     const listSessionFiles = async (): Promise<string[]> => {
       const root = path.join(configDir, 'sessions')
@@ -1854,8 +1860,8 @@ describe('useReplController sessionSave injected events', () => {
       expect(raw).not.toContain('<local-command-stdout>')
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }
@@ -1868,8 +1874,8 @@ describe('useReplController sessionSave injected events', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     const listSessionFiles = async (): Promise<string[]> => {
       const root = path.join(configDir, 'sessions')
@@ -1944,8 +1950,8 @@ describe('useReplController sessionSave injected events', () => {
       expect(raw).not.toContain('<local-command-stdout>')
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }
@@ -1958,8 +1964,8 @@ describe('useReplController sessionSave injected events', () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const prevSessionSave = process.env.FORMAX_SESSION_SAVE
 
-    process.env.FORMAX_CONFIG_DIR = configDir
-    process.env.FORMAX_SESSION_SAVE = '1'
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
 
     const listSessionFiles = async (): Promise<string[]> => {
       const root = path.join(configDir, 'sessions')
@@ -2038,8 +2044,8 @@ describe('useReplController sessionSave injected events', () => {
       expect(raw).not.toContain('<local-command-stdout>')
     } finally {
       process.chdir(prevCwd)
-      process.env.FORMAX_CONFIG_DIR = prevConfigDir
-      process.env.FORMAX_SESSION_SAVE = prevSessionSave
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
     }

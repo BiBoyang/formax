@@ -64,7 +64,12 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Stream events/types: `src/streaming/types.ts`
 
 ## Context Management (UI transcript vs prompt history)
-- Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact: `src/features/repl/controller/send.ts` (wired by `src/features/repl/useReplController.ts`)
+- Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact:
+  - Pre-main routing + `/compact` command path: `src/features/repl/controller/send.ts`
+  - Main turn execution + prompt/history pipeline: `src/features/repl/controller/sendMainTurn.ts`
+  - Auto-compact preflight/apply helper: `src/features/repl/controller/sendAutoCompact.ts`
+  - Shared send context types/builders: `src/features/repl/controller/sendTypes.ts`
+  - Wiring entry: `src/features/repl/useReplController.ts`
 - Budget + stats: `src/chat/context/budget.ts`
 - Token estimate fallback: `src/chat/context/estimate.ts`
 - Model context window table (current provider-agnostic hints): `src/chat/context/modelWindow.ts`
@@ -185,7 +190,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - REPL mode transition application: `src/features/repl/useReplController.ts`
 - Plan session manager (plan file path, lifecycle): `src/features/repl/planSession.ts`
 - Plan path helpers: `src/utils/planMode.ts`
-- Plan mode injected blocks: `src/features/repl/controller/send.ts` (wired by `src/features/repl/useReplController.ts`)
+- Plan mode injected blocks: `src/features/repl/controller/sendMainTurn.ts` (wired by `src/features/repl/useReplController.ts`)
 - App-server runtime mode change notifications: `src/app-server/turnRunner.ts` (`turn/modeChanged`)
 - Plan tools:
   - EnterPlanMode: `src/tools/modules/enterPlanMode/*`
