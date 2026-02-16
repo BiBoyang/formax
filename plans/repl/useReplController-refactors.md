@@ -11,6 +11,7 @@ Status: `in_progress`
 - [x] Slice C（3）: `tailSegmentsForTurn` 迁移
 - [x] Slice D（5 + 6，按需）: send/bash 路由减负
 - [x] Slice E（streaming）: canonical bridge 策略/转发下沉
+- [x] Slice F（transcriptProjection）: tool_event reducer 拆分
 
 当前进行中: `none`（后续按需开新 slice）
 
@@ -286,6 +287,28 @@ Status: `completed`
 **结果**:
 - loading 文案规则集中，后续文案变更只需改 helper。
 - 新增 `streamingLoadingText.test.ts` 覆盖 tool_start/tool_input 文案映射语义。
+
+---
+
+## 五、transcriptProjection 拆职责（进行中，按小步）
+
+### F.1 抽出 tool_event reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 `event.kind === 'tool_event'` 的超长分支。
+
+**做法**:
+- 新增 `transcriptProjectionToolReducer.ts`，承载：
+  - `reduceToolEvent(...)`
+  - `findToolSegmentIndex(...)`
+  - `rebindToolSummaryForName(...)`
+  - `dedupeAppend(...)`
+  - `parseTimestampMs(...)`
+- `transcriptProjection.ts` 中 `tool_event` 分支改为 `reduceToolEvent({ draft, event, toSegmentId })`。
+
+**结果**:
+- `reduceTranscriptProjection` 主体长度下降，tool 行 merge/补全逻辑集中。
+- 现有 `transcriptProjection.test.ts` 全量通过，行为保持不变。
 
 ---
 
