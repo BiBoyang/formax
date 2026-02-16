@@ -7,6 +7,7 @@ import {
   mergeCanonicalTurnIntoMessages,
   replaceTurnTailWithCanonicalMessages,
   resolveCanonicalTurnTailInsertIndex,
+  tailSegmentsForTurn,
 } from './canonicalTurnMessages'
 
 describe('canonicalTurnSegmentsToMessages', () => {
@@ -792,5 +793,21 @@ describe('mergeCanonicalTurnIntoMessages', () => {
     })
 
     expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-a', 'subline-err'])
+  })
+})
+
+describe('tailSegmentsForTurn', () => {
+  it('returns only the contiguous tail block for the target turn', () => {
+    const segments: TranscriptSegment[] = [
+      { id: 'turn-1:user:1', kind: 'user', turnId: 'turn-1', text: 'u1' },
+      { id: 'turn-1:assistant:2', kind: 'assistant', turnId: 'turn-1', text: 'a1' },
+      { id: 'turn-2:user:3', kind: 'user', turnId: 'turn-2', text: 'u2' },
+      { id: 'turn-2:assistant:4', kind: 'assistant', turnId: 'turn-2', text: 'a2' },
+      { id: 'turn-2:tool:5:t1', kind: 'tool', turnId: 'turn-2', toolUseId: 't1', toolName: 'Bash', status: 'running', summary: '', detailLines: [] },
+      { id: 'turn-3:user:6', kind: 'user', turnId: 'turn-3', text: 'u3' },
+    ]
+
+    const tail = tailSegmentsForTurn(segments, 'turn-2')
+    expect(tail.map((segment) => segment.id)).toEqual(['turn-2:user:3', 'turn-2:assistant:4', 'turn-2:tool:5:t1'])
   })
 })

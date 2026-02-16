@@ -28,6 +28,7 @@ import {
   computeCanonicalTurnAppend,
   canonicalTurnSegmentsToMessages,
   mergeCanonicalTurnIntoMessages,
+  tailSegmentsForTurn,
 } from './controller/canonicalTurnMessages'
 import { isErrorLikeSubline } from './controller/errorSubline'
 import { applyAbortToMessages } from './controller/abortTranscript'
@@ -61,7 +62,6 @@ import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../sema
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
-  type TranscriptSegment,
 } from '../semantics/transcriptProjection'
 import type { CanonicalEvent } from '../semantics/canonicalEvents'
 
@@ -69,24 +69,6 @@ function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
     setImmediate(resolve)
   })
-}
-
-function tailSegmentsForTurn(segments: TranscriptSegment[], turnId: string): TranscriptSegment[] {
-  const out: TranscriptSegment[] = []
-  let seenTurn = false
-
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index]
-    if (!segment) continue
-    if (segment.turnId === turnId) {
-      out.push(segment)
-      seenTurn = true
-      continue
-    }
-    if (seenTurn) break
-  }
-
-  return out.reverse()
 }
 
 export type ReplControllerState = {

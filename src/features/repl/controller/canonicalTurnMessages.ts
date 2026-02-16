@@ -181,6 +181,24 @@ export function canonicalTurnSegmentsToMessages(args: {
   return mapped.filter((message): message is Msg => message !== null)
 }
 
+export function tailSegmentsForTurn(segments: TranscriptSegment[], turnId: string): TranscriptSegment[] {
+  const out: TranscriptSegment[] = []
+  let seenTurn = false
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+    if (!segment) continue
+    if (segment.turnId === turnId) {
+      out.push(segment)
+      seenTurn = true
+      continue
+    }
+    if (seenTurn) break
+  }
+
+  return out.reverse()
+}
+
 export type CanonicalTurnOutcome = 'completed' | 'aborted' | 'failed'
 
 export function resolveCanonicalTurnTailInsertIndex(args: {

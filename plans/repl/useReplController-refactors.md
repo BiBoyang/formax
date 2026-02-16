@@ -8,10 +8,10 @@ Status: `in_progress`
 
 - [x] Slice A（1 + 4）: turn-finalization append 计算 + merge 下沉到 `canonicalTurnMessages.ts`
 - [x] Slice B（2）: abort transcript 计算抽出
-- [ ] Slice C（3）: `tailSegmentsForTurn` 迁移
+- [x] Slice C（3）: `tailSegmentsForTurn` 迁移
 - [ ] Slice D（5 + 6，按需）: send/bash 路由减负
 
-当前进行中: `Slice C`
+当前进行中: `Slice D（按需）`
 
 ## 原则
 
@@ -70,12 +70,18 @@ Status: `completed`
 ---
 
 ### 3. 将 `tailSegmentsForTurn` 挪到语义层
+Status: `completed`
 
 **位置**: `useReplController.ts` 顶部（约 70–86 行）；在 `onCanonicalEvent` 与 `send` 的 finally 中均有使用。
 
 **做法**: 将该函数移至 `semantics/transcriptProjection.ts` 或 `controller/canonicalTurnMessages.ts`（按「是否与 canonical 强相关」择一）；hook 改为从该处 import。
 
 **验收**: hook 少一段纯逻辑；语义层更内聚。
+
+**结果**:
+- `tailSegmentsForTurn(...)` 已迁移到 `controller/canonicalTurnMessages.ts` 并导出复用。
+- `useReplController.ts` 移除本地实现，改为导入调用。
+- 新增 helper 回归测试，锁定“仅提取目标 turn 的连续尾段”语义。
 
 ---
 
