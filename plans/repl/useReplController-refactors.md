@@ -383,6 +383,19 @@ Status: `completed`
 - turn 文本 segment 生命周期规则集中，便于后续统一处理 finalize/close 语义。
 - 新增 `transcriptProjectionLifecycleReducer.test.ts` 直接覆盖 close/finalize 行为。
 
+### F.7 抽出 non-message 事件分发 reducer
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 assistant/thinking/tool/footer 的 if-chain 分发逻辑。
+
+**做法**:
+- 新增 `transcriptProjectionEventReducer.ts`，提供 `applyNonMessageProjectionEvent(...)`。
+- 主 reducer 保留 preflight 与 message 分支，非 message 事件统一交给 event reducer。
+
+**结果**:
+- `reduceTranscriptProjection` 主体进一步聚焦于顶层流程。
+- 事件分发逻辑集中，后续继续拆 case 时不再触碰主 reducer。
+
 ---
 
 ## 建议执行顺序

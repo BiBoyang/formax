@@ -6,24 +6,11 @@ import type {
 } from './canonicalEvents'
 import type { TokenUsage } from '../../streaming/types'
 import {
-  reduceToolEvent,
-  reduceToolInputStateEvent,
-} from './transcriptProjectionToolReducer'
-import { reduceTurnFooterEvent } from './transcriptProjectionTurnReducer'
-import {
-  reduceAssistantDeltaEvent,
-  reduceThinkingDeltaEvent,
-} from './transcriptProjectionTextReducer'
-import {
   appendSystemMessageSegment,
   appendUserMessageSegment,
   shouldSkipMessageSegment,
 } from './transcriptProjectionMessageReducer'
-import {
-  closeAssistantSegment,
-  closeThinkingSegment,
-  closeTurnTextSegments,
-} from './transcriptProjectionLifecycleReducer'
+import { applyNonMessageProjectionEvent } from './transcriptProjectionEventReducer'
 
 export type UserSegment = {
   id: string
@@ -186,42 +173,7 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
     appendSystemMessageSegment({ draft, event, toSegmentId })
   }
 
-  if (event.kind === 'assistant_delta') {
-    reduceAssistantDeltaEvent({
-      draft,
-      event,
-      closeThinkingSegment: (turnId) => closeThinkingSegment(draft, turnId),
-      toSegmentId,
-    })
-  }
-
-  if (event.kind === 'thinking_delta') {
-    reduceThinkingDeltaEvent({
-      draft,
-      event,
-      closeAssistantSegment: (turnId) => closeAssistantSegment(draft, turnId),
-      toSegmentId,
-    })
-  }
-
-  if (event.kind === 'thinking_finalized') {
-    closeThinkingSegment(draft, event.turnId)
-  }
-
-  if (event.kind === 'tool_event') {
-    closeTurnTextSegments(draft, event.turnId)
-    reduceToolEvent({ draft, event, toSegmentId })
-  }
-
-  if (event.kind === 'tool_input_state') {
-    closeTurnTextSegments(draft, event.turnId)
-    reduceToolInputStateEvent({ draft, event, toSegmentId })
-  }
-
-  if (event.kind === 'turn_footer') {
-    closeTurnTextSegments(draft, event.turnId)
-    reduceTurnFooterEvent({ draft, event, toSegmentId })
-  }
+  applyNonMessageProjectionEvent({ draft, event, toSegmentId })
 
   return {
     ...state,
