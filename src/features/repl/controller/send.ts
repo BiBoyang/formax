@@ -328,49 +328,20 @@ export async function maybeHandleConsumedSlashCommand(args: {
   }
 
   if (data?.kind === 'local_async') {
-    args.setIsLoading(true)
-    args.setLoadingText(data.loadingText || 'Working')
-    args.thinkingBufferRef.current = ''
-    args.thinkingLastFlushAtRef.current = 0
-    args.setThinkingText('')
-    args.setError(null)
-    args.currentAssistantIdRef.current = null
-
-    try {
-      const out = await data.run()
-      if (out.recordForNextTurn) {
-        args.pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
-        args.onLocalCommandRecordForNextTurn?.(out.recordForNextTurn)
-      }
-      const lines = String(out.stdout ?? '').split('\n')
-      const now = Date.now()
-      const timestamp = new Date()
-      args.setMessages((prev) => [
-        ...prev,
-        ...lines.map((content, idx) => ({
-          id: `assistant-${now}-${idx}`,
-          role: 'assistant' as const,
-          ui: { kind: 'command_subline' as const },
-          content,
-          timestamp,
-        })),
-      ])
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Command failed'
-      const now = Date.now()
-      args.setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${now}`,
-          role: 'assistant',
-          ui: { kind: 'command_subline' as const },
-          content: `Error: ${msg}`,
-          timestamp: new Date(),
-        },
-      ])
-    } finally {
-      args.setIsLoading(false)
-    }
+    await runLocalAsyncSlashCommand({
+      loadingText: data.loadingText,
+      run: data.run,
+      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+      onLocalCommandRecordForNextTurn: args.onLocalCommandRecordForNextTurn,
+      thinkingBufferRef: args.thinkingBufferRef,
+      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
+      currentAssistantIdRef: args.currentAssistantIdRef,
+      setMessages: args.setMessages,
+      setIsLoading: args.setIsLoading,
+      setLoadingText: args.setLoadingText,
+      setThinkingText: args.setThinkingText,
+      setError: args.setError,
+    })
 
     return { slashEffect, shouldReturn: true }
   }
@@ -380,6 +351,65 @@ export async function maybeHandleConsumedSlashCommand(args: {
   }
 
   return { slashEffect, shouldReturn: true }
+}
+
+async function runLocalAsyncSlashCommand(args: {
+  loadingText?: string
+  run: () => Promise<{ stdout: string; recordForNextTurn?: LocalCommandRecord }>
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  onLocalCommandRecordForNextTurn?: (rec: LocalCommandRecord) => void
+  thinkingBufferRef: { current: string }
+  thinkingLastFlushAtRef: { current: number }
+  currentAssistantIdRef: { current: string | null }
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+}): Promise<void> {
+  args.setIsLoading(true)
+  args.setLoadingText(args.loadingText || 'Working')
+  args.thinkingBufferRef.current = ''
+  args.thinkingLastFlushAtRef.current = 0
+  args.setThinkingText('')
+  args.setError(null)
+  args.currentAssistantIdRef.current = null
+
+  try {
+    const out = await args.run()
+    if (out.recordForNextTurn) {
+      args.pendingInjectedBlocksRef.current.push(...buildLocalCommandInjectedBlocks(out.recordForNextTurn))
+      args.onLocalCommandRecordForNextTurn?.(out.recordForNextTurn)
+    }
+    const lines = String(out.stdout ?? '').split('\n')
+    const now = Date.now()
+    const timestamp = new Date()
+    args.setMessages((prev) => [
+      ...prev,
+      ...lines.map((content, idx) => ({
+        id: `assistant-${now}-${idx}`,
+        role: 'assistant' as const,
+        ui: { kind: 'command_subline' as const },
+        content,
+        timestamp,
+      })),
+    ])
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Command failed'
+    const now = Date.now()
+    args.setMessages((prev) => [
+      ...prev,
+      {
+        id: `error-${now}`,
+        role: 'assistant',
+        ui: { kind: 'command_subline' as const },
+        content: `Error: ${msg}`,
+        timestamp: new Date(),
+      },
+    ])
+  } finally {
+    args.setIsLoading(false)
+  }
 }
 
 export async function resolvePreMainSendRouting(args: {

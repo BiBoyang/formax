@@ -150,4 +150,68 @@ describe('resolvePreMainSendRouting', () => {
     expect(result.slashEffect?.kind).toBe('llm')
     expect(getMessages()).toEqual([])
   })
+
+  it('handles local_async slash command and appends async output sublines', async () => {
+    const onSlashLocalAsyncRecordForNextTurn = vi.fn()
+    const { args, getMessages } = createRoutingHarness({
+      text: '/todos',
+      commandRegistry: {
+        list: () => [],
+        suggest: () => [],
+        dispatch: () => ({
+          kind: 'local_async',
+          loadingText: 'Working',
+          run: async () => ({
+            stdout: 'done-1\ndone-2',
+            recordForNextTurn: {
+              commandName: '/todos',
+              commandMessage: 'todos',
+              commandArgs: '',
+              stdout: 'done-1\ndone-2',
+            },
+          }),
+        }),
+      },
+      onSlashLocalAsyncRecordForNextTurn,
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect?.kind).toBe('local_async')
+    expect(onSlashLocalAsyncRecordForNextTurn).toHaveBeenCalledTimes(1)
+
+    const messages = getMessages()
+    expect(messages).toHaveLength(4)
+    expect(messages[0]).toMatchObject({ role: 'user', content: '/todos' })
+    expect(messages[1]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Working...' })
+    expect(messages[2]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'done-1' })
+    expect(messages[3]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'done-2' })
+  })
+
+  it('renders command_subline error when local_async slash command fails', async () => {
+    const { args, getMessages } = createRoutingHarness({
+      text: '/todos',
+      commandRegistry: {
+        list: () => [],
+        suggest: () => [],
+        dispatch: () => ({
+          kind: 'local_async',
+          loadingText: 'Working',
+          run: async () => {
+            throw new Error('boom')
+          },
+        }),
+      },
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect?.kind).toBe('local_async')
+
+    const messages = getMessages()
+    expect(messages).toHaveLength(3)
+    expect(messages[0]).toMatchObject({ role: 'user', content: '/todos' })
+    expect(messages[1]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Working...' })
+    expect(messages[2]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Error: boom' })
+  })
 })
