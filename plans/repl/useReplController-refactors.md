@@ -525,6 +525,20 @@ Status: `completed`
 - replay/turn 序号生成逻辑单点维护，减少重复自增片段。
 - 行为不变（序号来源与调用时机保持一致）。
 
+### F.17 收敛 tool runtime 清理逻辑
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `clearToolRuntimeState()`，统一清理 `toolName/toolInput/taskStats/taskKind/toolMessageId/exploreBatch`。
+- `resetSessionState` 与 `abort` 复用该 helper，保留原有调用顺序（`abort` 仍先快照再清理）。
+
+**结果**:
+- 减少重复清理代码，降低后续改字段时漏改风险。
+- 行为不变（仅复用清理实现）。
+
 ---
 
 ## 建议执行顺序

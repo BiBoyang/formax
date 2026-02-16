@@ -286,6 +286,15 @@ export function useReplController(deps: {
     setThinkingStartedAtMs(null)
   }, [])
 
+  const clearToolRuntimeState = useCallback(() => {
+    toolNameByIdRef.current.clear()
+    toolInputByIdRef.current.clear()
+    taskStatsByToolUseIdRef.current.clear()
+    taskKindByToolUseIdRef.current.clear()
+    toolMessageIdByToolUseIdRef.current.clear()
+    exploreBatchRef.current = null
+  }, [])
+
   const onCompactLifecycle = useCallback(
     (event: CompactLifecycleEvent) => {
       if (!sessionSaveEnabled) return
@@ -316,12 +325,7 @@ export function useReplController(deps: {
     sendSeqRef.current = 0
     lastAutoCompactSeqRef.current = -1_000_000
     setContext(null)
-    toolNameByIdRef.current.clear()
-    toolInputByIdRef.current.clear()
-    taskStatsByToolUseIdRef.current.clear()
-    taskKindByToolUseIdRef.current.clear()
-    toolMessageIdByToolUseIdRef.current.clear()
-    exploreBatchRef.current = null
+    clearToolRuntimeState()
     canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
     canonicalRefs.replaySeqRef.current = 0
     canonicalRefs.turnIdRef.current = null
@@ -329,7 +333,7 @@ export function useReplController(deps: {
     setCanonicalTurnMessages([])
     setCanonicalTransientActive(false)
     lastClaudeMdMetaSigRef.current = null
-  }, [resetStreamingBuffers])
+  }, [clearToolRuntimeState, resetStreamingBuffers])
 
   const nextCanonicalReplaySeq = useCallback(() => {
     canonicalRefs.replaySeqRef.current += 1
@@ -555,12 +559,7 @@ export function useReplController(deps: {
     setIsLoading(false)
     setError(null)
     const trackedRunningToolsSnapshot = Array.from(toolNameByIdRef.current.entries())
-    toolNameByIdRef.current.clear()
-    toolInputByIdRef.current.clear()
-    taskStatsByToolUseIdRef.current.clear()
-    taskKindByToolUseIdRef.current.clear()
-    toolMessageIdByToolUseIdRef.current.clear()
-    exploreBatchRef.current = null
+    clearToolRuntimeState()
 
     if (currentAssistantIdRef.current) {
       const id = currentAssistantIdRef.current
@@ -575,7 +574,7 @@ export function useReplController(deps: {
         hadInFlightRequest,
       })
     })
-  }, [isLoading, resetStreamingBuffers, userInput])
+  }, [clearToolRuntimeState, isLoading, resetStreamingBuffers, userInput])
 
   const newSession = useCallback(() => {
     deps.engine.beginNewSession?.({ source: 'clear' })
