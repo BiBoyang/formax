@@ -4,6 +4,7 @@ import type {
   CanonicalSystemMessageEvent,
   CanonicalUserMessageEvent,
 } from './canonicalEvents'
+import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { SystemSegment, TranscriptSegment, UserSegment } from './transcriptProjectionTypes'
 
 export function shouldSkipMessageSegment(args: { text: string; uiKind?: CanonicalMessageUiKind }): boolean {
@@ -13,7 +14,7 @@ export function shouldSkipMessageSegment(args: { text: string; uiKind?: Canonica
 export function appendUserMessageSegment(args: {
   draft: { segments: TranscriptSegment[] }
   event: CanonicalUserMessageEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   const next: UserSegment = {
@@ -29,7 +30,7 @@ export function appendUserMessageSegment(args: {
 export function appendSystemMessageSegment(args: {
   draft: { segments: TranscriptSegment[] }
   event: CanonicalSystemMessageEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   const next: SystemSegment = {
@@ -46,7 +47,7 @@ export function appendSystemMessageSegment(args: {
 export function applyMessageProjectionEvent(args: {
   draft: { segments: TranscriptSegment[] }
   event: CanonicalEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): 'ignored' | 'skip_turn' | 'applied' {
   const { event, draft, toSegmentId } = args
   if (event.kind === 'user_message') {

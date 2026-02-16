@@ -1,4 +1,5 @@
 import type { CanonicalToolEvent, CanonicalToolInputStateEvent } from './canonicalEvents'
+import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { ToolSegment, TranscriptSegment } from './transcriptProjectionTypes'
 
 export function dedupeAppend(lines: string[], line: string | undefined): string[] {
@@ -47,7 +48,7 @@ export function reduceToolEvent(args: {
     toolNameByUseId: Record<string, string>
   }
   event: CanonicalToolEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   if (event.toolName) {
@@ -167,7 +168,7 @@ export function reduceToolInputStateEvent(args: {
     toolNameByUseId: Record<string, string>
   }
   event: CanonicalToolInputStateEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   if (event.toolName) {

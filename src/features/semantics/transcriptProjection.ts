@@ -7,6 +7,7 @@ import {
   finalizeProjectionReduction,
   prepareProjectionReduction,
 } from './transcriptProjectionCore'
+import { createTranscriptSegmentId } from './transcriptProjectionIds'
 import type { TranscriptProjectionState, TranscriptSegment } from './transcriptProjectionTypes'
 
 export type {
@@ -19,12 +20,6 @@ export type {
   TurnFooterSegment,
   UserSegment,
 } from './transcriptProjectionTypes'
-
-function toSegmentId(args: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }): string {
-  return args.suffix
-    ? `${args.turnId}:${args.kind}:${args.replaySeq}:${args.suffix}`
-    : `${args.turnId}:${args.kind}:${args.replaySeq}`
-}
 
 export function createInitialTranscriptProjectionState(args: { threadId: string }): TranscriptProjectionState {
   return {
@@ -45,7 +40,7 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
   }
   const { seenEventIds, draft } = prepared
 
-  const messageOutcome = applyMessageProjectionEvent({ draft, event, toSegmentId })
+  const messageOutcome = applyMessageProjectionEvent({ draft, event, toSegmentId: createTranscriptSegmentId })
   if (messageOutcome === 'skip_turn') {
     return {
       ...state,
@@ -54,7 +49,7 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
     }
   }
 
-  applyNonMessageProjectionEvent({ draft, event, toSegmentId })
+  applyNonMessageProjectionEvent({ draft, event, toSegmentId: createTranscriptSegmentId })
 
   return finalizeProjectionReduction({
     state,

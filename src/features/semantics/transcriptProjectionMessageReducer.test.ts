@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyMessageProjectionEvent } from './transcriptProjectionMessageReducer'
+import { createTranscriptSegmentId } from './transcriptProjectionIds'
 import type { TranscriptSegment } from './transcriptProjectionTypes'
-
-function toSegmentId(args: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }): string {
-  return args.suffix
-    ? `${args.turnId}:${args.kind}:${args.replaySeq}:${args.suffix}`
-    : `${args.turnId}:${args.kind}:${args.replaySeq}`
-}
 
 describe('transcriptProjectionMessageReducer', () => {
   it('returns skip_turn for empty user message without uiKind', () => {
@@ -23,7 +18,7 @@ describe('transcriptProjectionMessageReducer', () => {
         turnId: 'turn-1',
         text: '',
       },
-      toSegmentId,
+      toSegmentId: createTranscriptSegmentId,
     })
     expect(outcome).toBe('skip_turn')
     expect(draft.segments).toHaveLength(0)
@@ -44,7 +39,7 @@ describe('transcriptProjectionMessageReducer', () => {
         role: 'assistant',
         text: 'hello',
       },
-      toSegmentId,
+      toSegmentId: createTranscriptSegmentId,
     })
     expect(outcome).toBe('applied')
     expect(draft.segments[0]).toMatchObject({
@@ -68,7 +63,7 @@ describe('transcriptProjectionMessageReducer', () => {
         turnId: 'turn-1',
         textDelta: 'x',
       },
-      toSegmentId,
+      toSegmentId: createTranscriptSegmentId,
     })
     expect(outcome).toBe('ignored')
     expect(draft.segments).toHaveLength(0)

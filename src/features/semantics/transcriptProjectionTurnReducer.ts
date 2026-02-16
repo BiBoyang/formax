@@ -1,4 +1,5 @@
 import type { CanonicalTurnFooterEvent } from './canonicalEvents'
+import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { TranscriptSegment, TurnFooterSegment } from './transcriptProjectionTypes'
 
 export function reduceTurnFooterEvent(args: {
@@ -6,7 +7,7 @@ export function reduceTurnFooterEvent(args: {
     segments: TranscriptSegment[]
   }
   event: CanonicalTurnFooterEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   const existingIndex = draft.segments.findIndex(

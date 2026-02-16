@@ -440,6 +440,22 @@ Status: `completed`
 - 主 reducer 再次瘦身，message 分支重复逻辑消除。
 - 空消息 skip 语义保持不变，行为回归由语义测试和新单测共同覆盖。
 
+### F.11 抽出 segment id 工厂与签名类型
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 的 `toSegmentId` 本地函数与各 reducer 中重复的 `toSegmentId` 函数签名。
+
+**做法**:
+- 新增 `transcriptProjectionIds.ts`：
+  - `createTranscriptSegmentId(...)`
+  - `TranscriptSegmentIdFactory` / `TranscriptSegmentIdArgs`
+- `transcriptProjection.ts` 改为复用 `createTranscriptSegmentId`。
+- 各 reducer 的 `toSegmentId` 参数类型统一为 `TranscriptSegmentIdFactory`。
+
+**结果**:
+- ID 规则与函数签名单点维护，减少重复定义。
+- 后续修改 segment id 结构时，改动范围显著缩小。
+
 ---
 
 ## 建议执行顺序

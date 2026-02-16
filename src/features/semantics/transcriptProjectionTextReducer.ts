@@ -1,4 +1,5 @@
 import type { CanonicalAssistantDeltaEvent, CanonicalThinkingDeltaEvent } from './canonicalEvents'
+import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { AssistantSegment, ThinkingSegment, TranscriptSegment } from './transcriptProjectionTypes'
 
 function findOpenSegmentIndexById(segments: TranscriptSegment[], id: string | undefined): number {
@@ -13,7 +14,7 @@ export function reduceAssistantDeltaEvent(args: {
   }
   event: CanonicalAssistantDeltaEvent
   closeThinkingSegment: (turnId: string) => void
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   const text = event.textDelta
@@ -45,7 +46,7 @@ export function reduceThinkingDeltaEvent(args: {
   }
   event: CanonicalThinkingDeltaEvent
   closeAssistantSegment: (turnId: string) => void
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event } = args
   const text = event.textDelta

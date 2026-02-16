@@ -9,13 +9,13 @@ import {
   reduceThinkingDeltaEvent,
 } from './transcriptProjectionTextReducer'
 import { closeAssistantSegment, closeThinkingSegment, closeTurnTextSegments } from './transcriptProjectionLifecycleReducer'
-import type { TranscriptSegment } from './transcriptProjectionTypes'
+import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { ProjectionDraft } from './transcriptProjectionCore'
 
 export function applyNonMessageProjectionEvent(args: {
   draft: ProjectionDraft
   event: CanonicalEvent
-  toSegmentId: (input: { kind: TranscriptSegment['kind']; replaySeq: number; turnId: string; suffix?: string }) => string
+  toSegmentId: TranscriptSegmentIdFactory
 }): void {
   const { draft, event, toSegmentId } = args
   if (event.kind === 'assistant_delta') {
