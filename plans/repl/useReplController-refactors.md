@@ -323,6 +323,19 @@ Status: `completed`
 - tool 相关分支进一步集中到同一模块（`tool_event + tool_input_state`）。
 - `transcriptProjection.ts` 主函数继续收敛，同时保留原有行为。
 
+### F.3 抽出 turn_footer reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 `event.kind === 'turn_footer'` 分支。
+
+**做法**:
+- 新增 `transcriptProjectionTurnReducer.ts`，提供 `reduceTurnFooterEvent(...)`。
+- 主 reducer 分支改为 `reduceTurnFooterEvent({ draft, event, toSegmentId })`。
+
+**结果**:
+- turn footer 的 upsert 规则从主 reducer 抽离，职责更清晰。
+- `transcriptProjection.ts` 主函数继续收敛，行为不变。
+
 ---
 
 ## 建议执行顺序

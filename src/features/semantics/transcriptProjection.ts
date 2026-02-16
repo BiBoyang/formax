@@ -9,6 +9,7 @@ import {
   reduceToolEvent,
   reduceToolInputStateEvent,
 } from './transcriptProjectionToolReducer'
+import { reduceTurnFooterEvent } from './transcriptProjectionTurnReducer'
 
 export type UserSegment = {
   id: string
@@ -279,28 +280,7 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
 
   if (event.kind === 'turn_footer') {
     closeTurnTextSegments(draft, event.turnId)
-    const existingIndex = draft.segments.findIndex(
-      (segment) => segment.kind === 'turn_footer' && segment.turnId === event.turnId,
-    )
-    if (existingIndex >= 0) {
-      const current = draft.segments[existingIndex]
-      if (current.kind === 'turn_footer') {
-        draft.segments[existingIndex] = {
-          ...current,
-          status: event.status,
-          ...(event.message ? { message: event.message } : {}),
-        }
-      }
-    } else {
-      const next: TurnFooterSegment = {
-        id: toSegmentId({ kind: 'turn_footer', replaySeq: event.replaySeq, turnId: event.turnId }),
-        kind: 'turn_footer',
-        turnId: event.turnId,
-        status: event.status,
-        ...(event.message ? { message: event.message } : {}),
-      }
-      draft.segments.push(next)
-    }
+    reduceTurnFooterEvent({ draft, event, toSegmentId })
   }
 
   return {
