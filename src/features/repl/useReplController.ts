@@ -199,8 +199,10 @@ export function useReplController(deps: {
     turnIdRef: useRef<string | null>(null),
     turnSeqRef: useRef(0),
   }
-  const modeRef = useRef<ReplMode>(deps.mode)
-  const prevModeRef = useRef<ReplMode>(deps.mode)
+  const modeRefs = {
+    currentRef: useRef<ReplMode>(deps.mode),
+    previousRef: useRef<ReplMode>(deps.mode),
+  }
   const pendingExitPlanReminderRef = useRef(false)
   const reminderServiceRef = useRef<ReminderService | null>(null)
   const contextBudgetConfigRef = useRef<ContextBudgetConfig | null>(null)
@@ -373,12 +375,12 @@ export function useReplController(deps: {
   }, [deps.allowedSubagents])
 
   useEffect(() => {
-    modeRef.current = deps.mode
-    const prev = prevModeRef.current
+    modeRefs.currentRef.current = deps.mode
+    const prev = modeRefs.previousRef.current
     if (shouldInjectExitPlanReminder({ current: prev, next: deps.mode })) {
       pendingExitPlanReminderRef.current = true
     }
-    prevModeRef.current = deps.mode
+    modeRefs.previousRef.current = deps.mode
   }, [deps.mode])
 
   useEffect(() => {
@@ -451,9 +453,9 @@ export function useReplController(deps: {
 
   const setReplMode = useCallback(
     (nextMode: ReplMode) => {
-      const transition = resolveReplModeTransition({ current: modeRef.current, next: nextMode })
+      const transition = resolveReplModeTransition({ current: modeRefs.currentRef.current, next: nextMode })
       if (!transition) return
-      modeRef.current = transition.to
+      modeRefs.currentRef.current = transition.to
       deps.onModeChange?.(transition.to)
     },
     [deps.onModeChange],
@@ -823,7 +825,7 @@ export function useReplController(deps: {
         promptProfile: deps.promptProfile,
         allowedSubagents,
         mode: deps.mode,
-        getReplMode: () => modeRef.current,
+        getReplMode: () => modeRefs.currentRef.current,
         setReplMode,
         getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
         historyRef,
@@ -920,7 +922,7 @@ export function useReplController(deps: {
             tools: deps.tools,
             allowedSubagents,
             mode: deps.mode,
-            getReplMode: () => modeRef.current,
+            getReplMode: () => modeRefs.currentRef.current,
             setReplMode,
             handleEvent,
           },

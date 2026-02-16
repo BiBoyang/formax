@@ -567,6 +567,20 @@ Status: `completed`
 - canonical thread 标识单点维护，减少后续修改时的遗漏风险。
 - 行为不变（事件 threadId 与 eventId 前缀保持一致来源）。
 
+### F.20 收敛 mode refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `modeRef` 与 `prevModeRef` 收敛到 `modeRefs` 容器对象（`currentRef/previousRef`）。
+- 替换 mode 相关 effect、`setReplMode`、以及 pre-main/main send 路由里的 `getReplMode` 读取点。
+
+**结果**:
+- mode 运行态引用访问更集中，减少后续模式流转重构时的散点修改。
+- 行为不变（仅访问路径调整）。
+
 ---
 
 ## 建议执行顺序
