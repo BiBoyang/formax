@@ -1,8 +1,6 @@
 import type { CanonicalEvent } from './canonicalEvents'
 import {
-  appendSystemMessageSegment,
-  appendUserMessageSegment,
-  shouldSkipMessageSegment,
+  applyMessageProjectionEvent,
 } from './transcriptProjectionMessageReducer'
 import { applyNonMessageProjectionEvent } from './transcriptProjectionEventReducer'
 import {
@@ -47,26 +45,13 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
   }
   const { seenEventIds, draft } = prepared
 
-  if (event.kind === 'user_message') {
-    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
-      return {
-        ...state,
-        seenEventIds,
-        lastReplaySeq: event.replaySeq,
-      }
+  const messageOutcome = applyMessageProjectionEvent({ draft, event, toSegmentId })
+  if (messageOutcome === 'skip_turn') {
+    return {
+      ...state,
+      seenEventIds,
+      lastReplaySeq: event.replaySeq,
     }
-    appendUserMessageSegment({ draft, event, toSegmentId })
-  }
-
-  if (event.kind === 'system_message') {
-    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
-      return {
-        ...state,
-        seenEventIds,
-        lastReplaySeq: event.replaySeq,
-      }
-    }
-    appendSystemMessageSegment({ draft, event, toSegmentId })
   }
 
   applyNonMessageProjectionEvent({ draft, event, toSegmentId })

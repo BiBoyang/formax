@@ -426,6 +426,20 @@ Status: `completed`
 - 类型定义与行为 reducer 解耦，模块边界更清晰。
 - 减少 type-only 循环依赖风险，后续拆分成本更低。
 
+### F.10 抽出 message 事件分发 reducer
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 user/system 双分支（含 skip_turn early-return）。
+
+**做法**:
+- 在 `transcriptProjectionMessageReducer.ts` 新增 `applyMessageProjectionEvent(...)`，统一 user/system 分发与 skip 判定。
+- 主 reducer 改为先调用该 helper；`skip_turn` 时保留原 early-return 语义。
+- 新增 `transcriptProjectionMessageReducer.test.ts` 覆盖 `skip_turn/applied/ignored`。
+
+**结果**:
+- 主 reducer 再次瘦身，message 分支重复逻辑消除。
+- 空消息 skip 语义保持不变，行为回归由语义测试和新单测共同覆盖。
+
 ---
 
 ## 建议执行顺序
