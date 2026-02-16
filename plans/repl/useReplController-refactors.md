@@ -553,6 +553,20 @@ Status: `completed`
 - 减少重复的 UI 清理片段，降低后续状态字段调整时的漏改风险。
 - 行为不变（只做调用点收敛）。
 
+### F.19 收敛 canonical threadId 常量
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `CANONICAL_THREAD_ID` 常量，替换 `tui-live` 的散落字面量。
+- 统一用于 projection 初始化、streaming canonical bridge、local bash canonical emitter、UI canonical 事件构造。
+
+**结果**:
+- canonical thread 标识单点维护，减少后续修改时的遗漏风险。
+- 行为不变（事件 threadId 与 eventId 前缀保持一致来源）。
+
 ---
 
 ## 建议执行顺序

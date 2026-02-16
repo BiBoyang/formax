@@ -68,6 +68,8 @@ import {
 } from '../semantics/transcriptProjection'
 import type { CanonicalEvent } from '../semantics/canonicalEvents'
 
+const CANONICAL_THREAD_ID = 'tui-live'
+
 function waitForNextMacrotask(): Promise<void> {
   return new Promise((resolve) => {
     setImmediate(resolve)
@@ -192,7 +194,7 @@ export function useReplController(deps: {
   const toolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
   const canonicalRefs = {
-    projectionRef: useRef(createInitialTranscriptProjectionState({ threadId: 'tui-live' })),
+    projectionRef: useRef(createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })),
     replaySeqRef: useRef(0),
     turnIdRef: useRef<string | null>(null),
     turnSeqRef: useRef(0),
@@ -331,7 +333,7 @@ export function useReplController(deps: {
     lastAutoCompactSeqRef.current = -1_000_000
     setContext(null)
     clearToolRuntimeState()
-    canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: 'tui-live' })
+    canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })
     canonicalRefs.replaySeqRef.current = 0
     canonicalRefs.turnIdRef.current = null
     canonicalRefs.turnSeqRef.current = 0
@@ -541,7 +543,7 @@ export function useReplController(deps: {
     reminderServiceRef,
     contextBudgetConfigRef,
     canonical: {
-      threadId: 'tui-live',
+      threadId: CANONICAL_THREAD_ID,
       getTurnId: () => canonicalRefs.turnIdRef.current,
       nextReplaySeq: nextCanonicalReplaySeq,
       onEvent: onCanonicalEvent,
@@ -720,7 +722,7 @@ export function useReplController(deps: {
         const localTurnId = `local-bash-${nextCanonicalTurnSeq()}`
         const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
         const localCanonicalEmitter = createLocalBashCanonicalEmitter({
-          threadId: 'tui-live',
+          threadId: CANONICAL_THREAD_ID,
           turnId: localTurnId,
           toolUseId: msgId,
           onCanonicalEvent,
@@ -880,9 +882,9 @@ export function useReplController(deps: {
 
         if (message.role === 'user' && (message.uiKind === undefined || message.uiKind === 'compact_summary')) {
           onCanonicalEvent({
-            threadId: 'tui-live',
+            threadId: CANONICAL_THREAD_ID,
             replaySeq,
-            eventId: `tui-live:${canonicalTurnId}:user_message:${replaySeq}`,
+            eventId: `${CANONICAL_THREAD_ID}:${canonicalTurnId}:user_message:${replaySeq}`,
             ts,
             source: 'ui',
             kind: 'user_message',
@@ -894,9 +896,9 @@ export function useReplController(deps: {
         }
 
         onCanonicalEvent({
-          threadId: 'tui-live',
+          threadId: CANONICAL_THREAD_ID,
           replaySeq,
-          eventId: `tui-live:${canonicalTurnId}:system_message:${replaySeq}`,
+          eventId: `${CANONICAL_THREAD_ID}:${canonicalTurnId}:system_message:${replaySeq}`,
           ts,
           source: 'ui',
           kind: 'system_message',
