@@ -212,6 +212,19 @@ Status: `completed`
 - `tool_input/tool_update` 分支更短，职责更清晰。
 - 新增 `streamingTaskState.test.ts` 锁定 batch/stats/legacy-update 判定语义。
 
+### E.4 抽出 Explore batch 完成判定 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 的 `tool_end` 分支中 Explore 批次完成逻辑。
+
+**做法**:
+- 在 `streamingTaskState.ts` 新增 `finalizeExploreBatchOnTaskEnd(...)`。
+- `streaming.ts` 改为消费 `{ nextBatch, summaryCount }` 返回值并决定是否追加 summary 行。
+
+**结果**:
+- `tool_end` 分支进一步聚焦于消息拼接/副作用编排。
+- 批次完成判定规则可在 `streamingTaskState.test.ts` 直接单测。
+
 ---
 
 ## 建议执行顺序

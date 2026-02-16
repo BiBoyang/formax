@@ -11,6 +11,7 @@ import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from '
 import { buildCompletedToolMessage } from './streamingToolCompletion'
 import {
   applyTaskStatsFromToolUpdate,
+  finalizeExploreBatchOnTaskEnd,
   shouldApplyLegacyToolUpdate,
   updateTaskStateFromToolInput,
 } from './streamingTaskState'
@@ -450,28 +451,24 @@ export function useReplStreaming(args: {
             })
           }
 
-          if (toolNameFromStart === 'Task' && taskKind === 'explore') {
-            const batch = args.exploreBatchRef.current
-            if (batch && batch.toolUseIds.has(ev.id)) {
-              batch.completedToolUseIds.add(ev.id)
-              batch.lastSeenAtMs = Date.now()
-
-              if (batch.toolUseIds.size >= 2 && batch.completedToolUseIds.size === batch.toolUseIds.size) {
-                args.exploreBatchRef.current = null
-                if (canWriteLegacyTranscript) {
-                  const count = batch.toolUseIds.size
-                  updateLegacyMessages((prev) => [
-                    ...prev,
-                    {
-                      id: makeMessageId('assistant'),
-                      role: 'assistant',
-                      content: `${count} Explore agents finished (ctrl+o to expand)`,
-                      timestamp: new Date(),
-                    },
-                  ])
-                }
-              }
-            }
+          const exploreBatchOutcome = finalizeExploreBatchOnTaskEnd({
+            toolUseId: ev.id,
+            taskKind,
+            exploreBatch: args.exploreBatchRef.current,
+            nowMs: Date.now(),
+          })
+          args.exploreBatchRef.current = exploreBatchOutcome.nextBatch
+          if (exploreBatchOutcome.summaryCount !== null && canWriteLegacyTranscript) {
+            const count = exploreBatchOutcome.summaryCount
+            updateLegacyMessages((prev) => [
+              ...prev,
+              {
+                id: makeMessageId('assistant'),
+                role: 'assistant',
+                content: `${count} Explore agents finished (ctrl+o to expand)`,
+                timestamp: new Date(),
+              },
+            ])
           }
 
           args.reminderServiceRef.current?.recordToolResult({

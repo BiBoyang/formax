@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TokenUsage } from '../../../streaming/types'
 import {
   applyTaskStatsFromToolUpdate,
+  finalizeExploreBatchOnTaskEnd,
   shouldApplyLegacyToolUpdate,
   updateTaskStateFromToolInput,
   type ExploreTaskBatch,
@@ -86,5 +87,21 @@ describe('streamingTaskState', () => {
         event: { type: 'tool_update', id: 'bash-1' },
       }),
     ).toBe(false)
+  })
+
+  it('finalizes explore batch and emits summary count when all tasks complete', () => {
+    const batch: ExploreTaskBatch = {
+      toolUseIds: new Set(['task-1', 'task-2']),
+      completedToolUseIds: new Set(['task-1']),
+      lastSeenAtMs: 1000,
+    }
+    const outcome = finalizeExploreBatchOnTaskEnd({
+      toolUseId: 'task-2',
+      taskKind: 'explore',
+      exploreBatch: batch,
+      nowMs: 1500,
+    })
+    expect(outcome.nextBatch).toBeNull()
+    expect(outcome.summaryCount).toBe(2)
   })
 })

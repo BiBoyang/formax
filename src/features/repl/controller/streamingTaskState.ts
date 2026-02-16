@@ -78,3 +78,25 @@ export function shouldApplyLegacyToolUpdate(args: {
       (args.toolName === 'Task' && (typeof event.toolUses === 'number' || event.usage)),
   )
 }
+
+export function finalizeExploreBatchOnTaskEnd(args: {
+  toolUseId: string
+  taskKind: 'explore' | 'other' | undefined
+  exploreBatch: ExploreTaskBatch | null
+  nowMs: number
+}): { nextBatch: ExploreTaskBatch | null; summaryCount: number | null } {
+  if (args.taskKind !== 'explore') {
+    return { nextBatch: args.exploreBatch, summaryCount: null }
+  }
+  const batch = args.exploreBatch
+  if (!batch || !batch.toolUseIds.has(args.toolUseId)) {
+    return { nextBatch: batch, summaryCount: null }
+  }
+
+  batch.completedToolUseIds.add(args.toolUseId)
+  batch.lastSeenAtMs = args.nowMs
+  if (batch.toolUseIds.size >= 2 && batch.completedToolUseIds.size === batch.toolUseIds.size) {
+    return { nextBatch: null, summaryCount: batch.toolUseIds.size }
+  }
+  return { nextBatch: batch, summaryCount: null }
+}
