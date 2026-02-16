@@ -91,6 +91,7 @@ function Harness(args: {
   engine: ChatEngine
   tools?: ToolDefinition[]
   cfg?: RuntimeConfig
+  cwd?: string
   commandRegistry?: SlashCommandRegistry
   initialSession?: { filePath?: string; messages?: any[]; history?: any[] }
   onController: (c: ReturnType<typeof useReplController>) => void
@@ -99,6 +100,7 @@ function Harness(args: {
     engine: args.engine,
     tools: args.tools ?? [],
     cfg: args.cfg ?? createCfg(),
+    cwd: args.cwd,
     mode: 'normal',
     commandRegistry: args.commandRegistry,
     initialSession: args.initialSession as any,
@@ -281,6 +283,55 @@ describe('useReplController', () => {
       const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'edit-1')
       expect(msg?.toolInfo?.patchStartLineNumber).toBe(22)
       expect(msg?.toolInfo?.input).toMatchObject({ file_path: filePath })
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves Edit patchStartLineNumber with relative file_path using controller cwd', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-repl-canonical-edit-cwd-'))
+    try {
+      const relativePath = 'demo.txt'
+      const filePath = path.join(tmpDir, relativePath)
+      const prefix = Array.from({ length: 21 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
+      await fsp.writeFile(filePath, prefix + 'hello world\n', 'utf8')
+
+      const engine: ChatEngine = {
+        async runTurn({ history, onEvent, user }) {
+          onEvent({ type: 'tool_start', id: 'edit-rel', name: 'Edit' } as StreamEvent)
+          onEvent({
+            type: 'tool_input',
+            id: 'edit-rel',
+            input: {
+              file_path: relativePath,
+              old_string: 'hello world\n',
+              new_string: '   22  hello world\n',
+            },
+          } as StreamEvent)
+          onEvent({
+            type: 'tool_end',
+            id: 'edit-rel',
+            result: { tool_use_id: 'edit-rel', content: 'OK', is_error: false },
+          } as StreamEvent)
+          onEvent({ type: 'complete' } as StreamEvent)
+          return [...history, user]
+        },
+      }
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(<Harness engine={engine} cwd={tmpDir} onController={(c) => (controller = c)} />)
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('run canonical edit relative cwd')
+      await waitFor(() =>
+        controller.state.messages.some(
+          (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'edit-rel' && m.toolInfo?.status === 'completed',
+        ),
+      )
+
+      const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'edit-rel')
+      expect(msg?.toolInfo?.patchStartLineNumber).toBe(22)
+      expect(msg?.toolInfo?.input).toMatchObject({ file_path: relativePath })
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }

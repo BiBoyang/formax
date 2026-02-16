@@ -67,6 +67,7 @@ export function useReplStreaming(args: {
   }
   taskKindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
   toolMessageIdByToolUseIdRef?: { current: Map<string, string> }
+  cwd?: string
   exploreBatchRef: { current: ExploreTaskBatch | null }
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
@@ -79,6 +80,7 @@ export function useReplStreaming(args: {
 }): { handleEvent: (ev: StreamEvent) => void } {
   const internalToolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
   const toolMessageIdByToolUseIdRef = args.toolMessageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
+  const workingCwd = args.cwd ?? process.cwd()
 
   const flushAssistantBuffer = useCallback(() => {
     const text = args.assistantBufferRef.current
@@ -132,11 +134,28 @@ export function useReplStreaming(args: {
       const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
       const canonicalOnly = canonicalBridgeActive
       if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
-        const canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
+        let canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
           threadId: args.canonical.threadId,
           turnId: canonicalTurnId,
           nextReplaySeq: args.canonical.nextReplaySeq,
         })
+        if (ev.type === 'tool_end') {
+          const toolName = args.toolNameByIdRef.current.get(ev.id)
+          if (toolName === 'Edit' && !ev.result.is_error) {
+            const toolInput = args.toolInputByIdRef.current.get(ev.id) ?? {}
+            const patchStartLineNumber = computeEditPatchStartLineNumber({
+              cwd: workingCwd,
+              input: toolInput,
+            })
+            if (patchStartLineNumber !== null) {
+              canonicalEvents = canonicalEvents.map((event) =>
+                event.kind === 'tool_event' && event.phase === 'end' && event.toolUseId === ev.id
+                  ? { ...event, patchStartLineNumber }
+                  : event,
+              )
+            }
+          }
+        }
         for (const event of canonicalEvents) {
           args.canonical.onEvent(event)
         }
@@ -421,7 +440,7 @@ export function useReplStreaming(args: {
 
             const editPatchStartLineNumber =
               toolName === 'Edit' && !ev.result.is_error
-                ? computeEditPatchStartLineNumber({ cwd: process.cwd(), input: toolInput })
+                ? computeEditPatchStartLineNumber({ cwd: workingCwd, input: toolInput })
                 : null
 
             const rawResult = ev.result.content

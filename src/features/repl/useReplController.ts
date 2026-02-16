@@ -25,7 +25,6 @@ import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injecte
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import { canonicalTurnSegmentsToMessages } from './controller/canonicalTurnMessages'
-import { computeEditPatchStartLineNumber } from './controller/patchStartLineNumber'
 import { isErrorLikeSubline } from './controller/errorSubline'
 import {
   buildPersistedSigMap,
@@ -527,6 +526,7 @@ export function useReplController(deps: {
     taskStatsByToolUseIdRef,
     taskKindByToolUseIdRef,
     toolMessageIdByToolUseIdRef,
+    cwd: runtimeCwd,
     exploreBatchRef,
     reminderServiceRef,
     contextBudgetConfigRef,
@@ -1170,20 +1170,7 @@ export function useReplController(deps: {
                         patchStartLineNumber: legacyToolInfo.patchStartLineNumber ?? canonicalToolInfo.patchStartLineNumber,
                       }
                     : canonicalToolInfo ?? legacyToolInfo
-                const needsPatchStartLineNumber =
-                  mergedToolInfoBase?.name === 'Edit' &&
-                  mergedToolInfoBase?.status === 'completed' &&
-                  mergedToolInfoBase?.patchStartLineNumber === undefined
-                const computedPatchStartLineNumber = needsPatchStartLineNumber
-                  ? computeEditPatchStartLineNumber({
-                      cwd: runtimeCwd,
-                      input: mergedToolInfoBase?.input ?? {},
-                    })
-                  : null
-                const mergedToolInfo =
-                  computedPatchStartLineNumber !== null && mergedToolInfoBase
-                    ? { ...mergedToolInfoBase, patchStartLineNumber: computedPatchStartLineNumber }
-                    : mergedToolInfoBase
+                const mergedToolInfo = mergedToolInfoBase
                 return {
                   ...baseMessage,
                   id: hasTailLegacyTool ? (legacyTool?.id ?? baseMessage.id) : baseMessage.id,

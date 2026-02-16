@@ -138,7 +138,7 @@ Result:
 - Added timestamp normalization for canonical tool rows when legacy timestamps are unavailable.
 
 ### Slice 7: Move Edit Patch Metadata to Semantic Write-Time
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/controller/streaming.ts`
 - `src/features/semantics/streamCanonicalAdapter.ts`
@@ -152,6 +152,11 @@ Changes:
 Acceptance:
 - `canonicalTurnMessages` does not perform expensive patch-line recomputation.
 - Edit presenter still receives stable `patchStartLineNumber` for completed edits.
+
+Result:
+- `streaming.ts` now enriches canonical `tool_end` events for `Edit` with `patchStartLineNumber`.
+- Projection carries patch metadata through to final canonical tool rows.
+- `useReplController` no longer computes edit patch metadata during final-tail merge.
 
 ### Slice 8: Semantic Fixture Gate for Complex Tool Turns
 Status: `pending`

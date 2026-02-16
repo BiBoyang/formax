@@ -813,4 +813,118 @@ describe('useReplStreaming', () => {
     expect(messagesRef.current.some((message) => message.role === 'tool')).toBe(false)
   })
 
+  it('writes Edit patchStartLineNumber into canonical tool segment at tool_end', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-streaming-edit-'))
+    const filePath = path.join(tmpDir, 'sample.ts')
+    await fsp.writeFile(filePath, 'line1\nconst value = 1\nline3\n', 'utf8')
+
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+      const replaySeqRef = useRef(0)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+        canonical: {
+          threadId: 'tui-live',
+          getTurnId: () => 'turn-canonical-edit',
+          nextReplaySeq: () => {
+            replaySeqRef.current += 1
+            return replaySeqRef.current
+          },
+          onEvent: (event) => {
+            projectionRef.current = reduceTranscriptProjection(projectionRef.current, event)
+          },
+        },
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void messages
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    try {
+      render(<Harness />)
+      await tick()
+
+      const handleEvent = handleEventRef.current
+      expect(handleEvent).not.toBeNull()
+
+      handleEvent!({ type: 'tool_start', id: 'edit-1', name: 'Edit' })
+      handleEvent!({
+        type: 'tool_input',
+        id: 'edit-1',
+        input: {
+          file_path: filePath,
+          old_string: 'const value = 1',
+          new_string: 'const value = 2',
+        },
+      })
+      handleEvent!({
+        type: 'tool_end',
+        id: 'edit-1',
+        result: { tool_use_id: 'edit-1', content: 'Done', is_error: false },
+      })
+      await tick()
+
+      const tool = projectionRef.current.segments.find(
+        (segment) => segment.kind === 'tool' && segment.toolUseId === 'edit-1',
+      )
+      expect(tool && tool.kind === 'tool' ? tool.patchStartLineNumber : undefined).toBe(2)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
 })
