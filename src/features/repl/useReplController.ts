@@ -42,10 +42,10 @@ import {
   applyConfigExitInjection,
 } from './controller/localCommandInjection'
 import {
-  createSendTurnContext,
   resolvePreMainSendRouting,
-  runMainSendTurn,
 } from './controller/send'
+import { createSendTurnContext } from './controller/sendTypes'
+import { runMainSendTurn } from './controller/sendMainTurn'
 import { resolveTurnProvider } from './controller/provider'
 import {
   recordClaudeMdInjectionEvent,
@@ -714,7 +714,13 @@ export function useReplController(deps: {
       const text = value.trim()
       if (!text || isLoading || bashModeInFlightRef.current) return
 
-      const provider = resolveTurnProvider(deps.cfg.llm.provider)
+      let provider: 'openai' | 'anthropic' = 'anthropic'
+      let providerError: string | null = null
+      try {
+        provider = resolveTurnProvider(deps.cfg.llm.provider)
+      } catch (error) {
+        providerError = error instanceof Error ? error.message : 'Unsupported provider'
+      }
 
       // Thinking/streaming state is per-turn; clear buffers so stale thinking
       // from previous turns can't leak into the next status line/panel.
@@ -795,6 +801,7 @@ export function useReplController(deps: {
         preferredSlashSpecId: opts?.preferredSlashSpecId,
         isLoading,
         provider,
+        providerError,
         engine: deps.engine,
         cfg: deps.cfg,
         promptProfile: deps.promptProfile,
@@ -828,6 +835,20 @@ export function useReplController(deps: {
       })
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect
+      if (providerError) {
+        setError(providerError)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            ui: { kind: 'command_subline' },
+            content: providerError,
+            timestamp: new Date(),
+          },
+        ])
+        return
+      }
 
       const canonicalTurnId = `turn-${nextCanonicalTurnSeq()}`
       canonicalRefs.turnIdRef.current = canonicalTurnId

@@ -343,7 +343,7 @@ export function mergeCanonicalTurnIntoMessages(args: {
   ]
   let lastTs =
     head.length > 0 && head[head.length - 1]?.timestamp instanceof Date ? head[head.length - 1]!.timestamp.getTime() : 1
-  return mergedMessages.map((message, index) => {
+  const normalizedMessages = mergedMessages.map((message, index) => {
     if (index <= userIndex) {
       const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs
       lastTs = Math.max(lastTs, raw)
@@ -360,6 +360,8 @@ export function mergeCanonicalTurnIntoMessages(args: {
     if (message.timestamp instanceof Date && message.timestamp.getTime() === normalized) return message
     return { ...message, timestamp: new Date(normalized) }
   })
+  assertNoDuplicateToolUseIdsInTurn({ messages: normalizedMessages, userIndex })
+  return normalizedMessages
 }
 
 export function appendCanonicalTurnFinalRows(args: {
@@ -393,6 +395,32 @@ export function appendCanonicalTurnFinalRows(args: {
     turnOutcome: args.turnOutcome,
     isFailureSubline: args.isFailureSubline,
   })
+}
+
+export function assertNoDuplicateToolUseIdsInTurn(args: {
+  messages: Msg[]
+  userIndex: number
+}): void {
+  if (process.env.NODE_ENV === 'production') return
+
+  const seenToolUseIds = new Set<string>()
+  const duplicatedToolUseIds: string[] = []
+  for (let index = args.userIndex + 1; index < args.messages.length; index += 1) {
+    const message = args.messages[index]
+    if (!message) continue
+    if (message.role === 'user') break
+    if (message.role !== 'tool') continue
+    const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
+    if (!toolUseId) continue
+    if (seenToolUseIds.has(toolUseId)) duplicatedToolUseIds.push(toolUseId)
+    else seenToolUseIds.add(toolUseId)
+  }
+
+  if (duplicatedToolUseIds.length === 0) return
+
+  throw new Error(
+    `Invariant violation: duplicate tool rows in one turn (${Array.from(new Set(duplicatedToolUseIds)).join(', ')})`,
+  )
 }
 
 export function replaceTurnTailWithCanonicalMessages(args: {

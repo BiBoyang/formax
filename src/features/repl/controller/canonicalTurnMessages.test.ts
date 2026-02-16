@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../semantics/transcriptProjection'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import {
+  assertNoDuplicateToolUseIdsInTurn,
   appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
   computeCanonicalTurnAppend,
@@ -794,6 +795,33 @@ describe('mergeCanonicalTurnIntoMessages', () => {
     })
 
     expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-a', 'subline-err'])
+  })
+})
+
+describe('assertNoDuplicateToolUseIdsInTurn', () => {
+  it('throws in non-production env when one turn has duplicate tool_use_id rows', () => {
+    expect(() =>
+      assertNoDuplicateToolUseIdsInTurn({
+        messages: [
+          { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+          {
+            id: 'tool-1a',
+            role: 'tool',
+            content: 'running',
+            timestamp: new Date(101),
+            toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: { command: 'pwd' } },
+          },
+          {
+            id: 'tool-1b',
+            role: 'tool',
+            content: 'done',
+            timestamp: new Date(102),
+            toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: { command: 'pwd' } },
+          },
+        ],
+        userIndex: 0,
+      }),
+    ).toThrow(/duplicate tool rows in one turn/i)
   })
 })
 

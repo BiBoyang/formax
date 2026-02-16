@@ -994,6 +994,58 @@ describe('useReplController', () => {
     expect(controller.state.messages).toEqual([])
   })
 
+  it('surfaces unsupported provider as command subline and skips engine turn', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: {
+        ...base.llm,
+        provider: 'gemini',
+      },
+    })
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('hello')
+    expect(runTurn).not.toHaveBeenCalled()
+    await waitFor(() => typeof controller.state.error === 'string')
+    expect(controller.state.error).toMatch(/unsupported provider/i)
+    expect(
+      controller.state.messages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          m.ui?.kind === 'command_subline' &&
+          String(m.content).toLowerCase().includes('unsupported provider'),
+      ),
+    ).toBe(true)
+  })
+
+  it('still allows local /clear flow when provider is unsupported', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+    const base = createCfg()
+    const cfg = createCfg({
+      llm: {
+        ...base.llm,
+        provider: 'gemini',
+      },
+    })
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} cfg={cfg} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('seed')
+    await waitFor(() => typeof controller.state.error === 'string')
+    expect(runTurn).not.toHaveBeenCalled()
+
+    await controller.actions.send('/clear')
+    await waitFor(() => controller.state.messages.length === 0)
+  })
+
   it('send is a no-op while a send is already in progress', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {

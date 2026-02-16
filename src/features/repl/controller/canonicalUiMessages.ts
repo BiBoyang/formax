@@ -1,5 +1,5 @@
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
-import type { CanonicalUiMessage } from './send'
+import type { CanonicalUiMessage } from './sendTypes'
 
 export function emitCanonicalUiMessageForTurn(args: {
   threadId: string
