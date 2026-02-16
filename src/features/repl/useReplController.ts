@@ -331,6 +331,16 @@ export function useReplController(deps: {
     lastClaudeMdMetaSigRef.current = null
   }, [resetStreamingBuffers])
 
+  const nextCanonicalReplaySeq = useCallback(() => {
+    canonicalRefs.replaySeqRef.current += 1
+    return canonicalRefs.replaySeqRef.current
+  }, [])
+
+  const nextCanonicalTurnSeq = useCallback(() => {
+    canonicalRefs.turnSeqRef.current += 1
+    return canonicalRefs.turnSeqRef.current
+  }, [])
+
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
     canonicalRefs.projectionRef.current = reduceTranscriptProjection(canonicalRefs.projectionRef.current, event)
     setCanonicalTransientActive(true)
@@ -525,10 +535,7 @@ export function useReplController(deps: {
     canonical: {
       threadId: 'tui-live',
       getTurnId: () => canonicalRefs.turnIdRef.current,
-      nextReplaySeq: () => {
-        canonicalRefs.replaySeqRef.current += 1
-        return canonicalRefs.replaySeqRef.current
-      },
+      nextReplaySeq: nextCanonicalReplaySeq,
       onEvent: onCanonicalEvent,
     },
   })
@@ -708,12 +715,7 @@ export function useReplController(deps: {
         const bashAbort = new AbortController()
         abortControllerRef.current = bashAbort
 
-        canonicalRefs.turnSeqRef.current += 1
-        const localTurnId = `local-bash-${canonicalRefs.turnSeqRef.current}`
-        const nextCanonicalReplaySeq = () => {
-          canonicalRefs.replaySeqRef.current += 1
-          return canonicalRefs.replaySeqRef.current
-        }
+        const localTurnId = `local-bash-${nextCanonicalTurnSeq()}`
         const msgId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
         const localCanonicalEmitter = createLocalBashCanonicalEmitter({
           threadId: 'tui-live',
@@ -866,17 +868,13 @@ export function useReplController(deps: {
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect
 
-      canonicalRefs.turnSeqRef.current += 1
-      const canonicalTurnId = `turn-${canonicalRefs.turnSeqRef.current}`
+      const canonicalTurnId = `turn-${nextCanonicalTurnSeq()}`
       canonicalRefs.turnIdRef.current = canonicalTurnId
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
       const emitCanonicalUiMessage = (message: CanonicalUiMessage) => {
-        const replaySeq = (() => {
-          canonicalRefs.replaySeqRef.current += 1
-          return canonicalRefs.replaySeqRef.current
-        })()
+        const replaySeq = nextCanonicalReplaySeq()
         const ts = new Date().toISOString()
 
         if (message.role === 'user' && (message.uiKind === undefined || message.uiKind === 'compact_summary')) {
@@ -997,6 +995,8 @@ export function useReplController(deps: {
       closeOverlay,
       handleEvent,
       onCanonicalEvent,
+      nextCanonicalReplaySeq,
+      nextCanonicalTurnSeq,
       isLoading,
       newSession,
       openOverlay,

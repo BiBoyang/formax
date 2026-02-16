@@ -512,6 +512,19 @@ Status: `completed`
 - canonical 运行态引用聚合，后续继续做 ref 分组（streaming/session）时改动点更集中。
 - 行为不变（仅结构性重构）。
 
+### F.16 抽出 canonical seq 递增 helper
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 新增 `nextCanonicalReplaySeq()` 与 `nextCanonicalTurnSeq()`，统一替换 bash 分支、主 turn 分支与 canonical bridge 中重复的自增逻辑。
+
+**结果**:
+- replay/turn 序号生成逻辑单点维护，减少重复自增片段。
+- 行为不变（序号来源与调用时机保持一致）。
+
 ---
 
 ## 建议执行顺序
