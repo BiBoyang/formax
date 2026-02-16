@@ -336,6 +336,21 @@ Status: `completed`
 - turn footer 的 upsert 规则从主 reducer 抽离，职责更清晰。
 - `transcriptProjection.ts` 主函数继续收敛，行为不变。
 
+### F.4 抽出 assistant/thinking text reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 中 `assistant_delta` 与 `thinking_delta` 分支。
+
+**做法**:
+- 新增 `transcriptProjectionTextReducer.ts`：
+  - `reduceAssistantDeltaEvent(...)`
+  - `reduceThinkingDeltaEvent(...)`
+- 主 reducer 分支改为调用 text reducer，并通过闭包传入 `closeThinkingSegment/closeAssistantSegment`。
+
+**结果**:
+- 文本流 segment 拼接规则集中，主 reducer 只做事件调度。
+- `transcriptProjection.ts` 进一步瘦身，行为保持不变。
+
 ---
 
 ## 建议执行顺序
