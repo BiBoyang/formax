@@ -7,9 +7,9 @@ import { formatToolResult } from '../../../utils/toolFormatting'
 import type { ReminderService } from '../reminders/ReminderService'
 import { makeMessageId } from './ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
-import { toCanonicalEventsFromStreamEvent } from '../../semantics/streamCanonicalAdapter'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import { parseBackgroundTaskId, parseTaskTranscript } from './taskResult'
+import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
 import {
   formatDuration,
   formatTokenTotal,
@@ -149,42 +149,43 @@ export function useReplStreaming(args: {
 
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
-      const canonicalTurnId = args.canonical?.getTurnId()
-      const shouldForwardCanonical = !(ev.type === 'error' && isAbortLikeError(ev.error))
-      const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
-      const canonicalOnly = canonicalBridgeActive
-      // Canonical bridge is the single semantic writer. Legacy transcript mutations
-      // must stay disabled in this mode to avoid dual-write duplicates.
-      const canWriteLegacyTranscript = !canonicalOnly
+      const streamWritePolicy = resolveCanonicalStreamWritePolicy({
+        canonical: args.canonical,
+        event: ev,
+      })
+      const { canonicalTurnId, canonicalBridgeActive, canonicalOnly, canWriteLegacyTranscript, shouldForwardCanonical } =
+        streamWritePolicy
       const updateLegacyMessages = (next: SetStateAction<Msg[]>) => {
         if (!canWriteLegacyTranscript) return
         args.setMessages(next)
       }
-      if (args.canonical && canonicalTurnId && shouldForwardCanonical) {
-        let canonicalEvents = toCanonicalEventsFromStreamEvent(ev, {
-          threadId: args.canonical.threadId,
-          turnId: canonicalTurnId,
-          nextReplaySeq: args.canonical.nextReplaySeq,
+      if (shouldForwardCanonical) {
+        forwardCanonicalStreamEvent({
+          canonical: args.canonical,
+          canonicalTurnId,
+          event: ev,
+          mapEvent:
+            ev.type === 'tool_end'
+              ? (event) => {
+                  const toolName = args.toolNameByIdRef.current.get(ev.id)
+                  const patchStartLineNumber = resolveEditPatchStartLineNumber({
+                    cwd: workingCwd,
+                    toolName,
+                    isError: Boolean(ev.result.is_error),
+                    toolInput: args.toolInputByIdRef.current.get(ev.id),
+                  })
+                  if (
+                    patchStartLineNumber !== null &&
+                    event.kind === 'tool_event' &&
+                    event.phase === 'end' &&
+                    event.toolUseId === ev.id
+                  ) {
+                    return { ...event, patchStartLineNumber }
+                  }
+                  return event
+                }
+              : undefined,
         })
-        if (ev.type === 'tool_end') {
-          const toolName = args.toolNameByIdRef.current.get(ev.id)
-          const patchStartLineNumber = resolveEditPatchStartLineNumber({
-            cwd: workingCwd,
-            toolName,
-            isError: Boolean(ev.result.is_error),
-            toolInput: args.toolInputByIdRef.current.get(ev.id),
-          })
-          if (patchStartLineNumber !== null) {
-            canonicalEvents = canonicalEvents.map((event) =>
-              event.kind === 'tool_event' && event.phase === 'end' && event.toolUseId === ev.id
-                ? { ...event, patchStartLineNumber }
-                : event,
-            )
-          }
-        }
-        for (const event of canonicalEvents) {
-          args.canonical.onEvent(event)
-        }
       }
 
       switch (ev.type) {

@@ -10,6 +10,7 @@ Status: `in_progress`
 - [x] Slice B（2）: abort transcript 计算抽出
 - [x] Slice C（3）: `tailSegmentsForTurn` 迁移
 - [x] Slice D（5 + 6，按需）: send/bash 路由减负
+- [x] Slice E（streaming）: canonical bridge 策略/转发下沉
 
 当前进行中: `none`（后续按需开新 slice）
 
@@ -162,6 +163,25 @@ Status: `completed`（先做 pre-main 路由聚合）
 
 **验收**: 依赖关系更清晰；传参以「对象」为单位，可读性更好。
 **注意**: 仅做分组、不改变生命周期与更新时机，避免引入微妙 bug；可与 1、2 等小重构穿插进行。
+
+---
+
+## 四、streaming 拆职责（进行中，按小步）
+
+### E.1 抽出 canonical bridge 策略 + 转发
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 事件入口（canonical turn 判定、legacy 写入开关、canonical event 转发）。
+
+**做法**:
+- 新增 `controller/streamBridge.ts`：
+  - `resolveCanonicalStreamWritePolicy(...)`：统一 `canonicalOnly/canWriteLegacyTranscript/shouldForwardCanonical` 判定。
+  - `forwardCanonicalStreamEvent(...)`：统一 stream event -> canonical events 转发。
+- `streaming.ts` 入口改为调用上述 helper，并保留 `tool_end` 的 `patchStartLineNumber` 映射逻辑。
+
+**结果**:
+- 降低 `handleEvent` 顶部桥接分支复杂度，业务分支（tool/task/thinking）行为不变。
+- 新增 `streamBridge.test.ts` 锁定策略与转发语义（含 abort-like error 不转发）。
 
 ---
 
