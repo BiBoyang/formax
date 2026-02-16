@@ -159,7 +159,7 @@ Result:
 - `useReplController` no longer computes edit patch metadata during final-tail merge.
 
 ### Slice 8: Semantic Fixture Gate for Complex Tool Turns
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/semantics/__tests__/projectionParity.test.ts`
 - `src/features/repl/controller/canonicalTurnMessages.test.ts`
@@ -174,6 +174,11 @@ Changes:
 Acceptance:
 - One fixture suite locks semantic order + metadata parity across streaming and final projection.
 - Future regressions show up as fixture mismatches, not ad-hoc screenshot bugs.
+
+Result:
+- Added complex parity fixture covering Task + Edit + mixed `middleLines` updates in `projectionParity.test.ts`.
+- Added canonical bridge regression for empty `middleLines` updates and Edit patch metadata continuity in `streaming.test.tsx`.
+- Added canonical tool mapping regression for explicit `resultLines=0` handling in `canonicalTurnMessages.test.ts`.
 
 ## Execution Order
 1. Slice 1

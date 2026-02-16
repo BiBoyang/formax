@@ -46,6 +46,12 @@ function normalizeSegments(segments: ReturnType<typeof createInitialTranscriptPr
         status: segment.status,
         summary: segment.summary,
         detailLines: segment.detailLines,
+        ...(segment.middleLines !== undefined ? { middleLines: segment.middleLines } : {}),
+        ...(segment.transcriptLines !== undefined ? { transcriptLines: segment.transcriptLines } : {}),
+        ...(segment.toolUses !== undefined ? { toolUses: segment.toolUses } : {}),
+        ...(segment.usage !== undefined ? { usage: segment.usage } : {}),
+        ...(segment.result !== undefined ? { result: segment.result } : {}),
+        ...(segment.patchStartLineNumber !== undefined ? { patchStartLineNumber: segment.patchStartLineNumber } : {}),
       }
     }
     return {
@@ -353,6 +359,8 @@ describe('projection parity', () => {
         status: 'completed',
         summary: 'done',
         detailLines: ['OUT chunk 1'],
+        middleLines: ['OUT chunk 1'],
+        result: 'done',
       },
       {
         kind: 'turn_footer',
@@ -536,5 +544,244 @@ describe('projection parity', () => {
     expect(normalizeSegments(streamRecovered.segments)).toEqual(normalizeSegments(streamFull.segments))
     expect(normalizeSegments(webRecovered.segments)).toEqual(normalizeSegments(webFull.segments))
     expect(normalizeSegments(streamRecovered.segments)).toEqual(normalizeSegments(webRecovered.segments))
+  })
+
+  it('keeps parity for complex tool turns (Task + Edit + empty middleLines updates)', () => {
+    const threadId = 'thread-complex'
+    const turnId = 'turn-complex'
+    let streamSeq = 0
+
+    const streamCanonicalEvents = [
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'task-1', name: 'Task' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        {
+          type: 'tool_update',
+          id: 'task-1',
+          middleLines: ['task progress'],
+          transcriptLines: ['task partial'],
+          toolUses: 2,
+          usage: { input_tokens: 9, output_tokens: 4 },
+        },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'task-1', result: { content: '{"status":"running","task_id":"bg-1"}', is_error: false, tool_use_id: 'task-1' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'task-2', name: 'Task' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'task-2', result: { content: 'Error: failed', is_error: true, tool_use_id: 'task-2' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'edit-1', name: 'Edit' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        {
+          type: 'tool_input',
+          id: 'edit-1',
+          input: { file_path: 'a.ts', old_string: 'const a = 1', new_string: 'const a = 2' },
+        },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_update', id: 'edit-1', middleLines: ['@@ -1,1 +1,1 @@'] },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_update', id: 'edit-1', middleLines: [] },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'edit-1', result: { content: 'Done', is_error: false, tool_use_id: 'edit-1' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'complete' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+    ]
+
+    const webCanonicalEvents = [
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 1, event: { type: 'tool_start', id: 'task-1', name: 'Task' } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 2,
+            event: {
+              type: 'tool_update',
+              id: 'task-1',
+              middleLines: ['task progress'],
+              transcriptLines: ['task partial'],
+              toolUses: 2,
+              usage: { input_tokens: 9, output_tokens: 4 },
+            },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 3,
+            event: { type: 'tool_end', id: 'task-1', result: { content: '{"status":"running","task_id":"bg-1"}', is_error: false } },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 4, event: { type: 'tool_start', id: 'task-2', name: 'Task' } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 5, event: { type: 'tool_end', id: 'task-2', result: { content: 'Error: failed', is_error: true } } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 6, event: { type: 'tool_start', id: 'edit-1', name: 'Edit' } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 7,
+            event: {
+              type: 'tool_input',
+              id: 'edit-1',
+              input: { file_path: 'a.ts', old_string: 'const a = 1', new_string: 'const a = 2' },
+            },
+          },
+        },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 8, event: { type: 'tool_update', id: 'edit-1', middleLines: ['@@ -1,1 +1,1 @@'] } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 9, event: { type: 'tool_update', id: 'edit-1', middleLines: [] } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/event', params: { threadId, turnId, replaySeq: 10, event: { type: 'tool_end', id: 'edit-1', result: { content: 'Done', is_error: false } } } },
+        { fallbackThreadId: threadId },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        { method: 'turn/completed', params: { threadId, turn: { id: turnId, threadId }, replaySeq: 11 } },
+        { fallbackThreadId: threadId },
+      ),
+    ]
+
+    const streamProjection = streamCanonicalEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const webProjection = webCanonicalEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    expect(normalizeSegments(streamProjection.segments)).toEqual(normalizeSegments(webProjection.segments))
+
+    const normalized = normalizeSegments(streamProjection.segments)
+    const edit = normalized.find((segment: any) => segment.kind === 'tool' && segment.toolUseId === 'edit-1')
+    const taskError = normalized.find((segment: any) => segment.kind === 'tool' && segment.toolUseId === 'task-2')
+    expect(edit).toMatchObject({
+      kind: 'tool',
+      toolName: 'Edit',
+      status: 'completed',
+      detailLines: ['@@ -1,1 +1,1 @@'],
+      middleLines: ['@@ -1,1 +1,1 @@'],
+    })
+    expect(taskError).toMatchObject({
+      kind: 'tool',
+      toolName: 'Task',
+      status: 'error',
+      summary: 'Error: failed',
+    })
   })
 })

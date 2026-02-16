@@ -927,4 +927,103 @@ describe('useReplStreaming', () => {
     }
   })
 
+  it('keeps canonical tool detail lines when a later update sends empty middleLines', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
+        startedAtMs: null,
+      })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+      const replaySeqRef = useRef(0)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+        canonical: {
+          threadId: 'tui-live',
+          getTurnId: () => 'turn-canonical-middle-lines',
+          nextReplaySeq: () => {
+            replaySeqRef.current += 1
+            return replaySeqRef.current
+          },
+          onEvent: (event) => {
+            projectionRef.current = reduceTranscriptProjection(projectionRef.current, event)
+          },
+        },
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void messages
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 'tool-ml', name: 'Bash' })
+    handleEvent!({ type: 'tool_update', id: 'tool-ml', middleLines: ['line-1'] })
+    handleEvent!({ type: 'tool_update', id: 'tool-ml', middleLines: [] })
+    handleEvent!({ type: 'tool_end', id: 'tool-ml', result: { tool_use_id: 'tool-ml', content: 'done', is_error: false } })
+    await tick()
+
+    const tool = projectionRef.current.segments.find(
+      (segment) => segment.kind === 'tool' && segment.toolUseId === 'tool-ml',
+    )
+    expect(tool).toMatchObject({
+      kind: 'tool',
+      detailLines: ['line-1'],
+      middleLines: ['line-1'],
+    })
+  })
+
 })

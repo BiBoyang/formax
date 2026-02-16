@@ -248,6 +248,31 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('keeps explicit resultLines=0 on canonical tool info', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-7:tool:1:tool-0',
+        kind: 'tool',
+        turnId: 'turn-7',
+        toolUseId: 'tool-0',
+        toolName: 'Read',
+        status: 'completed',
+        summary: '',
+        detailLines: [],
+        resultLines: 0,
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-7', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: {
+        toolUseId: 'tool-0',
+        resultLines: 0,
+      },
+    })
+  })
+
   it('omits completed tools in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {
