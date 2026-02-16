@@ -220,8 +220,10 @@ export function useReplController(deps: {
   const prevIsLoadingRef = useRef(false)
   const lastClaudeMdMetaSigRef = useRef<string | null>(null)
   const surfaceOpQueueRef = useRef<Promise<void>>(Promise.resolve())
-  const autoTitleAttemptedSessionIdsRef = useRef<Set<string>>(new Set())
-  const autoTitleCheckedTopicPromptKeysRef = useRef<Set<string>>(new Set())
+  const autoTitleRefs = {
+    attemptedSessionIdsRef: useRef<Set<string>>(new Set()),
+    checkedTopicPromptKeysRef: useRef<Set<string>>(new Set()),
+  }
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const lastAutoCompactSeqRef = useRef(-1_000_000)
@@ -510,8 +512,8 @@ export function useReplController(deps: {
         filePath: writer.filePath,
         engine: deps.engine,
         cwd: runtimeCwd,
-        attemptedSessionIds: autoTitleAttemptedSessionIdsRef.current,
-        checkedTopicPromptKeys: autoTitleCheckedTopicPromptKeysRef.current,
+        attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
+        checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
         writer,
         userText: firstUserPrompt ?? lastUserPrompt,
         topicUserText: lastUserPrompt,

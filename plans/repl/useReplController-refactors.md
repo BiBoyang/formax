@@ -581,6 +581,20 @@ Status: `completed`
 - mode 运行态引用访问更集中，减少后续模式流转重构时的散点修改。
 - 行为不变（仅访问路径调整）。
 
+### F.21 收敛 auto-title refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `autoTitleAttemptedSessionIdsRef` 与 `autoTitleCheckedTopicPromptKeysRef` 收敛到 `autoTitleRefs` 容器。
+- 在 `maybeAutoGenerateSessionTitle(...)` 调用处统一改为容器读取。
+
+**结果**:
+- auto-title 相关运行态引用更集中，后续扩展标题生成状态时改动点更小。
+- 行为不变（仅访问路径调整）。
+
 ---
 
 ## 建议执行顺序
