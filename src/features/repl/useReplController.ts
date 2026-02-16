@@ -187,14 +187,14 @@ export function useReplController(deps: {
       startedAtMs: null,
     }),
   }
-  const toolNameByIdRef = useRef<Map<string, string>>(new Map())
-  const toolInputByIdRef = useRef<Map<string, unknown>>(new Map())
-  const taskStatsByToolUseIdRef = useRef<
-    Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
-  >(new Map())
-  const taskKindByToolUseIdRef = useRef<Map<string, 'explore' | 'other'>>(new Map())
-  const toolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
-  const exploreBatchRef = useRef<ExploreTaskBatch | null>(null)
+  const toolRuntimeRefs = {
+    nameByIdRef: useRef<Map<string, string>>(new Map()),
+    inputByIdRef: useRef<Map<string, unknown>>(new Map()),
+    statsByToolUseIdRef: useRef<Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>>(new Map()),
+    kindByToolUseIdRef: useRef<Map<string, 'explore' | 'other'>>(new Map()),
+    messageIdByToolUseIdRef: useRef<Map<string, string>>(new Map()),
+    exploreBatchRef: useRef<ExploreTaskBatch | null>(null),
+  }
   const canonicalRefs = {
     projectionRef: useRef(createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })),
     replaySeqRef: useRef(0),
@@ -295,12 +295,12 @@ export function useReplController(deps: {
   }, [])
 
   const clearToolRuntimeState = useCallback(() => {
-    toolNameByIdRef.current.clear()
-    toolInputByIdRef.current.clear()
-    taskStatsByToolUseIdRef.current.clear()
-    taskKindByToolUseIdRef.current.clear()
-    toolMessageIdByToolUseIdRef.current.clear()
-    exploreBatchRef.current = null
+    toolRuntimeRefs.nameByIdRef.current.clear()
+    toolRuntimeRefs.inputByIdRef.current.clear()
+    toolRuntimeRefs.statsByToolUseIdRef.current.clear()
+    toolRuntimeRefs.kindByToolUseIdRef.current.clear()
+    toolRuntimeRefs.messageIdByToolUseIdRef.current.clear()
+    toolRuntimeRefs.exploreBatchRef.current = null
   }, [])
 
   const clearCanonicalTransientState = useCallback(() => {
@@ -539,13 +539,13 @@ export function useReplController(deps: {
     currentThinkingMessageIdRef: thinkingRefs.messageIdRef,
     thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
     thinkingTimingRef: thinkingRefs.timingRef,
-    toolNameByIdRef,
-    toolInputByIdRef,
-    taskStatsByToolUseIdRef,
-    taskKindByToolUseIdRef,
-    toolMessageIdByToolUseIdRef,
+    toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
+    toolInputByIdRef: toolRuntimeRefs.inputByIdRef,
+    taskStatsByToolUseIdRef: toolRuntimeRefs.statsByToolUseIdRef,
+    taskKindByToolUseIdRef: toolRuntimeRefs.kindByToolUseIdRef,
+    toolMessageIdByToolUseIdRef: toolRuntimeRefs.messageIdByToolUseIdRef,
     cwd: runtimeCwd,
-    exploreBatchRef,
+    exploreBatchRef: toolRuntimeRefs.exploreBatchRef,
     reminderServiceRef,
     contextBudgetConfigRef,
     canonical: {
@@ -569,7 +569,7 @@ export function useReplController(deps: {
     clearCanonicalTransientState()
     setIsLoading(false)
     setError(null)
-    const trackedRunningToolsSnapshot = Array.from(toolNameByIdRef.current.entries())
+    const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
     clearToolRuntimeState()
 
     if (currentAssistantIdRef.current) {

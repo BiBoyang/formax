@@ -609,6 +609,20 @@ Status: `completed`
 - thinking 流式运行态引用更集中，后续继续推进 streaming refs 分组时改动面更小。
 - 行为不变（仅访问路径调整）。
 
+### F.23 收敛 tool runtime refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `toolName/toolInput/taskStats/taskKind/toolMessageId/exploreBatch` 六个 refs 收敛到 `toolRuntimeRefs` 容器。
+- 统一替换 `clearToolRuntimeState`、`abort` 快照、`useReplStreaming(...)` 参数传递中的读取路径。
+
+**结果**:
+- tool 运行态引用集中，后续继续拆 streaming/controller 边界时改动范围更可控。
+- 行为不变（仅访问路径调整）。
+
 ---
 
 ## 建议执行顺序
