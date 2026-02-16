@@ -196,6 +196,22 @@ Status: `completed`
 - `tool_end` 分支显著缩短，`streaming.ts` 更聚焦于事件调度。
 - 新增 `streamingToolCompletion.test.ts` 锁定 Task/Skill/Edit 完成态输出格式。
 
+### E.3 抽出 Task/Explore 状态更新 helper
+Status: `completed`
+
+**位置**: `controller/streaming.ts` 的 `tool_input/tool_update` 分支。
+
+**做法**:
+- 新增 `controller/streamingTaskState.ts`：
+  - `updateTaskStateFromToolInput(...)`
+  - `applyTaskStatsFromToolUpdate(...)`
+  - `shouldApplyLegacyToolUpdate(...)`
+- `streaming.ts` 分支改为调用 helper，移除内联 map/batch 更新细节。
+
+**结果**:
+- `tool_input/tool_update` 分支更短，职责更清晰。
+- 新增 `streamingTaskState.test.ts` 锁定 batch/stats/legacy-update 判定语义。
+
 ---
 
 ## 建议执行顺序

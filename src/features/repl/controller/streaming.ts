@@ -9,13 +9,15 @@ import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
 import { buildCompletedToolMessage } from './streamingToolCompletion'
+import {
+  applyTaskStatsFromToolUpdate,
+  shouldApplyLegacyToolUpdate,
+  updateTaskStateFromToolInput,
+} from './streamingTaskState'
+import type { ExploreTaskBatch } from './streamingTaskState'
 import { isAbortLikeError, sumInputTokens } from './utils'
 
-export type ExploreTaskBatch = {
-  toolUseIds: Set<string>
-  completedToolUseIds: Set<string>
-  lastSeenAtMs: number
-}
+export type { ExploreTaskBatch }
 
 function truncateLabel(text: string, max: number): string {
   const s = (text || '').trim()
@@ -338,6 +340,7 @@ export function useReplStreaming(args: {
         case 'tool_input': {
           const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
+          const nowMs = Date.now()
 
           args.toolInputByIdRef.current.set(ev.id, ev.input as any)
 
@@ -350,24 +353,14 @@ export function useReplStreaming(args: {
             }
           }
 
-          if (toolName === 'Task') {
-            const subagentType = (ev.input as any)?.subagent_type
-            const isExplore = String(subagentType || '') === 'Explore'
-            args.taskKindByToolUseIdRef.current.set(ev.id, isExplore ? 'explore' : 'other')
-
-            if (isExplore) {
-              const now = Date.now()
-              const prevBatch = args.exploreBatchRef.current
-              const withinWindow = prevBatch && now - prevBatch.lastSeenAtMs < 1500
-              const batch: ExploreTaskBatch =
-                withinWindow && prevBatch
-                  ? prevBatch
-                  : { toolUseIds: new Set(), completedToolUseIds: new Set(), lastSeenAtMs: now }
-              batch.toolUseIds.add(ev.id)
-              batch.lastSeenAtMs = now
-              args.exploreBatchRef.current = batch
-            }
-          }
+          args.exploreBatchRef.current = updateTaskStateFromToolInput({
+            toolUseId: ev.id,
+            toolName,
+            input: ev.input,
+            nowMs,
+            taskKindByToolUseId: args.taskKindByToolUseIdRef.current,
+            exploreBatch: args.exploreBatchRef.current,
+          })
 
           if (!canWriteLegacyTranscript) return
 
@@ -382,33 +375,18 @@ export function useReplStreaming(args: {
         case 'tool_update': {
           const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
-
-          if (typeof ev.toolUses === 'number') {
-            const existing = args.taskStatsByToolUseIdRef.current.get(ev.id)
-            if (existing) {
-              existing.toolUses = ev.toolUses
-            } else {
-              args.taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: ev.toolUses, usage: {} })
-            }
-          }
-
-          if (ev.usage) {
-            const existing = args.taskStatsByToolUseIdRef.current.get(ev.id)
-            if (existing) {
-              existing.usage = ev.usage
-            } else {
-              args.taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: ev.usage })
-            }
-          }
+          const nowMs = Date.now()
+          applyTaskStatsFromToolUpdate({
+            toolUseId: ev.id,
+            toolUses: typeof ev.toolUses === 'number' ? ev.toolUses : undefined,
+            usage: ev.usage,
+            taskStatsByToolUseId: args.taskStatsByToolUseIdRef.current,
+            nowMs,
+          })
 
           if (!canWriteLegacyTranscript) return
 
-          if (
-            ev.middleLines ||
-            ev.nestedTools ||
-            ev.transcriptLines ||
-            (toolName === 'Task' && (typeof ev.toolUses === 'number' || ev.usage))
-          ) {
+          if (shouldApplyLegacyToolUpdate({ toolName, event: ev })) {
             updateLegacyMessages((prev) =>
               prev.map((m) =>
                 m.id === toolMsgId
