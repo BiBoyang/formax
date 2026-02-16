@@ -3,6 +3,8 @@ import type { TranscriptSegment } from '../../semantics/transcriptProjection'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import {
   canonicalTurnSegmentsToMessages,
+  computeCanonicalTurnAppend,
+  mergeCanonicalTurnIntoMessages,
   replaceTurnTailWithCanonicalMessages,
   resolveCanonicalTurnTailInsertIndex,
 } from './canonicalTurnMessages'
@@ -687,5 +689,108 @@ describe('resolveCanonicalTurnTailInsertIndex', () => {
         Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
     })
     expect(index).toBe(2)
+  })
+})
+
+describe('computeCanonicalTurnAppend', () => {
+  it('skips aborted turns when no stable assistant output remains', () => {
+    const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
+      turnOutcome: 'aborted',
+      canonicalFinalMessages: [
+        {
+          id: 't1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(canonicalRowsForAppend).toEqual([])
+    expect(shouldAppendCanonicalFinal).toBe(false)
+  })
+
+  it('keeps aborted turns when assistant output exists after tool filtering', () => {
+    const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
+      turnOutcome: 'aborted',
+      canonicalFinalMessages: [
+        { id: 'a1', role: 'assistant', content: 'answer', timestamp: new Date(0) },
+        {
+          id: 't1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(canonicalRowsForAppend.map((m) => m.id)).toEqual(['a1'])
+    expect(shouldAppendCanonicalFinal).toBe(true)
+  })
+})
+
+describe('mergeCanonicalTurnIntoMessages', () => {
+  it('preserves legacy tool row identity/content while applying canonical tool info', () => {
+    const legacyTimestamp = new Date(200)
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'run', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: '/repo',
+          timestamp: legacyTimestamp,
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'canonical',
+          timestamp: new Date(0),
+          toolInfo: {
+            toolUseId: 'tool-1',
+            name: 'Bash',
+            status: 'completed',
+            input: { command: 'pwd' },
+            middleLines: ['Running PostToolUse hook…'],
+          },
+        },
+      ],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(merged[1]?.timestamp).toBe(legacyTimestamp)
+    expect(merged[1]?.content).toBe('/repo')
+    expect(merged[1]?.toolInfo?.status).toBe('completed')
+    expect(merged[1]?.toolInfo?.middleLines).toEqual(['Running PostToolUse hook…'])
+  })
+
+  it('inserts failed canonical rows before trailing failure sublines', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'subline-err',
+          role: 'assistant',
+          content: 'Error: failed',
+          timestamp: new Date(200),
+          ui: { kind: 'command_subline' },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [{ id: 'canonical-a', role: 'assistant', content: 'final', timestamp: new Date(0) }],
+      turnOutcome: 'failed',
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-a', 'subline-err'])
   })
 })

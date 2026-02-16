@@ -25,8 +25,9 @@ import { buildBashModeInjectedBlocks, getClaudeMdInjectionMeta } from './injecte
 import { useReplOverlays } from './controller/overlays'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
 import {
+  computeCanonicalTurnAppend,
   canonicalTurnSegmentsToMessages,
-  resolveCanonicalTurnTailInsertIndex,
+  mergeCanonicalTurnIntoMessages,
 } from './controller/canonicalTurnMessages'
 import { isErrorLikeSubline } from './controller/errorSubline'
 import {
@@ -1103,76 +1104,16 @@ export function useReplController(deps: {
             segments: turnSegments,
             includeUserSystem: false,
           })
-          const canonicalRowsForAppend =
-            turnOutcome === 'aborted'
-              ? canonicalFinalMessages.filter((message) => message.role !== 'tool')
-              : canonicalFinalMessages
-          const canonicalToolUseIds = new Set(
-            canonicalRowsForAppend
-              .filter((message) => message.role === 'tool')
-              .map((message) => String(message.toolInfo?.toolUseId || '').trim())
-              .filter((id) => id.length > 0),
-          )
-          const hasStableCanonicalOutput = canonicalRowsForAppend.some((message) => {
-            if (message.role === 'assistant' && message.ui?.kind !== 'thinking_block') {
-              return String(message.content || '').trim().length > 0
-            }
-            return false
+          const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
+            turnOutcome,
+            canonicalFinalMessages,
           })
-          const shouldAppendCanonicalFinal =
-            turnOutcome !== 'aborted' || hasStableCanonicalOutput
           if (shouldAppendCanonicalFinal && canonicalRowsForAppend.length > 0) {
             setMessages((prev) => {
-              const userIndex = prev.findIndex((message) => message.id === turnUserMessageId)
-              if (userIndex < 0) {
-                return prev
-              }
-
-              const head = prev.slice(0, userIndex + 1)
-              const tail = prev.slice(userIndex + 1)
-              const legacyToolByUseId = new Map<string, Msg>()
-              for (const message of tail) {
-                if (message.role !== 'tool') continue
-                const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
-                if (!toolUseId) continue
-                legacyToolByUseId.set(toolUseId, message)
-              }
-              const canonicalRows = canonicalRowsForAppend.map((message) => {
-                const baseMessage: Msg = {
-                  ...message,
-                  isStreaming: false,
-                  timestamp: message.timestamp,
-                }
-                if (baseMessage.role !== 'tool') return baseMessage
-                const toolUseId = String(baseMessage.toolInfo?.toolUseId || '').trim()
-                if (!toolUseId) return baseMessage
-                const legacyTool = legacyToolByUseId.get(toolUseId)
-                const canonicalToolInfo = baseMessage.toolInfo
-                return {
-                  ...baseMessage,
-                  id: legacyTool?.id ?? baseMessage.id,
-                  timestamp: legacyTool?.timestamp ?? baseMessage.timestamp,
-                  content: legacyTool?.content || baseMessage.content,
-                  isStreaming: false,
-                  ...(canonicalToolInfo ? { toolInfo: canonicalToolInfo } : {}),
-                }
-              })
-              const isReplacedLegacyRow = (message: Msg): boolean => {
-                if (message.role !== 'tool') return false
-                const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
-                if (!toolUseId) return false
-                return canonicalToolUseIds.has(toolUseId)
-              }
-
-              const mergedTail: Msg[] = []
-              for (const message of tail) {
-                if (isReplacedLegacyRow(message)) {
-                  continue
-                }
-                mergedTail.push(message)
-              }
-              const insertAtTail = resolveCanonicalTurnTailInsertIndex({
-                tail: mergedTail,
+              return mergeCanonicalTurnIntoMessages({
+                messages: prev,
+                userMessageId: turnUserMessageId,
+                canonicalRowsForAppend,
                 turnOutcome,
                 isFailureSubline: (message) =>
                   Boolean(
@@ -1181,52 +1122,6 @@ export function useReplController(deps: {
                       message.ui?.kind === 'command_subline' &&
                       isErrorLikeSubline(String(message.content || '')),
                   ),
-              })
-
-              const anchorBefore = insertAtTail > 0 ? mergedTail[insertAtTail - 1] : head[head.length - 1]
-              const anchorBeforeTs =
-                anchorBefore?.timestamp instanceof Date ? anchorBefore.timestamp.getTime() : Date.now() - 1
-              let canonicalTsCursor = anchorBeforeTs
-              const datedCanonicalRows = canonicalRows.map((message) => {
-                if (message.role === 'tool') {
-                  const rawTs = message.timestamp instanceof Date ? message.timestamp.getTime() : Number.NaN
-                  if (Number.isFinite(rawTs) && rawTs > anchorBeforeTs) {
-                    canonicalTsCursor = Math.max(canonicalTsCursor, rawTs)
-                    return message
-                  }
-                  canonicalTsCursor += 1
-                  return { ...message, timestamp: new Date(canonicalTsCursor) }
-                }
-                canonicalTsCursor += 1
-                return { ...message, timestamp: new Date(canonicalTsCursor) }
-              })
-
-              const mergedMessages = [
-                ...head,
-                ...mergedTail.slice(0, insertAtTail),
-                ...datedCanonicalRows,
-                ...mergedTail.slice(insertAtTail),
-              ]
-              let lastTs =
-                head.length > 0 && head[head.length - 1]?.timestamp instanceof Date
-                  ? head[head.length - 1]!.timestamp.getTime()
-                  : 1
-              return mergedMessages.map((message, index) => {
-                if (index <= userIndex) {
-                  const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs
-                  lastTs = Math.max(lastTs, raw)
-                  return message
-                }
-                if (message.role === 'tool') {
-                  const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs
-                  lastTs = Math.max(lastTs, raw)
-                  return message
-                }
-                const raw = message.timestamp instanceof Date ? message.timestamp.getTime() : lastTs + 1
-                const normalized = Math.max(lastTs + 1, raw)
-                lastTs = normalized
-                if (message.timestamp instanceof Date && message.timestamp.getTime() === normalized) return message
-                return { ...message, timestamp: new Date(normalized) }
               })
             })
           }

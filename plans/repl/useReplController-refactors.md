@@ -1,8 +1,17 @@
 # useReplController 后续重构计划
 
-Status: `backlog`
+Status: `in_progress`
 前置条件: semantic-single-writer 计划已完成（见 `semantic-single-writer-todo.md`）。
 目标: 在保持行为不变的前提下，将 `useReplController.ts` 从「巨型协调器」收窄为「薄壳 + 调用 controller 纯函数」，提升可读性与可测性。
+
+## 执行看板（当前）
+
+- [x] Slice A（1 + 4）: turn-finalization append 计算 + merge 下沉到 `canonicalTurnMessages.ts`
+- [ ] Slice B（2）: abort transcript 计算抽出
+- [ ] Slice C（3）: `tailSegmentsForTurn` 迁移
+- [ ] Slice D（5 + 6，按需）: send/bash 路由减负
+
+当前进行中: `Slice B`
 
 ## 原则
 
@@ -16,6 +25,7 @@ Status: `backlog`
 ## 一、小重构（单次 1–3 文件、风险低）
 
 ### 1. 抽出 turn-finalization 的 merge 为纯函数
+Status: `completed`
 
 **位置**: `useReplController.ts` 中 `send()` 的 `finally` 块（约 1097–1244 行）。
 
@@ -31,6 +41,10 @@ Status: `backlog`
 **验收**: `send` 明显变短；merge 逻辑可单测；与 Slice 11 的 `resolveCanonicalTurnTailInsertIndex` 同属一模块。
 
 **注意**: 现有 `replaceTurnTailWithCanonicalMessages` 与当前 hook 内 merge 语义不完全一致，不直接替换；将当前这段内联逻辑原样搬进新函数更安全。
+
+**结果**:
+- 新增 `mergeCanonicalTurnIntoMessages(...)`，将 `useReplController.ts` finally 中的内联 tail merge 迁入 `canonicalTurnMessages.ts`。
+- `useReplController.ts` 仅保留计算 + 调用，移除大段 `setMessages(prev => { ... })` 内联拼接逻辑。
 
 ---
 
@@ -60,6 +74,7 @@ Status: `backlog`
 ---
 
 ### 4. 将「是否要 append canonical final」的计算下沉到 controller
+Status: `completed`
 
 **位置**: `send()` 的 finally 中 `canonicalRowsForAppend`、`canonicalToolUseIds`、`hasStableCanonicalOutput`、`shouldAppendCanonicalFinal` 一段（约 1105–1123 行）。
 
@@ -68,6 +83,10 @@ Status: `backlog`
 或等价命名；hook 仅传 `turnOutcome` 与 `canonicalFinalMessages`，用返回值决定是否调用上面的 `mergeCanonicalTurnIntoMessages`。
 
 **验收**: 规则集中、可测；hook 内 finally 更短、意图更清晰。可与 1 同一次改动一起做。
+
+**结果**:
+- 新增 `computeCanonicalTurnAppend(...)`，统一 aborted 过滤 + stable assistant output 判断。
+- 新增 helper 单测，覆盖 aborted append 判定与 merge 插入顺序。
 
 ---
 
