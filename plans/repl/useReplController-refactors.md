@@ -1,0 +1,141 @@
+# useReplController 后续重构计划
+
+Status: `backlog`
+前置条件: semantic-single-writer 计划已完成（见 `semantic-single-writer-todo.md`）。
+目标: 在保持行为不变的前提下，将 `useReplController.ts` 从「巨型协调器」收窄为「薄壳 + 调用 controller 纯函数」，提升可读性与可测性。
+
+## 原则
+
+- 每次改动至多触及 1–3 个核心文件（不含测试）。
+- 单次提交单一意图，不混入无关改动。
+- 每步需有针对性测试，必要时加一次确定性 surface smoke。
+- 重构前可先加强/补充测试以锁定当前行为。
+
+---
+
+## 一、小重构（单次 1–3 文件、风险低）
+
+### 1. 抽出 turn-finalization 的 merge 为纯函数
+
+**位置**: `useReplController.ts` 中 `send()` 的 `finally` 块（约 1097–1244 行）。
+
+**现状**: 大段 `setMessages(prev => { ... })` 内联了：head/tail 切分、legacyToolByUseId、canonicalRows 与 legacy 的 id/timestamp/content 对齐、mergedTail、`resolveCanonicalTurnTailInsertIndex`、时间戳对齐、最终合并与 normalize。
+
+**做法**:
+- 在 `controller/canonicalTurnMessages.ts` 中新增纯函数，例如：
+  - `mergeCanonicalTurnIntoMessages(prev, turnUserMessageId, canonicalRowsForAppend, turnOutcome, isFailureSubline): Msg[]`
+- 将上述逻辑整体移入该函数；hook 内仅保留：
+  - 计算 `turnSegments` / `canonicalFinalMessages` / `canonicalRowsForAppend` / `shouldAppendCanonicalFinal`
+  - `setMessages(prev => mergeCanonicalTurnIntoMessages(prev, ...))`
+
+**验收**: `send` 明显变短；merge 逻辑可单测；与 Slice 11 的 `resolveCanonicalTurnTailInsertIndex` 同属一模块。
+
+**注意**: 现有 `replaceTurnTailWithCanonicalMessages` 与当前 hook 内 merge 语义不完全一致，不直接替换；将当前这段内联逻辑原样搬进新函数更安全。
+
+---
+
+### 2. 抽出 abort 时的 messages 计算
+
+**位置**: `useReplController.ts` 中 `abort` 的 `setMessages(prev => { ... })`（约 575–627 行）。
+
+**现状**: `markAborted`、`isAskRunning`、补全未出现在 UI 的 running tool 行、以及 AskUser 时追加 “User declined…” 的规则均写在 hook 内。
+
+**做法**:
+- 在 `controller/` 下新增小模块（如 `abortTranscript.ts`），导出纯函数，例如：
+  - `applyAbortToMessages(prev, trackedRunningToolsSnapshot, hadInFlightRequest): Msg[]`
+- hook 内只做：清 ref、调 `resetStreamingBuffers` 等，然后 `setMessages(prev => applyAbortToMessages(prev, ...))`。
+
+**验收**: abort 的 transcript 规则可单测；hook 更短、更易读。
+
+---
+
+### 3. 将 `tailSegmentsForTurn` 挪到语义层
+
+**位置**: `useReplController.ts` 顶部（约 70–86 行）；在 `onCanonicalEvent` 与 `send` 的 finally 中均有使用。
+
+**做法**: 将该函数移至 `semantics/transcriptProjection.ts` 或 `controller/canonicalTurnMessages.ts`（按「是否与 canonical 强相关」择一）；hook 改为从该处 import。
+
+**验收**: hook 少一段纯逻辑；语义层更内聚。
+
+---
+
+### 4. 将「是否要 append canonical final」的计算下沉到 controller
+
+**位置**: `send()` 的 finally 中 `canonicalRowsForAppend`、`canonicalToolUseIds`、`hasStableCanonicalOutput`、`shouldAppendCanonicalFinal` 一段（约 1105–1123 行）。
+
+**做法**: 在 `canonicalTurnMessages.ts` 中增加小函数，例如：
+- `computeCanonicalTurnAppend(turnOutcome, canonicalFinalMessages) => { canonicalRowsForAppend, shouldAppend }`
+或等价命名；hook 仅传 `turnOutcome` 与 `canonicalFinalMessages`，用返回值决定是否调用上面的 `mergeCanonicalTurnIntoMessages`。
+
+**验收**: 规则集中、可测；hook 内 finally 更短、意图更清晰。可与 1 同一次改动一起做。
+
+---
+
+## 二、中等重构（多文件、多步，需小步提交）
+
+### 5. Bash 模式：将「执行 + canonical 发射」从 send 中拆出
+
+**位置**: `send()` 中 `if (text.startsWith('!'))` 整块（约 748–910 行），含 `emitLocalUserMessage`、`emitLocalToolEvent`、`emitLocalFooter`、对 `runBashModeCommand` 的调用及 UI 更新。
+
+**做法**:
+- 在 `controller/bashMode.ts` 或新文件 `controller/bashModeCanonical.ts` 中增加协调函数，例如：
+  - `runBashModeWithCanonical(args: { command, cwd, env, signal, runtimeFlags, nextReplaySeq, onCanonicalEvent, ... })`
+- 该函数内部：调用现有 `runBashModeCommand`，按当前逻辑发射 user_message / tool_event / turn_footer；可返回 `{ result, msgId }` 等，由调用方负责 `setMessages` 的更新（或再包一层把 setMessages 传入，视边界偏好而定）。
+
+**验收**: `send` 少一大块；bash 与 canonical 的契约集中在一处，便于测试。
+**注意**: 需保留当前对 `pendingInjectedBlocksRef`、`setMessages` 的更新顺序与语义；拆时小步提交并用现有测试/手动 smoke 验证。
+
+---
+
+### 6. 将「send 入口路由」从 send 中拆成独立函数
+
+**位置**: `send()` 开头到 `runMainSendTurn` 之前：provider、ensureSessionWriter、bash 分支、sessionSave 的 claude_md、`resolveCommandRouting`、clear/compact/slash 分支等。
+
+**做法**: 在 `controller/send.ts` 中增加 `routeSendInput(text, opts, deps, refs)` 或类似，返回 `{ handled: true }` 或 `{ handled: false, text, ... }`；hook 的 `send` 内先 `const routed = routeSendInput(...)`，若 `routed.handled` 则 return，否则用 `routed` 中的信息调用 `runMainSendTurn`。
+
+**验收**: `send` 从「一长串 if/return」变为「路由 + 一次 runMainSendTurn + finally」，可读性更好。
+
+---
+
+## 三、大重构（架构级，适合单独排期）
+
+### 7. 用「单一 turn 状态机」替代 send 内分散分支
+
+**思路**: 将「bash / clear / compact / slash / 普通 LLM turn」统一成显式状态机（如 idle → routing → bash | local_command | main_turn → finalize），每状态对应一小段逻辑与可选副作用（setMessages、onCanonicalEvent、session writer 等）。
+
+**验收**: 行为顺序与错误路径更清晰；后续加新命令或新 turn 类型更容易。
+**成本**: 需将当前 `send` 内全部分支梳理成状态与迁移，并保持与现有行为一致；适合在 1–6 做完、行为已收敛后再考虑。
+
+---
+
+### 8. 将 ref 分组（streaming / canonical / session）
+
+**现状**: hook 内 20+ ref、10+ state 全平铺。
+
+**做法**: 渐进式将「同一类」ref 收进对象，例如：
+- `streamingRefs`: assistantBufferRef, thinkingBufferRef, toolNameByIdRef, ...
+- `canonicalRefs`: canonicalProjectionRef, canonicalTurnIdRef, canonicalReplaySeqRef, ...
+- 已有 `sessionWriterRefs` 可保持不变。
+
+**验收**: 依赖关系更清晰；传参以「对象」为单位，可读性更好。
+**注意**: 仅做分组、不改变生命周期与更新时机，避免引入微妙 bug；可与 1、2 等小重构穿插进行。
+
+---
+
+## 建议执行顺序
+
+1. **先做小重构 1 + 4**：将 turn-finalization 的「是否 append」与「merge」都迁入 `canonicalTurnMessages.ts`，并补单测。
+2. **再做 2**：abort 的 messages 计算抽出。
+3. **然后 3**：`tailSegmentsForTurn` 挪到语义层。
+4. 若希望继续减负 `send`，再考虑 **5（Bash + canonical）** 与 **6（路由）**。
+5. **7、8** 可作为后续架构/可读性优化单独排期。
+
+---
+
+## 相关文件
+
+- `src/features/repl/useReplController.ts` — 主 hook
+- `src/features/repl/controller/canonicalTurnMessages.ts` — canonical 转 messages、insert index、replace 等
+- `src/features/repl/controller/send.ts` — 路由与 runMainSendTurn
+- `src/features/repl/controller/bashMode.ts` — bash 执行与输出格式化
+- `plans/repl/semantic-single-writer-todo.md` — 已完成的前置计划
