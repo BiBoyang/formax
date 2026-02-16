@@ -46,7 +46,7 @@
 - **Code review (mandatory in loops)**: After tests pass, run review using the **Review Profile (Single Source of Truth)** below before committing; fix all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
 
 ### Review Profile (Single Source of Truth)
-- Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
+- Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 - Tool-call timeout for review: `timeout_ms >= 1200000`
 - Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 

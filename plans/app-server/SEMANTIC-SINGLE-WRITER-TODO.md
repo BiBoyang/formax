@@ -23,4 +23,4 @@ Goal: migrate REPL transcript writing to canonical semantics as the single sourc
 
 - [x] A. Targeted tests for changed files pass.
 - [x] B. `bun run type-check` passes.
-- [x] C. `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"` passes (timeout >= 1200000).
+- [x] C. `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` passes (timeout >= 1200000).
