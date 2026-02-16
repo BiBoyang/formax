@@ -179,12 +179,14 @@ export function useReplController(deps: {
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentAssistantIdRef = useRef<string | null>(null)
   const assistantBufferRef = useRef<string>('')
-  const thinkingBufferRef = useRef<string>('')
-  const currentThinkingMessageIdRef = useRef<string | null>(null)
-  const thinkingLastFlushAtRef = useRef(0)
-  const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({
-    startedAtMs: null,
-  })
+  const thinkingRefs = {
+    bufferRef: useRef<string>(''),
+    messageIdRef: useRef<string | null>(null),
+    lastFlushAtRef: useRef(0),
+    timingRef: useRef<{ startedAtMs: number | null }>({
+      startedAtMs: null,
+    }),
+  }
   const toolNameByIdRef = useRef<Map<string, string>>(new Map())
   const toolInputByIdRef = useRef<Map<string, unknown>>(new Map())
   const taskStatsByToolUseIdRef = useRef<
@@ -284,10 +286,10 @@ export function useReplController(deps: {
 
   const resetStreamingBuffers = useCallback(() => {
     assistantBufferRef.current = ''
-    thinkingBufferRef.current = ''
-    currentThinkingMessageIdRef.current = null
-    thinkingLastFlushAtRef.current = 0
-    thinkingTimingRef.current = { startedAtMs: null }
+    thinkingRefs.bufferRef.current = ''
+    thinkingRefs.messageIdRef.current = null
+    thinkingRefs.lastFlushAtRef.current = 0
+    thinkingRefs.timingRef.current = { startedAtMs: null }
     setThinkingText('')
     setThinkingStartedAtMs(null)
   }, [])
@@ -533,10 +535,10 @@ export function useReplController(deps: {
     setError,
     currentAssistantIdRef,
     assistantBufferRef,
-    thinkingBufferRef,
-    currentThinkingMessageIdRef,
-    thinkingLastFlushAtRef,
-    thinkingTimingRef,
+    thinkingBufferRef: thinkingRefs.bufferRef,
+    currentThinkingMessageIdRef: thinkingRefs.messageIdRef,
+    thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
+    thinkingTimingRef: thinkingRefs.timingRef,
     toolNameByIdRef,
     toolInputByIdRef,
     taskStatsByToolUseIdRef,
@@ -834,8 +836,8 @@ export function useReplController(deps: {
         contextBudgetConfigRef,
         abortControllerRef,
         assistantBufferRef,
-        thinkingBufferRef,
-        thinkingLastFlushAtRef,
+        thinkingBufferRef: thinkingRefs.bufferRef,
+        thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
         currentAssistantIdRef,
         pendingInjectedBlocksRef,
         commandRegistry: deps.commandRegistry,
@@ -935,8 +937,8 @@ export function useReplController(deps: {
             contextBudgetConfigRef,
             abortControllerRef,
             assistantBufferRef,
-            thinkingBufferRef,
-            thinkingLastFlushAtRef,
+            thinkingBufferRef: thinkingRefs.bufferRef,
+            thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
             currentAssistantIdRef,
             sendSeqRef,
             lastAutoCompactSeqRef,

@@ -595,6 +595,20 @@ Status: `completed`
 - auto-title 相关运行态引用更集中，后续扩展标题生成状态时改动点更小。
 - 行为不变（仅访问路径调整）。
 
+### F.22 收敛 thinking refs 访问面
+Status: `completed`
+
+**位置**:
+- `src/features/repl/useReplController.ts`
+
+**做法**:
+- 将 `thinkingBufferRef/currentThinkingMessageIdRef/thinkingLastFlushAtRef/thinkingTimingRef` 收敛到 `thinkingRefs` 容器。
+- 统一替换 `resetStreamingBuffers`、`useReplStreaming(...)`、以及 send 路由相关调用点中的引用传递。
+
+**结果**:
+- thinking 流式运行态引用更集中，后续继续推进 streaming refs 分组时改动面更小。
+- 行为不变（仅访问路径调整）。
+
 ---
 
 ## 建议执行顺序
