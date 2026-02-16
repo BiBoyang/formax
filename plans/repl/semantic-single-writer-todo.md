@@ -1,6 +1,6 @@
 # REPL Semantic Single-Writer TODO
 
-Status: `completed`
+Status: `phase-2-in-progress`
 Owner: `codex`
 Goal: remove patch-style transcript fixes by converging to a single semantic write path.
 
@@ -93,13 +93,91 @@ Result:
 - Added forced-Static invariant test in `surfaceSmoke.test.tsx` to assert one final tool row per `toolUseId`.
 - Added canonical-bridge invariant in `streaming.test.tsx` to prevent legacy transcript writes for tool/explore paths.
 
+## Phase 2 Slice Plan (5-8)
+
+### Slice 5: Canonical Tool Metadata Hardening
+Status: `completed`
+Files:
+- `src/features/semantics/canonicalEvents.ts`
+- `src/features/semantics/streamCanonicalAdapter.ts`
+- `src/features/semantics/transcriptProjection.ts`
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+
+Changes:
+- Ensure canonical pipeline carries structured tool metadata (`input/result/middleLines/transcriptLines/nestedTools/usage`).
+- Keep edge-case-safe merge rules (empty arrays should not wipe prior detail lines).
+- Keep Task summary/transcript parsing consistent between streaming and canonical rendering.
+
+Acceptance:
+- Task rows render consistently in streaming/completed/replay paths.
+- Empty `middleLines` updates do not clear existing visible detail lines.
+
+Result:
+- Canonical tool metadata (`input/result/middleLines/transcriptLines/nestedTools/usage`) now flows through event -> projection -> render.
+- Task parsing and rendering are unified via shared helper; canonical/non-canonical summary behavior is aligned.
+- Empty `middleLines` no longer clears previously visible detail lines in projection.
+
+### Slice 6: Remove Legacy Completed-Tool Fallback Cache
+Status: `pending`
+Files:
+- `src/features/repl/useReplController.ts`
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+- `src/features/repl/useReplController.test.tsx`
+
+Changes:
+- Remove `completedToolMessageByToolUseIdRef` fallback merge once canonical projection is sufficient.
+- Keep final-tail replacement logic purely canonical (legacy rows only for id/timestamp compatibility when unavoidable).
+
+Acceptance:
+- Final tool rows are produced from canonical messages without fallback cache dependency.
+- No duplicate/lost tool rows across normal turn completion and abort paths.
+
+### Slice 7: Move Edit Patch Metadata to Semantic Write-Time
+Status: `pending`
+Files:
+- `src/features/repl/controller/streaming.ts`
+- `src/features/semantics/streamCanonicalAdapter.ts`
+- `src/features/semantics/transcriptProjection.ts`
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+
+Changes:
+- Compute `patchStartLineNumber` only once in write-time path (not in render mapping).
+- Persist patch metadata in canonical tool events/segments so replay/final render has no sync FS fallback.
+
+Acceptance:
+- `canonicalTurnMessages` does not perform expensive patch-line recomputation.
+- Edit presenter still receives stable `patchStartLineNumber` for completed edits.
+
+### Slice 8: Semantic Fixture Gate for Complex Tool Turns
+Status: `pending`
+Files:
+- `src/features/semantics/__tests__/projectionParity.test.ts`
+- `src/features/repl/controller/canonicalTurnMessages.test.ts`
+- `src/features/repl/controller/streaming.test.tsx`
+
+Changes:
+- Add fixture-level invariants for:
+  - Task: background start vs done vs error
+  - Edit: patch metadata continuity
+  - mixed tool updates with empty/non-empty detail arrays
+
+Acceptance:
+- One fixture suite locks semantic order + metadata parity across streaming and final projection.
+- Future regressions show up as fixture mismatches, not ad-hoc screenshot bugs.
+
 ## Execution Order
 1. Slice 1
 2. Slice 2
 3. Slice 3
 4. Slice 4
+5. Slice 5
+6. Slice 6
+7. Slice 7
+8. Slice 8
 
 ## Done Criteria
 - No turn-end patch logic required for normal tool turns.
 - Canonical path is the only semantic writer for tool transcript rows.
 - Surface tests pass with invariant coverage.
+- Legacy completed-tool fallback cache is removable.
+- Render path does not perform per-message sync FS computation for semantic fields.
