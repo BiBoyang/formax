@@ -351,6 +351,22 @@ Status: `completed`
 - 文本流 segment 拼接规则集中，主 reducer 只做事件调度。
 - `transcriptProjection.ts` 进一步瘦身，行为保持不变。
 
+### F.5 抽出 user/system message reducer 模块
+Status: `completed`
+
+**位置**: `semantics/transcriptProjection.ts` 的 `user_message` 与 `system_message` 分支。
+
+**做法**:
+- 新增 `transcriptProjectionMessageReducer.ts`：
+  - `shouldSkipMessageSegment(...)`
+  - `appendUserMessageSegment(...)`
+  - `appendSystemMessageSegment(...)`
+- 主 reducer 保留 early-return 语义，segment 构造改为调用 helper。
+
+**结果**:
+- 消息 segment 构造逻辑集中，主 reducer 更聚焦于状态流转。
+- 保持原有空文本/空 uiKind 的跳过策略不变。
+
 ---
 
 ## 建议执行顺序

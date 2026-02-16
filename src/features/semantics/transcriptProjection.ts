@@ -14,6 +14,11 @@ import {
   reduceAssistantDeltaEvent,
   reduceThinkingDeltaEvent,
 } from './transcriptProjectionTextReducer'
+import {
+  appendSystemMessageSegment,
+  appendUserMessageSegment,
+  shouldSkipMessageSegment,
+} from './transcriptProjectionMessageReducer'
 
 export type UserSegment = {
   id: string
@@ -187,40 +192,25 @@ export function reduceTranscriptProjection(state: TranscriptProjectionState, eve
   }
 
   if (event.kind === 'user_message') {
-    if (!event.text && !event.uiKind) {
+    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
       return {
         ...state,
         seenEventIds,
         lastReplaySeq: event.replaySeq,
       }
     }
-    const next: UserSegment = {
-      id: toSegmentId({ kind: 'user', replaySeq: event.replaySeq, turnId: event.turnId }),
-      kind: 'user',
-      turnId: event.turnId,
-      text: event.text,
-      ...(event.uiKind ? { uiKind: event.uiKind } : {}),
-    }
-    draft.segments.push(next)
+    appendUserMessageSegment({ draft, event, toSegmentId })
   }
 
   if (event.kind === 'system_message') {
-    if (!event.text && !event.uiKind) {
+    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
       return {
         ...state,
         seenEventIds,
         lastReplaySeq: event.replaySeq,
       }
     }
-    const next: SystemSegment = {
-      id: toSegmentId({ kind: 'system', replaySeq: event.replaySeq, turnId: event.turnId }),
-      kind: 'system',
-      turnId: event.turnId,
-      role: event.role,
-      text: event.text,
-      ...(event.uiKind ? { uiKind: event.uiKind } : {}),
-    }
-    draft.segments.push(next)
+    appendSystemMessageSegment({ draft, event, toSegmentId })
   }
 
   if (event.kind === 'assistant_delta') {
