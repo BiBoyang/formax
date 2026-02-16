@@ -7,11 +7,11 @@ Status: `in_progress`
 ## 执行看板（当前）
 
 - [x] Slice A（1 + 4）: turn-finalization append 计算 + merge 下沉到 `canonicalTurnMessages.ts`
-- [ ] Slice B（2）: abort transcript 计算抽出
+- [x] Slice B（2）: abort transcript 计算抽出
 - [ ] Slice C（3）: `tailSegmentsForTurn` 迁移
 - [ ] Slice D（5 + 6，按需）: send/bash 路由减负
 
-当前进行中: `Slice B`
+当前进行中: `Slice C`
 
 ## 原则
 
@@ -49,6 +49,7 @@ Status: `completed`
 ---
 
 ### 2. 抽出 abort 时的 messages 计算
+Status: `completed`
 
 **位置**: `useReplController.ts` 中 `abort` 的 `setMessages(prev => { ... })`（约 575–627 行）。
 
@@ -60,6 +61,11 @@ Status: `completed`
 - hook 内只做：清 ref、调 `resetStreamingBuffers` 等，然后 `setMessages(prev => applyAbortToMessages(prev, ...))`。
 
 **验收**: abort 的 transcript 规则可单测；hook 更短、更易读。
+
+**结果**:
+- 新增 `controller/abortTranscript.ts`，提供纯函数 `applyAbortToMessages(...)`。
+- `useReplController.abort()` 内联 `setMessages` 逻辑已替换为 pure helper 调用。
+- 新增 `abortTranscript.test.ts`，覆盖 running tool 标记/补齐与 AskUser declined 规则。
 
 ---
 

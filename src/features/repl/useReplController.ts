@@ -30,6 +30,7 @@ import {
   mergeCanonicalTurnIntoMessages,
 } from './controller/canonicalTurnMessages'
 import { isErrorLikeSubline } from './controller/errorSubline'
+import { applyAbortToMessages } from './controller/abortTranscript'
 import {
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -574,57 +575,11 @@ export function useReplController(deps: {
     }
 
     setMessages((prev) => {
-      const abortedAt = Date.now()
-      const abortResult = 'Error: Request aborted'
-      const trackedRunningTools = trackedRunningToolsSnapshot
-
-      const markAborted = (m: Msg): Msg => {
-        if (m.role !== 'tool' || !m.toolInfo || m.toolInfo.status !== 'running') return m
-        return {
-          ...m,
-          content: abortResult,
-          toolInfo: {
-            ...m.toolInfo,
-            status: 'error',
-            result: abortResult,
-          },
-        }
-      }
-
-      const isAskRunning = (m: Msg) =>
-        m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running'
-
-      const hadAsk = prev.some(isAskRunning) || trackedRunningTools.some(([, name]) => name === 'AskUserQuestion')
-      const next = prev.map(markAborted)
-
-      for (const [toolUseId, toolName] of trackedRunningTools) {
-        const exists = next.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === toolUseId)
-        if (exists) continue
-        next.push({
-          id: `tool-${toolUseId}`,
-          role: 'tool',
-          content: abortResult,
-          timestamp: new Date(abortedAt),
-          toolInfo: {
-            name: toolName || 'Tool',
-            toolUseId,
-            input: {},
-            status: 'error',
-            result: abortResult,
-          },
-        })
-      }
-
-      if (hadAsk && hadInFlightRequest) {
-        next.push({
-          id: `assistant-${abortedAt}`,
-          role: 'assistant',
-          content: 'User declined to answer questions',
-          timestamp: new Date(),
-        })
-      }
-
-      return next
+      return applyAbortToMessages({
+        messages: prev,
+        trackedRunningTools: trackedRunningToolsSnapshot,
+        hadInFlightRequest,
+      })
     })
   }, [isLoading, resetStreamingBuffers, userInput])
 
