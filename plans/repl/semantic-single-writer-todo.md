@@ -1,6 +1,6 @@
 # REPL Semantic Single-Writer TODO
 
-Status: `completed`
+Status: `in_progress` (Phase 1-2 completed, Phase 3 active)
 Owner: `codex`
 Goal: remove patch-style transcript fixes by converging to a single semantic write path.
 
@@ -196,3 +196,71 @@ Result:
 - Surface tests pass with invariant coverage.
 - Legacy completed-tool fallback cache is removable.
 - Render path does not perform per-message sync FS computation for semantic fields.
+
+## Phase 3 Slice Plan (9-12)
+
+### Slice 9: Remove Residual Patch Branches
+Status: `completed`
+Files:
+- `src/features/repl/useReplController.ts`
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+- `src/features/repl/useReplController.test.tsx`
+
+Changes:
+- Audit turn-final merge path for legacy-only rescue branches that no longer affect runtime behavior.
+- Delete dead/duplicated merge branches where canonical messages are already authoritative.
+- Keep only immutable-row protections required by Ink Static append semantics.
+
+Acceptance:
+- No behavior change for successful/failed/aborted turns.
+- Canonical finalization logic is shorter and has fewer conditional merge paths.
+
+Result:
+- Removed legacy per-field toolInfo fallback merge in `useReplController`; canonical tool metadata is now authoritative at turn-finalization time.
+- Kept only stable-row preservation (`id/timestamp/content`) for tail legacy tool rows to avoid Ink Static append artifacts.
+- Removed redundant tail-tool set bookkeeping in final-tail merge path.
+
+### Slice 10: Enforce Single-Writer Boundaries
+Status: `pending`
+Files:
+- `src/features/repl/controller/streaming.ts`
+- `src/features/repl/useReplController.ts`
+- `src/features/repl/controller/streaming.test.tsx`
+
+Changes:
+- Make direct transcript writes explicitly scoped to non-canonical mode.
+- Add invariant assertions/tests that canonical bridge mode never writes semantic tool rows through legacy `setMessages` paths.
+
+Acceptance:
+- Tool transcript rows are produced only by canonical projection when bridge is active.
+- Regression test fails on any reintroduced dual-write path.
+
+### Slice 11: Unify Tool-Turn Finalize Ordering
+Status: `pending`
+Files:
+- `src/features/repl/controller/canonicalTurnMessages.ts`
+- `src/features/repl/useReplController.ts`
+- `src/features/repl/controller/canonicalTurnMessages.test.ts`
+
+Changes:
+- Consolidate turn-tail replacement ordering rules (normal/failed/aborted) into one helper path.
+- Remove duplicated insertion/index logic between controller and canonical message helpers.
+
+Acceptance:
+- Canonical final rows keep deterministic order across all outcomes.
+- No controller-local tail merge algorithm remains.
+
+### Slice 12: Add Pre-Review Gate (Reduce Review Loops)
+Status: `pending`
+Files:
+- `scripts/`
+- `AGENTS.md`
+- `plans/repl/semantic-single-writer-todo.md`
+
+Changes:
+- Add a lightweight pre-review check command sequence for semantic REPL changes.
+- Require targeted tests + one deterministic surface smoke before `codex review`.
+
+Acceptance:
+- Fewer review cycles caused by avoidable local misses.
+- Process is documented and reproducible.

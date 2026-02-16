@@ -1128,13 +1128,11 @@ export function useReplController(deps: {
               const head = prev.slice(0, userIndex + 1)
               const tail = prev.slice(userIndex + 1)
               const legacyToolByUseId = new Map<string, Msg>()
-              const tailLegacyToolUseIds = new Set<string>()
               for (const message of tail) {
                 if (message.role !== 'tool') continue
                 const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
                 if (!toolUseId) continue
                 legacyToolByUseId.set(toolUseId, message)
-                tailLegacyToolUseIds.add(toolUseId)
               }
               const canonicalRows = canonicalRowsForAppend.map((message) => {
                 const baseMessage: Msg = {
@@ -1146,38 +1144,14 @@ export function useReplController(deps: {
                 const toolUseId = String(baseMessage.toolInfo?.toolUseId || '').trim()
                 if (!toolUseId) return baseMessage
                 const legacyTool = legacyToolByUseId.get(toolUseId)
-                const hasTailLegacyTool = Boolean(legacyTool && tailLegacyToolUseIds.has(toolUseId))
                 const canonicalToolInfo = baseMessage.toolInfo
-                const legacyToolInfo = legacyTool?.role === 'tool' ? legacyTool.toolInfo : undefined
-                const canonicalInput = canonicalToolInfo?.input
-                const canonicalInputHasKeys =
-                  canonicalInput && typeof canonicalInput === 'object' && Object.keys(canonicalInput).length > 0
-                const mergedToolInfoBase =
-                  canonicalToolInfo && legacyToolInfo
-                    ? {
-                        ...legacyToolInfo,
-                        ...canonicalToolInfo,
-                        input: canonicalInputHasKeys ? canonicalInput : legacyToolInfo.input ?? canonicalInput ?? {},
-                        result: legacyToolInfo.result ?? canonicalToolInfo.result,
-                        middleLines: canonicalToolInfo.middleLines ?? legacyToolInfo.middleLines,
-                        expandInfo: legacyToolInfo.expandInfo ?? canonicalToolInfo.expandInfo,
-                        resultLines: legacyToolInfo.resultLines ?? canonicalToolInfo.resultLines,
-                        transcriptLines: legacyToolInfo.transcriptLines ?? canonicalToolInfo.transcriptLines,
-                        nestedTools: legacyToolInfo.nestedTools ?? canonicalToolInfo.nestedTools,
-                        toolUses: legacyToolInfo.toolUses ?? canonicalToolInfo.toolUses,
-                        usage: legacyToolInfo.usage ?? canonicalToolInfo.usage,
-                        durationMs: legacyToolInfo.durationMs ?? canonicalToolInfo.durationMs,
-                        patchStartLineNumber: legacyToolInfo.patchStartLineNumber ?? canonicalToolInfo.patchStartLineNumber,
-                      }
-                    : canonicalToolInfo ?? legacyToolInfo
-                const mergedToolInfo = mergedToolInfoBase
                 return {
                   ...baseMessage,
-                  id: hasTailLegacyTool ? (legacyTool?.id ?? baseMessage.id) : baseMessage.id,
-                  timestamp: hasTailLegacyTool ? (legacyTool?.timestamp ?? baseMessage.timestamp) : baseMessage.timestamp,
-                  content: hasTailLegacyTool ? (legacyTool?.content || baseMessage.content) : baseMessage.content,
+                  id: legacyTool?.id ?? baseMessage.id,
+                  timestamp: legacyTool?.timestamp ?? baseMessage.timestamp,
+                  content: legacyTool?.content || baseMessage.content,
                   isStreaming: false,
-                  ...(mergedToolInfo ? { toolInfo: mergedToolInfo } : {}),
+                  ...(canonicalToolInfo ? { toolInfo: canonicalToolInfo } : {}),
                 }
               })
               const isReplacedLegacyRow = (message: Msg): boolean => {
