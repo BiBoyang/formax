@@ -1,6 +1,6 @@
 # REPL Semantic Single-Writer TODO
 
-Status: `phase-2-in-progress`
+Status: `completed`
 Owner: `codex`
 Goal: remove patch-style transcript fixes by converging to a single semantic write path.
 
