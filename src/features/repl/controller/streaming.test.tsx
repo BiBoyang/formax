@@ -504,6 +504,102 @@ describe('useReplStreaming', () => {
     expect(toolRows[0]?.toolInfo?.status).toBe('completed')
   })
 
+  it('does not append Explore batch summary rows when canonical bridge is enabled', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const messagesRef = { current: [] as Msg[] }
+    const projectionRef = { current: createInitialTranscriptProjectionState({ threadId: 'tui-live' }) }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({ startedAtMs: null })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+      const replaySeqRef = useRef(0)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'buffered',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+        canonical: {
+          threadId: 'tui-live',
+          getTurnId: () => 'turn-canonical-explore',
+          nextReplaySeq: () => {
+            replaySeqRef.current += 1
+            return replaySeqRef.current
+          },
+          onEvent: (event) => {
+            projectionRef.current = reduceTranscriptProjection(projectionRef.current, event)
+          },
+        },
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'tool_start', id: 'task-1', name: 'Task' })
+    handleEvent!({ type: 'tool_input', id: 'task-1', input: { subagent_type: 'Explore' } })
+    handleEvent!({ type: 'tool_start', id: 'task-2', name: 'Task' })
+    handleEvent!({ type: 'tool_input', id: 'task-2', input: { subagent_type: 'Explore' } })
+    handleEvent!({ type: 'tool_end', id: 'task-1', result: { tool_use_id: 'task-1', content: 'ok' } })
+    handleEvent!({ type: 'tool_end', id: 'task-2', result: { tool_use_id: 'task-2', content: 'ok' } })
+    await tick()
+    await tick()
+
+    expect(messagesRef.current).toEqual([])
+  })
+
   it('forwards stream events into canonical projection when canonical bridge is enabled', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const canonicalKindsRef = { current: [] as string[] }
@@ -626,6 +722,7 @@ describe('useReplStreaming', () => {
 
     // With canonical bridge active, stream events should not also create legacy transcript rows.
     expect(messagesRef.current.some((message) => message.role === 'assistant')).toBe(false)
+    expect(messagesRef.current.some((message) => message.role === 'tool')).toBe(false)
   })
 
 })

@@ -308,6 +308,8 @@ export function useReplStreaming(args: {
                   : 'Working',
           )
 
+          if (canonicalOnly) return
+
           const activeToolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id)
           if (activeToolMsgId) return
 
@@ -365,6 +367,8 @@ export function useReplStreaming(args: {
             }
           }
 
+          if (canonicalOnly) return
+
           args.setMessages((prev) =>
             prev.map((m) =>
               m.id === toolMsgId ? { ...m, toolInfo: { ...m.toolInfo!, input: ev.input as any } } : m,
@@ -394,6 +398,8 @@ export function useReplStreaming(args: {
               args.taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: ev.usage })
             }
           }
+
+          if (canonicalOnly) return
 
           if (
             ev.middleLines ||
@@ -436,8 +442,11 @@ export function useReplStreaming(args: {
           args.toolInputByIdRef.current.delete(ev.id)
           const taskKind = args.taskKindByToolUseIdRef.current.get(ev.id)
           args.taskKindByToolUseIdRef.current.delete(ev.id)
+          const taskStats = args.taskStatsByToolUseIdRef.current.get(ev.id)
+          args.taskStatsByToolUseIdRef.current.delete(ev.id)
 
-          args.setMessages((prev) => {
+          if (!canonicalOnly) {
+            args.setMessages((prev) => {
               const toolMsg = prev.find((m) => m.id === toolMsgId)
               const toolName = toolNameFromStart || toolMsg?.toolInfo?.name || 'Tool'
               const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
@@ -454,19 +463,17 @@ export function useReplStreaming(args: {
                   : rawResult
 
               if (toolName === 'Task') {
-                const stats = args.taskStatsByToolUseIdRef.current.get(ev.id)
-                args.taskStatsByToolUseIdRef.current.delete(ev.id)
-                const startedAt = stats?.startedAt ?? Date.now()
+                const startedAt = taskStats?.startedAt ?? Date.now()
                 const durationMs = Date.now() - startedAt
 
-                const tokens = formatTokenTotal(stats?.usage)
+                const tokens = formatTokenTotal(taskStats?.usage)
                 const backgroundTaskId = parseBackgroundTaskId(rawResult)
                 const parsedTranscript = parseTaskTranscript(rawResult)
                 const doneText = ev.result.is_error
                   ? displayResult || 'Error'
                   : backgroundTaskId
-                    ? `Started (task_id: ${backgroundTaskId})`
-                    : `Done (${formatToolUses(stats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                      ? `Started (task_id: ${backgroundTaskId})`
+                      : `Done (${formatToolUses(taskStats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
                         durationMs,
                       )})`
 
@@ -480,7 +487,9 @@ export function useReplStreaming(args: {
                           status: ev.result.is_error ? 'error' : 'completed',
                           result: rawResult,
                           ...(parsedTranscript ? { transcriptLines: parsedTranscript } : {}),
-                          ...(stats ? { toolUses: stats.toolUses, usage: stats.usage, durationMs } : { durationMs }),
+                          ...(taskStats
+                            ? { toolUses: taskStats.toolUses, usage: taskStats.usage, durationMs }
+                            : { durationMs }),
                         },
                       }
                     : m,
@@ -528,8 +537,9 @@ export function useReplStreaming(args: {
                   : m,
               )
             })
+          }
 
-          if (toolNameFromStart === 'Task' && taskKind === 'explore') {
+          if (toolNameFromStart === 'Task' && taskKind === 'explore' && !canonicalOnly) {
             const batch = args.exploreBatchRef.current
             if (batch && batch.toolUseIds.has(ev.id)) {
               batch.completedToolUseIds.add(ev.id)

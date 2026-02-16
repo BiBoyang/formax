@@ -37,7 +37,7 @@ Result:
 - Validated via targeted Vitest + type-check.
 
 ### Slice 2: Canonical-Only Tool Streaming
-Status: `pending`
+Status: `completed`
 Files:
 - `src/features/repl/controller/streaming.ts`
 - `src/features/repl/useReplController.ts`
@@ -50,6 +50,10 @@ Changes:
 Acceptance:
 - Tool rows still render normally.
 - `Bash(ls|pwd)` no longer depends on post-turn surface resets.
+
+Result:
+- `streaming.ts` no longer writes tool rows to `messages` when canonical bridge is active.
+- canonical bridge regression test now asserts no legacy `assistant/tool` rows are appended.
 
 ### Slice 3: Remove Turn-End Surface Reconcile Patch
 Status: `pending`
