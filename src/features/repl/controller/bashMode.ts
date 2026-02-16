@@ -2,6 +2,7 @@ import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRuntimeFlags, type RuntimeFlags } from '../../../env/runtimeFlags'
 import type { CanonicalEvent } from '../../semantics/canonicalEvents'
+import type { Msg } from '../../../components/tool/ToolMessage'
 
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000
 const MAX_OUTPUT_CHARS = 30000
@@ -31,6 +32,39 @@ export type BashModeRunResult = {
   exitCode: number | null
   exitSignal: string | null
   timedOut: boolean
+}
+
+export function isBashModeResultError(result: BashModeRunResult): boolean {
+  return (
+    result.timedOut ||
+    Boolean(result.exitSignal) ||
+    (typeof result.exitCode === 'number' && result.exitCode !== 0)
+  )
+}
+
+export function applyLocalBashCompletionToMessages(args: {
+  messages: Msg[]
+  messageId: string
+  command: string
+  outputText: string
+  isError: boolean
+}): Msg[] {
+  return args.messages.map((message) => {
+    if (message.id !== args.messageId) return message
+    if (message.role !== 'tool' || message.toolInfo?.status !== 'running') return message
+
+    return {
+      ...message,
+      content: `$ ${args.command}`,
+      toolInfo: {
+        ...(message.toolInfo || { name: 'LocalBash', input: { command: args.command } }),
+        name: 'LocalBash',
+        input: { command: args.command },
+        status: args.isError ? 'error' : 'completed',
+        result: args.outputText,
+      },
+    }
+  })
 }
 
 export function createLocalBashCanonicalEmitter(args: {

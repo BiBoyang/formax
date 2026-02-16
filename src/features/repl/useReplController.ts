@@ -50,7 +50,13 @@ import {
   runMainSendTurn,
 } from './controller/send'
 import type { CompactLifecycleEvent } from './controller/compactFlow'
-import { createLocalBashCanonicalEmitter, formatBashModeOutput, runBashModeCommand } from './controller/bashMode'
+import {
+  applyLocalBashCompletionToMessages,
+  createLocalBashCanonicalEmitter,
+  formatBashModeOutput,
+  isBashModeResultError,
+  runBashModeCommand,
+} from './controller/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
@@ -764,33 +770,16 @@ export function useReplController(deps: {
             }),
           )
 
+          const isError = isBashModeResultError(res)
           setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== msgId) return m
-              if (m.role !== 'tool' || m.toolInfo?.status !== 'running') return m
-
-              const isError =
-                res.timedOut ||
-                Boolean(res.exitSignal) ||
-                (typeof res.exitCode === 'number' && res.exitCode !== 0)
-
-              return {
-                ...m,
-                content: `$ ${command}`,
-                toolInfo: {
-                  ...(m.toolInfo || { name: 'LocalBash', input: { command } }),
-                  name: 'LocalBash',
-                  input: { command },
-                  status: isError ? 'error' : 'completed',
-                  result: outputText,
-                },
-              }
+            applyLocalBashCompletionToMessages({
+              messages: prev,
+              messageId: msgId,
+              command,
+              outputText,
+              isError,
             }),
           )
-          const isError =
-            res.timedOut ||
-            Boolean(res.exitSignal) ||
-            (typeof res.exitCode === 'number' && res.exitCode !== 0)
           localCanonicalEmitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
           localCanonicalEmitter.emitFooter(isError ? 'failed' : 'completed')
         } finally {

@@ -9,9 +9,9 @@ Status: `in_progress`
 - [x] Slice A（1 + 4）: turn-finalization append 计算 + merge 下沉到 `canonicalTurnMessages.ts`
 - [x] Slice B（2）: abort transcript 计算抽出
 - [x] Slice C（3）: `tailSegmentsForTurn` 迁移
-- [ ] Slice D（5 + 6，按需）: send/bash 路由减负
+- [x] Slice D（5 + 6，按需）: send/bash 路由减负
 
-当前进行中: `Slice D（按需）`
+当前进行中: `none`（后续按需开新 slice）
 
 ## 原则
 
@@ -105,7 +105,7 @@ Status: `completed`
 ## 二、中等重构（多文件、多步，需小步提交）
 
 ### 5. Bash 模式：将「执行 + canonical 发射」从 send 中拆出
-Status: `in_progress`（先做发射器抽离）
+Status: `completed`（分步完成）
 
 **位置**: `send()` 中 `if (text.startsWith('!'))` 整块（约 748–910 行），含 `emitLocalUserMessage`、`emitLocalToolEvent`、`emitLocalFooter`、对 `runBashModeCommand` 的调用及 UI 更新。
 
@@ -120,6 +120,7 @@ Status: `in_progress`（先做发射器抽离）
 **阶段结果（D.1）**:
 - 已在 `controller/bashMode.ts` 新增 `createLocalBashCanonicalEmitter(...)`，封装 LocalBash 的 canonical user/tool/footer 事件发射。
 - `useReplController.send()` 的 bash 分支已复用该发射器，移除内联事件构造逻辑。
+- 新增 `isBashModeResultError(...)` 与 `applyLocalBashCompletionToMessages(...)`，将 bash 完成态判断与 tool 行更新从 `useReplController` 下沉到 `bashMode.ts`。
 
 ---
 
