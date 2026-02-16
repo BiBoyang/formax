@@ -55,6 +55,8 @@
 - **Tests are not the spec**: before refactoring, first check whether missing/weak tests can be added to lock current behavior; use those tests to validate the refactor.
 - **UI parity**: UI refactors must keep layout/spacing/keys/interaction the same unless the user explicitly requests a UI change; do not “improve” UI by default.
 - **When uncertain**: if expectations are unclear (not limited to UI), ask the user before changing behavior.
+- **Root-cause first (mandatory)**: do not default to patch/stopgap fixes for systemic bugs (state ownership, ordering, lifecycle, data flow). First identify and fix the root cause in the canonical layer.
+- **Stopgap policy (strict)**: if a temporary mitigation is unavoidable, explicitly mark it as temporary in code comments and PR/commit notes, define removal conditions, and create a follow-up task in the same iteration. Do not leave silent long-term stopgaps.
 - **UI refactor workflow (mandatory)**:
   - Before refactor: write/extend `ink-testing-library` tests that lock the current UI text + key paths (Enter/Esc/Tab/↑↓/←→/Backspace).
   - During refactor: do not change copy/spacing/colors unless explicitly requested; treat “simplifying UI” as a behavior change.
