@@ -8,6 +8,7 @@ import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalToolBlock } from '../../presenters/BashApprovalToolBlock'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
+import { buildBashParamsFromInput } from '../../../features/tools/presentation/bashParams'
 
 function parseBashInput(input: unknown): { command: string; cwd: string | null } {
   const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null
@@ -33,7 +34,8 @@ export const BashToolPresenter = createToolBlocksPresenter(
       message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
     const parsedInput = parseBashInput(input)
-    const command = parsedInput.command
+    const bashParams = buildBashParamsFromInput(input)
+    const command = parsedInput.command || bashParams.command || ''
     const cwd = parsedInput.cwd ?? process.cwd()
 
     const blocks: ToolBlocksOutput['blocks'] = [

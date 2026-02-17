@@ -13,6 +13,7 @@ import {
   summarizePlanModeStatus,
   summarizeTodoWriteStatus,
 } from '../../../../../src/features/tools/presentation/labels'
+import { buildBashParamsFromParamsText } from '../../../../../src/features/tools/presentation/bashParams'
 import {
   getToolPresentationSemantic,
   type ToolPresentationSemantic,
@@ -90,9 +91,15 @@ const defaultRenderer: ToolBlockRenderer = (item, context) => {
 
 const bashRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
-  const command = params.find((param) => param.label === 'command')?.value
+  const bashParams = buildBashParamsFromParamsText(item.paramsText)
+  const command = bashParams.command ?? params.find((param) => param.label === 'command')?.value
   const title = command ? `Bash ${command}` : item.toolName
-  const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'command')) : item.paramsText
+  const normalizedNonCommandParams =
+    params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'command')) : undefined
+  const paramsText =
+    normalizedNonCommandParams ??
+    bashParams.paramsTextWithoutCommand ??
+    (bashParams.hasCommandParam ? undefined : item.paramsText)
   return withStandardBlocks({
     item,
     title,

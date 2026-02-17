@@ -55,6 +55,51 @@ describe('buildToolUiBlocks', () => {
     expect(details?.lines).toEqual(['platform: Mac', 'theme: dark'])
   })
 
+  it('uses shared bash params presentation model for title and non-command params', () => {
+    const item = makeToolItem({
+      toolName: 'Bash',
+      status: 'completed',
+      summary: 'done',
+      detailLines: [],
+      paramsText: 'cwd="/repo", command="ls -la", timeout=1000',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Bash ls -la')
+    expect(header?.paramsText).toBe('cwd="/repo", timeout=1000')
+  })
+
+  it('keeps bash command-only params hidden from header params', () => {
+    const item = makeToolItem({
+      toolName: 'Bash',
+      status: 'completed',
+      summary: 'done',
+      detailLines: [],
+      paramsText: 'command="pwd"',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Bash pwd')
+    expect(header?.paramsText).toBeUndefined()
+  })
+
+  it('keeps empty bash command-only params hidden from header params', () => {
+    const item = makeToolItem({
+      toolName: 'Bash',
+      status: 'completed',
+      summary: 'done',
+      detailLines: [],
+      paramsText: 'command=""',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Bash')
+    expect(header?.paramsText).toBeUndefined()
+  })
+
   it('does not use completed write summary while write is still running', () => {
     const item = makeToolItem({
       toolName: 'Write',

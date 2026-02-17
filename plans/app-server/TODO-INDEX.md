@@ -33,7 +33,7 @@
 
 ## P2：Adapter 单点化补全（来自 Milestone 2 / G2）
 
-- [ ] AD-02 增加一组跨入口 contract fixture（stream / notification / replay）
+- [x] AD-02 增加一组跨入口 contract fixture（stream / notification / replay）
   - 目标：同一 fixture 在三入口下得到同构 canonical 序列（至少校验 kind + replaySeq + 关键 payload）。
   - 已完成切片 A：新增 `crossPathContractFixture.ts` 并在 `canonicalEventAdapter.contract.test.ts` 校验 stream/notification/replay-like 入口同构输出。
   - 验收：新增 contract test 文件并纳入常用回归命令。
@@ -44,7 +44,7 @@
 
 ## P3：Replay-First 强化（来自 Milestone 3 / G4）
 
-- [ ] RP-01 收紧 `hasGap=true` 的客户端路径：禁止隐式继续增量拼接
+- [x] RP-01 收紧 `hasGap=true` 的客户端路径：禁止隐式继续增量拼接
   - 目标：所有 gap 场景都显式进入 rebuild/replay-first 路径。
   - 验收：现有 replay tests 继续通过，并新增“gap 后禁止旧增量落地”的反例测试。
   - 未完成切片：
@@ -55,14 +55,14 @@
 
 ## P4：Tool Presentation IR 长期化（来自 Milestone 4 / G3）
 
-- [ ] IR-01 提取一个工具（建议 `Bash` 或 `Task`）的 presenter IR 契约样板
+- [x] IR-01 提取一个工具（建议 `Bash` 或 `Task`）的 presenter IR 契约样板
   - 目标：形成“语义 -> IR -> renderer”最小模板，后续工具可照搬。
   - 验收：TUI/Web 渲染不分叉语义；新增工具展示字段时不需要改 projection 逻辑。
   - 未完成切片：
-    - [ ] IR-01.A：选择 `Bash` 作为样板，抽离最小 IR 契约（语义输入 -> IR）。
-    - [ ] IR-01.B：TUI renderer 仅消费 IR（不依赖语义层细节字段）。
-    - [ ] IR-01.C：Web renderer 仅消费 IR（与 TUI 保持同语义输入）。
-    - [ ] IR-01.D：补 IR 契约测试：新增展示字段不需要改 projection。
+    - [x] IR-01.A：选择 `Bash` 作为样板，抽离最小 IR 契约（语义输入 -> IR）。
+    - [x] IR-01.B：TUI renderer 仅消费 IR（不依赖语义层细节字段）。
+    - [x] IR-01.C：Web renderer 仅消费 IR（与 TUI 保持同语义输入）。
+    - [x] IR-01.D：补 IR 契约测试：新增展示字段不需要改 projection。
 
 ## Closure：文档收口与验收
 
