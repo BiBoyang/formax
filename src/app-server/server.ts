@@ -45,9 +45,8 @@ import {
   reduceTranscriptProjection,
   type TranscriptProjectionState,
 } from '../features/semantics/projection/transcriptProjection.js'
-import { selectTerminalTurnInvariantIssues } from '../features/semantics/selectors/invariants.js'
-import { selectProjectionSnapshot } from '../features/semantics/selectors/transcriptSegments.js'
 import { toCanonicalEventsFromTurnNotification } from '../features/semantics/adapters/turnNotificationCanonicalAdapter.js'
+import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStateSnapshot.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -589,46 +588,7 @@ export class AppServer {
     nextCursor: number
     latestCursor: number
     hasGap: boolean
-    state: {
-      mode: ThreadRuntimeState['mode']
-      activeTurnId: string | null
-      lastTurnId: string | null
-      lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
-      pendingInputCount: number
-      pendingInputs: Array<{
-        inputId: string
-        threadId: string
-        turnId: string
-        toolUseId: string
-        kind: 'approval' | 'ask_user_question'
-        status: 'pending'
-        createdAt: string
-        expiresAt: string
-        payload: unknown
-      }>
-      invariantIssues: Array<
-        | {
-            kind: 'running_tool_after_terminal_turn'
-            turnId: string
-            toolUseId: string
-          }
-        | {
-            kind: 'pending_input_after_terminal_turn'
-            turnId: string
-            inputId: string
-            toolUseId: string
-          }
-      >
-      projection: {
-        segments: TranscriptProjectionState['segments']
-        lastReplaySeq: number
-        toolNameByUseId: Record<string, string>
-        openAssistantSegmentIdByTurn: Record<string, string>
-        openThinkingSegmentIdByTurn: Record<string, string>
-      } | null
-      toolNameByUseId: Record<string, string>
-      updatedAt: string
-    } | null
+    state: ReplayStateSnapshot | null
   } {
     const entries = this.replayByThreadId.get(args.threadId) ?? []
     const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
@@ -653,35 +613,11 @@ export class AppServer {
         : null
     const stateForSnapshot = state ?? fallbackSnapshotState
     const shouldIncludeProjectionSnapshot = Boolean(projection) && (hasGap || args.after == null)
-    const projectionSnapshot = shouldIncludeProjectionSnapshot ? selectProjectionSnapshot(projection) : null
-    const invariantIssues = selectTerminalTurnInvariantIssues({
+    const stateSnapshot = buildReplayStateSnapshot({
+      stateForSnapshot,
       projection,
-      runtimeState: stateForSnapshot,
+      includeProjectionSnapshot: shouldIncludeProjectionSnapshot,
     })
-    const stateSnapshot = stateForSnapshot
-      ? {
-          mode: stateForSnapshot.mode,
-          activeTurnId: stateForSnapshot.activeTurnId,
-          lastTurnId: stateForSnapshot.lastTurnId,
-          lastTurnStatus: stateForSnapshot.lastTurnStatus,
-          pendingInputCount: Object.keys(stateForSnapshot.pendingInputs).length,
-          pendingInputs: Object.values(stateForSnapshot.pendingInputs).map((input) => ({
-            inputId: input.inputId,
-            threadId: input.threadId,
-            turnId: input.turnId,
-            toolUseId: input.toolUseId,
-            kind: input.kind,
-            status: input.status,
-            createdAt: input.createdAt,
-            expiresAt: input.expiresAt,
-            payload: input.payload,
-          })),
-          invariantIssues,
-          projection: projectionSnapshot,
-          toolNameByUseId: { ...stateForSnapshot.toolNameByUseId },
-          updatedAt: stateForSnapshot.updatedAt,
-        }
-      : null
 
     if (entries.length === 0) {
       return {

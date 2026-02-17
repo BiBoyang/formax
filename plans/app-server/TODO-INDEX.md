@@ -17,12 +17,6 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N21 invariant issue 派生与快照构建解耦
-  - 目标：把 app-server 内 replay state snapshot 组装中的 invariant 派生抽到独立 helper，降低 `server.ts` 复杂度。
-  - 验收：
-    - `server.ts` 中 thread/replay 快照组装逻辑减少重复分支。
-    - 新 helper 有最小单元测试覆盖。
-
 - [ ] N22 realtime/replay parity fixture 扩面（inputResolved 边界）
   - 目标：补齐 `turn/inputResolved` 边界（submitted/canceled/expired/failed）的 realtime/replay parity fixture。
   - 验收：
