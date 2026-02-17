@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N82 replay request helper 参数默认值集中化
-  - 目标：收敛 request helper 的默认参数逻辑，避免分散在各 helper 内部。
+- [ ] N83 replay baseline cursor 常量复用（hasGap builders）
+  - 目标：统一 hasGap/baseline builder 中 cursor 默认值来源，减少隐式魔法数字风险。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N83 replay baseline cursor 常量复用（hasGap builders）
-  - 目标：统一 hasGap/baseline builder 中 cursor 默认值来源，减少隐式魔法数字风险。
+- [ ] N84 replay projection snapshot seq 常量复用
+  - 目标：让 projection snapshot 的 `lastReplaySeq` 与 cursor 常量统一来源，避免后续漂移。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

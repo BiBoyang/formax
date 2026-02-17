@@ -24,13 +24,18 @@ const REPLAY_CURSOR_REBUILD_COMPLETE = 120
 
 // Replay request constants
 const REPLAY_PAGE_LIMIT = 200
+const REPLAY_REQUEST_DEFAULTS = {
+  latestCursor: REPLAY_CURSOR_REBUILD_COMPLETE,
+  progressStep: 1,
+  pageLimit: REPLAY_PAGE_LIMIT,
+} as const
 
 // Assertion helpers
 function expectReplayPageRequestArgs(args: { request: ReplayRequestMock; nth: number; after: number }) {
   expect(args.request).toHaveBeenNthCalledWith(args.nth, 'thread/replay', {
     threadId: TEST_THREAD_ID,
     after: args.after,
-    limit: REPLAY_PAGE_LIMIT,
+    limit: REPLAY_REQUEST_DEFAULTS.pageLimit,
   })
 }
 
@@ -138,7 +143,7 @@ function createHasGapBaselineReplayPages(args: {
   baselineState: ReplayStateSnapshot | null
   latestCursor?: number
 }) {
-  const latestCursor = args.latestCursor ?? REPLAY_CURSOR_REBUILD_COMPLETE
+  const latestCursor = args.latestCursor ?? REPLAY_REQUEST_DEFAULTS.latestCursor
   return [
     createReplayPage({
       nextCursor: INITIAL_REPLAY_CURSOR,
@@ -176,7 +181,7 @@ function createReplayRequestWithCursorProgress(args: {
   step?: number
   state?: ReplayStateSnapshot
 }) {
-  const step = args.step ?? 1
+  const step = args.step ?? REPLAY_REQUEST_DEFAULTS.progressStep
   const buildPage = (after: number) =>
     createReplayPage({
       nextCursor: after + step,
