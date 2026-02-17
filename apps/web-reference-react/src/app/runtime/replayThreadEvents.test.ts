@@ -169,7 +169,7 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
         text,
       },
     ],
-    lastReplaySeq: 120,
+    lastReplaySeq: REPLAY_CURSOR_REBUILD_COMPLETE,
     toolNameByUseId: {},
     openAssistantSegmentIdByTurn: {},
     openThinkingSegmentIdByTurn: {},
