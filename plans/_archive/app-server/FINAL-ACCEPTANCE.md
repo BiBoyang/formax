@@ -51,8 +51,7 @@
 
 ## 4. 手工记录模板
 
-- Thread/Turn/Input：`plans/app-server/MANUAL-RUNBOOK-THREAD-TURN-INPUT.md`
-- Recovery/Stale：`plans/app-server/MANUAL-RUNBOOK-RECOVERY-STALE.md`
+- Thread/Turn/Input + Recovery/Stale：`plans/app-server/MANUAL-RUNBOOK.md`
 
 ## 5. 运行方式（开发验证）
 
