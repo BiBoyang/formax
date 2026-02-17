@@ -1,20 +1,21 @@
-# TODO Next：Semantics Single-Writer（from Roadmap + Blueprint）
+# TODO-INDEX：Semantics Single-Writer（Rolling）
 
 更新时间：2026-02-17
-来源：
+任务来源（唯一）：
 - `plans/app-server/ARCHITECTURE-ROADMAP.md`
 - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
 
 > 本清单用于下一阶段主线推进。旧 `plans/app-server/TODO.md` 视为历史执行记录，不再作为主线来源。
 
-## P0b：Contract Governance + Single Writer
+## 滚动维护规则（必须执行）
 
-- [x] N1 Canonical envelope 版本治理（schema version + 字段约束）
-  - 目标：明确 canonical event 版本边界，禁止“静默漂移”。
-  - 验收：
-    - core 提供 canonical schema version 常量与校验入口。
-    - app-server 路径的 notification/replay 入口对非法版本做显式拒绝或诊断标记。
-    - Contract/API 文档写明版本兼容策略（向后兼容扩展 vs 破坏性升级）。
+1. 这里始终只保留“未完成任务”；完成项从本文件删除，避免噪音累积。
+2. 当本文件清空时，必须重新从 roadmap + blueprint 生成下一批任务并写回本文件。
+3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
+4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
+5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
+
+## P0b：Contract Governance + Single Writer
 
 - [ ] N2 adapter 单点化（notification/stream/replay mapping 不再多端平行实现）
   - 目标：同一类输入事件到 canonical 的映射规则只保留一份。
@@ -55,9 +56,3 @@
   - 验收：
     - 新增 selector API（最小集合）并被两端消费。
     - renderer 仅处理展示，不做语义纠偏。
-
-## 本轮执行策略
-
-1. 每次只做一个编号项的小切片（2-6 文件为宜）。
-2. 每个切片流程固定：实现 -> 定向测试 -> `codex review` -> 提交。
-3. 优先完成 P0b（N1-N5），再进入 P1。
