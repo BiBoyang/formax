@@ -265,7 +265,7 @@ Status: `completed`
 Files:
 - `scripts/`
 - `AGENTS.md`
-- `plans/repl/semantic-single-writer-todo.md`
+- `plans/_archive/repl/semantic-single-writer-todo.md`
 
 Changes:
 - Add a lightweight pre-review check command sequence for semantic REPL changes.

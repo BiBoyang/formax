@@ -1,7 +1,7 @@
 # useReplController / 语义化后续优化 TODO
 
 Status: `completed`  
-基线: `plans/repl/useReplController-refactors-phase2.md` 已完成  
+基线: `plans/_archive/repl/useReplController-refactors-phase2.md` 已完成  
 目标: 在不改行为前提下，继续降低 `useReplController` 复杂度并提升语义层一致性。
 
 ## 约束（先对齐）
