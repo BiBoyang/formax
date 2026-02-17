@@ -17,14 +17,7 @@ const REPLAY_PAGE_LIMIT = 200
 const REPLAY_CURSOR_FROM_START = 0
 const REPLAY_CURSOR_REBUILD_COMPLETE = 120
 
-function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn/progress' = 'turn/started') {
-  return {
-    replaySeq,
-    method,
-    params: { replaySeq },
-  }
-}
-
+// Assertion helpers
 function expectReplayPageRequestArgs(request: ReturnType<typeof vi.fn>, nth: number, after: number) {
   expect(request).toHaveBeenNthCalledWith(nth, 'thread/replay', {
     threadId: TEST_THREAD_ID,
@@ -41,6 +34,7 @@ function expectRuntimeLastReplaySeq(ctx: ReplayThreadEventsContext, replaySeq: n
   expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(replaySeq)
 }
 
+// Warning helpers
 function replayInvariantWarning(details: string) {
   return `Replay invariant issues detected (${details})`
 }
@@ -61,6 +55,7 @@ function expectWarningSequence(log: ReturnType<typeof vi.fn>, messages: string[]
   }
 }
 
+// Replay fixture builders
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',
@@ -112,6 +107,14 @@ function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
     state: null,
     ...overrides,
   } as ReplayPage
+}
+
+function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn/progress' = 'turn/started') {
+  return {
+    replaySeq,
+    method,
+    params: { replaySeq },
+  }
 }
 
 function createReplayRequestFromPages(...pages: ReplayPage[]) {
