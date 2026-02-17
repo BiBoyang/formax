@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N58 replay 条件分支测试命名与分组整理
-  - 目标：将 `replayThreadEvents.test.ts` 按 helper/rebuild/pagination 三组整理，降低后续维护噪音。
-  - 验收：
-    - 保持行为不变，仅做测试结构重排并通过。
-
 - [ ] N59 replayThreadEvents 测试基座工厂精简
   - 目标：收敛 `createBaseContext` 的可选覆盖写法，减少后续新增 case 时样板噪音。
+  - 验收：
+    - 不改变现有断言语义，测试全量通过。
+
+- [ ] N60 replay test fixture builder 复用化
+  - 目标：为常见 replay 响应体（empty/hasGap/baseline/paged）引入小型 builder，减少重复字面量。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
