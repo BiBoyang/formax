@@ -7,8 +7,9 @@ import {
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
-type ReplayRequestMock = ReturnType<typeof vi.fn>
-type ReplayLogMock = ReturnType<typeof vi.fn>
+type MockFn = ReturnType<typeof vi.fn>
+type ReplayRequestMock = MockFn
+type ReplayLogMock = MockFn
 type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }

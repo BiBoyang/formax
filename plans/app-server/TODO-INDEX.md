@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N100 replay helper typed mock alias 复用检查
-  - 目标：检查并收敛 helper 中剩余的 mock 类型重复声明，结束本轮类型清理。
+- [ ] N101 replay helper 类型别名顺序与分组整理
+  - 目标：让 type alias 顺序与 helper 分组一致，减少查找成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N101 replay helper 类型别名顺序与分组整理
-  - 目标：让 type alias 顺序与 helper 分组一致，减少查找成本。
+- [ ] N102 replay type alias 命名前缀统一（Replay*）
+  - 目标：统一本文件 type alias 的命名前缀策略，保持命名一致性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
