@@ -92,4 +92,60 @@ describe('buildReplayStateSnapshot', () => {
       }),
     )
   })
+
+  it('returns empty invariantIssues when projection is null and includeProjectionSnapshot is false', () => {
+    const state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-17T00:00:00.000Z',
+    })
+    state.pendingInputs = {
+      'input-1': {
+        inputId: 'input-1',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-02-17T00:00:01.000Z',
+        expiresAt: '2026-02-17T00:05:01.000Z',
+        payload: {},
+      },
+    }
+    const snapshot = buildReplayStateSnapshot({
+      stateForSnapshot: state,
+      projection: null,
+      includeProjectionSnapshot: false,
+    })
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        projection: null,
+        pendingInputCount: 1,
+        invariantIssues: [],
+      }),
+    )
+  })
+
+  it('returns empty invariantIssues when projection is null and includeProjectionSnapshot is true', () => {
+    const state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-17T00:00:00.000Z',
+    })
+    const snapshot = buildReplayStateSnapshot({
+      stateForSnapshot: state,
+      projection: null,
+      includeProjectionSnapshot: true,
+    })
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        projection: null,
+        invariantIssues: [],
+      }),
+    )
+  })
 })
