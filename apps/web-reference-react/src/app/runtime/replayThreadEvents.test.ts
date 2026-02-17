@@ -10,6 +10,8 @@ type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 type ReplayRequestMock = ReturnType<typeof vi.fn>
 type ReplayLogMock = ReturnType<typeof vi.fn>
 type ReplayCursorParams = { after?: number }
+type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
+type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
@@ -125,7 +127,7 @@ function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
   } as ReplayPage
 }
 
-function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn/progress' = 'turn/started') {
+function createReplayTurnEvent(replaySeq: number, method: ReplayTurnEventMethod = 'turn/started'): ReplayTurnEventPayload {
   return {
     replaySeq,
     method,

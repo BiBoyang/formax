@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N99 replay helper 强类型别名补充（params payload）
-  - 目标：为 helper 内常见 payload 补充别名，减少重复内联 shape。
+- [ ] N100 replay helper typed mock alias 复用检查
+  - 目标：检查并收敛 helper 中剩余的 mock 类型重复声明，结束本轮类型清理。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N100 replay helper typed mock alias 复用检查
-  - 目标：检查并收敛 helper 中剩余的 mock 类型重复声明，结束本轮类型清理。
+- [ ] N101 replay helper 类型别名顺序与分组整理
+  - 目标：让 type alias 顺序与 helper 分组一致，减少查找成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
