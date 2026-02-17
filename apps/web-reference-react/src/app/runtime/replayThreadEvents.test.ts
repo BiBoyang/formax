@@ -183,7 +183,7 @@ function createReplayRequestWithCursorProgress(args: {
   step?: number
 }) {
   const step = args.step ?? REPLAY_REQUEST_DEFAULTS.progressStep
-  const buildPage = (after: number) =>
+  const createPageForCursor = (after: number) =>
     createReplayPage({
       nextCursor: after + step,
       latestCursor: args.latestCursor,
@@ -191,7 +191,7 @@ function createReplayRequestWithCursorProgress(args: {
     })
   return vi.fn().mockImplementation((_method: string, params?: unknown) => {
     const after = Number((params as { after?: number } | undefined)?.after ?? 0)
-    return Promise.resolve(buildPage(after))
+    return Promise.resolve(createPageForCursor(after))
   })
 }
 
