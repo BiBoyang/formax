@@ -216,4 +216,64 @@ describe('threadStateReducer', () => {
     expect(stale).toBe(state)
     expect(stale.toolNameByUseId).toEqual({ 'tool-1': 'Bash' })
   })
+
+  it('clears unresolved pending inputs for a turn when that turn reaches terminal state', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        input: {
+          inputId: 'input-1',
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          kind: 'approval',
+          status: 'pending',
+          createdAt: '2026-02-10T00:00:01.000Z',
+          expiresAt: '2026-02-10T00:05:01.000Z',
+          payload: {},
+        },
+      },
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-2',
+        input: {
+          inputId: 'input-2',
+          threadId: 'thread-1',
+          turnId: 'turn-2',
+          toolUseId: 'tool-2',
+          kind: 'approval',
+          status: 'pending',
+          createdAt: '2026-02-10T00:00:02.000Z',
+          expiresAt: '2026-02-10T00:05:02.000Z',
+          payload: {},
+        },
+      },
+    })
+    expect(Object.keys(state.pendingInputs)).toEqual(['input-1', 'input-2'])
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/completed',
+      replaySeq: 4,
+      params: {
+        threadId: 'thread-1',
+        turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
+      },
+    })
+
+    expect(Object.keys(state.pendingInputs)).toEqual(['input-2'])
+  })
 })
