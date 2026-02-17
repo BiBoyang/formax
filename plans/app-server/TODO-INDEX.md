@@ -15,10 +15,24 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
+## P2：Contract & Adapter Consolidation
+
+- [ ] N23 app-server replay state contract文档化（字段级）
+  - 目标：把 `thread/replay.result.state` 字段（含 `invariantIssues`）同步到 `plans/app-server/API-REFERENCE.md`。
+  - 验收：
+    - 文档字段与当前实现一致（含可空性与类型约束）。
+    - 对 `state=null` 与 `state!=null` 的判定条件有明确说明。
+
 ## P4：Replay-First Invariants
 
-- [ ] N22 realtime/replay parity fixture 扩面（inputResolved 边界）
-  - 目标：补齐 `turn/inputResolved` 边界（submitted/canceled/expired/failed）的 realtime/replay parity fixture。
+- [ ] N24 invariant selector覆盖补齐（input kind 组合）
+  - 目标：补齐 `approval` / `ask_user_question` 两类 pending 输入在 terminal 漏泄场景下的 selector 覆盖。
   - 验收：
-    - 至少覆盖两种 resolved 终局状态。
-    - parity fixture 下 runtime pendingInputs 无泄漏且两路径一致。
+    - `selectors/invariants.test.ts` 覆盖两种 kind。
+    - 返回 issue 结构保持稳定。
+
+- [ ] N25 replay snapshot helper 边界测试扩面
+  - 目标：补齐 `buildReplayStateSnapshot` 在 `projection=null` 与 `includeProjectionSnapshot=false` 组合下的边界行为。
+  - 验收：
+    - helper 测试至少新增两条边界用例。
+    - invariantIssues 在无 projection 时行为有明确断言。
