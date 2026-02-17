@@ -1,5 +1,6 @@
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
+import { selectTailSegmentsForTurn } from '../../../semantics/selectors/transcriptSegments'
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../utils/toolFormatting'
@@ -182,19 +183,5 @@ export function canonicalTurnSegmentsToMessages(args: {
 }
 
 export function tailSegmentsForTurn(segments: TranscriptSegment[], turnId: string): TranscriptSegment[] {
-  const out: TranscriptSegment[] = []
-  let seenTurn = false
-
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index]
-    if (!segment) continue
-    if (segment.turnId === turnId) {
-      out.push(segment)
-      seenTurn = true
-      continue
-    }
-    if (seenTurn) break
-  }
-
-  return out.reverse()
+  return selectTailSegmentsForTurn(segments, turnId)
 }

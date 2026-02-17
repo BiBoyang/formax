@@ -8,6 +8,7 @@ import {
   type TranscriptSegment,
   type TranscriptProjectionState,
 } from '../../../src/features/semantics/projection/transcriptProjection'
+import { selectTurnSegments } from '../../../src/features/semantics/selectors/transcriptSegments'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -188,8 +189,7 @@ function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): 
         })()
   const nextProjection = reduceTranscriptProjection(currentProjection, event)
   const existingItemById = new Map(state.logs.map((item) => [item.id, item]))
-  const projectedItems = nextProjection.segments
-    .filter((segment) => segment.turnId === event.turnId)
+  const projectedItems = selectTurnSegments(nextProjection.segments, event.turnId)
     .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
     .filter((segment): segment is TranscriptItem => Boolean(segment))
   const logs = mergeTurnProjectionLogs({

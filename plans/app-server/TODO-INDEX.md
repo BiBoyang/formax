@@ -17,14 +17,6 @@
 
 ## P0b：Contract Governance + Single Writer
 
-- [ ] N5 不变量体系化（防补丁回归）
-  - 目标：把经验修复沉淀为 invariant，而不是继续“case by case”补丁。
-  - 验收（至少）：
-    - 同一 turn 内 `toolUseId` 最终行唯一。
-    - turn 终局后无 running tool。
-    - pending input 必有终局。
-    - replaySeq 单调与幂等去重保持成立。
-
 ## P1：Projection/Renderer 长期解耦
 
 - [ ] N6 projection 状态去 UI 偏置
