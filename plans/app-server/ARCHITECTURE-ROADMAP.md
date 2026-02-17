@@ -200,15 +200,6 @@ Contract 对恢复的硬约束：
 - Web/TUI/app-server 不再各自维护“通知事件类型分支到 canonical”的平行实现
 - 关键 fixture 在三端入口（stream/notification/replay）下投影一致
 
-完成证据：
-
-- app-server 通知入口统一走 `canonicalEventAdapter`：`src/app-server/server.ts`
-- 跨入口 contract fixture（stream/notification/replay）与乱序重复归一化断言：
-  - `src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts`
-  - `src/features/semantics/adapters/crossPathContractFixture.ts`
-- replay 真路径一致性断言：
-  - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
-
 ### Milestone 3：replay-first + snapshot 策略固化
 
 状态：`completed`（2026-02-17）
@@ -220,15 +211,6 @@ Contract 对恢复的硬约束：
 - `hasGap=true` 强制重建（baseline replay + snapshot hydrate）\n
 - 不会退化到“history 拼接 + 本地修补”的隐式路径
 
-完成证据：
-
-- `hasGap` 分支显式保护（不消费当前页增量）：
-  - `apps/web-reference-react/src/app/runtime/replayThreadEvents.ts`
-- gap 反例测试（同页 data 禁止落地、rebuild 后 cursor/尾部不重复）：
-  - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
-- reconnect/gap/restart 与 realtime 一致性回归：
-  - `src/features/semantics/__tests__/runtimeReplayParity.test.ts`
-
 ### Milestone 4：Tool Presentation IR 与语义层边界长期化
 
 状态：`completed`（2026-02-17）
@@ -239,17 +221,6 @@ Contract 对恢复的硬约束：
 
 - 新工具的参数/标签/摘要规则只需改 presenter（IR），renderer 端只做展示\n
 - 端内 UI 可以不同，但语义输入与投影不分叉
-
-完成证据（Bash 样板）：
-
-- 共享 Bash 展示参数模型（IR 片段）：
-  - `src/features/tools/presentation/bashParams.ts`
-  - `src/features/tools/presentation/bashParams.test.ts`
-- TUI renderer 通过共享模型消费 command/params：
-  - `src/tools/modules/bash/presenter.tsx`
-- Web renderer 通过共享模型消费 command/params：
-  - `apps/web-reference-react/src/components/tool/toolBlocksRegistry.ts`
-  - `apps/web-reference-react/src/components/tool/toolBlocksRegistry.test.ts`
 
 ---
 
