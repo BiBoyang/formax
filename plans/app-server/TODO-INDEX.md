@@ -31,14 +31,6 @@
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 - 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
-## P0：Canonical Contract 治理（Contract-First）
-
-- [ ] C1 统一 canonical contract 字段与必填约束
-  - 切片 A：对齐 `plans/app-server/INTERACTION-CONTRACT.md` 中 canonical event 字段定义与版本说明。
-  - 切片 B：在 `src/features/semantics/adapters/` 建立/收敛单一 mapping 入口，禁止多端重复分支。
-  - 切片 C：补 contract fixture 覆盖（TUI/Web/app-server 至少各 1 条关键路径）。
-  - 验收：新增 canonical 字段时只改 contract + adapter 两处，fixture 全通过。
-
 ## P1：Single Writer 闭环（移除直写 transcript）
 
 - [ ] S1 清理语义路径中的 direct transcript write 残留
