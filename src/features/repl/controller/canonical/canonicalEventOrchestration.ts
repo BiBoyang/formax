@@ -4,14 +4,43 @@ import { reduceTranscriptProjection } from '../../../semantics/projection/projec
 import type { TranscriptProjectionState } from '../../../semantics/projection/projection'
 import { canonicalTurnSegmentsToMessages, tailSegmentsForTurn } from './canonicalTurnMessages'
 
+type PreviousTransientProjection = {
+  turnId: string
+  includeAssistantStreaming: boolean
+  messages: Msg[]
+}
+
 export function projectCanonicalEventToTransientMessages(args: {
   projection: TranscriptProjectionState
   event: CanonicalEvent
   activeTurnId: string | null
   includeAssistantStreaming: boolean
-}): { projection: TranscriptProjectionState; messages: Msg[] } {
-  const nextProjection = reduceTranscriptProjection(args.projection, args.event)
+  previousTransient?: PreviousTransientProjection | null
+}): { projection: TranscriptProjectionState; messages: Msg[]; changed: boolean; turnId: string } {
   const turnId = args.activeTurnId ?? args.event.turnId
+  const prevOpenAssistantSegmentId = args.projection.openAssistantSegmentIdByTurn[turnId] ?? null
+  const nextProjection = reduceTranscriptProjection(args.projection, args.event)
+  const nextOpenAssistantSegmentId = nextProjection.openAssistantSegmentIdByTurn[turnId] ?? null
+  const projectionAffectsTransientRows =
+    nextProjection.segments !== args.projection.segments || nextOpenAssistantSegmentId !== prevOpenAssistantSegmentId
+  const previousTransient = args.previousTransient
+  const canReusePreviousMessages =
+    !projectionAffectsTransientRows &&
+    Boolean(
+      previousTransient &&
+        previousTransient.turnId === turnId &&
+        previousTransient.includeAssistantStreaming === args.includeAssistantStreaming,
+    )
+
+  if (canReusePreviousMessages && previousTransient) {
+    return {
+      projection: nextProjection,
+      messages: previousTransient.messages,
+      changed: false,
+      turnId,
+    }
+  }
+
   const turnTailSegments = tailSegmentsForTurn(nextProjection.segments, turnId)
   const messages = canonicalTurnSegmentsToMessages({
     turnId,
@@ -21,5 +50,5 @@ export function projectCanonicalEventToTransientMessages(args: {
     includeAssistantStreaming: args.includeAssistantStreaming,
     includeUserSystem: false,
   })
-  return { projection: nextProjection, messages }
+  return { projection: nextProjection, messages, changed: true, turnId }
 }

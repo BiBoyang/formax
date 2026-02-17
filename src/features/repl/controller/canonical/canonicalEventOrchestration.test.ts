@@ -58,4 +58,34 @@ describe('canonical event orchestration', () => {
     expect(finalToolRows).toHaveLength(1)
     expect(finalRows.some((m) => m.role === 'assistant' && String(m.content).includes('done'))).toBe(true)
   })
+
+  it('reuses previous transient messages when projection change does not affect rows', () => {
+    const turnId = 'turn-2'
+    let projection = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+
+    const first = projectCanonicalEventToTransientMessages({
+      projection,
+      event: canonicalEvent(1, { kind: 'assistant_delta', turnId, textDelta: 'hello' }),
+      activeTurnId: turnId,
+      includeAssistantStreaming: true,
+      previousTransient: null,
+    })
+    projection = first.projection
+    expect(first.changed).toBe(true)
+
+    const duplicateEventId = projectCanonicalEventToTransientMessages({
+      projection,
+      event: { ...canonicalEvent(2, { kind: 'assistant_delta', turnId, textDelta: 'ignored' }), eventId: 'e-1' },
+      activeTurnId: turnId,
+      includeAssistantStreaming: true,
+      previousTransient: {
+        turnId,
+        includeAssistantStreaming: true,
+        messages: first.messages,
+      },
+    })
+
+    expect(duplicateEventId.changed).toBe(false)
+    expect(duplicateEventId.messages).toBe(first.messages)
+  })
 })

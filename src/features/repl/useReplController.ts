@@ -189,6 +189,7 @@ export function useReplController(deps: {
     replaySeqRef: useRef(0),
     turnIdRef: useRef<string | null>(null),
     turnSeqRef: useRef(0),
+    transientSnapshotRef: useRef<{ turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null>(null),
   }
   const modeRefs = {
     currentRef: useRef<ReplMode>(deps.mode),
@@ -299,6 +300,7 @@ export function useReplController(deps: {
   }, [])
 
   const clearCanonicalTransientState = useCallback(() => {
+    canonicalRefs.transientSnapshotRef.current = null
     setCanonicalTurnMessages([])
     setCanonicalTransientActive(false)
   }, [])
@@ -393,15 +395,24 @@ export function useReplController(deps: {
   }, [])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+    const includeAssistantStreaming = assistantTextMode === 'stream'
     const projected = projectCanonicalEventToTransientMessages({
       projection: canonicalRefs.projectionRef.current,
       event,
       activeTurnId: canonicalRefs.turnIdRef.current,
-      includeAssistantStreaming: assistantTextMode === 'stream',
+      includeAssistantStreaming,
+      previousTransient: canonicalRefs.transientSnapshotRef.current,
     })
     canonicalRefs.projectionRef.current = projected.projection
     setCanonicalTransientActive(true)
-    setCanonicalTurnMessages(projected.messages)
+    canonicalRefs.transientSnapshotRef.current = {
+      turnId: projected.turnId,
+      includeAssistantStreaming,
+      messages: projected.messages,
+    }
+    if (projected.changed) {
+      setCanonicalTurnMessages(projected.messages)
+    }
   }, [assistantTextMode])
 
   useEffect(() => {

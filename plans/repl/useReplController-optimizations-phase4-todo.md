@@ -17,4 +17,4 @@ Status: `in_progress`
 - [x] P4.5: 增加 1-2 个语义契约 fixture（近期踩坑）
 - [x] P4.1a: session 持久化签名缓存（同引用消息跳过 stringify）
 - [ ] P4.1: session 持久化增量化（dirty-id）
-- [ ] P4.4: canonical transient 最小 setState（按 profiling 决定）
+- [x] P4.4: canonical transient 最小 setState（按 profiling 决定）
