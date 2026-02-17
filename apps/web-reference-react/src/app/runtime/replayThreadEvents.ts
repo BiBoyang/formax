@@ -7,6 +7,10 @@ import { summarizeInvariantIssues } from '../../../../../src/features/semantics/
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
 
+function shouldUseIncrementalReplayData(replay: ReplayResult): boolean {
+  return !replay.hasGap
+}
+
 export function resolveReplayCursorProgress(args: {
   after: number
   nextCursor: number
@@ -242,7 +246,8 @@ export async function replayThreadEvents(
       return true
     }
 
-    for (const entry of replay.data) {
+    const incrementalEntries = shouldUseIncrementalReplayData(replay) ? replay.data : []
+    for (const entry of incrementalEntries) {
       receivedEntries = true
       ctx.handleNotification({
         jsonrpc: '2.0',
