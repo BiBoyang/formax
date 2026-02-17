@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N54 replay 条件分支覆盖缺口盘点
-  - 目标：对 `replayThreadEvents` 的 fromStart/hasGap/empty-history/normal-loop 四类路径补一版覆盖盘点与缺口测试。
-  - 验收：
-    - 在现有测试文件内补齐缺口路径用例并通过。
-
 - [ ] N55 replay 分页循环 page-limit 终止路径测试
   - 目标：补齐 `pageCount < 100` 上限终止的保护路径测试，确保异常数据流下可稳定退出。
   - 验收：
     - 新增循环上限路径测试并通过。
+
+- [ ] N56 replay 分页推进边界（next<=after 与 next>=latest）覆盖
+  - 目标：补齐分页推进两个边界条件的行为测试，确保循环按预期退出并更新 cursor。
+  - 验收：
+    - 新增边界条件测试并通过。

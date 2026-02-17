@@ -117,6 +117,55 @@ describe('replayThreadEvents', () => {
     expect(ctx.handleNotification).not.toHaveBeenCalled()
   })
 
+  it('loads history and keeps cursor at zero for fromStart empty replay', async () => {
+    const replayState = createReplayState()
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      state: replayState,
+    })
+    const ctx = createBaseContext({
+      request,
+      loadThreadHistory: vi.fn().mockResolvedValue(true),
+    })
+
+    const ok = await replayThreadEvents('thread-1', { fromStart: true }, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledWith('thread/replay', {
+      threadId: 'thread-1',
+      after: 0,
+      limit: 200,
+    })
+    expect(ctx.loadThreadHistory).toHaveBeenCalledWith('thread-1')
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(0)
+    expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+  })
+
+  it('returns false when fromStart empty replay cannot load history', async () => {
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      state: null,
+    })
+    const ctx = createBaseContext({
+      request,
+      loadThreadHistory: vi.fn().mockResolvedValue(false),
+    })
+
+    const ok = await replayThreadEvents('thread-1', { fromStart: true }, ctx)
+
+    expect(ok).toBe(false)
+    expect(ctx.loadThreadHistory).toHaveBeenCalledWith('thread-1')
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+    expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
+  })
+
   it('logs replay invariant issues once per replay request', async () => {
     const replayState = createReplayState({
       invariantIssues: [
