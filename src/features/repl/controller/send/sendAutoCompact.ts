@@ -89,21 +89,24 @@ export async function maybeRunAutoCompactBeforeTurn(args: {
     if (!args.cfg.ui.showAutoCompactNotice) return
 
     const noticeText = 'Conversation history auto-compacted (summary kept for future turns).'
-    args.emitCanonicalUiMessage?.({
-      role: 'assistant',
-      content: noticeText,
-      uiKind: 'command_subline',
-    })
-    args.setMessages((prev) => [
-      ...prev,
-      {
-        id: makeMessageId('assistant'),
+    if (args.emitCanonicalUiMessage) {
+      args.emitCanonicalUiMessage({
         role: 'assistant',
-        ui: { kind: 'command_subline' as const },
         content: noticeText,
-        timestamp: new Date(),
-      },
-    ])
+        uiKind: 'command_subline',
+      })
+    } else {
+      args.setMessages((prev) => [
+        ...prev,
+        {
+          id: makeMessageId('assistant'),
+          role: 'assistant',
+          ui: { kind: 'command_subline' as const },
+          content: noticeText,
+          timestamp: new Date(),
+        },
+      ])
+    }
   } catch {
     // Keep existing behavior: auto-compact is best-effort and should never fail the turn.
   }

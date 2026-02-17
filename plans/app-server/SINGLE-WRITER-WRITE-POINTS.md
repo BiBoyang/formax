@@ -45,7 +45,6 @@
 - `src/features/repl/controller/send/send.ts:325`
 - `src/features/repl/controller/send/send.ts:385`
 - `src/features/repl/controller/send/send.ts:398`
-- `src/features/repl/controller/send/sendAutoCompact.ts:97`
 - `src/features/repl/controller/ui/overlays.ts:54`
 - `src/features/repl/controller/ui/overlays.ts:152`
 - `src/features/repl/controller/ui/overlays.ts:164`
@@ -54,6 +53,7 @@
 结论：
 
 - 这类写点可继续保留在 renderer/UI 层，不作为 single-writer 的 first-class 迁移对象。
+- `sendAutoCompact.ts` notice 主路径已改为 canonical 写入；`setMessages` 仅保留 fallback，不计入主路径双写。
 
 ## 3) 生命周期写点（可保留）
 
@@ -68,4 +68,4 @@
 
 1. 先收敛 `streaming.ts`：让 turn 内 assistant/tool/thinking 行只由 canonical 投影驱动。  
 2. 再收敛 `sendMainTurn.ts`：用户输入与失败 subline 的语义路径分层。  
-3. 最后收敛 `sendAutoCompact.ts`：notice 行保留 UI-only，语义流避免 turn 内直写混用。
+3. 最后收敛 `sendMainTurn.ts:76` user anchor 写点：确认是否保留为 single-writer 允许例外。

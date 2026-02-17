@@ -35,8 +35,8 @@
 
 - [ ] S1 清理语义路径中的 direct transcript write 残留
   - 已完成：切片 A（直写点梳理）见 `plans/app-server/SINGLE-WRITER-WRITE-POINTS.md`。
-  - 进行中：切片 B（B1 已完成：`bashMode` 支持 canonical-only 开关；B2 已完成：transient 展示按 `canonicalTransientActive` 驱动；B3 已完成：bash 主路径切换为 canonical-only，并新增 canonical 尾部终局持久化；B4 已完成：`sendMainTurn` 错误 subline 主路径改为 canonical-only，且终局合并增加 command_subline 去重）。
-  - 待做：切片 B（剩余）：`sendAutoCompact.ts` 的 notice 直写去除（或明确沉淀为 UI-only，不进入 single-writer 验收集）。
+  - 进行中：切片 B（B1 已完成：`bashMode` 支持 canonical-only 开关；B2 已完成：transient 展示按 `canonicalTransientActive` 驱动；B3 已完成：bash 主路径切换为 canonical-only，并新增 canonical 尾部终局持久化；B4 已完成：`sendMainTurn` 错误 subline 主路径改为 canonical-only，且终局合并增加 command_subline 去重；B5 已完成：`sendAutoCompact` notice 主路径改为 canonical-only，直写仅保留 fallback）。
+  - 待做：切片 B（剩余）：评估 `sendMainTurn.ts:76` 的 user anchor 行是否需要进一步 canonical 化（若保留，需在验收标准中显式声明为允许写点）。
   - 待做：切片 C，补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
   - 验收：关键语义路径不存在 direct transcript write，不依赖止血补丁。
 
