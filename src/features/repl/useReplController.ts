@@ -19,16 +19,16 @@ import type {
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
-import { partitionMessages } from './controller/messages'
-import { useReplOverlays } from './controller/overlays'
-import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming'
+import { partitionMessages } from './controller/ui/messages'
+import { useReplOverlays } from './controller/ui/overlays'
+import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
   tailSegmentsForTurn,
-} from './controller/canonicalTurnMessages'
-import { isErrorLikeSubline } from './controller/errorSubline'
-import { applyAbortToMessages } from './controller/abortTranscript'
+} from './controller/canonical/canonicalTurnMessages'
+import { isErrorLikeSubline } from './controller/shared/errorSubline'
+import { applyAbortToMessages } from './controller/session/abortTranscript'
 import {
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -37,26 +37,26 @@ import {
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
   type SessionWriterRefs,
-} from './controller/sessionLifecycle'
+} from './controller/session/sessionLifecycle'
 import {
   applyConfigExitInjection,
-} from './controller/localCommandInjection'
+} from './controller/session/localCommandInjection'
 import {
   resolvePreMainSendRouting,
-} from './controller/send'
-import { createSendTurnContext } from './controller/sendTypes'
-import { runMainSendTurn } from './controller/sendMainTurn'
-import { resolveTurnProvider } from './controller/provider'
+} from './controller/send/send'
+import { createSendTurnContext } from './controller/send/sendTypes'
+import { runMainSendTurn } from './controller/send/sendMainTurn'
+import { resolveTurnProvider } from './controller/shared/provider'
 import {
   recordClaudeMdInjectionEvent,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
-} from './controller/sessionEvents'
-import type { CompactLifecycleEvent } from './controller/compactFlow'
-import { emitCanonicalUiMessageForTurn } from './controller/canonicalUiMessages'
+} from './controller/session/sessionEvents'
+import type { CompactLifecycleEvent } from './controller/send/compactFlow'
+import { emitCanonicalUiMessageForTurn } from './controller/canonical/canonicalUiMessages'
 import {
   runLocalBashTurn,
-} from './controller/bashMode'
+} from './controller/send/bashMode'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
