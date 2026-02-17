@@ -78,13 +78,16 @@ describe('processNotification', () => {
 
   it('skips canonical projection for turn notifications with missing envelope fields', () => {
     const ctx = createContext()
+    const baseEnvelope = createReplayTurnEventEnvelope({
+      event: { type: 'assistant_delta', text: 'missing envelope fixture case' },
+    })
     const notification: RpcNotification = {
       jsonrpc: '2.0',
       method: 'turn/event',
       params: {
-        threadId: 'thread-1',
-        turnId: 'turn-1',
-        event: { type: 'assistant_delta', text: 'hello' },
+        threadId: baseEnvelope.threadId,
+        turnId: baseEnvelope.turnId,
+        event: baseEnvelope.event,
       },
     }
 
