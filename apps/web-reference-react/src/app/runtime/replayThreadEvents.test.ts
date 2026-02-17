@@ -10,9 +10,9 @@ type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }
-type MockFn = ReturnType<typeof vi.fn>
-type ReplayRequestMock = MockFn
-type ReplayLogMock = MockFn
+type ReplayMockFn = ReturnType<typeof vi.fn>
+type ReplayRequestMock = ReplayMockFn
+type ReplayLogMock = ReplayMockFn
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
