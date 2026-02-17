@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N64 replayThreadEvents.test 重复 mockResolvedValueOnce 收敛
-  - 目标：将剩余重复 `.mockResolvedValueOnce` 片段尽量替换为 fixture helper 组合，减少样板。
+- [ ] N66 replay 测试常量提取（threadId/cursor）
+  - 目标：将常用字面量提取为测试局部常量，减少跨用例修改成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N65 replay 测试局部字面量对齐（cursor/threadId）
-  - 目标：收敛常用字面量（如 `thread-1`、cursor 初值）为局部常量，降低维护成本。
+- [ ] N67 replay 分页 mock 工厂参数化（latest/step）
+  - 目标：为分页场景补一个参数化 mock builder，减少 page-limit 与边界类测试重复实现。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

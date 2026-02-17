@@ -369,13 +369,14 @@ describe('replayThreadEvents', () => {
         invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
         projection: createProjectionSnapshot(),
       })
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: gapState,
-      })
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: gapState,
+        }),
+      )
       const ctx = createReplayContext({ request })
 
       const ok = await replayThreadEvents('thread-1', undefined, ctx)
@@ -394,13 +395,14 @@ describe('replayThreadEvents', () => {
       const gapState = createReplayState({
         projection: createProjectionSnapshot(),
       })
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: gapState,
-      })
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: gapState,
+        }),
+      )
       const ctx = createReplayContext({
         request,
         activeThreadIdRef: { current: 'thread-2' },
@@ -422,22 +424,20 @@ describe('replayThreadEvents', () => {
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {
       const projection = createProjectionSnapshot()
-      const request = vi
-        .fn()
-        .mockResolvedValueOnce({
-          data: [],
+      const request = createReplayRequestMock(
+        createReplayResponse({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: createReplayState({ projection }),
-        })
-        .mockResolvedValueOnce({
-          data: [],
+        }),
+        createReplayResponse({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: createReplayState({ projection }),
-        })
+        }),
+      )
       const activeThreadIdRef: ReplayThreadEventsContext['activeThreadIdRef'] = { current: 'thread-2' }
       const ctx = createReplayContext({
         request,
@@ -463,259 +463,223 @@ describe('replayThreadEvents', () => {
       expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
     })
 
-  it('[rebuild] logs invariant issues once across hasGap baseline replay double-request path', async () => {
-    const gapState = createReplayState({
-      invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
-      projection: null,
-    })
-    const baselineState = createReplayState({
-      invariantIssues: [
-        { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
-        { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
-      ],
-      projection: null,
-    })
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: gapState,
+    it('[rebuild] logs invariant issues once across hasGap baseline replay double-request path', async () => {
+      const gapState = createReplayState({
+        invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+        projection: null,
       })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 120,
-        latestCursor: 120,
-        hasGap: false,
-        state: baselineState,
+      const baselineState = createReplayState({
+        invariantIssues: [
+          { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
+          { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
+        ],
+        projection: null,
       })
-    const ctx = createReplayContext({ request })
-
-    const ok = await replayThreadEvents('thread-1', undefined, ctx)
-
-    expect(ok).toBe(true)
-    expect(request).toHaveBeenCalledTimes(2)
-    expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
-  })
-
-  it('[rebuild] defers baseline projection hydration for non-active threads after hasGap', async () => {
-    const baselineProjection = {
-      segments: [
-        {
-          id: 's1',
-          kind: 'assistant' as const,
-          turnId: 'turn-1',
-          text: 'baseline-rebuilt',
-        },
-      ],
-      lastReplaySeq: 120,
-      toolNameByUseId: {},
-      openAssistantSegmentIdByTurn: {},
-      openThinkingSegmentIdByTurn: {},
-    }
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: createReplayState({ projection: null }),
-      })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 120,
-        latestCursor: 120,
-        hasGap: false,
-        state: createReplayState({ projection: baselineProjection }),
-      })
-    const ctx = createReplayContext({
-      request,
-      activeThreadIdRef: { current: 'thread-2' },
-    })
-
-    const ok = await replayThreadEvents('thread-1', undefined, ctx)
-
-    expect(ok).toBe(true)
-    expect(request).toHaveBeenCalledTimes(2)
-    expect(ctx.dispatch).not.toHaveBeenCalledWith({
-      type: 'hydrate_projection_snapshot',
-      threadId: 'thread-1',
-      snapshot: baselineProjection,
-    })
-    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
-    expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
-    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
-    expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
-  })
-
-  it('[rebuild] logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {
-    const gapState = createReplayState({
-      canonicalProtocolAnomalyCount: 2,
-      projection: null,
-    })
-    const baselineState = createReplayState({
-      canonicalProtocolAnomalyCount: 5,
-      projection: null,
-    })
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: gapState,
-      })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 120,
-        latestCursor: 120,
-        hasGap: false,
-        state: baselineState,
-      })
-    const ctx = createReplayContext({ request })
-
-    const ok = await replayThreadEvents('thread-1', undefined, ctx)
-
-    expect(ok).toBe(true)
-    expect(request).toHaveBeenCalledTimes(2)
-    expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=5)', 'warn')
-  })
-
-  it('[logging] logs canonical protocol anomalies only when replay count increases across calls', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 51,
-        latestCursor: 51,
-        hasGap: false,
-        state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
-      })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 52,
-        latestCursor: 52,
-        hasGap: false,
-        state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
-      })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 53,
-        latestCursor: 53,
-        hasGap: false,
-        state: createReplayState({ canonicalProtocolAnomalyCount: 3 }),
-      })
-    const ctx = createReplayContext({ request })
-
-    await replayThreadEvents('thread-1', undefined, ctx)
-    await replayThreadEvents('thread-1', undefined, ctx)
-    await replayThreadEvents('thread-1', undefined, ctx)
-
-    expect(ctx.log).toHaveBeenCalledTimes(2)
-    expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
-    expect(ctx.log).toHaveBeenNthCalledWith(2, 'Replay canonical protocol anomalies detected (count=3)', 'warn')
-  })
-
-  it('[rebuild] continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: createReplayState({
-          canonicalProtocolAnomalyCount: 2,
-          projection: null,
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: gapState,
         }),
-      })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 120,
-        latestCursor: 120,
-        hasGap: false,
-        state: createReplayState({
-          canonicalProtocolAnomalyCount: 2,
-          projection: null,
+        createReplayResponse({
+          nextCursor: 120,
+          latestCursor: 120,
+          state: baselineState,
         }),
-      })
-      .mockResolvedValueOnce({
-        data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
-        nextCursor: 121,
-        latestCursor: 121,
-        hasGap: false,
-        state: createReplayState({
-          canonicalProtocolAnomalyCount: 2,
+      )
+      const ctx = createReplayContext({ request })
+
+      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+      expect(ok).toBe(true)
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(ctx.log).toHaveBeenCalledTimes(1)
+      expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
+    })
+
+    it('[rebuild] defers baseline projection hydration for non-active threads after hasGap', async () => {
+      const baselineProjection = createProjectionSnapshot('baseline-rebuilt')
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: createReplayState({ projection: null }),
         }),
+        createReplayResponse({
+          nextCursor: 120,
+          latestCursor: 120,
+          state: createReplayState({ projection: baselineProjection }),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        activeThreadIdRef: { current: 'thread-2' },
       })
-    const ctx = createReplayContext({ request })
 
-    await replayThreadEvents('thread-1', undefined, ctx)
-    await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents('thread-1', undefined, ctx)
 
-    expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
-      threadId: 'thread-1',
-      after: 50,
-      limit: 200,
+      expect(ok).toBe(true)
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(ctx.dispatch).not.toHaveBeenCalledWith({
+        type: 'hydrate_projection_snapshot',
+        threadId: 'thread-1',
+        snapshot: baselineProjection,
+      })
+      expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+      expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
+      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+      expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
     })
-    expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: 'thread-1' })
-    expect(request).toHaveBeenNthCalledWith(3, 'thread/replay', {
-      threadId: 'thread-1',
-      after: 120,
-      limit: 200,
+
+    it('[rebuild] logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {
+      const gapState = createReplayState({
+        canonicalProtocolAnomalyCount: 2,
+        projection: null,
+      })
+      const baselineState = createReplayState({
+        canonicalProtocolAnomalyCount: 5,
+        projection: null,
+      })
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: gapState,
+        }),
+        createReplayResponse({
+          nextCursor: 120,
+          latestCursor: 120,
+          state: baselineState,
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+      expect(ok).toBe(true)
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(ctx.log).toHaveBeenCalledTimes(1)
+      expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=5)', 'warn')
     })
-    expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
-    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(121)
-  })
+
+    it('[logging] logs canonical protocol anomalies only when replay count increases across calls', async () => {
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 51,
+          latestCursor: 51,
+          state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
+        }),
+        createReplayResponse({
+          nextCursor: 52,
+          latestCursor: 52,
+          state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
+        }),
+        createReplayResponse({
+          nextCursor: 53,
+          latestCursor: 53,
+          state: createReplayState({ canonicalProtocolAnomalyCount: 3 }),
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents('thread-1', undefined, ctx)
+
+      expect(ctx.log).toHaveBeenCalledTimes(2)
+      expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
+      expect(ctx.log).toHaveBeenNthCalledWith(2, 'Replay canonical protocol anomalies detected (count=3)', 'warn')
+    })
+
+    it('[rebuild] continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: createReplayState({
+            canonicalProtocolAnomalyCount: 2,
+            projection: null,
+          }),
+        }),
+        createReplayResponse({
+          nextCursor: 120,
+          latestCursor: 120,
+          state: createReplayState({
+            canonicalProtocolAnomalyCount: 2,
+            projection: null,
+          }),
+        }),
+        createReplayResponse({
+          data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
+          nextCursor: 121,
+          latestCursor: 121,
+          state: createReplayState({
+            canonicalProtocolAnomalyCount: 2,
+          }),
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents('thread-1', undefined, ctx)
+
+      expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
+        threadId: 'thread-1',
+        after: 50,
+        limit: 200,
+      })
+      expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: 'thread-1' })
+      expect(request).toHaveBeenNthCalledWith(3, 'thread/replay', {
+        threadId: 'thread-1',
+        after: 120,
+        limit: 200,
+      })
+      expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+      expect(ctx.log).toHaveBeenCalledTimes(1)
+      expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
+      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(121)
+    })
 
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: createReplayState({ projection: null }),
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: 50,
+          latestCursor: 120,
+          hasGap: true,
+          state: createReplayState({ projection: null }),
+        }),
+        createReplayResponse({
+          nextCursor: 120,
+          latestCursor: 120,
+          state: createReplayState({ projection: null }),
+        }),
+        createReplayResponse({
+          data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
+          nextCursor: 121,
+          latestCursor: 121,
+          state: createReplayState(),
+        }),
+      )
+      const transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef'] = {
+        current: { 'thread-1': 'history' },
+      }
+      const setThreadTranscriptSource = vi.fn((threadId: string, source: 'replay' | 'history') => {
+        transcriptSourceByThreadRef.current[threadId] = source
       })
-      .mockResolvedValueOnce({
-        data: [],
-        nextCursor: 120,
-        latestCursor: 120,
-        hasGap: false,
-        state: createReplayState({ projection: null }),
+      const ctx = createReplayContext({
+        request,
+        transcriptSourceByThreadRef,
+        setThreadTranscriptSource,
       })
-      .mockResolvedValueOnce({
-        data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
-        nextCursor: 121,
-        latestCursor: 121,
-        hasGap: false,
-        state: createReplayState(),
-      })
-    const transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef'] = {
-      current: { 'thread-1': 'history' },
-    }
-    const setThreadTranscriptSource = vi.fn((threadId: string, source: 'replay' | 'history') => {
-      transcriptSourceByThreadRef.current[threadId] = source
-    })
-    const ctx = createReplayContext({
-      request,
-      transcriptSourceByThreadRef,
-      setThreadTranscriptSource,
-    })
 
-    await replayThreadEvents('thread-1', undefined, ctx)
-    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(1)
+      await replayThreadEvents('thread-1', undefined, ctx)
+      expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(1)
 
-    await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents('thread-1', undefined, ctx)
 
       expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(2)
       expect(ctx.setThreadTranscriptSource).toHaveBeenNthCalledWith(2, 'thread-1', 'replay')
