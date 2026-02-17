@@ -842,6 +842,39 @@ describe('replayThreadEvents', () => {
       expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)
     })
 
+    it('[rebuild] advances cursor after hasGap projection rebuild and only consumes new tail once', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [createReplayTurnEvent(REPLAY_SEQ_REBUILD_COMPLETE)],
+          nextCursor: REPLAY_SEQ_REBUILD_COMPLETE,
+          latestCursor: REPLAY_SEQ_REBUILD_COMPLETE,
+          hasGap: true,
+          state: createReplayState({
+            projection: createProjectionSnapshot('projection-rebuild'),
+          }),
+        }),
+        createReplayPage({
+          data: [createReplayTurnEvent(REPLAY_SEQ_INCREMENTAL)],
+          nextCursor: REPLAY_SEQ_INCREMENTAL,
+          latestCursor: REPLAY_SEQ_INCREMENTAL,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      const firstOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+      expect(firstOk).toBe(true)
+      expectReplayCursor(ctx, REPLAY_SEQ_REBUILD_COMPLETE)
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
+
+      const secondOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+      expect(secondOk).toBe(true)
+      expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+      expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)
+      expectReplayPageRequestArgs({ request, nth: 1, afterCursor: INITIAL_REPLAY_CURSOR })
+      expectReplayPageRequestArgs({ request, nth: 2, afterCursor: REPLAY_SEQ_REBUILD_COMPLETE })
+    })
+
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {
       const request = createReplayPagesRequest(
         ...createHasGapBaselineReplayPages({
