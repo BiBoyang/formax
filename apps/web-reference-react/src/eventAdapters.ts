@@ -2,7 +2,7 @@ import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
 } from '../../../src/features/semantics/projection/transcriptProjection'
-import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
+import { toCanonicalEventsFromHistoryMessages } from '../../../src/features/semantics/adapters/historyCanonicalAdapter'
 import type { ThreadMessage, TranscriptItem } from './types'
 
 function toHistoryTurnId(threadId: string, messageId: string): string {
@@ -13,106 +13,11 @@ function toHistoryLogId(threadId: string, messageId: string): string {
   return `history-${threadId}-${messageId}`
 }
 
-function toHistoryEventId(args: {
-  threadId: string
-  messageId: string
-  phase: string
-  replaySeq: number
-}): string {
-  return `history:${args.threadId}:${args.messageId}:${args.phase}:${args.replaySeq}`
-}
-
-function toHistoryTimestamp(replaySeq: number): string {
-  return new Date(replaySeq * 1000).toISOString()
-}
-
-function toCanonicalHistoryEvents(args: { threadId: string; messages: ThreadMessage[] }): CanonicalEvent[] {
-  const out: CanonicalEvent[] = []
-  let replaySeq = 0
-  for (const message of args.messages) {
-    if (message.kind === 'message') {
-      if (message.role !== 'assistant') continue
-      replaySeq += 1
-      out.push({
-        kind: 'assistant_delta',
-        threadId: args.threadId,
-        turnId: toHistoryTurnId(args.threadId, message.id),
-        textDelta: message.text,
-        replaySeq,
-        eventId: toHistoryEventId({
-          threadId: args.threadId,
-          messageId: message.id,
-          phase: 'assistant',
-          replaySeq,
-        }),
-        ts: toHistoryTimestamp(replaySeq),
-        source: 'system',
-      })
-      continue
-    }
-
-    replaySeq += 1
-    const baseToolEvent = {
-      kind: 'tool_event' as const,
-      threadId: args.threadId,
-      turnId: toHistoryTurnId(args.threadId, message.id),
-      toolUseId: message.toolUseId ?? `${args.threadId}:${message.id}`,
-      toolName: message.toolName,
-      replaySeq,
-      eventId: toHistoryEventId({
-        threadId: args.threadId,
-        messageId: message.id,
-        phase: 'tool_start',
-        replaySeq,
-      }),
-      ts: toHistoryTimestamp(replaySeq),
-      source: 'system' as const,
-      phase: 'start' as const,
-      paramsText: message.paramsText,
-    }
-    out.push(baseToolEvent)
-
-    for (const line of message.detailLines ?? []) {
-      replaySeq += 1
-      out.push({
-        ...baseToolEvent,
-        replaySeq,
-        eventId: toHistoryEventId({
-          threadId: args.threadId,
-          messageId: message.id,
-          phase: 'tool_update',
-          replaySeq,
-        }),
-        ts: toHistoryTimestamp(replaySeq),
-        phase: 'update',
-        line,
-      })
-    }
-
-    replaySeq += 1
-    out.push({
-      ...baseToolEvent,
-      replaySeq,
-      eventId: toHistoryEventId({
-        threadId: args.threadId,
-        messageId: message.id,
-        phase: 'tool_end',
-        replaySeq,
-      }),
-      ts: toHistoryTimestamp(replaySeq),
-      phase: 'end',
-      summary: message.summary,
-      isError: message.status === 'error',
-    })
-  }
-  return out
-}
-
 export function mapThreadHistoryToCanonicalLogs(args: {
   threadId: string
   messages: ThreadMessage[]
 }): TranscriptItem[] {
-  const canonicalEvents = toCanonicalHistoryEvents(args)
+  const canonicalEvents = toCanonicalEventsFromHistoryMessages(args)
   const projection = canonicalEvents.reduce(
     (state, event) => reduceTranscriptProjection(state, event),
     createInitialTranscriptProjectionState({ threadId: args.threadId }),

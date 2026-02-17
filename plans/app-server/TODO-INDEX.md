@@ -14,11 +14,3 @@
 3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
-
-## P2：Contract & Adapter Consolidation
-
-- [ ] N32 web eventAdapters 改用 shared history adapter
-  - 目标：`apps/web-reference-react/src/eventAdapters.ts` 复用 shared adapter，去掉本地重复映射实现。
-  - 验收：
-    - web 现有 eventAdapters 测试保持通过。
-    - 行为与迁移前一致（tool running/completed/error 路径不变）。
