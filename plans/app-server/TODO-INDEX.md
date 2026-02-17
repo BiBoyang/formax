@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N70 replay event fixture 工厂化（started/progress）
-  - 目标：收敛测试中的 canonical event 片段构造，降低语义字段扩展时的维护成本。
+- [ ] N71 replay cursor/limit 断言常量化（request payload）
+  - 目标：统一 replay 请求断言中的 `after/limit` 字面量，避免参数调整时多处改动。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N71 replay cursor/limit 断言常量化（request payload）
-  - 目标：统一 replay 请求断言中的 `after/limit` 字面量，避免参数调整时多处改动。
+- [ ] N72 replay runtime-state 断言 helper 化（lastReplaySeq/cursor）
+  - 目标：收敛重复的 runtime-state 断言模式，降低后续语义字段迁移时的改动面。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

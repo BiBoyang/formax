@@ -14,6 +14,14 @@ const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
 
+function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn/progress' = 'turn/started') {
+  return {
+    replaySeq,
+    method,
+    params: { replaySeq },
+  }
+}
+
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',
@@ -332,7 +340,7 @@ describe('replayThreadEvents', () => {
       const request = vi
         .fn()
         .mockResolvedValueOnce({
-          data: [{ replaySeq: REPLAY_SEQ_BASELINE, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_BASELINE } }],
+          data: [createReplayTurnEvent(REPLAY_SEQ_BASELINE)],
           nextCursor: REPLAY_SEQ_BASELINE,
           latestCursor: REPLAY_SEQ_BASELINE,
           hasGap: false,
@@ -357,7 +365,7 @@ describe('replayThreadEvents', () => {
       const request = vi
         .fn()
         .mockResolvedValueOnce({
-          data: [{ replaySeq: REPLAY_SEQ_BASELINE, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_BASELINE } }],
+          data: [createReplayTurnEvent(REPLAY_SEQ_BASELINE)],
           nextCursor: REPLAY_SEQ_BASELINE,
           latestCursor: REPLAY_SEQ_BASELINE,
           hasGap: false,
@@ -624,7 +632,7 @@ describe('replayThreadEvents', () => {
           }),
         }),
         createReplayPage({
-          data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
+          data: [createReplayTurnEvent(REPLAY_SEQ_INCREMENTAL)],
           nextCursor: REPLAY_SEQ_INCREMENTAL,
           latestCursor: REPLAY_SEQ_INCREMENTAL,
           state: createReplayState({
@@ -668,7 +676,7 @@ describe('replayThreadEvents', () => {
           state: createReplayState({ projection: null }),
         }),
         createReplayPage({
-          data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
+          data: [createReplayTurnEvent(REPLAY_SEQ_INCREMENTAL)],
           nextCursor: REPLAY_SEQ_INCREMENTAL,
           latestCursor: REPLAY_SEQ_INCREMENTAL,
           state: createReplayState(),
