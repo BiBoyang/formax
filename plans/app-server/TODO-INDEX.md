@@ -17,13 +17,13 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N49 replay 状态水位同步拆分副作用边界
-  - 目标：将 `replayThreadEvents` 中 runtimeState/source/cursor/pending/mode 的写入边界进一步拆分，降低分支间耦合。
+- [ ] N51 replayThreadEvents 分页循环复杂度继续下沉
+  - 目标：继续减少 `replayThreadEvents` 主循环中的分支密度，将 page fetch + hasGap 判定拆成可组合步骤。
   - 验收：
-    - 形成清晰的“state hydrate / source-cursor commit / active-thread sync”三段式调用。
-    - 主流程分支深度继续下降且行为不变。
+    - 主函数只保留编排逻辑，副作用落在命名清晰的 helper。
+    - 现有 replay 定向测试全部通过。
 
-- [ ] N50 deferred projection 后激活线程回放回归测试
-  - 目标：覆盖“先在非激活线程 deferred，再切换为激活线程 replay”场景，确保最终可正确 hydration。
+- [ ] N52 replay fixture 覆盖 tool row 幂等终局
+  - 目标：补齐 replay 场景下 toolUseId 终局幂等用例（重复通知/重放后无重复完成行）。
   - 验收：
     - 新增/扩展 web runtime 定向测试并通过。

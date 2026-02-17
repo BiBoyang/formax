@@ -98,6 +98,19 @@ export async function replayThreadEvents(
     ctx.replayCursorByThreadRef.current[threadId] = nextCursor
   }
 
+  const commitReplayTail = (args: {
+    replayCursor: number
+    promoteReplayAsSource: boolean
+    state: ReplayStateSnapshot | null
+  }): void => {
+    if (args.promoteReplayAsSource) {
+      ctx.setThreadTranscriptSource(threadId, 'replay')
+      ctx.clearThreadHistoryCursor(threadId)
+    }
+    ctx.replayCursorByThreadRef.current[threadId] = args.replayCursor
+    syncActiveThreadRuntimeState(args.state)
+  }
+
   const shouldDeferProjectionHydration = (projectionSnapshot: ReplayStateSnapshot['projection']): boolean => {
     return Boolean(projectionSnapshot) && ctx.activeThreadIdRef.current !== threadId
   }
@@ -217,8 +230,11 @@ export async function replayThreadEvents(
         flushCanonicalProtocolAnomaliesLog()
         return false
       }
-      ctx.replayCursorByThreadRef.current[threadId] = 0
-      syncActiveThreadRuntimeState(replay.state ?? null)
+      commitReplayTail({
+        replayCursor: 0,
+        promoteReplayAsSource: false,
+        state: replay.state ?? null,
+      })
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
@@ -252,20 +268,17 @@ export async function replayThreadEvents(
   }
 
   const currentTranscriptSource = ctx.transcriptSourceByThreadRef.current[threadId]
-  if (
-    shouldPromoteReplayAsCanonical({
-      receivedEntries,
-      fromStart,
-      initialAfter,
-      currentTranscriptSource,
-    })
-  ) {
-    ctx.setThreadTranscriptSource(threadId, 'replay')
-    ctx.clearThreadHistoryCursor(threadId)
-  }
-
-  ctx.replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
-  syncActiveThreadRuntimeState(replayState)
+  const shouldPromoteReplaySource = shouldPromoteReplayAsCanonical({
+    receivedEntries,
+    fromStart,
+    initialAfter,
+    currentTranscriptSource,
+  })
+  commitReplayTail({
+    replayCursor: after > 0 ? after : latestCursor,
+    promoteReplayAsSource: shouldPromoteReplaySource,
+    state: replayState,
+  })
   flushCanonicalProtocolAnomaliesLog()
   return true
 }

@@ -249,6 +249,62 @@ describe('replayThreadEvents', () => {
     expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
   })
 
+  it('hydrates deferred projection after thread becomes active', async () => {
+    const projection = {
+      segments: [
+        {
+          id: 's1',
+          kind: 'assistant' as const,
+          turnId: 'turn-1',
+          text: 'rebuilt',
+        },
+      ],
+      lastReplaySeq: 120,
+      toolNameByUseId: {},
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: {},
+    }
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: createReplayState({ projection }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: createReplayState({ projection }),
+      })
+    const activeThreadIdRef: ReplayThreadEventsContext['activeThreadIdRef'] = { current: 'thread-2' }
+    const ctx = createBaseContext({
+      request,
+      activeThreadIdRef,
+    })
+
+    const firstOk = await replayThreadEvents('thread-1', undefined, ctx)
+    expect(firstOk).toBe(true)
+    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+
+    activeThreadIdRef.current = 'thread-1'
+    const secondOk = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(secondOk).toBe(true)
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: projection,
+    })
+    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith('thread-1', 'replay')
+    expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith('thread-1')
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
+  })
+
   it('logs invariant issues once across hasGap baseline replay double-request path', async () => {
     const gapState = createReplayState({
       invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
