@@ -26,10 +26,10 @@ const REPLAY_CURSOR_REBUILD_COMPLETE = 120
 const REPLAY_PAGE_LIMIT = 200
 
 // Assertion helpers
-function expectReplayPageRequestArgs(request: ReplayRequestMock, nth: number, after: number) {
-  expect(request).toHaveBeenNthCalledWith(nth, 'thread/replay', {
+function expectReplayPageRequestArgs(args: { request: ReplayRequestMock; nth: number; after: number }) {
+  expect(args.request).toHaveBeenNthCalledWith(args.nth, 'thread/replay', {
     threadId: TEST_THREAD_ID,
-    after,
+    after: args.after,
     limit: REPLAY_PAGE_LIMIT,
   })
 }
@@ -234,7 +234,7 @@ describe('replayThreadEvents', () => {
     const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
     expect(ok).toBe(true)
-    expectReplayPageRequestArgs(request, 1, INITIAL_REPLAY_CURSOR)
+    expectReplayPageRequestArgs({ request, nth: 1, after: INITIAL_REPLAY_CURSOR })
     expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'replace_logs', logs: [] })
     expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
@@ -262,7 +262,7 @@ describe('replayThreadEvents', () => {
       const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
       expect(ok).toBe(true)
-      expectReplayPageRequestArgs(request, 1, REPLAY_CURSOR_FROM_START)
+      expectReplayPageRequestArgs({ request, nth: 1, after: REPLAY_CURSOR_FROM_START })
       expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
       expectReplayCursor(ctx, REPLAY_CURSOR_FROM_START)
       expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
@@ -664,9 +664,9 @@ describe('replayThreadEvents', () => {
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
-      expectReplayPageRequestArgs(request, 1, INITIAL_REPLAY_CURSOR)
+      expectReplayPageRequestArgs({ request, nth: 1, after: INITIAL_REPLAY_CURSOR })
       expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
-      expectReplayPageRequestArgs(request, 3, REPLAY_CURSOR_REBUILD_COMPLETE)
+      expectReplayPageRequestArgs({ request, nth: 3, after: REPLAY_CURSOR_REBUILD_COMPLETE })
       expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
       expectSingleWarning(ctx.log, replayAnomalyWarning(2))
       expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)

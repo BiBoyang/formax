@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N81 replay helper 参数对象化（multi-arg -> named args）
-  - 目标：对易混淆 helper 参数采用对象入参，提高后续字段扩展可维护性。
+- [ ] N82 replay request helper 参数默认值集中化
+  - 目标：收敛 request helper 的默认参数逻辑，避免分散在各 helper 内部。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N82 replay request helper 参数默认值集中化
-  - 目标：收敛 request helper 的默认参数逻辑，避免分散在各 helper 内部。
+- [ ] N83 replay baseline cursor 常量复用（hasGap builders）
+  - 目标：统一 hasGap/baseline builder 中 cursor 默认值来源，减少隐式魔法数字风险。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
