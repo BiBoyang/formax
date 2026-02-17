@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N101 replay helper 类型别名顺序与分组整理
-  - 目标：让 type alias 顺序与 helper 分组一致，减少查找成本。
+- [ ] N102 replay type alias 命名前缀统一（Replay*）
+  - 目标：统一本文件 type alias 的命名前缀策略，保持命名一致性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N102 replay type alias 命名前缀统一（Replay*）
-  - 目标：统一本文件 type alias 的命名前缀策略，保持命名一致性。
+- [ ] N103 replay type alias 粒度边界整理（通用 vs 领域）
+  - 目标：区分通用别名与 replay 领域别名，减少命名语义重叠。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
