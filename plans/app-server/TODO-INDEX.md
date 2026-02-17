@@ -17,12 +17,6 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N18 terminal invariant fixture 扩面（running tool）
-  - 目标：补齐“turn terminal 后不应存在 running tool”的 realtime/replay fixture，和 pending-input fixture 对称。
-  - 验收：
-    - 新增一条 realtime/replay parity fixture，覆盖 terminal 后 running tool 清理。
-    - 使用 shared invariant selector 校验无 `running_tool_after_terminal_turn`。
-
 - [ ] N19 invariant selector 接入 app-server 诊断快照（只读）
   - 目标：在 app-server 诊断/快照路径提供 invariant issues 只读输出，便于跨端排障。
   - 验收：

@@ -163,4 +163,73 @@ describe('runtime replay parity', () => {
       }),
     ).toEqual([])
   })
+
+  it('keeps realtime and replay rebuild equivalent with no running tool leak after terminal turn', () => {
+    const threadId = 'thread-runtime-running-tool'
+    const turnId = 'turn-runtime-running-tool'
+    const notifications: TurnNotification[] = [
+      {
+        method: 'turn/started',
+        params: {
+          replaySeq: 1,
+          eventId: 'r1',
+          ts: '2026-02-17T11:00:01.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, mode: 'normal', status: 'running' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 2,
+          eventId: 'r2',
+          ts: '2026-02-17T11:00:02.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: { type: 'tool_start', id: 'tool-2', name: 'Bash' },
+        },
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          replaySeq: 3,
+          eventId: 'r3',
+          ts: '2026-02-17T11:00:03.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, status: 'completed' },
+        },
+      },
+    ]
+
+    const realtime = applyNotifications(threadId, notifications)
+
+    const splitAt = 1
+    const baseline = applyNotifications(threadId, notifications.slice(0, splitAt))
+    const rebuiltFromReplayTail = applyNotifications(
+      threadId,
+      notifications.slice(splitAt),
+      {
+        projectionState: baseline.projection,
+        runtimeState: baseline.runtime,
+      },
+    )
+
+    expect(rebuiltFromReplayTail.projection).toEqual(realtime.projection)
+    expect(rebuiltFromReplayTail.runtime).toEqual(realtime.runtime)
+    expect(
+      selectTerminalTurnInvariantIssues({
+        projection: realtime.projection,
+        runtimeState: realtime.runtime,
+      }),
+    ).toEqual([])
+    expect(
+      selectTerminalTurnInvariantIssues({
+        projection: rebuiltFromReplayTail.projection,
+        runtimeState: rebuiltFromReplayTail.runtime,
+      }),
+    ).toEqual([])
+  })
 })
