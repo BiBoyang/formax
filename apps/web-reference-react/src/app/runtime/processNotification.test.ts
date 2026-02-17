@@ -126,4 +126,30 @@ describe('processNotification', () => {
       }),
     )
   })
+
+  it('skips canonical projection when schemaVersion is invalid and logs invalid fields', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: {
+        replaySeq: 12,
+        eventId: 'evt-12',
+        ts: '2026-02-17T00:00:00.000Z',
+        source: 'engine',
+        schemaVersion: 99,
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: { type: 'assistant_delta', text: 'hello' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+    expect(ctx.log).toHaveBeenCalledWith(
+      expect.stringContaining('invalid envelope fields (schemaVersion)'),
+      'warn',
+    )
+  })
 })

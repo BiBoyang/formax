@@ -65,8 +65,15 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
         fallbackThreadId: threadId ?? '__missing_thread__',
         requireEnvelope: true,
         onInvalidEnvelope(issue) {
+          const messageParts: string[] = []
+          if (issue.missing.length > 0) {
+            messageParts.push(`missing envelope fields (${issue.missing.join(', ')})`)
+          }
+          if (issue.invalid && issue.invalid.length > 0) {
+            messageParts.push(`invalid envelope fields (${issue.invalid.join(', ')})`)
+          }
           ctx.log(
-            `Skipped canonical projection for ${issue.method}: missing envelope fields (${issue.missing.join(', ')})`,
+            `Skipped canonical projection for ${issue.method}: ${messageParts.join('; ')}`,
             'warn',
           )
         },
