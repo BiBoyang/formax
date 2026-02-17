@@ -48,7 +48,7 @@
   - 验收：
     - projector 输入事件全部来自 server notification 或 replay/snapshot。
 
-- [ ] A3 为 local TUI 路径显式标注 runtime-authoritative，并补 contract 等价测试
+- [x] A3 为 local TUI 路径显式标注 runtime-authoritative，并补 contract 等价测试
   - 文件：
     - `src/features/repl/controller/streaming.ts`
     - `src/features/semantics/__tests__/projectionParity.test.ts`

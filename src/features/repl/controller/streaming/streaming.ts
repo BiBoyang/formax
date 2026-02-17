@@ -82,6 +82,8 @@ export function useReplStreaming(args: {
   reminderServiceRef: { current: ReminderService | null }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
   canonical?: {
+    // Local TUI path is runtime-authoritative for canonical envelope generation.
+    // These fields must remain contract-equivalent to app-server notifications.
     threadId: string
     getTurnId: () => string | null
     nextReplaySeq: () => number

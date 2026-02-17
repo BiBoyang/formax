@@ -18,6 +18,14 @@ export type CanonicalStreamWritePolicy = {
   shouldForwardCanonical: boolean
 }
 
+function resolveCanonicalSourceFromStreamEvent(event: StreamEvent): CanonicalEvent['source'] {
+  if (event.type === 'approval_request') return 'policy'
+  if (event.type === 'ask_user_question') return 'tool'
+  if (event.type.startsWith('tool_')) return 'tool'
+  if (event.type === 'error') return 'system'
+  return 'engine'
+}
+
 export function resolveCanonicalStreamWritePolicy(args: {
   canonical?: CanonicalStreamBridge
   event: StreamEvent
@@ -46,6 +54,7 @@ export function forwardCanonicalStreamEvent(args: {
     threadId: args.canonical.threadId,
     turnId: args.canonicalTurnId,
     nextReplaySeq: args.canonical.nextReplaySeq,
+    source: resolveCanonicalSourceFromStreamEvent(args.event),
   })
   for (const event of canonicalEvents) {
     args.canonical.onEvent(args.mapEvent ? args.mapEvent(event) : event)

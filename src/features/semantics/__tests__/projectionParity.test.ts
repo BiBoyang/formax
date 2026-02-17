@@ -236,6 +236,133 @@ describe('projection parity', () => {
     expect(normalizeSegments(streamProjection.segments)).toEqual(normalizeSegments(webProjection.segments))
   })
 
+  it('keeps local runtime envelope contract-equivalent to strict app-server notifications', () => {
+    const threadId = 'thread-runtime-authoritative'
+    const turnId = 'turn-runtime-authoritative'
+    let streamSeq = 0
+
+    const localEvents = [
+      ...toCanonicalEventsFromStreamEvent({ type: 'assistant_delta', text: 'local hello ' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+        source: 'engine',
+      }),
+      ...toCanonicalEventsFromStreamEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+        source: 'tool',
+      }),
+      ...toCanonicalEventsFromStreamEvent(
+        { type: 'tool_end', id: 'tool-1', result: { content: 'done', is_error: false, tool_use_id: 'tool-1' } },
+        {
+          threadId,
+          turnId,
+          nextReplaySeq: () => {
+            streamSeq += 1
+            return streamSeq
+          },
+          source: 'tool',
+        },
+      ),
+      ...toCanonicalEventsFromStreamEvent({ type: 'complete' }, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+        source: 'engine',
+      }),
+    ]
+
+    expect(localEvents.every((event) => Boolean(event.threadId.trim()))).toBe(true)
+    expect(localEvents.every((event) => event.replaySeq > 0)).toBe(true)
+    expect(localEvents.every((event) => Boolean(event.eventId.trim()))).toBe(true)
+    expect(localEvents.every((event) => Boolean(event.ts.trim()))).toBe(true)
+    expect(localEvents.map((event) => event.source)).toEqual(['engine', 'tool', 'tool', 'engine', 'engine'])
+
+    const strictServerEvents = [
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 1,
+            eventId: 'srv-1',
+            ts: '2026-02-17T00:00:01.000Z',
+            source: 'engine',
+            event: { type: 'assistant_delta', text: 'local hello ' },
+          },
+        },
+        { fallbackThreadId: threadId, requireEnvelope: true },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 2,
+            eventId: 'srv-2',
+            ts: '2026-02-17T00:00:02.000Z',
+            source: 'tool',
+            event: { type: 'tool_start', id: 'tool-1', name: 'Bash' },
+          },
+        },
+        { fallbackThreadId: threadId, requireEnvelope: true },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/event',
+          params: {
+            threadId,
+            turnId,
+            replaySeq: 3,
+            eventId: 'srv-3',
+            ts: '2026-02-17T00:00:03.000Z',
+            source: 'tool',
+            event: { type: 'tool_end', id: 'tool-1', result: { content: 'done', is_error: false } },
+          },
+        },
+        { fallbackThreadId: threadId, requireEnvelope: true },
+      ),
+      ...toCanonicalEventsFromTurnNotification(
+        {
+          method: 'turn/completed',
+          params: {
+            threadId,
+            turn: { id: turnId, threadId },
+            replaySeq: 4,
+            eventId: 'srv-4',
+            ts: '2026-02-17T00:00:04.000Z',
+            source: 'engine',
+          },
+        },
+        { fallbackThreadId: threadId, requireEnvelope: true },
+      ),
+    ]
+
+    const localProjection = localEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const strictServerProjection = strictServerEvents.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    expect(normalizeSegments(localProjection.segments)).toEqual(normalizeSegments(strictServerProjection.segments))
+  })
+
   it('keeps tool name sticky and dedupes duplicate canonical events consistently', () => {
     const threadId = 'thread-sticky'
     const turnId = 'turn-sticky'
