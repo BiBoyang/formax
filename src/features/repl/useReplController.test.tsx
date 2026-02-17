@@ -2456,7 +2456,40 @@ describe('useReplController abort', () => {
   })
 })
 
-	describe('useReplController consumed slash commands', () => {
+describe('useReplController consumed slash commands', () => {
+  it.each([
+    { input: '/agents', overlayKey: 'agentsDialogOpen' as const },
+    { input: '/permissions', overlayKey: 'permissionsDialogOpen' as const },
+    { input: '/model', overlayKey: 'modelDialogOpen' as const },
+  ])('opens overlay for consumed command $input without calling engine', async ({ input, overlayKey }) => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (command) => {
+        if (command === '/agents') return { kind: 'open_agents_dialog' }
+        if (command === '/permissions') return { kind: 'open_permissions_dialog' }
+        if (command === '/model') return { kind: 'open_model_dialog' }
+        return null
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <Harness
+        engine={engine}
+        onController={(c) => (controller = c)}
+        commandRegistry={commandRegistry}
+      />,
+    )
+
+    await waitFor(() => Boolean(controller))
+    await controller.actions.send(input)
+    await waitFor(() => Boolean((controller.state as any)[overlayKey]))
+    expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
   it('opens agents/permissions/model overlays without calling the engine', async () => {
     const runTurn = vi.fn(async ({ history, user }) => [...history, user])
     const engine: ChatEngine = { runTurn } as any
