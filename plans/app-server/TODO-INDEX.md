@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N94 replay cursor helper 内部变量命名统一
-  - 目标：统一 `afterCursor/nextCursor/baselineCursor` 的局部变量命名风格，减少阅读切换。
+- [ ] N95 replay helper 参数提取函数就近放置
+  - 目标：将参数提取 helper 放置到最小作用域附近，减少跨屏阅读负担。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N95 replay helper 参数提取函数就近放置
-  - 目标：将参数提取 helper 放置到最小作用域附近，减少跨屏阅读负担。
+- [ ] N96 replay helper 常量引用一致性收尾
+  - 目标：统一剩余 helper 中 `0/1/120/200` 的常量引用风格，收尾噪音项。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
