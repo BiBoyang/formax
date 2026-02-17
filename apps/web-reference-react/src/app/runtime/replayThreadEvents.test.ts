@@ -25,9 +25,10 @@ const REPLAY_CURSOR_REBUILD_COMPLETE = REPLAY_SEQ_REBUILD_COMPLETE
 
 // Replay request constants
 const REPLAY_PAGE_SIZE = 200
+const REPLAY_PROGRESS_STEP = 1
 const REPLAY_REQUEST_DEFAULTS = {
   baselineCursor: REPLAY_CURSOR_REBUILD_COMPLETE,
-  progressStep: 1,
+  progressStep: REPLAY_PROGRESS_STEP,
   pageSize: REPLAY_PAGE_SIZE,
 } as const
 
@@ -115,8 +116,8 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
 function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
   return {
     data: [],
-    nextCursor: 0,
-    latestCursor: 0,
+    nextCursor: REPLAY_CURSOR_FROM_START,
+    latestCursor: REPLAY_CURSOR_FROM_START,
     hasGap: false,
     state: null,
     ...overrides,
