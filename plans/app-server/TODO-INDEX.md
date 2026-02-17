@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N103 replay type alias 粒度边界整理（通用 vs 领域）
-  - 目标：区分通用别名与 replay 领域别名，减少命名语义重叠。
+- [ ] N104 replay helper 顶部 type alias 排版压缩
+  - 目标：压缩 type alias 顶部块的视觉噪音，提升首屏可读性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N104 replay helper 顶部 type alias 排版压缩
-  - 目标：压缩 type alias 顶部块的视觉噪音，提升首屏可读性。
+- [ ] N105 replay helper 顶部常量与类型块间距统一
+  - 目标：统一 type/const 分隔样式，维持文件首屏结构稳定。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
