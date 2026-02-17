@@ -83,6 +83,7 @@ export function createInitialThreadRuntimeState(args: {
   method: string
   ts?: unknown
 }): ThreadRuntimeState {
+  const seededReplaySeq = Number.isFinite(args.replaySeq) ? Math.max(0, args.replaySeq - 1) : 0
   return {
     threadId: args.threadId,
     mode: 'normal',
@@ -93,7 +94,7 @@ export function createInitialThreadRuntimeState(args: {
     toolNameByUseId: {},
     updatedAt: toIsoOrNow(args.ts),
     lastNotificationMethod: args.method,
-    lastReplaySeq: args.replaySeq,
+    lastReplaySeq: seededReplaySeq,
   }
 }
 
@@ -101,6 +102,10 @@ export function reduceThreadRuntimeState(
   state: ThreadRuntimeState,
   args: { method: string; params: unknown; replaySeq: number },
 ): ThreadRuntimeState {
+  if (args.replaySeq <= state.lastReplaySeq) {
+    return state
+  }
+
   const params = args.params && typeof args.params === 'object' ? (args.params as Record<string, unknown>) : {}
   const updatedAt = toIsoOrNow(params.ts)
   const next: ThreadRuntimeState = {

@@ -159,4 +159,61 @@ describe('threadStateReducer', () => {
     expect(state.toolNameByUseId['tool-17']).toBeUndefined()
     expect(state.toolNameByUseId['tool-529']).toBe('Tool529')
   })
+
+  it('enforces monotonic replaySeq and ignores duplicate/stale notifications', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 10,
+      method: 'turn/event',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    expect(state.lastReplaySeq).toBe(9)
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 10,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: {
+          type: 'tool_start',
+          id: 'tool-1',
+          name: 'Bash',
+        },
+      },
+    })
+    expect(state.lastReplaySeq).toBe(10)
+    expect(state.toolNameByUseId).toEqual({ 'tool-1': 'Bash' })
+
+    const duplicate = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 10,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: {
+          type: 'tool_start',
+          id: 'tool-2',
+          name: 'Write',
+        },
+      },
+    })
+    expect(duplicate).toBe(state)
+
+    const stale = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 9,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: {
+          type: 'tool_start',
+          id: 'tool-3',
+          name: 'Edit',
+        },
+      },
+    })
+    expect(stale).toBe(state)
+    expect(stale.toolNameByUseId).toEqual({ 'tool-1': 'Bash' })
+  })
 })
