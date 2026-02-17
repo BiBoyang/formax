@@ -11,7 +11,7 @@ import type { Msg } from '../../../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import { makeMessageId } from '../shared/ids'
-import type { CanonicalUiMessage } from '../send/sendTypes'
+import type { CanonicalUiMessage } from './sendTypes'
 
 export async function maybeRunAutoCompactBeforeTurn(args: {
   cfg: RuntimeConfig

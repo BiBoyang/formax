@@ -20,7 +20,7 @@ import { makeMessageId } from '../shared/ids'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { resolveCommandRouting } from '../../../semantics/core/commandRouting'
-import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from '../send/sendTypes'
+import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'

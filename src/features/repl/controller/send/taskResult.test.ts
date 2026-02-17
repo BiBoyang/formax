@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseBackgroundTaskId, parseTaskTranscript } from '../send/taskResult'
+import { parseBackgroundTaskId, parseTaskTranscript } from './taskResult'
 
 describe('taskResult', () => {
   it('parses background task id from task result with trailing system reminder', () => {
