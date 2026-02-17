@@ -50,6 +50,29 @@ describe('rpcParsers', () => {
             expiresAt: '2026-02-10T00:05:00.000Z',
           },
         ],
+        invariantIssues: [
+          {
+            kind: 'running_tool_after_terminal_turn',
+            turnId: 'turn-1',
+            toolUseId: 'tool-1',
+          },
+          {
+            kind: 'pending_input_after_terminal_turn',
+            turnId: 'turn-1',
+            inputId: 'i-1',
+            toolUseId: 'tool-1',
+          },
+          {
+            kind: 'pending_input_after_terminal_turn',
+            turnId: 'turn-1',
+            toolUseId: 'tool-2',
+          },
+          {
+            kind: 'unknown',
+            turnId: 'turn-1',
+            toolUseId: 'tool-3',
+          },
+        ],
         updatedAt: '2026-02-10T00:06:00.000Z',
       },
     })
@@ -62,5 +85,9 @@ describe('rpcParsers', () => {
     expect(parsed.state?.pendingInputCount).toBe(3)
     expect(parsed.state?.pendingInputs).toHaveLength(1)
     expect(parsed.state?.pendingInputs[0]?.inputId).toBe('i-1')
+    expect(parsed.state?.invariantIssues).toEqual([
+      { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
+      { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'i-1', toolUseId: 'tool-1' },
+    ])
   })
 })

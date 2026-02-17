@@ -2,6 +2,7 @@ import type { PendingInput, ResolvedInput, ThreadMessage, ThreadSummary } from '
 import type { TranscriptSegment } from '../../../../../src/features/semantics/projection/transcriptProjection'
 import { isReplMode, type ReplMode } from '../../../../../src/features/semantics/core/replModeTransition'
 import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+import type { SemanticsInvariantIssue } from '../../../../../src/features/semantics/selectors/invariants'
 
 export type ReplayNotification = {
   replaySeq: number
@@ -16,6 +17,7 @@ export type ReplayStateSnapshot = {
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
   pendingInputs: PendingInput[]
+  invariantIssues: SemanticsInvariantIssue[]
   projection: {
     segments: TranscriptSegment[]
     lastReplaySeq: number
@@ -25,6 +27,39 @@ export type ReplayStateSnapshot = {
   } | null
   toolNameByUseId: Record<string, string>
   updatedAt: string
+}
+
+function parseInvariantIssues(value: unknown): SemanticsInvariantIssue[] {
+  if (!Array.isArray(value)) return []
+  const out: SemanticsInvariantIssue[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    if (row.kind === 'running_tool_after_terminal_turn') {
+      const turnId = typeof row.turnId === 'string' && row.turnId.trim() ? row.turnId : null
+      const toolUseId = typeof row.toolUseId === 'string' && row.toolUseId.trim() ? row.toolUseId : null
+      if (!turnId || !toolUseId) continue
+      out.push({
+        kind: 'running_tool_after_terminal_turn',
+        turnId,
+        toolUseId,
+      })
+      continue
+    }
+    if (row.kind === 'pending_input_after_terminal_turn') {
+      const turnId = typeof row.turnId === 'string' && row.turnId.trim() ? row.turnId : null
+      const inputId = typeof row.inputId === 'string' && row.inputId.trim() ? row.inputId : null
+      const toolUseId = typeof row.toolUseId === 'string' && row.toolUseId.trim() ? row.toolUseId : null
+      if (!turnId || !inputId || !toolUseId) continue
+      out.push({
+        kind: 'pending_input_after_terminal_turn',
+        turnId,
+        inputId,
+        toolUseId,
+      })
+    }
+  }
+  return out
 }
 
 export function asThreadSummaries(value: unknown): ThreadSummary[] {
@@ -277,6 +312,7 @@ export function asThreadReplay(value: unknown): {
           })()
         : null
     const toolNameByUseId = parseStringRecord(stateRecord.toolNameByUseId)
+    const invariantIssues = parseInvariantIssues(stateRecord.invariantIssues)
     const updatedAt = typeof stateRecord.updatedAt === 'string' ? stateRecord.updatedAt : new Date(0).toISOString()
     state = {
       mode,
@@ -285,6 +321,7 @@ export function asThreadReplay(value: unknown): {
       lastTurnStatus,
       pendingInputCount,
       pendingInputs,
+      invariantIssues,
       projection,
       toolNameByUseId,
       updatedAt,
