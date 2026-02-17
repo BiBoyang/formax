@@ -166,6 +166,27 @@ describe('replayThreadEvents', () => {
     expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
   })
 
+  it('stops at page limit when replay stream keeps advancing without terminal cursor', async () => {
+    const request = vi.fn().mockImplementation((_method: string, params?: unknown) => {
+      const after = Number((params as { after?: number } | undefined)?.after ?? 0)
+      return Promise.resolve({
+        data: [],
+        nextCursor: after + 1,
+        latestCursor: 1000,
+        hasGap: false,
+        state: createReplayState(),
+      })
+    })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(100)
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(150)
+    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+  })
+
   it('logs replay invariant issues once per replay request', async () => {
     const replayState = createReplayState({
       invariantIssues: [
