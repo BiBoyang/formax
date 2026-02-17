@@ -19,15 +19,18 @@
 
 - 共享 replay 测试夹具统一放在 `apps/web-reference-react/src/app/runtime/testFixtures/replayFixtures.ts`。
 - 新增 replay fixture 时优先扩展该文件；避免在 `replayThreadEvents.test.ts` 与 `threadActions.test.ts` 内重复内联定义。
+- 字段新增流程：
+  1. 先改 `testFixtures/replayFixtures.ts`（默认值 + 类型）。
+  2. 再改至少一个 replay 路径测试（`replayThreadEvents.test.ts`）。
+  3. 最后改至少一个 notification 路径测试（`processNotification.test.ts`）。
+- 字段变更 smoke 清单：
+  - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
+  - `apps/web-reference-react/src/app/runtime/processNotification.test.ts`
+  - `apps/web-reference-react/src/app/runtime/threadActions.test.ts`
 
 ## P4：Replay-First Invariants
 
-- [ ] N117 replay fixture 扩展策略补充（字段新增流程）
-  - 目标：定义共享 fixture 新增字段时的最小更新流程（fixture -> 相关测试），降低遗漏风险。
+- [ ] N119 processNotification 异常 envelope 用例接入共享 fixture
+  - 目标：让 invalid schema / missing envelope 分支也复用共享 fixture，降低字段漂移。
   - 验收：
-    - TODO-INDEX 或相关计划文档新增 1 条“字段新增流程”说明。
-
-- [ ] N118 replay fixture 字段变更 smoke 清单
-  - 目标：补一个最小 smoke 清单，约束 fixture 字段变更后必须触达的测试文件。
-  - 验收：
-    - 在 TODO 相关文档新增 1 条字段变更 smoke 清单并列出至少 2 个测试入口。
+    - processNotification.test 至少 1 个异常 envelope 用例改为基于共享 fixture派生。
