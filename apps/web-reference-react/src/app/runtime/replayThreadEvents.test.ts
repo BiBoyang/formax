@@ -131,6 +131,23 @@ function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn
   }
 }
 
+function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnapshot['projection']> {
+  return {
+    segments: [
+      {
+        id: 's1',
+        kind: 'assistant',
+        turnId: TEST_TURN_ID,
+        text,
+      },
+    ],
+    lastReplaySeq: REPLAY_SEQ_REBUILD_COMPLETE,
+    toolNameByUseId: {},
+    openAssistantSegmentIdByTurn: {},
+    openThinkingSegmentIdByTurn: {},
+  }
+}
+
 function createReplayRequestFromPages(...pages: ReplayPage[]) {
   const request = vi.fn()
   for (const page of pages) {
@@ -158,23 +175,6 @@ function createHasGapBaselineReplayPages(args: {
       state: args.baselineState,
     }),
   ] as const
-}
-
-function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnapshot['projection']> {
-  return {
-    segments: [
-      {
-        id: 's1',
-        kind: 'assistant',
-        turnId: TEST_TURN_ID,
-        text,
-      },
-    ],
-    lastReplaySeq: REPLAY_SEQ_REBUILD_COMPLETE,
-    toolNameByUseId: {},
-    openAssistantSegmentIdByTurn: {},
-    openThinkingSegmentIdByTurn: {},
-  }
 }
 
 function createReplayRequestWithCursorProgress(args: {

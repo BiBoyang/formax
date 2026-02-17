@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N88 replay helper 声明顺序微调（依赖先后）
-  - 目标：让 helper 定义顺序与调用依赖一致，降低阅读跳转成本。
+- [ ] N89 replay fixture builder 参数排序统一
+  - 目标：统一 builder 参数对象字段顺序（state/cursor/step），减少 review 噪音。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N89 replay fixture builder 参数排序统一
-  - 目标：统一 builder 参数对象字段顺序（state/cursor/step），减少 review 噪音。
+- [ ] N90 replay fixture helper 命名风格统一（create/build）
+  - 目标：统一 helper 命名前缀风格，降低新用例加入时的命名分歧。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
