@@ -116,7 +116,29 @@
 
 ---
 
-## 9. 与现有文档关系
+## 9. 2026-02-17 收口证据（Exit Criteria 映射）
+
+1. Exit #1（关键语义路径无旁路写入）：
+   - replay/streaming 关键链路通过 canonical merge + invariant gate 约束，legacy transcript fallback 被隔离为兼容边界：
+     - `src/features/repl/controller/streaming/streamingLegacyCompat.ts`
+     - `src/features/repl/controller/canonical/canonicalInvariants.ts`
+     - `src/features/repl/useReplController.ts`
+2. Exit #2（核心 contract fixture 跨端通过）：
+   - `src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts`
+   - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
+   - `src/app-server/server.test.ts`
+3. Exit #3（restart/gap/reconnect 一致性）：
+   - `apps/web-reference-react/src/app/runtime/replayThreadEvents.ts`
+   - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
+   - `src/features/semantics/__tests__/runtimeReplayParity.test.ts`
+4. Exit #4（先 contract 后 adapter/projection 流程）：
+   - contract fixture 先行并接入固定语义 gate：
+     - `src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts`
+     - `scripts/repl-semantic-pre-review.mjs`
+
+---
+
+## 10. 与现有文档关系
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
 - 交互合同：`plans/app-server/INTERACTION-CONTRACT.md`

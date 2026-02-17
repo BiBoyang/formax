@@ -66,7 +66,7 @@
 
 ## Closure：文档收口与验收
 
-- [ ] CLOSE-01：回写 `ARCHITECTURE-ROADMAP.md` 与 `SEMANTICS-ARCHITECTURE-BLUEPRINT.md` 的完成证据（Milestone 2/3/4 + Exit Criteria 1-4）。
+- [x] CLOSE-01：回写 `ARCHITECTURE-ROADMAP.md` 与 `SEMANTICS-ARCHITECTURE-BLUEPRINT.md` 的完成证据（Milestone 2/3/4 + Exit Criteria 1-4）。
 
 ## 关系说明（避免重复）
 
