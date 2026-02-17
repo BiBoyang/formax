@@ -30,13 +30,14 @@ import {
 import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
   applyConfigExitInjection,
+  buildPersistedMsgRefMap,
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
   openInitialSessionWriter as openInitialSessionWriterInternal,
+  persistStableMessagesFromSnapshot,
   recordClaudeMdInjectionEvent,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
-  shouldPersistUiMsg,
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
   registerSessionWriterProcessHandlers,
@@ -211,10 +212,12 @@ export function useReplController(deps: {
   const sessionWriterRef = useRef<SessionWriter | null>(null)
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
+  const lastPersistedMsgByIdRef = useRef<Map<string, Msg>>(new Map())
   const sessionWriterRefs: SessionWriterRefs = {
     sessionWriterRef,
     sessionWriterInitPromiseRef,
     lastPersistedSigByMsgIdRef,
+    lastPersistedMsgByIdRef,
   }
   const autoTitleRefs = {
     attemptedSessionIdsRef: useRef<Set<string>>(new Set()),
@@ -448,17 +451,12 @@ export function useReplController(deps: {
   }, [ensureSessionWriter, sessionSaveEnabled, shutdownSessionWriter])
 
   useEffect(() => {
-    const writer = sessionWriterRef.current
-    if (!writer) return
-
-    for (const msg of messages) {
-      if (!shouldPersistUiMsg(msg)) continue
-      const sig = JSON.stringify(msg)
-      const prev = lastPersistedSigByMsgIdRef.current.get(msg.id)
-      if (prev === sig) continue
-      lastPersistedSigByMsgIdRef.current.set(msg.id, sig)
-      void writer.appendStableMsg(msg)
-    }
+    persistStableMessagesFromSnapshot({
+      writer: sessionWriterRef.current,
+      messages,
+      lastPersistedSigByMsgIdRef,
+      lastPersistedMsgByIdRef,
+    })
   }, [messages])
 
   useEffect(() => {
@@ -529,12 +527,13 @@ export function useReplController(deps: {
   const newSession = useCallback(() => {
     runNewSessionTransition({
       beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
-      sessionSaveEnabled,
-      sessionWriterRef,
-      lastPersistedSigByMsgIdRef,
-      resetSessionState,
-      setTranscriptSeq,
-      setMessages,
+        sessionSaveEnabled,
+        sessionWriterRef,
+        lastPersistedSigByMsgIdRef,
+        lastPersistedMsgByIdRef,
+        resetSessionState,
+        setTranscriptSeq,
+        setMessages,
       onClearTerminal: deps.onClearTerminal,
       startNewSessionWriter,
       sessionWriterInitPromiseRef,
@@ -570,6 +569,7 @@ export function useReplController(deps: {
         sessionSaveEnabled,
         sessionWriterRef,
         lastPersistedSigByMsgIdRef,
+        lastPersistedMsgByIdRef,
         resetSessionState,
         historyRef,
         setMessages,
@@ -577,6 +577,7 @@ export function useReplController(deps: {
         onClearTerminal: deps.onClearTerminal,
         openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
         buildPersistedSigMap,
+        buildPersistedMsgRefMap,
       })
     },
     [

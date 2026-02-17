@@ -7,6 +7,7 @@ export type SessionWriterRefs = {
   sessionWriterRef: MutableRefObject<SessionWriter | null>
   sessionWriterInitPromiseRef: MutableRefObject<Promise<void> | null>
   lastPersistedSigByMsgIdRef: MutableRefObject<Map<string, string>>
+  lastPersistedMsgByIdRef: MutableRefObject<Map<string, Msg>>
 }
 
 export function shouldPersistUiMsg(msg: Msg): boolean {
@@ -22,6 +23,48 @@ export function buildPersistedSigMap(messages: Msg[]): Map<string, string> {
     map.set(msg.id, JSON.stringify(msg))
   }
   return map
+}
+
+export function buildPersistedMsgRefMap(messages: Msg[]): Map<string, Msg> {
+  const map = new Map<string, Msg>()
+  for (const msg of messages) {
+    if (!shouldPersistUiMsg(msg)) continue
+    map.set(msg.id, msg)
+  }
+  return map
+}
+
+export function persistStableMessagesFromSnapshot(args: {
+  writer: Pick<SessionWriter, 'appendStableMsg'> | null
+  messages: Msg[]
+  lastPersistedSigByMsgIdRef: MutableRefObject<Map<string, string>>
+  lastPersistedMsgByIdRef: MutableRefObject<Map<string, Msg>>
+}): void {
+  const writer = args.writer
+  if (!writer) return
+
+  const liveStableIds = new Set<string>()
+  for (const msg of args.messages) {
+    if (!shouldPersistUiMsg(msg)) continue
+    liveStableIds.add(msg.id)
+
+    const prevMsgRef = args.lastPersistedMsgByIdRef.current.get(msg.id)
+    if (prevMsgRef === msg) continue
+
+    const sig = JSON.stringify(msg)
+    args.lastPersistedMsgByIdRef.current.set(msg.id, msg)
+    const prevSig = args.lastPersistedSigByMsgIdRef.current.get(msg.id)
+    if (prevSig === sig) continue
+
+    args.lastPersistedSigByMsgIdRef.current.set(msg.id, sig)
+    void writer.appendStableMsg(msg)
+  }
+
+  for (const id of args.lastPersistedSigByMsgIdRef.current.keys()) {
+    if (liveStableIds.has(id)) continue
+    args.lastPersistedSigByMsgIdRef.current.delete(id)
+    args.lastPersistedMsgByIdRef.current.delete(id)
+  }
 }
 
 export async function startNewSessionWriter(args: {
@@ -40,6 +83,7 @@ export async function startNewSessionWriter(args: {
   })
   args.refs.sessionWriterRef.current = writer
   args.refs.lastPersistedSigByMsgIdRef.current = new Map()
+  args.refs.lastPersistedMsgByIdRef.current = new Map()
   await writer.appendHistorySnapshot(args.historyRef.current)
 }
 
@@ -61,6 +105,7 @@ export async function openInitialSessionWriter(args: {
   const writer = await SessionWriter.openExisting({ filePath })
   args.refs.sessionWriterRef.current = writer
   args.refs.lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(args.initialSession?.messages ?? [])
+  args.refs.lastPersistedMsgByIdRef.current = buildPersistedMsgRefMap(args.initialSession?.messages ?? [])
   await writer.appendEvent('resume')
   await writer.appendHistorySnapshot(args.historyRef.current)
 }

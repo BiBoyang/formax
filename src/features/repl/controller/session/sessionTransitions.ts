@@ -60,6 +60,7 @@ export function runNewSessionTransition(args: {
   sessionSaveEnabled: boolean
   sessionWriterRef: { current: SessionWriterLike | null }
   lastPersistedSigByMsgIdRef: { current: Map<string, string> }
+  lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   setTranscriptSeq: Dispatch<SetStateAction<number>>
   setMessages: Dispatch<SetStateAction<Msg[]>>
@@ -72,6 +73,7 @@ export function runNewSessionTransition(args: {
     const oldWriter = args.sessionWriterRef.current
     args.sessionWriterRef.current = null
     args.lastPersistedSigByMsgIdRef.current = new Map()
+    args.lastPersistedMsgByIdRef.current = new Map()
     void (async () => {
       if (!oldWriter) return
       await oldWriter.appendEvent('clear')
@@ -106,6 +108,7 @@ export async function runResumeSessionTransition(args: {
   sessionSaveEnabled: boolean
   sessionWriterRef: { current: ResumeSessionWriterLike | null }
   lastPersistedSigByMsgIdRef: { current: Map<string, string> }
+  lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
   setMessages: Dispatch<SetStateAction<Msg[]>>
@@ -113,6 +116,7 @@ export async function runResumeSessionTransition(args: {
   onClearTerminal?: () => void | Promise<void>
   openExistingSessionWriter: (filePath: string) => Promise<ResumeSessionWriterLike>
   buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
+  buildPersistedMsgRefMap: (messages: Msg[]) => Map<string, Msg>
 }): Promise<void> {
   const replay = await args.readSessionFile(args.filePath)
   args.beginNewSession()
@@ -122,6 +126,7 @@ export async function runResumeSessionTransition(args: {
     const old = args.sessionWriterRef.current
     args.sessionWriterRef.current = null
     args.lastPersistedSigByMsgIdRef.current = new Map()
+    args.lastPersistedMsgByIdRef.current = new Map()
     void (async () => {
       if (!old) return
       await old.appendEvent('resume_switch', { to: args.filePath })
@@ -136,6 +141,7 @@ export async function runResumeSessionTransition(args: {
   // Replace transcript and remount Ink <Static> so old append-only content disappears.
   args.setMessages(() => replay.messages)
   args.lastPersistedSigByMsgIdRef.current = args.buildPersistedSigMap(replay.messages)
+  args.lastPersistedMsgByIdRef.current = args.buildPersistedMsgRefMap(replay.messages)
   args.setTranscriptSeq((n) => n + 1)
   void args.onClearTerminal?.()
 
