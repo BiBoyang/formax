@@ -15,12 +15,20 @@
 - `src/features/repl/controller/streaming/streaming.ts:228`
 - `src/features/repl/controller/streaming/streaming.ts:259`
 - `src/features/repl/controller/streaming/streaming.ts:277`
-- `src/features/repl/controller/send/sendMainTurn.ts:76`
 
 结论：
 
 - `streaming.ts` 是语义双写风险最高点（canonical bridge + legacy transcript 并行分支）。
-- `sendMainTurn.ts` 错误 subline 主路径已改为 canonical 写入；残留直写主要是 user anchor 行与 fallback 分支。
+- `sendMainTurn.ts` 错误 subline 主路径已改为 canonical 写入；fallback 分支仍保留兼容写点。
+
+## 1.2) Allowed Exception（已文档化）
+
+- `src/features/repl/controller/send/sendMainTurn.ts:77`
+
+说明：
+
+- user 行保留直写，作为“即时回显 + canonical turn 尾部合并锚点”。
+- 该写点不承载 tool/assistant/thinking 语义归并逻辑，归类为允许例外。
 
 ## 1.1) bashMode 迁移状态
 
@@ -68,4 +76,4 @@
 
 1. 先收敛 `streaming.ts`：让 turn 内 assistant/tool/thinking 行只由 canonical 投影驱动。  
 2. 再收敛 `sendMainTurn.ts`：用户输入与失败 subline 的语义路径分层。  
-3. 最后收敛 `sendMainTurn.ts:76` user anchor 写点：确认是否保留为 single-writer 允许例外。
+3. 后续聚焦 `streaming.ts` fallback 路径收敛（保持 canonical 主路径不回退）。

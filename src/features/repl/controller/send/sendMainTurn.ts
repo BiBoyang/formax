@@ -73,6 +73,8 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     timestamp: new Date(),
   }
 
+  // Allowed single-writer exception: keep immediate user echo and stable per-turn
+  // anchor id for canonical tail merge ordering.
   args.setMessages((prev) => [...prev, userMsg])
   args.emitCanonicalUiMessage?.({ role: 'user', content: userMsg.content })
   args.setIsLoading(true)

@@ -31,9 +31,9 @@
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 - 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
-## P1：Single Writer 闭环（移除直写 transcript）
+## P1：Single Writer 下一批
 
-- [ ] S1 清理语义路径中的 direct transcript write 残留
-  - 待做：评估 `sendMainTurn.ts:76` user anchor 直写是否保留为允许例外。
-  - 待做：若保留例外，更新验收标准与 write-point 文档，明确“语义主路径 vs UI anchor”的边界。
-  - 验收：语义主路径不再依赖 direct transcript write（仅允许已文档化的例外点）。
+- [ ] S2 收敛 `streaming.ts` fallback 直写路径
+  - 待做：将 legacy transcript 写分支集中到独立 adapter/helper，避免主流程分散写点。
+  - 待做：增加“canonical 主路径 + fallback 分支”双场景回归，防止回归到双写。
+  - 验收：默认 canonical 路径无直写；fallback 仅在显式分支生效且可测试。
