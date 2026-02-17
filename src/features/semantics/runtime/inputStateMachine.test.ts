@@ -98,4 +98,26 @@ describe('inputStateMachine', () => {
     expect(submitted.status).toBe('submitted')
     expect(submitted.resolvedAt).toBe('2026-02-10T00:01:00.000Z')
   })
+
+  it('treats remotely submitted pending input as already-locked for local re-submit', () => {
+    const submitted = transitionResolvedFromPending({
+      state: {
+        status: 'pending',
+        createdAt: '2026-02-10T00:00:00.000Z',
+        expiresAt: '2026-02-10T00:10:00.000Z',
+      },
+      status: 'submitted',
+      resolvedAt: '2026-02-10T00:01:00.000Z',
+    })
+
+    const out = transitionInputSubmit({
+      state: submitted,
+      nowIso: '2026-02-10T00:02:00.000Z',
+      answersHash: 'hash-local',
+      submissionId: 'sub-local',
+    })
+
+    expect(out.accepted).toBe(false)
+    expect(out.submitStatus).toBe('conflict_already_submitted')
+  })
 })

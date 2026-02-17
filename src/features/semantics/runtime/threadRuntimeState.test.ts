@@ -159,4 +159,37 @@ describe('threadRuntimeState (shared)', () => {
     expect(state.toolNameByUseId['tool-17']).toBeUndefined()
     expect(state.toolNameByUseId['tool-529']).toBe('Tool529')
   })
+
+  it('uses runtime thread fallback + inputId fallback for cross-end inputRequested payloads', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-legacy',
+        input: {
+          inputId: 'input-legacy',
+          turnId: 'turn-legacy',
+          kind: 'approval',
+          createdAt: '2026-02-10T00:00:01.000Z',
+          expiresAt: '2026-02-10T00:05:01.000Z',
+        },
+      },
+    })
+
+    expect(state.pendingInputs['input-legacy']).toMatchObject({
+      threadId: 'thread-1',
+      turnId: 'turn-legacy',
+      toolUseId: 'input-legacy',
+      kind: 'approval',
+      status: 'pending',
+    })
+  })
 })

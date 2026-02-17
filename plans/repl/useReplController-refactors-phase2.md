@@ -48,7 +48,7 @@ Status: `in_progress`
 - [x] T6 reduce callback dependency noise。
 - [x] T7 add action-level matrix tests。
 - [x] T8 semantics fixture cross check（no duplicate tool row + assistant retained）。
-- [ ] T9 add one cross-end contract each for `threadRuntimeState` and `inputStateMachine`。
+- [x] T9 add one cross-end contract each for `threadRuntimeState` and `inputStateMachine`。
 - [ ] T10 docs alignment in `CODEMAP.md` + related plan docs。
 
 ### Phase 3 验收目标
