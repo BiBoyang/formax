@@ -11,6 +11,11 @@ import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
 } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+import {
+  REPLAY_FIXTURE_THREAD_ID,
+  REPLAY_FIXTURE_TURN_ID,
+  createReplayTurnEventEnvelope,
+} from './testFixtures/replayFixtures'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 // Type aliases
@@ -21,8 +26,8 @@ type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }
 
-const TEST_THREAD_ID = 'thread-1'
-const TEST_TURN_ID = 'turn-1'
+const TEST_THREAD_ID = REPLAY_FIXTURE_THREAD_ID
+const TEST_TURN_ID = REPLAY_FIXTURE_TURN_ID
 
 // Constants: shared between replay fixture builders and assertions.
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
@@ -485,15 +490,9 @@ describe('replayThreadEvents', () => {
 
   describe('rebuild and promotion paths', () => {
     it('[consistency] forwards replay notifications into the same canonical projection as direct notifications', async () => {
-      const params = {
-        replaySeq: 11,
-        eventId: 'evt-11',
-        ts: '2026-02-17T00:00:00.000Z',
-        source: 'engine',
-        threadId: TEST_THREAD_ID,
-        turnId: TEST_TURN_ID,
+      const params = createReplayTurnEventEnvelope({
         event: { type: 'assistant_delta', text: 'hello from consistency fixture' },
-      }
+      })
       const directCapture = createNotificationProjectionCapture()
       processNotification(
         {

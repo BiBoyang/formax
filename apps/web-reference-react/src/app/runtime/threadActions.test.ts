@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadActions, type ThreadActionsContext } from './threadActions'
 import { pruneThreadScopedRefs } from './threadScopedRefs'
+import {
+  REPLAY_FIXTURE_OTHER_THREAD_ID,
+  REPLAY_FIXTURE_THREAD_ID,
+} from './testFixtures/replayFixtures'
 
 type ThreadActionsTestOverrides = Partial<Omit<ThreadActionsContext, 'state'>> & {
   state?: Partial<ThreadActionsContext['state']>
@@ -365,31 +369,33 @@ describe('threadActions', () => {
 
 describe('pruneThreadScopedRefs', () => {
   it('keeps only refs that belong to current thread ids', () => {
-    const replayCursorByThreadRef = { current: { 'thread-1': 10, 'thread-2': 20 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1, 'thread-2': 2 } }
+    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 } }
     const runtimeStateByThreadRef = {
       current: {
-        'thread-1': { threadId: 'thread-1', mode: 'normal' },
-        'thread-2': { threadId: 'thread-2', mode: 'plan' },
+        [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID, mode: 'normal' },
+        [REPLAY_FIXTURE_OTHER_THREAD_ID]: { threadId: REPLAY_FIXTURE_OTHER_THREAD_ID, mode: 'plan' },
       } as any,
     }
 
     pruneThreadScopedRefs({
-      threadIds: ['thread-2'],
+      threadIds: [REPLAY_FIXTURE_OTHER_THREAD_ID],
       replayCursorByThreadRef,
       replayAnomalyCountSeenByThreadRef,
       runtimeStateByThreadRef,
     })
 
-    expect(replayCursorByThreadRef.current).toEqual({ 'thread-2': 20 })
-    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ 'thread-2': 2 })
-    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual(['thread-2'])
+    expect(replayCursorByThreadRef.current).toEqual({ [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 })
+    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 })
+    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual([REPLAY_FIXTURE_OTHER_THREAD_ID])
   })
 
   it('clears all refs when no threads remain', () => {
-    const replayCursorByThreadRef = { current: { 'thread-1': 10 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1 } }
-    const runtimeStateByThreadRef = { current: { 'thread-1': { threadId: 'thread-1' } } as any }
+    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1 } }
+    const runtimeStateByThreadRef = {
+      current: { [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID } } as any,
+    }
 
     pruneThreadScopedRefs({
       threadIds: [],
@@ -404,25 +410,25 @@ describe('pruneThreadScopedRefs', () => {
   })
 
   it('keeps preserved thread ids even when absent from current thread ids', () => {
-    const replayCursorByThreadRef = { current: { 'thread-1': 10, 'thread-2': 20 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1, 'thread-2': 2 } }
+    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 } }
     const runtimeStateByThreadRef = {
       current: {
-        'thread-1': { threadId: 'thread-1', mode: 'normal' },
-        'thread-2': { threadId: 'thread-2', mode: 'plan' },
+        [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID, mode: 'normal' },
+        [REPLAY_FIXTURE_OTHER_THREAD_ID]: { threadId: REPLAY_FIXTURE_OTHER_THREAD_ID, mode: 'plan' },
       } as any,
     }
 
     pruneThreadScopedRefs({
       threadIds: [],
-      preservedThreadIds: ['thread-2'],
+      preservedThreadIds: [REPLAY_FIXTURE_OTHER_THREAD_ID],
       replayCursorByThreadRef,
       replayAnomalyCountSeenByThreadRef,
       runtimeStateByThreadRef,
     })
 
-    expect(replayCursorByThreadRef.current).toEqual({ 'thread-2': 20 })
-    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ 'thread-2': 2 })
-    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual(['thread-2'])
+    expect(replayCursorByThreadRef.current).toEqual({ [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 })
+    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 })
+    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual([REPLAY_FIXTURE_OTHER_THREAD_ID])
   })
 })

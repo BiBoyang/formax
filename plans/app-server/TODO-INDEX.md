@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N111 hasGap 重建路径 fixture 复用到 threadActions
-  - 目标：将 replayThreadEvents 的 hasGap baseline fixture 在 threadActions 侧复用，减少恢复路径漂移。
-  - 验收：
-    - `replayThreadEvents` 与 `threadActions` 至少各 1 个用例复用同一 fixture helper。
-
 - [ ] N112 threadActions replay 失败路径与 hasGap fixture 对齐
   - 目标：让 threadActions 的 fallback/replay-fail 场景使用与 replay tests 一致的数据语义。
   - 验收：
     - 至少 1 个 threadActions 用例使用 shared replay fixture builder。
+
+- [ ] N113 replay fixture 目录边界文档化
+  - 目标：说明 `testFixtures/replayFixtures.ts` 的定位与可复用边界，防止后续散落重复 fixture。
+  - 验收：
+    - 在 TODO 相关文档中新增 1 条边界说明并指向该文件。
