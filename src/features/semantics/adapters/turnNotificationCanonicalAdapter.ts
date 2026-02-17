@@ -12,6 +12,23 @@ type TurnNotificationCanonicalContext = {
   nextReplaySeq?: () => number
   source?: CanonicalEventSource
   now?: () => string
+  requireEnvelope?: boolean
+  onInvalidEnvelope?: (issue: TurnNotificationEnvelopeIssue) => void
+}
+
+const TURN_NOTIFICATION_CANONICAL_METHODS = new Set([
+  'turn/event',
+  'turn/completed',
+  'turn/failed',
+  'turn/inputRequested',
+  'turn/inputResolved',
+])
+
+type TurnNotificationEnvelopeField = 'threadId' | 'turnId' | 'replaySeq' | 'eventId' | 'ts' | 'source'
+
+export type TurnNotificationEnvelopeIssue = {
+  method: string
+  missing: TurnNotificationEnvelopeField[]
 }
 
 function resolveReplaySeq(
@@ -75,6 +92,37 @@ function resolveTurnId(params: Record<string, unknown> | undefined): string | nu
   return null
 }
 
+function resolveThreadIdFromEnvelope(params: Record<string, unknown> | undefined): string | null {
+  if (typeof params?.threadId === 'string' && params.threadId.trim()) return params.threadId
+  const turn = params?.turn
+  if (turn && typeof turn === 'object') {
+    const threadId = (turn as Record<string, unknown>).threadId
+    if (typeof threadId === 'string' && threadId.trim()) return threadId
+  }
+  const input = params?.input
+  if (input && typeof input === 'object') {
+    const threadId = (input as Record<string, unknown>).threadId
+    if (typeof threadId === 'string' && threadId.trim()) return threadId
+  }
+  return null
+}
+
+function resolveTurnIdFromEnvelope(
+  method: string,
+  params: Record<string, unknown> | undefined,
+): string | null {
+  if (method === 'turn/completed' || method === 'turn/failed') {
+    const turn = params?.turn
+    if (turn && typeof turn === 'object') {
+      const turnId = (turn as Record<string, unknown>).id
+      if (typeof turnId === 'string' && turnId.trim()) return turnId
+    }
+    return null
+  }
+  if (typeof params?.turnId === 'string' && params.turnId.trim()) return params.turnId
+  return null
+}
+
 function toEventId(args: {
   params: Record<string, unknown> | undefined
   threadId: string
@@ -127,6 +175,28 @@ function resolveSource(
   return 'engine'
 }
 
+function validateTurnNotificationEnvelope(notification: TurnNotification): TurnNotificationEnvelopeIssue | null {
+  if (!TURN_NOTIFICATION_CANONICAL_METHODS.has(notification.method)) return null
+  const params = notification.params
+  const missing: TurnNotificationEnvelopeField[] = []
+  if (!resolveThreadIdFromEnvelope(params)) missing.push('threadId')
+  if (!resolveTurnIdFromEnvelope(notification.method, params)) missing.push('turnId')
+  const replaySeq = params?.replaySeq
+  if (!(typeof replaySeq === 'number' && Number.isFinite(replaySeq) && replaySeq > 0)) {
+    missing.push('replaySeq')
+  }
+  const eventId = typeof params?.eventId === 'string' ? params.eventId.trim() : ''
+  if (!eventId) missing.push('eventId')
+  const ts = typeof params?.ts === 'string' ? params.ts.trim() : ''
+  if (!ts) missing.push('ts')
+  if (!isCanonicalSource(params?.source)) missing.push('source')
+  if (missing.length === 0) return null
+  return {
+    method: notification.method,
+    missing,
+  }
+}
+
 function resolveFailureFooterStatus(
   params: Record<string, unknown> | undefined,
   message: string,
@@ -169,6 +239,13 @@ export function toCanonicalEventsFromTurnNotification(
   notification: TurnNotification,
   ctx: TurnNotificationCanonicalContext,
 ): CanonicalEvent[] {
+  if (ctx.requireEnvelope) {
+    const envelopeIssue = validateTurnNotificationEnvelope(notification)
+    if (envelopeIssue) {
+      ctx.onInvalidEnvelope?.(envelopeIssue)
+      return []
+    }
+  }
   const params = notification.params
   const turnId = resolveTurnId(params)
   if (!turnId) return []

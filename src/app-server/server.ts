@@ -107,6 +107,7 @@ export class AppServer {
   private readonly replayTrimmedBeforeByThreadId = new Map<string, number>()
   private readonly runtimeStateByThreadId = new Map<string, ThreadRuntimeState>()
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
+  private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
   private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
   private replaySeq = 0
@@ -551,6 +552,11 @@ export class AppServer {
       {
         fallbackThreadId: threadId,
         source: 'engine',
+        requireEnvelope: true,
+        onInvalidEnvelope: () => {
+          const previous = this.canonicalProtocolAnomalyCountByThreadId.get(threadId) ?? 0
+          this.canonicalProtocolAnomalyCountByThreadId.set(threadId, previous + 1)
+        },
       },
     )
     if (canonicalEvents.length > 0) {

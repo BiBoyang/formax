@@ -32,6 +32,36 @@
 
 ## 主线 TODO（结构化改造优先）
 
+### P0a：Canonical 权威分层落地（app-server / local TUI）
+
+- [x] A1 在 app-server notification 入口增加 envelope 完整性断言（缺字段直接标记协议异常，不进入 projector）
+  - 文件：
+    - `src/app-server/server.ts`
+    - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
+  - 验收：
+    - app-server 路径下不存在“客户端补造 envelope 后继续投影”的隐式分支。
+
+- [ ] A2 在 Web 侧移除/封禁 canonical envelope 本地合成入口（仅保留 UI-only 日志）
+  - 文件：
+    - `apps/web-reference-react/src/App.tsx`
+    - `apps/web-reference-react/src/store.ts`
+  - 验收：
+    - projector 输入事件全部来自 server notification 或 replay/snapshot。
+
+- [ ] A3 为 local TUI 路径显式标注 runtime-authoritative，并补 contract 等价测试
+  - 文件：
+    - `src/features/repl/controller/streaming.ts`
+    - `src/features/semantics/__tests__/projectionParity.test.ts`
+  - 验收：
+    - 同一 fixture 下，local runtime 生成 envelope 的语义输出与 server 路径一致。
+
+- [ ] A4 把“按路径分层权威”写入 Contract 附录（非替代正文）
+  - 文件：
+    - `plans/app-server/INTERACTION-CONTRACT.md`
+    - `plans/app-server/API-REFERENCE.md`
+  - 验收：
+    - 文档无 `server-only` / `runtime-only` 歧义表达，术语统一为 path-scoped authority。
+
 ### P0：Canonical 语义层（最高优先级）
 
 - [x] T0 定义统一 `CanonicalEvent` 与 `Segment` 模型

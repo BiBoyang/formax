@@ -292,4 +292,29 @@ describe('turnNotificationCanonicalAdapter', () => {
       },
     })
   })
+
+  it('rejects canonical projection when strict envelope is enabled and fields are missing', () => {
+    const issues: Array<{ method: string; missing: string[] }> = []
+    const events = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 1,
+          event: { type: 'assistant_delta', text: 'hello' },
+        },
+      },
+      {
+        fallbackThreadId: 'thread-fallback',
+        requireEnvelope: true,
+        onInvalidEnvelope(issue) {
+          issues.push(issue)
+        },
+      },
+    )
+
+    expect(events).toEqual([])
+    expect(issues).toEqual([{ method: 'turn/event', missing: ['eventId', 'ts', 'source'] }])
+  })
 })

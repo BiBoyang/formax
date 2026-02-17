@@ -997,6 +997,8 @@ describe('AppServer', () => {
     emit('turn/inputRequested', {
       threadId: 'thread-1',
       turnId: 'turn-1',
+      eventId: 'input-requested-1',
+      source: 'policy',
       input: {
         inputId: 'input-1',
         threadId: 'thread-1',
@@ -1019,6 +1021,8 @@ describe('AppServer', () => {
     emit('turn/event', {
       threadId: 'thread-1',
       turnId: 'turn-1',
+      eventId: 'event-tool-start-1',
+      source: 'tool',
       event: {
         type: 'tool_start',
         id: 'tool-1',
@@ -1028,6 +1032,8 @@ describe('AppServer', () => {
     })
     emit('turn/completed', {
       threadId: 'thread-1',
+      eventId: 'turn-completed-1',
+      source: 'engine',
       turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
       ts: '2026-02-10T00:00:02.000Z',
     })
@@ -1092,6 +1098,8 @@ describe('AppServer', () => {
     emit('turn/inputRequested', {
       threadId: 'thread-1',
       turnId: 'turn-1',
+      eventId: 'input-requested-2',
+      source: 'policy',
       input: {
         inputId: 'input-1',
         threadId: 'thread-1',
@@ -1124,6 +1132,37 @@ describe('AppServer', () => {
     )
   })
 
+  it('marks canonical envelope anomalies and skips projection for invalid notifications', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: 'thread-envelope',
+      turnId: 'turn-envelope',
+      replaySeq: 999,
+      event: { type: 'assistant_delta', text: 'hello anomaly' },
+    })
+
+    const replay = await server.handleMessage(
+      request(2, 'thread/replay', {
+        threadId: 'thread-envelope',
+        after: 0,
+        limit: 10,
+      }),
+    )
+    const result = (replay[0] as any).result
+    expect(result.data).toHaveLength(1)
+    expect(result.state).toEqual(
+      expect.objectContaining({
+        projection: null,
+      }),
+    )
+
+    const anomalyCounts = (server as any).canonicalProtocolAnomalyCountByThreadId as Map<string, number>
+    expect(anomalyCounts.get('thread-envelope')).toBe(1)
+  })
+
   it('marks replay gap based on trimmed boundary for the thread buffer', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))
@@ -1132,6 +1171,9 @@ describe('AppServer', () => {
       emit('turn/event', {
         threadId: 'thread-1',
         turnId: 'turn-1',
+        eventId: `gap-event-${index}`,
+        source: 'engine',
+        ts: '2026-02-10T00:00:00.000Z',
         event: { type: 'assistant_delta', text: `delta-${index}` },
       })
     }
@@ -1165,6 +1207,9 @@ describe('AppServer', () => {
       emit('turn/event', {
         threadId: 'thread-gap-state',
         turnId: 'turn-gap-state',
+        eventId: `gap-state-event-${index}`,
+        source: 'engine',
+        ts: '2026-02-10T00:00:00.000Z',
         event: { type: 'assistant_delta', text: `delta-${index}` },
       })
     }
