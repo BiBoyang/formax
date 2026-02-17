@@ -146,4 +146,42 @@ describe('replayThreadEvents', () => {
       snapshot: gapState.projection,
     })
   })
+
+  it('logs invariant issues once across hasGap baseline replay double-request path', async () => {
+    const gapState = createReplayState({
+      invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+      projection: null,
+    })
+    const baselineState = createReplayState({
+      invariantIssues: [
+        { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
+        { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
+      ],
+      projection: null,
+    })
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: gapState,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 120,
+        latestCursor: 120,
+        hasGap: false,
+        state: baselineState,
+      })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
+  })
 })
