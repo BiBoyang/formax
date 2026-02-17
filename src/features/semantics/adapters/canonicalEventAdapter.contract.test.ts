@@ -6,6 +6,15 @@ import {
 } from './canonicalEventAdapter'
 import { CROSS_PATH_CONTRACT_FIXTURE } from './crossPathContractFixture'
 
+type NotificationEntry = (typeof CROSS_PATH_CONTRACT_FIXTURE.notifications)[number]
+
+function normalizeReplayNotificationEntries(entries: readonly NotificationEntry[]): NotificationEntry[] {
+  return entries
+    .slice()
+    .sort((left, right) => Number((left.params.replaySeq as number) ?? 0) - Number((right.params.replaySeq as number) ?? 0))
+    .filter((entry, index, arr) => index === 0 || entry.params.replaySeq !== arr[index - 1]?.params.replaySeq)
+}
+
 describe('canonicalEventAdapter contract fixture', () => {
   it('keeps canonical contract stable across stream/notification/replay fixture paths', () => {
     const fixture = CROSS_PATH_CONTRACT_FIXTURE
@@ -29,10 +38,7 @@ describe('canonicalEventAdapter contract fixture', () => {
       }),
     )
     const replayLikeEntries = [fixture.notifications[2], fixture.notifications[0], fixture.notifications[1], fixture.notifications[1], fixture.notifications[3]]
-    const normalizedReplayEntries = replayLikeEntries
-      .slice()
-      .sort((left, right) => Number((left.params.replaySeq as number) ?? 0) - Number((right.params.replaySeq as number) ?? 0))
-      .filter((entry, index, arr) => index === 0 || entry.params.replaySeq !== arr[index - 1]?.params.replaySeq)
+    const normalizedReplayEntries = normalizeReplayNotificationEntries(replayLikeEntries)
     const fromReplayNotifications = normalizedReplayEntries.flatMap((notification) =>
       mapTurnNotificationToCanonicalEvents(notification, {
         fallbackThreadId: fixture.threadId,
@@ -63,6 +69,35 @@ describe('canonicalEventAdapter contract fixture', () => {
 
     expect(normalize(fromStream)).toEqual(normalize(fromNotification))
     expect(normalize(fromReplayNotifications)).toEqual(normalize(fromNotification))
+  })
+
+  it('normalizes out-of-order duplicated replay notification entries before canonical mapping', () => {
+    const fixture = CROSS_PATH_CONTRACT_FIXTURE
+    const replayLikeEntries = [
+      fixture.notifications[3],
+      fixture.notifications[1],
+      fixture.notifications[0],
+      fixture.notifications[2],
+      fixture.notifications[2],
+      fixture.notifications[1],
+    ]
+
+    const normalizedReplayEntries = normalizeReplayNotificationEntries(replayLikeEntries)
+    const canonicalFromReplayLike = normalizedReplayEntries.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+    const canonicalFromOrderedNotifications = fixture.notifications.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+
+    expect(normalizedReplayEntries.map((entry) => entry.params.replaySeq)).toEqual([1, 2, 3, 4])
+    expect(canonicalFromReplayLike).toEqual(canonicalFromOrderedNotifications)
   })
 
   it('covers TUI stream path mapping', () => {
