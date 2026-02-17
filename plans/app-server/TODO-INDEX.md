@@ -29,15 +29,11 @@
   - `apps/web-reference-react/src/app/runtime/threadActions.test.ts`
 - 固定 smoke 命令（在 `apps/web-reference-react` 下执行）：
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
+- 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
 ## P4：Replay-First Invariants
 
-- [ ] N122 replay fixture smoke 命令与目录边界联动说明
-  - 目标：把 smoke 命令与 `Replay Fixture Boundary` 绑定，形成单点维护入口。
+- [ ] N124 replay fixture 覆盖扩展到 connectRpcClient 场景
+  - 目标：验证共享 replay fixture 在 `connectRpcClient` 触发 replay 路径下也可复用。
   - 验收：
-    - TODO-INDEX 新增 1 条“先看边界再跑命令”的联动说明。
-
-- [ ] N123 replay fixture smoke 命令与 codex review 顺序说明
-  - 目标：明确共享 fixture 变更时的执行顺序（smoke -> codex review），避免漏检。
-  - 验收：
-    - TODO-INDEX 新增 1 条顺序说明。
+    - `connectRpcClient` 相关测试新增至少 1 条共享 replay fixture 派生用例。
