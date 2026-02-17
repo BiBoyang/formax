@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import {
+  appendCanonicalTailFinalRows,
   assertNoDuplicateToolUseIdsInTurn,
   appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
@@ -986,6 +987,67 @@ describe('appendCanonicalTurnFinalRows', () => {
     expect(next[1]?.content).toBe('/repo')
     expect(next[1]?.toolInfo?.status).toBe('completed')
     expect(next[1]?.toolInfo?.middleLines).toEqual(['line-1'])
+  })
+})
+
+describe('appendCanonicalTailFinalRows', () => {
+  it('replaces legacy tool rows with canonical final rows at transcript tail', () => {
+    const legacyTimestamp = new Date(200)
+    const next = appendCanonicalTailFinalRows({
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: '$ pwd',
+          timestamp: legacyTimestamp,
+          toolInfo: { toolUseId: 'tool-1', name: 'LocalBash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      turnId: 'local-bash-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'local-bash-1:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'local-bash-1',
+          toolUseId: 'tool-1',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: '/repo',
+          detailLines: [],
+          paramsText: 'command="pwd"',
+        },
+      ],
+    })
+
+    expect(next.map((message) => message.id)).toEqual(['assistant-1', 'legacy-tool'])
+    expect(next[1]?.timestamp).toBe(legacyTimestamp)
+    expect(next[1]?.toolInfo?.status).toBe('completed')
+    expect(next[1]?.content).toBe('$ pwd')
+  })
+
+  it('skips append when aborted tail has only tool rows', () => {
+    const messages: Msg[] = [{ id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: new Date(100) }]
+    const next = appendCanonicalTailFinalRows({
+      messages,
+      turnId: 'local-bash-2',
+      turnOutcome: 'aborted',
+      projectionSegments: [
+        {
+          id: 'local-bash-2:tool:1:tool-2',
+          kind: 'tool',
+          turnId: 'local-bash-2',
+          toolUseId: 'tool-2',
+          toolName: 'LocalBash',
+          status: 'error',
+          summary: 'Error: Request aborted',
+          detailLines: [],
+        },
+      ],
+    })
+
+    expect(next).toBe(messages)
   })
 })
 

@@ -30,9 +30,10 @@
 
 说明：
 
-- `runLocalBashTurn` 已支持 `writeLegacyTranscriptRows` 开关，主路径当前仍为 `writeLegacyTranscriptRows=true`（保持完成态可见性）。
+- `runLocalBashTurn` 已支持 `writeLegacyTranscriptRows` 开关，主路径现已切换为 `writeLegacyTranscriptRows=false`。
 - `useReplController` transient 展示门控已从 `isLoading` 改为 `canonicalTransientActive`，保证非 loading 的 canonical turn（含本地 bash）可见。
-- legacy 直写仍保留兼容开关，用于回退与测试覆盖。
+- `appendCanonicalTailFinalRows` 已用于本地 bash turn 的终局持久化，避免回退到 legacy tool row 直写。
+- legacy 直写仍保留兼容开关，仅用于回退与测试覆盖。
 
 ## 2) UI-only 写点（可保留）
 
@@ -68,4 +69,4 @@
 
 1. 先收敛 `streaming.ts`：让 turn 内 assistant/tool/thinking 行只由 canonical 投影驱动。  
 2. 再收敛 `sendMainTurn.ts`：用户输入与失败 subline 的语义路径分层。  
-3. 最后处理 `bashMode.ts`：本地 bash 的 tool 行改为 canonical-only（UI 细节在 renderer 映射层补齐）。
+3. 最后收敛 `sendAutoCompact.ts`：notice 行保留 UI-only，语义流避免 turn 内直写混用。

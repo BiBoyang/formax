@@ -37,6 +37,8 @@ export type BashModeRunResult = {
   timedOut: boolean
 }
 
+export type LocalBashTurnOutcome = 'completed' | 'failed' | 'aborted'
+
 export function isBashModeResultError(result: BashModeRunResult): boolean {
   return (
     result.timedOut ||
@@ -91,7 +93,7 @@ export async function runLocalBashTurn(args: {
     env?: NodeJS.ProcessEnv
     runtimeFlags?: RuntimeFlags
   }) => Promise<BashModeRunResult>
-}): Promise<void> {
+}): Promise<LocalBashTurnOutcome> {
   const bashAbort = new AbortController()
   args.abortControllerRef.current = bashAbort
   const messageId = `tool-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -136,7 +138,7 @@ export async function runLocalBashTurn(args: {
     if (bashAbort.signal.aborted) {
       emitter.emitToolEvent({ phase: 'end', summary: 'Error: Request aborted', isError: true })
       emitter.emitFooter('interrupted', 'Request aborted')
-      return
+      return 'aborted'
     }
 
     const outputText = formatBashModeOutput({
@@ -168,6 +170,7 @@ export async function runLocalBashTurn(args: {
     }
     emitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
     emitter.emitFooter(isError ? 'failed' : 'completed')
+    return isError ? 'failed' : 'completed'
   } finally {
     if (args.abortControllerRef.current === bashAbort) args.abortControllerRef.current = null
     args.clearCanonicalTransientState()

@@ -119,7 +119,7 @@ describe('runLocalBashTurn', () => {
     const abortControllerRef: { current: AbortController | null } = { current: null }
     const clearCanonicalTransientState = vi.fn()
 
-    await runLocalBashTurn({
+    const outcome = await runLocalBashTurn({
       command: 'pwd',
       cwd: '/repo',
       env: process.env,
@@ -146,6 +146,7 @@ describe('runLocalBashTurn', () => {
       }),
     })
 
+    expect(outcome).toBe('completed')
     expect(messages).toEqual([])
     expect(pendingInjectedBlocksRef.current.length).toBeGreaterThan(0)
     expect(events.map((event) => event.kind)).toEqual([
@@ -162,7 +163,7 @@ describe('runLocalBashTurn', () => {
   it('can still write legacy tool rows when explicitly enabled', async () => {
     let messages: Msg[] = []
 
-    await runLocalBashTurn({
+    const outcome = await runLocalBashTurn({
       command: 'pwd',
       cwd: '/repo',
       env: process.env,
@@ -193,6 +194,7 @@ describe('runLocalBashTurn', () => {
       }),
     })
 
+    expect(outcome).toBe('completed')
     expect(messages).toHaveLength(1)
     expect(messages[0]).toMatchObject({
       role: 'tool',

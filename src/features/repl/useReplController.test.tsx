@@ -541,6 +541,12 @@ describe('useReplController', () => {
 
     await controller.actions.send('! ls -la')
     expect(captured).toHaveLength(0)
+    await waitFor(() =>
+      controller.state.messages.some(
+        (m) => m.role === 'tool' && m.toolInfo?.name === 'LocalBash' && m.toolInfo?.status === 'completed',
+      ),
+    )
+    expect(controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.name === 'LocalBash')).toHaveLength(1)
 
     await controller.actions.send('hi')
     expect(captured).toHaveLength(1)

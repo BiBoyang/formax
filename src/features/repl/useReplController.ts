@@ -23,6 +23,7 @@ import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
 import { partitionMessages, queueTranscriptSurfaceReset, useReplOverlays } from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
+  appendCanonicalTailFinalRows,
   appendCanonicalTurnFinalRows,
   emitCanonicalUiMessageForTurn,
   projectCanonicalEventToTransientMessages,
@@ -666,7 +667,7 @@ export function useReplController(deps: {
         const localTurnId = `local-bash-${nextCanonicalTurnSeq()}`
 
         try {
-          await runLocalBashTurn({
+          const localTurnOutcome = await runLocalBashTurn({
             command,
             cwd: runtimeCwd,
             env: runtimeEnv,
@@ -676,11 +677,19 @@ export function useReplController(deps: {
             nextReplaySeq: nextCanonicalReplaySeq,
             onCanonicalEvent,
             setMessages,
-            writeLegacyTranscriptRows: true,
+            writeLegacyTranscriptRows: false,
             pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
             abortControllerRef,
             clearCanonicalTransientState,
           })
+          setMessages((prev) =>
+            appendCanonicalTailFinalRows({
+              messages: prev,
+              turnId: localTurnId,
+              turnOutcome: localTurnOutcome === 'aborted' ? 'failed' : localTurnOutcome,
+              projectionSegments: canonicalRefs.projectionRef.current.segments,
+            }),
+          )
         } finally {
           bashModeInFlightRef.current = false
         }

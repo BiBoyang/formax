@@ -1,6 +1,7 @@
 export { canonicalTurnSegmentsToMessages, tailSegmentsForTurn } from './canonicalTurnMessageMapping'
 export {
   appendCanonicalTurnFinalRows,
+  appendCanonicalTailFinalRows,
   assertNoDuplicateToolUseIdsInTurn,
   computeCanonicalTurnAppend,
   mergeCanonicalTurnIntoMessages,
