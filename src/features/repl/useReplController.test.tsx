@@ -1628,6 +1628,67 @@ describe('useReplController sessionSave resume', () => {
     }
   })
 
+  it('newSession + resumeSession: restores replay history as next-turn baseline', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+
+    try {
+      const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+      await writer.appendStableMsg({
+        id: 'assistant-replay',
+        role: 'assistant',
+        content: 'from replay',
+        timestamp: new Date('2026-02-02T00:00:00.000Z'),
+      } as any)
+      await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'resume-history' }] }] as any)
+      await writer.shutdown()
+
+      const runTurn = vi.fn(async ({ history, onEvent, user }: any) => {
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <Harness
+          engine={engine}
+          cwd={cwdDir}
+          cfg={createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })}
+          onController={(c) => (controller = c)}
+        />,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('before-clear')
+      await waitFor(() => controller.state.isLoading === false)
+
+      controller.actions.newSession()
+      await waitFor(() => controller.state.messages.length === 0)
+
+      await controller.actions.resumeSession(filePath)
+      await waitFor(() => controller.state.messages.some((m) => m.id === 'assistant-replay'))
+      expect(controller.state.messages.some((m) => m.role === 'assistant' && m.content === 'from replay')).toBe(true)
+
+      await controller.actions.send('after-resume')
+      await waitFor(() => controller.state.isLoading === false)
+
+      expect(runTurn).toHaveBeenCalledTimes(2)
+      const secondArgs = runTurn.mock.calls[1]?.[0] as any
+      expect((secondArgs.history[0] as any)?.content?.[0]?.text).toBe('resume-history')
+    } finally {
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
   it('uses the last persisted history_state as the starting history when resuming', async () => {
     const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
     const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
@@ -2270,7 +2331,7 @@ describe('useReplController injected blocks', () => {
   })
 })
 
-	describe('useReplController abort', () => {
+describe('useReplController abort', () => {
   it('is safe to call abort() when idle', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, user }) {
@@ -2289,6 +2350,48 @@ describe('useReplController injected blocks', () => {
     expect(controller.state.isLoading).toBe(false)
     expect(controller.state.error).toBeNull()
     expect(controller.state.messages).toEqual(before.messages)
+  })
+
+  it('send + abort: does not leak aborted turn into the next send history', async () => {
+    const abortError = () => Object.assign(new Error('AbortError'), { name: 'AbortError' })
+    const runTurn = vi.fn(async ({ history, onEvent, user, signal }: any) => {
+      if (runTurn.mock.calls.length === 1) {
+        onEvent({ type: 'tool_start', id: 't-abort', name: 'Bash' } as StreamEvent)
+        await new Promise<void>((_resolve, reject) => {
+          if (signal?.aborted) return reject(abortError())
+          signal?.addEventListener('abort', () => reject(abortError()), { once: true })
+        })
+      }
+      onEvent({ type: 'complete' } as StreamEvent)
+      return [...history, user]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const firstSend = controller.actions.send('first')
+    await waitFor(() => controller.state.isLoading === true)
+    await waitFor(() =>
+      controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-abort'),
+    )
+
+    controller.actions.abort()
+    await firstSend
+    await waitFor(() => controller.state.isLoading === false)
+    await waitFor(() =>
+      controller.state.messages.some(
+        (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-abort' && m.toolInfo?.status === 'error',
+      ),
+    )
+
+    await controller.actions.send('second')
+    await waitFor(() => controller.state.isLoading === false)
+
+    expect(runTurn).toHaveBeenCalledTimes(2)
+    const secondArgs = runTurn.mock.calls[1]?.[0] as any
+    expect(secondArgs.history).toEqual([])
   })
 
   it('marks running tools as error and appends a declined message for AskUserQuestion', async () => {

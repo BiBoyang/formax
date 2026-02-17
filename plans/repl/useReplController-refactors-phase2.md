@@ -37,3 +37,23 @@ Status: `in_progress`
 - `src/features/repl/controller/canonicalTurnMessages.ts` 新增 dev-only invariant：同一 turn 禁止重复 `toolUseId` tool row。
 - `CODEMAP.md` 已同步 REPL send 拆分后的入口映射（`send.ts` / `sendMainTurn.ts` / `sendAutoCompact.ts` / `sendTypes.ts`）。
 - 相关测试环境变量注入迁移为 `vi.stubEnv` + `vi.unstubAllEnvs`（减少 process.env 污染）。
+
+## Phase 3 TODO（执行清单）
+
+- [x] T1 baseline tests: 在 `src/features/repl/useReplController.test.tsx` 增加 2 个回归用例（`send + abort`、`newSession + resume`）。
+- [x] T2 split send pre-main orchestration lower。
+- [x] T3 split mainTurnDeps/mainTurnRefs construction lower。
+- [ ] T4 split abort/newSession/reset coordination into session helper。
+- [ ] T5 split canonical event orchestration helper。
+- [ ] T6 reduce callback dependency noise。
+- [ ] T7 add action-level matrix tests。
+- [ ] T8 semantics fixture cross check（no duplicate tool row + assistant retained）。
+- [ ] T9 add one cross-end contract each for `threadRuntimeState` and `inputStateMachine`。
+- [ ] T10 docs alignment in `CODEMAP.md` + related plan docs。
+
+### Phase 3 验收目标
+
+- `src/features/repl/useReplController.ts` 控制在 ~850 行以下（不牺牲行为一致性）。
+- 关键回归测试通过（优先 `useReplController` + controller 子模块）。
+- `bun run type-check` 通过。
+- `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` 无中高优先级问题。

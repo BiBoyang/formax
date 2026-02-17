@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
-import { resolvePreMainSendRouting } from './send'
+import { resolvePreMainSendRouting } from './sendPreMainRouting'
 
 function createBaseCfg() {
   return {

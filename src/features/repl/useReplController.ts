@@ -43,9 +43,10 @@ import {
   type SessionWriterRefs,
 } from './controller/session/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
-import { resolvePreMainSendRouting } from './controller/send/send'
+import { resolvePreMainSendRouting } from './controller/send/sendPreMainRouting'
 import { runLocalBashTurn } from './controller/send/bashMode'
 import { runMainSendTurn } from './controller/send/sendMainTurn'
+import { createMainTurnExecutionContext } from './controller/send/sendMainTurnContext'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import {
   createInitialTranscriptProjectionState,
@@ -848,7 +849,7 @@ export function useReplController(deps: {
       setCanonicalTransientActive(false)
       let turnUserMessageId: string | null = null
       let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
-      const mainTurnDeps = {
+      const mainTurnExecutionContext = createMainTurnExecutionContext({
         engine: deps.engine,
         cfg: deps.cfg,
         promptProfile: deps.promptProfile,
@@ -857,21 +858,19 @@ export function useReplController(deps: {
         tools: deps.tools,
         allowedSubagents,
         mode: deps.mode,
-        ...replModeAccess,
+        replModeAccess,
         handleEvent,
-      }
-      const mainTurnRefs = {
-        ...sendTurnSharedRefs,
+        sendTurnSharedRefs,
         pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
         sendSeqRef: runtimeStateRefs.sendSeqRef,
         lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
         onCompactLifecycle,
-      }
+      })
       try {
         const runResult = await runMainSendTurn({
           input: { text, slashEffect, provider },
-          deps: mainTurnDeps,
-          refs: mainTurnRefs,
+          deps: mainTurnExecutionContext.deps,
+          refs: mainTurnExecutionContext.refs,
           state: {
             ...sendStateSetters,
             emitCanonicalUiMessage: (message) =>
