@@ -1,6 +1,6 @@
 # TODO-INDEX：Semantics Single-Writer（Rolling）
 
-更新时间：2026-02-18
+更新时间：2026-02-17
 任务来源（唯一）：
 - `plans/app-server/ARCHITECTURE-ROADMAP.md`
 - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
@@ -31,10 +31,35 @@
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 - 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
-## P1：Single Writer 下一批
+## P1：Single Writer 收口（来自 Milestone 1 / G1）
 
-- [ ] S2 收敛 `streaming.ts` fallback 直写路径
-  - 已完成：切片 A（抽出 `streamingLegacyTranscript` mutator，集中 legacy 写入口）。
-  - 已完成：切片 B（assistant/thinking fallback 写分支改走 mutator）。
-  - 待做：补一个集成级 fallback 场景（`canWriteLegacyTranscript=true`）防回归，避免未来误把 fallback 也 canonical-only 化。
-  - 验收：默认 canonical 路径无直写；fallback 仅在显式分支生效且可测试。
+- [ ] SW-01 将 `streaming.ts` 的 legacy fallback 写入进一步隔离为“compat layer”，主流程仅保留 canonical 驱动
+  - 目标：`useReplStreaming` 主 switch 不直接承担 legacy transcript 变更细节。
+  - 已完成切片 A：tool fallback 直写已抽到 `streamingLegacyCompat.ts`，`streaming.ts` 主流程改为调用 compat helper。
+  - 验收：fallback 仍可用（显式分支），但默认阅读路径只需看 canonical 分支即可理解语义。
+
+- [ ] SW-02 为 turn 终局建立统一 invariant 检查入口（TUI 侧）
+  - 目标：将“无 running 泄漏、toolUseId 不重复、终局不可回写”整合到单一检查函数。
+  - 验收：现有 REPL 语义门禁与 controller 测试都通过，并新增至少 1 个“终局后回写被拒绝/忽略”回归用例。
+
+## P2：Adapter 单点化补全（来自 Milestone 2 / G2）
+
+- [ ] AD-01 盘点并消除剩余的 turn notification 本地分支映射
+  - 目标：通知到 canonical 的类型分发只保留在 `src/features/semantics/adapters/*`。
+  - 验收：Web/TUI/app-server 路径不再出现并行 mapping 分支（允许薄封装调用，不允许重写规则）。
+
+- [ ] AD-02 增加一组跨入口 contract fixture（stream / notification / replay）
+  - 目标：同一 fixture 在三入口下得到同构 canonical 序列（至少校验 kind + replaySeq + 关键 payload）。
+  - 验收：新增 contract test 文件并纳入常用回归命令。
+
+## P3：Replay-First 强化（来自 Milestone 3 / G4）
+
+- [ ] RP-01 收紧 `hasGap=true` 的客户端路径：禁止隐式继续增量拼接
+  - 目标：所有 gap 场景都显式进入 rebuild/replay-first 路径。
+  - 验收：现有 replay tests 继续通过，并新增“gap 后禁止旧增量落地”的反例测试。
+
+## P4：Tool Presentation IR 长期化（来自 Milestone 4 / G3）
+
+- [ ] IR-01 提取一个工具（建议 `Bash` 或 `Task`）的 presenter IR 契约样板
+  - 目标：形成“语义 -> IR -> renderer”最小模板，后续工具可照搬。
+  - 验收：TUI/Web 渲染不分叉语义；新增工具展示字段时不需要改 projection 逻辑。

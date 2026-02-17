@@ -7,13 +7,7 @@ import { makeMessageId } from '../shared/ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
-import {
-  applyLegacyToolInputToMessages,
-  applyLegacyToolUpdateToMessages,
-  createRunningToolMessage,
-} from './streamingLegacyToolRows'
 import { resolveLoadingTextForToolInput, resolveLoadingTextForToolStart } from './streamingLoadingText'
-import { buildCompletedToolMessage } from './streamingToolCompletion'
 import {
   appendAssistantDeltaToMessages,
   createAssistantStreamingMessage,
@@ -24,13 +18,18 @@ import {
 import {
   applyTaskStatsFromToolUpdate,
   finalizeExploreBatchOnTaskEnd,
-  shouldApplyLegacyToolUpdate,
   updateTaskStateFromToolInput,
 } from './streamingTaskState'
 import type { ExploreTaskBatch } from './streamingTaskState'
 import { consumeToolEndState } from './streamingToolLifecycle'
 import { isAbortLikeError, sumInputTokens } from '../shared/utils'
 import { createLegacyTranscriptMutator } from './streamingLegacyTranscript'
+import {
+  writeLegacyToolEndFallback,
+  writeLegacyToolInputFallback,
+  writeLegacyToolStartFallback,
+  writeLegacyToolUpdateFallback,
+} from './streamingLegacyCompat'
 
 export type { ExploreTaskBatch }
 
@@ -324,26 +323,17 @@ export function useReplStreaming(args: {
 
           args.setLoadingText(resolveLoadingTextForToolStart(ev.name))
 
-          if (!legacyTranscript.canWrite) return
-
-          const activeToolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id)
-          if (activeToolMsgId) return
-
-          const toolMsgId = makeMessageId(`tool-${ev.id}`)
-          toolMessageIdByToolUseIdRef.current.set(ev.id, toolMsgId)
-          legacyTranscript.update((prev) => [
-            ...prev,
-            createRunningToolMessage({
-              toolMsgId,
-              toolUseId: ev.id,
-              toolName: ev.name,
-            }),
-          ])
+          writeLegacyToolStartFallback({
+            legacyTranscript,
+            toolUseId: ev.id,
+            toolName: ev.name,
+            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+            createToolMessageId: (toolUseId) => makeMessageId(`tool-${toolUseId}`),
+          })
           return
         }
 
         case 'tool_input': {
-          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
           const nowMs = Date.now()
 
@@ -366,20 +356,16 @@ export function useReplStreaming(args: {
             exploreBatch: args.exploreBatchRef.current,
           })
 
-          if (!legacyTranscript.canWrite) return
-
-          legacyTranscript.update((prev) =>
-            applyLegacyToolInputToMessages({
-              previous: prev,
-              toolMsgId,
-              input: ev.input,
-            }),
-          )
+          writeLegacyToolInputFallback({
+            legacyTranscript,
+            toolUseId: ev.id,
+            input: ev.input,
+            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+          })
           return
         }
 
         case 'tool_update': {
-          const toolMsgId = toolMessageIdByToolUseIdRef.current.get(ev.id) || `tool-${ev.id}`
           const toolName = args.toolNameByIdRef.current.get(ev.id)
           const nowMs = Date.now()
           applyTaskStatsFromToolUpdate({
@@ -390,18 +376,13 @@ export function useReplStreaming(args: {
             nowMs,
           })
 
-          if (!legacyTranscript.canWrite) return
-
-          if (shouldApplyLegacyToolUpdate({ toolName, event: ev })) {
-            legacyTranscript.update((prev) =>
-              applyLegacyToolUpdateToMessages({
-                previous: prev,
-                toolMsgId,
-                toolName,
-                event: ev,
-              }),
-            )
-          }
+          writeLegacyToolUpdateFallback({
+            legacyTranscript,
+            toolUseId: ev.id,
+            toolName,
+            event: ev,
+            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+          })
 
           return
         }
@@ -420,30 +401,17 @@ export function useReplStreaming(args: {
             taskStatsByToolUseId: args.taskStatsByToolUseIdRef.current,
           })
 
-          if (legacyTranscript.canWrite) {
-            legacyTranscript.update((prev) => {
-              const toolMsg = prev.find((m) => m.id === toolMsgId)
-              const toolInput = toolInputFromStart ?? toolMsg?.toolInfo?.input ?? null
-              const editPatchStartLineNumber = resolveEditPatchStartLineNumber({
-                cwd: workingCwd,
-                toolName: toolNameFromStart || toolMsg?.toolInfo?.name,
-                isError: Boolean(ev.result.is_error),
-                toolInput,
-              })
-              const completedToolMessage = buildCompletedToolMessage({
-                toolMessage: toolMsg,
-                toolUseId: ev.id,
-                toolNameFromStart,
-                toolInputFromStart,
-                result: ev.result,
-                taskStats,
-                editPatchStartLineNumber,
-              })
-              return prev.map((m) =>
-                m.id === toolMsgId ? { ...completedToolMessage, id: m.id, timestamp: m.timestamp } : m,
-              )
-            })
-          }
+          writeLegacyToolEndFallback({
+            legacyTranscript,
+            toolUseId: ev.id,
+            toolMsgId,
+            toolNameFromStart,
+            toolInputFromStart,
+            result: ev.result,
+            taskStats,
+            workingCwd,
+            resolveEditPatchStartLineNumber,
+          })
 
           const exploreBatchOutcome = finalizeExploreBatchOnTaskEnd({
             toolUseId: ev.id,
