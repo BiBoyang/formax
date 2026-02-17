@@ -71,6 +71,23 @@ export function writeLegacyThinkingUpdateFallback(args: {
   )
 }
 
+export function writeLegacyExploreSummaryFallback(args: {
+  legacyTranscript: LegacyTranscriptMutator
+  count: number
+  createAssistantId: () => string
+}): void {
+  if (!args.legacyTranscript.canWrite) return
+  args.legacyTranscript.update((prev) => [
+    ...prev,
+    {
+      id: args.createAssistantId(),
+      role: 'assistant',
+      content: `${args.count} Explore agents finished (ctrl+o to expand)`,
+      timestamp: new Date(),
+    },
+  ])
+}
+
 export function writeLegacyToolStartFallback(args: {
   legacyTranscript: LegacyTranscriptMutator
   toolUseId: string

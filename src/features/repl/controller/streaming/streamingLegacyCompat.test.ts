@@ -3,6 +3,7 @@ import type { Msg } from '../../../../components/tool/ToolMessage'
 import { createLegacyTranscriptMutator } from './streamingLegacyTranscript'
 import {
   writeLegacyAssistantDeltaFallback,
+  writeLegacyExploreSummaryFallback,
   writeLegacyToolEndFallback,
   writeLegacyThinkingStartFallback,
   writeLegacyThinkingUpdateFallback,
@@ -117,6 +118,21 @@ describe('streamingLegacyCompat', () => {
     expect(messages[0]?.toolInfo?.status).toBe('completed')
     expect(messages[0]?.toolInfo?.input).toEqual({ command: 'pwd' })
     expect(messages[0]?.toolInfo?.result).toBe('/tmp')
+  })
+
+  it('writes explore batch summary row through compat helper', () => {
+    const { legacyTranscript, getMessages } = createHarness()
+
+    writeLegacyExploreSummaryFallback({
+      legacyTranscript,
+      count: 2,
+      createAssistantId: () => 'assistant-summary',
+    })
+
+    expect(getMessages()).toHaveLength(1)
+    expect(getMessages()[0]?.id).toBe('assistant-summary')
+    expect(getMessages()[0]?.role).toBe('assistant')
+    expect(getMessages()[0]?.content).toBe('2 Explore agents finished (ctrl+o to expand)')
   })
 
   it('does not duplicate tool rows when tool_start repeats for same toolUseId', () => {

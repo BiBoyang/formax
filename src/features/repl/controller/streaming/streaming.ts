@@ -23,6 +23,7 @@ import { isAbortLikeError, sumInputTokens } from '../shared/utils'
 import { createLegacyTranscriptMutator } from './streamingLegacyTranscript'
 import {
   writeLegacyAssistantDeltaFallback,
+  writeLegacyExploreSummaryFallback,
   writeLegacyToolEndFallback,
   writeLegacyThinkingStartFallback,
   writeLegacyThinkingUpdateFallback,
@@ -400,17 +401,12 @@ export function useReplStreaming(args: {
             nowMs: Date.now(),
           })
           args.exploreBatchRef.current = exploreBatchOutcome.nextBatch
-          if (exploreBatchOutcome.summaryCount !== null && legacyTranscript.canWrite) {
-            const count = exploreBatchOutcome.summaryCount
-            legacyTranscript.update((prev) => [
-              ...prev,
-              {
-                id: makeMessageId('assistant'),
-                role: 'assistant',
-                content: `${count} Explore agents finished (ctrl+o to expand)`,
-                timestamp: new Date(),
-              },
-            ])
+          if (exploreBatchOutcome.summaryCount !== null) {
+            writeLegacyExploreSummaryFallback({
+              legacyTranscript,
+              count: exploreBatchOutcome.summaryCount,
+              createAssistantId: () => makeMessageId('assistant'),
+            })
           }
 
           args.reminderServiceRef.current?.recordToolResult({
