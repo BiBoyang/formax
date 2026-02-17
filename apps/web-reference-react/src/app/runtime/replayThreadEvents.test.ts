@@ -141,19 +141,19 @@ function createReplayRequestFromPages(...pages: ReplayPage[]) {
 function createHasGapBaselineReplayPages(args: {
   gapState: ReplayStateSnapshot | null
   baselineState: ReplayStateSnapshot | null
-  latestCursor?: number
+  baselineCursor?: number
 }) {
-  const latestCursor = args.latestCursor ?? REPLAY_REQUEST_DEFAULTS.latestCursor
+  const baselineCursor = args.baselineCursor ?? REPLAY_REQUEST_DEFAULTS.latestCursor
   return [
     createReplayPage({
       nextCursor: INITIAL_REPLAY_CURSOR,
-      latestCursor,
+      latestCursor: baselineCursor,
       hasGap: true,
       state: args.gapState,
     }),
     createReplayPage({
-      nextCursor: latestCursor,
-      latestCursor,
+      nextCursor: baselineCursor,
+      latestCursor: baselineCursor,
       state: args.baselineState,
     }),
   ] as const

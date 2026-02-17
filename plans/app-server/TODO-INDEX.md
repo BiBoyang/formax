@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N83 replay baseline cursor 常量复用（hasGap builders）
-  - 目标：统一 hasGap/baseline builder 中 cursor 默认值来源，减少隐式魔法数字风险。
+- [ ] N84 replay projection snapshot seq 常量复用
+  - 目标：让 projection snapshot 的 `lastReplaySeq` 与 cursor 常量统一来源，避免后续漂移。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N84 replay projection snapshot seq 常量复用
-  - 目标：让 projection snapshot 的 `lastReplaySeq` 与 cursor 常量统一来源，避免后续漂移。
+- [ ] N85 replay projection 常量命名对齐（cursor vs seq）
+  - 目标：统一 projection 相关常量名与语义（cursor/replaySeq）表意，减少误读。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
