@@ -17,14 +17,6 @@
 
 ## P2：Contract & Adapter Consolidation
 
-## P2：Contract & Adapter Consolidation
-
-- [ ] N11 Canonical envelope fixture gate 扩面（turn 通知）
-  - 目标：把 notification -> canonical 的 envelope 约束固定为共享 fixture，避免各端再引入“缺字段补造”回归。
-  - 验收：
-    - `turnNotificationCanonicalAdapter` 增加跨方法缺 envelope 的 fixture（`turn/event|completed|failed|inputRequested|inputResolved`）。
-    - fixture 明确 requireEnvelope=true 时应返回空事件并产出一致 issue 字段。
-
 ## P3：Presentation IR
 
 - [ ] N12 Tool Presentation selector phase 2（Task/Skill 展示规则收敛）

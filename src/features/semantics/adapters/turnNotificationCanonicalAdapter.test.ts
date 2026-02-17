@@ -376,4 +376,198 @@ describe('turnNotificationCanonicalAdapter', () => {
     expect(events).toEqual([])
     expect(issues).toEqual([{ method: 'turn/event', missing: [], invalid: ['schemaVersion'] }])
   })
+
+  it('enforces strict envelope consistently across turn notification methods', () => {
+    const fixtures: Array<{
+      method: 'turn/event' | 'turn/completed' | 'turn/failed' | 'turn/inputRequested' | 'turn/inputResolved'
+      params: Record<string, unknown>
+    }> = [
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 1,
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          event: { type: 'assistant_delta', text: 'hello' },
+        },
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          replaySeq: 2,
+          threadId: 'thread-1',
+          turn: { id: 'turn-2', threadId: 'thread-1' },
+        },
+      },
+      {
+        method: 'turn/failed',
+        params: {
+          replaySeq: 3,
+          threadId: 'thread-1',
+          turn: { id: 'turn-3', threadId: 'thread-1', status: 'failed' },
+          error: 'boom',
+        },
+      },
+      {
+        method: 'turn/inputRequested',
+        params: {
+          replaySeq: 4,
+          threadId: 'thread-1',
+          turnId: 'turn-4',
+          input: {
+            inputId: 'input-1',
+            threadId: 'thread-1',
+            turnId: 'turn-4',
+            toolUseId: 'tool-1',
+            kind: 'approval',
+            status: 'pending',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+      {
+        method: 'turn/inputResolved',
+        params: {
+          replaySeq: 5,
+          threadId: 'thread-1',
+          turnId: 'turn-5',
+          input: {
+            inputId: 'input-2',
+            threadId: 'thread-1',
+            turnId: 'turn-5',
+            toolUseId: 'tool-2',
+            kind: 'approval',
+            status: 'submitted',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+    ]
+
+    for (const fixture of fixtures) {
+      const issues: Array<{ method: string; missing: string[]; invalid?: string[] }> = []
+      const events = toCanonicalEventsFromTurnNotification(
+        {
+          method: fixture.method,
+          params: fixture.params,
+        },
+        {
+          fallbackThreadId: 'thread-fallback',
+          requireEnvelope: true,
+          onInvalidEnvelope(issue) {
+            issues.push(issue)
+          },
+        },
+      )
+      expect(events).toEqual([])
+      expect(issues).toEqual([
+        {
+          method: fixture.method,
+          missing: ['eventId', 'ts', 'source'],
+        },
+      ])
+    }
+  })
+
+  it('allows strict envelope when required fields are present for all turn notification methods', () => {
+    const fixtures: Array<{
+      method: 'turn/event' | 'turn/completed' | 'turn/failed' | 'turn/inputRequested' | 'turn/inputResolved'
+      params: Record<string, unknown>
+    }> = [
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 10,
+          eventId: 'evt-10',
+          ts: '2026-02-17T00:00:00.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turnId: 'turn-10',
+          event: { type: 'assistant_delta', text: 'hello' },
+        },
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          replaySeq: 11,
+          eventId: 'evt-11',
+          ts: '2026-02-17T00:00:01.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-11', threadId: 'thread-1' },
+        },
+      },
+      {
+        method: 'turn/failed',
+        params: {
+          replaySeq: 12,
+          eventId: 'evt-12',
+          ts: '2026-02-17T00:00:02.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-12', threadId: 'thread-1', status: 'failed' },
+          error: 'boom',
+        },
+      },
+      {
+        method: 'turn/inputRequested',
+        params: {
+          replaySeq: 13,
+          eventId: 'evt-13',
+          ts: '2026-02-17T00:00:03.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turnId: 'turn-13',
+          input: {
+            inputId: 'input-13',
+            threadId: 'thread-1',
+            turnId: 'turn-13',
+            toolUseId: 'tool-13',
+            kind: 'approval',
+            status: 'pending',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+      {
+        method: 'turn/inputResolved',
+        params: {
+          replaySeq: 14,
+          eventId: 'evt-14',
+          ts: '2026-02-17T00:00:04.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turnId: 'turn-14',
+          input: {
+            inputId: 'input-14',
+            threadId: 'thread-1',
+            turnId: 'turn-14',
+            toolUseId: 'tool-14',
+            kind: 'approval',
+            status: 'submitted',
+            payload: { toolName: 'Write' },
+          },
+        },
+      },
+    ]
+
+    for (const fixture of fixtures) {
+      const issues: Array<{ method: string; missing: string[]; invalid?: string[] }> = []
+      const events = toCanonicalEventsFromTurnNotification(
+        {
+          method: fixture.method,
+          params: fixture.params,
+        },
+        {
+          fallbackThreadId: 'thread-fallback',
+          requireEnvelope: true,
+          onInvalidEnvelope(issue) {
+            issues.push(issue)
+          },
+        },
+      )
+      expect(events.length).toBeGreaterThan(0)
+      expect(issues).toEqual([])
+    }
+  })
 })
