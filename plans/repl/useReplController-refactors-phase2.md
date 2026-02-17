@@ -43,7 +43,7 @@ Status: `in_progress`
 - [x] T1 baseline tests: 在 `src/features/repl/useReplController.test.tsx` 增加 2 个回归用例（`send + abort`、`newSession + resume`）。
 - [x] T2 split send pre-main orchestration lower。
 - [x] T3 split mainTurnDeps/mainTurnRefs construction lower。
-- [ ] T4 split abort/newSession/reset coordination into session helper。
+- [x] T4 split abort/newSession/reset coordination into session helper。
 - [ ] T5 split canonical event orchestration helper。
 - [ ] T6 reduce callback dependency noise。
 - [ ] T7 add action-level matrix tests。

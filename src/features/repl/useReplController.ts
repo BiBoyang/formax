@@ -29,7 +29,6 @@ import {
 } from './controller/canonical/canonical'
 import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
-  applyAbortToMessages,
   applyConfigExitInjection,
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
@@ -40,6 +39,8 @@ import {
   shouldPersistUiMsg,
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
+  runAbortSessionTransition,
+  runNewSessionTransition,
   type SessionWriterRefs,
 } from './controller/session/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
@@ -567,66 +568,34 @@ export function useReplController(deps: {
   })
 
   const abort = useCallback(() => {
-    const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
-    const hadInFlightRequest = Boolean(abortControllerRef.current) || isLoading
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-    bashModeInFlightRef.current = false
-
-    userInput?.clearBufferedAnswers()
-    userInput?.rejectAllPending(new Error('Request aborted'))
-
-    resetSessionUiState()
-    clearCanonicalTransientState()
-    setIsLoading(false)
-    clearToolRuntimeState()
-
-    if (currentAssistantIdRef.current) {
-      const id = currentAssistantIdRef.current
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)))
-      currentAssistantIdRef.current = null
-    }
-
-    setMessages((prev) => {
-      return applyAbortToMessages({
-        messages: prev,
-        trackedRunningTools: trackedRunningToolsSnapshot,
-        hadInFlightRequest,
-      })
+    runAbortSessionTransition({
+      isLoading,
+      abortControllerRef,
+      bashModeInFlightRef,
+      toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
+      userInput,
+      resetSessionUiState,
+      clearCanonicalTransientState,
+      clearToolRuntimeState,
+      currentAssistantIdRef,
+      setMessages,
+      setIsLoading,
     })
   }, [clearCanonicalTransientState, clearToolRuntimeState, isLoading, resetSessionUiState, userInput])
 
   const newSession = useCallback(() => {
-    deps.engine.beginNewSession?.({ source: 'clear' })
-    if (sessionSaveEnabled) {
-      const oldWriter = sessionWriterRef.current
-      sessionWriterRef.current = null
-      lastPersistedSigByMsgIdRef.current = new Map()
-      void (async () => {
-        if (!oldWriter) return
-        await oldWriter.appendEvent('clear')
-        await oldWriter.shutdown()
-      })()
-    }
-    resetSessionState()
-
-    // Ink <Static> is append-only; when clearing messages we must force a remount
-    // so the new transcript starts from a fresh render surface.
-    setTranscriptSeq((n) => n + 1)
-    setMessages(() => [])
-    // Clear the terminal *after* scheduling state resets, otherwise Ink may
-    // re-render the old transcript once before the clear takes effect.
-    void deps.onClearTerminal?.()
-
-    if (sessionSaveEnabled) {
-      // Coordinate writer initialization with ensureSessionWriter() so a fast
-      // subsequent send() can't create a second, orphaned session writer.
-      const promise = startNewSessionWriter().finally(() => {
-        if (sessionWriterInitPromiseRef.current === promise) sessionWriterInitPromiseRef.current = null
-      })
-      sessionWriterInitPromiseRef.current = promise
-      void promise
-    }
+    runNewSessionTransition({
+      beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
+      sessionSaveEnabled,
+      sessionWriterRef,
+      lastPersistedSigByMsgIdRef,
+      resetSessionState,
+      setTranscriptSeq,
+      setMessages,
+      onClearTerminal: deps.onClearTerminal,
+      startNewSessionWriter,
+      sessionWriterInitPromiseRef,
+    })
   }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
   const enqueueSurfaceOp = useCallback((op: () => Promise<void>) => {
