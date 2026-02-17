@@ -16,6 +16,23 @@ type TurnNotification = {
   params: Record<string, unknown>
 }
 
+function normalizeReplayTailNotifications(args: {
+  notifications: TurnNotification[]
+  afterReplaySeq: number
+}): TurnNotification[] {
+  return args.notifications
+    .slice()
+    .sort(
+      (left, right) =>
+        Number((left.params.replaySeq as number) ?? 0) - Number((right.params.replaySeq as number) ?? 0),
+    )
+    .filter((entry) => Number((entry.params.replaySeq as number) ?? 0) > args.afterReplaySeq)
+    .filter((entry, index, arr) => {
+      if (index === 0) return true
+      return entry.params.replaySeq !== arr[index - 1]?.params.replaySeq
+    })
+}
+
 function applyNotifications(
   threadId: string,
   notifications: TurnNotification[],
@@ -498,6 +515,117 @@ describe('runtime replay parity', () => {
       selectTerminalTurnInvariantIssues({
         projection: rebuiltFromReplayTail.projection,
         runtimeState: rebuiltFromReplayTail.runtime,
+      }),
+    ).toEqual([])
+  })
+
+  it('keeps realtime and reconnect/gap/restart replay tail equivalent after normalization', () => {
+    const threadId = 'thread-runtime-reconnect-gap'
+    const turnId = 'turn-runtime-reconnect-gap'
+    const notifications: TurnNotification[] = [
+      {
+        method: 'turn/started',
+        params: {
+          replaySeq: 1,
+          eventId: 'g1',
+          ts: '2026-02-17T14:00:01.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, mode: 'normal', status: 'running' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 2,
+          eventId: 'g2',
+          ts: '2026-02-17T14:00:02.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: { type: 'assistant_delta', text: 'hello ' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 3,
+          eventId: 'g3',
+          ts: '2026-02-17T14:00:03.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: { type: 'assistant_delta', text: 'world' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 4,
+          eventId: 'g4',
+          ts: '2026-02-17T14:00:04.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: { type: 'tool_start', id: 'tool-r', name: 'Bash' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 5,
+          eventId: 'g5',
+          ts: '2026-02-17T14:00:05.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: {
+            type: 'tool_end',
+            id: 'tool-r',
+            result: { content: 'done', is_error: false, tool_use_id: 'tool-r' },
+          },
+        },
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          replaySeq: 6,
+          eventId: 'g6',
+          ts: '2026-02-17T14:00:06.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, status: 'completed' },
+        },
+      },
+    ]
+
+    const realtime = applyNotifications(threadId, notifications)
+
+    const baseline = applyNotifications(threadId, notifications.slice(0, 2))
+    const reconnectReplayTailRaw = [
+      notifications[1]!,
+      notifications[4]!,
+      notifications[3]!,
+      notifications[4]!,
+      notifications[5]!,
+      notifications[2]!,
+    ]
+    const normalizedReplayTail = normalizeReplayTailNotifications({
+      notifications: reconnectReplayTailRaw,
+      afterReplaySeq: 2,
+    })
+    const rebuiltFromReconnectTail = applyNotifications(threadId, normalizedReplayTail, {
+      projectionState: baseline.projection,
+      runtimeState: baseline.runtime,
+    })
+
+    expect(normalizedReplayTail.map((entry) => entry.params.replaySeq)).toEqual([3, 4, 5, 6])
+    expect(rebuiltFromReconnectTail.projection).toEqual(realtime.projection)
+    expect(rebuiltFromReconnectTail.runtime).toEqual(realtime.runtime)
+    expect(
+      selectTerminalTurnInvariantIssues({
+        projection: rebuiltFromReconnectTail.projection,
+        runtimeState: rebuiltFromReconnectTail.runtime,
       }),
     ).toEqual([])
   })
