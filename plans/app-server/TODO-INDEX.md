@@ -14,10 +14,3 @@
 3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
-
-## P4：Replay-First Invariants
-
-- [ ] N38 协议异常计数告警 fixture（含双请求路径去重）
-  - 目标：补齐 `hasGap -> baseline replay` 双请求路径下的告警去重断言。
-  - 验收：
-    - 正常路径与双请求路径均只记一次协议异常告警。

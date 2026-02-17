@@ -207,4 +207,39 @@ describe('replayThreadEvents', () => {
     expect(ctx.log).toHaveBeenCalledTimes(1)
     expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
   })
+
+  it('logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {
+    const gapState = createReplayState({
+      canonicalProtocolAnomalyCount: 2,
+      projection: null,
+    })
+    const baselineState = createReplayState({
+      canonicalProtocolAnomalyCount: 5,
+      projection: null,
+    })
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: gapState,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 120,
+        latestCursor: 120,
+        hasGap: false,
+        state: baselineState,
+      })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
+  })
 })
