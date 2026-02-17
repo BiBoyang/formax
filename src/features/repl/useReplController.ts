@@ -30,11 +30,13 @@ import {
 import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
   applyConfigExitInjection,
+  buildMessageByIdMap,
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
+  markDirtyMessageIdsFromTransition,
   openInitialSessionWriter as openInitialSessionWriterInternal,
-  persistStableMessagesFromSnapshot,
+  persistDirtyStableMessages,
   recordClaudeMdInjectionEvent,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
@@ -214,6 +216,9 @@ export function useReplController(deps: {
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
   const lastPersistedMsgByIdRef = useRef<Map<string, Msg>>(new Map())
+  const previousMessagesRef = useRef<Msg[]>(messages)
+  const messageByIdRef = useRef<Map<string, Msg>>(buildMessageByIdMap(messages))
+  const dirtyMessageIdsRef = useRef<Set<string>>(new Set(messages.map((message) => message.id)))
   const sessionWriterRefs: SessionWriterRefs = {
     sessionWriterRef,
     sessionWriterInitPromiseRef,
@@ -462,13 +467,34 @@ export function useReplController(deps: {
   }, [ensureSessionWriter, sessionSaveEnabled, shutdownSessionWriter])
 
   useEffect(() => {
-    persistStableMessagesFromSnapshot({
+    if (!sessionSaveEnabled) {
+      previousMessagesRef.current = messages
+      messageByIdRef.current = buildMessageByIdMap(messages)
+      dirtyMessageIdsRef.current.clear()
+      return
+    }
+    markDirtyMessageIdsFromTransition({
+      previous: previousMessagesRef.current,
+      next: messages,
+      messageByIdRef,
+      dirtyMessageIdsRef,
+    })
+    previousMessagesRef.current = messages
+  }, [messages, sessionSaveEnabled])
+
+  useEffect(() => {
+    if (!sessionSaveEnabled) {
+      dirtyMessageIdsRef.current.clear()
+      return
+    }
+    persistDirtyStableMessages({
       writer: sessionWriterRef.current,
-      messages,
+      dirtyMessageIdsRef,
+      messageByIdRef,
       lastPersistedSigByMsgIdRef,
       lastPersistedMsgByIdRef,
     })
-  }, [messages])
+  }, [messages, sessionSaveEnabled])
 
   useEffect(() => {
     const writer = sessionWriterRef.current

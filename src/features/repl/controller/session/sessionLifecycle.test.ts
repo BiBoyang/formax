@@ -3,6 +3,7 @@ import type { Msg } from '../../../../components/tool/ToolMessage'
 import {
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
+  persistDirtyStableMessages,
   persistStableMessagesFromSnapshot,
   shouldPersistUiMsg,
 } from './sessionLifecycle'
@@ -120,5 +121,29 @@ describe('sessionLifecycle', () => {
     expect(appendStableMsg).toHaveBeenCalledTimes(2)
     expect(sigRef.current.size).toBe(0)
     expect(msgRef.current.size).toBe(0)
+  })
+
+  it('persists only dirty ids and prunes removed/non-stable entries', () => {
+    const appendStableMsg = vi.fn(async () => {})
+    const writer = { appendStableMsg }
+    const stable = createMsg({ id: 'a1', content: 'first' })
+    const messageByIdRef = { current: new Map<string, Msg>([['a1', stable]]) }
+    const dirtyMessageIdsRef = { current: new Set<string>(['a1', 'removed']) }
+    const sigRef = { current: new Map<string, string>([['removed', 'x']]) }
+    const msgRef = { current: new Map<string, Msg>([['removed', createMsg({ id: 'removed' })]]) }
+
+    persistDirtyStableMessages({
+      writer,
+      dirtyMessageIdsRef,
+      messageByIdRef,
+      lastPersistedSigByMsgIdRef: sigRef,
+      lastPersistedMsgByIdRef: msgRef,
+    })
+
+    expect(appendStableMsg).toHaveBeenCalledTimes(1)
+    expect(appendStableMsg).toHaveBeenCalledWith(stable)
+    expect(dirtyMessageIdsRef.current.size).toBe(0)
+    expect(sigRef.current.has('removed')).toBe(false)
+    expect(msgRef.current.has('removed')).toBe(false)
   })
 })

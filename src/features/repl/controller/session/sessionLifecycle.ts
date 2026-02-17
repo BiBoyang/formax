@@ -67,6 +67,41 @@ export function persistStableMessagesFromSnapshot(args: {
   }
 }
 
+export function persistDirtyStableMessages(args: {
+  writer: Pick<SessionWriter, 'appendStableMsg'> | null
+  dirtyMessageIdsRef: MutableRefObject<Set<string>>
+  messageByIdRef: MutableRefObject<Map<string, Msg>>
+  lastPersistedSigByMsgIdRef: MutableRefObject<Map<string, string>>
+  lastPersistedMsgByIdRef: MutableRefObject<Map<string, Msg>>
+}): void {
+  const writer = args.writer
+  if (!writer) return
+  if (args.dirtyMessageIdsRef.current.size === 0) return
+
+  const dirtyIds = Array.from(args.dirtyMessageIdsRef.current)
+  args.dirtyMessageIdsRef.current.clear()
+
+  for (const id of dirtyIds) {
+    const msg = args.messageByIdRef.current.get(id)
+    if (!msg || !shouldPersistUiMsg(msg)) {
+      args.lastPersistedSigByMsgIdRef.current.delete(id)
+      args.lastPersistedMsgByIdRef.current.delete(id)
+      continue
+    }
+
+    const prevMsgRef = args.lastPersistedMsgByIdRef.current.get(id)
+    if (prevMsgRef === msg) continue
+
+    const sig = JSON.stringify(msg)
+    args.lastPersistedMsgByIdRef.current.set(id, msg)
+    const prevSig = args.lastPersistedSigByMsgIdRef.current.get(id)
+    if (prevSig === sig) continue
+
+    args.lastPersistedSigByMsgIdRef.current.set(id, sig)
+    void writer.appendStableMsg(msg)
+  }
+}
+
 export async function startNewSessionWriter(args: {
   sessionSaveEnabled: boolean
   cwd: string

@@ -1,6 +1,6 @@
 # useReplController / 语义化优化 Phase 4 TODO
 
-Status: `in_progress`  
+Status: `completed`  
 基线: `plans/repl/useReplController-optimizations-phase4.md`  
 目标: 在不改行为前提下，继续下沉 hook 内职责并补强语义契约。
 
@@ -16,5 +16,5 @@ Status: `in_progress`
 - [x] P4.3: `resetTranscriptSurface` 事务语义下沉到 `controller/ui/*`
 - [x] P4.5: 增加 1-2 个语义契约 fixture（近期踩坑）
 - [x] P4.1a: session 持久化签名缓存（同引用消息跳过 stringify）
-- [ ] P4.1: session 持久化增量化（dirty-id）
+- [x] P4.1: session 持久化增量化（dirty-id）
 - [x] P4.4: canonical transient 最小 setState（按 profiling 决定）
