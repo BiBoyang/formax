@@ -164,6 +164,43 @@ export async function replayThreadEvents(
     ctx.log(`Replay canonical protocol anomalies detected (count=${maxCanonicalProtocolAnomalyCountObserved})`, 'warn')
   }
 
+  const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {
+    if (replay.state?.projection) {
+      commitGapRebuild({
+        state: replay.state,
+        replayCursor: replay.latestCursor,
+        projectionSnapshot: replay.state.projection,
+        clearActiveLogs: false,
+      })
+      return
+    }
+
+    const baselineResult = await ctx.request('thread/replay', { threadId })
+    const baselineReplay = ctx.asThreadReplay(baselineResult)
+    if (baselineReplay.state) {
+      maybeLogInvariantIssues(baselineReplay.state)
+      observeCanonicalProtocolAnomalies(baselineReplay.state)
+      hydrateRuntimeState(baselineReplay.state, baselineReplay.latestCursor)
+      replayState = baselineReplay.state
+    }
+    if (baselineReplay.state?.projection) {
+      commitGapRebuild({
+        state: baselineReplay.state,
+        replayCursor: baselineReplay.latestCursor,
+        projectionSnapshot: baselineReplay.state.projection,
+        clearActiveLogs: false,
+      })
+      return
+    }
+
+    commitGapRebuild({
+      state: baselineReplay.state ?? null,
+      replayCursor: baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
+      projectionSnapshot: baselineReplay.state?.projection ?? null,
+      clearActiveLogs: true,
+    })
+  }
+
   while (pageCount < 100) {
     pageCount += 1
     const result = await ctx.request('thread/replay', { threadId, after, limit: 200 })
@@ -177,49 +214,7 @@ export async function replayThreadEvents(
     }
 
     if (replay.hasGap) {
-      if (replay.state?.projection) {
-        const rebuildState = commitGapRebuild({
-          state: replay.state,
-          replayCursor: replay.latestCursor,
-          projectionSnapshot: replay.state.projection,
-          clearActiveLogs: false,
-        })
-        if (rebuildState === 'deferred') {
-          flushCanonicalProtocolAnomaliesLog()
-          return true
-        }
-        flushCanonicalProtocolAnomaliesLog()
-        return true
-      }
-
-      const baselineResult = await ctx.request('thread/replay', { threadId })
-      const baselineReplay = ctx.asThreadReplay(baselineResult)
-      if (baselineReplay.state) {
-        maybeLogInvariantIssues(baselineReplay.state)
-        observeCanonicalProtocolAnomalies(baselineReplay.state)
-        hydrateRuntimeState(baselineReplay.state, baselineReplay.latestCursor)
-        replayState = baselineReplay.state
-      }
-      if (baselineReplay.state?.projection) {
-        const rebuildState = commitGapRebuild({
-          state: baselineReplay.state,
-          replayCursor: baselineReplay.latestCursor,
-          projectionSnapshot: baselineReplay.state.projection,
-          clearActiveLogs: false,
-        })
-        if (rebuildState === 'deferred') {
-          flushCanonicalProtocolAnomaliesLog()
-          return true
-        }
-        flushCanonicalProtocolAnomaliesLog()
-        return true
-      }
-      commitGapRebuild({
-        state: baselineReplay.state ?? null,
-        replayCursor: baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
-        projectionSnapshot: baselineReplay.state?.projection ?? null,
-        clearActiveLogs: true,
-      })
+      await handleHasGapReplay(replay)
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
