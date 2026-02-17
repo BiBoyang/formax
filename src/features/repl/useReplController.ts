@@ -42,6 +42,7 @@ import {
   registerSessionWriterProcessHandlers,
   runAbortSessionTransition,
   runNewSessionTransition,
+  runResumeSessionTransition,
   type SessionWriterRefs,
 } from './controller/session/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
@@ -589,38 +590,21 @@ export function useReplController(deps: {
 
       abort()
       closeResumeDialog()
-
-      const replay = await readSessionFile(filePath)
-      deps.engine.beginNewSession?.({ source: 'resume' })
-
-      // Flush and close the current writer (if any) before switching to the resumed session file.
-      if (sessionSaveEnabled) {
-        const old = sessionWriterRef.current
-        sessionWriterRef.current = null
-        lastPersistedSigByMsgIdRef.current = new Map()
-        void (async () => {
-          if (!old) return
-          await old.appendEvent('resume_switch', { to: filePath })
-          await old.shutdown()
-        })()
-      }
-
-      // Reset transient runtime state, then restore persisted state.
-      resetSessionState()
-      historyRef.current = replay.history
-
-      // Replace transcript and remount Ink <Static> so old append-only content disappears.
-      setMessages(() => replay.messages)
-      lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(replay.messages)
-      setTranscriptSeq((n) => n + 1)
-      void deps.onClearTerminal?.()
-
-      if (sessionSaveEnabled) {
-        const writer = await SessionWriter.openExisting({ filePath })
-        sessionWriterRef.current = writer
-        await writer.appendEvent('resume')
-        await writer.appendHistorySnapshot(historyRef.current)
-      }
+      await runResumeSessionTransition({
+        filePath,
+        readSessionFile,
+        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
+        sessionSaveEnabled,
+        sessionWriterRef,
+        lastPersistedSigByMsgIdRef,
+        resetSessionState,
+        historyRef,
+        setMessages,
+        setTranscriptSeq,
+        onClearTerminal: deps.onClearTerminal,
+        openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
+        buildPersistedSigMap,
+      })
     },
     [
       abort,
@@ -630,8 +614,6 @@ export function useReplController(deps: {
       isLoading,
       resetSessionState,
       sessionSaveEnabled,
-      setMessages,
-      setTranscriptSeq,
     ],
   )
 

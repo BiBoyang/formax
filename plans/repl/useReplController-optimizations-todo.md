@@ -16,7 +16,7 @@ Status: `in_progress`
   位置: `src/features/repl/useReplController.ts` -> `src/features/repl/controller/session/*`  
   目标: 下沉 `SIGINT/SIGTERM/beforeExit/uncaughtException/unhandledRejection` flush 逻辑，hook 仅保留调用。
 
-- [ ] S2: 抽出 `runResumeSessionTransition`，统一三类 session 切换  
+- [x] S2: 抽出 `runResumeSessionTransition`，统一三类 session 切换  
   位置: `src/features/repl/controller/session/sessionTransitions.ts`  
   目标: `abort/newSession/resume` 同风格；`useReplController` 内 `resumeSession` 仅保留 guard + orchestration。
 
