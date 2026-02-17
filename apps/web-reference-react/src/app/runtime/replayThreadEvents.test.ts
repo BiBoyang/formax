@@ -171,7 +171,7 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
   }
 }
 
-function createReplayRequestWithCursorAdvance(args: {
+function createReplayRequestWithCursorProgress(args: {
   latestCursor: number
   step?: number
   state?: ReplayStateSnapshot
@@ -293,7 +293,7 @@ describe('replayThreadEvents', () => {
 
   describe('pagination paths', () => {
     it('[pagination] stops at page limit when replay stream keeps advancing without terminal cursor', async () => {
-      const request = createReplayRequestWithCursorAdvance({ latestCursor: 1000, step: 1 })
+      const request = createReplayRequestWithCursorProgress({ latestCursor: 1000, step: 1 })
       const ctx = createReplayContext({ request })
 
       const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
@@ -343,7 +343,7 @@ describe('replayThreadEvents', () => {
     })
 
     it('[pagination] logs invariant and anomaly warnings once on page-limit termination', async () => {
-      const request = createReplayRequestWithCursorAdvance({
+      const request = createReplayRequestWithCursorProgress({
         latestCursor: 1000,
         step: 1,
         state: createReplayState({

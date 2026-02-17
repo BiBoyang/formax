@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N80 replay progression helper 命名统一（progress/cursor）
-  - 目标：减少 helper 名称中 “advance/progress/cursor” 混用，提升可读性。
+- [ ] N81 replay helper 参数对象化（multi-arg -> named args）
+  - 目标：对易混淆 helper 参数采用对象入参，提高后续字段扩展可维护性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N81 replay helper 参数对象化（multi-arg -> named args）
-  - 目标：对易混淆 helper 参数采用对象入参，提高后续字段扩展可维护性。
+- [ ] N82 replay request helper 参数默认值集中化
+  - 目标：收敛 request helper 的默认参数逻辑，避免分散在各 helper 内部。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
