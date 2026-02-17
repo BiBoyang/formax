@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadActions, type ThreadActionsContext } from './threadActions'
+import { pruneThreadScopedRefs } from './threadScopedRefs'
 
 type ThreadActionsTestOverrides = Partial<Omit<ThreadActionsContext, 'state'>> & {
   state?: Partial<ThreadActionsContext['state']>
@@ -359,5 +360,69 @@ describe('threadActions', () => {
       expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-a')
     })
     expect(ctx.refreshWorkspaceDiff).not.toHaveBeenCalledWith('/repo-b')
+  })
+})
+
+describe('pruneThreadScopedRefs', () => {
+  it('keeps only refs that belong to current thread ids', () => {
+    const replayCursorByThreadRef = { current: { 'thread-1': 10, 'thread-2': 20 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1, 'thread-2': 2 } }
+    const runtimeStateByThreadRef = {
+      current: {
+        'thread-1': { threadId: 'thread-1', mode: 'normal' },
+        'thread-2': { threadId: 'thread-2', mode: 'plan' },
+      } as any,
+    }
+
+    pruneThreadScopedRefs({
+      threadIds: ['thread-2'],
+      replayCursorByThreadRef,
+      replayAnomalyCountSeenByThreadRef,
+      runtimeStateByThreadRef,
+    })
+
+    expect(replayCursorByThreadRef.current).toEqual({ 'thread-2': 20 })
+    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ 'thread-2': 2 })
+    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual(['thread-2'])
+  })
+
+  it('clears all refs when no threads remain', () => {
+    const replayCursorByThreadRef = { current: { 'thread-1': 10 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1 } }
+    const runtimeStateByThreadRef = { current: { 'thread-1': { threadId: 'thread-1' } } as any }
+
+    pruneThreadScopedRefs({
+      threadIds: [],
+      replayCursorByThreadRef,
+      replayAnomalyCountSeenByThreadRef,
+      runtimeStateByThreadRef,
+    })
+
+    expect(replayCursorByThreadRef.current).toEqual({})
+    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({})
+    expect(runtimeStateByThreadRef.current).toEqual({})
+  })
+
+  it('keeps preserved thread ids even when absent from current thread ids', () => {
+    const replayCursorByThreadRef = { current: { 'thread-1': 10, 'thread-2': 20 } }
+    const replayAnomalyCountSeenByThreadRef = { current: { 'thread-1': 1, 'thread-2': 2 } }
+    const runtimeStateByThreadRef = {
+      current: {
+        'thread-1': { threadId: 'thread-1', mode: 'normal' },
+        'thread-2': { threadId: 'thread-2', mode: 'plan' },
+      } as any,
+    }
+
+    pruneThreadScopedRefs({
+      threadIds: [],
+      preservedThreadIds: ['thread-2'],
+      replayCursorByThreadRef,
+      replayAnomalyCountSeenByThreadRef,
+      runtimeStateByThreadRef,
+    })
+
+    expect(replayCursorByThreadRef.current).toEqual({ 'thread-2': 20 })
+    expect(replayAnomalyCountSeenByThreadRef.current).toEqual({ 'thread-2': 2 })
+    expect(Object.keys(runtimeStateByThreadRef.current)).toEqual(['thread-2'])
   })
 })

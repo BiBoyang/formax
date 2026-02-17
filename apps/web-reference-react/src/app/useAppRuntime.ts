@@ -40,6 +40,7 @@ import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
 import { useRpcRequest } from './runtime/useRpcRequest'
 import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
+import { pruneThreadScopedRefs } from './runtime/threadScopedRefs'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -131,13 +132,34 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
 
+  const pruneThreadScopedRuntimeRefs = useCallback(
+    (threads: Array<{ id: string }>) => {
+      const preservedThreadIds = Array.from(
+        new Set(
+          Array.from(pendingArchiveOpsRef.current.values())
+            .map((entry) => entry.threadId)
+            .filter((threadId) => threadId.length > 0),
+        ),
+      )
+      pruneThreadScopedRefs({
+        threadIds: threads.map((thread) => thread.id),
+        preservedThreadIds,
+        replayCursorByThreadRef,
+        replayAnomalyCountSeenByThreadRef,
+        runtimeStateByThreadRef,
+      })
+    },
+    [],
+  )
+
   useEffect(() => {
     selectedCwdRef.current = selectedCwd
   }, [selectedCwd])
 
   useEffect(() => {
     threadsRef.current = state.threads
-  }, [state.threads])
+    pruneThreadScopedRuntimeRefs(state.threads)
+  }, [pruneThreadScopedRuntimeRefs, state.threads])
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -228,6 +250,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         const tracked = pendingArchiveOpsRef.current.get(opId)
         if (tracked) {
           pendingArchiveOpsRef.current.delete(opId)
+          pruneThreadScopedRuntimeRefs(threadsRef.current)
           setNoticeMessage(formatArchiveNotice(tracked.thread))
         }
       }
@@ -261,7 +284,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       setSelectedCwd(null)
       void refreshWorkspaceDiff(null).catch(() => undefined)
     },
-    [dispatch, refreshWorkspaceDiff, setSelectedCwd],
+    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setSelectedCwd],
   )
 
   const handleNotification = useCallback(
@@ -410,6 +433,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         refreshWorkspaceDiff,
         trackArchiveOp: ({ opId, threadId, thread }) => {
           pendingArchiveOpsRef.current.set(opId, { threadId, thread: thread ?? null })
+          pruneThreadScopedRuntimeRefs(threadsRef.current)
         },
         clearArchiveOp: (opId) => {
           return pendingArchiveOpsRef.current.delete(opId)
@@ -426,6 +450,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       request,
       resumeThreadInputs,
       selectedCwd,
+      pruneThreadScopedRuntimeRefs,
       sortedThreads,
       state.activeThreadId,
       state.activeTurnId,
