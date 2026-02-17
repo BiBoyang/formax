@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N59 replayThreadEvents 测试基座工厂精简
-  - 目标：收敛 `createBaseContext` 的可选覆盖写法，减少后续新增 case 时样板噪音。
+- [ ] N61 replayThreadEvents 测试分组结构化
+  - 目标：将当前按前缀命名的测试进一步拆分为嵌套 describe，提升浏览效率。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N60 replay test fixture builder 复用化
-  - 目标：为常见 replay 响应体（empty/hasGap/baseline/paged）引入小型 builder，减少重复字面量。
+- [ ] N62 replay test data 字段最小集收敛
+  - 目标：统一测试数据的最小字段模板，减少无关字段噪音（保持语义可读）。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

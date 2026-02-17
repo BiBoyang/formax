@@ -6,6 +6,8 @@ import {
 } from './replayThreadEvents'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
+type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
+
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',
@@ -48,6 +50,25 @@ function createBaseContext(overrides: Partial<ReplayThreadEventsContext> = {}): 
   }
 }
 
+function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
+  return {
+    data: [],
+    nextCursor: 0,
+    latestCursor: 0,
+    hasGap: false,
+    state: null,
+    ...overrides,
+  } as ReplayPage
+}
+
+function createReplayRequestSequence(...pages: ReplayPage[]) {
+  const request = vi.fn()
+  for (const page of pages) {
+    request.mockResolvedValueOnce(page)
+  }
+  return request
+}
+
 describe('resolveReplayCursorProgress', () => {
   it('continues when next cursor advances but remains below latest cursor', () => {
     expect(resolveReplayCursorProgress({ after: 10, nextCursor: 11, latestCursor: 20 })).toEqual({
@@ -82,22 +103,19 @@ describe('resolveReplayCursorProgress', () => {
 describe('replayThreadEvents', () => {
   it('[rebuild] uses replay-first rebuild on hasGap and clears cached logs', async () => {
     const gapState = createReplayState()
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [],
+    const request = createReplayRequestSequence(
+      createReplayPage({
         nextCursor: 50,
         latestCursor: 120,
         hasGap: true,
         state: gapState,
-      })
-      .mockResolvedValueOnce({
-        data: [],
+      }),
+      createReplayPage({
         nextCursor: 120,
         latestCursor: 120,
-        hasGap: false,
         state: gapState,
-      })
+      }),
+    )
     const ctx = createBaseContext({ request })
 
     const ok = await replayThreadEvents('thread-1', undefined, ctx)
@@ -119,13 +137,13 @@ describe('replayThreadEvents', () => {
 
   it('[history] loads history and keeps cursor at zero for fromStart empty replay', async () => {
     const replayState = createReplayState()
-    const request = vi.fn().mockResolvedValueOnce({
-      data: [],
-      nextCursor: 0,
-      latestCursor: 0,
-      hasGap: false,
-      state: replayState,
-    })
+    const request = createReplayRequestSequence(
+      createReplayPage({
+        nextCursor: 0,
+        latestCursor: 0,
+        state: replayState,
+      }),
+    )
     const ctx = createBaseContext({
       request,
       loadThreadHistory: vi.fn().mockResolvedValue(true),
@@ -146,13 +164,13 @@ describe('replayThreadEvents', () => {
   })
 
   it('[history] returns false when fromStart empty replay cannot load history', async () => {
-    const request = vi.fn().mockResolvedValueOnce({
-      data: [],
-      nextCursor: 0,
-      latestCursor: 0,
-      hasGap: false,
-      state: null,
-    })
+    const request = createReplayRequestSequence(
+      createReplayPage({
+        nextCursor: 0,
+        latestCursor: 0,
+        state: null,
+      }),
+    )
     const ctx = createBaseContext({
       request,
       loadThreadHistory: vi.fn().mockResolvedValue(false),
@@ -189,13 +207,13 @@ describe('replayThreadEvents', () => {
 
   it('[pagination] exits loop when next cursor does not advance beyond current after', async () => {
     const replayState = createReplayState()
-    const request = vi.fn().mockResolvedValueOnce({
-      data: [],
-      nextCursor: 50,
-      latestCursor: 200,
-      hasGap: false,
-      state: replayState,
-    })
+    const request = createReplayRequestSequence(
+      createReplayPage({
+        nextCursor: 50,
+        latestCursor: 200,
+        state: replayState,
+      }),
+    )
     const ctx = createBaseContext({ request })
 
     const ok = await replayThreadEvents('thread-1', undefined, ctx)
@@ -208,13 +226,13 @@ describe('replayThreadEvents', () => {
 
   it('[pagination] exits loop when next cursor reaches latest cursor', async () => {
     const replayState = createReplayState()
-    const request = vi.fn().mockResolvedValueOnce({
-      data: [],
-      nextCursor: 120,
-      latestCursor: 120,
-      hasGap: false,
-      state: replayState,
-    })
+    const request = createReplayRequestSequence(
+      createReplayPage({
+        nextCursor: 120,
+        latestCursor: 120,
+        state: replayState,
+      }),
+    )
     const ctx = createBaseContext({ request })
 
     const ok = await replayThreadEvents('thread-1', undefined, ctx)
