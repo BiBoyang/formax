@@ -37,8 +37,3 @@
   - 待做：评估 `sendMainTurn.ts:76` user anchor 直写是否保留为允许例外。
   - 待做：若保留例外，更新验收标准与 write-point 文档，明确“语义主路径 vs UI anchor”的边界。
   - 验收：语义主路径不再依赖 direct transcript write（仅允许已文档化的例外点）。
-
-## P2：Replay-First 恢复一致性
-
-- [ ] R1 gap/reconnect/restart 三场景统一恢复流程
-  - 待做：把当前 web-runtime 回归结果沉淀到里程碑文档（A/B/C 现状 + 证据命令），然后从 TODO-INDEX 移除本项。
