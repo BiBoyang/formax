@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N56 replay 分页推进边界（next<=after 与 next>=latest）覆盖
-  - 目标：补齐分页推进两个边界条件的行为测试，确保循环按预期退出并更新 cursor。
-  - 验收：
-    - 新增边界条件测试并通过。
-
 - [ ] N57 replay 分页路径日志行为回归补齐
   - 目标：补齐分页上限与推进边界场景下 anomaly/invariant 日志触发次数回归，避免重复告警。
   - 验收：
     - 新增日志次数断言测试并通过。
+
+- [ ] N58 replay 条件分支测试命名与分组整理
+  - 目标：将 `replayThreadEvents.test.ts` 按 helper/rebuild/pagination 三组整理，降低后续维护噪音。
+  - 验收：
+    - 保持行为不变，仅做测试结构重排并通过。

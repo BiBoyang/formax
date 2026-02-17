@@ -187,6 +187,44 @@ describe('replayThreadEvents', () => {
     expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
   })
 
+  it('exits loop when next cursor does not advance beyond current after', async () => {
+    const replayState = createReplayState()
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 50,
+      latestCursor: 200,
+      hasGap: false,
+      state: replayState,
+    })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+    expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+  })
+
+  it('exits loop when next cursor reaches latest cursor', async () => {
+    const replayState = createReplayState()
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 120,
+      latestCursor: 120,
+      hasGap: false,
+      state: replayState,
+    })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
+    expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+  })
+
   it('logs replay invariant issues once per replay request', async () => {
     const replayState = createReplayState({
       invariantIssues: [
