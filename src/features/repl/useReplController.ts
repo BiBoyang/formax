@@ -7,6 +7,7 @@ import type { Msg } from '../../components/tool/ToolMessage'
 import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
+import type { LocalCommandRecord } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
@@ -319,6 +320,34 @@ export function useReplController(deps: {
       void sessionWriterRef.current?.appendEvent('compact_failed', {
         source: event.source,
         error: event.error,
+      })
+    },
+    [sessionSaveEnabled],
+  )
+
+  const onCompactRequested = useCallback(() => {
+    recordCompactRequestedEvent({ sessionSaveEnabled, writer: sessionWriterRef.current })
+  }, [sessionSaveEnabled])
+
+  const onSlashLocalAsyncRecordForNextTurn = useCallback(
+    (record: LocalCommandRecord) => {
+      recordLocalCommandInjectionEvent({
+        sessionSaveEnabled,
+        writer: sessionWriterRef.current,
+        source: 'slash_local_async',
+        record,
+      })
+    },
+    [sessionSaveEnabled],
+  )
+
+  const onSlashLocalRecordForNextTurn = useCallback(
+    (record: LocalCommandRecord) => {
+      recordLocalCommandInjectionEvent({
+        sessionSaveEnabled,
+        writer: sessionWriterRef.current,
+        source: 'slash_local',
+        record,
       })
     },
     [sessionSaveEnabled],
@@ -773,21 +802,9 @@ export function useReplController(deps: {
         ...sendStateSetters,
         handleEvent,
         onCompactLifecycle,
-        onCompactRequested: () => recordCompactRequestedEvent({ sessionSaveEnabled, writer: sessionWriterRef.current }),
-        onSlashLocalAsyncRecordForNextTurn: (rec) =>
-          recordLocalCommandInjectionEvent({
-            sessionSaveEnabled,
-            writer: sessionWriterRef.current,
-            source: 'slash_local_async',
-            record: rec,
-          }),
-        onSlashLocalRecordForNextTurn: (rec) =>
-          recordLocalCommandInjectionEvent({
-            sessionSaveEnabled,
-            writer: sessionWriterRef.current,
-            source: 'slash_local',
-            record: rec,
-          }),
+        onCompactRequested,
+        onSlashLocalAsyncRecordForNextTurn,
+        onSlashLocalRecordForNextTurn,
       })
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect
@@ -886,12 +903,14 @@ export function useReplController(deps: {
       nextCanonicalTurnSeq,
       isLoading,
       newSession,
+      onCompactRequested,
       openOverlay,
+      onSlashLocalAsyncRecordForNextTurn,
+      onSlashLocalRecordForNextTurn,
       resetStreamingBuffers,
       runtimeCwd,
       runtimeEnv,
       runtimeFlags,
-      sessionSaveEnabled,
       setReplMode,
       userInput,
       onCompactLifecycle,

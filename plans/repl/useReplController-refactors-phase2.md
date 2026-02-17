@@ -45,7 +45,7 @@ Status: `in_progress`
 - [x] T3 split mainTurnDeps/mainTurnRefs construction lower。
 - [x] T4 split abort/newSession/reset coordination into session helper。
 - [x] T5 split canonical event orchestration helper。
-- [ ] T6 reduce callback dependency noise。
+- [x] T6 reduce callback dependency noise。
 - [ ] T7 add action-level matrix tests。
 - [ ] T8 semantics fixture cross check（no duplicate tool row + assistant retained）。
 - [ ] T9 add one cross-end contract each for `threadRuntimeState` and `inputStateMachine`。
