@@ -430,6 +430,37 @@ AskUserQuestion payload：
     lastTurnId: string | null
     lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
     pendingInputCount: number
+    pendingInputs: Array<{
+      inputId: string
+      threadId: string
+      turnId: string
+      toolUseId: string
+      kind: 'approval' | 'ask_user_question'
+      status: 'pending'
+      createdAt: string
+      expiresAt: string
+      payload: unknown
+    }>
+    invariantIssues: Array<
+      | {
+          kind: 'running_tool_after_terminal_turn'
+          turnId: string
+          toolUseId: string
+        }
+      | {
+          kind: 'pending_input_after_terminal_turn'
+          turnId: string
+          inputId: string
+          toolUseId: string
+        }
+    >
+    projection: {
+      segments: Array<Record<string, unknown>>
+      lastReplaySeq: number
+      toolNameByUseId: Record<string, string>
+      openAssistantSegmentIdByTurn: Record<string, string>
+      openThinkingSegmentIdByTurn: Record<string, string>
+    } | null
     toolNameByUseId: Record<string, string>
     updatedAt: string
   } | null
@@ -443,6 +474,9 @@ AskUserQuestion payload：
 - `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
 - `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
 - `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。
+- `state.projection` 仅在“首帧同步（`after` 缺省）”或“`hasGap=true`”时可能返回快照；普通增量拉取下通常为 `null`。
+- `state.invariantIssues` 仅在存在 projection 时可检测；当 projection 缺失时固定为空数组 `[]`。
+- `state = null` 条件：服务端当前无该线程 runtime state，且未命中 fallback 条件（`hasGap=true` 且存在 projection）。`state != null` 时上述字段全部可用。
 
 ## 5.5 `turn/start`
 

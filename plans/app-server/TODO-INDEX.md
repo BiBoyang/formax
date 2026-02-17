@@ -14,11 +14,3 @@
 3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
-
-## P2：Contract & Adapter Consolidation
-
-- [ ] N23 app-server replay state contract文档化（字段级）
-  - 目标：把 `thread/replay.result.state` 字段（含 `invariantIssues`）同步到 `plans/app-server/API-REFERENCE.md`。
-  - 验收：
-    - 文档字段与当前实现一致（含可空性与类型约束）。
-    - 对 `state=null` 与 `state!=null` 的判定条件有明确说明。
