@@ -2165,6 +2165,13 @@ describe('useReplController auto-compact', () => {
       ),
     )
     await waitFor(() => controller.state.isLoading === false)
+    const compactNoticeRows = controller.state.messages.filter(
+      (m) =>
+        m.role === 'assistant' &&
+        m.ui?.kind === 'command_subline' &&
+        m.content.includes('Conversation history auto-compacted'),
+    )
+    expect(compactNoticeRows).toHaveLength(1)
 
     // 1st: first, 2nd: second, 3rd: compact, 4th: third
     expect(runTurn).toHaveBeenCalledTimes(4)
