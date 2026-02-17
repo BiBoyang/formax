@@ -105,6 +105,11 @@
 - `eventId: string`（建议 `${turnId}:${seq}`）
 - `source: engine | tool | policy | system`
 
+权威边界（path-scoped authority）：
+
+- app-server 路径（network-visible）：envelope 由 server 侧产出并保证稳定，客户端不得补造后再进入 projector。
+- local TUI 路径（no server hop）：可由本地 runtime 生成 envelope，但字段契约与排序语义必须与 app-server 路径等价。
+
 ## 3.1 turn/started
 
 - 载荷：`{ turn: { id, threadId, status: "running", mode } }`

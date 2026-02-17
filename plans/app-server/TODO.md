@@ -55,7 +55,7 @@
   - 验收：
     - 同一 fixture 下，local runtime 生成 envelope 的语义输出与 server 路径一致。
 
-- [ ] A4 把“按路径分层权威”写入 Contract 附录（非替代正文）
+- [x] A4 把“按路径分层权威”写入 Contract 附录（非替代正文）
   - 文件：
     - `plans/app-server/INTERACTION-CONTRACT.md`
     - `plans/app-server/API-REFERENCE.md`

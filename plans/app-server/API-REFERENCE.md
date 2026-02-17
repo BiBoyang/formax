@@ -272,6 +272,9 @@ AskUserQuestion payload：
 
 - `replaySeq` 是跨 turn 的全局游标，客户端应优先按它排序与去重。
 - `seq` 仅在单个 turn 内递增，不能单独作为跨 turn 排序键。
+- authority 按路径分层：
+  - app-server 路径：envelope 必须由 server 侧完整产出；客户端不应补造后参与语义投影。
+  - local TUI 路径：可由 runtime 本地产出 envelope，但必须与本节字段契约保持等价。
 
 ## 5. JSON-RPC 方法
 
