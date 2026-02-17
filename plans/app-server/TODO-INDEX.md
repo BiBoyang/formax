@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N71 replay cursor/limit 断言常量化（request payload）
-  - 目标：统一 replay 请求断言中的 `after/limit` 字面量，避免参数调整时多处改动。
+- [ ] N72 replay runtime-state 断言 helper 化（lastReplaySeq/cursor）
+  - 目标：收敛重复的 runtime-state 断言模式，降低后续语义字段迁移时的改动面。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N72 replay runtime-state 断言 helper 化（lastReplaySeq/cursor）
-  - 目标：收敛重复的 runtime-state 断言模式，降低后续语义字段迁移时的改动面。
+- [ ] N73 replay hasGap 场景 builder 收敛（gap/baseline 双页）
+  - 目标：为 hasGap + baseline 双页路径提供轻量 fixture builder，减少重复数据拼装。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

@@ -13,6 +13,9 @@ const INITIAL_REPLAY_CURSOR = 50
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
+const REPLAY_PAGE_LIMIT = 200
+const REPLAY_CURSOR_FROM_START = 0
+const REPLAY_CURSOR_REBUILD_COMPLETE = 120
 
 function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn/progress' = 'turn/started') {
   return {
@@ -20,6 +23,14 @@ function createReplayTurnEvent(replaySeq: number, method: 'turn/started' | 'turn
     method,
     params: { replaySeq },
   }
+}
+
+function expectReplayPageRequestArgs(request: ReturnType<typeof vi.fn>, nth: number, after: number) {
+  expect(request).toHaveBeenNthCalledWith(nth, 'thread/replay', {
+    threadId: TEST_THREAD_ID,
+    after,
+    limit: REPLAY_PAGE_LIMIT,
+  })
 }
 
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
@@ -170,11 +181,7 @@ describe('replayThreadEvents', () => {
     const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
     expect(ok).toBe(true)
-    expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
-      threadId: TEST_THREAD_ID,
-      after: INITIAL_REPLAY_CURSOR,
-      limit: 200,
-    })
+    expectReplayPageRequestArgs(request, 1, INITIAL_REPLAY_CURSOR)
     expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'replace_logs', logs: [] })
     expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
@@ -202,11 +209,7 @@ describe('replayThreadEvents', () => {
       const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
       expect(ok).toBe(true)
-      expect(request).toHaveBeenCalledWith('thread/replay', {
-        threadId: TEST_THREAD_ID,
-        after: 0,
-        limit: 200,
-      })
+      expectReplayPageRequestArgs(request, 1, REPLAY_CURSOR_FROM_START)
       expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
       expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(0)
       expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
@@ -645,17 +648,9 @@ describe('replayThreadEvents', () => {
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
-      expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
-        threadId: TEST_THREAD_ID,
-        after: 50,
-        limit: 200,
-      })
+      expectReplayPageRequestArgs(request, 1, INITIAL_REPLAY_CURSOR)
       expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
-      expect(request).toHaveBeenNthCalledWith(3, 'thread/replay', {
-        threadId: TEST_THREAD_ID,
-        after: 120,
-        limit: 200,
-      })
+      expectReplayPageRequestArgs(request, 3, REPLAY_CURSOR_REBUILD_COMPLETE)
       expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
