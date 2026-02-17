@@ -1,6 +1,6 @@
 import { RpcRequestError } from '../../rpcClient'
 import type { ThreadSummary } from '../../types'
-import type { ThreadRuntimeState } from '../../../../../src/features/semantics/threadRuntimeState'
+import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 import type { PendingInput } from '../../types'
 
 export type RpcErrorDetails = {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from '../transcriptProjection'
-import { toCanonicalEventsFromStreamEvent } from '../streamCanonicalAdapter'
-import { toCanonicalEventsFromTurnNotification } from '../turnNotificationCanonicalAdapter'
+import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from '../projection/transcriptProjection'
+import { toCanonicalEventsFromStreamEvent } from '../adapters/streamCanonicalAdapter'
+import { toCanonicalEventsFromTurnNotification } from '../adapters/turnNotificationCanonicalAdapter'
 
 function normalizeSegments(segments: ReturnType<typeof createInitialTranscriptProjectionState>['segments']) {
   return segments.map((segment) => {

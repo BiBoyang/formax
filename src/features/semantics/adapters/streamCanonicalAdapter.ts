@@ -1,10 +1,10 @@
-import type { StreamEvent } from '../../streaming/types'
+import type { StreamEvent } from '../../../streaming/types'
 import type {
   CanonicalEvent,
   CanonicalEventEnvelope,
   CanonicalEventSource,
-} from './canonicalEvents'
-import { formatToolInputAsParamsText } from '../tools/presentation/paramsText'
+} from '../core/canonicalEvents'
+import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 
 type StreamCanonicalContext = {
   threadId: string

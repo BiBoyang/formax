@@ -1,8 +1,8 @@
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
-} from '../../../src/features/semantics/transcriptProjection'
-import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
+} from '../../../src/features/semantics/projection/transcriptProjection'
+import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
 import type { ThreadMessage, TranscriptItem } from './types'
 
 function toHistoryTurnId(threadId: string, messageId: string): string {

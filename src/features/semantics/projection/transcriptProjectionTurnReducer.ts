@@ -1,4 +1,4 @@
-import type { CanonicalTurnFooterEvent } from './canonicalEvents'
+import type { CanonicalTurnFooterEvent } from '../core/canonicalEvents'
 import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { TranscriptSegment, TurnFooterSegment } from './transcriptProjectionTypes'
 

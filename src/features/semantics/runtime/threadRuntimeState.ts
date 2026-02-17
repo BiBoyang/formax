@@ -1,4 +1,4 @@
-import { isReplMode, type ReplMode } from './replModeTransition'
+import { isReplMode, type ReplMode } from '../core/replModeTransition'
 export type ThreadRuntimePendingInputKind = 'approval' | 'ask_user_question'
 const MAX_STICKY_TOOL_NAMES = 512
 

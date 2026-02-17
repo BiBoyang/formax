@@ -1,4 +1,4 @@
-import { buildInitPrompt } from '../../prompts/init'
+import { buildInitPrompt } from '../../../prompts/init'
 
 export type SlashResolution = {
   raw: string

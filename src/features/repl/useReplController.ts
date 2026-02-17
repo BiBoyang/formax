@@ -61,12 +61,12 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
-import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../semantics/replModeTransition'
+import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../semantics/core/replModeTransition'
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
-} from '../semantics/transcriptProjection'
-import type { CanonicalEvent } from '../semantics/canonicalEvents'
+} from '../semantics/projection/transcriptProjection'
+import type { CanonicalEvent } from '../semantics/core/canonicalEvents'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 

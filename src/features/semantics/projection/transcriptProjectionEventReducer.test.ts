@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CanonicalEvent } from './canonicalEvents'
+import type { CanonicalEvent } from '../core/canonicalEvents'
 import { applyNonMessageProjectionEvent } from './transcriptProjectionEventReducer'
 import { createTranscriptSegmentId } from './transcriptProjectionIds'
 import type { ProjectionDraft } from './transcriptProjectionCore'

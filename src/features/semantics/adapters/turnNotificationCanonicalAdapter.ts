@@ -1,5 +1,5 @@
-import type { CanonicalEvent, CanonicalEventSource } from './canonicalEvents'
-import { formatToolInputAsParamsText } from '../tools/presentation/paramsText'
+import type { CanonicalEvent, CanonicalEventSource } from '../core/canonicalEvents'
+import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 
 type TurnNotification = {
   method: string

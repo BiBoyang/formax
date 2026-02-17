@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildModeSemantics } from '../modeSemantics.js'
+import { buildModeSemantics } from '../core/modeSemantics.js'
 
 describe('ModeSemantics contract', () => {
   it('keeps mode prompt injection stable', () => {

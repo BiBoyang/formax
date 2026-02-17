@@ -36,8 +36,8 @@
 
 - [x] T0 定义统一 `CanonicalEvent` 与 `Segment` 模型
   - 文件：
-    - 新增 `src/features/semantics/canonicalEvents.ts`
-    - 新增 `src/features/semantics/transcriptProjection.ts`
+    - 新增 `src/features/semantics/core/canonicalEvents.ts`
+    - 新增 `src/features/semantics/projection/transcriptProjection.ts`
   - 要点：
     - Event Envelope 最小字段：`threadId/turnId/eventId/replaySeq/ts/source`
     - tool 粘性字段缓存：`toolUseId -> toolName`
@@ -47,7 +47,7 @@
 
 - [x] T1 实现唯一投影 reducer：`reduceTranscriptProjection`
   - 文件：
-    - `src/features/semantics/transcriptProjection.ts`
+    - `src/features/semantics/projection/transcriptProjection.ts`
   - 要点：
     - delta 只能 append 到“当前打开 segment”
     - tool event 到来必须关闭当前文本 segment

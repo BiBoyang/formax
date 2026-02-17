@@ -1,5 +1,5 @@
-import type { CanonicalMessageUiKind, ToolInputKind, ToolInputStatus } from './canonicalEvents'
-import type { TokenUsage } from '../../streaming/types'
+import type { CanonicalMessageUiKind, ToolInputKind, ToolInputStatus } from '../core/canonicalEvents'
+import type { TokenUsage } from '../../../streaming/types'
 
 export type UserSegment = {
   id: string

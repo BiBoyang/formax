@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CanonicalEvent } from '../../../semantics/canonicalEvents'
+import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import { emitCanonicalUiMessageForTurn } from './canonicalUiMessages'
 
 function captureEvents(): {

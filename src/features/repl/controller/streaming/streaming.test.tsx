@@ -11,7 +11,7 @@ import { useReplStreaming } from './streaming'
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
-} from '../../../semantics/transcriptProjection'
+} from '../../../semantics/projection/transcriptProjection'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CanonicalEvent } from './canonicalEvents'
+import type { CanonicalEvent } from '../core/canonicalEvents'
 import {
   createInitialTranscriptProjectionState,
   projectCanonicalEvents,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTurnInput } from '../turnInputBuilder.js'
+import { buildTurnInput } from '../adapters/turnInputBuilder.js'
 
 describe('TurnInputBuilder contract', () => {
   it('keeps mode/slash mapping stable', () => {

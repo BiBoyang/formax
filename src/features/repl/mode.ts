@@ -1,4 +1,4 @@
-import type { ReplMode } from '../semantics/replModeTransition'
+import type { ReplMode } from '../semantics/core/replModeTransition'
 export type { ReplMode }
 
 export function nextReplMode(mode: ReplMode): ReplMode {

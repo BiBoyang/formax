@@ -1,7 +1,7 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { TokenUsage } from '../../../../streaming/types'
 import { isCompactionSummaryUserMessage } from '../../../../chat/context/compact'
-import { isExactSlashCommand as isExactSlashCommandFromRouting } from '../../../semantics/commandRouting'
+import { isExactSlashCommand as isExactSlashCommandFromRouting } from '../../../semantics/core/commandRouting'
 
 export const isExactSlashCommand = isExactSlashCommandFromRouting
 

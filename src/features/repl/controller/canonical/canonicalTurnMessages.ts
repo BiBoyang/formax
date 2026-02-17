@@ -1,5 +1,5 @@
 import type { Msg } from '../../../../components/tool/ToolMessage'
-import type { TranscriptSegment } from '../../../semantics/transcriptProjection'
+import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../utils/toolFormatting'

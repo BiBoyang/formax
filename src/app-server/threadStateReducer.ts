@@ -5,4 +5,4 @@ export {
   type ThreadRuntimePendingInput,
   type ThreadRuntimePendingInputKind,
   type ThreadRuntimeState,
-} from '../features/semantics/threadRuntimeState.js'
+} from '../features/semantics/runtime/threadRuntimeState.js'

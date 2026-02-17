@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from './canonicalEvents'
+import type { CanonicalEvent } from '../core/canonicalEvents'
 import {
   applyMessageProjectionEvent,
 } from './transcriptProjectionMessageReducer'

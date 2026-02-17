@@ -21,13 +21,13 @@ import type {
 import type { TurnInputSubmitParams, TurnInterruptParams, TurnStartParams } from './protocol.js'
 import { TurnInputStore } from './turn/inputStore.js'
 import { maybeAutoGenerateSessionTitle } from '../features/sessionTitle/index.js'
-import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
-import { buildTurnInput } from '../features/semantics/turnInputBuilder.js'
+import { resolveCommandRouting } from '../features/semantics/core/commandRouting.js'
+import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import {
   normalizeReplMode,
   resolveReplModeTransition,
   type ReplMode,
-} from '../features/semantics/replModeTransition.js'
+} from '../features/semantics/core/replModeTransition.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 

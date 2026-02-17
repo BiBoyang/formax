@@ -9,7 +9,7 @@ import type {
   TurnInputSubmitStatus,
 } from '../protocol/input.js'
 import { createInputId } from './inputId.js'
-import { transitionInputSubmit, transitionResolvePending, type InputState } from '../../features/semantics/inputStateMachine.js'
+import { transitionInputSubmit, transitionResolvePending, type InputState } from '../../features/semantics/runtime/inputStateMachine.js'
 
 type PendingInputRecord = {
   inputId: string

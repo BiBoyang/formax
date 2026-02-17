@@ -80,14 +80,14 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Shared semantics source of truth:
-  - Canonical event envelope/types: `src/features/semantics/canonicalEvents.ts`
-  - Transcript projection reducer (segment model): `src/features/semantics/transcriptProjection.ts`
-  - Mode semantics: `src/features/semantics/modeSemantics.ts`
-  - Mode transition semantics (normalize/transition helpers): `src/features/semantics/replModeTransition.ts`
-  - Slash semantics: `src/features/semantics/slashSemantics.ts`
-  - Turn input builder: `src/features/semantics/turnInputBuilder.ts`
-  - Input state machine: `src/features/semantics/inputStateMachine.ts`
-  - Thread runtime state reducer (shared by app-server/web): `src/features/semantics/threadRuntimeState.ts`
+  - Canonical event envelope/types: `src/features/semantics/core/canonicalEvents.ts`
+  - Transcript projection reducer (segment model): `src/features/semantics/projection/transcriptProjection.ts`
+  - Mode semantics: `src/features/semantics/core/modeSemantics.ts`
+  - Mode transition semantics (normalize/transition helpers): `src/features/semantics/core/replModeTransition.ts`
+  - Slash semantics: `src/features/semantics/core/slashSemantics.ts`
+  - Turn input builder: `src/features/semantics/adapters/turnInputBuilder.ts`
+  - Input state machine: `src/features/semantics/runtime/inputStateMachine.ts`
+  - Thread runtime state reducer (shared by app-server/web): `src/features/semantics/runtime/threadRuntimeState.ts`
 - Contract tests:
   - `src/features/semantics/__tests__/*`
   - `src/features/semantics/*.test.ts`

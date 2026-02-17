@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInitPrompt } from '../../prompts/init.js'
+import { buildInitPrompt } from '../../../prompts/init.js'
 import { buildTurnInput } from './turnInputBuilder.js'
 
 describe('buildTurnInput', () => {

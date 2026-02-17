@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { appReducer, initialAppState } from './store'
 import type { PendingInput } from './types'
-import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
+import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
 
 function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput {
   return {

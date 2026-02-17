@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../../streaming/types'
+import type { TokenUsage } from '../../../streaming/types'
 
 export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui'
 

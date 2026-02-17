@@ -1,4 +1,4 @@
-import type { InputResolvedStatus, TurnInputSubmitStatus } from '../../app-server/protocol/input.js'
+import type { InputResolvedStatus, TurnInputSubmitStatus } from '../../../app-server/protocol/input.js'
 
 export type InputStatePending = {
   status: 'pending'

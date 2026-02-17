@@ -1,4 +1,4 @@
-import type { CanonicalAssistantDeltaEvent, CanonicalThinkingDeltaEvent } from './canonicalEvents'
+import type { CanonicalAssistantDeltaEvent, CanonicalThinkingDeltaEvent } from '../core/canonicalEvents'
 import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { AssistantSegment, ThinkingSegment, TranscriptSegment } from './transcriptProjectionTypes'
 

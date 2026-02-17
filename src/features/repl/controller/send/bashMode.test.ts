@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
-import type { CanonicalEvent } from '../../../semantics/canonicalEvents'
+import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import {
   applyLocalBashCompletionToMessages,
   createLocalBashCanonicalEmitter,

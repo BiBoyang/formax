@@ -27,7 +27,7 @@ import {
   formatArchiveNotice,
   resolveArchiveSelection,
   type ArchiveThreadLike,
-} from '../../../../src/features/semantics/threadArchiveSemantics'
+} from '../../../../src/features/semantics/runtime/threadArchiveSemantics'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
@@ -49,8 +49,8 @@ import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
-} from '../../../../src/features/semantics/threadRuntimeState'
-import { isReplMode, type ReplMode } from '../../../../src/features/semantics/replModeTransition'
+} from '../../../../src/features/semantics/runtime/threadRuntimeState'
+import { isReplMode, type ReplMode } from '../../../../src/features/semantics/core/replModeTransition'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL

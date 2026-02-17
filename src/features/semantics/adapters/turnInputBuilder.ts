@@ -1,7 +1,7 @@
-import type { PromptBlock } from '../../prompts'
-import { buildUserContent } from '../../prompts'
-import { buildModeSemantics, type SemanticsInjection, type SemanticsMode } from './modeSemantics'
-import { resolveSlashSemantics } from './slashSemantics'
+import type { PromptBlock } from '../../../prompts'
+import { buildUserContent } from '../../../prompts'
+import { buildModeSemantics, type SemanticsInjection, type SemanticsMode } from '../core/modeSemantics'
+import { resolveSlashSemantics } from '../core/slashSemantics'
 
 export function buildTurnInput(args: {
   rawText: string

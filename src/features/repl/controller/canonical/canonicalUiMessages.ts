@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from '../../../semantics/canonicalEvents'
+import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import type { CanonicalUiMessage } from '../send/sendTypes'
 
 export function emitCanonicalUiMessageForTurn(args: {

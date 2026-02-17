@@ -257,11 +257,11 @@
 | `thread/list`（`limit/cursor`） | `src/app-server/protocol.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
 | `thread/read` | `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
 | `thread/messages`（最新页 + 向前分页） | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts` |
-| `thread/replay` + runtime state snapshot | `src/app-server/server.ts`, `src/features/semantics/threadRuntimeState.ts` | `src/app-server/server.test.ts`, `src/features/semantics/threadRuntimeState.test.ts` |
+| `thread/replay` + runtime state snapshot | `src/app-server/server.ts`, `src/features/semantics/runtime/threadRuntimeState.ts` | `src/app-server/server.test.ts`, `src/features/semantics/runtime/threadRuntimeState.test.ts` |
 | `turn/start`（单线程单 in-flight） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/interrupt` | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | `turn/event` 转发 | `src/app-server/turnRunner.ts`, `src/streaming/types.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
-| `turn/modeChanged`（运行期 mode 同步） | `src/app-server/turnRunner.ts`, `src/features/semantics/replModeTransition.ts` | `src/app-server/turnRunner.test.ts`, `apps/web-reference-react/src/App.test.tsx` |
+| `turn/modeChanged`（运行期 mode 同步） | `src/app-server/turnRunner.ts`, `src/features/semantics/core/replModeTransition.ts` | `src/app-server/turnRunner.test.ts`, `apps/web-reference-react/src/App.test.tsx` |
 | `turn/inputRequested` / `turn/inputResolved` | `src/app-server/turnRunner.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/protocol/input.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts` |
 | `turn/input/submit` + `inputId/toolUseId` fallback | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 提交幂等与冲突（`already_submitted_same` / `conflict_already_submitted`） | `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts` |

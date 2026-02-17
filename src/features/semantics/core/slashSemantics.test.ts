@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInitPrompt } from '../../prompts/init.js'
+import { buildInitPrompt } from '../../../prompts/init.js'
 import { resolveSlashSemantics } from './slashSemantics.js'
 
 describe('resolveSlashSemantics', () => {

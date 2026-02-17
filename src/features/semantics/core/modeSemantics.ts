@@ -1,5 +1,5 @@
-import type { PromptBlock } from '../../prompts'
-import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../utils/planMode'
+import type { PromptBlock } from '../../../prompts'
+import { buildExitedPlanModeSystemReminder, buildPlanModeSystemReminder } from '../../../utils/planMode'
 
 export type SemanticsMode = 'normal' | 'acceptEdits' | 'plan'
 

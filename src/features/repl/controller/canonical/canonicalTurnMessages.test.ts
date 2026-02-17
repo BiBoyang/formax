@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { TranscriptSegment } from '../../../semantics/transcriptProjection'
+import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import {
   assertNoDuplicateToolUseIdsInTurn,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { toCanonicalEventsFromTurnNotification } from './turnNotificationCanonicalAdapter'
-import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from './transcriptProjection'
+import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from '../projection/transcriptProjection'
 
 describe('turnNotificationCanonicalAdapter', () => {
   it('maps turn/event tool sequence into canonical tool events', () => {

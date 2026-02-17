@@ -38,14 +38,14 @@ import {
   type ThreadRuntimeState,
 } from './threadStateReducer.js'
 import { createSlashCommandRegistry } from '../features/commands/registry.js'
-import { resolveCommandRouting } from '../features/semantics/commandRouting.js'
-import { normalizeReplMode, shouldInjectExitPlanReminder } from '../features/semantics/replModeTransition.js'
+import { resolveCommandRouting } from '../features/semantics/core/commandRouting.js'
+import { normalizeReplMode, shouldInjectExitPlanReminder } from '../features/semantics/core/replModeTransition.js'
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
   type TranscriptProjectionState,
-} from '../features/semantics/transcriptProjection.js'
-import { toCanonicalEventsFromTurnNotification } from '../features/semantics/turnNotificationCanonicalAdapter.js'
+} from '../features/semantics/projection/transcriptProjection.js'
+import { toCanonicalEventsFromTurnNotification } from '../features/semantics/adapters/turnNotificationCanonicalAdapter.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g

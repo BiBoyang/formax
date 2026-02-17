@@ -1,13 +1,13 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
-import { transitionResolvedFromPending } from '../../../src/features/semantics/inputStateMachine'
-import type { CanonicalEvent } from '../../../src/features/semantics/canonicalEvents'
+import { transitionResolvedFromPending } from '../../../src/features/semantics/runtime/inputStateMachine'
+import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
   type TranscriptSegment,
   type TranscriptProjectionState,
-} from '../../../src/features/semantics/transcriptProjection'
+} from '../../../src/features/semantics/projection/transcriptProjection'
 
 export type AppState = {
   connectionStatus: ConnectionStatus

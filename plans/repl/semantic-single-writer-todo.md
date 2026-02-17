@@ -98,9 +98,9 @@ Result:
 ### Slice 5: Canonical Tool Metadata Hardening
 Status: `completed`
 Files:
-- `src/features/semantics/canonicalEvents.ts`
-- `src/features/semantics/streamCanonicalAdapter.ts`
-- `src/features/semantics/transcriptProjection.ts`
+- `src/features/semantics/core/canonicalEvents.ts`
+- `src/features/semantics/adapters/streamCanonicalAdapter.ts`
+- `src/features/semantics/projection/transcriptProjection.ts`
 - `src/features/repl/controller/canonicalTurnMessages.ts`
 
 Changes:
@@ -141,8 +141,8 @@ Result:
 Status: `completed`
 Files:
 - `src/features/repl/controller/streaming.ts`
-- `src/features/semantics/streamCanonicalAdapter.ts`
-- `src/features/semantics/transcriptProjection.ts`
+- `src/features/semantics/adapters/streamCanonicalAdapter.ts`
+- `src/features/semantics/projection/transcriptProjection.ts`
 - `src/features/repl/controller/canonicalTurnMessages.ts`
 
 Changes:

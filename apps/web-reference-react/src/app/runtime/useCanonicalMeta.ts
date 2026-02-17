@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { isCanonicalEventSource, type CanonicalEventSource } from '../../../../../src/features/semantics/canonicalEvents'
+import { isCanonicalEventSource, type CanonicalEventSource } from '../../../../../src/features/semantics/core/canonicalEvents'
 
 export function useCanonicalMeta(args: {
   activeThreadIdRef: { current: string | null }

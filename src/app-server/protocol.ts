@@ -1,4 +1,4 @@
-import { isReplMode, type ReplMode } from '../features/semantics/replModeTransition.js'
+import { isReplMode, type ReplMode } from '../features/semantics/core/replModeTransition.js'
 export const APP_SERVER_PROTOCOL_VERSION = '0.2'
 
 export type ClientInfo = {

@@ -3,7 +3,7 @@ import type {
   CanonicalMessageUiKind,
   CanonicalSystemMessageEvent,
   CanonicalUserMessageEvent,
-} from './canonicalEvents'
+} from '../core/canonicalEvents'
 import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { SystemSegment, TranscriptSegment, UserSegment } from './transcriptProjectionTypes'
 

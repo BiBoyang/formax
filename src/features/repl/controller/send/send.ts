@@ -19,7 +19,7 @@ import { buildLocalCommandInjectedBlocks } from '../../injectedBlocks'
 import { makeMessageId } from '../shared/ids'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 import { formatErrorSubline } from '../shared/errorSubline'
-import { resolveCommandRouting } from '../../../semantics/commandRouting'
+import { resolveCommandRouting } from '../../../semantics/core/commandRouting'
 import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from '../send/sendTypes'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'

@@ -1,6 +1,6 @@
 import type { StreamEvent } from '../../../../streaming/types'
-import type { CanonicalEvent } from '../../../semantics/canonicalEvents'
-import { toCanonicalEventsFromStreamEvent } from '../../../semantics/streamCanonicalAdapter'
+import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
+import { toCanonicalEventsFromStreamEvent } from '../../../semantics/adapters/streamCanonicalAdapter'
 import { isAbortLikeError } from '../shared/utils'
 
 export type CanonicalStreamBridge = {

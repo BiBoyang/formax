@@ -1,4 +1,4 @@
-import type { CanonicalEvent } from './canonicalEvents'
+import type { CanonicalEvent } from '../core/canonicalEvents'
 import type { TranscriptProjectionState, TranscriptSegment } from './transcriptProjectionTypes'
 
 export type ProjectionDraft = {

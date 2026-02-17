@@ -1,4 +1,4 @@
-import type { CanonicalToolEvent, CanonicalToolInputStateEvent } from './canonicalEvents'
+import type { CanonicalToolEvent, CanonicalToolInputStateEvent } from '../core/canonicalEvents'
 import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { ToolSegment, TranscriptSegment } from './transcriptProjectionTypes'
 

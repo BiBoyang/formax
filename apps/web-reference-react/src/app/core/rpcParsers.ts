@@ -1,7 +1,7 @@
 import type { PendingInput, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
-import type { TranscriptSegment } from '../../../../../src/features/semantics/transcriptProjection'
-import { isReplMode, type ReplMode } from '../../../../../src/features/semantics/replModeTransition'
-import type { ThreadRuntimeState } from '../../../../../src/features/semantics/threadRuntimeState'
+import type { TranscriptSegment } from '../../../../../src/features/semantics/projection/transcriptProjection'
+import { isReplMode, type ReplMode } from '../../../../../src/features/semantics/core/replModeTransition'
+import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 
 export type ReplayNotification = {
   replaySeq: number

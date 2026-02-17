@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { canFastRebaseGapWithoutHistory, shouldPromoteReplayAsCanonical } from '../core/replayMachine'
-import type { ThreadRuntimeState } from '../../../../../src/features/semantics/threadRuntimeState'
+import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
 

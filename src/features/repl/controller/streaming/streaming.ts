@@ -5,7 +5,7 @@ import type { Msg } from '../../../../components/tool/ToolMessage'
 import type { ReminderService } from '../../reminders/ReminderService'
 import { makeMessageId } from '../shared/ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
-import type { CanonicalEvent } from '../../../semantics/canonicalEvents'
+import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
 import {
   applyLegacyToolInputToMessages,

@@ -2,7 +2,7 @@ import type { PendingInput, TranscriptItem } from '../../types'
 import {
   type ArchiveThreadLike,
   resolveArchiveSelection,
-} from '../../../../../src/features/semantics/threadArchiveSemantics'
+} from '../../../../../src/features/semantics/runtime/threadArchiveSemantics'
 
 export type ThreadActionsContext = {
   selectedCwd: string | null
