@@ -33,10 +33,6 @@
 
 ## P2：Adapter 单点化补全（来自 Milestone 2 / G2）
 
-- [ ] AD-01 盘点并消除剩余的 turn notification 本地分支映射
-  - 目标：通知到 canonical 的类型分发只保留在 `src/features/semantics/adapters/*`。
-  - 验收：Web/TUI/app-server 路径不再出现并行 mapping 分支（允许薄封装调用，不允许重写规则）。
-
 - [ ] AD-02 增加一组跨入口 contract fixture（stream / notification / replay）
   - 目标：同一 fixture 在三入口下得到同构 canonical 序列（至少校验 kind + replaySeq + 关键 payload）。
   - 已完成切片 A：新增 `crossPathContractFixture.ts` 并在 `canonicalEventAdapter.contract.test.ts` 校验 stream/notification/replay-like 入口同构输出。

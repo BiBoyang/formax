@@ -45,7 +45,7 @@ import {
   reduceTranscriptProjection,
   type TranscriptProjectionState,
 } from '../features/semantics/projection/transcriptProjection.js'
-import { toCanonicalEventsFromTurnNotification } from '../features/semantics/adapters/turnNotificationCanonicalAdapter.js'
+import { mapTurnNotificationToCanonicalEvents } from '../features/semantics/adapters/canonicalEventAdapter.js'
 import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStateSnapshot.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
@@ -548,7 +548,7 @@ export class AppServer {
     })
     this.runtimeStateByThreadId.set(threadId, nextState)
 
-    const canonicalEvents = toCanonicalEventsFromTurnNotification(
+    const canonicalEvents = mapTurnNotificationToCanonicalEvents(
       { method, params: wrapped },
       {
         fallbackThreadId: threadId,
