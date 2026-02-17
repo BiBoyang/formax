@@ -109,6 +109,28 @@ describe('replayThreadEvents', () => {
     )
   })
 
+  it('logs canonical protocol anomaly count once per replay request', async () => {
+    const replayState = createReplayState({
+      canonicalProtocolAnomalyCount: 3,
+    })
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
+        nextCursor: 51,
+        latestCursor: 51,
+        hasGap: false,
+        state: replayState,
+      })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=3)', 'warn')
+  })
+
   it('logs invariant issues once on hasGap projection hydration path', async () => {
     const gapState = createReplayState({
       invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],

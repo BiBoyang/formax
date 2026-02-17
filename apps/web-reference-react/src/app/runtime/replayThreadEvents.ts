@@ -41,6 +41,7 @@ export async function replayThreadEvents(
   let receivedEntries = false
   let pageCount = 0
   let hasLoggedInvariantIssues = false
+  let hasLoggedCanonicalProtocolAnomalies = false
 
   const maybeLogInvariantIssues = (state: ReplayStateSnapshot | null | undefined): void => {
     if (hasLoggedInvariantIssues) return
@@ -51,6 +52,14 @@ export async function replayThreadEvents(
     ctx.log(`Replay invariant issues detected (${summary})`, 'warn')
   }
 
+  const maybeLogCanonicalProtocolAnomalies = (state: ReplayStateSnapshot | null | undefined): void => {
+    if (hasLoggedCanonicalProtocolAnomalies) return
+    if (!state || state.canonicalProtocolAnomalyCount <= 0) return
+    if (ctx.activeThreadIdRef.current !== threadId) return
+    hasLoggedCanonicalProtocolAnomalies = true
+    ctx.log(`Replay canonical protocol anomalies detected (count=${state.canonicalProtocolAnomalyCount})`, 'warn')
+  }
+
   while (pageCount < 100) {
     pageCount += 1
     const result = await ctx.request('thread/replay', { threadId, after, limit: 200 })
@@ -59,6 +68,7 @@ export async function replayThreadEvents(
     if (replay.state) {
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)
+      maybeLogCanonicalProtocolAnomalies(replay.state)
       ctx.runtimeStateByThreadRef.current[threadId] = {
         threadId,
         mode: replay.state.mode,
@@ -105,6 +115,7 @@ export async function replayThreadEvents(
       const baselineReplay = ctx.asThreadReplay(baselineResult)
       if (baselineReplay.state) {
         maybeLogInvariantIssues(baselineReplay.state)
+        maybeLogCanonicalProtocolAnomalies(baselineReplay.state)
         ctx.runtimeStateByThreadRef.current[threadId] = {
           threadId,
           mode: baselineReplay.state.mode,
