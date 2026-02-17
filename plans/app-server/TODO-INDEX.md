@@ -14,11 +14,3 @@
 3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
-
-## P4：Replay-First Invariants
-
-- [ ] N28 replay invariants 诊断路径 fixture 补齐
-  - 目标：新增 replayThreadEvents fixture，覆盖 hasGap + projection hydration 场景下 invariant issues 诊断路径。
-  - 验收：
-    - 至少 1 条 fixture 断言日志内容与级别。
-    - 无重复日志（同一 replay 请求内只记一次）。

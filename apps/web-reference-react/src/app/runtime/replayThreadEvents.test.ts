@@ -104,4 +104,43 @@ describe('replayThreadEvents', () => {
     expect(ctx.log).toHaveBeenCalledTimes(1)
     expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (2)', 'warn')
   })
+
+  it('logs invariant issues once on hasGap projection hydration path', async () => {
+    const gapState = createReplayState({
+      invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+      projection: {
+        segments: [
+          {
+            id: 's1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'rebuilt',
+          },
+        ],
+        lastReplaySeq: 120,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: {},
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 50,
+      latestCursor: 120,
+      hasGap: true,
+      state: gapState,
+    })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (1)', 'warn')
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: gapState.projection,
+    })
+  })
 })
