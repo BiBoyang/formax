@@ -17,10 +17,24 @@
 
 ## P2：Contract & Adapter Consolidation
 
+## P2：Contract & Adapter Consolidation
+
+- [ ] N11 Canonical envelope fixture gate 扩面（turn 通知）
+  - 目标：把 notification -> canonical 的 envelope 约束固定为共享 fixture，避免各端再引入“缺字段补造”回归。
+  - 验收：
+    - `turnNotificationCanonicalAdapter` 增加跨方法缺 envelope 的 fixture（`turn/event|completed|failed|inputRequested|inputResolved`）。
+    - fixture 明确 requireEnvelope=true 时应返回空事件并产出一致 issue 字段。
+
 ## P3：Presentation IR
 
-- [ ] N10 Tool Presentation IR 边界收敛（第一步）
-  - 目标：把 tool summary/line 的展示派生集中到 selector/presenter，减少 reducer 中展示默认文案耦合。
+- [ ] N12 Tool Presentation selector phase 2（Task/Skill 展示规则收敛）
+  - 目标：把 Task/Skill 的 summary 归一化规则从 TUI mapping 下沉到 shared selector，Web/TUI 复用同一派生入口。
   - 验收：
-    - 至少一个跨端共享的 tool 展示 selector 在 TUI + Web 同时消费。
-    - 不改变现有 transcript 展示输出（由回归测试锁定）。
+    - 至少一条 Task/Skill 展示规则从 `canonicalTurnMessageMapping` 迁移到 `semantics/selectors`。
+    - Web store 与 TUI mapping 都通过 shared selector 获取该规则结果。
+
+- [ ] N13 Projection 去 UI 偏置字段（phase 1）
+  - 目标：减少 projection segment 中 UI-only 字段，确保 projection 更偏语义态，展示偏好留在 selector/presenter。
+  - 验收：
+    - 完成至少一个 UI 偏置字段的下沉（从 projection 持久状态转为 selector 派生）。
+    - 现有 canonical/tool transcript 回归测试不变。

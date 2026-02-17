@@ -9,6 +9,7 @@ import {
   type TranscriptProjectionState,
 } from '../../../src/features/semantics/projection/transcriptProjection'
 import { selectTurnSegments } from '../../../src/features/semantics/selectors/transcriptSegments'
+import { selectToolPresentation } from '../../../src/features/semantics/selectors/toolPresentation'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -100,6 +101,7 @@ function toTranscriptItemFromProjectionSegment(args: {
   }
 
   if (segment.kind === 'tool') {
+    const presentation = selectToolPresentation(segment)
     return {
       id: segment.id,
       kind: 'tool_call',
@@ -107,8 +109,8 @@ function toTranscriptItemFromProjectionSegment(args: {
       toolUseId: segment.toolUseId,
       toolName: segment.toolName,
       status: segment.status,
-      summary: segment.summary,
-      detailLines: segment.detailLines,
+      summary: presentation.summary,
+      detailLines: presentation.detailLines,
       ...(segment.paramsText ? { paramsText: segment.paramsText } : {}),
       ...(segment.inputState ? { inputState: segment.inputState } : {}),
     }

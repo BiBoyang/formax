@@ -1,6 +1,7 @@
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import { selectTailSegmentsForTurn } from '../../../semantics/selectors/transcriptSegments'
+import { selectToolPresentation } from '../../../semantics/selectors/toolPresentation'
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../utils/toolFormatting'
@@ -23,13 +24,6 @@ function parseToolInputFromParamsText(paramsText: string | undefined): Record<st
     out[entry.label] = decodeParamValue(entry.value, entry.valueType)
   }
   return out
-}
-
-function splitSummaryLines(summary: string): { firstLine: string; remainingLines: string[] } {
-  const lines = String(summary ?? '').split(/\r?\n/)
-  const firstLine = String(lines[0] ?? '')
-  const remainingLines = lines.slice(1).map((line) => String(line ?? '')).filter((line) => line.length > 0)
-  return { firstLine, remainingLines }
 }
 
 export function canonicalTurnSegmentsToMessages(args: {
@@ -97,17 +91,17 @@ export function canonicalTurnSegmentsToMessages(args: {
     const input = segment.input ?? parseToolInputFromParamsText(segment.paramsText)
     const rawResult = segment.result
     const isError = segment.status === 'error'
-    const summaryParts = splitSummaryLines(segment.summary)
-    const normalizedErrorSummary = summaryParts.firstLine.startsWith('Error: ')
-      ? summaryParts.firstLine.slice('Error: '.length)
-      : summaryParts.firstLine
+    const summary = selectToolPresentation(segment)
+    const normalizedErrorSummary = summary.firstLine.startsWith('Error: ')
+      ? summary.firstLine.slice('Error: '.length)
+      : summary.firstLine
 
     if (segment.toolName === 'Task') {
       const tokens = formatTokenTotal(segment.usage)
       const backgroundTaskId = parseBackgroundTaskId(rawResult ?? '')
       const summaryText =
         segment.status === 'running'
-          ? summaryParts.firstLine || 'Task running'
+          ? summary.firstLine || 'Task running'
           : isError
             ? normalizedErrorSummary || 'Error'
             : backgroundTaskId
@@ -143,11 +137,11 @@ export function canonicalTurnSegmentsToMessages(args: {
         ? rawResult.slice('Error: '.length)
         : rawResult
     const formatted = typeof displayResult === 'string' ? formatToolResult(segment.toolName, displayResult, isError) : null
-    const firstLine = formatted?.summary ?? summaryParts.firstLine
+    const firstLine = formatted?.summary ?? summary.firstLine
     const middleLines =
       segment.middleLines ??
       formatted?.middleLines ??
-      (segment.detailLines.length > 0 ? segment.detailLines : summaryParts.remainingLines)
+      (segment.detailLines.length > 0 ? segment.detailLines : summary.remainingSummaryLines)
     const resultLines = (formatted?.lines ?? segment.resultLines ?? [firstLine, ...middleLines].join('\n').split(/\r?\n/).length)
     const hideSummaryContent = Boolean(
       segment.hideSummaryContent ?? (segment.toolName === 'Skill' && segment.status === 'completed' && !isError),
