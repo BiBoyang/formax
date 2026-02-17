@@ -4,7 +4,13 @@ import {
   resolveReplayCursorProgress,
   type ReplayThreadEventsContext,
 } from './replayThreadEvents'
+import { processNotification, type ProcessNotificationContext } from './processNotification'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
+import type { RpcNotification } from '../../types'
+import {
+  createInitialThreadRuntimeState,
+  reduceThreadRuntimeState,
+} from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 // Type aliases
@@ -200,6 +206,37 @@ function createReplayCursorProgressRequest(args: {
     const afterCursor = readAfterCursorParam(params)
     return Promise.resolve(createPageForAfterCursor(afterCursor))
   })
+}
+
+function createNotificationProjectionCapture() {
+  const appliedCanonicalEvents: any[] = []
+  const dispatch = vi.fn((action: any) => {
+    if (action?.type === 'apply_canonical_event') {
+      appliedCanonicalEvents.push(action.event)
+    }
+  })
+  const context: ProcessNotificationContext = {
+    runtimeStateByThreadRef: { current: {} },
+    replayCursorByThreadRef: { current: {} },
+    activeThreadIdRef: { current: TEST_THREAD_ID },
+    commandByTurnRef: { current: new Map<string, string>() },
+    createInitialThreadRuntimeState,
+    shouldProcessSequencedNotification: () => true,
+    dispatch,
+    setMode: vi.fn(),
+    cacheThreadMode: vi.fn(),
+    isReplMode: (value): value is 'normal' | 'acceptEdits' | 'plan' =>
+      value === 'normal' || value === 'acceptEdits' || value === 'plan',
+    refreshThreads: vi.fn(async () => {}),
+    refreshWorkspaceDiff: vi.fn(async () => {}),
+    log: vi.fn(),
+    setAskDockOpenByInputId: vi.fn(),
+    setAskPageIndexByInputId: vi.fn(),
+    setAskDraftByInputId: vi.fn(),
+    setSubmitStatusByInputId: vi.fn(),
+    reduceThreadRuntimeState,
+  }
+  return { appliedCanonicalEvents, context }
 }
 
 describe('resolveReplayCursorProgress', () => {
@@ -447,6 +484,47 @@ describe('replayThreadEvents', () => {
   })
 
   describe('rebuild and promotion paths', () => {
+    it('[consistency] forwards replay notifications into the same canonical projection as direct notifications', async () => {
+      const params = {
+        replaySeq: 11,
+        eventId: 'evt-11',
+        ts: '2026-02-17T00:00:00.000Z',
+        source: 'engine',
+        threadId: TEST_THREAD_ID,
+        turnId: TEST_TURN_ID,
+        event: { type: 'assistant_delta', text: 'hello from consistency fixture' },
+      }
+      const directCapture = createNotificationProjectionCapture()
+      processNotification(
+        {
+          jsonrpc: '2.0',
+          method: 'turn/event',
+          params,
+        },
+        directCapture.context,
+      )
+
+      const replayCapture = createNotificationProjectionCapture()
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [{ replaySeq: REPLAY_SEQ_BASELINE, method: 'turn/event', params }],
+          nextCursor: REPLAY_SEQ_BASELINE,
+          latestCursor: REPLAY_SEQ_BASELINE,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        handleNotification: (notification) => processNotification(notification as RpcNotification, replayCapture.context),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+      expect(ok).toBe(true)
+      expect(directCapture.appliedCanonicalEvents).toHaveLength(1)
+      expect(replayCapture.appliedCanonicalEvents).toEqual(directCapture.appliedCanonicalEvents)
+    })
+
     it('[rebuild] logs invariant issues once on hasGap projection hydration path', async () => {
       const gapState = createReplayState({
         invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
