@@ -31,14 +31,16 @@ export function resolveCanonicalStreamWritePolicy(args: {
   event: StreamEvent
 }): CanonicalStreamWritePolicy {
   const canonicalTurnId = args.canonical?.getTurnId() ?? null
-  const shouldForwardCanonical = !(args.event.type === 'error' && isAbortLikeError(args.event.error))
+  const canonicalBridgeConfigured = Boolean(args.canonical)
   const canonicalBridgeActive = Boolean(args.canonical && canonicalTurnId)
-  const canonicalOnly = canonicalBridgeActive
+  const canonicalOnly = canonicalBridgeConfigured
+  const shouldForwardCanonical =
+    canonicalBridgeActive && !(args.event.type === 'error' && isAbortLikeError(args.event.error))
   return {
     canonicalTurnId,
     canonicalBridgeActive,
     canonicalOnly,
-    canWriteLegacyTranscript: !canonicalOnly,
+    canWriteLegacyTranscript: !canonicalBridgeConfigured,
     shouldForwardCanonical,
   }
 }

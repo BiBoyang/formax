@@ -7,7 +7,7 @@ import {
 } from './streamBridge'
 
 describe('streamBridge', () => {
-  it('allows legacy transcript writes when canonical turn is not active', () => {
+  it('disables legacy transcript writes when canonical is configured but turn is not active', () => {
     const policy = resolveCanonicalStreamWritePolicy({
       canonical: {
         threadId: 'thread',
@@ -18,9 +18,19 @@ describe('streamBridge', () => {
       event: { type: 'assistant_delta', text: 'hello' },
     })
     expect(policy.canonicalBridgeActive).toBe(false)
+    expect(policy.canonicalOnly).toBe(true)
+    expect(policy.canWriteLegacyTranscript).toBe(false)
+    expect(policy.shouldForwardCanonical).toBe(false)
+  })
+
+  it('allows legacy transcript writes when canonical bridge is not configured', () => {
+    const policy = resolveCanonicalStreamWritePolicy({
+      event: { type: 'assistant_delta', text: 'hello' },
+    })
+    expect(policy.canonicalBridgeActive).toBe(false)
     expect(policy.canonicalOnly).toBe(false)
     expect(policy.canWriteLegacyTranscript).toBe(true)
-    expect(policy.shouldForwardCanonical).toBe(true)
+    expect(policy.shouldForwardCanonical).toBe(false)
   })
 
   it('disables legacy transcript writes when canonical turn is active', () => {

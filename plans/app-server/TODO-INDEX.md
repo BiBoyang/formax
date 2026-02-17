@@ -17,12 +17,6 @@
 
 ## P0b：Contract Governance + Single Writer
 
-- [ ] N3 TUI 语义单写入源（去掉 turn 内 direct transcript write）
-  - 目标：turn 进行中仅 canonical -> projection 产出 transcript，legacy 仅保留 UI-only 细节通道。
-  - 验收：
-    - turn 内 assistant/thinking/tool 行不再由 legacy 分支直接写入 `messages`。
-    - 现有 duplicated tool row / late delta 回写类回归测试仍通过。
-
 - [ ] N4 Realtime = Replay 一致性门禁
   - 目标：实时消费与重放恢复对同一事件序列输出同构语义结果。
   - 验收：
