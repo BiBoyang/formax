@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { replayThreadEvents, type ReplayThreadEventsContext } from './replayThreadEvents'
+import {
+  replayThreadEvents,
+  resolveReplayCursorProgress,
+  type ReplayThreadEventsContext,
+} from './replayThreadEvents'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
@@ -43,6 +47,37 @@ function createBaseContext(overrides: Partial<ReplayThreadEventsContext> = {}): 
     ...overrides,
   }
 }
+
+describe('resolveReplayCursorProgress', () => {
+  it('continues when next cursor advances but remains below latest cursor', () => {
+    expect(resolveReplayCursorProgress({ after: 10, nextCursor: 11, latestCursor: 20 })).toEqual({
+      nextAfter: 11,
+      shouldContinue: true,
+    })
+  })
+
+  it('stops when next cursor stalls or rewinds', () => {
+    expect(resolveReplayCursorProgress({ after: 10, nextCursor: 10, latestCursor: 20 })).toEqual({
+      nextAfter: 10,
+      shouldContinue: false,
+    })
+    expect(resolveReplayCursorProgress({ after: 10, nextCursor: 9, latestCursor: 20 })).toEqual({
+      nextAfter: 9,
+      shouldContinue: false,
+    })
+  })
+
+  it('stops when next cursor reaches latest cursor or falls back to latest cursor', () => {
+    expect(resolveReplayCursorProgress({ after: 10, nextCursor: 20, latestCursor: 20 })).toEqual({
+      nextAfter: 20,
+      shouldContinue: false,
+    })
+    expect(resolveReplayCursorProgress({ after: 10, nextCursor: 0, latestCursor: 20 })).toEqual({
+      nextAfter: 20,
+      shouldContinue: false,
+    })
+  })
+})
 
 describe('replayThreadEvents', () => {
   it('uses replay-first rebuild on hasGap and clears cached logs', async () => {
@@ -331,5 +366,50 @@ describe('replayThreadEvents', () => {
     expect(ctx.log).toHaveBeenCalledTimes(1)
     expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(121)
+  })
+
+  it('promotes transcript source from history after rebuild followed by incremental entries', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: createReplayState({ projection: null }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 120,
+        latestCursor: 120,
+        hasGap: false,
+        state: createReplayState({ projection: null }),
+      })
+      .mockResolvedValueOnce({
+        data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
+        nextCursor: 121,
+        latestCursor: 121,
+        hasGap: false,
+        state: createReplayState(),
+      })
+    const transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef'] = {
+      current: { 'thread-1': 'history' },
+    }
+    const setThreadTranscriptSource = vi.fn((threadId: string, source: 'replay' | 'history') => {
+      transcriptSourceByThreadRef.current[threadId] = source
+    })
+    const ctx = createBaseContext({
+      request,
+      transcriptSourceByThreadRef,
+      setThreadTranscriptSource,
+    })
+
+    await replayThreadEvents('thread-1', undefined, ctx)
+    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(1)
+
+    await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(2)
+    expect(ctx.setThreadTranscriptSource).toHaveBeenNthCalledWith(2, 'thread-1', 'replay')
   })
 })

@@ -7,6 +7,21 @@ import { summarizeInvariantIssues } from '../../../../../src/features/semantics/
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
 
+export function resolveReplayCursorProgress(args: {
+  after: number
+  nextCursor: number
+  latestCursor: number
+}): { nextAfter: number; shouldContinue: boolean } {
+  const nextAfter = args.nextCursor > 0 ? args.nextCursor : args.latestCursor
+  if (nextAfter <= args.after) {
+    return { nextAfter, shouldContinue: false }
+  }
+  if (nextAfter >= args.latestCursor) {
+    return { nextAfter, shouldContinue: false }
+  }
+  return { nextAfter, shouldContinue: true }
+}
+
 export type ReplayThreadEventsContext = {
   request: (method: string, params?: unknown) => Promise<any>
   asThreadReplay: (value: unknown) => ReplayResult
@@ -212,12 +227,15 @@ export async function replayThreadEvents(
       })
     }
 
-    const nextAfter = replay.nextCursor > 0 ? replay.nextCursor : replay.latestCursor
-    if (nextAfter <= after || nextAfter >= replay.latestCursor) {
-      after = nextAfter
+    const { nextAfter, shouldContinue } = resolveReplayCursorProgress({
+      after,
+      nextCursor: replay.nextCursor,
+      latestCursor: replay.latestCursor,
+    })
+    after = nextAfter
+    if (!shouldContinue) {
       break
     }
-    after = nextAfter
   }
 
   if (fromStart && !receivedEntries) {
