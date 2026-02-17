@@ -17,12 +17,6 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N27 replay hydrate 增加 invariant issue 诊断日志（web runtime）
-  - 目标：当 replay state 返回 `invariantIssues` 非空时，在 web runtime 记录 warn 级诊断，不影响现有恢复流程。
-  - 验收：
-    - `replayThreadEvents` 在 active thread replay hydrate 路径输出 warn 日志。
-    - 现有 hasGap / baseline replay 流程测试不退化。
-
 - [ ] N28 replay invariants 诊断路径 fixture 补齐
   - 目标：新增 replayThreadEvents fixture，覆盖 hasGap + projection hydration 场景下 invariant issues 诊断路径。
   - 验收：

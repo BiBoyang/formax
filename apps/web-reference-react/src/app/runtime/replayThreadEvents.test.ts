@@ -37,6 +37,7 @@ function createBaseContext(overrides: Partial<ReplayThreadEventsContext> = {}): 
     syncPendingInputsFromReplayState: vi.fn(),
     loadThreadHistory: vi.fn().mockResolvedValue(true),
     handleNotification: vi.fn(),
+    log: vi.fn(),
     ...overrides,
   }
 }
@@ -77,5 +78,30 @@ describe('replayThreadEvents', () => {
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
     expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', gapState)
     expect(ctx.handleNotification).not.toHaveBeenCalled()
+  })
+
+  it('logs replay invariant issues once per replay request', async () => {
+    const replayState = createReplayState({
+      invariantIssues: [
+        { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
+        { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
+      ],
+    })
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
+        nextCursor: 51,
+        latestCursor: 51,
+        hasGap: false,
+        state: replayState,
+      })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (2)', 'warn')
   })
 })

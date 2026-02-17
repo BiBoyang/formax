@@ -317,6 +317,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         syncPendingInputsFromReplayState,
         loadThreadHistory,
         handleNotification,
+        log,
       })
     },
     [
@@ -325,6 +326,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       clearThreadHistoryCursor,
       loadThreadHistory,
       handleNotification,
+      log,
       setThreadTranscriptSource,
       syncPendingInputsFromReplayState,
     ],

@@ -24,6 +24,7 @@ export type ReplayThreadEventsContext = {
   syncPendingInputsFromReplayState: (threadId: string, replayState: ReplayStateSnapshot | null) => void
   loadThreadHistory: (threadId: string) => Promise<boolean>
   handleNotification: (notification: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
+  log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
 }
 
 export async function replayThreadEvents(
@@ -38,6 +39,15 @@ export async function replayThreadEvents(
   let replayState: ReplayStateSnapshot | null = null
   let receivedEntries = false
   let pageCount = 0
+  let hasLoggedInvariantIssues = false
+
+  const maybeLogInvariantIssues = (state: ReplayStateSnapshot | null | undefined): void => {
+    if (hasLoggedInvariantIssues) return
+    if (!state || state.invariantIssues.length === 0) return
+    if (ctx.activeThreadIdRef.current !== threadId) return
+    hasLoggedInvariantIssues = true
+    ctx.log(`Replay invariant issues detected (${state.invariantIssues.length})`, 'warn')
+  }
 
   while (pageCount < 100) {
     pageCount += 1
@@ -46,6 +56,7 @@ export async function replayThreadEvents(
     latestCursor = replay.latestCursor
     if (replay.state) {
       replayState = replay.state
+      maybeLogInvariantIssues(replay.state)
       ctx.runtimeStateByThreadRef.current[threadId] = {
         threadId,
         mode: replay.state.mode,
@@ -91,6 +102,7 @@ export async function replayThreadEvents(
       const baselineResult = await ctx.request('thread/replay', { threadId })
       const baselineReplay = ctx.asThreadReplay(baselineResult)
       if (baselineReplay.state) {
+        maybeLogInvariantIssues(baselineReplay.state)
         ctx.runtimeStateByThreadRef.current[threadId] = {
           threadId,
           mode: baselineReplay.state.mode,
