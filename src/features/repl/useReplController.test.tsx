@@ -505,6 +505,9 @@ describe('useReplController', () => {
     const toolRowsTurn2 = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'mix-tool-2')
     expect(toolRowsTurn1.length).toBeLessThanOrEqual(1)
     expect(toolRowsTurn2).toHaveLength(1)
+    expect(
+      [...toolRowsTurn1, ...toolRowsTurn2].every((message) => message.toolInfo?.status !== 'running'),
+    ).toBe(true)
 
     const assistantTexts = controller.state.messages.filter((m) => m.role === 'assistant').map((m) => m.content)
     expect(assistantTexts).toContain('done-1')
