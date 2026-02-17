@@ -128,14 +128,11 @@ describe('processNotification', () => {
       jsonrpc: '2.0',
       method: 'turn/event',
       params: {
-        replaySeq: 12,
-        eventId: 'evt-12',
-        ts: '2026-02-17T00:00:00.000Z',
-        source: 'engine',
+        ...createReplayTurnEventEnvelope({
+          replaySeq: 12,
+          eventId: 'evt-12',
+        }),
         schemaVersion: 99,
-        threadId: 'thread-1',
-        turnId: 'turn-1',
-        event: { type: 'assistant_delta', text: 'hello' },
       },
     }
 

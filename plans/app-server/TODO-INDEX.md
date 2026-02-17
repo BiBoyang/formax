@@ -30,7 +30,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N119 processNotification 异常 envelope 用例接入共享 fixture
-  - 目标：让 invalid schema / missing envelope 分支也复用共享 fixture，降低字段漂移。
+- [ ] N120 processNotification missing-envelope 用例接入共享 fixture
+  - 目标：让 missing envelope 分支也从共享 fixture 派生，避免异常路径继续内联手写。
   - 验收：
-    - processNotification.test 至少 1 个异常 envelope 用例改为基于共享 fixture派生。
+    - processNotification.test 的 missing envelope 场景使用共享 fixture派生数据。
+
+- [ ] N121 replay fixture smoke 覆盖回归脚本命令记录
+  - 目标：把共享 fixture 改动后的最小测试命令记录到 TODO 文档，降低遗漏。
+  - 验收：
+    - TODO-INDEX 新增 1 条固定测试命令（至少含 processNotification/replayThreadEvents/threadActions）。
