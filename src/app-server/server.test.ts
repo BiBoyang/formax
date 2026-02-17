@@ -1003,6 +1003,7 @@ describe('AppServer', () => {
     const normalReplay = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-normal' }))
     expect((normalReplay[0] as any).result.state).toEqual(
       expect.objectContaining({
+        canonicalProtocolAnomalyCount: 0,
         invariantIssues: [],
       }),
     )
@@ -1062,6 +1063,7 @@ describe('AppServer', () => {
     const anomalyReplay = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-contract-anomaly' }))
     expect((anomalyReplay[0] as any).result.state).toEqual(
       expect.objectContaining({
+        canonicalProtocolAnomalyCount: 0,
         invariantIssues: expect.arrayContaining([
           expect.objectContaining({ kind: 'running_tool_after_terminal_turn' }),
           expect.objectContaining({ kind: 'pending_input_after_terminal_turn' }),
@@ -1327,6 +1329,7 @@ describe('AppServer', () => {
     expect(result.data).toHaveLength(1)
     expect(result.state).toEqual(
       expect.objectContaining({
+        canonicalProtocolAnomalyCount: 1,
         projection: null,
       }),
     )

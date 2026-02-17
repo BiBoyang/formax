@@ -10,6 +10,7 @@ describe('buildReplayStateSnapshot', () => {
         stateForSnapshot: null,
         projection: null,
         includeProjectionSnapshot: false,
+        canonicalProtocolAnomalyCount: 0,
       }),
     ).toBeNull()
   })
@@ -63,10 +64,12 @@ describe('buildReplayStateSnapshot', () => {
       stateForSnapshot: state,
       projection,
       includeProjectionSnapshot: true,
+      canonicalProtocolAnomalyCount: 2,
     })
     expect(withProjection).toEqual(
       expect.objectContaining({
         pendingInputCount: 1,
+        canonicalProtocolAnomalyCount: 2,
         projection: expect.objectContaining({
           segments: expect.any(Array),
         }),
@@ -81,10 +84,12 @@ describe('buildReplayStateSnapshot', () => {
       stateForSnapshot: state,
       projection,
       includeProjectionSnapshot: false,
+      canonicalProtocolAnomalyCount: 2,
     })
     expect(withoutProjection).toEqual(
       expect.objectContaining({
         projection: null,
+        canonicalProtocolAnomalyCount: 2,
         invariantIssues: expect.arrayContaining([
           expect.objectContaining({ kind: 'running_tool_after_terminal_turn' }),
           expect.objectContaining({ kind: 'pending_input_after_terminal_turn' }),
@@ -117,12 +122,14 @@ describe('buildReplayStateSnapshot', () => {
       stateForSnapshot: state,
       projection: null,
       includeProjectionSnapshot: false,
+      canonicalProtocolAnomalyCount: 0,
     })
 
     expect(snapshot).toEqual(
       expect.objectContaining({
         projection: null,
         pendingInputCount: 1,
+        canonicalProtocolAnomalyCount: 0,
         invariantIssues: [],
       }),
     )
@@ -139,11 +146,13 @@ describe('buildReplayStateSnapshot', () => {
       stateForSnapshot: state,
       projection: null,
       includeProjectionSnapshot: true,
+      canonicalProtocolAnomalyCount: -3,
     })
 
     expect(snapshot).toEqual(
       expect.objectContaining({
         projection: null,
+        canonicalProtocolAnomalyCount: 0,
         invariantIssues: [],
       }),
     )

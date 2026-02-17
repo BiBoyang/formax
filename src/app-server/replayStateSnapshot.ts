@@ -9,6 +9,7 @@ export type ReplayStateSnapshot = {
   lastTurnId: string | null
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
+  canonicalProtocolAnomalyCount: number
   pendingInputs: Array<{
     inputId: string
     threadId: string
@@ -30,6 +31,7 @@ export function buildReplayStateSnapshot(args: {
   stateForSnapshot: ThreadRuntimeState | null
   projection: TranscriptProjectionState | null
   includeProjectionSnapshot: boolean
+  canonicalProtocolAnomalyCount: number
 }): ReplayStateSnapshot | null {
   if (!args.stateForSnapshot) return null
 
@@ -47,6 +49,7 @@ export function buildReplayStateSnapshot(args: {
     lastTurnId: args.stateForSnapshot.lastTurnId,
     lastTurnStatus: args.stateForSnapshot.lastTurnStatus,
     pendingInputCount: Object.keys(args.stateForSnapshot.pendingInputs).length,
+    canonicalProtocolAnomalyCount: Math.max(0, args.canonicalProtocolAnomalyCount),
     pendingInputs: Object.values(args.stateForSnapshot.pendingInputs).map((input) => ({
       inputId: input.inputId,
       threadId: input.threadId,

@@ -596,6 +596,7 @@ export class AppServer {
     const hasGap = args.after != null && args.after < trimmedBefore
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
     const projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
+    const canonicalProtocolAnomalyCount = this.canonicalProtocolAnomalyCountByThreadId.get(args.threadId) ?? 0
     const fallbackSnapshotState: ThreadRuntimeState | null =
       !state && hasGap && projection
         ? {
@@ -617,6 +618,7 @@ export class AppServer {
       stateForSnapshot,
       projection,
       includeProjectionSnapshot: shouldIncludeProjectionSnapshot,
+      canonicalProtocolAnomalyCount,
     })
 
     if (entries.length === 0) {
