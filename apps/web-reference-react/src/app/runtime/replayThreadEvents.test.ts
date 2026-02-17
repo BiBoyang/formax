@@ -65,9 +65,9 @@ function expectSingleWarning(log: ReplayLogMock, message: string) {
 
 function expectWarningSequence(log: ReplayLogMock, messages: string[]) {
   expect(log).toHaveBeenCalledTimes(messages.length)
-  for (const [index, message] of messages.entries()) {
+  messages.forEach((message, index) => {
     expect(log).toHaveBeenNthCalledWith(index + 1, message, 'warn')
-  }
+  })
 }
 
 // Replay fixture builders
@@ -151,9 +151,9 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
 
 function createReplayPagesRequest(...pages: ReplayPage[]) {
   const request = vi.fn()
-  for (const page of pages) {
+  pages.forEach((page) => {
     request.mockResolvedValueOnce(page)
-  }
+  })
   return request
 }
 

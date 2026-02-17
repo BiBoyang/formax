@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N97 replay helper 小型清理（无效样板/重复括号）
-  - 目标：清理 helper 区域细碎样板噪音，保持后续 diff 更聚焦语义。
+- [ ] N98 replay helper 行内类型断言收敛
+  - 目标：减少 helper 内重复的行内类型断言，保持局部可读性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N98 replay helper 行内类型断言收敛
-  - 目标：减少 helper 内重复的行内类型断言，保持局部可读性。
+- [ ] N99 replay helper 强类型别名补充（params payload）
+  - 目标：为 helper 内常见 payload 补充别名，减少重复内联 shape。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
