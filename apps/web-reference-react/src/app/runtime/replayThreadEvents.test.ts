@@ -9,6 +9,7 @@ function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): Replay
     lastTurnId: null,
     lastTurnStatus: null,
     pendingInputCount: 0,
+    canonicalProtocolAnomalyCount: 0,
     pendingInputs: [],
     invariantIssues: [],
     projection: null,

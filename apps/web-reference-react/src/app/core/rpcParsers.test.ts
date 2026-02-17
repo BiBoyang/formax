@@ -27,6 +27,7 @@ describe('rpcParsers', () => {
       state: {
         mode: 'unknown-mode',
         pendingInputCount: 3,
+        canonicalProtocolAnomalyCount: -5,
         pendingInputs: [
           {
             inputId: 'i-1',
@@ -83,6 +84,7 @@ describe('rpcParsers', () => {
     expect(parsed.hasGap).toBe(true)
     expect(parsed.state?.mode).toBe('normal')
     expect(parsed.state?.pendingInputCount).toBe(3)
+    expect(parsed.state?.canonicalProtocolAnomalyCount).toBe(0)
     expect(parsed.state?.pendingInputs).toHaveLength(1)
     expect(parsed.state?.pendingInputs[0]?.inputId).toBe('i-1')
     expect(parsed.state?.invariantIssues).toEqual([

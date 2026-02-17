@@ -14,11 +14,3 @@
 3. 新任务按“小切片可提交”粒度拆分（每项尽量 2-6 文件改动）。
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
-
-## P2：Contract & Adapter Consolidation
-
-- [ ] N36 web parser + API 文档对齐 anomaly 计数字段
-  - 目标：web `asThreadReplay` 解析该字段并文档化 `thread/replay.result.state` 新字段。
-  - 验收：
-    - web parser 默认值与非法值行为有测试断言。
-    - API-REFERENCE 增加字段说明。

@@ -430,6 +430,7 @@ AskUserQuestion payload：
     lastTurnId: string | null
     lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
     pendingInputCount: number
+    canonicalProtocolAnomalyCount: number
     pendingInputs: Array<{
       inputId: string
       threadId: string
@@ -476,6 +477,7 @@ AskUserQuestion payload：
 - `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。
 - `state.projection` 仅在“首帧同步（`after` 缺省）”或“`hasGap=true`”时可能返回快照；普通增量拉取下通常为 `null`。
 - `state.invariantIssues` 仅在存在 projection 时可检测；当 projection 缺失时固定为空数组 `[]`。
+- `state.canonicalProtocolAnomalyCount` 为当前线程 strict-envelope 协议异常累计计数（缺失按 `0` 处理）。
 - `state = null` 条件：服务端当前无该线程 runtime state，且未命中 fallback 条件（`hasGap=true` 且存在 projection）。`state != null` 时上述字段全部可用。
 
 ## 5.5 `turn/start`

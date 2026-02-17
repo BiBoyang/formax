@@ -16,6 +16,7 @@ export type ReplayStateSnapshot = {
   lastTurnId: string | null
   lastTurnStatus: ThreadRuntimeState['lastTurnStatus']
   pendingInputCount: number
+  canonicalProtocolAnomalyCount: number
   pendingInputs: PendingInput[]
   invariantIssues: SemanticsInvariantIssue[]
   projection: {
@@ -263,6 +264,11 @@ export function asThreadReplay(value: unknown): {
       typeof stateRecord.pendingInputCount === 'number' && Number.isFinite(stateRecord.pendingInputCount)
         ? Math.max(0, stateRecord.pendingInputCount)
         : 0
+    const canonicalProtocolAnomalyCount =
+      typeof stateRecord.canonicalProtocolAnomalyCount === 'number' &&
+      Number.isFinite(stateRecord.canonicalProtocolAnomalyCount)
+        ? Math.max(0, stateRecord.canonicalProtocolAnomalyCount)
+        : 0
     const pendingInputs: PendingInput[] = Array.isArray(stateRecord.pendingInputs)
       ? stateRecord.pendingInputs
           .map((rawInput): PendingInput | null => {
@@ -320,6 +326,7 @@ export function asThreadReplay(value: unknown): {
       lastTurnId,
       lastTurnStatus,
       pendingInputCount,
+      canonicalProtocolAnomalyCount,
       pendingInputs,
       invariantIssues,
       projection,
