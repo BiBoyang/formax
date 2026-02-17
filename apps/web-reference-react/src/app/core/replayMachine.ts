@@ -11,13 +11,3 @@ export function shouldPromoteReplayAsCanonical(args: {
     (args.fromStart || args.initialAfter === 0 || args.currentTranscriptSource !== 'history')
   )
 }
-
-export function canFastRebaseGapWithoutHistory(args: {
-  transcriptSource: ThreadTranscriptSource | undefined
-  cachedLogsLength: number
-}): boolean {
-  return (
-    (args.transcriptSource === 'replay' || args.transcriptSource === 'history') &&
-    args.cachedLogsLength > 0
-  )
-}

@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import { canFastRebaseGapWithoutHistory, shouldPromoteReplayAsCanonical } from '../core/replayMachine'
+import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
@@ -127,31 +127,6 @@ export async function replayThreadEvents(
         const nextMode = baselineReplay.state.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
         ctx.setMode(nextMode)
         ctx.cacheThreadMode(threadId, nextMode)
-        return true
-      }
-      const threadTranscriptSource = ctx.transcriptSourceByThreadRef.current[threadId]
-      const cachedThreadLogs =
-        ctx.activeThreadIdRef.current === threadId
-          ? ctx.stateLogsRef.current
-          : (ctx.logsByThreadIdRef.current[threadId] ?? [])
-      if (
-        canFastRebaseGapWithoutHistory({
-          transcriptSource: threadTranscriptSource,
-          cachedLogsLength: cachedThreadLogs.length,
-        })
-      ) {
-        ctx.replayCursorByThreadRef.current[threadId] = replay.latestCursor
-        if (ctx.activeThreadIdRef.current === threadId) {
-          if (replay.state) {
-            ctx.syncPendingInputsFromReplayState(threadId, replay.state)
-          }
-          ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-          const nextMode = replay.state?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-          ctx.setMode(nextMode)
-          if (replay.state) {
-            ctx.cacheThreadMode(threadId, nextMode)
-          }
-        }
         return true
       }
       if (ctx.activeThreadIdRef.current === threadId) {

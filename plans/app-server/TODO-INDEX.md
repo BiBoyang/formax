@@ -17,12 +17,6 @@
 
 ## P0b：Contract Governance + Single Writer
 
-- [ ] N4 Realtime = Replay 一致性门禁
-  - 目标：实时消费与重放恢复对同一事件序列输出同构语义结果。
-  - 验收：
-    - 新增跨端 fixture：realtime 结果与 replay 重建结果一致。
-    - `hasGap=true` 路径只走 replay-first 重建，不回退历史拼接。
-
 - [ ] N5 不变量体系化（防补丁回归）
   - 目标：把经验修复沉淀为 invariant，而不是继续“case by case”补丁。
   - 验收（至少）：

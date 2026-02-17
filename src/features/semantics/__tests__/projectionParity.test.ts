@@ -236,6 +236,73 @@ describe('projection parity', () => {
     expect(normalizeSegments(streamProjection.segments)).toEqual(normalizeSegments(webProjection.segments))
   })
 
+  it('keeps realtime projection equivalent to replay rebuild from a mid-stream baseline', () => {
+    const threadId = 'thread-replay-rebuild'
+    const turnId = 'turn-replay-rebuild'
+    const streamEvents = [
+      { type: 'assistant_delta', text: 'hello ' } as const,
+      { type: 'tool_start', id: 'tool-1', name: 'Bash' } as const,
+      { type: 'tool_end', id: 'tool-1', result: { content: 'ok', is_error: false, tool_use_id: 'tool-1' } } as const,
+      { type: 'assistant_delta', text: 'world' } as const,
+      { type: 'complete' } as const,
+    ]
+
+    let streamSeq = 0
+    const realtimeCanonical = streamEvents.flatMap((event) =>
+      toCanonicalEventsFromStreamEvent(event, {
+        threadId,
+        turnId,
+        nextReplaySeq: () => {
+          streamSeq += 1
+          return streamSeq
+        },
+      }),
+    )
+
+    const replayNotifications = streamEvents.map((event, index) => {
+      const replaySeq = index + 1
+      if (event.type === 'complete') {
+        return {
+          method: 'turn/completed' as const,
+          params: {
+            threadId,
+            turn: { id: turnId, threadId },
+            replaySeq,
+          },
+        }
+      }
+      return {
+        method: 'turn/event' as const,
+        params: {
+          threadId,
+          turnId,
+          replaySeq,
+          event,
+        },
+      }
+    })
+    const replayCanonical = replayNotifications.flatMap((notification) =>
+      toCanonicalEventsFromTurnNotification(notification, { fallbackThreadId: threadId }),
+    )
+
+    const realtimeProjection = realtimeCanonical.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+
+    const splitAt = 3
+    const baselineProjection = replayCanonical.slice(0, splitAt).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId }),
+    )
+    const rebuiltProjection = replayCanonical.slice(splitAt).reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      baselineProjection,
+    )
+
+    expect(normalizeSegments(rebuiltProjection.segments)).toEqual(normalizeSegments(realtimeProjection.segments))
+  })
+
   it('keeps local runtime envelope contract-equivalent to strict app-server notifications', () => {
     const threadId = 'thread-runtime-authoritative'
     const turnId = 'turn-runtime-authoritative'
