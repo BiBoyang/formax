@@ -396,4 +396,109 @@ describe('runtime replay parity', () => {
       }),
     ).toEqual([])
   })
+
+  it('keeps tool terminal row idempotent under duplicate tool_end notifications', () => {
+    const threadId = 'thread-runtime-dup-tool-end'
+    const turnId = 'turn-runtime-dup-tool-end'
+    const notifications: TurnNotification[] = [
+      {
+        method: 'turn/started',
+        params: {
+          replaySeq: 1,
+          eventId: 'd1',
+          ts: '2026-02-17T13:00:01.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, mode: 'normal', status: 'running' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 2,
+          eventId: 'd2',
+          ts: '2026-02-17T13:00:02.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: { type: 'tool_start', id: 'tool-1', name: 'Bash' },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 3,
+          eventId: 'd3',
+          ts: '2026-02-17T13:00:03.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: {
+            type: 'tool_end',
+            id: 'tool-1',
+            result: { content: 'done', is_error: false, tool_use_id: 'tool-1' },
+          },
+        },
+      },
+      {
+        method: 'turn/event',
+        params: {
+          replaySeq: 4,
+          eventId: 'd4',
+          ts: '2026-02-17T13:00:04.000Z',
+          source: 'engine',
+          threadId,
+          turnId,
+          event: {
+            type: 'tool_end',
+            id: 'tool-1',
+            result: { content: 'done', is_error: false, tool_use_id: 'tool-1' },
+          },
+        },
+      },
+      {
+        method: 'turn/completed',
+        params: {
+          replaySeq: 5,
+          eventId: 'd5',
+          ts: '2026-02-17T13:00:05.000Z',
+          source: 'engine',
+          threadId,
+          turn: { id: turnId, threadId, status: 'completed' },
+        },
+      },
+    ]
+
+    const realtime = applyNotifications(threadId, notifications)
+    const baseline = applyNotifications(threadId, notifications.slice(0, 2))
+    const rebuiltFromReplayTail = applyNotifications(threadId, notifications.slice(2), {
+      projectionState: baseline.projection,
+      runtimeState: baseline.runtime,
+    })
+
+    const realtimeToolRows = realtime.projection.segments.filter(
+      (segment: any) => segment.kind === 'tool' && segment.toolUseId === 'tool-1',
+    )
+    expect(realtimeToolRows).toHaveLength(1)
+    expect(realtimeToolRows[0]).toMatchObject({
+      kind: 'tool',
+      toolUseId: 'tool-1',
+      status: 'completed',
+    })
+
+    expect(rebuiltFromReplayTail.projection).toEqual(realtime.projection)
+    expect(rebuiltFromReplayTail.runtime).toEqual(realtime.runtime)
+    expect(
+      selectTerminalTurnInvariantIssues({
+        projection: realtime.projection,
+        runtimeState: realtime.runtime,
+      }),
+    ).toEqual([])
+    expect(
+      selectTerminalTurnInvariantIssues({
+        projection: rebuiltFromReplayTail.projection,
+        runtimeState: rebuiltFromReplayTail.runtime,
+      }),
+    ).toEqual([])
+  })
 })

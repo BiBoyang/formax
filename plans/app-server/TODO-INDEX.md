@@ -17,13 +17,13 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N52 replay fixture 覆盖 tool row 幂等终局
-  - 目标：补齐 replay 场景下 toolUseId 终局幂等用例（重复通知/重放后无重复完成行）。
-  - 验收：
-    - 新增/扩展 web runtime 定向测试并通过。
-
 - [ ] N53 replay 主循环 fetch/parse 步骤语义命名化
   - 目标：将分页拉取中的 fetch+parse 组合步骤收敛成命名 helper，进一步压缩主循环噪音。
   - 验收：
     - 不改变请求参数与推进规则。
     - 现有 replay 定向测试全部通过。
+
+- [ ] N54 replay 条件分支覆盖缺口盘点
+  - 目标：对 `replayThreadEvents` 的 fromStart/hasGap/empty-history/normal-loop 四类路径补一版覆盖盘点与缺口测试。
+  - 验收：
+    - 在现有测试文件内补齐缺口路径用例并通过。
