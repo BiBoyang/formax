@@ -39,6 +39,7 @@ import {
   shouldPersistUiMsg,
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
+  registerSessionWriterProcessHandlers,
   runAbortSessionTransition,
   runNewSessionTransition,
   type SessionWriterRefs,
@@ -421,71 +422,11 @@ export function useReplController(deps: {
   }, [deps.mode])
 
   useEffect(() => {
-    if (!sessionSaveEnabled) return
-    // Avoid altering Vitest's process-level behavior (it relies on these signals/exceptions).
-    if (runtimeFlags.isVitest) return
-
-    const flushBestEffort = async () => {
-      try {
-        await sessionWriterRef.current?.flush()
-      } catch {
-        // ignore
-      }
-    }
-
-    const forwardSignal = (signal: NodeJS.Signals) => {
-      const handler = () => {
-        process.off(signal, handler)
-        void flushBestEffort().finally(() => {
-          try {
-            process.kill(process.pid, signal)
-          } catch {
-            // ignore
-          }
-        })
-      }
-      process.on(signal, handler)
-      return () => process.off(signal, handler)
-    }
-
-    const offSigInt = forwardSignal('SIGINT')
-    const offSigTerm = forwardSignal('SIGTERM')
-
-    const onBeforeExit = () => {
-      void flushBestEffort()
-    }
-    process.on('beforeExit', onBeforeExit)
-
-    const onUncaught = (err: unknown) => {
-      void (async () => {
-        await flushBestEffort()
-        // Preserve default-ish behavior: print and exit non-zero.
-        // eslint-disable-next-line no-console
-        console.error(err)
-        process.exitCode = 1
-        process.exit()
-      })()
-    }
-    process.on('uncaughtException', onUncaught)
-
-    const onUnhandled = (reason: unknown) => {
-      void (async () => {
-        await flushBestEffort()
-        // eslint-disable-next-line no-console
-        console.error(reason)
-        process.exitCode = 1
-        process.exit()
-      })()
-    }
-    process.on('unhandledRejection', onUnhandled)
-
-    return () => {
-      offSigInt()
-      offSigTerm()
-      process.off('beforeExit', onBeforeExit)
-      process.off('uncaughtException', onUncaught)
-      process.off('unhandledRejection', onUnhandled)
-    }
+    return registerSessionWriterProcessHandlers({
+      sessionSaveEnabled,
+      isVitest: runtimeFlags.isVitest,
+      getWriter: () => sessionWriterRef.current,
+    })
   }, [runtimeFlags.isVitest, sessionSaveEnabled])
 
   const setReplMode = useCallback(

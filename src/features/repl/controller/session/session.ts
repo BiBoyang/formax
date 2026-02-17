@@ -1,5 +1,6 @@
 export * from './abortTranscript'
 export * from './localCommandInjection'
+export * from './sessionProcessHandlers'
 export * from './sessionEvents'
 export * from './sessionLifecycle'
 export * from './sessionTransitions'
