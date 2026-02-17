@@ -109,6 +109,34 @@ describe('transcriptProjection', () => {
     expect(next.segments[1]).toMatchObject({ kind: 'tool', toolName: 'Bash', status: 'running' })
   })
 
+  it('finalizes running tool segments when turn footer arrives', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 't1' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'start', toolName: 'Bash' },
+      ),
+      eventFactory(
+        { replaySeq: 2, eventId: 't2' },
+        { kind: 'turn_footer', turnId: 'turn-1', status: 'interrupted' },
+      ),
+    ])
+
+    const tool = next.segments.find((segment) => segment.kind === 'tool' && segment.turnId === 'turn-1')
+    expect(tool).toMatchObject({
+      kind: 'tool',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      status: 'error',
+      summary: 'Bash interrupted',
+    })
+    expect(next.segments.find((segment) => segment.kind === 'turn_footer' && segment.turnId === 'turn-1')).toMatchObject({
+      kind: 'turn_footer',
+      turnId: 'turn-1',
+      status: 'interrupted',
+    })
+  })
+
   it('annotates input state on existing tool and updates turn footer in place', () => {
     const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
     const next = projectCanonicalEvents(state, [
@@ -141,7 +169,10 @@ describe('transcriptProjection', () => {
     expect(tool).toMatchObject({
       kind: 'tool',
       toolName: 'Bash',
+      status: 'error',
+      summary: 'Bash interrupted',
       inputState: { kind: 'approval', status: 'pending' },
+      terminalSource: 'turn_footer',
     })
     expect(footer).toMatchObject({
       kind: 'turn_footer',
@@ -149,6 +180,36 @@ describe('transcriptProjection', () => {
       message: 'interrupted',
     })
     expect(next.segments.filter((segment) => segment.kind === 'turn_footer')).toHaveLength(1)
+  })
+
+  it('keeps explicit tool_end terminal status when footer is corrected later', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 'te1' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'start', toolName: 'Bash' },
+      ),
+      eventFactory(
+        { replaySeq: 2, eventId: 'te2' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'tool-1', phase: 'end', summary: 'done' },
+      ),
+      eventFactory(
+        { replaySeq: 3, eventId: 'te3' },
+        { kind: 'turn_footer', turnId: 'turn-1', status: 'completed' },
+      ),
+      eventFactory(
+        { replaySeq: 4, eventId: 'te4' },
+        { kind: 'turn_footer', turnId: 'turn-1', status: 'interrupted' },
+      ),
+    ])
+
+    const tool = next.segments.find((segment) => segment.kind === 'tool')
+    expect(tool).toMatchObject({
+      kind: 'tool',
+      status: 'completed',
+      summary: 'done',
+      terminalSource: 'tool_event',
+    })
   })
 
   it('retains structured tool metadata and infers duration on tool end', () => {

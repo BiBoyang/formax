@@ -40,6 +40,7 @@ export type ToolSegment = {
   toolUseId: string
   toolName: string
   status: 'running' | 'completed' | 'error'
+  terminalSource?: 'tool_event' | 'turn_footer'
   summary: string
   detailLines: string[]
   input?: Record<string, unknown>

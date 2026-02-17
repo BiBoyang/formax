@@ -76,6 +76,12 @@ export function reduceToolEvent(args: {
         Array.isArray(event.nestedTools) && event.nestedTools.length > 0 ? event.nestedTools : undefined
       const detailLines = detailLinesFromEvent ?? dedupeAppend(current.detailLines, event.line)
       const status = event.phase === 'end' ? (event.isError ? 'error' : 'completed') : current.status
+      const terminalSource =
+        event.phase === 'end'
+          ? ('tool_event' as const)
+          : status === 'running'
+            ? undefined
+            : current.terminalSource
       const reboundSummary = rebindToolSummaryForName({
         summary: current.summary,
         currentToolName: current.toolName,
@@ -102,6 +108,7 @@ export function reduceToolEvent(args: {
         ...current,
         toolName,
         status,
+        ...(terminalSource ? { terminalSource } : {}),
         summary,
         detailLines,
         ...(event.input ? { input: event.input } : {}),
@@ -124,6 +131,7 @@ export function reduceToolEvent(args: {
   }
 
   const initialStatus = event.phase === 'end' ? (event.isError ? 'error' : 'completed') : 'running'
+  const terminalSource = event.phase === 'end' ? ('tool_event' as const) : undefined
   const detailLinesFromEvent =
     Array.isArray(event.middleLines) && event.middleLines.length > 0
       ? event.middleLines.map((line) => String(line ?? '').trim()).filter((line) => line.length > 0)
@@ -142,6 +150,7 @@ export function reduceToolEvent(args: {
     toolUseId: event.toolUseId,
     toolName,
     status: initialStatus,
+    ...(terminalSource ? { terminalSource } : {}),
     summary: event.phase === 'end' ? String(event.summary ?? event.line ?? `${toolName} completed`) : `${toolName} running`,
     detailLines: detailLinesFromEvent ?? dedupeAppend([], event.line),
     ...(event.input ? { input: event.input } : {}),
