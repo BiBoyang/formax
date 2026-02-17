@@ -102,7 +102,10 @@ describe('replayThreadEvents', () => {
 
     expect(ok).toBe(true)
     expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (2)', 'warn')
+    expect(ctx.log).toHaveBeenCalledWith(
+      'Replay invariant issues detected (running_tool_after_terminal_turn=1, pending_input_after_terminal_turn=1)',
+      'warn',
+    )
   })
 
   it('logs invariant issues once on hasGap projection hydration path', async () => {
@@ -136,7 +139,7 @@ describe('replayThreadEvents', () => {
 
     expect(ok).toBe(true)
     expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (1)', 'warn')
+    expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
     expect(ctx.dispatch).toHaveBeenCalledWith({
       type: 'hydrate_projection_snapshot',
       threadId: 'thread-1',

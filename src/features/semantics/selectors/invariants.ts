@@ -14,6 +14,26 @@ export type SemanticsInvariantIssue =
       toolUseId: string
     }
 
+const INVARIANT_KIND_ORDER: SemanticsInvariantIssue['kind'][] = [
+  'running_tool_after_terminal_turn',
+  'pending_input_after_terminal_turn',
+]
+
+export function summarizeInvariantIssues(issues: SemanticsInvariantIssue[]): string {
+  if (issues.length === 0) return 'none'
+  const counts: Record<SemanticsInvariantIssue['kind'], number> = {
+    running_tool_after_terminal_turn: 0,
+    pending_input_after_terminal_turn: 0,
+  }
+  for (const issue of issues) {
+    counts[issue.kind] += 1
+  }
+  return INVARIANT_KIND_ORDER
+    .filter((kind) => counts[kind] > 0)
+    .map((kind) => `${kind}=${counts[kind]}`)
+    .join(', ')
+}
+
 export function selectTerminalTurnInvariantIssues(args: {
   projection: TranscriptProjectionState | null | undefined
   runtimeState?: ThreadRuntimeState | null

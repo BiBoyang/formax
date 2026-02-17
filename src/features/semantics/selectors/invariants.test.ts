@@ -6,7 +6,7 @@ import {
   type ThreadRuntimePendingInput,
   type ThreadRuntimeState,
 } from '../runtime/threadRuntimeState'
-import { selectTerminalTurnInvariantIssues } from './invariants'
+import { selectTerminalTurnInvariantIssues, summarizeInvariantIssues } from './invariants'
 
 function createProjection(segments: TranscriptSegment[]): TranscriptProjectionState {
   return {
@@ -132,5 +132,21 @@ describe('selectTerminalTurnInvariantIssues', () => {
     const runtimeState = createRuntimeState()
 
     expect(selectTerminalTurnInvariantIssues({ projection, runtimeState })).toEqual([])
+  })
+})
+
+describe('summarizeInvariantIssues', () => {
+  it('aggregates issue counts by kind in stable order', () => {
+    expect(
+      summarizeInvariantIssues([
+        { kind: 'pending_input_after_terminal_turn', turnId: 't1', inputId: 'i1', toolUseId: 'u1' },
+        { kind: 'running_tool_after_terminal_turn', turnId: 't1', toolUseId: 'u2' },
+        { kind: 'pending_input_after_terminal_turn', turnId: 't2', inputId: 'i2', toolUseId: 'u3' },
+      ]),
+    ).toBe('running_tool_after_terminal_turn=1, pending_input_after_terminal_turn=2')
+  })
+
+  it('returns none for empty issues', () => {
+    expect(summarizeInvariantIssues([])).toBe('none')
   })
 })

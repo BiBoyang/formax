@@ -3,6 +3,7 @@ import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+import { summarizeInvariantIssues } from '../../../../../src/features/semantics/selectors/invariants'
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
 
@@ -46,7 +47,8 @@ export async function replayThreadEvents(
     if (!state || state.invariantIssues.length === 0) return
     if (ctx.activeThreadIdRef.current !== threadId) return
     hasLoggedInvariantIssues = true
-    ctx.log(`Replay invariant issues detected (${state.invariantIssues.length})`, 'warn')
+    const summary = summarizeInvariantIssues(state.invariantIssues)
+    ctx.log(`Replay invariant issues detected (${summary})`, 'warn')
   }
 
   while (pageCount < 100) {
