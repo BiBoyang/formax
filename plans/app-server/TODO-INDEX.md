@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N61 replayThreadEvents 测试分组结构化
-  - 目标：将当前按前缀命名的测试进一步拆分为嵌套 describe，提升浏览效率。
+- [ ] N62 replay test data 字段最小集收敛
+  - 目标：统一测试数据的最小字段模板，减少无关字段噪音（保持语义可读）。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N62 replay test data 字段最小集收敛
-  - 目标：统一测试数据的最小字段模板，减少无关字段噪音（保持语义可读）。
+- [ ] N63 replay test helper 命名统一（page/response/context）
+  - 目标：统一 helper 命名语义，降低阅读跳转成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
