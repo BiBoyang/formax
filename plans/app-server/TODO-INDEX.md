@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N68 replay test data 时间戳常量收敛
-  - 目标：收敛 replay 测试里零散时间戳/seq 字面量，降低后续批量调整成本。
+- [ ] N69 replay helper 职责拆分（response vs request builder）
+  - 目标：让 response/request builder 的职责边界更清晰，减少隐式依赖。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N69 replay helper 职责拆分（response vs request builder）
-  - 目标：让 response/request builder 的职责边界更清晰，减少隐式依赖。
+- [ ] N70 replay event fixture 工厂化（started/progress）
+  - 目标：收敛测试中的 canonical event 片段构造，降低语义字段扩展时的维护成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

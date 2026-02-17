@@ -10,6 +10,9 @@ type ReplayResponse = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 const INITIAL_REPLAY_CURSOR = 50
+const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
+const REPLAY_SEQ_BASELINE = 51
+const REPLAY_SEQ_INCREMENTAL = 121
 
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
@@ -23,7 +26,7 @@ function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): Replay
     invariantIssues: [],
     projection: null,
     toolNameByUseId: {},
-    updatedAt: '2026-02-17T00:00:00.000Z',
+    updatedAt: REPLAY_STATE_UPDATED_AT,
     ...overrides,
   }
 }
@@ -329,9 +332,9 @@ describe('replayThreadEvents', () => {
       const request = vi
         .fn()
         .mockResolvedValueOnce({
-          data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
-          nextCursor: 51,
-          latestCursor: 51,
+          data: [{ replaySeq: REPLAY_SEQ_BASELINE, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_BASELINE } }],
+          nextCursor: REPLAY_SEQ_BASELINE,
+          latestCursor: REPLAY_SEQ_BASELINE,
           hasGap: false,
           state: replayState,
         })
@@ -354,9 +357,9 @@ describe('replayThreadEvents', () => {
       const request = vi
         .fn()
         .mockResolvedValueOnce({
-          data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
-          nextCursor: 51,
-          latestCursor: 51,
+          data: [{ replaySeq: REPLAY_SEQ_BASELINE, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_BASELINE } }],
+          nextCursor: REPLAY_SEQ_BASELINE,
+          latestCursor: REPLAY_SEQ_BASELINE,
           hasGap: false,
           state: replayState,
         })
@@ -621,9 +624,9 @@ describe('replayThreadEvents', () => {
           }),
         }),
         createReplayResponse({
-          data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
-          nextCursor: 121,
-          latestCursor: 121,
+          data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
+          nextCursor: REPLAY_SEQ_INCREMENTAL,
+          latestCursor: REPLAY_SEQ_INCREMENTAL,
           state: createReplayState({
             canonicalProtocolAnomalyCount: 2,
           }),
@@ -665,9 +668,9 @@ describe('replayThreadEvents', () => {
           state: createReplayState({ projection: null }),
         }),
         createReplayResponse({
-          data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
-          nextCursor: 121,
-          latestCursor: 121,
+          data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
+          nextCursor: REPLAY_SEQ_INCREMENTAL,
+          latestCursor: REPLAY_SEQ_INCREMENTAL,
           state: createReplayState(),
         }),
       )
