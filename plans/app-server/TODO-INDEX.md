@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N66 replay 测试常量提取（threadId/cursor）
-  - 目标：将常用字面量提取为测试局部常量，减少跨用例修改成本。
+- [ ] N68 replay test data 时间戳常量收敛
+  - 目标：收敛 replay 测试里零散时间戳/seq 字面量，降低后续批量调整成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N67 replay 分页 mock 工厂参数化（latest/step）
-  - 目标：为分页场景补一个参数化 mock builder，减少 page-limit 与边界类测试重复实现。
+- [ ] N69 replay helper 职责拆分（response vs request builder）
+  - 目标：让 response/request builder 的职责边界更清晰，减少隐式依赖。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

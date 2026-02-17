@@ -7,6 +7,9 @@ import {
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
 type ReplayResponse = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
+const TEST_THREAD_ID = 'thread-1'
+const TEST_TURN_ID = 'turn-1'
+const INITIAL_REPLAY_CURSOR = 50
 
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
@@ -30,13 +33,13 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     request: vi.fn(),
     asThreadReplay: (value) => value as ReturnType<ReplayThreadEventsContext['asThreadReplay']>,
     toRuntimePendingInputsById: vi.fn().mockReturnValue({}),
-    replayCursorByThreadRef: { current: { 'thread-1': 50 } },
+    replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: INITIAL_REPLAY_CURSOR } },
     replayAnomalyCountSeenByThreadRef: { current: {} },
     runtimeStateByThreadRef: { current: {} },
-    activeThreadIdRef: { current: 'thread-1' },
-    logsByThreadIdRef: { current: { 'thread-1': [{ id: 'cached-log' }] } },
+    activeThreadIdRef: { current: TEST_THREAD_ID },
+    logsByThreadIdRef: { current: { [TEST_THREAD_ID]: [{ id: 'cached-log' }] } },
     stateLogsRef: { current: [{ id: 'active-log' }] },
-    transcriptSourceByThreadRef: { current: { 'thread-1': 'history' } },
+    transcriptSourceByThreadRef: { current: { [TEST_THREAD_ID]: 'history' } },
     dispatch: vi.fn(),
     setMode: vi.fn(),
     cacheThreadMode: vi.fn(),
@@ -75,7 +78,7 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
       {
         id: 's1',
         kind: 'assistant',
-        turnId: 'turn-1',
+        turnId: TEST_TURN_ID,
         text,
       },
     ],
@@ -84,6 +87,24 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
     openAssistantSegmentIdByTurn: {},
     openThinkingSegmentIdByTurn: {},
   }
+}
+
+function createAdvancingReplayRequest(args: {
+  latestCursor: number
+  step?: number
+  state?: ReplayStateSnapshot
+}) {
+  const step = args.step ?? 1
+  return vi.fn().mockImplementation((_method: string, params?: unknown) => {
+    const after = Number((params as { after?: number } | undefined)?.after ?? 0)
+    return Promise.resolve(
+      createReplayResponse({
+        nextCursor: after + step,
+        latestCursor: args.latestCursor,
+        state: args.state ?? createReplayState(),
+      }),
+    )
+  })
 }
 
 describe('resolveReplayCursorProgress', () => {
@@ -135,20 +156,20 @@ describe('replayThreadEvents', () => {
     )
     const ctx = createReplayContext({ request })
 
-    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+    const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
     expect(ok).toBe(true)
     expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
-      threadId: 'thread-1',
-      after: 50,
+      threadId: TEST_THREAD_ID,
+      after: INITIAL_REPLAY_CURSOR,
       limit: 200,
     })
-    expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: 'thread-1' })
+    expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'replace_logs', logs: [] })
-    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith('thread-1', 'replay')
-    expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith('thread-1')
-    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
-    expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', gapState)
+    expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
+    expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith(TEST_THREAD_ID)
+    expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
+    expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, gapState)
     expect(ctx.handleNotification).not.toHaveBeenCalled()
   })
 
@@ -167,17 +188,17 @@ describe('replayThreadEvents', () => {
         loadThreadHistory: vi.fn().mockResolvedValue(true),
       })
 
-      const ok = await replayThreadEvents('thread-1', { fromStart: true }, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledWith('thread/replay', {
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         after: 0,
         limit: 200,
       })
-      expect(ctx.loadThreadHistory).toHaveBeenCalledWith('thread-1')
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(0)
-      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+      expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(0)
+      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
     })
 
@@ -194,34 +215,25 @@ describe('replayThreadEvents', () => {
         loadThreadHistory: vi.fn().mockResolvedValue(false),
       })
 
-      const ok = await replayThreadEvents('thread-1', { fromStart: true }, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
       expect(ok).toBe(false)
-      expect(ctx.loadThreadHistory).toHaveBeenCalledWith('thread-1')
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+      expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR)
       expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
     })
   })
 
   describe('pagination paths', () => {
     it('[pagination] stops at page limit when replay stream keeps advancing without terminal cursor', async () => {
-      const request = vi.fn().mockImplementation((_method: string, params?: unknown) => {
-        const after = Number((params as { after?: number } | undefined)?.after ?? 0)
-        return Promise.resolve({
-          data: [],
-          nextCursor: after + 1,
-          latestCursor: 1000,
-          hasGap: false,
-          state: createReplayState(),
-        })
-      })
+      const request = createAdvancingReplayRequest({ latestCursor: 1000, step: 1 })
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(100)
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(150)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR + 100)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
     })
 
@@ -236,12 +248,12 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(1)
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
-      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR)
+      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
     })
 
     it('[pagination] exits loop when next cursor reaches latest cursor', async () => {
@@ -255,31 +267,26 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(1)
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
-      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
+      expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
     })
 
     it('[pagination] logs invariant and anomaly warnings once on page-limit termination', async () => {
-      const request = vi.fn().mockImplementation((_method: string, params?: unknown) => {
-        const after = Number((params as { after?: number } | undefined)?.after ?? 0)
-        return Promise.resolve({
-          data: [],
-          nextCursor: after + 1,
-          latestCursor: 1000,
-          hasGap: false,
-          state: createReplayState({
-            canonicalProtocolAnomalyCount: 2,
-            invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
-          }),
-        })
+      const request = createAdvancingReplayRequest({
+        latestCursor: 1000,
+        step: 1,
+        state: createReplayState({
+          canonicalProtocolAnomalyCount: 2,
+          invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
+        }),
       })
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(100)
@@ -292,19 +299,19 @@ describe('replayThreadEvents', () => {
       const replayState = createReplayState({
         canonicalProtocolAnomalyCount: 3,
       })
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [],
-        nextCursor: 50,
-        latestCursor: 200,
-        hasGap: false,
-        state: replayState,
-      })
+      const request = createReplayRequestMock(
+        createReplayResponse({
+          nextCursor: INITIAL_REPLAY_CURSOR,
+          latestCursor: 200,
+          state: replayState,
+        }),
+      )
       const ctx = createReplayContext({
         request,
-        replayAnomalyCountSeenByThreadRef: { current: { 'thread-1': 3 } },
+        replayAnomalyCountSeenByThreadRef: { current: { [TEST_THREAD_ID]: 3 } },
       })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(ctx.log).not.toHaveBeenCalled()
@@ -315,25 +322,25 @@ describe('replayThreadEvents', () => {
     it('[logging] logs replay invariant issues once per replay request', async () => {
       const replayState = createReplayState({
         invariantIssues: [
-          { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
-        { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
-      ],
-    })
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
-        nextCursor: 51,
-        latestCursor: 51,
-        hasGap: false,
-        state: replayState,
+          { kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' },
+          { kind: 'pending_input_after_terminal_turn', turnId: TEST_TURN_ID, inputId: 'input-1', toolUseId: 'tool-1' },
+        ],
       })
-    const ctx = createReplayContext({ request })
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: [{ replaySeq: 51, method: 'turn/started', params: { replaySeq: 51 } }],
+          nextCursor: 51,
+          latestCursor: 51,
+          hasGap: false,
+          state: replayState,
+        })
+      const ctx = createReplayContext({ request })
 
-    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
-    expect(ok).toBe(true)
-    expect(ctx.log).toHaveBeenCalledTimes(1)
+      expect(ok).toBe(true)
+      expect(ctx.log).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledWith(
         'Replay invariant issues detected (running_tool_after_terminal_turn=1, pending_input_after_terminal_turn=1)',
         'warn',
@@ -355,7 +362,7 @@ describe('replayThreadEvents', () => {
         })
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(ctx.log).toHaveBeenCalledTimes(1)
@@ -366,7 +373,7 @@ describe('replayThreadEvents', () => {
   describe('rebuild and promotion paths', () => {
     it('[rebuild] logs invariant issues once on hasGap projection hydration path', async () => {
       const gapState = createReplayState({
-        invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+        invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
         projection: createProjectionSnapshot(),
       })
       const request = createReplayRequestMock(
@@ -379,14 +386,14 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(ctx.log).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
       expect(ctx.dispatch).toHaveBeenCalledWith({
         type: 'hydrate_projection_snapshot',
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         snapshot: gapState.projection,
       })
     })
@@ -408,18 +415,18 @@ describe('replayThreadEvents', () => {
         activeThreadIdRef: { current: 'thread-2' },
       })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(ctx.dispatch).not.toHaveBeenCalledWith({
         type: 'hydrate_projection_snapshot',
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         snapshot: gapState.projection,
       })
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
-      expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
+      expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(120)
     })
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {
@@ -444,34 +451,34 @@ describe('replayThreadEvents', () => {
         activeThreadIdRef,
       })
 
-      const firstOk = await replayThreadEvents('thread-1', undefined, ctx)
+      const firstOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       expect(firstOk).toBe(true)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
 
-      activeThreadIdRef.current = 'thread-1'
-      const secondOk = await replayThreadEvents('thread-1', undefined, ctx)
+      activeThreadIdRef.current = TEST_THREAD_ID
+      const secondOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(secondOk).toBe(true)
       expect(ctx.dispatch).toHaveBeenCalledWith({
         type: 'hydrate_projection_snapshot',
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         snapshot: projection,
       })
-      expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith('thread-1', 'replay')
-      expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith('thread-1')
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(120)
+      expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
+      expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith(TEST_THREAD_ID)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
     })
 
     it('[rebuild] logs invariant issues once across hasGap baseline replay double-request path', async () => {
       const gapState = createReplayState({
-        invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+        invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
         projection: null,
       })
       const baselineState = createReplayState({
         invariantIssues: [
-          { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
-          { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'input-1', toolUseId: 'tool-1' },
+          { kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' },
+          { kind: 'pending_input_after_terminal_turn', turnId: TEST_TURN_ID, inputId: 'input-1', toolUseId: 'tool-1' },
         ],
         projection: null,
       })
@@ -490,7 +497,7 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(2)
@@ -518,19 +525,19 @@ describe('replayThreadEvents', () => {
         activeThreadIdRef: { current: 'thread-2' },
       })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(2)
       expect(ctx.dispatch).not.toHaveBeenCalledWith({
         type: 'hydrate_projection_snapshot',
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         snapshot: baselineProjection,
       })
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
-      expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
+      expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(120)
     })
 
     it('[rebuild] logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {
@@ -557,7 +564,7 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      const ok = await replayThreadEvents('thread-1', undefined, ctx)
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(2)
@@ -585,9 +592,9 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      await replayThreadEvents('thread-1', undefined, ctx)
-      await replayThreadEvents('thread-1', undefined, ctx)
-      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ctx.log).toHaveBeenCalledTimes(2)
       expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
@@ -624,24 +631,24 @@ describe('replayThreadEvents', () => {
       )
       const ctx = createReplayContext({ request })
 
-      await replayThreadEvents('thread-1', undefined, ctx)
-      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         after: 50,
         limit: 200,
       })
-      expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: 'thread-1' })
+      expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
       expect(request).toHaveBeenNthCalledWith(3, 'thread/replay', {
-        threadId: 'thread-1',
+        threadId: TEST_THREAD_ID,
         after: 120,
         limit: 200,
       })
       expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
-      expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(121)
+      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(121)
     })
 
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {
@@ -665,7 +672,7 @@ describe('replayThreadEvents', () => {
         }),
       )
       const transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef'] = {
-        current: { 'thread-1': 'history' },
+        current: { [TEST_THREAD_ID]: 'history' },
       }
       const setThreadTranscriptSource = vi.fn((threadId: string, source: 'replay' | 'history') => {
         transcriptSourceByThreadRef.current[threadId] = source
@@ -676,13 +683,13 @@ describe('replayThreadEvents', () => {
         setThreadTranscriptSource,
       })
 
-      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(1)
 
-      await replayThreadEvents('thread-1', undefined, ctx)
+      await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ctx.setThreadTranscriptSource).toHaveBeenCalledTimes(2)
-      expect(ctx.setThreadTranscriptSource).toHaveBeenNthCalledWith(2, 'thread-1', 'replay')
+      expect(ctx.setThreadTranscriptSource).toHaveBeenNthCalledWith(2, TEST_THREAD_ID, 'replay')
     })
   })
 })
