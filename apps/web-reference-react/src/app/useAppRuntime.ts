@@ -119,6 +119,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
+  const replayAnomalyCountSeenByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
@@ -304,6 +305,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         asThreadReplay,
         toRuntimePendingInputsById,
         replayCursorByThreadRef,
+        replayAnomalyCountSeenByThreadRef,
         runtimeStateByThreadRef,
         activeThreadIdRef,
         logsByThreadIdRef,

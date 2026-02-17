@@ -12,6 +12,7 @@ export type ReplayThreadEventsContext = {
   asThreadReplay: (value: unknown) => ReplayResult
   toRuntimePendingInputsById: (pendingInputs: ReplayStateSnapshot['pendingInputs']) => ThreadRuntimeState['pendingInputs']
   replayCursorByThreadRef: { current: Record<string, number> }
+  replayAnomalyCountSeenByThreadRef: { current: Record<string, number> }
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
   activeThreadIdRef: { current: string | null }
   logsByThreadIdRef: { current: Record<string, any[]> }
@@ -41,7 +42,7 @@ export async function replayThreadEvents(
   let receivedEntries = false
   let pageCount = 0
   let hasLoggedInvariantIssues = false
-  let hasLoggedCanonicalProtocolAnomalies = false
+  let maxCanonicalProtocolAnomalyCountObserved = 0
 
   const maybeLogInvariantIssues = (state: ReplayStateSnapshot | null | undefined): void => {
     if (hasLoggedInvariantIssues) return
@@ -52,12 +53,19 @@ export async function replayThreadEvents(
     ctx.log(`Replay invariant issues detected (${summary})`, 'warn')
   }
 
-  const maybeLogCanonicalProtocolAnomalies = (state: ReplayStateSnapshot | null | undefined): void => {
-    if (hasLoggedCanonicalProtocolAnomalies) return
+  const observeCanonicalProtocolAnomalies = (state: ReplayStateSnapshot | null | undefined): void => {
     if (!state || state.canonicalProtocolAnomalyCount <= 0) return
     if (ctx.activeThreadIdRef.current !== threadId) return
-    hasLoggedCanonicalProtocolAnomalies = true
-    ctx.log(`Replay canonical protocol anomalies detected (count=${state.canonicalProtocolAnomalyCount})`, 'warn')
+    if (state.canonicalProtocolAnomalyCount <= maxCanonicalProtocolAnomalyCountObserved) return
+    maxCanonicalProtocolAnomalyCountObserved = state.canonicalProtocolAnomalyCount
+  }
+
+  const flushCanonicalProtocolAnomaliesLog = (): void => {
+    if (maxCanonicalProtocolAnomalyCountObserved <= 0) return
+    const seen = ctx.replayAnomalyCountSeenByThreadRef.current[threadId] ?? 0
+    if (maxCanonicalProtocolAnomalyCountObserved <= seen) return
+    ctx.replayAnomalyCountSeenByThreadRef.current[threadId] = maxCanonicalProtocolAnomalyCountObserved
+    ctx.log(`Replay canonical protocol anomalies detected (count=${maxCanonicalProtocolAnomalyCountObserved})`, 'warn')
   }
 
   while (pageCount < 100) {
@@ -68,7 +76,7 @@ export async function replayThreadEvents(
     if (replay.state) {
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)
-      maybeLogCanonicalProtocolAnomalies(replay.state)
+      observeCanonicalProtocolAnomalies(replay.state)
       ctx.runtimeStateByThreadRef.current[threadId] = {
         threadId,
         mode: replay.state.mode,
@@ -92,7 +100,10 @@ export async function replayThreadEvents(
 
     if (replay.hasGap) {
       if (replay.state?.projection) {
-        if (ctx.activeThreadIdRef.current !== threadId) return true
+        if (ctx.activeThreadIdRef.current !== threadId) {
+          flushCanonicalProtocolAnomaliesLog()
+          return true
+        }
         ctx.dispatch({
           type: 'hydrate_projection_snapshot',
           threadId,
@@ -108,6 +119,7 @@ export async function replayThreadEvents(
           ctx.setMode(nextMode)
           ctx.cacheThreadMode(threadId, nextMode)
         }
+        flushCanonicalProtocolAnomaliesLog()
         return true
       }
 
@@ -115,7 +127,7 @@ export async function replayThreadEvents(
       const baselineReplay = ctx.asThreadReplay(baselineResult)
       if (baselineReplay.state) {
         maybeLogInvariantIssues(baselineReplay.state)
-        maybeLogCanonicalProtocolAnomalies(baselineReplay.state)
+        observeCanonicalProtocolAnomalies(baselineReplay.state)
         ctx.runtimeStateByThreadRef.current[threadId] = {
           threadId,
           mode: baselineReplay.state.mode,
@@ -138,7 +150,10 @@ export async function replayThreadEvents(
         }
       }
       if (baselineReplay.state?.projection) {
-        if (ctx.activeThreadIdRef.current !== threadId) return true
+        if (ctx.activeThreadIdRef.current !== threadId) {
+          flushCanonicalProtocolAnomaliesLog()
+          return true
+        }
         ctx.dispatch({
           type: 'hydrate_projection_snapshot',
           threadId,
@@ -152,6 +167,7 @@ export async function replayThreadEvents(
         const nextMode = baselineReplay.state.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
         ctx.setMode(nextMode)
         ctx.cacheThreadMode(threadId, nextMode)
+        flushCanonicalProtocolAnomaliesLog()
         return true
       }
       if (ctx.activeThreadIdRef.current === threadId) {
@@ -170,12 +186,16 @@ export async function replayThreadEvents(
           ctx.cacheThreadMode(threadId, nextMode)
         }
       }
+      flushCanonicalProtocolAnomaliesLog()
       return true
     }
 
     if (fromStart && replay.latestCursor === 0 && replay.data.length === 0) {
       const loaded = await ctx.loadThreadHistory(threadId)
-      if (!loaded) return false
+      if (!loaded) {
+        flushCanonicalProtocolAnomaliesLog()
+        return false
+      }
       ctx.replayCursorByThreadRef.current[threadId] = 0
       if (ctx.activeThreadIdRef.current === threadId) {
         ctx.syncPendingInputsFromReplayState(threadId, replay.state ?? null)
@@ -186,6 +206,7 @@ export async function replayThreadEvents(
           ctx.cacheThreadMode(threadId, nextMode)
         }
       }
+      flushCanonicalProtocolAnomaliesLog()
       return true
     }
 
@@ -208,7 +229,10 @@ export async function replayThreadEvents(
 
   if (fromStart && !receivedEntries) {
     const loaded = await ctx.loadThreadHistory(threadId)
-    if (!loaded) return false
+    if (!loaded) {
+      flushCanonicalProtocolAnomaliesLog()
+      return false
+    }
   }
 
   const currentTranscriptSource = ctx.transcriptSourceByThreadRef.current[threadId]
@@ -234,5 +258,6 @@ export async function replayThreadEvents(
       ctx.cacheThreadMode(threadId, nextMode)
     }
   }
+  flushCanonicalProtocolAnomaliesLog()
   return true
 }

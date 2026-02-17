@@ -25,6 +25,7 @@ function createBaseContext(overrides: Partial<ReplayThreadEventsContext> = {}): 
     asThreadReplay: (value) => value as ReturnType<ReplayThreadEventsContext['asThreadReplay']>,
     toRuntimePendingInputsById: vi.fn().mockReturnValue({}),
     replayCursorByThreadRef: { current: { 'thread-1': 50 } },
+    replayAnomalyCountSeenByThreadRef: { current: {} },
     runtimeStateByThreadRef: { current: {} },
     activeThreadIdRef: { current: 'thread-1' },
     logsByThreadIdRef: { current: { 'thread-1': [{ id: 'cached-log' }] } },
@@ -240,6 +241,41 @@ describe('replayThreadEvents', () => {
     expect(ok).toBe(true)
     expect(request).toHaveBeenCalledTimes(2)
     expect(ctx.log).toHaveBeenCalledTimes(1)
-    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
+    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=5)', 'warn')
+  })
+
+  it('logs canonical protocol anomalies only when replay count increases across calls', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 51,
+        latestCursor: 51,
+        hasGap: false,
+        state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 52,
+        latestCursor: 52,
+        hasGap: false,
+        state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 53,
+        latestCursor: 53,
+        hasGap: false,
+        state: createReplayState({ canonicalProtocolAnomalyCount: 3 }),
+      })
+    const ctx = createBaseContext({ request })
+
+    await replayThreadEvents('thread-1', undefined, ctx)
+    await replayThreadEvents('thread-1', undefined, ctx)
+    await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ctx.log).toHaveBeenCalledTimes(2)
+    expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
+    expect(ctx.log).toHaveBeenNthCalledWith(2, 'Replay canonical protocol anomalies detected (count=3)', 'warn')
   })
 })
