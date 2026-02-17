@@ -7,11 +7,10 @@ import {
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
-// Generic test aliases
+// Type aliases
 type ReplayMockFn = ReturnType<typeof vi.fn>
 type ReplayRequestMock = ReplayMockFn
 type ReplayLogMock = ReplayMockFn
-// Replay domain aliases
 type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }

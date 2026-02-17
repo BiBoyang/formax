@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N104 replay helper 顶部 type alias 排版压缩
-  - 目标：压缩 type alias 顶部块的视觉噪音，提升首屏可读性。
+- [ ] N105 replay helper 顶部常量与类型块间距统一
+  - 目标：统一 type/const 分隔样式，维持文件首屏结构稳定。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N105 replay helper 顶部常量与类型块间距统一
-  - 目标：统一 type/const 分隔样式，维持文件首屏结构稳定。
+- [ ] N106 replay helper 注释密度收敛
+  - 目标：减少无信息量注释，保持真正有意义的分组标识。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
