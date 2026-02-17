@@ -1,5 +1,5 @@
 import type { ToolSegment } from '../projection/transcriptProjection'
-import { stripTrailingSystemReminderBlock } from '../../../utils/toolFormatting'
+import { parseBackgroundTaskId } from './taskResultParsing'
 
 export type ToolPresentation = {
   summary: string
@@ -14,21 +14,6 @@ export type ToolPresentation = {
 
 function stripErrorPrefix(line: string): string {
   return line.startsWith('Error: ') ? line.slice('Error: '.length) : line
-}
-
-function parseBackgroundTaskId(result: string | undefined): string | null {
-  const text = stripTrailingSystemReminderBlock(String(result ?? ''))
-  if (!text) return null
-  try {
-    const parsed = JSON.parse(text)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    const taskId = (parsed as Record<string, unknown>).task_id
-    const status = (parsed as Record<string, unknown>).status
-    if (typeof taskId === 'string' && taskId.trim() && status === 'running') return taskId.trim()
-    return null
-  } catch {
-    return null
-  }
 }
 
 export function selectToolPresentation(
@@ -51,7 +36,7 @@ export function selectToolPresentation(
   const taskCompletion =
     segment.toolName === 'Task' && segment.status === 'completed'
       ? (() => {
-          const taskId = parseBackgroundTaskId(segment.result)
+          const taskId = parseBackgroundTaskId(String(segment.result ?? ''))
           return taskId ? ({ kind: 'started', taskId } as const) : ({ kind: 'done' } as const)
         })()
       : null

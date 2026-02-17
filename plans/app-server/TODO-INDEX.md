@@ -15,14 +15,6 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
-## P2：Contract & Adapter Consolidation
-
-- [ ] N17 Task result parsing 单点化（selector/send 复用）
-  - 目标：消除 Task 结果解析逻辑重复（`taskResult.ts` 与 `toolPresentation`），避免后续行为漂移。
-  - 验收：
-    - `parseBackgroundTaskId` 仅保留一个实现并被两侧复用。
-    - 现有 Task started/done 相关测试全部通过。
-
 ## P4：Replay-First Invariants
 
 - [ ] N18 terminal invariant fixture 扩面（running tool）
