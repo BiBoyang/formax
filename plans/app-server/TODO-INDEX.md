@@ -39,6 +39,7 @@
 
 - [ ] AD-02 增加一组跨入口 contract fixture（stream / notification / replay）
   - 目标：同一 fixture 在三入口下得到同构 canonical 序列（至少校验 kind + replaySeq + 关键 payload）。
+  - 已完成切片 A：新增 `crossPathContractFixture.ts` 并在 `canonicalEventAdapter.contract.test.ts` 校验 stream/notification/replay-like 入口同构输出。
   - 验收：新增 contract test 文件并纳入常用回归命令。
 
 ## P3：Replay-First 强化（来自 Milestone 3 / G4）

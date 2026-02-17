@@ -4,8 +4,67 @@ import {
   mapStreamEventToCanonicalEvents,
   mapTurnNotificationToCanonicalEvents,
 } from './canonicalEventAdapter'
+import { CROSS_PATH_CONTRACT_FIXTURE } from './crossPathContractFixture'
 
 describe('canonicalEventAdapter contract fixture', () => {
+  it('keeps canonical contract stable across stream/notification/replay fixture paths', () => {
+    const fixture = CROSS_PATH_CONTRACT_FIXTURE
+    let replaySeq = 0
+
+    const fromStream = fixture.streamEvents.flatMap((event) =>
+      mapStreamEventToCanonicalEvents(event, {
+        threadId: fixture.threadId,
+        turnId: fixture.turnId,
+        nextReplaySeq: () => {
+          replaySeq += 1
+          return replaySeq
+        },
+        now: () => fixture.ts,
+      }),
+    )
+    const fromNotification = fixture.notifications.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+    const replayLikeEntries = [fixture.notifications[2], fixture.notifications[0], fixture.notifications[1], fixture.notifications[1], fixture.notifications[3]]
+    const normalizedReplayEntries = replayLikeEntries
+      .slice()
+      .sort((left, right) => Number((left.params.replaySeq as number) ?? 0) - Number((right.params.replaySeq as number) ?? 0))
+      .filter((entry, index, arr) => index === 0 || entry.params.replaySeq !== arr[index - 1]?.params.replaySeq)
+    const fromReplayNotifications = normalizedReplayEntries.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+
+    const normalize = (events: ReturnType<typeof mapStreamEventToCanonicalEvents>) =>
+      events.map((event) => {
+        if (event.kind === 'assistant_delta') {
+          return { kind: event.kind, replaySeq: event.replaySeq, textDelta: event.textDelta }
+        }
+        if (event.kind === 'tool_event') {
+          return {
+            kind: event.kind,
+            replaySeq: event.replaySeq,
+            phase: event.phase,
+            toolUseId: event.toolUseId,
+            toolName: event.toolName ?? null,
+            summary: event.summary ?? null,
+          }
+        }
+        if (event.kind === 'turn_footer') {
+          return { kind: event.kind, replaySeq: event.replaySeq, status: event.status }
+        }
+        return { kind: event.kind, replaySeq: event.replaySeq }
+      })
+
+    expect(normalize(fromStream)).toEqual(normalize(fromNotification))
+    expect(normalize(fromReplayNotifications)).toEqual(normalize(fromNotification))
+  })
+
   it('covers TUI stream path mapping', () => {
     let replaySeq = 0
     const ctx = {
