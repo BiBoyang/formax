@@ -20,7 +20,7 @@ Status: `in_progress`
   位置: `src/features/repl/controller/session/sessionTransitions.ts`  
   目标: `abort/newSession/resume` 同风格；`useReplController` 内 `resumeSession` 仅保留 guard + orchestration。
 
-- [ ] S3: 抽出 provider 错误 UI 更新 helper  
+- [x] S3: 抽出 provider 错误 UI 更新 helper  
   位置: `src/features/repl/controller/shared/*` 或 `src/features/repl/controller/send/*`  
   目标: `send` 中 providerError 分支只保留一行 helper 调用。
 

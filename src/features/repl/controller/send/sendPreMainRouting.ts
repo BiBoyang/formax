@@ -9,6 +9,7 @@ import { resolveCommandRouting } from '../../../semantics/core/commandRouting'
 import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
 import type { CompactLifecycleEvent } from './compactFlow'
 import { maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './send'
+import { applyProviderErrorToState } from '../shared/providerError'
 
 export async function resolvePreMainSendRouting(args: {
   text: string
@@ -49,17 +50,11 @@ export async function resolvePreMainSendRouting(args: {
 
   if (commandRouting.isExactCompact) {
     if (args.providerError) {
-      args.setError(args.providerError)
-      args.setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          ui: { kind: 'command_subline' as const },
-          content: args.providerError!,
-          timestamp: new Date(),
-        },
-      ])
+      applyProviderErrorToState({
+        providerError: args.providerError,
+        setError: args.setError,
+        setMessages: args.setMessages,
+      })
       return { slashEffect: null, shouldReturn: true }
     }
     args.onCompactRequested?.()

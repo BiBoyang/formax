@@ -27,7 +27,7 @@ import {
   emitCanonicalUiMessageForTurn,
   projectCanonicalEventToTransientMessages,
 } from './controller/canonical/canonical'
-import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
+import { applyProviderErrorToState, isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
   applyConfigExitInjection,
   buildPersistedSigMap,
@@ -732,17 +732,11 @@ export function useReplController(deps: {
       if (preMainRouting.shouldReturn) return
       const slashEffect = preMainRouting.slashEffect
       if (providerError) {
-        setError(providerError)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `error-${Date.now()}`,
-            role: 'assistant',
-            ui: { kind: 'command_subline' },
-            content: providerError,
-            timestamp: new Date(),
-          },
-        ])
+        applyProviderErrorToState({
+          providerError,
+          setError,
+          setMessages,
+        })
         return
       }
 

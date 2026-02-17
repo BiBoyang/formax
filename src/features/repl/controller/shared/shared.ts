@@ -1,4 +1,5 @@
 export * from './errorSubline'
 export * from './ids'
 export * from './provider'
+export * from './providerError'
 export * from './utils'
