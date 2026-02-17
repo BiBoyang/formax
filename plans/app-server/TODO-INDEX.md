@@ -1,6 +1,6 @@
 # TODO-INDEX：Semantics Single-Writer（Rolling）
 
-更新时间：2026-02-17
+更新时间：2026-02-18
 任务来源（唯一）：
 - `plans/app-server/ARCHITECTURE-ROADMAP.md`
 - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
@@ -34,16 +34,11 @@
 ## P1：Single Writer 闭环（移除直写 transcript）
 
 - [ ] S1 清理语义路径中的 direct transcript write 残留
-  - 已完成：切片 A（直写点梳理）见 `plans/app-server/SINGLE-WRITER-WRITE-POINTS.md`。
-  - 进行中：切片 B（B1 已完成：`bashMode` 支持 canonical-only 开关；B2 已完成：transient 展示按 `canonicalTransientActive` 驱动；B3 已完成：bash 主路径切换为 canonical-only，并新增 canonical 尾部终局持久化；B4 已完成：`sendMainTurn` 错误 subline 主路径改为 canonical-only，且终局合并增加 command_subline 去重；B5 已完成：`sendAutoCompact` notice 主路径改为 canonical-only，直写仅保留 fallback）。
-  - 待做：切片 B（剩余）：评估 `sendMainTurn.ts:76` 的 user anchor 行是否需要进一步 canonical 化（若保留，需在验收标准中显式声明为允许写点）。
-  - 待做：切片 C，补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
-  - 验收：关键语义路径不存在 direct transcript write，不依赖止血补丁。
+  - 待做：评估 `sendMainTurn.ts:76` user anchor 直写是否保留为允许例外。
+  - 待做：若保留例外，更新验收标准与 write-point 文档，明确“语义主路径 vs UI anchor”的边界。
+  - 验收：语义主路径不再依赖 direct transcript write（仅允许已文档化的例外点）。
 
 ## P2：Replay-First 恢复一致性
 
 - [ ] R1 gap/reconnect/restart 三场景统一恢复流程
-  - 切片 A：统一 `hasGap=true` 的 baseline replay + snapshot hydrate 流程。
-  - 切片 B：统一 `connectRpcClient` 断线重连后的 replay 重建行为。
-  - 切片 C：补齐恢复路径不变量测试（无重复完成行、turn 终局无 running）。
-  - 验收：realtime 与 replay 输出一致，恢复路径不再分叉。
+  - 待做：把当前 web-runtime 回归结果沉淀到里程碑文档（A/B/C 现状 + 证据命令），然后从 TODO-INDEX 移除本项。
