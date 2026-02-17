@@ -6,7 +6,7 @@ import {
 } from './replayThreadEvents'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
-type ReplayResponse = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
+type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 const INITIAL_REPLAY_CURSOR = 50
@@ -56,7 +56,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
   }
 }
 
-function createReplayResponse(overrides: Partial<ReplayResponse> = {}): ReplayResponse {
+function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
   return {
     data: [],
     nextCursor: 0,
@@ -64,10 +64,10 @@ function createReplayResponse(overrides: Partial<ReplayResponse> = {}): ReplayRe
     hasGap: false,
     state: null,
     ...overrides,
-  } as ReplayResponse
+  } as ReplayPage
 }
 
-function createReplayRequestMock(...pages: ReplayResponse[]) {
+function createReplayRequest(...pages: ReplayPage[]) {
   const request = vi.fn()
   for (const page of pages) {
     request.mockResolvedValueOnce(page)
@@ -98,15 +98,15 @@ function createAdvancingReplayRequest(args: {
   state?: ReplayStateSnapshot
 }) {
   const step = args.step ?? 1
+  const buildPage = (after: number) =>
+    createReplayPage({
+      nextCursor: after + step,
+      latestCursor: args.latestCursor,
+      state: args.state ?? createReplayState(),
+    })
   return vi.fn().mockImplementation((_method: string, params?: unknown) => {
     const after = Number((params as { after?: number } | undefined)?.after ?? 0)
-    return Promise.resolve(
-      createReplayResponse({
-        nextCursor: after + step,
-        latestCursor: args.latestCursor,
-        state: args.state ?? createReplayState(),
-      }),
-    )
+    return Promise.resolve(buildPage(after))
   })
 }
 
@@ -144,14 +144,14 @@ describe('resolveReplayCursorProgress', () => {
 describe('replayThreadEvents', () => {
   it('[rebuild] uses replay-first rebuild on hasGap and clears cached logs', async () => {
     const gapState = createReplayState()
-    const request = createReplayRequestMock(
-      createReplayResponse({
+    const request = createReplayRequest(
+      createReplayPage({
         nextCursor: 50,
         latestCursor: 120,
         hasGap: true,
         state: gapState,
       }),
-      createReplayResponse({
+      createReplayPage({
         nextCursor: 120,
         latestCursor: 120,
         state: gapState,
@@ -179,8 +179,8 @@ describe('replayThreadEvents', () => {
   describe('history paths', () => {
     it('[history] loads history and keeps cursor at zero for fromStart empty replay', async () => {
       const replayState = createReplayState()
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 0,
           latestCursor: 0,
           state: replayState,
@@ -206,8 +206,8 @@ describe('replayThreadEvents', () => {
     })
 
     it('[history] returns false when fromStart empty replay cannot load history', async () => {
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 0,
           latestCursor: 0,
           state: null,
@@ -242,8 +242,8 @@ describe('replayThreadEvents', () => {
 
     it('[pagination] exits loop when next cursor does not advance beyond current after', async () => {
       const replayState = createReplayState()
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 200,
           state: replayState,
@@ -261,8 +261,8 @@ describe('replayThreadEvents', () => {
 
     it('[pagination] exits loop when next cursor reaches latest cursor', async () => {
       const replayState = createReplayState()
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: replayState,
@@ -302,8 +302,8 @@ describe('replayThreadEvents', () => {
       const replayState = createReplayState({
         canonicalProtocolAnomalyCount: 3,
       })
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: INITIAL_REPLAY_CURSOR,
           latestCursor: 200,
           state: replayState,
@@ -379,8 +379,8 @@ describe('replayThreadEvents', () => {
         invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
         projection: createProjectionSnapshot(),
       })
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
@@ -405,8 +405,8 @@ describe('replayThreadEvents', () => {
       const gapState = createReplayState({
         projection: createProjectionSnapshot(),
       })
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
@@ -434,14 +434,14 @@ describe('replayThreadEvents', () => {
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {
       const projection = createProjectionSnapshot()
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: createReplayState({ projection }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
@@ -485,14 +485,14 @@ describe('replayThreadEvents', () => {
         ],
         projection: null,
       })
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: gapState,
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: baselineState,
@@ -510,14 +510,14 @@ describe('replayThreadEvents', () => {
 
     it('[rebuild] defers baseline projection hydration for non-active threads after hasGap', async () => {
       const baselineProjection = createProjectionSnapshot('baseline-rebuilt')
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: createReplayState({ projection: null }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: createReplayState({ projection: baselineProjection }),
@@ -552,14 +552,14 @@ describe('replayThreadEvents', () => {
         canonicalProtocolAnomalyCount: 5,
         projection: null,
       })
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: gapState,
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: baselineState,
@@ -576,18 +576,18 @@ describe('replayThreadEvents', () => {
     })
 
     it('[logging] logs canonical protocol anomalies only when replay count increases across calls', async () => {
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 51,
           latestCursor: 51,
           state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 52,
           latestCursor: 52,
           state: createReplayState({ canonicalProtocolAnomalyCount: 2 }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 53,
           latestCursor: 53,
           state: createReplayState({ canonicalProtocolAnomalyCount: 3 }),
@@ -605,8 +605,8 @@ describe('replayThreadEvents', () => {
     })
 
     it('[rebuild] continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
@@ -615,7 +615,7 @@ describe('replayThreadEvents', () => {
             projection: null,
           }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: createReplayState({
@@ -623,7 +623,7 @@ describe('replayThreadEvents', () => {
             projection: null,
           }),
         }),
-        createReplayResponse({
+        createReplayPage({
           data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
           nextCursor: REPLAY_SEQ_INCREMENTAL,
           latestCursor: REPLAY_SEQ_INCREMENTAL,
@@ -655,19 +655,19 @@ describe('replayThreadEvents', () => {
     })
 
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {
-      const request = createReplayRequestMock(
-        createReplayResponse({
+      const request = createReplayRequest(
+        createReplayPage({
           nextCursor: 50,
           latestCursor: 120,
           hasGap: true,
           state: createReplayState({ projection: null }),
         }),
-        createReplayResponse({
+        createReplayPage({
           nextCursor: 120,
           latestCursor: 120,
           state: createReplayState({ projection: null }),
         }),
-        createReplayResponse({
+        createReplayPage({
           data: [{ replaySeq: REPLAY_SEQ_INCREMENTAL, method: 'turn/started', params: { replaySeq: REPLAY_SEQ_INCREMENTAL } }],
           nextCursor: REPLAY_SEQ_INCREMENTAL,
           latestCursor: REPLAY_SEQ_INCREMENTAL,
