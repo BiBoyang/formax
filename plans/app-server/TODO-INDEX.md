@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N79 replay helper 类型别名收敛（request/log）
-  - 目标：减少 `ReturnType<typeof vi.fn>` 重复声明，统一测试 helper 的 mock 类型别名。
+- [ ] N80 replay progression helper 命名统一（progress/cursor）
+  - 目标：减少 helper 名称中 “advance/progress/cursor” 混用，提升可读性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N80 replay progression helper 命名统一（progress/cursor）
-  - 目标：减少 helper 名称中 “advance/progress/cursor” 混用，提升可读性。
+- [ ] N81 replay helper 参数对象化（multi-arg -> named args）
+  - 目标：对易混淆 helper 参数采用对象入参，提高后续字段扩展可维护性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

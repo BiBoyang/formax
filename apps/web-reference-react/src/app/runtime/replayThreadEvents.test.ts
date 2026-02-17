@@ -7,6 +7,8 @@ import {
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
+type ReplayRequestMock = ReturnType<typeof vi.fn>
+type ReplayLogMock = ReturnType<typeof vi.fn>
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
@@ -24,7 +26,7 @@ const REPLAY_CURSOR_REBUILD_COMPLETE = 120
 const REPLAY_PAGE_LIMIT = 200
 
 // Assertion helpers
-function expectReplayPageRequestArgs(request: ReturnType<typeof vi.fn>, nth: number, after: number) {
+function expectReplayPageRequestArgs(request: ReplayRequestMock, nth: number, after: number) {
   expect(request).toHaveBeenNthCalledWith(nth, 'thread/replay', {
     threadId: TEST_THREAD_ID,
     after,
@@ -49,12 +51,12 @@ function replayAnomalyWarning(count: number) {
   return `Replay canonical protocol anomalies detected (count=${count})`
 }
 
-function expectSingleWarning(log: ReturnType<typeof vi.fn>, message: string) {
+function expectSingleWarning(log: ReplayLogMock, message: string) {
   expect(log).toHaveBeenCalledTimes(1)
   expect(log).toHaveBeenCalledWith(message, 'warn')
 }
 
-function expectWarningSequence(log: ReturnType<typeof vi.fn>, messages: string[]) {
+function expectWarningSequence(log: ReplayLogMock, messages: string[]) {
   expect(log).toHaveBeenCalledTimes(messages.length)
   for (const [index, message] of messages.entries()) {
     expect(log).toHaveBeenNthCalledWith(index + 1, message, 'warn')
