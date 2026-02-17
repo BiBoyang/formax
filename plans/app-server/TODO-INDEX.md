@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N87 replay defaults 对象字段名精简
-  - 目标：减少 defaults 对象中重复 “replay/request” 前后缀噪音，保持语义清晰。
+- [ ] N88 replay helper 声明顺序微调（依赖先后）
+  - 目标：让 helper 定义顺序与调用依赖一致，降低阅读跳转成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N88 replay helper 声明顺序微调（依赖先后）
-  - 目标：让 helper 定义顺序与调用依赖一致，降低阅读跳转成本。
+- [ ] N89 replay fixture builder 参数排序统一
+  - 目标：统一 builder 参数对象字段顺序（state/cursor/step），减少 review 噪音。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
