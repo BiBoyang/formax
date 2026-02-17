@@ -18,6 +18,10 @@ const steps = [
     ],
   },
   {
+    label: 'canonical adapter contract fixture',
+    cmd: ['bun', 'run', 'test', '--', 'src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts'],
+  },
+  {
     label: 'surface deterministic smoke',
     cmd: ['bun', 'run', 'test:surface-screen-model'],
   },

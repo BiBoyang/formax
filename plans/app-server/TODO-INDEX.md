@@ -40,7 +40,7 @@
   - 未完成切片：
     - [x] AD-02.B：补 replay 真路径同构断言（接入 `apps/web-reference-react` replay 测试路径）。
     - [x] AD-02.C：补乱序 + 重复 `replaySeq` 的归一化同构断言。
-    - [ ] AD-02.D：将 contract fixture 纳入固定语义回归命令（gate/smoke）。
+    - [x] AD-02.D：将 contract fixture 纳入固定语义回归命令（gate/smoke）。
 
 ## P3：Replay-First 强化（来自 Milestone 3 / G4）
 
