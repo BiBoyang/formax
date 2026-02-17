@@ -33,6 +33,14 @@ function expectReplayPageRequestArgs(request: ReturnType<typeof vi.fn>, nth: num
   })
 }
 
+function expectReplayCursor(ctx: ReplayThreadEventsContext, cursor: number) {
+  expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(cursor)
+}
+
+function expectRuntimeLastReplaySeq(ctx: ReplayThreadEventsContext, replaySeq: number) {
+  expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(replaySeq)
+}
+
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',
@@ -186,7 +194,7 @@ describe('replayThreadEvents', () => {
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'replace_logs', logs: [] })
     expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
     expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith(TEST_THREAD_ID)
-    expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
+    expectReplayCursor(ctx, 120)
     expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, gapState)
     expect(ctx.handleNotification).not.toHaveBeenCalled()
   })
@@ -211,7 +219,7 @@ describe('replayThreadEvents', () => {
       expect(ok).toBe(true)
       expectReplayPageRequestArgs(request, 1, REPLAY_CURSOR_FROM_START)
       expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(0)
+      expectReplayCursor(ctx, REPLAY_CURSOR_FROM_START)
       expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
     })
@@ -233,7 +241,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(false)
       expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
       expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
     })
   })
@@ -247,7 +255,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(100)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR + 100)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR + 100)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
     })
 
@@ -266,7 +274,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(1)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(INITIAL_REPLAY_CURSOR)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
       expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
     })
 
@@ -285,7 +293,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(1)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
+      expectReplayCursor(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
       expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith(TEST_THREAD_ID, replayState)
     })
 
@@ -439,8 +447,8 @@ describe('replayThreadEvents', () => {
       })
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
-      expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(120)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
+      expectRuntimeLastReplaySeq(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
     })
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {
@@ -468,7 +476,7 @@ describe('replayThreadEvents', () => {
       const firstOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       expect(firstOk).toBe(true)
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
 
       activeThreadIdRef.current = TEST_THREAD_ID
       const secondOk = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
@@ -481,7 +489,7 @@ describe('replayThreadEvents', () => {
       })
       expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
       expect(ctx.clearThreadHistoryCursor).toHaveBeenCalledWith(TEST_THREAD_ID)
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(120)
+      expectReplayCursor(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
     })
 
     it('[rebuild] logs invariant issues once across hasGap baseline replay double-request path', async () => {
@@ -550,8 +558,8 @@ describe('replayThreadEvents', () => {
       })
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(50)
-      expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(120)
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
+      expectRuntimeLastReplaySeq(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
     })
 
     it('[rebuild] logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {
@@ -654,7 +662,7 @@ describe('replayThreadEvents', () => {
       expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledTimes(1)
       expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
-      expect(ctx.replayCursorByThreadRef.current[TEST_THREAD_ID]).toBe(121)
+      expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)
     })
 
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {

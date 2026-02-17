@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N72 replay runtime-state 断言 helper 化（lastReplaySeq/cursor）
-  - 目标：收敛重复的 runtime-state 断言模式，降低后续语义字段迁移时的改动面。
+- [ ] N73 replay hasGap 场景 builder 收敛（gap/baseline 双页）
+  - 目标：为 hasGap + baseline 双页路径提供轻量 fixture builder，减少重复数据拼装。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N73 replay hasGap 场景 builder 收敛（gap/baseline 双页）
-  - 目标：为 hasGap + baseline 双页路径提供轻量 fixture builder，减少重复数据拼装。
+- [ ] N74 replay log 断言 helper 化（invariant/anomaly）
+  - 目标：统一 replay warning 文案断言入口，降低文案格式调整时的维护成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
