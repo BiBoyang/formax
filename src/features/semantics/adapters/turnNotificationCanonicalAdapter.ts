@@ -6,6 +6,7 @@ import {
 } from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
+import { readCanonicalToolEndSummary, readCanonicalToolUpdateLine } from './toolEventCanonicalFields'
 
 type TurnNotification = {
   method: string
@@ -229,32 +230,6 @@ function resolveFailureFooterStatus(
   return inferCanonicalFailureStatus(message)
 }
 
-function readToolUpdateLine(event: Record<string, unknown>): string | undefined {
-  const transcriptLines = Array.isArray(event.transcriptLines) ? event.transcriptLines : []
-  if (transcriptLines.length > 0) {
-    const line = String(transcriptLines[transcriptLines.length - 1] ?? '').trim()
-    if (line) return line
-  }
-  const middleLines = Array.isArray(event.middleLines) ? event.middleLines : []
-  if (middleLines.length > 0) {
-    const line = String(middleLines[middleLines.length - 1] ?? '').trim()
-    if (line) return line
-  }
-  if (typeof event.toolUses === 'number' && Number.isFinite(event.toolUses)) {
-    return `tool uses ${event.toolUses}`
-  }
-  return undefined
-}
-
-function readToolEndSummary(event: Record<string, unknown>): string | undefined {
-  const result = event.result
-  if (!result || typeof result !== 'object') return undefined
-  const content = String((result as Record<string, unknown>).content ?? '').trim()
-  if (content) return content
-  const isError = Boolean((result as Record<string, unknown>).is_error)
-  return isError ? 'error' : 'completed'
-}
-
 export function toCanonicalEventsFromTurnNotification(
   notification: TurnNotification,
   ctx: TurnNotificationCanonicalContext,
@@ -315,8 +290,11 @@ export function toCanonicalEventsFromTurnNotification(
       const toolName = typeof toolNameRaw === 'string' && toolNameRaw.trim() ? toolNameRaw : undefined
       const phase =
         eventType === 'tool_start' ? 'start' : eventType === 'tool_end' ? 'end' : 'update'
-      const line = eventType === 'tool_update' ? readToolUpdateLine(streamEvent) : undefined
-      const summary = eventType === 'tool_end' ? readToolEndSummary(streamEvent) : undefined
+      const line = eventType === 'tool_update' ? readCanonicalToolUpdateLine(streamEvent) : undefined
+      const summary =
+        eventType === 'tool_end'
+          ? readCanonicalToolEndSummary(streamEvent, { includeCompletedFallback: true })
+          : undefined
       const paramsText = formatToolInputAsParamsText(streamEvent.input)
       const input =
         streamEvent.input && typeof streamEvent.input === 'object' && !Array.isArray(streamEvent.input)

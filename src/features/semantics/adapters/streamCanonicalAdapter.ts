@@ -6,6 +6,7 @@ import type {
 } from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
+import { readCanonicalToolEndSummary, readCanonicalToolUpdateLine } from './toolEventCanonicalFields'
 
 type StreamCanonicalContext = {
   threadId: string
@@ -31,29 +32,6 @@ function createEnvelope(
     ts: toCanonicalTimestamp(ctx.now),
     source: ctx.source ?? 'engine',
   }
-}
-
-function readToolUpdateLine(ev: Extract<StreamEvent, { type: 'tool_update' }>): string | undefined {
-  if (Array.isArray(ev.transcriptLines) && ev.transcriptLines.length > 0) {
-    const line = String(ev.transcriptLines[ev.transcriptLines.length - 1] ?? '').trim()
-    if (line) return line
-  }
-  if (Array.isArray(ev.middleLines) && ev.middleLines.length > 0) {
-    const line = String(ev.middleLines[ev.middleLines.length - 1] ?? '').trim()
-    if (line) return line
-  }
-  if (typeof ev.toolUses === 'number') return `tool uses ${ev.toolUses}`
-  return undefined
-}
-
-function readToolEndSummary(ev: Extract<StreamEvent, { type: 'tool_end' }>): string | undefined {
-  const content = String(ev.result?.content ?? '').trim()
-  if (ev.result?.is_error) {
-    if (content) return content
-    return 'error'
-  }
-  if (content) return content
-  return undefined
 }
 
 export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCanonicalContext): CanonicalEvent[] {
@@ -133,7 +111,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
 
   if (ev.type === 'tool_update') {
     const seq = replaySeq()
-    const line = readToolUpdateLine(ev)
+    const line = readCanonicalToolUpdateLine(ev)
     return [
       {
         ...createEnvelope(ctx, 'tool_event', seq),
@@ -153,7 +131,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
 
   if (ev.type === 'tool_end') {
     const seq = replaySeq()
-    const summary = readToolEndSummary(ev)
+    const summary = readCanonicalToolEndSummary(ev)
     const result = String(ev.result?.content ?? '')
     return [
       {
