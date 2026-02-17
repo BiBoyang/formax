@@ -1,6 +1,6 @@
 # useReplController / 语义化后续优化 TODO
 
-Status: `in_progress`  
+Status: `completed`  
 基线: `plans/repl/useReplController-refactors-phase2.md` 已完成  
 目标: 在不改行为前提下，继续降低 `useReplController` 复杂度并提升语义层一致性。
 
@@ -32,7 +32,7 @@ Status: `in_progress`
   位置: `src/features/semantics/adapters/streamCanonicalAdapter.ts`、`src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`  
   目标: 抽公共解析 helper（tool/assistant/thinking 映射），降低跨端漂移风险。
 
-- [ ] S6: canonical turn merge 策略再拆分  
+- [x] S6: canonical turn merge 策略再拆分  
   位置: `src/features/repl/controller/canonical/canonicalTurnMessages.ts`  
   目标: 分离“segment->message 映射”与“legacy/canonical 合并策略”，便于排查重复 tool row/assistant 丢失。
 
