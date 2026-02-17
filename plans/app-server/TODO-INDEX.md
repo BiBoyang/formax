@@ -17,12 +17,6 @@
 
 ## P2：Contract & Adapter Consolidation
 
-- [ ] N9 Notification -> canonical 映射单点化补齐
-  - 目标：客户端不再保留平行“回放序号推断”逻辑，canonical 语义只通过 shared adapter 进入 projector。
-  - 验收：
-    - `appEventMachine.resolveNotificationReplaySeq` 下线或不再用于语义投影链路。
-    - Web 侧 canonical 投影入口仅保留 `toCanonicalEventsFromTurnNotification(..., { requireEnvelope: true })`。
-
 ## P3：Presentation IR
 
 - [ ] N10 Tool Presentation IR 边界收敛（第一步）

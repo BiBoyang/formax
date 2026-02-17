@@ -9,10 +9,3 @@ export function isNotificationForActiveThread(args: {
   if (!args.activeThreadId) return true
   return threadId === args.activeThreadId
 }
-
-export function resolveNotificationReplaySeq(args: {
-  replaySeqFromParams: number | null
-  previousReplaySeq: number
-}): number {
-  return args.replaySeqFromParams ?? args.previousReplaySeq + 1
-}

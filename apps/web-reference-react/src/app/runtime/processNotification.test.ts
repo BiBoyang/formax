@@ -74,4 +74,56 @@ describe('processNotification', () => {
     })
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(7)
   })
+
+  it('skips canonical projection for turn notifications with missing envelope fields', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: { type: 'assistant_delta', text: 'hello' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+    expect(ctx.log).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped canonical projection for turn/event: missing envelope fields'),
+      'warn',
+    )
+  })
+
+  it('projects canonical events only when turn notification envelope is complete', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: {
+        replaySeq: 11,
+        eventId: 'evt-11',
+        ts: '2026-02-17T00:00:00.000Z',
+        source: 'engine',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        event: { type: 'assistant_delta', text: 'hello' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'apply_canonical_event',
+        event: expect.objectContaining({
+          kind: 'assistant_delta',
+          replaySeq: 11,
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+        }),
+      }),
+    )
+  })
 })

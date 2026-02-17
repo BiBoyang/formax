@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isNotificationForActiveThread, resolveNotificationReplaySeq } from './appEventMachine'
+import { isNotificationForActiveThread } from './appEventMachine'
 
 describe('appEventMachine', () => {
   it('matches notification against active thread id using threadId or turn.threadId', () => {
@@ -15,10 +15,5 @@ describe('appEventMachine', () => {
         activeThreadId: 'thread-b',
       }),
     ).toBe(false)
-  })
-
-  it('falls back replay seq when params do not provide one', () => {
-    expect(resolveNotificationReplaySeq({ replaySeqFromParams: 9, previousReplaySeq: 3 })).toBe(9)
-    expect(resolveNotificationReplaySeq({ replaySeqFromParams: null, previousReplaySeq: 3 })).toBe(4)
   })
 })
