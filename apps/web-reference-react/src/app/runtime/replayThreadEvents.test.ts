@@ -603,6 +603,33 @@ describe('replayThreadEvents', () => {
       })
     })
 
+    it('[rebuild] does not consume incremental replay data from a hasGap page', async () => {
+      const gapProjection = createProjectionSnapshot('gap-rebuild')
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [createReplayTurnEvent(REPLAY_SEQ_INCREMENTAL)],
+          nextCursor: REPLAY_SEQ_INCREMENTAL,
+          latestCursor: REPLAY_SEQ_INCREMENTAL,
+          hasGap: true,
+          state: createReplayState({
+            projection: gapProjection,
+          }),
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
+      expect(ctx.dispatch).toHaveBeenCalledWith({
+        type: 'hydrate_projection_snapshot',
+        threadId: TEST_THREAD_ID,
+        snapshot: gapProjection,
+      })
+      expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)
+    })
+
     it('[rebuild] defers hasGap projection hydration for non-active threads', async () => {
       const gapState = createReplayState({
         projection: createProjectionSnapshot(),

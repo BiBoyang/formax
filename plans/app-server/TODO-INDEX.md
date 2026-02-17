@@ -48,7 +48,7 @@
   - 目标：所有 gap 场景都显式进入 rebuild/replay-first 路径。
   - 验收：现有 replay tests 继续通过，并新增“gap 后禁止旧增量落地”的反例测试。
   - 未完成切片：
-    - [ ] RP-01.A：新增反例测试：`hasGap=true` 且同页有 `data` 时，不允许继续增量落地旧事件。
+    - [x] RP-01.A：新增反例测试：`hasGap=true` 且同页有 `data` 时，不允许继续增量落地旧事件。
     - [ ] RP-01.B：新增反例测试：rebuild 后 cursor 推进正确，且不重复落地 tail。
     - [ ] RP-01.C：在 `replayThreadEvents.ts` 显式收紧 `hasGap` 分支保护（只走 rebuild，不消费当前页 `data`）。
     - [ ] RP-01.D：补一条 reconnect/gap/restart 一致性回归（Realtime = Replay）。
