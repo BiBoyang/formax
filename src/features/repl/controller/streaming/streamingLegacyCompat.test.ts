@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import { createLegacyTranscriptMutator } from './streamingLegacyTranscript'
 import {
+  writeLegacyAssistantDeltaFallback,
   writeLegacyToolEndFallback,
+  writeLegacyThinkingStartFallback,
+  writeLegacyThinkingUpdateFallback,
   writeLegacyToolInputFallback,
   writeLegacyToolStartFallback,
   writeLegacyToolUpdateFallback,
@@ -24,6 +27,50 @@ function createHarness() {
 }
 
 describe('streamingLegacyCompat', () => {
+  it('writes assistant streaming deltas through compat helper', () => {
+    const { legacyTranscript, getMessages } = createHarness()
+
+    const assistantId = writeLegacyAssistantDeltaFallback({
+      legacyTranscript,
+      assistantId: null,
+      text: 'hello',
+      createAssistantId: () => 'assistant-1',
+    })
+    const sameAssistantId = writeLegacyAssistantDeltaFallback({
+      legacyTranscript,
+      assistantId,
+      text: ' world',
+      createAssistantId: () => 'assistant-2',
+    })
+
+    expect(assistantId).toBe('assistant-1')
+    expect(sameAssistantId).toBe('assistant-1')
+    expect(getMessages()).toHaveLength(1)
+    expect(getMessages()[0]?.role).toBe('assistant')
+    expect(getMessages()[0]?.isStreaming).toBe(true)
+    expect(getMessages()[0]?.content).toBe('hello world')
+  })
+
+  it('writes thinking block rows through compat helpers', () => {
+    const { legacyTranscript, getMessages } = createHarness()
+
+    writeLegacyThinkingStartFallback({
+      legacyTranscript,
+      thinkingId: 'thinking-1',
+      text: 'step-1',
+    })
+    writeLegacyThinkingUpdateFallback({
+      legacyTranscript,
+      thinkingId: 'thinking-1',
+      text: 'step-1 step-2',
+    })
+
+    expect(getMessages()).toHaveLength(1)
+    expect(getMessages()[0]?.role).toBe('assistant')
+    expect(getMessages()[0]?.ui?.kind).toBe('thinking_block')
+    expect(getMessages()[0]?.content).toBe('step-1 step-2')
+  })
+
   it('writes and finalizes tool rows through compat helpers', () => {
     const { legacyTranscript, getMessages } = createHarness()
     const toolMessageIdByToolUseId = new Map<string, string>()

@@ -9,9 +9,6 @@ import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import { forwardCanonicalStreamEvent, resolveCanonicalStreamWritePolicy } from './streamBridge'
 import { resolveLoadingTextForToolInput, resolveLoadingTextForToolStart } from './streamingLoadingText'
 import {
-  appendAssistantDeltaToMessages,
-  createAssistantStreamingMessage,
-  createThinkingBlockMessage,
   finalizeAssistantStreamInMessages,
   updateThinkingBlockContent,
 } from './streamingTextRows'
@@ -25,7 +22,10 @@ import { consumeToolEndState } from './streamingToolLifecycle'
 import { isAbortLikeError, sumInputTokens } from '../shared/utils'
 import { createLegacyTranscriptMutator } from './streamingLegacyTranscript'
 import {
+  writeLegacyAssistantDeltaFallback,
   writeLegacyToolEndFallback,
+  writeLegacyThinkingStartFallback,
+  writeLegacyThinkingUpdateFallback,
   writeLegacyToolInputFallback,
   writeLegacyToolStartFallback,
   writeLegacyToolUpdateFallback,
@@ -207,31 +207,15 @@ export function useReplStreaming(args: {
             return
           }
 
-          const existingId = args.currentAssistantIdRef.current
-
-          // NOTE: Avoid reading or mutating `currentAssistantIdRef` inside the state updater.
+          // NOTE: Avoid reading or mutating `currentAssistantIdRef` inside a state updater.
           // React may batch updates, and `complete`/`tool_start` can clear the ref before the
           // queued updater runs, causing later deltas to create a new assistant message.
-          if (!existingId) {
-            const assistantId = makeMessageId('assistant')
-            args.currentAssistantIdRef.current = assistantId
-            legacyTranscript.update((prev) => [
-              ...prev,
-              createAssistantStreamingMessage({
-                assistantId,
-                text: ev.text,
-              }),
-            ])
-            return
-          }
-
-          legacyTranscript.update((prev) =>
-            appendAssistantDeltaToMessages({
-              previous: prev,
-              assistantId: existingId,
-              text: ev.text,
-            }),
-          )
+          args.currentAssistantIdRef.current = writeLegacyAssistantDeltaFallback({
+            legacyTranscript,
+            assistantId: args.currentAssistantIdRef.current,
+            text: ev.text,
+            createAssistantId: () => makeMessageId('assistant'),
+          })
           return
         }
 
@@ -256,13 +240,11 @@ export function useReplStreaming(args: {
             args.thinkingLastFlushAtRef.current = Date.now()
             args.thinkingBufferRef.current += ev.thinking
             args.setThinkingText(args.thinkingBufferRef.current)
-            legacyTranscript.update((prev) => [
-              ...prev,
-              createThinkingBlockMessage({
-                thinkingId,
-                text: args.thinkingBufferRef.current,
-              }),
-            ])
+            writeLegacyThinkingStartFallback({
+              legacyTranscript,
+              thinkingId,
+              text: args.thinkingBufferRef.current,
+            })
             return
           }
 
@@ -274,13 +256,11 @@ export function useReplStreaming(args: {
             const id = args.currentThinkingMessageIdRef.current
             if (id) {
               const text = args.thinkingBufferRef.current
-              legacyTranscript.update((prev) =>
-                updateThinkingBlockContent({
-                  previous: prev,
-                  thinkingId: id,
-                  text,
-                }),
-              )
+              writeLegacyThinkingUpdateFallback({
+                legacyTranscript,
+                thinkingId: id,
+                text,
+              })
             }
           }
           return

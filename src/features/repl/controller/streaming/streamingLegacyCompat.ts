@@ -4,6 +4,72 @@ import { createRunningToolMessage, applyLegacyToolInputToMessages, applyLegacyTo
 import type { LegacyTranscriptMutator } from './streamingLegacyTranscript'
 import { buildCompletedToolMessage, type TaskToolCompletionStats } from './streamingToolCompletion'
 import { shouldApplyLegacyToolUpdate } from './streamingTaskState'
+import {
+  appendAssistantDeltaToMessages,
+  createAssistantStreamingMessage,
+  createThinkingBlockMessage,
+  updateThinkingBlockContent,
+} from './streamingTextRows'
+
+export function writeLegacyAssistantDeltaFallback(args: {
+  legacyTranscript: LegacyTranscriptMutator
+  assistantId: string | null
+  text: string
+  createAssistantId: () => string
+}): string | null {
+  if (!args.legacyTranscript.canWrite) return args.assistantId
+
+  if (!args.assistantId) {
+    const nextAssistantId = args.createAssistantId()
+    args.legacyTranscript.update((prev) => [
+      ...prev,
+      createAssistantStreamingMessage({
+        assistantId: nextAssistantId,
+        text: args.text,
+      }),
+    ])
+    return nextAssistantId
+  }
+
+  args.legacyTranscript.update((prev) =>
+    appendAssistantDeltaToMessages({
+      previous: prev,
+      assistantId: args.assistantId,
+      text: args.text,
+    }),
+  )
+  return args.assistantId
+}
+
+export function writeLegacyThinkingStartFallback(args: {
+  legacyTranscript: LegacyTranscriptMutator
+  thinkingId: string
+  text: string
+}): void {
+  if (!args.legacyTranscript.canWrite) return
+  args.legacyTranscript.update((prev) => [
+    ...prev,
+    createThinkingBlockMessage({
+      thinkingId: args.thinkingId,
+      text: args.text,
+    }),
+  ])
+}
+
+export function writeLegacyThinkingUpdateFallback(args: {
+  legacyTranscript: LegacyTranscriptMutator
+  thinkingId: string
+  text: string
+}): void {
+  if (!args.legacyTranscript.canWrite) return
+  args.legacyTranscript.update((prev) =>
+    updateThinkingBlockContent({
+      previous: prev,
+      thinkingId: args.thinkingId,
+      text: args.text,
+    }),
+  )
+}
 
 export function writeLegacyToolStartFallback(args: {
   legacyTranscript: LegacyTranscriptMutator
