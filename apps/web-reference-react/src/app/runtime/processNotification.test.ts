@@ -5,6 +5,7 @@ import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
 } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+import { createReplayTurnEventEnvelope } from './testFixtures/replayFixtures'
 
 function createContext(): ProcessNotificationContext {
   return {
@@ -101,15 +102,9 @@ describe('processNotification', () => {
     const notification: RpcNotification = {
       jsonrpc: '2.0',
       method: 'turn/event',
-      params: {
-        replaySeq: 11,
-        eventId: 'evt-11',
-        ts: '2026-02-17T00:00:00.000Z',
-        source: 'engine',
-        threadId: 'thread-1',
-        turnId: 'turn-1',
+      params: createReplayTurnEventEnvelope({
         event: { type: 'assistant_delta', text: 'hello' },
-      },
+      }),
     }
 
     processNotification(notification, ctx)

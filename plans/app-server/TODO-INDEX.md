@@ -22,12 +22,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N116 processNotification envelope 用例接入共享 replay fixture
-  - 目标：把 processNotification 里完整 envelope 的测试数据接到 `replayFixtures.ts`，减少协议字段漂移。
-  - 验收：
-    - processNotification.test 至少 1 个 envelope 用例改为使用共享 fixture。
-
 - [ ] N117 replay fixture 扩展策略补充（字段新增流程）
   - 目标：定义共享 fixture 新增字段时的最小更新流程（fixture -> 相关测试），降低遗漏风险。
   - 验收：
     - TODO-INDEX 或相关计划文档新增 1 条“字段新增流程”说明。
+
+- [ ] N118 replay fixture 字段变更 smoke 清单
+  - 目标：补一个最小 smoke 清单，约束 fixture 字段变更后必须触达的测试文件。
+  - 验收：
+    - 在 TODO 相关文档新增 1 条字段变更 smoke 清单并列出至少 2 个测试入口。
