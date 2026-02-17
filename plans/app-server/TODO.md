@@ -41,7 +41,7 @@
   - 验收：
     - app-server 路径下不存在“客户端补造 envelope 后继续投影”的隐式分支。
 
-- [ ] A2 在 Web 侧移除/封禁 canonical envelope 本地合成入口（仅保留 UI-only 日志）
+- [x] A2 在 Web 侧移除/封禁 canonical envelope 本地合成入口（仅保留 UI-only 日志）
   - 文件：
     - `apps/web-reference-react/src/App.tsx`
     - `apps/web-reference-react/src/store.ts`

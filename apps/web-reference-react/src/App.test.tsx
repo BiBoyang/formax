@@ -3,10 +3,116 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 
 const rpcMock = vi.hoisted(() => {
+  const CANONICAL_SOURCES = new Set(['engine', 'tool', 'policy', 'system', 'ui'])
   let requestImpl: (method: string, params: unknown) => unknown = () => ({})
   let onNotification: ((notification: { method: string; params?: unknown }) => void) | null = null
   const requests: Array<{ method: string; params: unknown }> = []
   const connectUrls: string[] = []
+  let replaySeqCounter = 0
+
+  function inferThreadId(params: Record<string, unknown>): string | null {
+    if (typeof params.threadId === 'string' && params.threadId.trim()) return params.threadId
+    const turn = params.turn
+    if (turn && typeof turn === 'object') {
+      const turnThreadId = (turn as Record<string, unknown>).threadId
+      if (typeof turnThreadId === 'string' && turnThreadId.trim()) return turnThreadId
+    }
+    const input = params.input
+    if (input && typeof input === 'object') {
+      const inputThreadId = (input as Record<string, unknown>).threadId
+      if (typeof inputThreadId === 'string' && inputThreadId.trim()) return inputThreadId
+    }
+    return null
+  }
+
+  function inferTurnId(method: string, params: Record<string, unknown>): string | null {
+    if (method === 'turn/completed' || method === 'turn/failed') {
+      const turn = params.turn
+      if (turn && typeof turn === 'object') {
+        const turnId = (turn as Record<string, unknown>).id
+        if (typeof turnId === 'string' && turnId.trim()) return turnId
+      }
+      return null
+    }
+    if (typeof params.turnId === 'string' && params.turnId.trim()) return params.turnId
+    const input = params.input
+    if (input && typeof input === 'object') {
+      const turnId = (input as Record<string, unknown>).turnId
+      if (typeof turnId === 'string' && turnId.trim()) return turnId
+    }
+    return null
+  }
+
+  function inferSource(method: string, params: Record<string, unknown>): string {
+    if (CANONICAL_SOURCES.has(String(params.source))) return String(params.source)
+    if (method === 'turn/inputRequested' || method === 'turn/inputResolved') {
+      const input = params.input
+      const kind =
+        input && typeof input === 'object' ? (input as Record<string, unknown>).kind : undefined
+      return kind === 'approval' ? 'policy' : 'tool'
+    }
+    if (method === 'turn/event') {
+      const event = params.event
+      const type =
+        event && typeof event === 'object' ? String((event as Record<string, unknown>).type ?? '') : ''
+      if (type.startsWith('tool_')) return 'tool'
+      if (type === 'error') return 'system'
+      return 'engine'
+    }
+    if (method === 'turn/failed') return 'system'
+    return 'engine'
+  }
+
+  function enrichNotification(notification: { method: string; params?: unknown }) {
+    const method = notification.method
+    if (
+      method !== 'turn/event' &&
+      method !== 'turn/completed' &&
+      method !== 'turn/failed' &&
+      method !== 'turn/inputRequested' &&
+      method !== 'turn/inputResolved'
+    ) {
+      return notification
+    }
+    const params =
+      notification.params && typeof notification.params === 'object'
+        ? ({ ...(notification.params as Record<string, unknown>) } as Record<string, unknown>)
+        : {}
+    const threadId = inferThreadId(params)
+    if (threadId && (typeof params.threadId !== 'string' || !params.threadId.trim())) {
+      params.threadId = threadId
+    }
+    const turnId = inferTurnId(method, params)
+    if (
+      method !== 'turn/completed' &&
+      method !== 'turn/failed' &&
+      turnId &&
+      (typeof params.turnId !== 'string' || !params.turnId.trim())
+    ) {
+      params.turnId = turnId
+    }
+    const replaySeqRaw = params.replaySeq
+    const seqRaw = params.seq
+    const seq =
+      typeof seqRaw === 'number' && Number.isFinite(seqRaw) && seqRaw > 0 ? seqRaw : null
+    const replaySeq =
+      typeof replaySeqRaw === 'number' && Number.isFinite(replaySeqRaw) && replaySeqRaw > 0
+        ? replaySeqRaw
+        : (seq ?? replaySeqCounter + 1)
+    replaySeqCounter = Math.max(replaySeqCounter + 1, replaySeq)
+    params.replaySeq = replaySeq
+    const eventIdRaw = typeof params.eventId === 'string' ? params.eventId.trim() : ''
+    if (!eventIdRaw) {
+      const eventTurnId = turnId ?? 'turn'
+      params.eventId = `${eventTurnId}:${replaySeq}`
+    }
+    const tsRaw = typeof params.ts === 'string' ? params.ts.trim() : ''
+    if (!tsRaw) {
+      params.ts = new Date(1700000000000 + replaySeq * 1000).toISOString()
+    }
+    params.source = inferSource(method, params)
+    return { method, params }
+  }
 
   return {
     requests,
@@ -16,19 +122,43 @@ const rpcMock = vi.hoisted(() => {
     },
     callRequest(method: string, params: unknown) {
       requests.push({ method, params })
-      return requestImpl(method, params)
+      const raw = requestImpl(method, params)
+      if (method !== 'thread/replay' || !raw || typeof raw !== 'object') return raw
+      const record = raw as Record<string, unknown>
+      const data = Array.isArray(record.data) ? record.data : null
+      if (!data) return raw
+      const nextData = data.map((entry) => {
+        if (!entry || typeof entry !== 'object') return entry
+        const replayEntry = entry as Record<string, unknown>
+        const method = typeof replayEntry.method === 'string' ? replayEntry.method : ''
+        const params = replayEntry.params
+        if (!method) return entry
+        const enriched = enrichNotification({
+          method,
+          ...(params && typeof params === 'object' ? { params: params as Record<string, unknown> } : {}),
+        })
+        return {
+          ...replayEntry,
+          ...(enriched.params ? { params: enriched.params } : {}),
+        }
+      })
+      return {
+        ...record,
+        data: nextData,
+      }
     },
     setNotificationHandler(handler: ((notification: { method: string; params?: unknown }) => void) | null) {
       onNotification = handler
     },
     emitNotification(notification: { method: string; params?: unknown }) {
-      onNotification?.(notification)
+      onNotification?.(enrichNotification(notification))
     },
     reset() {
       requests.splice(0, requests.length)
       connectUrls.splice(0, connectUrls.length)
       requestImpl = () => ({})
       onNotification = null
+      replaySeqCounter = 0
     },
   }
 })

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import type { RpcClient } from '../rpcClient'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
-import { formatToolInputAsParamsText } from '../toolEventNormalizer'
 import { createTurnEventCursorState, shouldAcceptSequencedNotification } from '../turnEventCursor'
 import { type DiffSnapshot } from '../components/WorktreeDiffPane'
 import {
@@ -17,11 +16,8 @@ import {
 } from './core/replayMachine'
 import {
   displayThreadTitle,
-  summarizeToolEvent,
   toRpcError,
   toRuntimePendingInputsById,
-  toToolUseId,
-  toTurnFooterStatus,
 } from './core/threadTransforms'
 import {
   formatArchiveNotice,
@@ -42,7 +38,6 @@ import { connectRpcClient } from './runtime/connectRpcClient'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
 import { useRpcRequest } from './runtime/useRpcRequest'
-import { useCanonicalMeta } from './runtime/useCanonicalMeta'
 import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import {
@@ -147,10 +142,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     dispatch({ type: 'push_log', text, level, turnId })
   }, [])
   const { lastRpcError, captureError, request } = useRpcRequest({ clientRef, log })
-  const { toCanonicalMeta } = useCanonicalMeta({
-    activeThreadIdRef,
-    nowIso: runtimePorts.nowIso,
-  })
   const { cacheThreadMode } = useThreadModeCache({
     runtimeStateByThreadRef,
     nowIso: runtimePorts.nowIso,
@@ -281,17 +272,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         commandByTurnRef,
         createInitialThreadRuntimeState,
         shouldProcessSequencedNotification,
-        toCanonicalMeta,
         dispatch,
         setMode,
         cacheThreadMode,
         isReplMode,
         refreshThreads,
         refreshWorkspaceDiff,
-        summarizeToolEvent,
-        toToolUseId,
-        toTurnFooterStatus,
-        formatToolInputAsParamsText,
         log,
         setAskDockOpenByInputId,
         setAskPageIndexByInputId,
@@ -308,7 +294,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       refreshThreads,
       refreshWorkspaceDiff,
       shouldProcessSequencedNotification,
-      toCanonicalMeta,
     ],
   )
 
