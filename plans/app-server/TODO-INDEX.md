@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N62 replay test data 字段最小集收敛
-  - 目标：统一测试数据的最小字段模板，减少无关字段噪音（保持语义可读）。
+- [ ] N64 replayThreadEvents.test 重复 mockResolvedValueOnce 收敛
+  - 目标：将剩余重复 `.mockResolvedValueOnce` 片段尽量替换为 fixture helper 组合，减少样板。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N63 replay test helper 命名统一（page/response/context）
-  - 目标：统一 helper 命名语义，降低阅读跳转成本。
+- [ ] N65 replay 测试局部字面量对齐（cursor/threadId）
+  - 目标：收敛常用字面量（如 `thread-1`、cursor 初值）为局部常量，降低维护成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
