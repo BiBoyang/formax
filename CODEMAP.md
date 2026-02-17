@@ -35,6 +35,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## REPL UI (Ink)
 - Main screen: `src/screens/REPL.tsx`
 - Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/{send,streaming,canonical,session,ui,shared}/*`
+- Canonical event projection helper (hook-level orchestration): `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
+- Session transition helpers (abort/new session): `src/features/repl/controller/session/sessionTransitions.ts`
 - REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `src/screens/repl/hotkeys.ts`
 - Prompt mode gating (overlays/prompt blocks disable hotkeys): `src/screens/repl/promptMode.ts`
 - Transcript renderers (Primary vs Expanded): `src/screens/repl/transcript.tsx`
@@ -65,8 +67,10 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Context Management (UI transcript vs prompt history)
 - Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact:
-  - Pre-main routing + `/compact` command path: `src/features/repl/controller/send/send.ts`
+  - Pre-main routing coordinator (clear/compact/slash): `src/features/repl/controller/send/sendPreMainRouting.ts`
+  - Pre-main command handlers (`/compact`, consumed slash, local async): `src/features/repl/controller/send/send.ts`
   - Main turn execution + prompt/history pipeline: `src/features/repl/controller/send/sendMainTurn.ts`
+  - Main turn deps/refs context builder: `src/features/repl/controller/send/sendMainTurnContext.ts`
   - Auto-compact preflight/apply helper: `src/features/repl/controller/send/sendAutoCompact.ts`
   - Shared send context types/builders: `src/features/repl/controller/send/sendTypes.ts`
   - Wiring entry: `src/features/repl/useReplController.ts`
