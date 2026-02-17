@@ -8,6 +8,8 @@ describe('commandSupport', () => {
     expect(isWebSupportedCommand('/clear')).toBe(true)
     expect(isWebSupportedCommand('/compact')).toBe(true)
     expect(isWebSupportedCommand('/todos')).toBe(true)
+    expect(isWebSupportedCommand('/agents')).toBe(false)
+    expect(isWebSupportedCommand('/hooks')).toBe(false)
     expect(isWebSupportedCommand('/permissions')).toBe(false)
     expect(isWebSupportedCommand('/help')).toBe(false)
   })
