@@ -7,7 +7,7 @@ import type {
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 import { toCanonicalEventsFromStreamPayload } from './streamEventCanonicalMapper'
 
-type StreamCanonicalContext = {
+export type StreamCanonicalContext = {
   threadId: string
   turnId: string
   nextReplaySeq: () => number

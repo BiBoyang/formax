@@ -3,7 +3,7 @@ import type { PendingInput, ResolvedInput, RpcNotification } from '../../types'
 import { isNotificationForActiveThread } from '../core/appEventMachine'
 import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 import type { ReplMode } from '../../../../../src/features/semantics/core/replModeTransition'
-import { toCanonicalEventsFromTurnNotification } from '../../../../../src/features/semantics/adapters/turnNotificationCanonicalAdapter'
+import { mapTurnNotificationToCanonicalEvents } from '../../../../../src/features/semantics/adapters/canonicalEventAdapter'
 
 export type ProcessNotificationContext = {
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
@@ -59,7 +59,7 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     isNotificationForActiveThread({ params, activeThreadId: ctx.activeThreadIdRef.current })
 
   if (isActiveThread()) {
-    const canonicalEvents = toCanonicalEventsFromTurnNotification(
+    const canonicalEvents = mapTurnNotificationToCanonicalEvents(
       { method: notification.method, params },
       {
         fallbackThreadId: threadId ?? '__missing_thread__',

@@ -1,6 +1,6 @@
 import type { StreamEvent } from '../../../../streaming/types'
 import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
-import { toCanonicalEventsFromStreamEvent } from '../../../semantics/adapters/streamCanonicalAdapter'
+import { mapStreamEventToCanonicalEvents } from '../../../semantics/adapters/canonicalEventAdapter'
 import { isAbortLikeError } from '../shared/utils'
 
 export type CanonicalStreamBridge = {
@@ -52,7 +52,7 @@ export function forwardCanonicalStreamEvent(args: {
   mapEvent?: (event: CanonicalEvent) => CanonicalEvent
 }): void {
   if (!args.canonical || !args.canonicalTurnId) return
-  const canonicalEvents = toCanonicalEventsFromStreamEvent(args.event, {
+  const canonicalEvents = mapStreamEventToCanonicalEvents(args.event, {
     threadId: args.canonical.threadId,
     turnId: args.canonicalTurnId,
     nextReplaySeq: args.canonical.nextReplaySeq,

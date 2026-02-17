@@ -7,12 +7,12 @@ import {
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 import { toCanonicalEventsFromStreamPayload } from './streamEventCanonicalMapper'
 
-type TurnNotification = {
+export type TurnNotification = {
   method: string
   params?: Record<string, unknown>
 }
 
-type TurnNotificationCanonicalContext = {
+export type TurnNotificationCanonicalContext = {
   fallbackThreadId: string
   nextReplaySeq?: () => number
   source?: CanonicalEventSource

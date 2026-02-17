@@ -2,7 +2,7 @@ import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
 } from '../../../src/features/semantics/projection/transcriptProjection'
-import { toCanonicalEventsFromHistoryMessages } from '../../../src/features/semantics/adapters/historyCanonicalAdapter'
+import { mapHistoryMessagesToCanonicalEvents } from '../../../src/features/semantics/adapters/canonicalEventAdapter'
 import type { ThreadMessage, TranscriptItem } from './types'
 
 function toHistoryTurnId(threadId: string, messageId: string): string {
@@ -17,7 +17,7 @@ export function mapThreadHistoryToCanonicalLogs(args: {
   threadId: string
   messages: ThreadMessage[]
 }): TranscriptItem[] {
-  const canonicalEvents = toCanonicalEventsFromHistoryMessages(args)
+  const canonicalEvents = mapHistoryMessagesToCanonicalEvents(args)
   const projection = canonicalEvents.reduce(
     (state, event) => reduceTranscriptProjection(state, event),
     createInitialTranscriptProjectionState({ threadId: args.threadId }),
