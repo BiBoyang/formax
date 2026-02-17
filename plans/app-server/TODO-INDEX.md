@@ -15,10 +15,24 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
+## P2：Contract & Adapter Consolidation
+
+- [ ] N17 Task result parsing 单点化（selector/send 复用）
+  - 目标：消除 Task 结果解析逻辑重复（`taskResult.ts` 与 `toolPresentation`），避免后续行为漂移。
+  - 验收：
+    - `parseBackgroundTaskId` 仅保留一个实现并被两侧复用。
+    - 现有 Task started/done 相关测试全部通过。
+
 ## P4：Replay-First Invariants
 
-- [ ] N16 Realtime=Replay fixture 扩面（pending input 终局）
-  - 目标：补齐“pending input 在 turn terminal 后必须终局”的跨路径 fixture，锁住 realtime/replay 一致。
+- [ ] N18 terminal invariant fixture 扩面（running tool）
+  - 目标：补齐“turn terminal 后不应存在 running tool”的 realtime/replay fixture，和 pending-input fixture 对称。
   - 验收：
-    - 新增 fixture 覆盖 realtime 与 replay 两条路径。
-    - 同一输入序列下，两条路径输出一致且无 pending input leak。
+    - 新增一条 realtime/replay parity fixture，覆盖 terminal 后 running tool 清理。
+    - 使用 shared invariant selector 校验无 `running_tool_after_terminal_turn`。
+
+- [ ] N19 invariant selector 接入 app-server 诊断快照（只读）
+  - 目标：在 app-server 诊断/快照路径提供 invariant issues 只读输出，便于跨端排障。
+  - 验收：
+    - 诊断输出新增 invariant issues 字段（不改业务语义）。
+    - 至少一条测试覆盖该字段存在且结构稳定。
