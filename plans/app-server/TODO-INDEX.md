@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N86 replay page-limit 常量语义命名对齐
-  - 目标：将 request limit 常量命名对齐到 “replay page size” 语义，降低歧义。
+- [ ] N87 replay defaults 对象字段名精简
+  - 目标：减少 defaults 对象中重复 “replay/request” 前后缀噪音，保持语义清晰。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N87 replay defaults 对象字段名精简
-  - 目标：减少 defaults 对象中重复 “replay/request” 前后缀噪音，保持语义清晰。
+- [ ] N88 replay helper 声明顺序微调（依赖先后）
+  - 目标：让 helper 定义顺序与调用依赖一致，降低阅读跳转成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

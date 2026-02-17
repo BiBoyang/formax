@@ -24,11 +24,11 @@ const REPLAY_CURSOR_FROM_START = 0
 const REPLAY_CURSOR_REBUILD_COMPLETE = REPLAY_SEQ_REBUILD_COMPLETE
 
 // Replay request constants
-const REPLAY_PAGE_LIMIT = 200
+const REPLAY_PAGE_SIZE = 200
 const REPLAY_REQUEST_DEFAULTS = {
   latestCursor: REPLAY_CURSOR_REBUILD_COMPLETE,
   progressStep: 1,
-  pageLimit: REPLAY_PAGE_LIMIT,
+  pageLimit: REPLAY_PAGE_SIZE,
 } as const
 
 // Assertion helpers
