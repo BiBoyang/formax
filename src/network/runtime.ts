@@ -5,6 +5,16 @@ export type BridgeSecurityOptions = {
   allowedOrigins?: string[]
 }
 
+export type BridgeRateLimitOptions = {
+  windowMs: number
+  maxMessages: number
+}
+
+export type BridgeRateLimitState = {
+  windowStartedAtMs: number
+  count: number
+}
+
 export type DecodedPathnameResult =
   | { ok: true; pathname: string }
   | { ok: false; statusCode: 400; message: 'Bad Request' }
@@ -40,8 +50,8 @@ export function buildHttpUrl(host: string, port: number): string {
   return `http://${formatHostForUrl(host)}:${port}`
 }
 
-export function buildWsUrl(host: string, port: number): string {
-  return `ws://${formatHostForUrl(host)}:${port}`
+export function buildWsUrl(host: string, port: number, secure = false): string {
+  return `${secure ? 'wss' : 'ws'}://${formatHostForUrl(host)}:${port}`
 }
 
 export function decodeRequestPathname(rawUrl: string | undefined): DecodedPathnameResult {
@@ -87,14 +97,27 @@ function readTokenFromRequestUrl(requestUrl: string | undefined): string | null 
   }
 }
 
+function readTokenFromAuthorizationHeader(header: string | undefined): string | null {
+  if (!header) return null
+  const trimmed = header.trim()
+  if (!trimmed) return null
+  const bearer = /^Bearer\s+(.+)$/i.exec(trimmed)
+  if (bearer?.[1]) {
+    const token = bearer[1].trim()
+    return token || null
+  }
+  return trimmed
+}
+
 export function authorizeBridgeConnection(args: {
   requestUrl: string | undefined
   originHeader: string | undefined
+  authorizationHeader: string | undefined
   security: BridgeSecurityOptions | undefined
 }): { ok: true } | { ok: false; reason: 'Unauthorized' | 'Forbidden origin' } {
   const authToken = args.security?.authToken?.trim()
   if (authToken) {
-    const requestToken = readTokenFromRequestUrl(args.requestUrl)
+    const requestToken = readTokenFromRequestUrl(args.requestUrl) ?? readTokenFromAuthorizationHeader(args.authorizationHeader)
     if (!requestToken || requestToken !== authToken) {
       return { ok: false, reason: 'Unauthorized' }
     }
@@ -109,6 +132,25 @@ export function authorizeBridgeConnection(args: {
   }
 
   return { ok: true }
+}
+
+export function evaluateBridgeRateLimit(args: {
+  state: BridgeRateLimitState | null
+  nowMs: number
+  options: BridgeRateLimitOptions
+}): { allowed: boolean; state: BridgeRateLimitState } {
+  const windowMs = Math.max(100, Math.floor(args.options.windowMs))
+  const maxMessages = Math.max(1, Math.floor(args.options.maxMessages))
+  const state =
+    args.state && args.nowMs - args.state.windowStartedAtMs < windowMs
+      ? { ...args.state }
+      : { windowStartedAtMs: args.nowMs, count: 0 }
+
+  state.count += 1
+  if (state.count > maxMessages) {
+    return { allowed: false, state }
+  }
+  return { allowed: true, state }
 }
 
 export function buildLocalUiAllowedOrigins(host: string, uiPort: number): string[] {

@@ -1,16 +1,30 @@
 import { createServer, type IncomingMessage } from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 import { execFile } from 'node:child_process'
 import { PassThrough } from 'node:stream'
-import { lstat, readFile, readlink } from 'node:fs/promises'
+import { appendFile, lstat, mkdir, readFile, readlink } from 'node:fs/promises'
 import path from 'node:path'
 import { WebSocket, WebSocketServer } from 'ws'
-import { authorizeBridgeConnection, buildWsUrl, type BridgeSecurityOptions } from '../network/runtime.js'
+import {
+  authorizeBridgeConnection,
+  buildWsUrl,
+  evaluateBridgeRateLimit,
+  type BridgeRateLimitOptions,
+  type BridgeRateLimitState,
+  type BridgeSecurityOptions,
+} from '../network/runtime.js'
 import { runAppServer } from './index.js'
 
 export type AppServerDevBridgeOptions = {
   host?: string
   port?: number
   security?: BridgeSecurityOptions
+  tls?: {
+    certFile: string
+    keyFile: string
+  }
+  rateLimit?: BridgeRateLimitOptions
+  auditLogFile?: string
   cwd?: string
   env?: NodeJS.ProcessEnv
   maxRequestBytes?: number
@@ -75,6 +89,12 @@ type BridgeReadDiffFilePatchResult = {
   file: BridgeDiffFile | null
 }
 
+type BridgeAuditEntry = {
+  ts: string
+  event: string
+  details?: Record<string, unknown>
+}
+
 function normalizeMaxBytes(value: unknown, fallback = 180 * 1024): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
@@ -108,6 +128,43 @@ function broadcastLine(clients: Iterable<WebSocket>, line: string): void {
     } catch {
       // Dev bridge best-effort broadcast; ignore closed/broken sockets.
     }
+  }
+}
+
+function createBridgeAuditWriter(auditLogFile: string | undefined): {
+  write: (entry: BridgeAuditEntry) => void
+  flush: () => Promise<void>
+} {
+  if (!auditLogFile) {
+    return {
+      write: () => undefined,
+      flush: async () => undefined,
+    }
+  }
+
+  const filePath = path.resolve(auditLogFile)
+  let ensureDirPromise: Promise<void> | null = null
+  let queue: Promise<void> = Promise.resolve()
+
+  const ensureDir = (): Promise<void> => {
+    if (!ensureDirPromise) {
+      ensureDirPromise = mkdir(path.dirname(filePath), { recursive: true }).then(() => undefined)
+    }
+    return ensureDirPromise
+  }
+
+  return {
+    write: (entry) => {
+      queue = queue
+        .then(async () => {
+          await ensureDir()
+          await appendFile(filePath, JSON.stringify(entry) + '\n', 'utf8')
+        })
+        .catch(() => undefined)
+    },
+    flush: async () => {
+      await queue
+    },
   }
 }
 
@@ -589,11 +646,33 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
   const output = new PassThrough()
   const host = options.host ?? '127.0.0.1'
   const port = options.port ?? 3777
-  const httpServer = createServer()
+  const secure = Boolean(options.tls)
+  const audit = createBridgeAuditWriter(options.auditLogFile)
+  const rateLimit = options.rateLimit
+  const tlsServerOptions = options.tls
+    ? {
+        cert: await readFile(options.tls.certFile),
+        key: await readFile(options.tls.keyFile),
+      }
+    : null
+  const httpServer = tlsServerOptions ? createHttpsServer(tlsServerOptions) : createServer()
   const wsServer = new WebSocketServer({ server: httpServer })
   const clients = new Set<WebSocket>()
   let outputBuffer = ''
   let closed = false
+
+  audit.write({
+    ts: new Date().toISOString(),
+    event: 'bridge_start',
+    details: {
+      host,
+      port,
+      secure,
+      hasToken: Boolean(options.security?.authToken),
+      allowedOrigins: options.security?.allowedOrigins?.length ?? 0,
+      rateLimit,
+    },
+  })
 
   output.on('data', (chunk) => {
     outputBuffer += chunk.toString('utf8')
@@ -611,9 +690,19 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
     const authorization = authorizeBridgeConnection({
       requestUrl: request.url,
       originHeader: request.headers.origin,
+      authorizationHeader: typeof request.headers.authorization === 'string' ? request.headers.authorization : undefined,
       security: options.security,
     })
     if (authorization.ok === false) {
+      audit.write({
+        ts: new Date().toISOString(),
+        event: 'connection_rejected',
+        details: {
+          reason: authorization.reason,
+          remoteAddress: request.socket.remoteAddress ?? null,
+          origin: request.headers.origin ?? null,
+        },
+      })
       try {
         socket.close(1008, authorization.reason)
       } catch {
@@ -622,16 +711,62 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
       return
     }
 
+    audit.write({
+      ts: new Date().toISOString(),
+      event: 'connection_open',
+      details: {
+        remoteAddress: request.socket.remoteAddress ?? null,
+        origin: request.headers.origin ?? null,
+      },
+    })
+
     clients.add(socket)
     socket.on('close', () => {
       clients.delete(socket)
+      audit.write({
+        ts: new Date().toISOString(),
+        event: 'connection_close',
+        details: {
+          remoteAddress: request.socket.remoteAddress ?? null,
+        },
+      })
     })
     socket.on('error', () => undefined)
+
+    let rateLimitState: BridgeRateLimitState | null = null
     socket.on('message', (raw) => {
       const text = typeof raw === 'string' ? raw : raw.toString('utf8')
       for (const line of text.split(/\r?\n/)) {
         const trimmed = line.trim()
         if (!trimmed) continue
+
+        if (rateLimit) {
+          const decision = evaluateBridgeRateLimit({
+            state: rateLimitState,
+            nowMs: Date.now(),
+            options: rateLimit,
+          })
+          rateLimitState = decision.state
+          if (!decision.allowed) {
+            audit.write({
+              ts: new Date().toISOString(),
+              event: 'message_rejected_rate_limit',
+              details: {
+                remoteAddress: request.socket.remoteAddress ?? null,
+                count: decision.state.count,
+                windowMs: rateLimit.windowMs,
+                maxMessages: rateLimit.maxMessages,
+              },
+            })
+            try {
+              socket.close(1008, 'Rate limit exceeded')
+            } catch {
+              // Ignore close failures for limited sockets.
+            }
+            return
+          }
+        }
+
         let parsed: any = null
         try {
           parsed = JSON.parse(trimmed)
@@ -653,6 +788,14 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
             parsed.method === 'bridge/readDiffSummary' ||
             parsed.method === 'bridge/readDiffFilePatch')
         ) {
+          audit.write({
+            ts: new Date().toISOString(),
+            event: 'bridge_rpc',
+            details: {
+              method: parsed.method,
+              remoteAddress: request.socket.remoteAddress ?? null,
+            },
+          })
           const baseCwd = options.cwd ?? process.cwd()
           const rawParams = (parsed.params ?? {}) as { cwd?: unknown }
           const diffCwd = resolveDiffCwd(baseCwd, rawParams.cwd)
@@ -677,6 +820,15 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
                   error: { code: -32603, message: String(error instanceof Error ? error.message : error) },
                 }),
               )
+              audit.write({
+                ts: new Date().toISOString(),
+                event: 'bridge_rpc_error',
+                details: {
+                  method: parsed.method,
+                  remoteAddress: request.socket.remoteAddress ?? null,
+                  message: String(error instanceof Error ? error.message : error),
+                },
+              })
             })
           continue
         }
@@ -707,7 +859,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
   if (!addr || typeof addr === 'string') {
     throw new Error('Failed to resolve app-server dev bridge address')
   }
-  const url = buildWsUrl(host, addr.port)
+  const url = buildWsUrl(host, addr.port, secure)
 
   const runPromise = runAppServer({
     input,
@@ -748,6 +900,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
       input.end()
       output.end()
       await runPromise.catch(() => undefined)
+      await audit.flush()
     },
   }
 }

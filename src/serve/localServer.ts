@@ -16,11 +16,30 @@ function buildSecurityOptions(options: ServeCommandOptions): BridgeSecurityOptio
   return security
 }
 
+function buildRateLimitOptions(options: ServeCommandOptions):
+  | { windowMs: number; maxMessages: number }
+  | undefined {
+  if (options.rateLimitWindowMs == null || options.rateLimitMaxMessages == null) return undefined
+  return {
+    windowMs: options.rateLimitWindowMs,
+    maxMessages: options.rateLimitMaxMessages,
+  }
+}
+
 export async function startServeBridge(options: ServeCommandOptions): Promise<ServeBridgeHandle> {
   const bridge = await startAppServerDevBridge({
     host: options.host,
     port: options.port,
     security: buildSecurityOptions(options),
+    tls:
+      options.tlsCertFile && options.tlsKeyFile
+        ? {
+            certFile: options.tlsCertFile,
+            keyFile: options.tlsKeyFile,
+          }
+        : undefined,
+    rateLimit: buildRateLimitOptions(options),
+    auditLogFile: options.auditLogFile,
   })
 
   return {
@@ -32,13 +51,22 @@ export async function startServeBridge(options: ServeCommandOptions): Promise<Se
 export async function runServe(options: ServeCommandOptions): Promise<void> {
   const bridge = await startServeBridge(options)
 
+  const bridgeScheme = options.tlsCertFile && options.tlsKeyFile ? 'wss' : 'ws'
   const connectHost = displayHostForLogs(options.host)
-  process.stderr.write(`[formax] serve bridge: ws://${connectHost}:${options.port}\n`)
+  process.stderr.write(`[formax] serve bridge: ${bridgeScheme}://${connectHost}:${options.port}\n`)
   if (options.token) {
     process.stderr.write('[formax] websocket auth: token required (--token)\n')
   }
   if (options.allowedOrigins.length > 0) {
     process.stderr.write(`[formax] allowed origins: ${options.allowedOrigins.join(', ')}\n`)
+  }
+  if (options.rateLimitWindowMs != null && options.rateLimitMaxMessages != null) {
+    process.stderr.write(
+      `[formax] rate limit: ${options.rateLimitMaxMessages} messages / ${options.rateLimitWindowMs}ms per connection\n`,
+    )
+  }
+  if (options.auditLogFile) {
+    process.stderr.write(`[formax] audit log: ${options.auditLogFile}\n`)
   }
 
   let shuttingDown = false

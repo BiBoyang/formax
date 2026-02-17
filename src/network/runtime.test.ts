@@ -6,6 +6,7 @@ import {
   buildWsUrl,
   decodeRequestPathname,
   displayHostForLogs,
+  evaluateBridgeRateLimit,
   formatHostForUrl,
   parseTcpPort,
 } from './runtime.js'
@@ -29,6 +30,7 @@ describe('network runtime helpers', () => {
     expect(formatHostForUrl('[::1]')).toBe('[::1]')
     expect(buildHttpUrl('::1', 3781)).toBe('http://[::1]:3781')
     expect(buildWsUrl('::1', 3777)).toBe('ws://[::1]:3777')
+    expect(buildWsUrl('::1', 3777, true)).toBe('wss://[::1]:3777')
   })
 
   it('normalizes log hosts for wildcard listeners', () => {
@@ -49,6 +51,7 @@ describe('network runtime helpers', () => {
       authorizeBridgeConnection({
         requestUrl: '/?token=secret',
         originHeader: 'http://localhost:3781',
+        authorizationHeader: undefined,
         security: { authToken: 'secret', allowedOrigins: ['http://localhost:3781'] },
       }),
     ).toEqual({ ok: true })
@@ -57,6 +60,7 @@ describe('network runtime helpers', () => {
       authorizeBridgeConnection({
         requestUrl: '/?token=wrong',
         originHeader: 'http://localhost:3781',
+        authorizationHeader: undefined,
         security: { authToken: 'secret' },
       }),
     ).toEqual({ ok: false, reason: 'Unauthorized' })
@@ -65,9 +69,39 @@ describe('network runtime helpers', () => {
       authorizeBridgeConnection({
         requestUrl: '/?token=secret',
         originHeader: 'http://evil.invalid',
+        authorizationHeader: undefined,
         security: { authToken: 'secret', allowedOrigins: ['http://localhost:3781'] },
       }),
     ).toEqual({ ok: false, reason: 'Forbidden origin' })
+  })
+
+  it('authorizes bridge connection using authorization header token', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/',
+        originHeader: 'http://localhost:3781',
+        authorizationHeader: 'Bearer secret',
+        security: { authToken: 'secret', allowedOrigins: ['http://localhost:3781'] },
+      }),
+    ).toEqual({ ok: true })
+  })
+
+  it('enforces bridge rate limit in fixed windows', () => {
+    const options = { windowMs: 1000, maxMessages: 2 }
+    let state = null
+    let decision = evaluateBridgeRateLimit({ state, nowMs: 100, options })
+    expect(decision.allowed).toBe(true)
+    state = decision.state
+
+    decision = evaluateBridgeRateLimit({ state, nowMs: 200, options })
+    expect(decision.allowed).toBe(true)
+    state = decision.state
+
+    decision = evaluateBridgeRateLimit({ state, nowMs: 300, options })
+    expect(decision.allowed).toBe(false)
+
+    decision = evaluateBridgeRateLimit({ state: decision.state, nowMs: 1300, options })
+    expect(decision.allowed).toBe(true)
   })
 
   it('builds local UI allowed origins with loopback defaults', () => {
