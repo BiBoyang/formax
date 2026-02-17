@@ -15,14 +15,6 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
-## P2：Contract & Adapter Consolidation
-
-- [ ] N14 语义不变量 selector（terminal turn）
-  - 目标：把“turn terminal 后不应有 running tool / pending input”的检查沉淀为 shared selector，避免散落在端侧。
-  - 验收：
-    - 新增跨端可复用的不变量 selector（输入 projection/runtime，输出 issue 列表）。
-    - 至少覆盖 `running tool` 与 `pending input leak` 两类问题。
-
 ## P3：Presentation IR
 
 - [ ] N15 Tool Presentation selector phase 3（Task 完成态文案派生）
