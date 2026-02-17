@@ -1,6 +1,6 @@
 # useReplController Refactors Phase 2
 
-Status: `in_progress`
+Status: `completed`
 基线提交: `45624e0`
 目标: 在不改行为的前提下，继续降低 `send` 链路复杂度并减少后续回归成本。
 
