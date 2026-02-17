@@ -43,6 +43,20 @@ export function prepareProjectionReduction(args: {
     }
   }
 
+  const turnAlreadyTerminal =
+    event.kind !== 'turn_footer' &&
+    state.segments.some((segment) => segment.kind === 'turn_footer' && segment.turnId === event.turnId)
+  if (turnAlreadyTerminal) {
+    return {
+      kind: 'skip',
+      state: {
+        ...state,
+        seenEventIds,
+        lastReplaySeq: Math.max(state.lastReplaySeq, event.replaySeq),
+      },
+    }
+  }
+
   return {
     kind: 'proceed',
     seenEventIds,

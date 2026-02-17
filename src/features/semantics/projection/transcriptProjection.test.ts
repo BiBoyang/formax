@@ -137,6 +137,38 @@ describe('transcriptProjection', () => {
     })
   })
 
+  it('ignores post-terminal write events for an already completed turn', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 'pt1' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'answer' },
+      ),
+      eventFactory(
+        { replaySeq: 2, eventId: 'pt2' },
+        { kind: 'turn_footer', turnId: 'turn-1', status: 'completed' },
+      ),
+      eventFactory(
+        { replaySeq: 3, eventId: 'pt3' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: 'late-write' },
+      ),
+      eventFactory(
+        { replaySeq: 4, eventId: 'pt4' },
+        { kind: 'tool_event', turnId: 'turn-1', toolUseId: 'late-tool', phase: 'start', toolName: 'Bash' },
+      ),
+    ])
+
+    expect(next.lastReplaySeq).toBe(4)
+    expect(next.segments.filter((segment) => segment.turnId === 'turn-1').map((segment) => segment.kind)).toEqual([
+      'assistant',
+      'turn_footer',
+    ])
+    const assistant = next.segments.find((segment) => segment.kind === 'assistant' && segment.turnId === 'turn-1')
+    const footer = next.segments.find((segment) => segment.kind === 'turn_footer' && segment.turnId === 'turn-1')
+    expect(assistant).toMatchObject({ kind: 'assistant', turnId: 'turn-1', text: 'answer' })
+    expect(footer).toMatchObject({ kind: 'turn_footer', turnId: 'turn-1', status: 'completed' })
+  })
+
   it('annotates input state on existing tool and updates turn footer in place', () => {
     const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
     const next = projectCanonicalEvents(state, [

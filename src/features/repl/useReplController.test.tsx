@@ -206,6 +206,10 @@ describe('useReplController', () => {
   })
 
   it('keeps canonical transient ownership after turn footer (no legacy fallback while loading)', async () => {
+    let releaseAfterStart!: () => void
+    const afterStartGate = new Promise<void>((resolve) => {
+      releaseAfterStart = resolve
+    })
     let releaseReturn!: () => void
     const returnGate = new Promise<void>((resolve) => {
       releaseReturn = resolve
@@ -214,6 +218,7 @@ describe('useReplController', () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user }) {
         onEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' } as StreamEvent)
+        await afterStartGate
         onEvent({
           type: 'tool_end',
           id: 'tool-1',
@@ -241,7 +246,9 @@ describe('useReplController', () => {
     await waitFor(() => controller.state.isLoading)
     await waitFor(() => controller.state.transientMessages.length > 0)
     expect(controller.state.transientMessages.every((m) => m.id.startsWith('canonical:'))).toBe(true)
+    expect(controller.state.transientMessages.some((m) => !m.id.startsWith('canonical:'))).toBe(false)
 
+    releaseAfterStart()
     releaseReturn()
     await sendPromise
   })
