@@ -644,6 +644,41 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(replaced[1]?.timestamp.getTime()).toBe(200)
     expect(replaced[2]?.timestamp.getTime()).toBe(200)
   })
+
+  it('collapses duplicated legacy tool rows with the same toolUseId', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'run', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool-1',
+          role: 'tool',
+          content: '/repo',
+          timestamp: new Date(200),
+          toolInfo: { toolUseId: 'tool-dup', name: 'Bash', status: 'completed', input: {} },
+        },
+        {
+          id: 'legacy-tool-2',
+          role: 'tool',
+          content: '/repo',
+          timestamp: new Date(201),
+          toolInfo: { toolUseId: 'tool-dup', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: '/repo',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-dup', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-tool-1'])
+    expect(replaced.filter((message) => message.role === 'tool')).toHaveLength(1)
+  })
 })
 
 describe('resolveCanonicalTurnTailInsertIndex', () => {
@@ -863,6 +898,32 @@ describe('appendCanonicalTurnFinalRows', () => {
       isFailureSubline: () => false,
     })
     expect(next).toBe(messages)
+  })
+
+  it('keeps aborted turns when canonical tail still has assistant output', () => {
+    const next = appendCanonicalTurnFinalRows({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'aborted',
+      projectionSegments: [
+        { id: 'turn-1:assistant:1', kind: 'assistant', turnId: 'turn-1', text: 'partial answer' },
+        {
+          id: 'turn-1:tool:2:tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: [],
+        },
+      ],
+      isFailureSubline: () => false,
+    })
+
+    expect(next.map((message) => message.id)).toEqual(['u1', 'canonical:turn-1:assistant:1'])
+    expect(next[1]).toMatchObject({ role: 'assistant', content: 'partial answer' })
   })
 
   it('inserts failed canonical assistant rows before trailing failure sublines', () => {
