@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N75 replay warning 计数断言收敛（single vs nth）
-  - 目标：减少 `toHaveBeenCalledTimes` + `NthCalledWith` 的重复组合样板。
+- [ ] N76 replay request 工厂命名收敛（context vs page）
+  - 目标：统一 helper 命名前缀，降低“构造页”与“构造请求”的认知切换成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N76 replay request 工厂命名收敛（context vs page）
-  - 目标：统一 helper 命名前缀，降低“构造页”与“构造请求”的认知切换成本。
+- [ ] N77 replay helper 分组注释与顺序整理
+  - 目标：按 assertion/page/request/context 分组 helper，降低后续增量维护时的查找成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

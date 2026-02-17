@@ -49,6 +49,18 @@ function replayAnomalyWarning(count: number) {
   return `Replay canonical protocol anomalies detected (count=${count})`
 }
 
+function expectSingleWarning(log: ReturnType<typeof vi.fn>, message: string) {
+  expect(log).toHaveBeenCalledTimes(1)
+  expect(log).toHaveBeenCalledWith(message, 'warn')
+}
+
+function expectWarningSequence(log: ReturnType<typeof vi.fn>, messages: string[]) {
+  expect(log).toHaveBeenCalledTimes(messages.length)
+  for (const [index, message] of messages.entries()) {
+    expect(log).toHaveBeenNthCalledWith(index + 1, message, 'warn')
+  }
+}
+
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',
@@ -334,9 +346,10 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(100)
-      expect(ctx.log).toHaveBeenCalledTimes(2)
-      expect(ctx.log).toHaveBeenNthCalledWith(1, replayInvariantWarning('running_tool_after_terminal_turn=1'), 'warn')
-      expect(ctx.log).toHaveBeenNthCalledWith(2, replayAnomalyWarning(2), 'warn')
+      expectWarningSequence(ctx.log, [
+        replayInvariantWarning('running_tool_after_terminal_turn=1'),
+        replayAnomalyWarning(2),
+      ])
     })
 
     it('[pagination] does not log anomaly warning on boundary exit when anomaly count was already seen', async () => {
@@ -384,11 +397,7 @@ describe('replayThreadEvents', () => {
       const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(
-        replayInvariantWarning('running_tool_after_terminal_turn=1, pending_input_after_terminal_turn=1'),
-        'warn',
-      )
+      expectSingleWarning(ctx.log, replayInvariantWarning('running_tool_after_terminal_turn=1, pending_input_after_terminal_turn=1'))
     })
 
     it('[logging] logs canonical protocol anomaly count once per replay request', async () => {
@@ -409,8 +418,7 @@ describe('replayThreadEvents', () => {
       const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(replayAnomalyWarning(3), 'warn')
+      expectSingleWarning(ctx.log, replayAnomalyWarning(3))
     })
   })
 
@@ -433,8 +441,7 @@ describe('replayThreadEvents', () => {
       const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
       expect(ok).toBe(true)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(replayInvariantWarning('running_tool_after_terminal_turn=1'), 'warn')
+      expectSingleWarning(ctx.log, replayInvariantWarning('running_tool_after_terminal_turn=1'))
       expect(ctx.dispatch).toHaveBeenCalledWith({
         type: 'hydrate_projection_snapshot',
         threadId: TEST_THREAD_ID,
@@ -538,8 +545,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(2)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(replayInvariantWarning('running_tool_after_terminal_turn=1'), 'warn')
+      expectSingleWarning(ctx.log, replayInvariantWarning('running_tool_after_terminal_turn=1'))
     })
 
     it('[rebuild] defers baseline projection hydration for non-active threads after hasGap', async () => {
@@ -591,8 +597,7 @@ describe('replayThreadEvents', () => {
 
       expect(ok).toBe(true)
       expect(request).toHaveBeenCalledTimes(2)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(replayAnomalyWarning(5), 'warn')
+      expectSingleWarning(ctx.log, replayAnomalyWarning(5))
     })
 
     it('[logging] logs canonical protocol anomalies only when replay count increases across calls', async () => {
@@ -619,9 +624,7 @@ describe('replayThreadEvents', () => {
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
       await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
 
-      expect(ctx.log).toHaveBeenCalledTimes(2)
-      expect(ctx.log).toHaveBeenNthCalledWith(1, replayAnomalyWarning(2), 'warn')
-      expect(ctx.log).toHaveBeenNthCalledWith(2, replayAnomalyWarning(3), 'warn')
+      expectWarningSequence(ctx.log, [replayAnomalyWarning(2), replayAnomalyWarning(3)])
     })
 
     it('[rebuild] continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
@@ -654,8 +657,7 @@ describe('replayThreadEvents', () => {
       expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
       expectReplayPageRequestArgs(request, 3, REPLAY_CURSOR_REBUILD_COMPLETE)
       expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledTimes(1)
-      expect(ctx.log).toHaveBeenCalledWith(replayAnomalyWarning(2), 'warn')
+      expectSingleWarning(ctx.log, replayAnomalyWarning(2))
       expectReplayCursor(ctx, REPLAY_SEQ_INCREMENTAL)
     })
 
