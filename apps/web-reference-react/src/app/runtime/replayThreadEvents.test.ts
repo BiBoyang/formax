@@ -18,7 +18,7 @@ type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
-// Shared replay fixture constants for both request builders and assertions.
+// Constants: shared between replay fixture builders and assertions.
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
@@ -36,7 +36,7 @@ const REPLAY_REQUEST_DEFAULTS = {
   pageSize: REPLAY_PAGE_SIZE,
 } as const
 
-// Assertion helpers
+// Helpers: assertions
 function expectReplayPageRequestArgs(args: { request: ReplayRequestMock; nth: number; afterCursor: number }) {
   expect(args.request).toHaveBeenNthCalledWith(args.nth, 'thread/replay', {
     threadId: TEST_THREAD_ID,
@@ -53,7 +53,7 @@ function expectRuntimeLastReplaySeq(ctx: ReplayThreadEventsContext, replaySeq: n
   expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(replaySeq)
 }
 
-// Warning helpers
+// Helpers: warnings
 function replayInvariantWarning(details: string) {
   return `Replay invariant issues detected (${details})`
 }
@@ -74,7 +74,7 @@ function expectWarningSequence(log: ReplayLogMock, messages: string[]) {
   })
 }
 
-// Replay fixture builders
+// Helpers: replay fixtures
 function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): ReplayStateSnapshot {
   return {
     mode: 'normal',

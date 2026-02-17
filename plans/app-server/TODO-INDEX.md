@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N108 replay helper 顶部区块命名一致性收尾
-  - 目标：统一顶部分组用词，避免同一层级出现不同表述风格。
+- [ ] N110 replay vs notification 一致性 fixture 增补（Web runtime）
+  - 目标：在 Web runtime 侧补一个“同序列输入下 realtime 与 replay 输出一致”的回归夹具。
   - 验收：
-    - 不改变现有断言语义，测试全量通过。
+    - 至少 1 个新用例覆盖 notification->projection 与 replay->projection 的一致断言。
 
-- [ ] N109 replay helper 注释语气与粒度统一
-  - 目标：统一顶部注释语气（说明性 vs 指令性），减少风格混杂。
+- [ ] N111 hasGap 重建路径 fixture 复用到 threadActions
+  - 目标：将 replayThreadEvents 的 hasGap baseline fixture 在 threadActions 侧复用，减少恢复路径漂移。
   - 验收：
-    - 不改变现有断言语义，测试全量通过。
+    - `replayThreadEvents` 与 `threadActions` 至少各 1 个用例复用同一 fixture helper。
