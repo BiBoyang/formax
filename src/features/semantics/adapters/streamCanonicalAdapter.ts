@@ -5,6 +5,7 @@ import type {
   CanonicalEventSource,
 } from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
+import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 
 type StreamCanonicalContext = {
   threadId: string
@@ -12,12 +13,6 @@ type StreamCanonicalContext = {
   nextReplaySeq: () => number
   source?: CanonicalEventSource
   now?: () => string
-}
-
-function toTimestamp(now?: () => string): string {
-  const value = now?.()
-  if (typeof value === 'string' && value.trim()) return value
-  return new Date().toISOString()
 }
 
 function toEventId(args: { threadId: string; turnId: string; replaySeq: number; kind: CanonicalEvent['kind'] }): string {
@@ -33,7 +28,7 @@ function createEnvelope(
     threadId: ctx.threadId,
     replaySeq,
     eventId: toEventId({ threadId: ctx.threadId, turnId: ctx.turnId, replaySeq, kind }),
-    ts: toTimestamp(ctx.now),
+    ts: toCanonicalTimestamp(ctx.now),
     source: ctx.source ?? 'engine',
   }
 }
@@ -59,14 +54,6 @@ function readToolEndSummary(ev: Extract<StreamEvent, { type: 'tool_end' }>): str
   }
   if (content) return content
   return undefined
-}
-
-function inferFailureStatus(errorText: string): 'failed' | 'interrupted' {
-  const normalized = errorText.toLowerCase()
-  if (normalized.includes('interrupt') || normalized.includes('abort') || normalized.includes('cancel')) {
-    return 'interrupted'
-  }
-  return 'failed'
 }
 
 export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCanonicalContext): CanonicalEvent[] {
@@ -214,7 +201,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
         ...createEnvelope(ctx, 'turn_footer', seqFooter),
         kind: 'turn_footer',
         turnId: ctx.turnId,
-        status: inferFailureStatus(message),
+        status: inferCanonicalFailureStatus(message),
         message,
       },
     ]

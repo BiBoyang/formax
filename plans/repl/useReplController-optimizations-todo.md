@@ -28,7 +28,7 @@ Status: `in_progress`
   位置: `src/features/repl/useReplController.ts` + `src/features/repl/controller/send/*`  
   目标: `send` 只保留输入 guard 与 orchestration call；将 main/pre-main 组装进一步集中到 controller 层。
 
-- [ ] S5: 语义适配器重复逻辑去重（不改入口结构）  
+- [x] S5: 语义适配器重复逻辑去重（不改入口结构）  
   位置: `src/features/semantics/adapters/streamCanonicalAdapter.ts`、`src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`  
   目标: 抽公共解析 helper（tool/assistant/thinking 映射），降低跨端漂移风险。
 

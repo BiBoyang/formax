@@ -1,5 +1,6 @@
 import type { CanonicalEvent, CanonicalEventSource } from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
+import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 
 type TurnNotification = {
   method: string
@@ -11,12 +12,6 @@ type TurnNotificationCanonicalContext = {
   nextReplaySeq?: () => number
   source?: CanonicalEventSource
   now?: () => string
-}
-
-function toTimestamp(now?: () => string): string {
-  const value = now?.()
-  if (typeof value === 'string' && value.trim()) return value
-  return new Date().toISOString()
 }
 
 function resolveReplaySeq(
@@ -114,17 +109,9 @@ function toEnvelope(args: {
     ts:
       typeof args.params?.ts === 'string' && args.params.ts.trim()
         ? args.params.ts
-        : toTimestamp(args.now),
+        : toCanonicalTimestamp(args.now),
     source: args.source,
   }
-}
-
-function inferFailureStatus(errorText: string): 'failed' | 'interrupted' {
-  const normalized = errorText.toLowerCase()
-  if (normalized.includes('interrupt') || normalized.includes('abort') || normalized.includes('cancel')) {
-    return 'interrupted'
-  }
-  return 'failed'
 }
 
 function isCanonicalSource(value: unknown): value is CanonicalEventSource {
@@ -149,7 +136,7 @@ function resolveFailureFooterStatus(
     const status = (turn as Record<string, unknown>).status
     if (status === 'interrupted' || status === 'failed') return status
   }
-  return inferFailureStatus(message)
+  return inferCanonicalFailureStatus(message)
 }
 
 function readToolUpdateLine(event: Record<string, unknown>): string | undefined {
