@@ -18,7 +18,7 @@ type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
-// Replay constants
+// Shared replay fixture constants for both request builders and assertions.
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
