@@ -9,6 +9,7 @@ import type { ReplayStateSnapshot } from '../core/rpcParsers'
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 type ReplayRequestMock = ReturnType<typeof vi.fn>
 type ReplayLogMock = ReturnType<typeof vi.fn>
+type ReplayCursorParams = { after?: number }
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
@@ -91,7 +92,7 @@ function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): Replay
 function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {}): ReplayThreadEventsContext {
   return {
     request: vi.fn(),
-    asThreadReplay: (value) => value as ReturnType<ReplayThreadEventsContext['asThreadReplay']>,
+    asThreadReplay: (value) => value as ReplayPage,
     toRuntimePendingInputsById: vi.fn().mockReturnValue({}),
     replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: INITIAL_REPLAY_CURSOR } },
     replayAnomalyCountSeenByThreadRef: { current: {} },
@@ -192,7 +193,7 @@ function createReplayCursorProgressRequest(args: {
     })
   return vi.fn().mockImplementation((_method: string, params?: unknown) => {
     const readAfterCursorParam = (value?: unknown) =>
-      Number((value as { after?: number } | undefined)?.after ?? REPLAY_CURSOR_FROM_START)
+      Number((value as ReplayCursorParams | undefined)?.after ?? REPLAY_CURSOR_FROM_START)
     const afterCursor = readAfterCursorParam(params)
     return Promise.resolve(createPageForAfterCursor(afterCursor))
   })
