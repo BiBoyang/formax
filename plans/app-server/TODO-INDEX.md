@@ -17,12 +17,6 @@
 
 ## P2：Contract & Adapter Consolidation
 
-- [ ] N8 Web runtime 禁止补造 replaySeq 参与语义状态
-  - 目标：notification 缺 envelope 时，不再由 Web runtime 补 replaySeq 写入语义 runtime state。
-  - 验收：
-    - `processNotification` 对缺 `params.replaySeq` 的通知不推进 `ThreadRuntimeState.lastReplaySeq`。
-    - 相关路径有测试覆盖（含“缺 replaySeq 仅日志/仅 UI 副作用，不推进语义状态”）。
-
 - [ ] N9 Notification -> canonical 映射单点化补齐
   - 目标：客户端不再保留平行“回放序号推断”逻辑，canonical 语义只通过 shared adapter 进入 projector。
   - 验收：

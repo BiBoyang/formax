@@ -8,7 +8,7 @@ import {
   prepareProjectionReduction,
 } from './transcriptProjectionCore'
 import { createTranscriptSegmentId } from './transcriptProjectionIds'
-import type { TranscriptProjectionState, TranscriptSegment } from './transcriptProjectionTypes'
+import type { TranscriptProjectionState } from './transcriptProjectionTypes'
 
 export type {
   AssistantSegment,

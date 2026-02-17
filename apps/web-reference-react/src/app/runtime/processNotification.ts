@@ -30,10 +30,9 @@ export type ProcessNotificationContext = {
 export function processNotification(notification: RpcNotification, ctx: ProcessNotificationContext): void {
   const params = (notification.params ?? {}) as any
   const threadId = extractThreadIdFromNotificationParams(params)
-  if (threadId) {
+  const replaySeq = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
+  if (threadId && replaySeq != null) {
     const current = ctx.runtimeStateByThreadRef.current[threadId]
-    const replaySeqRaw = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
-    const replaySeq = replaySeqRaw ?? (current ? current.lastReplaySeq + 1 : 1)
     const baseState =
       current ??
       ctx.createInitialThreadRuntimeState({
@@ -49,7 +48,6 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     })
   }
 
-  const replaySeq = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
   if (threadId && replaySeq != null) {
     const current = ctx.replayCursorByThreadRef.current[threadId]
     ctx.replayCursorByThreadRef.current[threadId] = typeof current === 'number' ? Math.max(current, replaySeq) : replaySeq
