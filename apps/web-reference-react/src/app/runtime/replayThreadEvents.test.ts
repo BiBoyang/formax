@@ -17,6 +17,7 @@ import {
   REPLAY_FIXTURE_TURN_ID,
   createReplayTurnEventEnvelope,
 } from './testFixtures/replayFixtures'
+import { CROSS_PATH_CONTRACT_FIXTURE } from '../../../../../src/features/semantics/adapters/crossPathContractFixture'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 // Type aliases
@@ -243,6 +244,14 @@ function createNotificationProjectionCapture() {
     reduceThreadRuntimeState,
   }
   return { appliedCanonicalEvents, context }
+}
+
+function toReplayEntriesFromNotifications(notifications: Array<{ method: string; params: Record<string, unknown> }>) {
+  return notifications.map((notification) => ({
+    replaySeq: Number(notification.params.replaySeq ?? 0),
+    method: notification.method,
+    params: notification.params,
+  }))
 }
 
 describe('resolveReplayCursorProgress', () => {
@@ -490,6 +499,49 @@ describe('replayThreadEvents', () => {
   })
 
   describe('rebuild and promotion paths', () => {
+    it('[consistency] keeps replayThreadEvents canonical projection identical to direct notification path for contract fixture', async () => {
+      const fixtureNotifications = [...CROSS_PATH_CONTRACT_FIXTURE.notifications]
+      const directCapture = createNotificationProjectionCapture()
+      directCapture.context.activeThreadIdRef.current = CROSS_PATH_CONTRACT_FIXTURE.threadId
+      for (const notification of fixtureNotifications) {
+        processNotification(
+          {
+            jsonrpc: '2.0',
+            method: notification.method,
+            params: notification.params,
+          },
+          directCapture.context,
+        )
+      }
+
+      const replayCapture = createNotificationProjectionCapture()
+      replayCapture.context.activeThreadIdRef.current = CROSS_PATH_CONTRACT_FIXTURE.threadId
+      const replayEntries = toReplayEntriesFromNotifications(fixtureNotifications)
+      const lastReplaySeq = replayEntries[replayEntries.length - 1]?.replaySeq ?? 0
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: replayEntries,
+          nextCursor: lastReplaySeq,
+          latestCursor: lastReplaySeq,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        replayCursorByThreadRef: {
+          current: { [CROSS_PATH_CONTRACT_FIXTURE.threadId]: 0 },
+        },
+        activeThreadIdRef: { current: CROSS_PATH_CONTRACT_FIXTURE.threadId },
+        handleNotification: (notification) => processNotification(notification as RpcNotification, replayCapture.context),
+      })
+
+      const ok = await replayThreadEvents(CROSS_PATH_CONTRACT_FIXTURE.threadId, { fromStart: true }, ctx)
+
+      expect(ok).toBe(true)
+      expect(directCapture.appliedCanonicalEvents.length).toBeGreaterThan(0)
+      expect(replayCapture.appliedCanonicalEvents).toEqual(directCapture.appliedCanonicalEvents)
+    })
+
     it('[consistency] forwards replay notifications into the same canonical projection as direct notifications', async () => {
       const params = createReplayTurnEventEnvelope({
         event: { type: 'assistant_delta', text: 'hello from consistency fixture' },
