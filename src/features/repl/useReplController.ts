@@ -23,9 +23,8 @@ import { partitionMessages, useReplOverlays } from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   appendCanonicalTurnFinalRows,
-  canonicalTurnSegmentsToMessages,
-  tailSegmentsForTurn,
   emitCanonicalUiMessageForTurn,
+  projectCanonicalEventToTransientMessages,
 } from './controller/canonical/canonical'
 import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
@@ -51,7 +50,6 @@ import { createMainTurnExecutionContext } from './controller/send/sendMainTurnCo
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import {
   createInitialTranscriptProjectionState,
-  reduceTranscriptProjection,
 } from '../semantics/projection/projection'
 import type { CanonicalEvent } from '../semantics/core/core'
 import {
@@ -369,20 +367,15 @@ export function useReplController(deps: {
   }, [])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
-    canonicalRefs.projectionRef.current = reduceTranscriptProjection(canonicalRefs.projectionRef.current, event)
+    const projected = projectCanonicalEventToTransientMessages({
+      projection: canonicalRefs.projectionRef.current,
+      event,
+      activeTurnId: canonicalRefs.turnIdRef.current,
+      includeAssistantStreaming: assistantTextMode === 'stream',
+    })
+    canonicalRefs.projectionRef.current = projected.projection
     setCanonicalTransientActive(true)
-    const turnId = canonicalRefs.turnIdRef.current ?? event.turnId
-    const turnTailSegments = tailSegmentsForTurn(canonicalRefs.projectionRef.current.segments, turnId)
-    setCanonicalTurnMessages(
-      canonicalTurnSegmentsToMessages({
-        turnId,
-        segments: turnTailSegments,
-        transientOnly: true,
-        openAssistantSegmentId: canonicalRefs.projectionRef.current.openAssistantSegmentIdByTurn[turnId],
-        includeAssistantStreaming: assistantTextMode === 'stream',
-        includeUserSystem: false,
-      }),
-    )
+    setCanonicalTurnMessages(projected.messages)
   }, [assistantTextMode])
 
   useEffect(() => {

@@ -44,7 +44,7 @@ Status: `in_progress`
 - [x] T2 split send pre-main orchestration lower。
 - [x] T3 split mainTurnDeps/mainTurnRefs construction lower。
 - [x] T4 split abort/newSession/reset coordination into session helper。
-- [ ] T5 split canonical event orchestration helper。
+- [x] T5 split canonical event orchestration helper。
 - [ ] T6 reduce callback dependency noise。
 - [ ] T7 add action-level matrix tests。
 - [ ] T8 semantics fixture cross check（no duplicate tool row + assistant retained）。
