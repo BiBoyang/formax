@@ -2,10 +2,10 @@
 
 更新时间：2026-02-17
 任务来源（唯一）：
-- `plans/app-server/ARCHITECTURE-ROADMAP.md`
+- `plans/_archive/app-server/ARCHITECTURE-ROADMAP.md`
 - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
 
-> 本清单用于下一阶段主线推进。旧 `plans/app-server/TODO.md` 视为历史执行记录，不再作为主线来源。
+> 本清单用于下一阶段主线推进。旧 `plans/app-server/TODO.md` 已删除，不再维护。
 
 ## 滚动维护规则（必须执行）
 

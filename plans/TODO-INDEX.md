@@ -4,8 +4,8 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/app-server/TODO.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
-  - 当前状态：唯一执行清单（已合并语义一致性与 chat-ui 临时 TODO）。
+- `plans/app-server/TODO-INDEX.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
+  - 当前状态：滚动执行清单（旧 `TODO.md` 已归档/删除，避免噪音）。
   - 关联实现：`apps/web-reference-react/`（React reference client）
   - 验收记录模板：`plans/app-server/MANUAL-RUNBOOK-THREAD-TURN-INPUT.md`、`plans/app-server/MANUAL-RUNBOOK-RECOVERY-STALE.md`
 

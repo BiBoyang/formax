@@ -122,7 +122,7 @@
 - 交互合同：`plans/app-server/INTERACTION-CONTRACT.md`
 - 接口手册：`plans/app-server/API-REFERENCE.md`
 - UI 规范：`plans/app-server/UI-SPEC.md`
-- 当前执行清单：`plans/app-server/TODO.md`
-- 架构路线图：`plans/app-server/ARCHITECTURE-ROADMAP.md`
+- 当前执行清单：`plans/app-server/TODO-INDEX.md`
+- 架构路线图（归档）：`plans/_archive/app-server/ARCHITECTURE-ROADMAP.md`
 
 本蓝图用于约束“下一阶段语义架构方向”，不替代上述文档。

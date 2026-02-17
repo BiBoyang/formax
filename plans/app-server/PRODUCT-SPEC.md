@@ -10,7 +10,7 @@
 
 - 协议与状态机：`plans/app-server/INTERACTION-CONTRACT.md`
 - UI 行为规范：`plans/app-server/UI-SPEC.md`
-- 执行清单：`plans/app-server/TODO.md`
+- 执行清单：`plans/app-server/TODO-INDEX.md`
 - 当前接口参考：`plans/app-server/API-REFERENCE.md`
 
 ## 2. 背景与问题
@@ -143,7 +143,7 @@
 
 ## Milestone D：MVP 发布检查
 
-- 完成最终验收清单（见 `plans/app-server/TODO.md`）。
+- 完成最终验收清单（见 `plans/app-server/TODO-INDEX.md`）。
 
 ## 11. 变更控制
 

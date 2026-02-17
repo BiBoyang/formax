@@ -4,7 +4,7 @@
 
 本主线目标：把 Formax 从纯 TUI 扩展为可被 GUI 稳定驱动的本地 app-server（`stdio JSONL + JSON-RPC 2.0`），完成 thread/turn/input 闭环与可恢复语义，并交付可持续迭代的 React reference client。
 
-对应主线：`plans/app-server/TODO.md`
+对应主线：`plans/app-server/TODO-INDEX.md`
 
 ## 2. 结果摘要
 
