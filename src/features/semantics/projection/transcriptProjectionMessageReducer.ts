@@ -7,8 +7,8 @@ import type {
 import type { TranscriptSegmentIdFactory } from './transcriptProjectionIds'
 import type { SystemSegment, TranscriptSegment, UserSegment } from './transcriptProjectionTypes'
 
-export function shouldSkipMessageSegment(args: { text: string; uiKind?: CanonicalMessageUiKind }): boolean {
-  return !args.text && !args.uiKind
+export function shouldSkipMessageSegment(args: { text: string; messageKind?: CanonicalMessageUiKind }): boolean {
+  return !args.text && !args.messageKind
 }
 
 export function appendUserMessageSegment(args: {
@@ -22,7 +22,7 @@ export function appendUserMessageSegment(args: {
     kind: 'user',
     turnId: event.turnId,
     text: event.text,
-    ...(event.uiKind ? { uiKind: event.uiKind } : {}),
+    ...(event.uiKind ? { messageKind: event.uiKind } : {}),
   }
   draft.segments.push(next)
 }
@@ -39,7 +39,7 @@ export function appendSystemMessageSegment(args: {
     turnId: event.turnId,
     role: event.role,
     text: event.text,
-    ...(event.uiKind ? { uiKind: event.uiKind } : {}),
+    ...(event.uiKind ? { messageKind: event.uiKind } : {}),
   }
   draft.segments.push(next)
 }
@@ -51,7 +51,7 @@ export function applyMessageProjectionEvent(args: {
 }): 'ignored' | 'skip_turn' | 'applied' {
   const { event, draft, toSegmentId } = args
   if (event.kind === 'user_message') {
-    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
+    if (shouldSkipMessageSegment({ text: event.text, messageKind: event.uiKind })) {
       return 'skip_turn'
     }
     appendUserMessageSegment({ draft, event, toSegmentId })
@@ -59,7 +59,7 @@ export function applyMessageProjectionEvent(args: {
   }
 
   if (event.kind === 'system_message') {
-    if (shouldSkipMessageSegment({ text: event.text, uiKind: event.uiKind })) {
+    if (shouldSkipMessageSegment({ text: event.text, messageKind: event.uiKind })) {
       return 'skip_turn'
     }
     appendSystemMessageSegment({ draft, event, toSegmentId })

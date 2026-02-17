@@ -6,7 +6,7 @@ export type UserSegment = {
   kind: 'user'
   turnId: string
   text: string
-  uiKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
+  messageKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
 }
 
 export type SystemSegment = {
@@ -15,7 +15,7 @@ export type SystemSegment = {
   turnId: string
   role: 'assistant' | 'user'
   text: string
-  uiKind?: CanonicalMessageUiKind
+  messageKind?: CanonicalMessageUiKind
 }
 
 export type AssistantSegment = {

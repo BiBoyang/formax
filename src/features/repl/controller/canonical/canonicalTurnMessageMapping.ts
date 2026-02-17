@@ -52,7 +52,7 @@ export function canonicalTurnSegmentsToMessages(args: {
         role: 'user' as const,
         content: segment.text,
         timestamp: new Date(0),
-        ...(segment.uiKind ? { ui: { kind: segment.uiKind } } : {}),
+        ...(segment.messageKind ? { ui: { kind: segment.messageKind } } : {}),
       }
     }
 
@@ -64,7 +64,7 @@ export function canonicalTurnSegmentsToMessages(args: {
         role: segment.role,
         content: segment.text,
         timestamp: new Date(0),
-        ...(segment.uiKind ? { ui: { kind: segment.uiKind } } : {}),
+        ...(segment.messageKind ? { ui: { kind: segment.messageKind } } : {}),
       }
     }
 

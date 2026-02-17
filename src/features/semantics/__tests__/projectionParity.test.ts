@@ -10,7 +10,7 @@ function normalizeSegments(segments: ReturnType<typeof createInitialTranscriptPr
         kind: 'user',
         turnId: segment.turnId,
         text: segment.text,
-        ...(segment.uiKind ? { uiKind: segment.uiKind } : {}),
+        ...(segment.messageKind ? { uiKind: segment.messageKind } : {}),
       }
     }
     if (segment.kind === 'system') {
@@ -19,7 +19,7 @@ function normalizeSegments(segments: ReturnType<typeof createInitialTranscriptPr
         turnId: segment.turnId,
         role: segment.role,
         text: segment.text,
-        ...(segment.uiKind ? { uiKind: segment.uiKind } : {}),
+        ...(segment.messageKind ? { uiKind: segment.messageKind } : {}),
       }
     }
     if (segment.kind === 'assistant') {
