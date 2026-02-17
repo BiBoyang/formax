@@ -188,6 +188,36 @@ describe('turnNotificationCanonicalAdapter', () => {
     expect(events).toEqual([])
   })
 
+  it('ignores complete/error payloads in turn/event notifications', () => {
+    const completeEvents = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 9,
+          event: { type: 'complete' },
+        },
+      },
+      { fallbackThreadId: 'thread-fallback' },
+    )
+    const errorEvents = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 10,
+          event: { type: 'error', error: { message: 'boom' } },
+        },
+      },
+      { fallbackThreadId: 'thread-fallback' },
+    )
+
+    expect(completeEvents).toEqual([])
+    expect(errorEvents).toEqual([])
+  })
+
   it('uses params.source when context source is absent', () => {
     const events = toCanonicalEventsFromTurnNotification(
       {

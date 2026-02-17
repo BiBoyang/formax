@@ -4,9 +4,8 @@ import {
   type CanonicalEvent,
   type CanonicalEventSource,
 } from '../core/canonicalEvents'
-import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
-import { readCanonicalToolEndSummary, readCanonicalToolUpdateLine } from './toolEventCanonicalFields'
+import { toCanonicalEventsFromStreamPayload } from './streamEventCanonicalMapper'
 
 type TurnNotification = {
   method: string
@@ -29,6 +28,7 @@ const TURN_NOTIFICATION_CANONICAL_METHODS = new Set([
   'turn/inputRequested',
   'turn/inputResolved',
 ])
+const TURN_EVENT_STREAM_TYPES = new Set(['assistant_delta', 'thinking_delta', 'tool_start', 'tool_input', 'tool_update', 'tool_end'])
 
 type TurnNotificationEnvelopeField = 'threadId' | 'turnId' | 'replaySeq' | 'eventId' | 'ts' | 'source' | 'schemaVersion'
 
@@ -253,111 +253,23 @@ export function toCanonicalEventsFromTurnNotification(
     const event = params?.event
     if (!event || typeof event !== 'object') return []
     const streamEvent = event as Record<string, unknown>
-    const eventType = streamEvent.type
-
-    if (eventType === 'assistant_delta') {
-      const textDelta = String(streamEvent.text ?? '')
-      if (!textDelta) return []
-      return [
-        {
-          ...toEnvelope({ params, threadId, turnId, kind: 'assistant_delta', replaySeq, source, now: ctx.now }),
-          kind: 'assistant_delta',
-          turnId,
-          textDelta,
-        },
-      ]
-    }
-
-    if (eventType === 'thinking_delta') {
-      const textDelta = String(streamEvent.thinking ?? streamEvent.text ?? streamEvent.delta ?? '')
-      if (!textDelta) return []
-      return [
-        {
-          ...toEnvelope({ params, threadId, turnId, kind: 'thinking_delta', replaySeq, source, now: ctx.now }),
-          kind: 'thinking_delta',
-          turnId,
-          textDelta,
-        },
-      ]
-    }
-
-    if (eventType === 'tool_start' || eventType === 'tool_update' || eventType === 'tool_end' || eventType === 'tool_input') {
-      const toolUseIdRaw = streamEvent.id ?? streamEvent.toolUseId
-      const toolUseId = typeof toolUseIdRaw === 'string' ? toolUseIdRaw.trim() : ''
-      if (!toolUseId) return []
-
-      const toolNameRaw = streamEvent.name
-      const toolName = typeof toolNameRaw === 'string' && toolNameRaw.trim() ? toolNameRaw : undefined
-      const phase =
-        eventType === 'tool_start' ? 'start' : eventType === 'tool_end' ? 'end' : 'update'
-      const line = eventType === 'tool_update' ? readCanonicalToolUpdateLine(streamEvent) : undefined
-      const summary =
-        eventType === 'tool_end'
-          ? readCanonicalToolEndSummary(streamEvent, { includeCompletedFallback: true })
-          : undefined
-      const paramsText = formatToolInputAsParamsText(streamEvent.input)
-      const input =
-        streamEvent.input && typeof streamEvent.input === 'object' && !Array.isArray(streamEvent.input)
-          ? (streamEvent.input as Record<string, unknown>)
-          : undefined
-      const isError =
-        eventType === 'tool_end' &&
-        Boolean((streamEvent.result as Record<string, unknown> | undefined)?.is_error)
-      const result =
-        eventType === 'tool_end'
-          ? String(((streamEvent.result as Record<string, unknown> | undefined)?.content ?? ''))
-          : ''
-      const middleLines = Array.isArray(streamEvent.middleLines) ? streamEvent.middleLines.map((l) => String(l)) : null
-      const transcriptLines = Array.isArray(streamEvent.transcriptLines)
-        ? streamEvent.transcriptLines.map((l) => String(l))
-        : null
-      const nestedTools = Array.isArray(streamEvent.nestedTools)
-        ? (streamEvent.nestedTools as Array<Record<string, unknown>>)
-            .map((item) => {
-              const id = typeof item.id === 'string' ? item.id : ''
-              const name = typeof item.name === 'string' ? item.name : ''
-              const status = item.status
-              if (!id || !name || (status !== 'running' && status !== 'completed' && status !== 'error')) return null
-              const nestedStatus = status as 'running' | 'completed' | 'error'
-              const inputValue =
-                item.input && typeof item.input === 'object' && !Array.isArray(item.input)
-                  ? (item.input as Record<string, unknown>)
-                  : {}
-              const summary = typeof item.summary === 'string' ? item.summary : undefined
-              return { id, name, input: inputValue, status: nestedStatus, ...(summary ? { summary } : {}) }
-            })
-            .filter((item): item is NonNullable<typeof item> => item !== null)
-        : null
-      const toolUses = typeof streamEvent.toolUses === 'number' ? streamEvent.toolUses : undefined
-      const usage =
-        streamEvent.usage && typeof streamEvent.usage === 'object' && !Array.isArray(streamEvent.usage)
-          ? (streamEvent.usage as any)
-          : undefined
-
-      return [
-        {
-          ...toEnvelope({ params, threadId, turnId, kind: 'tool_event', replaySeq, source, now: ctx.now }),
-          kind: 'tool_event',
-          turnId,
-          toolUseId,
-          phase,
-          ...(toolName ? { toolName } : {}),
-          ...(input ? { input } : {}),
-          ...(paramsText ? { paramsText } : {}),
-          ...(line ? { line } : {}),
-          ...(summary ? { summary } : {}),
-          ...(result ? { result } : {}),
-          ...(middleLines ? { middleLines } : {}),
-          ...(transcriptLines ? { transcriptLines } : {}),
-          ...(nestedTools ? { nestedTools } : {}),
-          ...(typeof toolUses === 'number' ? { toolUses } : {}),
-          ...(usage ? { usage } : {}),
-          ...(isError ? { isError } : {}),
-        },
-      ]
-    }
-
-    return []
+    const streamType = typeof streamEvent.type === 'string' ? streamEvent.type : ''
+    if (!TURN_EVENT_STREAM_TYPES.has(streamType)) return []
+    let seq = replaySeq - 1
+    return toCanonicalEventsFromStreamPayload(streamEvent, {
+      turnId,
+      nextReplaySeq: () => {
+        seq += 1
+        return seq
+      },
+      envelopeFor: ({ kind, replaySeq }) =>
+        toEnvelope({ params, threadId, turnId, kind, replaySeq, source, now: ctx.now }),
+      inferFailureStatus: inferCanonicalFailureStatus,
+      resolveThinkingDeltaText: (inputEvent) => String(inputEvent.thinking ?? inputEvent.text ?? inputEvent.delta ?? ''),
+      includeToolNameOnNonStart: true,
+      includeToolProgressFieldsOnEnd: true,
+      includeCompletedSummaryFallbackOnToolEnd: true,
+    })
   }
 
   if (notification.method === 'turn/completed') {
