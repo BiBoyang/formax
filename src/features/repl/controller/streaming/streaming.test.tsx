@@ -688,6 +688,101 @@ describe('useReplStreaming', () => {
     expect(exploreBatchSnapshotRef.current).toBeNull()
   })
 
+  it('writes legacy transcript rows when canonical bridge is not configured (fallback path)', async () => {
+    const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
+    const messagesRef = { current: [] as Msg[] }
+
+    function Harness(): React.ReactNode {
+      const [messages, setMessages] = useState<Msg[]>([])
+      const [thinkingText, setThinkingText] = useState('')
+      const [thinkingStartedAtMs, setThinkingStartedAtMs] = useState<number | null>(null)
+      const [loadingText, setLoadingText] = useState('')
+      const [ctx, setContext] = useState<any>(null)
+      const [err, setError] = useState<string | null>(null)
+      useEffect(() => {
+        messagesRef.current = messages
+      }, [messages])
+
+      const assistantBufferRef = useRef('')
+      const thinkingBufferRef = useRef('')
+      const currentAssistantIdRef = useRef<string | null>(null)
+      const currentThinkingMessageIdRef = useRef<string | null>(null)
+      const thinkingLastFlushAtRef = useRef(0)
+      const thinkingTimingRef = useRef<{ startedAtMs: number | null }>({ startedAtMs: null })
+      const toolNameByIdRef = useRef(new Map<string, string>())
+      const toolInputByIdRef = useRef(new Map<string, unknown>())
+      const taskStatsByToolUseIdRef = useRef(new Map<string, any>())
+      const taskKindByToolUseIdRef = useRef(new Map<string, any>())
+      const exploreBatchRef = useRef<any>(null)
+      const reminderServiceRef = useRef<any>(null)
+      const contextBudgetConfigRef = useRef<any>(null)
+
+      const { handleEvent } = useReplStreaming({
+        assistantTextMode: 'stream',
+        setMessages,
+        setThinkingText,
+        setThinkingStartedAtMs,
+        setLoadingText,
+        setContext,
+        setError,
+        currentAssistantIdRef,
+        assistantBufferRef,
+        thinkingBufferRef,
+        currentThinkingMessageIdRef,
+        thinkingLastFlushAtRef,
+        thinkingTimingRef,
+        toolNameByIdRef,
+        toolInputByIdRef,
+        taskStatsByToolUseIdRef,
+        taskKindByToolUseIdRef,
+        exploreBatchRef,
+        reminderServiceRef,
+        contextBudgetConfigRef,
+      })
+
+      useEffect(() => {
+        handleEventRef.current = handleEvent
+      }, [handleEvent])
+
+      void thinkingText
+      void thinkingStartedAtMs
+      void loadingText
+      void ctx
+      void err
+
+      return null
+    }
+
+    render(<Harness />)
+    await tick()
+
+    const handleEvent = handleEventRef.current
+    expect(handleEvent).not.toBeNull()
+
+    handleEvent!({ type: 'thinking_delta', thinking: 'analysis' })
+    handleEvent!({ type: 'thinking_stop' })
+    handleEvent!({ type: 'assistant_delta', text: 'done' })
+    handleEvent!({ type: 'tool_start', id: 'legacy-tool', name: 'Bash' })
+    handleEvent!({ type: 'tool_input', id: 'legacy-tool', input: { command: 'pwd' } })
+    handleEvent!({ type: 'tool_end', id: 'legacy-tool', result: { tool_use_id: 'legacy-tool', content: 'ok' } })
+    handleEvent!({ type: 'complete' })
+    await tick()
+    await tick()
+
+    expect(messagesRef.current.some((message) => message.ui?.kind === 'thinking_block')).toBe(true)
+    expect(messagesRef.current.some((message) => message.role === 'assistant' && String(message.content).includes('done'))).toBe(
+      true,
+    )
+    expect(
+      messagesRef.current.some(
+        (message) =>
+          message.role === 'tool' &&
+          message.toolInfo?.toolUseId === 'legacy-tool' &&
+          message.toolInfo?.status === 'completed',
+      ),
+    ).toBe(true)
+  })
+
   it('does not write legacy transcript rows when canonical bridge is configured without active turn', async () => {
     const handleEventRef = { current: null as null | ((ev: StreamEvent) => void) }
     const messagesRef = { current: [] as Msg[] }

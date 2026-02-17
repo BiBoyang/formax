@@ -582,7 +582,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
       id: 'legacy-t',
       role: 'tool',
       content: '/Users/david/Documents/github/formax',
-      timestamp: new Date(),
+      timestamp: new Date(20),
       toolInfo: {
         toolUseId: 'tool-1',
         name: 'Bash',
@@ -591,7 +591,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
       },
     }
     const replaced = replaceTurnTailWithCanonicalMessages({
-      messages: [{ id: 'u1', role: 'user', content: 'run pwd', timestamp: new Date() }, legacyTool],
+      messages: [{ id: 'u1', role: 'user', content: 'run pwd', timestamp: new Date(10) }, legacyTool],
       userMessageId: 'u1',
       canonicalTurnMessages: [
         {
