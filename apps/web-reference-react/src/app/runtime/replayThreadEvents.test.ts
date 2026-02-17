@@ -206,6 +206,49 @@ describe('replayThreadEvents', () => {
     })
   })
 
+  it('defers hasGap projection hydration for non-active threads', async () => {
+    const gapState = createReplayState({
+      projection: {
+        segments: [
+          {
+            id: 's1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'rebuilt',
+          },
+        ],
+        lastReplaySeq: 120,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: {},
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 50,
+      latestCursor: 120,
+      hasGap: true,
+      state: gapState,
+    })
+    const ctx = createBaseContext({
+      request,
+      activeThreadIdRef: { current: 'thread-2' },
+    })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: gapState.projection,
+    })
+    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+    expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+    expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
+  })
+
   it('logs invariant issues once across hasGap baseline replay double-request path', async () => {
     const gapState = createReplayState({
       invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
@@ -242,6 +285,57 @@ describe('replayThreadEvents', () => {
     expect(request).toHaveBeenCalledTimes(2)
     expect(ctx.log).toHaveBeenCalledTimes(1)
     expect(ctx.log).toHaveBeenCalledWith('Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
+  })
+
+  it('defers baseline projection hydration for non-active threads after hasGap', async () => {
+    const baselineProjection = {
+      segments: [
+        {
+          id: 's1',
+          kind: 'assistant' as const,
+          turnId: 'turn-1',
+          text: 'baseline-rebuilt',
+        },
+      ],
+      lastReplaySeq: 120,
+      toolNameByUseId: {},
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: {},
+    }
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: createReplayState({ projection: null }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 120,
+        latestCursor: 120,
+        hasGap: false,
+        state: createReplayState({ projection: baselineProjection }),
+      })
+    const ctx = createBaseContext({
+      request,
+      activeThreadIdRef: { current: 'thread-2' },
+    })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: baselineProjection,
+    })
+    expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+    expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(50)
+    expect(ctx.runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(120)
   })
 
   it('logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {

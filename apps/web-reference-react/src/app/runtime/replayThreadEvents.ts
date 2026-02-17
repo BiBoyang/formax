@@ -98,16 +98,21 @@ export async function replayThreadEvents(
     ctx.replayCursorByThreadRef.current[threadId] = nextCursor
   }
 
+  const shouldDeferProjectionHydration = (projectionSnapshot: ReplayStateSnapshot['projection']): boolean => {
+    return Boolean(projectionSnapshot) && ctx.activeThreadIdRef.current !== threadId
+  }
+
   const commitGapRebuild = (args: {
     state: ReplayStateSnapshot | null
     replayCursor: number
     projectionSnapshot: ReplayStateSnapshot['projection']
     clearActiveLogs: boolean
-  }): boolean => {
+  }): 'applied' | 'deferred' => {
+    if (shouldDeferProjectionHydration(args.projectionSnapshot)) {
+      return 'deferred'
+    }
+
     if (args.projectionSnapshot) {
-      if (ctx.activeThreadIdRef.current !== threadId) {
-        return false
-      }
       ctx.dispatch({
         type: 'hydrate_projection_snapshot',
         threadId,
@@ -119,7 +124,7 @@ export async function replayThreadEvents(
 
     applyReplayCursorAndSource(args.replayCursor)
     syncActiveThreadRuntimeState(args.state)
-    return true
+    return 'applied'
   }
 
   const maybeLogInvariantIssues = (state: ReplayStateSnapshot | null | undefined): void => {
@@ -160,13 +165,13 @@ export async function replayThreadEvents(
 
     if (replay.hasGap) {
       if (replay.state?.projection) {
-        const applied = commitGapRebuild({
+        const rebuildState = commitGapRebuild({
           state: replay.state,
           replayCursor: replay.latestCursor,
           projectionSnapshot: replay.state.projection,
           clearActiveLogs: false,
         })
-        if (!applied) {
+        if (rebuildState === 'deferred') {
           flushCanonicalProtocolAnomaliesLog()
           return true
         }
@@ -183,13 +188,13 @@ export async function replayThreadEvents(
         replayState = baselineReplay.state
       }
       if (baselineReplay.state?.projection) {
-        const applied = commitGapRebuild({
+        const rebuildState = commitGapRebuild({
           state: baselineReplay.state,
           replayCursor: baselineReplay.latestCursor,
           projectionSnapshot: baselineReplay.state.projection,
           clearActiveLogs: false,
         })
-        if (!applied) {
+        if (rebuildState === 'deferred') {
           flushCanonicalProtocolAnomaliesLog()
           return true
         }
