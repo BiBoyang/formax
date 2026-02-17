@@ -33,13 +33,9 @@
 
 ## P1：Single Writer 收口（来自 Milestone 1 / G1）
 
-- [ ] SW-01 将 `streaming.ts` 的 legacy fallback 写入进一步隔离为“compat layer”，主流程仅保留 canonical 驱动
-  - 目标：`useReplStreaming` 主 switch 不直接承担 legacy transcript 变更细节。
-  - 已完成切片 A：tool fallback 直写已抽到 `streamingLegacyCompat.ts`，`streaming.ts` 主流程改为调用 compat helper。
-  - 验收：fallback 仍可用（显式分支），但默认阅读路径只需看 canonical 分支即可理解语义。
-
 - [ ] SW-02 为 turn 终局建立统一 invariant 检查入口（TUI 侧）
   - 目标：将“无 running 泄漏、toolUseId 不重复、终局不可回写”整合到单一检查函数。
+  - 已完成切片 A：新增 `canonicalInvariants.ts`，并在 main turn/bash turn final merge 后统一触发检查（按当前 turn 范围收敛）。
   - 验收：现有 REPL 语义门禁与 controller 测试都通过，并新增至少 1 个“终局后回写被拒绝/忽略”回归用例。
 
 ## P2：Adapter 单点化补全（来自 Milestone 2 / G2）

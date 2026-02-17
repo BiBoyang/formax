@@ -23,6 +23,7 @@ import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
 import { partitionMessages, queueTranscriptSurfaceReset, useReplOverlays } from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
+  assertReplCanonicalInvariants,
   appendCanonicalTailFinalRows,
   appendCanonicalTurnFinalRows,
   emitCanonicalUiMessageForTurn,
@@ -682,14 +683,20 @@ export function useReplController(deps: {
             abortControllerRef,
             clearCanonicalTransientState,
           })
-          setMessages((prev) =>
-            appendCanonicalTailFinalRows({
+          setMessages((prev) => {
+            const nextMessages = appendCanonicalTailFinalRows({
               messages: prev,
               turnId: localTurnId,
               turnOutcome: localTurnOutcome === 'aborted' ? 'failed' : localTurnOutcome,
               projectionSegments: canonicalRefs.projectionRef.current.segments,
-            }),
-          )
+            })
+            assertReplCanonicalInvariants({
+              projection: canonicalRefs.projectionRef.current,
+              messages: nextMessages,
+              targetTurnId: localTurnId,
+            })
+            return nextMessages
+          })
         } finally {
           bashModeInFlightRef.current = false
         }
@@ -776,8 +783,8 @@ export function useReplController(deps: {
               onCanonicalEvent,
             }),
           finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
-            setMessages((prev) =>
-              appendCanonicalTurnFinalRows({
+            setMessages((prev) => {
+              const nextMessages = appendCanonicalTurnFinalRows({
                 messages: prev,
                 userMessageId,
                 turnId,
@@ -790,8 +797,15 @@ export function useReplController(deps: {
                       message.ui?.kind === 'command_subline' &&
                       isErrorLikeSubline(String(message.content || '')),
                   ),
-              }),
-            )
+              })
+              assertReplCanonicalInvariants({
+                projection: canonicalRefs.projectionRef.current,
+                messages: nextMessages,
+                targetTurnId: turnId,
+                targetTurnAnchorMessageId: userMessageId,
+              })
+              return nextMessages
+            })
           },
         },
       })
