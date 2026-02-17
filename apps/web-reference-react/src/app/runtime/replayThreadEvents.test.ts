@@ -102,6 +102,27 @@ function createReplayRequest(...pages: ReplayPage[]) {
   return request
 }
 
+function createHasGapBaselineReplayPages(args: {
+  gapState: ReplayStateSnapshot | null
+  baselineState: ReplayStateSnapshot | null
+  latestCursor?: number
+}) {
+  const latestCursor = args.latestCursor ?? REPLAY_CURSOR_REBUILD_COMPLETE
+  return [
+    createReplayPage({
+      nextCursor: INITIAL_REPLAY_CURSOR,
+      latestCursor,
+      hasGap: true,
+      state: args.gapState,
+    }),
+    createReplayPage({
+      nextCursor: latestCursor,
+      latestCursor,
+      state: args.baselineState,
+    }),
+  ] as const
+}
+
 function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnapshot['projection']> {
   return {
     segments: [
@@ -172,16 +193,9 @@ describe('replayThreadEvents', () => {
   it('[rebuild] uses replay-first rebuild on hasGap and clears cached logs', async () => {
     const gapState = createReplayState()
     const request = createReplayRequest(
-      createReplayPage({
-        nextCursor: 50,
-        latestCursor: 120,
-        hasGap: true,
-        state: gapState,
-      }),
-      createReplayPage({
-        nextCursor: 120,
-        latestCursor: 120,
-        state: gapState,
+      ...createHasGapBaselineReplayPages({
+        gapState,
+        baselineState: gapState,
       }),
     )
     const ctx = createReplayContext({ request })
@@ -505,16 +519,9 @@ describe('replayThreadEvents', () => {
         projection: null,
       })
       const request = createReplayRequest(
-        createReplayPage({
-          nextCursor: 50,
-          latestCursor: 120,
-          hasGap: true,
-          state: gapState,
-        }),
-        createReplayPage({
-          nextCursor: 120,
-          latestCursor: 120,
-          state: baselineState,
+        ...createHasGapBaselineReplayPages({
+          gapState,
+          baselineState,
         }),
       )
       const ctx = createReplayContext({ request })
@@ -530,16 +537,9 @@ describe('replayThreadEvents', () => {
     it('[rebuild] defers baseline projection hydration for non-active threads after hasGap', async () => {
       const baselineProjection = createProjectionSnapshot('baseline-rebuilt')
       const request = createReplayRequest(
-        createReplayPage({
-          nextCursor: 50,
-          latestCursor: 120,
-          hasGap: true,
-          state: createReplayState({ projection: null }),
-        }),
-        createReplayPage({
-          nextCursor: 120,
-          latestCursor: 120,
-          state: createReplayState({ projection: baselineProjection }),
+        ...createHasGapBaselineReplayPages({
+          gapState: createReplayState({ projection: null }),
+          baselineState: createReplayState({ projection: baselineProjection }),
         }),
       )
       const ctx = createReplayContext({
@@ -572,16 +572,9 @@ describe('replayThreadEvents', () => {
         projection: null,
       })
       const request = createReplayRequest(
-        createReplayPage({
-          nextCursor: 50,
-          latestCursor: 120,
-          hasGap: true,
-          state: gapState,
-        }),
-        createReplayPage({
-          nextCursor: 120,
-          latestCursor: 120,
-          state: baselineState,
+        ...createHasGapBaselineReplayPages({
+          gapState,
+          baselineState,
         }),
       )
       const ctx = createReplayContext({ request })
@@ -625,19 +618,12 @@ describe('replayThreadEvents', () => {
 
     it('[rebuild] continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
       const request = createReplayRequest(
-        createReplayPage({
-          nextCursor: 50,
-          latestCursor: 120,
-          hasGap: true,
-          state: createReplayState({
+        ...createHasGapBaselineReplayPages({
+          gapState: createReplayState({
             canonicalProtocolAnomalyCount: 2,
             projection: null,
           }),
-        }),
-        createReplayPage({
-          nextCursor: 120,
-          latestCursor: 120,
-          state: createReplayState({
+          baselineState: createReplayState({
             canonicalProtocolAnomalyCount: 2,
             projection: null,
           }),
@@ -667,16 +653,9 @@ describe('replayThreadEvents', () => {
 
     it('[promotion] promotes transcript source from history after rebuild followed by incremental entries', async () => {
       const request = createReplayRequest(
-        createReplayPage({
-          nextCursor: 50,
-          latestCursor: 120,
-          hasGap: true,
-          state: createReplayState({ projection: null }),
-        }),
-        createReplayPage({
-          nextCursor: 120,
-          latestCursor: 120,
-          state: createReplayState({ projection: null }),
+        ...createHasGapBaselineReplayPages({
+          gapState: createReplayState({ projection: null }),
+          baselineState: createReplayState({ projection: null }),
         }),
         createReplayPage({
           data: [createReplayTurnEvent(REPLAY_SEQ_INCREMENTAL)],
