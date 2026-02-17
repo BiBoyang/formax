@@ -164,6 +164,16 @@ export async function replayThreadEvents(
     ctx.log(`Replay canonical protocol anomalies detected (count=${maxCanonicalProtocolAnomalyCountObserved})`, 'warn')
   }
 
+  const fetchReplayPage = async (afterCursor: number): Promise<ReplayResult> => {
+    const result = await ctx.request('thread/replay', { threadId, after: afterCursor, limit: 200 })
+    return ctx.asThreadReplay(result)
+  }
+
+  const fetchReplayBaseline = async (): Promise<ReplayResult> => {
+    const baselineResult = await ctx.request('thread/replay', { threadId })
+    return ctx.asThreadReplay(baselineResult)
+  }
+
   const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {
     if (replay.state?.projection) {
       commitGapRebuild({
@@ -175,8 +185,7 @@ export async function replayThreadEvents(
       return
     }
 
-    const baselineResult = await ctx.request('thread/replay', { threadId })
-    const baselineReplay = ctx.asThreadReplay(baselineResult)
+    const baselineReplay = await fetchReplayBaseline()
     if (baselineReplay.state) {
       maybeLogInvariantIssues(baselineReplay.state)
       observeCanonicalProtocolAnomalies(baselineReplay.state)
@@ -203,8 +212,7 @@ export async function replayThreadEvents(
 
   while (pageCount < 100) {
     pageCount += 1
-    const result = await ctx.request('thread/replay', { threadId, after, limit: 200 })
-    const replay = ctx.asThreadReplay(result)
+    const replay = await fetchReplayPage(after)
     latestCursor = replay.latestCursor
     if (replay.state) {
       replayState = replay.state

@@ -17,13 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N53 replay 主循环 fetch/parse 步骤语义命名化
-  - 目标：将分页拉取中的 fetch+parse 组合步骤收敛成命名 helper，进一步压缩主循环噪音。
-  - 验收：
-    - 不改变请求参数与推进规则。
-    - 现有 replay 定向测试全部通过。
-
 - [ ] N54 replay 条件分支覆盖缺口盘点
   - 目标：对 `replayThreadEvents` 的 fromStart/hasGap/empty-history/normal-loop 四类路径补一版覆盖盘点与缺口测试。
   - 验收：
     - 在现有测试文件内补齐缺口路径用例并通过。
+
+- [ ] N55 replay 分页循环 page-limit 终止路径测试
+  - 目标：补齐 `pageCount < 100` 上限终止的保护路径测试，确保异常数据流下可稳定退出。
+  - 验收：
+    - 新增循环上限路径测试并通过。
