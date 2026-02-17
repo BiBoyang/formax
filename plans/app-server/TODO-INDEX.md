@@ -15,12 +15,24 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
-## P0b：Contract Governance + Single Writer
+## P2：Contract & Adapter Consolidation
 
-## P1：Projection/Renderer 长期解耦
-
-- [ ] N6 projection 状态去 UI 偏置
-  - 目标：projection 仅保留语义状态，不携带 renderer 偏好。
+- [ ] N8 Web runtime 禁止补造 replaySeq 参与语义状态
+  - 目标：notification 缺 envelope 时，不再由 Web runtime 补 replaySeq 写入语义 runtime state。
   - 验收：
-    - UI 派生逻辑下沉到 selector 层。
-    - projection reducer 不再因 TUI/Web 展示差异产生分支。
+    - `processNotification` 对缺 `params.replaySeq` 的通知不推进 `ThreadRuntimeState.lastReplaySeq`。
+    - 相关路径有测试覆盖（含“缺 replaySeq 仅日志/仅 UI 副作用，不推进语义状态”）。
+
+- [ ] N9 Notification -> canonical 映射单点化补齐
+  - 目标：客户端不再保留平行“回放序号推断”逻辑，canonical 语义只通过 shared adapter 进入 projector。
+  - 验收：
+    - `appEventMachine.resolveNotificationReplaySeq` 下线或不再用于语义投影链路。
+    - Web 侧 canonical 投影入口仅保留 `toCanonicalEventsFromTurnNotification(..., { requireEnvelope: true })`。
+
+## P3：Presentation IR
+
+- [ ] N10 Tool Presentation IR 边界收敛（第一步）
+  - 目标：把 tool summary/line 的展示派生集中到 selector/presenter，减少 reducer 中展示默认文案耦合。
+  - 验收：
+    - 至少一个跨端共享的 tool 展示 selector 在 TUI + Web 同时消费。
+    - 不改变现有 transcript 展示输出（由回归测试锁定）。
