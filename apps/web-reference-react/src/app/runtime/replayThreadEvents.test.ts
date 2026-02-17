@@ -14,6 +14,7 @@ type ReplayLogMock = ReplayMockFn
 type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }
+
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
 
