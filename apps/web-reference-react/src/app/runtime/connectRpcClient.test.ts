@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import { REPLAY_FIXTURE_THREAD_ID } from './testFixtures/replayFixtures'
 
@@ -30,6 +30,11 @@ vi.mock('../../rpcClient', () => {
 import { connectRpcClient } from './connectRpcClient'
 
 describe('connectRpcClient', () => {
+  beforeEach(() => {
+    mockRpcState.handlers = null
+    mockRpcState.disconnect.mockReset()
+  })
+
   it('replays the active thread on connected status using shared replay fixture id', async () => {
     const clientRef = { current: null as any }
     const eventCursorRef = { current: createTurnEventCursorState(20) }
@@ -75,5 +80,46 @@ describe('connectRpcClient', () => {
 
     expect(mockRpcState.disconnect).toHaveBeenCalledTimes(1)
     expect(clientRef.current).toBeNull()
+  })
+
+  it('replays again after disconnected -> connected transition', async () => {
+    const clientRef = { current: null as any }
+    const eventCursorRef = { current: createTurnEventCursorState(20) }
+    const initializeHandshake = vi.fn(async () => {})
+    const refreshThreads = vi.fn(async () => {})
+    const refreshWorkspaceDiff = vi.fn(async () => {})
+    const resumeThreadInputs = vi.fn(async () => {})
+    const replayThreadEvents = vi.fn(async () => true)
+
+    connectRpcClient({
+      bridgeUrl: 'ws://localhost:3001',
+      seenEventCap: 20,
+      dispatch: vi.fn(),
+      clientRef,
+      eventCursorRef,
+      initializeHandshake,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      resumeThreadInputs,
+      replayThreadEvents,
+      activeThreadIdRef: { current: REPLAY_FIXTURE_THREAD_ID },
+      handleNotification: vi.fn(),
+      captureError: vi.fn((method, error) => ({ method, error })),
+    })
+
+    mockRpcState.handlers?.onStatus('connected')
+
+    await vi.waitFor(() => {
+      expect(replayThreadEvents).toHaveBeenCalledTimes(1)
+      expect(replayThreadEvents).toHaveBeenLastCalledWith(REPLAY_FIXTURE_THREAD_ID)
+    })
+
+    mockRpcState.handlers?.onStatus('disconnected')
+    mockRpcState.handlers?.onStatus('connected')
+
+    await vi.waitFor(() => {
+      expect(replayThreadEvents).toHaveBeenCalledTimes(2)
+      expect(replayThreadEvents).toHaveBeenNthCalledWith(2, REPLAY_FIXTURE_THREAD_ID)
+    })
   })
 })

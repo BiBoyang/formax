@@ -31,9 +31,9 @@
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 - 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
-## P4：Replay-First Invariants
+## 当前状态
 
-- [ ] N125 connectRpcClient 断线重连路径补共享 fixture 校验
-  - 目标：补充 `connected -> disconnected -> connected` 场景下 replay 触发行为与 shared fixture threadId 对齐。
-  - 验收：
-    - `connectRpcClient.test.ts` 新增 1 条断线重连相关断言。
+- 当前无未完成任务。
+- 下一批任务需重新从以下来源生成并写回本文件：
+  - `plans/app-server/ARCHITECTURE-ROADMAP.md`
+  - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
