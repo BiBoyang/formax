@@ -216,7 +216,7 @@ export function useReplStreaming(args: {
           if (!existingId) {
             const assistantId = makeMessageId('assistant')
             args.currentAssistantIdRef.current = assistantId
-            args.setMessages((prev) => [
+            legacyTranscript.update((prev) => [
               ...prev,
               createAssistantStreamingMessage({
                 assistantId,
@@ -226,7 +226,7 @@ export function useReplStreaming(args: {
             return
           }
 
-          args.setMessages((prev) =>
+          legacyTranscript.update((prev) =>
             appendAssistantDeltaToMessages({
               previous: prev,
               assistantId: existingId,
@@ -257,7 +257,7 @@ export function useReplStreaming(args: {
             args.thinkingLastFlushAtRef.current = Date.now()
             args.thinkingBufferRef.current += ev.thinking
             args.setThinkingText(args.thinkingBufferRef.current)
-            args.setMessages((prev) => [
+            legacyTranscript.update((prev) => [
               ...prev,
               createThinkingBlockMessage({
                 thinkingId,
@@ -275,7 +275,7 @@ export function useReplStreaming(args: {
             const id = args.currentThinkingMessageIdRef.current
             if (id) {
               const text = args.thinkingBufferRef.current
-              args.setMessages((prev) =>
+              legacyTranscript.update((prev) =>
                 updateThinkingBlockContent({
                   previous: prev,
                   thinkingId: id,

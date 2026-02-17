@@ -35,6 +35,6 @@
 
 - [ ] S2 收敛 `streaming.ts` fallback 直写路径
   - 已完成：切片 A（抽出 `streamingLegacyTranscript` mutator，集中 legacy 写入口）。
-  - 待做：继续迁移 assistant/thinking 相关 fallback 写分支到统一 helper（减少 `streaming.ts` 内散落写点）。
-  - 待做：增加“canonical 主路径 + fallback 分支”双场景回归，防止回归到双写。
+  - 已完成：切片 B（assistant/thinking fallback 写分支改走 mutator）。
+  - 待做：补一个集成级 fallback 场景（`canWriteLegacyTranscript=true`）防回归，避免未来误把 fallback 也 canonical-only 化。
   - 验收：默认 canonical 路径无直写；fallback 仅在显式分支生效且可测试。
