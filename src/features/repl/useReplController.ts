@@ -19,54 +19,47 @@ import type {
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
-import { partitionMessages } from './controller/ui/messages'
-import { useReplOverlays } from './controller/ui/overlays'
+import { partitionMessages, useReplOverlays } from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   appendCanonicalTurnFinalRows,
   canonicalTurnSegmentsToMessages,
   tailSegmentsForTurn,
-} from './controller/canonical/canonicalTurnMessages'
-import { isErrorLikeSubline } from './controller/shared/errorSubline'
-import { applyAbortToMessages } from './controller/session/abortTranscript'
+  emitCanonicalUiMessageForTurn,
+} from './controller/canonical/canonical'
+import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
+  applyAbortToMessages,
+  applyConfigExitInjection,
   buildPersistedSigMap,
   ensureSessionWriter as ensureSessionWriterInternal,
   openInitialSessionWriter as openInitialSessionWriterInternal,
+  recordClaudeMdInjectionEvent,
+  recordCompactRequestedEvent,
+  recordLocalCommandInjectionEvent,
   shouldPersistUiMsg,
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
   type SessionWriterRefs,
-} from './controller/session/sessionLifecycle'
-import {
-  applyConfigExitInjection,
-} from './controller/session/localCommandInjection'
-import {
-  resolvePreMainSendRouting,
-} from './controller/send/send'
+} from './controller/session/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
+import { resolvePreMainSendRouting } from './controller/send/send'
+import { runLocalBashTurn } from './controller/send/bashMode'
 import { runMainSendTurn } from './controller/send/sendMainTurn'
-import { resolveTurnProvider } from './controller/shared/provider'
-import {
-  recordClaudeMdInjectionEvent,
-  recordCompactRequestedEvent,
-  recordLocalCommandInjectionEvent,
-} from './controller/session/sessionEvents'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
-import { emitCanonicalUiMessageForTurn } from './controller/canonical/canonicalUiMessages'
 import {
-  runLocalBashTurn,
-} from './controller/send/bashMode'
+  createInitialTranscriptProjectionState,
+  reduceTranscriptProjection,
+} from '../semantics/projection/projection'
+import type { CanonicalEvent } from '../semantics/core/core'
+import {
+  resolveReplModeTransition,
+  shouldInjectExitPlanReminder,
+} from '../semantics/core/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
-import { resolveReplModeTransition, shouldInjectExitPlanReminder } from '../semantics/core/replModeTransition'
-import {
-  createInitialTranscriptProjectionState,
-  reduceTranscriptProjection,
-} from '../semantics/projection/transcriptProjection'
-import type { CanonicalEvent } from '../semantics/core/canonicalEvents'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 
