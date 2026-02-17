@@ -20,7 +20,7 @@ import type {
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
-import { partitionMessages, useReplOverlays } from './controller/ui/ui'
+import { partitionMessages, queueTranscriptSurfaceReset, useReplOverlays } from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   appendCanonicalTurnFinalRows,
@@ -63,12 +63,6 @@ import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
 const CANONICAL_THREAD_ID = 'tui-live'
-
-function waitForNextMacrotask(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve)
-  })
-}
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -547,21 +541,15 @@ export function useReplController(deps: {
     })
   }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
 
-  const enqueueSurfaceOp = useCallback((op: () => Promise<void>) => {
-    const next = runtimeStateRefs.surfaceOpQueueRef.current.catch(() => undefined).then(op)
-    runtimeStateRefs.surfaceOpQueueRef.current = next.catch(() => undefined)
-    return next
-  }, [])
-
   const resetTranscriptSurface = useCallback(() => {
     // Ink <Static> is append-only; clear + remount must be serialized to avoid
     // rapid keypress races (Ctrl+O/Ctrl+E) that can leave stale frame artifacts.
-    return enqueueSurfaceOp(async () => {
-      await deps.onClearTerminal?.()
-      setTranscriptSeq((n) => n + 1)
-      await waitForNextMacrotask()
+    return queueTranscriptSurfaceReset({
+      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
+      onClearTerminal: deps.onClearTerminal,
+      setTranscriptSeq,
     })
-  }, [deps.onClearTerminal, enqueueSurfaceOp])
+  }, [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef])
 
   const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
     const writer = await SessionWriter.openExisting({ filePath })
