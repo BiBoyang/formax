@@ -27,15 +27,17 @@
   - `apps/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`
   - `apps/web-reference-react/src/app/runtime/processNotification.test.ts`
   - `apps/web-reference-react/src/app/runtime/threadActions.test.ts`
+- 固定 smoke 命令（在 `apps/web-reference-react` 下执行）：
+  - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 
 ## P4：Replay-First Invariants
-
-- [ ] N121 replay fixture smoke 覆盖回归脚本命令记录
-  - 目标：把共享 fixture 改动后的最小测试命令记录到 TODO 文档，降低遗漏。
-  - 验收：
-    - TODO-INDEX 新增 1 条固定测试命令（至少含 processNotification/replayThreadEvents/threadActions）。
 
 - [ ] N122 replay fixture smoke 命令与目录边界联动说明
   - 目标：把 smoke 命令与 `Replay Fixture Boundary` 绑定，形成单点维护入口。
   - 验收：
     - TODO-INDEX 新增 1 条“先看边界再跑命令”的联动说明。
+
+- [ ] N123 replay fixture smoke 命令与 codex review 顺序说明
+  - 目标：明确共享 fixture 变更时的执行顺序（smoke -> codex review），避免漏检。
+  - 验收：
+    - TODO-INDEX 新增 1 条顺序说明。
