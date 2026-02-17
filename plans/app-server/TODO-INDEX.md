@@ -31,9 +31,26 @@
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
 - 运行顺序：先阅读本节边界规则，再执行固定 smoke 命令，最后执行 `codex review --uncommitted`。
 
-## 当前状态
+## P0：Canonical Contract 治理（Contract-First）
 
-- 当前无未完成任务。
-- 下一批任务需重新从以下来源生成并写回本文件：
-  - `plans/app-server/ARCHITECTURE-ROADMAP.md`
-  - `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
+- [ ] C1 统一 canonical contract 字段与必填约束
+  - 切片 A：对齐 `plans/app-server/INTERACTION-CONTRACT.md` 中 canonical event 字段定义与版本说明。
+  - 切片 B：在 `src/features/semantics/adapters/` 建立/收敛单一 mapping 入口，禁止多端重复分支。
+  - 切片 C：补 contract fixture 覆盖（TUI/Web/app-server 至少各 1 条关键路径）。
+  - 验收：新增 canonical 字段时只改 contract + adapter 两处，fixture 全通过。
+
+## P1：Single Writer 闭环（移除直写 transcript）
+
+- [ ] S1 清理语义路径中的 direct transcript write 残留
+  - 切片 A：梳理 `src/features/repl/controller/` 侧所有直写点并标注来源。
+  - 切片 B：把保留路径改为 canonical -> projection -> renderer 单链路。
+  - 切片 C：补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
+  - 验收：关键语义路径不存在 direct transcript write，不依赖止血补丁。
+
+## P2：Replay-First 恢复一致性
+
+- [ ] R1 gap/reconnect/restart 三场景统一恢复流程
+  - 切片 A：统一 `hasGap=true` 的 baseline replay + snapshot hydrate 流程。
+  - 切片 B：统一 `connectRpcClient` 断线重连后的 replay 重建行为。
+  - 切片 C：补齐恢复路径不变量测试（无重复完成行、turn 终局无 running）。
+  - 验收：realtime 与 replay 输出一致，恢复路径不再分叉。

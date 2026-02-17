@@ -104,7 +104,7 @@
 - `seq: number`（turn 内单调递增）
 - `ts: string`（ISO 时间）
 - `eventId: string`（建议 `${turnId}:${seq}`）
-- `source: engine | tool | policy | system`
+- `source: engine | tool | policy | system | ui`
 
 权威边界（path-scoped authority）：
 
@@ -117,6 +117,49 @@
 - 新增可选字段属于向后兼容扩展，不需要升级主版本。
 - 破坏性变更（改语义/改必填/改排序主键）必须升级 `schemaVersion`。
 - 严格模式下，若显式传入未知 `schemaVersion`，应视为协议异常并拒绝进入 canonical projector。
+
+### 3.0 Canonical Event Contract（客户端投影输入）
+
+本节约束 app-server 通知映射后进入 projector 的 canonical 事件结构，作为
+`src/features/semantics/core/canonicalEvents.ts` 的文档镜像。
+
+Canonical envelope 字段（投影输入）：
+
+- `schemaVersion?: 1`（缺省按 `1`）
+- `threadId: string`
+- `replaySeq: number`
+- `eventId: string`
+- `ts: string`
+- `source: engine | tool | policy | system | ui`
+- `traceId?: string`
+- `seq?: number`
+
+Canonical kind 集合（当前基线）：
+
+- `user_message`
+- `system_message`
+- `assistant_delta`
+- `thinking_delta`
+- `thinking_finalized`
+- `tool_event`
+- `tool_input_state`
+- `turn_footer`
+
+turn 通知到 canonical 的最小映射保证：
+
+- `turn/event`（`assistant_delta|thinking_delta|tool_start|tool_input|tool_update|tool_end`）映射为 1..N canonical 事件。
+- `turn/completed` 固定映射为：
+  1. `thinking_finalized`
+  2. `turn_footer(status=completed)`
+- `turn/failed` 固定映射为：
+  1. `thinking_finalized`
+  2. `turn_footer(status=failed|interrupted, message=error)`
+- `turn/inputRequested|turn/inputResolved` 映射为 `tool_input_state`。
+
+严格模式（`requireEnvelope=true`）下，以下情况必须拒绝进入 projector：
+
+- 缺少 `threadId|turnId|replaySeq|eventId|ts|source` 任一字段；
+- `schemaVersion` 显式出现且不为 `1`。
 
 ## 3.1 turn/started
 
