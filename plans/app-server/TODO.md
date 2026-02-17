@@ -140,8 +140,8 @@
     - `plans/app-server/INTERACTION-CONTRACT.md`
     - `plans/app-server/API-REFERENCE.md`
     - `plans/app-server/UI-SPEC.md`
-    - `plans/app-server/FINAL-ACCEPTANCE.md`
-    - `plans/app-server/DOC-CONSISTENCY-CHECKLIST.md`
+    - `plans/_archive/app-server/FINAL-ACCEPTANCE.md`
+    - `plans/_archive/app-server/DOC-CONSISTENCY-CHECKLIST.md`
   - 要点：
     - 明确 replaySeq/canonical ordering、toolName sticky、gap 重建策略
   - 验收：

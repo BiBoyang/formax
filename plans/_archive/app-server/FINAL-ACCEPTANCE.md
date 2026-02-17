@@ -46,7 +46,7 @@
 | Thread/Turn 闭环 | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
 | Input 闭环 | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts` |
 | 异常收敛 | `thread/resume` staleInputs + `INPUT_EXPIRED` 路径测试 |
-| 文档一致 | `PRODUCT-SPEC` / `INTERACTION-CONTRACT` / `UI-SPEC` / `API-REFERENCE` + `DOC-CONSISTENCY-CHECKLIST.md` |
+| 文档一致 | `PRODUCT-SPEC` / `INTERACTION-CONTRACT` / `UI-SPEC` / `API-REFERENCE` + `plans/_archive/app-server/DOC-CONSISTENCY-CHECKLIST.md` |
 | TUI 能力迁移 | approval 闭环、transcript 类型化、commander 子集入口与结果日志 |
 
 ## 4. 手工记录模板

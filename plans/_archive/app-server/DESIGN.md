@@ -11,7 +11,7 @@
 2. `plans/app-server/INTERACTION-CONTRACT.md`（协议与状态机合同）
 3. `plans/app-server/UI-SPEC.md`（UI 功能行为规范）
 4. `plans/app-server/API-REFERENCE.md`（实现参考与示例）
-5. 本文件 `plans/app-server/DESIGN.md`
+5. 本文件 `plans/_archive/app-server/DESIGN.md`
 
 ## 1. 背景与目标
 
