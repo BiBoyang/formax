@@ -17,13 +17,21 @@
 - `src/features/repl/controller/streaming/streaming.ts:277`
 - `src/features/repl/controller/send/sendMainTurn.ts:76`
 - `src/features/repl/controller/send/sendMainTurn.ts:270`
-- `src/features/repl/controller/send/bashMode.ts:105`
-- `src/features/repl/controller/send/bashMode.ts:155`
 
 结论：
 
 - `streaming.ts` 是语义双写风险最高点（canonical bridge + legacy transcript 并行分支）。
-- `sendMainTurn.ts` 与 `bashMode.ts` 仍存在“消息直写 + canonical 事件并行”的混合路径。
+- `sendMainTurn.ts` 仍存在“消息直写 + canonical 事件并行”的混合路径。
+
+## 1.1) bashMode 迁移状态
+
+- `src/features/repl/controller/send/bashMode.ts:106`
+- `src/features/repl/controller/send/bashMode.ts:157`
+
+说明：
+
+- `runLocalBashTurn` 已支持 `writeLegacyTranscriptRows` 开关，为后续 canonical-only 迁移预留能力。
+- 当前主路径仍为 `writeLegacyTranscriptRows=true`，原因是 bash turn 目前不走 `isLoading` 门控，直接切 canonical-only 会丢可见 transcript。
 
 ## 2) UI-only 写点（可保留）
 

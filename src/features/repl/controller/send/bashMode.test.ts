@@ -111,7 +111,7 @@ describe('applyLocalBashCompletionToMessages', () => {
 })
 
 describe('runLocalBashTurn', () => {
-  it('runs local bash command, emits canonical events, updates message, and injects blocks', async () => {
+  it('runs local bash command in canonical-only mode by default', async () => {
     const events: CanonicalEvent[] = []
     let replaySeq = 0
     let messages: Msg[] = []
@@ -146,13 +146,7 @@ describe('runLocalBashTurn', () => {
       }),
     })
 
-    expect(messages).toHaveLength(1)
-    expect(messages[0]).toMatchObject({
-      role: 'tool',
-      content: '$ pwd',
-      toolInfo: { name: 'LocalBash', status: 'completed' },
-    })
-    expect((messages[0]?.toolInfo?.result || '').includes('/repo')).toBe(true)
+    expect(messages).toEqual([])
     expect(pendingInjectedBlocksRef.current.length).toBeGreaterThan(0)
     expect(events.map((event) => event.kind)).toEqual([
       'user_message',
@@ -163,5 +157,48 @@ describe('runLocalBashTurn', () => {
     ])
     expect(abortControllerRef.current).toBeNull()
     expect(clearCanonicalTransientState).toHaveBeenCalledTimes(1)
+  })
+
+  it('can still write legacy tool rows when explicitly enabled', async () => {
+    let messages: Msg[] = []
+
+    await runLocalBashTurn({
+      command: 'pwd',
+      cwd: '/repo',
+      env: process.env,
+      runtimeFlags: { userShellPath: undefined } as any,
+      threadId: 'tui-live',
+      turnId: 'local-bash-legacy',
+      nextReplaySeq: (() => {
+        let replaySeq = 0
+        return () => {
+          replaySeq += 1
+          return replaySeq
+        }
+      })(),
+      onCanonicalEvent: () => {},
+      setMessages: (updater: any) => {
+        messages = typeof updater === 'function' ? updater(messages) : updater
+      },
+      writeLegacyTranscriptRows: true,
+      pendingInjectedBlocksRef: { current: [] } as any,
+      abortControllerRef: { current: null },
+      clearCanonicalTransientState: vi.fn(),
+      runCommand: async () => ({
+        stdout: '/repo\n',
+        stderr: '',
+        exitCode: 0,
+        exitSignal: null,
+        timedOut: false,
+      }),
+    })
+
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({
+      role: 'tool',
+      content: '$ pwd',
+      toolInfo: { name: 'LocalBash', status: 'completed' },
+    })
+    expect((messages[0]?.toolInfo?.result || '').includes('/repo')).toBe(true)
   })
 })

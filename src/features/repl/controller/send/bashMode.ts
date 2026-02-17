@@ -80,6 +80,7 @@ export async function runLocalBashTurn(args: {
   nextReplaySeq: () => number
   onCanonicalEvent: (event: CanonicalEvent) => void
   setMessages: Dispatch<SetStateAction<Msg[]>>
+  writeLegacyTranscriptRows?: boolean
   pendingInjectedBlocksRef: { current: PromptBlock[] }
   abortControllerRef: { current: AbortController | null }
   clearCanonicalTransientState: () => void
@@ -102,20 +103,22 @@ export async function runLocalBashTurn(args: {
     nextReplaySeq: args.nextReplaySeq,
   })
 
-  args.setMessages((prev) => [
-    ...prev,
-    {
-      id: messageId,
-      role: 'tool',
-      content: '',
-      timestamp: new Date(),
-      toolInfo: {
-        name: 'LocalBash',
-        input: { command: args.command },
-        status: 'running',
+  if (args.writeLegacyTranscriptRows) {
+    args.setMessages((prev) => [
+      ...prev,
+      {
+        id: messageId,
+        role: 'tool',
+        content: '',
+        timestamp: new Date(),
+        toolInfo: {
+          name: 'LocalBash',
+          input: { command: args.command },
+          status: 'running',
+        },
       },
-    },
-  ])
+    ])
+  }
   emitter.emitUserMessage(args.command)
   emitter.emitToolEvent({ phase: 'start' })
   emitter.emitToolEvent({ phase: 'update', line: `$ ${args.command}` })
@@ -152,15 +155,17 @@ export async function runLocalBashTurn(args: {
     )
 
     const isError = isBashModeResultError(res)
-    args.setMessages((prev) =>
-      applyLocalBashCompletionToMessages({
-        messages: prev,
-        messageId,
-        command: args.command,
-        outputText,
-        isError,
-      }),
-    )
+    if (args.writeLegacyTranscriptRows) {
+      args.setMessages((prev) =>
+        applyLocalBashCompletionToMessages({
+          messages: prev,
+          messageId,
+          command: args.command,
+          outputText,
+          isError,
+        }),
+      )
+    }
     emitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
     emitter.emitFooter(isError ? 'failed' : 'completed')
   } finally {

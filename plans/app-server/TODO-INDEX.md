@@ -35,7 +35,8 @@
 
 - [ ] S1 清理语义路径中的 direct transcript write 残留
   - 已完成：切片 A（直写点梳理）见 `plans/app-server/SINGLE-WRITER-WRITE-POINTS.md`。
-  - 待做：切片 B，把保留路径改为 canonical -> projection -> renderer 单链路。
+  - 进行中：切片 B（B1 已完成：`bashMode` 增加 canonical-only 预留开关，主路径尚未切换）。
+  - 待做：切片 B（剩余）：`streaming.ts` 与 `sendMainTurn.ts` 的语义写路径收敛。
   - 待做：切片 C，补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
   - 验收：关键语义路径不存在 direct transcript write，不依赖止血补丁。
 

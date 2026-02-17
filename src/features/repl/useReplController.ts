@@ -676,6 +676,7 @@ export function useReplController(deps: {
             nextReplaySeq: nextCanonicalReplaySeq,
             onCanonicalEvent,
             setMessages,
+            writeLegacyTranscriptRows: true,
             pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
             abortControllerRef,
             clearCanonicalTransientState,
