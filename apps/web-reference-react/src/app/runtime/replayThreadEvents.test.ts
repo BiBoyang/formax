@@ -225,6 +225,53 @@ describe('replayThreadEvents', () => {
     expect(ctx.syncPendingInputsFromReplayState).toHaveBeenCalledWith('thread-1', replayState)
   })
 
+  it('logs invariant and anomaly warnings once on page-limit termination', async () => {
+    const request = vi.fn().mockImplementation((_method: string, params?: unknown) => {
+      const after = Number((params as { after?: number } | undefined)?.after ?? 0)
+      return Promise.resolve({
+        data: [],
+        nextCursor: after + 1,
+        latestCursor: 1000,
+        hasGap: false,
+        state: createReplayState({
+          canonicalProtocolAnomalyCount: 2,
+          invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' }],
+        }),
+      })
+    })
+    const ctx = createBaseContext({ request })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(request).toHaveBeenCalledTimes(100)
+    expect(ctx.log).toHaveBeenCalledTimes(2)
+    expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay invariant issues detected (running_tool_after_terminal_turn=1)', 'warn')
+    expect(ctx.log).toHaveBeenNthCalledWith(2, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
+  })
+
+  it('does not log anomaly warning on boundary exit when anomaly count was already seen', async () => {
+    const replayState = createReplayState({
+      canonicalProtocolAnomalyCount: 3,
+    })
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [],
+      nextCursor: 50,
+      latestCursor: 200,
+      hasGap: false,
+      state: replayState,
+    })
+    const ctx = createBaseContext({
+      request,
+      replayAnomalyCountSeenByThreadRef: { current: { 'thread-1': 3 } },
+    })
+
+    const ok = await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(ok).toBe(true)
+    expect(ctx.log).not.toHaveBeenCalled()
+  })
+
   it('logs replay invariant issues once per replay request', async () => {
     const replayState = createReplayState({
       invariantIssues: [

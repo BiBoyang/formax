@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N57 replay 分页路径日志行为回归补齐
-  - 目标：补齐分页上限与推进边界场景下 anomaly/invariant 日志触发次数回归，避免重复告警。
-  - 验收：
-    - 新增日志次数断言测试并通过。
-
 - [ ] N58 replay 条件分支测试命名与分组整理
   - 目标：将 `replayThreadEvents.test.ts` 按 helper/rebuild/pagination 三组整理，降低后续维护噪音。
   - 验收：
     - 保持行为不变，仅做测试结构重排并通过。
+
+- [ ] N59 replayThreadEvents 测试基座工厂精简
+  - 目标：收敛 `createBaseContext` 的可选覆盖写法，减少后续新增 case 时样板噪音。
+  - 验收：
+    - 不改变现有断言语义，测试全量通过。
