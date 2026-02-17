@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N89 replay fixture builder 参数排序统一
-  - 目标：统一 builder 参数对象字段顺序（state/cursor/step），减少 review 噪音。
+- [ ] N90 replay fixture helper 命名风格统一（create/build）
+  - 目标：统一 helper 命名前缀风格，降低新用例加入时的命名分歧。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N90 replay fixture helper 命名风格统一（create/build）
-  - 目标：统一 helper 命名前缀风格，降低新用例加入时的命名分歧。
+- [ ] N91 replay fixture helper 后缀统一（Page/Pages/Request）
+  - 目标：统一 helper 后缀表达粒度，避免单复数/对象粒度混淆。
   - 验收：
     - 不改变现有断言语义，测试全量通过。

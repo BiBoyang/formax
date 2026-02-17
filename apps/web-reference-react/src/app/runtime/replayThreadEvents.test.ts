@@ -178,9 +178,9 @@ function createHasGapBaselineReplayPages(args: {
 }
 
 function createReplayRequestWithCursorProgress(args: {
+  state?: ReplayStateSnapshot
   latestCursor: number
   step?: number
-  state?: ReplayStateSnapshot
 }) {
   const step = args.step ?? REPLAY_REQUEST_DEFAULTS.progressStep
   const buildPage = (after: number) =>
@@ -350,12 +350,12 @@ describe('replayThreadEvents', () => {
 
     it('[pagination] logs invariant and anomaly warnings once on page-limit termination', async () => {
       const request = createReplayRequestWithCursorProgress({
-        latestCursor: 1000,
-        step: 1,
         state: createReplayState({
           canonicalProtocolAnomalyCount: 2,
           invariantIssues: [{ kind: 'running_tool_after_terminal_turn', turnId: TEST_TURN_ID, toolUseId: 'tool-1' }],
         }),
+        latestCursor: 1000,
+        step: 1,
       })
       const ctx = createReplayContext({ request })
 
