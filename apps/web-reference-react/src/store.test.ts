@@ -297,4 +297,64 @@ describe('appReducer', () => {
     expect(state.logs.map((item) => item.kind)).toEqual(['message', 'log', 'tool_call'])
     expect(state.logs[1]).toMatchObject({ kind: 'log', text: 'local marker', turnId: 'turn-9' })
   })
+
+  it('normalizes Task tool summary for running/error rows via shared selector', () => {
+    let state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 30, eventId: 'task-running' },
+        { kind: 'tool_event', turnId: 'turn-task', toolUseId: 'task-1', phase: 'start', toolName: 'Task' },
+      ),
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 31, eventId: 'task-error' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-task',
+          toolUseId: 'task-1',
+          phase: 'end',
+          toolName: 'Task',
+          summary: 'Error: timed out',
+          isError: true,
+        },
+      ),
+    })
+
+    const taskRow = state.logs.find((item) => item.kind === 'tool_call' && item.toolUseId === 'task-1')
+    expect(taskRow).toMatchObject({
+      kind: 'tool_call',
+      toolName: 'Task',
+      status: 'error',
+      summary: 'timed out',
+    })
+  })
+
+  it('hides successful Skill tool summary via shared selector rule', () => {
+    const state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 40, eventId: 'skill-ok' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-skill',
+          toolUseId: 'skill-1',
+          phase: 'end',
+          toolName: 'Skill',
+          summary: 'ok',
+          isError: false,
+        },
+      ),
+    })
+
+    const skillRow = state.logs.find((item) => item.kind === 'tool_call' && item.toolUseId === 'skill-1')
+    expect(skillRow).toMatchObject({
+      kind: 'tool_call',
+      toolName: 'Skill',
+      status: 'completed',
+      summary: '',
+    })
+  })
 })

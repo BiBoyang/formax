@@ -102,6 +102,12 @@ function toTranscriptItemFromProjectionSegment(args: {
 
   if (segment.kind === 'tool') {
     const presentation = selectToolPresentation(segment)
+    const summary =
+      segment.toolName === 'Task' && (segment.status === 'running' || segment.status === 'error')
+        ? presentation.taskSummaryLine
+        : presentation.hideSummaryContent
+          ? ''
+          : presentation.summary
     return {
       id: segment.id,
       kind: 'tool_call',
@@ -109,7 +115,7 @@ function toTranscriptItemFromProjectionSegment(args: {
       toolUseId: segment.toolUseId,
       toolName: segment.toolName,
       status: segment.status,
-      summary: presentation.summary,
+      summary,
       detailLines: presentation.detailLines,
       ...(segment.paramsText ? { paramsText: segment.paramsText } : {}),
       ...(segment.inputState ? { inputState: segment.inputState } : {}),

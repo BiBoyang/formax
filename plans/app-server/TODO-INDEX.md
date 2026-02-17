@@ -19,12 +19,6 @@
 
 ## P3：Presentation IR
 
-- [ ] N12 Tool Presentation selector phase 2（Task/Skill 展示规则收敛）
-  - 目标：把 Task/Skill 的 summary 归一化规则从 TUI mapping 下沉到 shared selector，Web/TUI 复用同一派生入口。
-  - 验收：
-    - 至少一条 Task/Skill 展示规则从 `canonicalTurnMessageMapping` 迁移到 `semantics/selectors`。
-    - Web store 与 TUI mapping 都通过 shared selector 获取该规则结果。
-
 - [ ] N13 Projection 去 UI 偏置字段（phase 1）
   - 目标：减少 projection segment 中 UI-only 字段，确保 projection 更偏语义态，展示偏好留在 selector/presenter。
   - 验收：
