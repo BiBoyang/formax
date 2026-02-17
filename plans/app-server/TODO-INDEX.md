@@ -17,12 +17,6 @@
 
 ## P0b：Contract Governance + Single Writer
 
-- [ ] N2 adapter 单点化（notification/stream/replay mapping 不再多端平行实现）
-  - 目标：同一类输入事件到 canonical 的映射规则只保留一份。
-  - 验收：
-    - Web/TUI/app-server 不再维护重复 mapping 分支。
-    - 同一 fixture 在 3 个入口映射结果一致（忽略渲染差异）。
-
 - [ ] N3 TUI 语义单写入源（去掉 turn 内 direct transcript write）
   - 目标：turn 进行中仅 canonical -> projection 产出 transcript，legacy 仅保留 UI-only 细节通道。
   - 验收：
