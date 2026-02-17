@@ -25,12 +25,6 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N24 invariant selector覆盖补齐（input kind 组合）
-  - 目标：补齐 `approval` / `ask_user_question` 两类 pending 输入在 terminal 漏泄场景下的 selector 覆盖。
-  - 验收：
-    - `selectors/invariants.test.ts` 覆盖两种 kind。
-    - 返回 issue 结构保持稳定。
-
 - [ ] N25 replay snapshot helper 边界测试扩面
   - 目标：补齐 `buildReplayStateSnapshot` 在 `projection=null` 与 `includeProjectionSnapshot=false` 组合下的边界行为。
   - 验收：

@@ -60,7 +60,7 @@ describe('selectTerminalTurnInvariantIssues', () => {
     ])
   })
 
-  it('reports pending input leak under terminal turns', () => {
+  it('reports pending input leak under terminal turns for both approval and ask_user_question kinds', () => {
     const projection = createProjection([
       {
         id: 'footer-1',
@@ -81,6 +81,17 @@ describe('selectTerminalTurnInvariantIssues', () => {
         expiresAt: '2026-02-17T00:05:01.000Z',
         payload: {},
       },
+      {
+        inputId: 'input-2',
+        threadId: 'thread-1',
+        turnId: 'turn-2',
+        toolUseId: 'tool-3',
+        kind: 'ask_user_question',
+        status: 'pending',
+        createdAt: '2026-02-17T00:00:02.000Z',
+        expiresAt: '2026-02-17T00:05:02.000Z',
+        payload: {},
+      },
     ])
 
     expect(selectTerminalTurnInvariantIssues({ projection, runtimeState })).toEqual([
@@ -89,6 +100,12 @@ describe('selectTerminalTurnInvariantIssues', () => {
         turnId: 'turn-2',
         inputId: 'input-1',
         toolUseId: 'tool-2',
+      },
+      {
+        kind: 'pending_input_after_terminal_turn',
+        turnId: 'turn-2',
+        inputId: 'input-2',
+        toolUseId: 'tool-3',
       },
     ])
   })
