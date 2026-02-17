@@ -16,11 +16,12 @@ const TEST_TURN_ID = 'turn-1'
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
+const REPLAY_SEQ_REBUILD_COMPLETE = 120
 
 // Replay cursor constants
 const INITIAL_REPLAY_CURSOR = 50
 const REPLAY_CURSOR_FROM_START = 0
-const REPLAY_CURSOR_REBUILD_COMPLETE = 120
+const REPLAY_CURSOR_REBUILD_COMPLETE = REPLAY_SEQ_REBUILD_COMPLETE
 
 // Replay request constants
 const REPLAY_PAGE_LIMIT = 200
@@ -169,7 +170,7 @@ function createProjectionSnapshot(text = 'rebuilt'): NonNullable<ReplayStateSnap
         text,
       },
     ],
-    lastReplaySeq: REPLAY_CURSOR_REBUILD_COMPLETE,
+    lastReplaySeq: REPLAY_SEQ_REBUILD_COMPLETE,
     toolNameByUseId: {},
     openAssistantSegmentIdByTurn: {},
     openThinkingSegmentIdByTurn: {},
@@ -493,7 +494,7 @@ describe('replayThreadEvents', () => {
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
       expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
-      expectRuntimeLastReplaySeq(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
+      expectRuntimeLastReplaySeq(ctx, REPLAY_SEQ_REBUILD_COMPLETE)
     })
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {
@@ -589,7 +590,7 @@ describe('replayThreadEvents', () => {
       expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
       expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
-      expectRuntimeLastReplaySeq(ctx, REPLAY_CURSOR_REBUILD_COMPLETE)
+      expectRuntimeLastReplaySeq(ctx, REPLAY_SEQ_REBUILD_COMPLETE)
     })
 
     it('[rebuild] logs canonical protocol anomalies once across hasGap baseline replay double-request path', async () => {

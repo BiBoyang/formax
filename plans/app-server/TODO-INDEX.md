@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N85 replay projection 常量命名对齐（cursor vs seq）
-  - 目标：统一 projection 相关常量名与语义（cursor/replaySeq）表意，减少误读。
+- [ ] N86 replay page-limit 常量语义命名对齐
+  - 目标：将 request limit 常量命名对齐到 “replay page size” 语义，降低歧义。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N86 replay page-limit 常量语义命名对齐
-  - 目标：将 request limit 常量命名对齐到 “replay page size” 语义，降低歧义。
+- [ ] N87 replay defaults 对象字段名精简
+  - 目标：减少 defaults 对象中重复 “replay/request” 前后缀噪音，保持语义清晰。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
