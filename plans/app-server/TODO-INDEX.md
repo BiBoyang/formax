@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N92 replay fixture helper 参数命名再收敛（after/cursor）
-  - 目标：统一 helper 入参中 `after` / `cursor` 命名语义，减少同义字段混用。
+- [ ] N93 replay fixture helper 语义别名补充（afterCursor）
+  - 目标：在关键 helper 参数中补充更直观命名，降低上下文切换成本。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N93 replay fixture helper 语义别名补充（afterCursor）
-  - 目标：在关键 helper 参数中补充更直观命名，降低上下文切换成本。
+- [ ] N94 replay cursor helper 内部变量命名统一
+  - 目标：统一 `afterCursor/nextCursor/baselineCursor` 的局部变量命名风格，减少阅读切换。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
