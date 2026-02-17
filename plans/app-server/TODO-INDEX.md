@@ -15,14 +15,6 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
-## P3：Presentation IR
-
-- [ ] N15 Tool Presentation selector phase 3（Task 完成态文案派生）
-  - 目标：把 Task 完成态（Started/Done）文案派生从 TUI mapping 进一步下沉到 shared selector，减少端内分支。
-  - 验收：
-    - TUI mapping 对 Task 完成态不再内联拼接 Started/Done 文案。
-    - Web/TUI 均消费 selector 的 Task 完成态派生结果。
-
 ## P4：Replay-First Invariants
 
 - [ ] N16 Realtime=Replay fixture 扩面（pending input 终局）

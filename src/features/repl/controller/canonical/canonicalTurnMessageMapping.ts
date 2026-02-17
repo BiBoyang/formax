@@ -5,7 +5,7 @@ import { selectToolPresentation } from '../../../semantics/selectors/toolPresent
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../utils/toolFormatting'
-import { parseBackgroundTaskId, parseTaskTranscript } from '../send/taskResult'
+import { parseTaskTranscript } from '../send/taskResult'
 
 function decodeParamValue(value: string, valueType: 'string' | 'json'): unknown {
   if (valueType === 'string') return value
@@ -95,17 +95,16 @@ export function canonicalTurnSegmentsToMessages(args: {
 
     if (segment.toolName === 'Task') {
       const tokens = formatTokenTotal(segment.usage)
-      const backgroundTaskId = parseBackgroundTaskId(rawResult ?? '')
       const summaryText =
         segment.status === 'running'
           ? summary.taskSummaryLine
           : isError
             ? summary.taskSummaryLine
-            : backgroundTaskId
-                ? `Started (task_id: ${backgroundTaskId})`
-                : `Done (${formatToolUses(segment.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
-                  segment.durationMs ?? 0,
-                )})`
+            : summary.taskCompletion?.kind === 'started'
+              ? `Started (task_id: ${summary.taskCompletion.taskId})`
+              : `Done (${formatToolUses(segment.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+                segment.durationMs ?? 0,
+              )})`
       const transcriptLines = parseTaskTranscript(rawResult ?? '') ?? segment.transcriptLines ?? undefined
       return {
         id: `canonical:${segment.id}`,

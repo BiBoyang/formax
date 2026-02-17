@@ -105,6 +105,8 @@ function toTranscriptItemFromProjectionSegment(args: {
     const summary =
       segment.toolName === 'Task' && (segment.status === 'running' || segment.status === 'error')
         ? presentation.taskSummaryLine
+        : presentation.taskCompletion?.kind === 'started'
+          ? `Started (task_id: ${presentation.taskCompletion.taskId})`
         : presentation.hideSummaryContent
           ? ''
           : presentation.summary

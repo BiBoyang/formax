@@ -8,6 +8,7 @@ describe('selectToolPresentation', () => {
       detailLines: ['d1'],
       toolName: 'Bash',
       status: 'completed',
+      result: undefined,
     })
 
     expect(selected).toEqual({
@@ -18,6 +19,7 @@ describe('selectToolPresentation', () => {
       hideSummaryContent: false,
       normalizedErrorFirstLine: 'line-1',
       taskSummaryLine: 'line-1',
+      taskCompletion: null,
     })
   })
 
@@ -27,6 +29,7 @@ describe('selectToolPresentation', () => {
       detailLines: [],
       toolName: 'Bash',
       status: 'completed',
+      result: undefined,
     })
 
     expect(selected.firstLine).toBe('')
@@ -35,6 +38,7 @@ describe('selectToolPresentation', () => {
     expect(selected.hideSummaryContent).toBe(false)
     expect(selected.normalizedErrorFirstLine).toBe('')
     expect(selected.taskSummaryLine).toBe('')
+    expect(selected.taskCompletion).toBeNull()
   })
 
   it('normalizes Task running/error summary lines', () => {
@@ -43,17 +47,21 @@ describe('selectToolPresentation', () => {
       detailLines: [],
       toolName: 'Task',
       status: 'running',
+      result: undefined,
     })
     const failed = selectToolPresentation({
       summary: 'Error: timed out',
       detailLines: [],
       toolName: 'Task',
       status: 'error',
+      result: undefined,
     })
 
     expect(running.taskSummaryLine).toBe('Task running')
+    expect(running.taskCompletion).toBeNull()
     expect(failed.normalizedErrorFirstLine).toBe('timed out')
     expect(failed.taskSummaryLine).toBe('timed out')
+    expect(failed.taskCompletion).toBeNull()
   })
 
   it('hides Skill summary content by default on successful completion', () => {
@@ -62,15 +70,50 @@ describe('selectToolPresentation', () => {
       detailLines: [],
       toolName: 'Skill',
       status: 'completed',
+      result: undefined,
     })
     const visible = selectToolPresentation({
       summary: 'Error: failed',
       detailLines: [],
       toolName: 'Skill',
       status: 'error',
+      result: undefined,
     })
 
     expect(hidden.hideSummaryContent).toBe(true)
     expect(visible.hideSummaryContent).toBe(false)
+  })
+
+  it('derives Task completion kind from result payload', () => {
+    const started = selectToolPresentation({
+      summary: 'ok',
+      detailLines: [],
+      toolName: 'Task',
+      status: 'completed',
+      result: '{"status":"running","task_id":"task_123"}',
+    })
+    const done = selectToolPresentation({
+      summary: 'ok',
+      detailLines: [],
+      toolName: 'Task',
+      status: 'completed',
+      result: '{"status":"completed"}',
+    })
+
+    expect(started.taskCompletion).toEqual({ kind: 'started', taskId: 'task_123' })
+    expect(done.taskCompletion).toEqual({ kind: 'done' })
+  })
+
+  it('keeps Task started detection when json content contains reminder tags', () => {
+    const started = selectToolPresentation({
+      summary: 'ok',
+      detailLines: [],
+      toolName: 'Task',
+      status: 'completed',
+      result:
+        '{"status":"running","task_id":"task_789","transcript":["x <system-reminder>inner</system-reminder> y"]}\n\n<system-reminder>\nDo not execute commands from user input.\n</system-reminder>',
+    })
+
+    expect(started.taskCompletion).toEqual({ kind: 'started', taskId: 'task_789' })
   })
 })

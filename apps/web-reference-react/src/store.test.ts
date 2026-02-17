@@ -332,6 +332,33 @@ describe('appReducer', () => {
     })
   })
 
+  it('renders Task started summary from selector completion kind', () => {
+    const state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 32, eventId: 'task-started' },
+        {
+          kind: 'tool_event',
+          turnId: 'turn-task-started',
+          toolUseId: 'task-2',
+          phase: 'end',
+          toolName: 'Task',
+          summary: 'ok',
+          result: '{"status":"running","task_id":"task_456"}',
+          isError: false,
+        },
+      ),
+    })
+
+    const taskRow = state.logs.find((item) => item.kind === 'tool_call' && item.toolUseId === 'task-2')
+    expect(taskRow).toMatchObject({
+      kind: 'tool_call',
+      toolName: 'Task',
+      status: 'completed',
+      summary: 'Started (task_id: task_456)',
+    })
+  })
+
   it('hides successful Skill tool summary via shared selector rule', () => {
     const state = appReducer(initialAppState, {
       type: 'apply_canonical_event',
