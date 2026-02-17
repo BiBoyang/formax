@@ -317,4 +317,33 @@ describe('turnNotificationCanonicalAdapter', () => {
     expect(events).toEqual([])
     expect(issues).toEqual([{ method: 'turn/event', missing: ['eventId', 'ts', 'source'] }])
   })
+
+  it('rejects strict envelope when schemaVersion is invalid', () => {
+    const issues: Array<{ method: string; missing: string[]; invalid?: string[] }> = []
+    const events = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 1,
+          eventId: 'event-1',
+          ts: '2026-02-10T00:00:00.000Z',
+          source: 'engine',
+          schemaVersion: 99,
+          event: { type: 'assistant_delta', text: 'hello' },
+        },
+      },
+      {
+        fallbackThreadId: 'thread-fallback',
+        requireEnvelope: true,
+        onInvalidEnvelope(issue) {
+          issues.push(issue)
+        },
+      },
+    )
+
+    expect(events).toEqual([])
+    expect(issues).toEqual([{ method: 'turn/event', missing: [], invalid: ['schemaVersion'] }])
+  })
 })

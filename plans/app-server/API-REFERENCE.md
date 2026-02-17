@@ -258,6 +258,7 @@ AskUserQuestion payload：
 
 ```ts
 {
+  schemaVersion?: 1 // 缺省按 1 处理；未知版本在严格模式下视为协议异常
   replaySeq: number // thread 内单调递增、唯一；客户端排序主键
   traceId: string
   seq: number
@@ -270,6 +271,8 @@ AskUserQuestion payload：
 
 说明：
 
+- `schemaVersion=1` 是当前 canonical envelope 基线版本。
+- 新增可选字段属于向后兼容扩展；破坏性变更需要升级 `schemaVersion`。
 - `replaySeq` 是跨 turn 的全局游标，客户端应优先按它排序与去重。
 - `seq` 仅在单个 turn 内递增，不能单独作为跨 turn 排序键。
 - authority 按路径分层：

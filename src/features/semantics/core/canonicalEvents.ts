@@ -1,12 +1,15 @@
 import type { TokenUsage } from '../../../streaming/types'
 
 export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui'
+export const CANONICAL_EVENT_SCHEMA_VERSION = 1 as const
+export type CanonicalEventSchemaVersion = typeof CANONICAL_EVENT_SCHEMA_VERSION
 
 export type ToolInputKind = 'approval' | 'ask_user_question'
 export type ToolInputStatus = 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
 export type CanonicalMessageUiKind = 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
 
 export type CanonicalEventEnvelope = {
+  schemaVersion?: CanonicalEventSchemaVersion
   threadId: string
   replaySeq: number
   eventId: string
@@ -106,4 +109,8 @@ export type CanonicalEvent =
 
 export function isCanonicalEventSource(value: unknown): value is CanonicalEventSource {
   return value === 'engine' || value === 'tool' || value === 'policy' || value === 'system' || value === 'ui'
+}
+
+export function isCanonicalEventSchemaVersion(value: unknown): value is CanonicalEventSchemaVersion {
+  return value === CANONICAL_EVENT_SCHEMA_VERSION
 }

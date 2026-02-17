@@ -1,4 +1,9 @@
-import type { CanonicalEvent, CanonicalEventSource } from '../core/canonicalEvents'
+import {
+  CANONICAL_EVENT_SCHEMA_VERSION,
+  isCanonicalEventSchemaVersion,
+  type CanonicalEvent,
+  type CanonicalEventSource,
+} from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 
@@ -24,11 +29,12 @@ const TURN_NOTIFICATION_CANONICAL_METHODS = new Set([
   'turn/inputResolved',
 ])
 
-type TurnNotificationEnvelopeField = 'threadId' | 'turnId' | 'replaySeq' | 'eventId' | 'ts' | 'source'
+type TurnNotificationEnvelopeField = 'threadId' | 'turnId' | 'replaySeq' | 'eventId' | 'ts' | 'source' | 'schemaVersion'
 
 export type TurnNotificationEnvelopeIssue = {
   method: string
   missing: TurnNotificationEnvelopeField[]
+  invalid?: TurnNotificationEnvelopeField[]
 }
 
 function resolveReplaySeq(
@@ -143,8 +149,12 @@ function toEnvelope(args: {
   replaySeq: number
   source: CanonicalEventSource
   now?: () => string
-}): Pick<CanonicalEvent, 'threadId' | 'replaySeq' | 'eventId' | 'ts' | 'source'> {
+}): Pick<CanonicalEvent, 'schemaVersion' | 'threadId' | 'replaySeq' | 'eventId' | 'ts' | 'source'> {
+  const schemaVersion = isCanonicalEventSchemaVersion(args.params?.schemaVersion)
+    ? args.params?.schemaVersion
+    : CANONICAL_EVENT_SCHEMA_VERSION
   return {
+    schemaVersion,
     threadId: args.threadId,
     replaySeq: args.replaySeq,
     eventId: toEventId({
@@ -179,6 +189,7 @@ function validateTurnNotificationEnvelope(notification: TurnNotification): TurnN
   if (!TURN_NOTIFICATION_CANONICAL_METHODS.has(notification.method)) return null
   const params = notification.params
   const missing: TurnNotificationEnvelopeField[] = []
+  const invalid: TurnNotificationEnvelopeField[] = []
   if (!resolveThreadIdFromEnvelope(params)) missing.push('threadId')
   if (!resolveTurnIdFromEnvelope(notification.method, params)) missing.push('turnId')
   const replaySeq = params?.replaySeq
@@ -190,11 +201,20 @@ function validateTurnNotificationEnvelope(notification: TurnNotification): TurnN
   const ts = typeof params?.ts === 'string' ? params.ts.trim() : ''
   if (!ts) missing.push('ts')
   if (!isCanonicalSource(params?.source)) missing.push('source')
-  if (missing.length === 0) return null
-  return {
-    method: notification.method,
-    missing,
+  if (params?.schemaVersion != null && !isCanonicalEventSchemaVersion(params.schemaVersion)) {
+    invalid.push('schemaVersion')
   }
+  if (missing.length === 0 && invalid.length === 0) return null
+  return invalid.length > 0
+    ? {
+        method: notification.method,
+        missing,
+        invalid,
+      }
+    : {
+        method: notification.method,
+        missing,
+      }
 }
 
 function resolveFailureFooterStatus(

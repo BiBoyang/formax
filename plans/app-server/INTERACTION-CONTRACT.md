@@ -98,6 +98,7 @@
 
 所有 turn 相关通知必须含以下 envelope 字段：
 
+- `schemaVersion: 1`（可选；缺省按 `1` 处理）
 - `replaySeq: number`（thread 内单调递增、唯一；客户端排序主键）
 - `traceId: string`
 - `seq: number`（turn 内单调递增）
@@ -109,6 +110,13 @@
 
 - app-server 路径（network-visible）：envelope 由 server 侧产出并保证稳定，客户端不得补造后再进入 projector。
 - local TUI 路径（no server hop）：可由本地 runtime 生成 envelope，但字段契约与排序语义必须与 app-server 路径等价。
+
+版本兼容策略：
+
+- `schemaVersion=1` 是当前 canonical envelope 基线版本。
+- 新增可选字段属于向后兼容扩展，不需要升级主版本。
+- 破坏性变更（改语义/改必填/改排序主键）必须升级 `schemaVersion`。
+- 严格模式下，若显式传入未知 `schemaVersion`，应视为协议异常并拒绝进入 canonical projector。
 
 ## 3.1 turn/started
 
@@ -249,7 +257,7 @@
 3. `turn/inputRequested` 出现后没有对应 `turn/inputResolved`。
 4. 同一 input 不同答案重复提交未返回冲突状态。
 5. `thread/resume` 未返回 stale input，而后续提交又报 `INPUT_EXPIRED`。
-6. 通知缺失 envelope 元字段（`replaySeq/traceId/seq/ts/eventId/source`）。
+6. 通知缺失 envelope 元字段（`replaySeq/traceId/seq/ts/eventId/source`）或显式携带未知 `schemaVersion`。
 
 ## 10. 合同条目 -> 实现映射
 
@@ -271,6 +279,6 @@
 | `turn/input/submit` + `inputId/toolUseId` fallback | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 提交幂等与冲突（`already_submitted_same` / `conflict_already_submitted`） | `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts` |
 | 过期提交（`INPUT_EXPIRED`） | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts` | `src/app-server/server.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
-| envelope 元字段（`replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
+| envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 错误码常量 | `src/app-server/jsonrpc.ts` | `src/app-server/jsonrpc.test.ts` |
 | `PAYLOAD_TOO_LARGE`（request/event） | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts` | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts` |
