@@ -24,7 +24,7 @@ Status: `in_progress`
   位置: `src/features/repl/controller/shared/*` 或 `src/features/repl/controller/send/*`  
   目标: `send` 中 providerError 分支只保留一行 helper 调用。
 
-- [ ] S4: 继续下沉 send 主流程 orchestrator  
+- [x] S4: 继续下沉 send 主流程 orchestrator  
   位置: `src/features/repl/useReplController.ts` + `src/features/repl/controller/send/*`  
   目标: `send` 只保留输入 guard 与 orchestration call；将 main/pre-main 组装进一步集中到 controller 层。
 

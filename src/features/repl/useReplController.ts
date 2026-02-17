@@ -27,7 +27,7 @@ import {
   emitCanonicalUiMessageForTurn,
   projectCanonicalEventToTransientMessages,
 } from './controller/canonical/canonical'
-import { applyProviderErrorToState, isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
+import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
 import {
   applyConfigExitInjection,
   buildPersistedSigMap,
@@ -46,10 +46,8 @@ import {
   type SessionWriterRefs,
 } from './controller/session/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
-import { resolvePreMainSendRouting } from './controller/send/sendPreMainRouting'
 import { runLocalBashTurn } from './controller/send/bashMode'
-import { runMainSendTurn } from './controller/send/sendMainTurn'
-import { createMainTurnExecutionContext } from './controller/send/sendMainTurnContext'
+import { runReplModelSendFlow } from './controller/send/sendOrchestration'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import {
   createInitialTranscriptProjectionState,
@@ -703,104 +701,77 @@ export function useReplController(deps: {
         thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
         currentAssistantIdRef,
       })
-
-      const preMainRouting = await resolvePreMainSendRouting({
-        text,
-        preferredSlashSpecId: opts?.preferredSlashSpecId,
-        isLoading,
-        provider,
-        providerError,
-        engine: deps.engine,
-        cfg: deps.cfg,
-        promptProfile: deps.promptProfile,
-        allowedSubagents,
-        mode: deps.mode,
-        ...replModeAccess,
-        getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
-        ...sendTurnSharedRefs,
-        commandRegistry: deps.commandRegistry,
-        openOverlay,
-        closeOverlay,
-        newSession,
-        ...sendStateSetters,
-        handleEvent,
-        onCompactLifecycle,
-        onCompactRequested,
-        onSlashLocalAsyncRecordForNextTurn,
-        onSlashLocalRecordForNextTurn,
-      })
-      if (preMainRouting.shouldReturn) return
-      const slashEffect = preMainRouting.slashEffect
-      if (providerError) {
-        applyProviderErrorToState({
+      await runReplModelSendFlow({
+        input: {
+          text,
+          preferredSlashSpecId: opts?.preferredSlashSpecId,
+          provider,
           providerError,
-          setError,
-          setMessages,
-        })
-        return
-      }
-
-      const canonicalTurnId = `turn-${nextCanonicalTurnSeq()}`
-      canonicalRefs.turnIdRef.current = canonicalTurnId
-      setCanonicalTransientActive(false)
-      let turnUserMessageId: string | null = null
-      let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
-      const mainTurnExecutionContext = createMainTurnExecutionContext({
-        engine: deps.engine,
-        cfg: deps.cfg,
-        promptProfile: deps.promptProfile,
-        planSession: deps.planSession ?? null,
-        reminderServiceRef: turnFlowRefs.reminderServiceRef,
-        tools: deps.tools,
-        allowedSubagents,
-        mode: deps.mode,
-        replModeAccess,
-        handleEvent,
-        sendTurnSharedRefs,
-        pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
-        sendSeqRef: runtimeStateRefs.sendSeqRef,
-        lastAutoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
-        onCompactLifecycle,
-      })
-      try {
-        const runResult = await runMainSendTurn({
-          input: { text, slashEffect, provider },
-          deps: mainTurnExecutionContext.deps,
-          refs: mainTurnExecutionContext.refs,
-          state: {
-            ...sendStateSetters,
-            emitCanonicalUiMessage: (message) =>
-              emitCanonicalUiMessageForTurn({
-                threadId: CANONICAL_THREAD_ID,
-                turnId: canonicalTurnId,
-                message,
-                nextReplaySeq: nextCanonicalReplaySeq,
-                onCanonicalEvent,
+        },
+        deps: {
+          engine: deps.engine,
+          cfg: deps.cfg,
+          promptProfile: deps.promptProfile,
+          mode: deps.mode,
+          planSession: deps.planSession,
+          commandRegistry: deps.commandRegistry,
+          tools: deps.tools,
+          allowedSubagents,
+        },
+        sendContext: {
+          sendStateSetters,
+          replModeAccess,
+          sendTurnSharedRefs,
+        },
+        turnRefs: {
+          pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
+          sendSeqRef: runtimeStateRefs.sendSeqRef,
+          autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
+          reminderServiceRef: turnFlowRefs.reminderServiceRef,
+        },
+        canonical: {
+          turnIdRef: canonicalRefs.turnIdRef,
+          setCanonicalTransientActive,
+          nextCanonicalTurnSeq,
+          clearCanonicalTransientState,
+        },
+        callbacks: {
+          openOverlay,
+          closeOverlay,
+          newSession,
+          handleEvent,
+          onCompactLifecycle,
+          onCompactRequested,
+          onSlashLocalAsyncRecordForNextTurn,
+          onSlashLocalRecordForNextTurn,
+          emitCanonicalUiMessageForTurn: ({ turnId, message }) =>
+            emitCanonicalUiMessageForTurn({
+              threadId: CANONICAL_THREAD_ID,
+              turnId,
+              message,
+              nextReplaySeq: nextCanonicalReplaySeq,
+              onCanonicalEvent,
+            }),
+          finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
+            setMessages((prev) =>
+              appendCanonicalTurnFinalRows({
+                messages: prev,
+                userMessageId,
+                turnId,
+                turnOutcome,
+                projectionSegments: canonicalRefs.projectionRef.current.segments,
+                isFailureSubline: (message) =>
+                  Boolean(
+                    message &&
+                      message.role === 'assistant' &&
+                      message.ui?.kind === 'command_subline' &&
+                      isErrorLikeSubline(String(message.content || '')),
+                  ),
               }),
+            )
           },
-        })
-        turnUserMessageId = runResult.userMessageId
-        turnOutcome = runResult.turnOutcome
-      } finally {
-        setMessages((prev) =>
-          appendCanonicalTurnFinalRows({
-            messages: prev,
-            userMessageId: turnUserMessageId,
-            turnId: canonicalTurnId,
-            turnOutcome,
-            projectionSegments: canonicalRefs.projectionRef.current.segments,
-            isFailureSubline: (message) =>
-              Boolean(
-                message &&
-                  message.role === 'assistant' &&
-                  message.ui?.kind === 'command_subline' &&
-                  isErrorLikeSubline(String(message.content || '')),
-              ),
-          }),
-        )
-        canonicalRefs.turnIdRef.current = null
-        clearCanonicalTransientState()
-      }
+        },
+      })
     },
     [
       allowedSubagents,
@@ -818,7 +789,6 @@ export function useReplController(deps: {
       onCanonicalEvent,
       nextCanonicalReplaySeq,
       nextCanonicalTurnSeq,
-      isLoading,
       newSession,
       onCompactRequested,
       openOverlay,
@@ -828,6 +798,7 @@ export function useReplController(deps: {
       runtimeCwd,
       runtimeEnv,
       runtimeFlags,
+      isLoading,
       setReplMode,
       userInput,
       onCompactLifecycle,
