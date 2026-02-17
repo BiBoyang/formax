@@ -25,3 +25,40 @@ export function createReplayTurnEventEnvelope(overrides: Partial<ReplayTurnEnvel
     ...overrides,
   }
 }
+
+export function createThreadScopedReplayRefsFixture() {
+  return {
+    replayCursorByThread: {
+      [REPLAY_FIXTURE_THREAD_ID]: 10,
+      [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20,
+    },
+    replayAnomalyCountByThread: {
+      [REPLAY_FIXTURE_THREAD_ID]: 1,
+      [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2,
+    },
+    runtimeStateByThread: {
+      [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID, mode: 'normal' },
+      [REPLAY_FIXTURE_OTHER_THREAD_ID]: { threadId: REPLAY_FIXTURE_OTHER_THREAD_ID, mode: 'plan' },
+    } as const,
+  }
+}
+
+export function createArchiveSwitchThreadsFixture() {
+  const activeThread = {
+    id: 'active-thread',
+    cwd: '/repo-a',
+    updatedAt: '2026-02-13T00:00:00Z',
+    label: 'Active',
+  }
+  const nextThread = {
+    id: 'next-thread',
+    cwd: '/repo-b',
+    updatedAt: '2026-02-13T00:00:01Z',
+    label: 'Next',
+  }
+  return {
+    activeThread,
+    nextThread,
+    threads: [activeThread, nextThread],
+  }
+}

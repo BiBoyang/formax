@@ -4,6 +4,8 @@ import { pruneThreadScopedRefs } from './threadScopedRefs'
 import {
   REPLAY_FIXTURE_OTHER_THREAD_ID,
   REPLAY_FIXTURE_THREAD_ID,
+  createArchiveSwitchThreadsFixture,
+  createThreadScopedReplayRefsFixture,
 } from './testFixtures/replayFixtures'
 
 type ThreadActionsTestOverrides = Partial<Omit<ThreadActionsContext, 'state'>> & {
@@ -140,68 +142,58 @@ describe('threadActions', () => {
   })
 
   it('archives active thread and switches to next thread via semantic selection', async () => {
+    const archiveFixture = createArchiveSwitchThreadsFixture()
     const ctx = createBaseContext({
-      request: vi.fn().mockResolvedValue({ thread: { id: 'active-thread' } }),
+      request: vi.fn().mockResolvedValue({ thread: { id: archiveFixture.activeThread.id } }),
       state: {
-        activeThreadId: 'active-thread',
+        activeThreadId: archiveFixture.activeThread.id,
         activeTurnId: 'turn-prev',
         logs: [{ id: 'l-prev', kind: 'message', role: 'assistant', text: 'prev' }],
-        threads: [
-          { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' },
-          { id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' },
-        ],
+        threads: archiveFixture.threads,
       },
-      sortedThreads: [
-        { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' },
-        { id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' },
-      ],
+      sortedThreads: archiveFixture.threads,
       replayThreadEvents: vi.fn().mockResolvedValue(true),
     })
     const actions = createThreadActions(ctx)
 
-    await actions.archiveThread('active-thread')
+    await actions.archiveThread(archiveFixture.activeThread.id)
 
     await vi.waitFor(() => {
-      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'next-thread' })
+      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: archiveFixture.nextThread.id })
     })
     await vi.waitFor(() => {
-      expect(ctx.replayThreadEvents).toHaveBeenCalledWith('next-thread', { fromStart: true })
+      expect(ctx.replayThreadEvents).toHaveBeenCalledWith(archiveFixture.nextThread.id, { fromStart: true })
     })
   })
 
   it('keeps fallback selection when fallback replay fails during archive switch', async () => {
+    const archiveFixture = createArchiveSwitchThreadsFixture()
     const ctx = createBaseContext({
-      request: vi.fn().mockResolvedValue({ thread: { id: 'active-thread' } }),
+      request: vi.fn().mockResolvedValue({ thread: { id: archiveFixture.activeThread.id } }),
       replayThreadEvents: vi.fn().mockResolvedValue(false),
       state: {
-        activeThreadId: 'active-thread',
+        activeThreadId: archiveFixture.activeThread.id,
         activeTurnId: 'turn-prev',
         selectedInputId: null,
         pendingInputs: {},
         logs: [{ id: 'l-prev', kind: 'message', role: 'assistant', text: 'prev' }],
-        threads: [
-          { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' },
-          { id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' },
-        ],
+        threads: archiveFixture.threads,
       },
-      sortedThreads: [
-        { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' },
-        { id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' },
-      ],
+      sortedThreads: archiveFixture.threads,
     })
     const actions = createThreadActions(ctx)
 
-    await actions.archiveThread('active-thread')
+    await actions.archiveThread(archiveFixture.activeThread.id)
 
     await vi.waitFor(() => {
-      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'next-thread' })
+      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: archiveFixture.nextThread.id })
     })
-    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'active-thread' })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_thread', threadId: archiveFixture.activeThread.id })
     expect(ctx.log).toHaveBeenCalledWith(
       'Failed to hydrate selected thread transcript after archive fallback. Keeping fallback selection.',
       'warn',
     )
-    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-b')
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith(archiveFixture.nextThread.cwd)
   })
 
   it('rolls back optimistic archive when request fails', async () => {
@@ -369,13 +361,11 @@ describe('threadActions', () => {
 
 describe('pruneThreadScopedRefs', () => {
   it('keeps only refs that belong to current thread ids', () => {
-    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 } }
+    const fixture = createThreadScopedReplayRefsFixture()
+    const replayCursorByThreadRef = { current: { ...fixture.replayCursorByThread } }
+    const replayAnomalyCountSeenByThreadRef = { current: { ...fixture.replayAnomalyCountByThread } }
     const runtimeStateByThreadRef = {
-      current: {
-        [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID, mode: 'normal' },
-        [REPLAY_FIXTURE_OTHER_THREAD_ID]: { threadId: REPLAY_FIXTURE_OTHER_THREAD_ID, mode: 'plan' },
-      } as any,
+      current: { ...fixture.runtimeStateByThread } as any,
     }
 
     pruneThreadScopedRefs({
@@ -391,8 +381,11 @@ describe('pruneThreadScopedRefs', () => {
   })
 
   it('clears all refs when no threads remain', () => {
-    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1 } }
+    const fixture = createThreadScopedReplayRefsFixture()
+    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: fixture.replayCursorByThread[REPLAY_FIXTURE_THREAD_ID] } }
+    const replayAnomalyCountSeenByThreadRef = {
+      current: { [REPLAY_FIXTURE_THREAD_ID]: fixture.replayAnomalyCountByThread[REPLAY_FIXTURE_THREAD_ID] },
+    }
     const runtimeStateByThreadRef = {
       current: { [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID } } as any,
     }
@@ -410,13 +403,11 @@ describe('pruneThreadScopedRefs', () => {
   })
 
   it('keeps preserved thread ids even when absent from current thread ids', () => {
-    const replayCursorByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 10, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 20 } }
-    const replayAnomalyCountSeenByThreadRef = { current: { [REPLAY_FIXTURE_THREAD_ID]: 1, [REPLAY_FIXTURE_OTHER_THREAD_ID]: 2 } }
+    const fixture = createThreadScopedReplayRefsFixture()
+    const replayCursorByThreadRef = { current: { ...fixture.replayCursorByThread } }
+    const replayAnomalyCountSeenByThreadRef = { current: { ...fixture.replayAnomalyCountByThread } }
     const runtimeStateByThreadRef = {
-      current: {
-        [REPLAY_FIXTURE_THREAD_ID]: { threadId: REPLAY_FIXTURE_THREAD_ID, mode: 'normal' },
-        [REPLAY_FIXTURE_OTHER_THREAD_ID]: { threadId: REPLAY_FIXTURE_OTHER_THREAD_ID, mode: 'plan' },
-      } as any,
+      current: { ...fixture.runtimeStateByThread } as any,
     }
 
     pruneThreadScopedRefs({

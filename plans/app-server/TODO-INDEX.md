@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N112 threadActions replay 失败路径与 hasGap fixture 对齐
-  - 目标：让 threadActions 的 fallback/replay-fail 场景使用与 replay tests 一致的数据语义。
-  - 验收：
-    - 至少 1 个 threadActions 用例使用 shared replay fixture builder。
-
 - [ ] N113 replay fixture 目录边界文档化
   - 目标：说明 `testFixtures/replayFixtures.ts` 的定位与可复用边界，防止后续散落重复 fixture。
   - 验收：
     - 在 TODO 相关文档中新增 1 条边界说明并指向该文件。
+
+- [ ] N114 processNotification 与 replay fixture 协同约束用例补充
+  - 目标：补充 1 个用例，明确共享 replay fixture 在 notification 侧的可用性边界。
+  - 验收：
+    - processNotification 或 replayThreadEvents 相关测试新增 1 条共享 fixture 协同断言。
