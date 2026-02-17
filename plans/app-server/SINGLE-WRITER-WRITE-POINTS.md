@@ -16,12 +16,11 @@
 - `src/features/repl/controller/streaming/streaming.ts:259`
 - `src/features/repl/controller/streaming/streaming.ts:277`
 - `src/features/repl/controller/send/sendMainTurn.ts:76`
-- `src/features/repl/controller/send/sendMainTurn.ts:270`
 
 结论：
 
 - `streaming.ts` 是语义双写风险最高点（canonical bridge + legacy transcript 并行分支）。
-- `sendMainTurn.ts` 仍存在“消息直写 + canonical 事件并行”的混合路径。
+- `sendMainTurn.ts` 错误 subline 主路径已改为 canonical 写入；残留直写主要是 user anchor 行与 fallback 分支。
 
 ## 1.1) bashMode 迁移状态
 

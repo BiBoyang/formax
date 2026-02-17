@@ -950,6 +950,66 @@ describe('appendCanonicalTurnFinalRows', () => {
     expect(next.map((m) => m.id)).toEqual(['u1', 'canonical:turn-1:assistant:1', 'subline-err'])
   })
 
+  it('appends canonical command sublines emitted as system_message rows', () => {
+    const next = appendCanonicalTurnFinalRows({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'failed',
+      projectionSegments: [
+        {
+          id: 'turn-1:system:1',
+          kind: 'system',
+          turnId: 'turn-1',
+          role: 'assistant',
+          text: 'Error: failed',
+          messageKind: 'command_subline',
+        },
+      ],
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+
+    expect(next).toHaveLength(2)
+    expect(next[1]).toMatchObject({
+      role: 'assistant',
+      content: 'Error: failed',
+      ui: { kind: 'command_subline' },
+    })
+  })
+
+  it('dedupes canonical command sublines when legacy subline already exists in tail', () => {
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'subline-legacy',
+          role: 'assistant',
+          content: 'Conversation history auto-compacted (summary kept for future turns).',
+          timestamp: new Date(200),
+          ui: { kind: 'command_subline' },
+        },
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-1:system:1',
+          kind: 'system',
+          turnId: 'turn-1',
+          role: 'assistant',
+          text: 'Conversation history auto-compacted (summary kept for future turns).',
+          messageKind: 'command_subline',
+        },
+      ],
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+
+    expect(next.map((message) => message.id)).toEqual(['u1', 'subline-legacy'])
+  })
+
   it('preserves legacy tool row identity while applying canonical final tool info', () => {
     const legacyTimestamp = new Date(200)
     const next = appendCanonicalTurnFinalRows({

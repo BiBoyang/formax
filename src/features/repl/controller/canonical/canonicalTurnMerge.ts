@@ -67,6 +67,20 @@ export function mergeCanonicalTurnIntoMessages(args: {
 
   const head = args.messages.slice(0, userIndex + 1)
   const tail = args.messages.slice(userIndex + 1)
+  const normalizeSublineText = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim()
+  const existingCommandSublineTexts = new Set(
+    tail
+      .filter((message) => message.role === 'assistant' && message.ui?.kind === 'command_subline')
+      .map((message) => normalizeSublineText(message.content))
+      .filter((text) => text.length > 0),
+  )
+  const canonicalRowsForAppend = args.canonicalRowsForAppend.filter((message) => {
+    if (message.role !== 'assistant' || message.ui?.kind !== 'command_subline') return true
+    const text = normalizeSublineText(message.content)
+    if (!text) return true
+    return !existingCommandSublineTexts.has(text)
+  })
+  if (canonicalRowsForAppend.length === 0) return args.messages
   const legacyToolByUseId = new Map<string, Msg>()
   for (const message of tail) {
     if (message.role !== 'tool') continue
@@ -76,13 +90,13 @@ export function mergeCanonicalTurnIntoMessages(args: {
   }
 
   const canonicalToolUseIds = new Set(
-    args.canonicalRowsForAppend
+    canonicalRowsForAppend
       .filter((message) => message.role === 'tool')
       .map((message) => String(message.toolInfo?.toolUseId || '').trim())
       .filter((id) => id.length > 0),
   )
 
-  const canonicalRows = args.canonicalRowsForAppend.map((message) => {
+  const canonicalRows = canonicalRowsForAppend.map((message) => {
     const baseMessage: Msg = {
       ...message,
       isStreaming: false,
@@ -181,8 +195,8 @@ export function appendCanonicalTurnFinalRows(args: {
   const canonicalFinalMessages = canonicalTurnSegmentsToMessages({
     turnId: args.turnId,
     segments: turnSegments,
-    includeUserSystem: false,
-  })
+    includeUserSystem: true,
+  }).filter((message) => message.role !== 'user')
   const { canonicalRowsForAppend, shouldAppendCanonicalFinal } = computeCanonicalTurnAppend({
     turnOutcome: args.turnOutcome,
     canonicalFinalMessages,

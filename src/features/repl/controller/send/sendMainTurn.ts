@@ -262,23 +262,27 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     } else {
       turnOutcome = 'failed'
       args.setError(msg)
-      args.emitCanonicalUiMessage?.({
-        role: 'assistant',
-        content: formatErrorSubline(msg),
-        uiKind: 'command_subline',
-      })
-      args.setMessages((prev) => [
-        ...prev.filter(
-          (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),
-        ),
-        {
-          id: `error-${Date.now()}`,
+      const subline = formatErrorSubline(msg)
+      if (args.emitCanonicalUiMessage) {
+        args.emitCanonicalUiMessage({
           role: 'assistant',
-          ui: { kind: 'command_subline' as const },
-          content: formatErrorSubline(msg),
-          timestamp: new Date(),
-        },
-      ])
+          content: subline,
+          uiKind: 'command_subline',
+        })
+      } else {
+        args.setMessages((prev) => [
+          ...prev.filter(
+            (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),
+          ),
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            ui: { kind: 'command_subline' as const },
+            content: subline,
+            timestamp: new Date(),
+          },
+        ])
+      }
     }
   } finally {
     args.setIsLoading(false)
