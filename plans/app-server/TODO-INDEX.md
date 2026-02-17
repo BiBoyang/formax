@@ -22,12 +22,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N114 processNotification 与 replay fixture 协同约束用例补充
-  - 目标：补充 1 个用例，明确共享 replay fixture 在 notification 侧的可用性边界。
+- [ ] N116 processNotification envelope 用例接入共享 replay fixture
+  - 目标：把 processNotification 里完整 envelope 的测试数据接到 `replayFixtures.ts`，减少协议字段漂移。
   - 验收：
-    - processNotification 或 replayThreadEvents 相关测试新增 1 条共享 fixture 协同断言。
+    - processNotification.test 至少 1 个 envelope 用例改为使用共享 fixture。
 
-- [ ] N115 replay fixture 目录边界在相关测试头部注释对齐
-  - 目标：让使用共享 fixture 的测试文件有统一注释提示，降低后续误用概率。
+- [ ] N117 replay fixture 扩展策略补充（字段新增流程）
+  - 目标：定义共享 fixture 新增字段时的最小更新流程（fixture -> 相关测试），降低遗漏风险。
   - 验收：
-    - 至少 1 个使用方测试文件新增/更新边界注释并通过测试。
+    - TODO-INDEX 或相关计划文档新增 1 条“字段新增流程”说明。

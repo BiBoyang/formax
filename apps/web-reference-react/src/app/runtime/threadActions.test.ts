@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadActions, type ThreadActionsContext } from './threadActions'
 import { pruneThreadScopedRefs } from './threadScopedRefs'
+// Shared replay fixtures are centralized in ./testFixtures/replayFixtures.ts.
 import {
   REPLAY_FIXTURE_OTHER_THREAD_ID,
   REPLAY_FIXTURE_THREAD_ID,
