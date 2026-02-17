@@ -30,8 +30,9 @@
 
 说明：
 
-- `runLocalBashTurn` 已支持 `writeLegacyTranscriptRows` 开关，为后续 canonical-only 迁移预留能力。
-- 当前主路径仍为 `writeLegacyTranscriptRows=true`，原因是 bash turn 目前不走 `isLoading` 门控，直接切 canonical-only 会丢可见 transcript。
+- `runLocalBashTurn` 已支持 `writeLegacyTranscriptRows` 开关，主路径当前仍为 `writeLegacyTranscriptRows=true`（保持完成态可见性）。
+- `useReplController` transient 展示门控已从 `isLoading` 改为 `canonicalTransientActive`，保证非 loading 的 canonical turn（含本地 bash）可见。
+- legacy 直写仍保留兼容开关，用于回退与测试覆盖。
 
 ## 2) UI-only 写点（可保留）
 

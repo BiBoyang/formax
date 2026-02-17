@@ -454,8 +454,8 @@ export function useReplController(deps: {
   const partitionedMessages = useMemo(() => partitionMessages(messages), [messages])
   const staticMessages = partitionedMessages.staticMessages
   const transientMessages = useMemo(
-    () => (isLoading && canonicalTransientActive ? canonicalTurnMessages : partitionedMessages.transientMessages),
-    [canonicalTransientActive, canonicalTurnMessages, isLoading, partitionedMessages.transientMessages],
+    () => (canonicalTransientActive ? canonicalTurnMessages : partitionedMessages.transientMessages),
+    [canonicalTransientActive, canonicalTurnMessages, partitionedMessages.transientMessages],
   )
 
   useEffect(() => {
