@@ -34,9 +34,9 @@
 ## P1：Single Writer 闭环（移除直写 transcript）
 
 - [ ] S1 清理语义路径中的 direct transcript write 残留
-  - 切片 A：梳理 `src/features/repl/controller/` 侧所有直写点并标注来源。
-  - 切片 B：把保留路径改为 canonical -> projection -> renderer 单链路。
-  - 切片 C：补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
+  - 已完成：切片 A（直写点梳理）见 `plans/app-server/SINGLE-WRITER-WRITE-POINTS.md`。
+  - 待做：切片 B，把保留路径改为 canonical -> projection -> renderer 单链路。
+  - 待做：切片 C，补回归测试（重复 tool 行、assistant 消息缺失、turn 终局 running 泄漏）。
   - 验收：关键语义路径不存在 direct transcript write，不依赖止血补丁。
 
 ## P2：Replay-First 恢复一致性
