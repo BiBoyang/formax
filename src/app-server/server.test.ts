@@ -978,6 +978,98 @@ describe('AppServer', () => {
     expect(result.hasGap).toBe(false)
   })
 
+  it('keeps invariantIssues contract stable across empty, normal, and anomaly replay snapshots', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const emptyReplay = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-empty' }))
+    expect((emptyReplay[0] as any).result.state).toBeNull()
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', {
+      threadId: 'thread-normal',
+      eventId: 'normal-1',
+      source: 'engine',
+      ts: '2026-02-17T12:00:01.000Z',
+      turn: { id: 'turn-normal', threadId: 'thread-normal', status: 'running' },
+    })
+    emit('turn/completed', {
+      threadId: 'thread-normal',
+      eventId: 'normal-2',
+      source: 'engine',
+      ts: '2026-02-17T12:00:02.000Z',
+      turn: { id: 'turn-normal', threadId: 'thread-normal', status: 'completed' },
+    })
+    const normalReplay = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-normal' }))
+    expect((normalReplay[0] as any).result.state).toEqual(
+      expect.objectContaining({
+        invariantIssues: [],
+      }),
+    )
+
+    const runtimeStateByThreadId = (server as any).runtimeStateByThreadId as Map<string, any>
+    const transcriptProjectionByThreadId = (server as any).transcriptProjectionByThreadId as Map<string, any>
+    runtimeStateByThreadId.set('thread-contract-anomaly', {
+      threadId: 'thread-contract-anomaly',
+      mode: 'normal',
+      activeTurnId: null,
+      lastTurnId: 'turn-1',
+      lastTurnStatus: 'completed',
+      pendingInputs: {
+        'input-1': {
+          inputId: 'input-1',
+          threadId: 'thread-contract-anomaly',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          kind: 'approval',
+          status: 'pending',
+          createdAt: '2026-02-17T12:00:01.000Z',
+          expiresAt: '2026-02-17T12:05:01.000Z',
+          payload: {},
+        },
+      },
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      updatedAt: '2026-02-17T12:00:02.000Z',
+      lastNotificationMethod: 'turn/completed',
+      lastReplaySeq: 3,
+    })
+    transcriptProjectionByThreadId.set('thread-contract-anomaly', {
+      threadId: 'thread-contract-anomaly',
+      segments: [
+        {
+          id: 'tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'running',
+          summary: 'Bash running',
+          detailLines: [],
+        },
+        {
+          id: 'footer-1',
+          kind: 'turn_footer',
+          turnId: 'turn-1',
+          status: 'completed',
+        },
+      ],
+      seenEventIds: new Set<string>(),
+      lastReplaySeq: 3,
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: {},
+    })
+    const anomalyReplay = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-contract-anomaly' }))
+    expect((anomalyReplay[0] as any).result.state).toEqual(
+      expect.objectContaining({
+        invariantIssues: expect.arrayContaining([
+          expect.objectContaining({ kind: 'running_tool_after_terminal_turn' }),
+          expect.objectContaining({ kind: 'pending_input_after_terminal_turn' }),
+        ]),
+      }),
+    )
+  })
+
   it('replays buffered turn notifications with cursor and state snapshot', async () => {
     const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
     const server = new AppServer({

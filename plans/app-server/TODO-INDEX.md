@@ -15,14 +15,6 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
-## P2：Contract & Adapter Consolidation
-
-- [ ] N20 thread/replay state contract fixture（invariantIssues 一致性）
-  - 目标：把 `invariantIssues` 纳入 replay state contract fixture，覆盖空状态/正常状态/异常状态三类输出。
-  - 验收：
-    - server 测试包含 `invariantIssues` 的稳定结构断言。
-    - 空状态下字段行为有明确断言（`state=null` 或空数组路径一致）。
-
 ## P4：Replay-First Invariants
 
 - [ ] N21 invariant issue 派生与快照构建解耦
