@@ -40,6 +40,7 @@ import {
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
   registerSessionWriterProcessHandlers,
+  runSessionTurnCompletionSideEffects,
   runAbortSessionTransition,
   runNewSessionTransition,
   runResumeSessionTransition,
@@ -60,7 +61,6 @@ import {
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
-import { extractLastAssistantTextFromHistory, maybeAutoGenerateSessionTitle } from '../sessionTitle'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 
@@ -471,31 +471,18 @@ export function useReplController(deps: {
     const writer = sessionWriterRef.current
     const wasLoading = runtimeStateRefs.previousIsLoadingRef.current
     runtimeStateRefs.previousIsLoadingRef.current = isLoading
-    if (!writer) return
-    if (wasLoading && !isLoading) {
-      void writer.appendHistorySnapshot(historyRef.current)
-      const uiMsgCount = messages.filter(shouldPersistUiMsg).length
-      const userPrompts = messages
-        .filter((m) => m.role === 'user')
-        .map((m) => String(m.content ?? '').trim())
-        .filter((text) => Boolean(text))
-      const firstUserPrompt = userPrompts[0] ?? null
-      const lastUserPrompt = userPrompts[userPrompts.length - 1] ?? null
-      void writer.appendEvent('ui_stats', { uiMsgCount, lastUserPrompt, firstUserPrompt })
-      const assistantText = extractLastAssistantTextFromHistory(historyRef.current)
-      void maybeAutoGenerateSessionTitle({
-        filePath: writer.filePath,
-        engine: deps.engine,
-        cwd: runtimeCwd,
-        attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
-        checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
-        writer,
-        userText: firstUserPrompt ?? lastUserPrompt,
-        topicUserText: lastUserPrompt,
-        assistantText,
-        model: deps.cfg.llm.model,
-      }).catch(() => null)
-    }
+    runSessionTurnCompletionSideEffects({
+      writer,
+      wasLoading,
+      isLoading,
+      history: historyRef.current,
+      messages,
+      engine: deps.engine,
+      cwd: runtimeCwd,
+      attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
+      checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
+      model: deps.cfg.llm.model,
+    })
   }, [deps.cfg.llm.model, deps.engine, isLoading, messages, runtimeCwd])
 
   const { handleEvent } = useReplStreaming({
