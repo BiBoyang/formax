@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../projection/transcriptProjection'
-import { selectTailSegmentsForTurn, selectTurnSegments } from './transcriptSegments'
+import {
+  selectProjectionSnapshot,
+  selectTailSegmentsForTurn,
+  selectTurnSegments,
+} from './transcriptSegments'
+import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from '../projection/transcriptProjection'
+import type { CanonicalEvent } from '../core/canonicalEvents'
 
 function segment(id: string, turnId: string): TranscriptSegment {
   return {
@@ -27,5 +33,30 @@ describe('transcriptSegments selectors', () => {
       segment('s6', 'turn-2'),
     ]
     expect(selectTailSegmentsForTurn(segments, 'turn-2').map((item) => item.id)).toEqual(['s5', 's6'])
+  })
+
+  it('selectProjectionSnapshot clones projection fields into a stable snapshot shape', () => {
+    const base = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const event: CanonicalEvent = {
+      kind: 'assistant_delta',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      replaySeq: 1,
+      eventId: 'e1',
+      ts: '2026-02-17T00:00:00.000Z',
+      source: 'engine',
+      textDelta: 'hello',
+    }
+    const projection = reduceTranscriptProjection(base, event)
+    const snapshot = selectProjectionSnapshot(projection)
+    expect(snapshot).not.toBeNull()
+    expect(snapshot).toEqual({
+      segments: projection.segments,
+      lastReplaySeq: 1,
+      toolNameByUseId: {},
+      openAssistantSegmentIdByTurn: { 'turn-1': projection.openAssistantSegmentIdByTurn['turn-1'] },
+      openThinkingSegmentIdByTurn: {},
+    })
+    expect(snapshot?.segments).not.toBe(projection.segments)
   })
 })

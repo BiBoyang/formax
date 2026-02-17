@@ -45,6 +45,7 @@ import {
   reduceTranscriptProjection,
   type TranscriptProjectionState,
 } from '../features/semantics/projection/transcriptProjection.js'
+import { selectProjectionSnapshot } from '../features/semantics/selectors/transcriptSegments.js'
 import { toCanonicalEventsFromTurnNotification } from '../features/semantics/adapters/turnNotificationCanonicalAdapter.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
@@ -638,6 +639,7 @@ export class AppServer {
         : null
     const stateForSnapshot = state ?? fallbackSnapshotState
     const shouldIncludeProjectionSnapshot = Boolean(projection) && (hasGap || args.after == null)
+    const projectionSnapshot = shouldIncludeProjectionSnapshot ? selectProjectionSnapshot(projection) : null
     const stateSnapshot = stateForSnapshot
       ? {
           mode: stateForSnapshot.mode,
@@ -656,15 +658,7 @@ export class AppServer {
             expiresAt: input.expiresAt,
             payload: input.payload,
           })),
-          projection: shouldIncludeProjectionSnapshot && projection
-            ? {
-                segments: projection.segments.map((segment) => ({ ...segment })),
-                lastReplaySeq: projection.lastReplaySeq,
-                toolNameByUseId: { ...projection.toolNameByUseId },
-                openAssistantSegmentIdByTurn: { ...projection.openAssistantSegmentIdByTurn },
-                openThinkingSegmentIdByTurn: { ...projection.openThinkingSegmentIdByTurn },
-              }
-            : null,
+          projection: projectionSnapshot,
           toolNameByUseId: { ...stateForSnapshot.toolNameByUseId },
           updatedAt: stateForSnapshot.updatedAt,
         }
