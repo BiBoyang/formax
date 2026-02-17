@@ -17,10 +17,24 @@
 
 ## P2：Contract & Adapter Consolidation
 
+- [ ] N14 语义不变量 selector（terminal turn）
+  - 目标：把“turn terminal 后不应有 running tool / pending input”的检查沉淀为 shared selector，避免散落在端侧。
+  - 验收：
+    - 新增跨端可复用的不变量 selector（输入 projection/runtime，输出 issue 列表）。
+    - 至少覆盖 `running tool` 与 `pending input leak` 两类问题。
+
 ## P3：Presentation IR
 
-- [ ] N13 Projection 去 UI 偏置字段（phase 1）
-  - 目标：减少 projection segment 中 UI-only 字段，确保 projection 更偏语义态，展示偏好留在 selector/presenter。
+- [ ] N15 Tool Presentation selector phase 3（Task 完成态文案派生）
+  - 目标：把 Task 完成态（Started/Done）文案派生从 TUI mapping 进一步下沉到 shared selector，减少端内分支。
   - 验收：
-    - 完成至少一个 UI 偏置字段的下沉（从 projection 持久状态转为 selector 派生）。
-    - 现有 canonical/tool transcript 回归测试不变。
+    - TUI mapping 对 Task 完成态不再内联拼接 Started/Done 文案。
+    - Web/TUI 均消费 selector 的 Task 完成态派生结果。
+
+## P4：Replay-First Invariants
+
+- [ ] N16 Realtime=Replay fixture 扩面（pending input 终局）
+  - 目标：补齐“pending input 在 turn terminal 后必须终局”的跨路径 fixture，锁住 realtime/replay 一致。
+  - 验收：
+    - 新增 fixture 覆盖 realtime 与 replay 两条路径。
+    - 同一输入序列下，两条路径输出一致且无 pending input leak。

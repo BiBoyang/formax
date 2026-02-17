@@ -15,7 +15,7 @@ function stripErrorPrefix(line: string): string {
 }
 
 export function selectToolPresentation(
-  segment: Pick<ToolSegment, 'summary' | 'detailLines' | 'toolName' | 'status' | 'hideSummaryContent'>,
+  segment: Pick<ToolSegment, 'summary' | 'detailLines' | 'toolName' | 'status'>,
 ): ToolPresentation {
   const summary = String(segment.summary ?? '')
   const lines = summary.split(/\r?\n/)
@@ -30,9 +30,7 @@ export function selectToolPresentation(
         : segment.status === 'error'
           ? normalizedErrorFirstLine || 'Error'
           : firstLine
-  const hideSummaryContent = Boolean(
-    segment.hideSummaryContent ?? (segment.toolName === 'Skill' && segment.status === 'completed'),
-  )
+  const hideSummaryContent = segment.toolName === 'Skill' && segment.status === 'completed'
   return {
     summary,
     firstLine,

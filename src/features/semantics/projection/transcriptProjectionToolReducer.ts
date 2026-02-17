@@ -123,7 +123,6 @@ export function reduceToolEvent(args: {
         ...(durationMs !== undefined ? { durationMs } : {}),
         ...(startedAtMs !== undefined ? { startedAtMs } : {}),
         ...(event.patchStartLineNumber !== undefined ? { patchStartLineNumber: event.patchStartLineNumber } : {}),
-        ...(event.hideSummaryContent !== undefined ? { hideSummaryContent: event.hideSummaryContent } : {}),
         ...(event.paramsText ? { paramsText: event.paramsText } : {}),
       }
     }
@@ -164,7 +163,6 @@ export function reduceToolEvent(args: {
     ...(event.usage !== undefined ? { usage: event.usage } : {}),
     ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
     ...(event.patchStartLineNumber !== undefined ? { patchStartLineNumber: event.patchStartLineNumber } : {}),
-    ...(event.hideSummaryContent !== undefined ? { hideSummaryContent: event.hideSummaryContent } : {}),
     ...(eventTsMs !== null && event.phase !== 'end' ? { startedAtMs: eventTsMs } : {}),
     ...(event.paramsText ? { paramsText: event.paramsText } : {}),
   }

@@ -60,7 +60,6 @@ export type ToolSegment = {
   usage?: TokenUsage
   durationMs?: number
   patchStartLineNumber?: number
-  hideSummaryContent?: boolean
   startedAtMs?: number
   paramsText?: string
   inputState?: {
