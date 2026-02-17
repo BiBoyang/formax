@@ -24,9 +24,3 @@
   - 验收：
     - UI 派生逻辑下沉到 selector 层。
     - projection reducer 不再因 TUI/Web 展示差异产生分支。
-
-- [ ] N7 selector 层稳定接口
-  - 目标：为 TUI/Web 提供统一 view-model 入口，限制渲染层直接访问原始语义细节。
-  - 验收：
-    - 新增 selector API（最小集合）并被两端消费。
-    - renderer 仅处理展示，不做语义纠偏。
