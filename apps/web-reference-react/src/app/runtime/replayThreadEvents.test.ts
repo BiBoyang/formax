@@ -278,4 +278,58 @@ describe('replayThreadEvents', () => {
     expect(ctx.log).toHaveBeenNthCalledWith(1, 'Replay canonical protocol anomalies detected (count=2)', 'warn')
     expect(ctx.log).toHaveBeenNthCalledWith(2, 'Replay canonical protocol anomalies detected (count=3)', 'warn')
   })
+
+  it('continues incremental replay after hasGap rebuild without duplicate anomaly warnings', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 50,
+        latestCursor: 120,
+        hasGap: true,
+        state: createReplayState({
+          canonicalProtocolAnomalyCount: 2,
+          projection: null,
+        }),
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        nextCursor: 120,
+        latestCursor: 120,
+        hasGap: false,
+        state: createReplayState({
+          canonicalProtocolAnomalyCount: 2,
+          projection: null,
+        }),
+      })
+      .mockResolvedValueOnce({
+        data: [{ replaySeq: 121, method: 'turn/started', params: { replaySeq: 121 } }],
+        nextCursor: 121,
+        latestCursor: 121,
+        hasGap: false,
+        state: createReplayState({
+          canonicalProtocolAnomalyCount: 2,
+        }),
+      })
+    const ctx = createBaseContext({ request })
+
+    await replayThreadEvents('thread-1', undefined, ctx)
+    await replayThreadEvents('thread-1', undefined, ctx)
+
+    expect(request).toHaveBeenNthCalledWith(1, 'thread/replay', {
+      threadId: 'thread-1',
+      after: 50,
+      limit: 200,
+    })
+    expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: 'thread-1' })
+    expect(request).toHaveBeenNthCalledWith(3, 'thread/replay', {
+      threadId: 'thread-1',
+      after: 120,
+      limit: 200,
+    })
+    expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledTimes(1)
+    expect(ctx.log).toHaveBeenCalledWith('Replay canonical protocol anomalies detected (count=2)', 'warn')
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(121)
+  })
 })

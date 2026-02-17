@@ -44,6 +44,69 @@ export async function replayThreadEvents(
   let hasLoggedInvariantIssues = false
   let maxCanonicalProtocolAnomalyCountObserved = 0
 
+  const hydrateRuntimeState = (state: ReplayStateSnapshot, latestReplayCursor: number): void => {
+    ctx.runtimeStateByThreadRef.current[threadId] = {
+      threadId,
+      mode: state.mode,
+      activeTurnId: state.activeTurnId,
+      lastTurnId: state.lastTurnId,
+      lastTurnStatus: state.lastTurnStatus,
+      pendingInputs: ctx.toRuntimePendingInputsById(state.pendingInputs),
+      toolNameByUseId: state.toolNameByUseId,
+      updatedAt: state.updatedAt,
+      lastNotificationMethod: null,
+      lastReplaySeq: latestReplayCursor,
+    }
+    if (ctx.activeThreadIdRef.current === threadId && Object.keys(state.toolNameByUseId).length > 0) {
+      ctx.dispatch({
+        type: 'hydrate_projection_tool_names',
+        threadId,
+        toolNameByUseId: state.toolNameByUseId,
+      })
+    }
+  }
+
+  const syncActiveThreadRuntimeState = (state: ReplayStateSnapshot | null): void => {
+    if (ctx.activeThreadIdRef.current !== threadId) return
+    ctx.syncPendingInputsFromReplayState(threadId, state)
+    ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
+    const nextMode = state?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
+    ctx.setMode(nextMode)
+    if (state) {
+      ctx.cacheThreadMode(threadId, nextMode)
+    }
+  }
+
+  const applyReplayCursorAndSource = (nextCursor: number): void => {
+    ctx.setThreadTranscriptSource(threadId, 'replay')
+    ctx.clearThreadHistoryCursor(threadId)
+    ctx.replayCursorByThreadRef.current[threadId] = nextCursor
+  }
+
+  const commitGapRebuild = (args: {
+    state: ReplayStateSnapshot | null
+    replayCursor: number
+    projectionSnapshot: ReplayStateSnapshot['projection']
+    clearActiveLogs: boolean
+  }): boolean => {
+    if (args.projectionSnapshot) {
+      if (ctx.activeThreadIdRef.current !== threadId) {
+        return false
+      }
+      ctx.dispatch({
+        type: 'hydrate_projection_snapshot',
+        threadId,
+        snapshot: args.projectionSnapshot,
+      })
+    } else if (args.clearActiveLogs && ctx.activeThreadIdRef.current === threadId) {
+      ctx.dispatch({ type: 'replace_logs', logs: [] })
+    }
+
+    applyReplayCursorAndSource(args.replayCursor)
+    syncActiveThreadRuntimeState(args.state)
+    return true
+  }
+
   const maybeLogInvariantIssues = (state: ReplayStateSnapshot | null | undefined): void => {
     if (hasLoggedInvariantIssues) return
     if (!state || state.invariantIssues.length === 0) return
@@ -77,47 +140,20 @@ export async function replayThreadEvents(
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)
       observeCanonicalProtocolAnomalies(replay.state)
-      ctx.runtimeStateByThreadRef.current[threadId] = {
-        threadId,
-        mode: replay.state.mode,
-        activeTurnId: replay.state.activeTurnId,
-        lastTurnId: replay.state.lastTurnId,
-        lastTurnStatus: replay.state.lastTurnStatus,
-        pendingInputs: ctx.toRuntimePendingInputsById(replay.state.pendingInputs),
-        toolNameByUseId: replay.state.toolNameByUseId,
-        updatedAt: replay.state.updatedAt,
-        lastNotificationMethod: null,
-        lastReplaySeq: replay.latestCursor,
-      }
-      if (ctx.activeThreadIdRef.current === threadId && Object.keys(replay.state.toolNameByUseId).length > 0) {
-        ctx.dispatch({
-          type: 'hydrate_projection_tool_names',
-          threadId,
-          toolNameByUseId: replay.state.toolNameByUseId,
-        })
-      }
+      hydrateRuntimeState(replay.state, replay.latestCursor)
     }
 
     if (replay.hasGap) {
       if (replay.state?.projection) {
-        if (ctx.activeThreadIdRef.current !== threadId) {
+        const applied = commitGapRebuild({
+          state: replay.state,
+          replayCursor: replay.latestCursor,
+          projectionSnapshot: replay.state.projection,
+          clearActiveLogs: false,
+        })
+        if (!applied) {
           flushCanonicalProtocolAnomaliesLog()
           return true
-        }
-        ctx.dispatch({
-          type: 'hydrate_projection_snapshot',
-          threadId,
-          snapshot: replay.state.projection,
-        })
-        ctx.setThreadTranscriptSource(threadId, 'replay')
-        ctx.clearThreadHistoryCursor(threadId)
-        ctx.replayCursorByThreadRef.current[threadId] = replay.latestCursor
-        if (ctx.activeThreadIdRef.current === threadId) {
-          ctx.syncPendingInputsFromReplayState(threadId, replay.state)
-          ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-          const nextMode = replay.state.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-          ctx.setMode(nextMode)
-          ctx.cacheThreadMode(threadId, nextMode)
         }
         flushCanonicalProtocolAnomaliesLog()
         return true
@@ -128,64 +164,29 @@ export async function replayThreadEvents(
       if (baselineReplay.state) {
         maybeLogInvariantIssues(baselineReplay.state)
         observeCanonicalProtocolAnomalies(baselineReplay.state)
-        ctx.runtimeStateByThreadRef.current[threadId] = {
-          threadId,
-          mode: baselineReplay.state.mode,
-          activeTurnId: baselineReplay.state.activeTurnId,
-          lastTurnId: baselineReplay.state.lastTurnId,
-          lastTurnStatus: baselineReplay.state.lastTurnStatus,
-          pendingInputs: ctx.toRuntimePendingInputsById(baselineReplay.state.pendingInputs),
-          toolNameByUseId: baselineReplay.state.toolNameByUseId,
-          updatedAt: baselineReplay.state.updatedAt,
-          lastNotificationMethod: null,
-          lastReplaySeq: baselineReplay.latestCursor,
-        }
+        hydrateRuntimeState(baselineReplay.state, baselineReplay.latestCursor)
         replayState = baselineReplay.state
-        if (ctx.activeThreadIdRef.current === threadId && Object.keys(baselineReplay.state.toolNameByUseId).length > 0) {
-          ctx.dispatch({
-            type: 'hydrate_projection_tool_names',
-            threadId,
-            toolNameByUseId: baselineReplay.state.toolNameByUseId,
-          })
-        }
       }
       if (baselineReplay.state?.projection) {
-        if (ctx.activeThreadIdRef.current !== threadId) {
+        const applied = commitGapRebuild({
+          state: baselineReplay.state,
+          replayCursor: baselineReplay.latestCursor,
+          projectionSnapshot: baselineReplay.state.projection,
+          clearActiveLogs: false,
+        })
+        if (!applied) {
           flushCanonicalProtocolAnomaliesLog()
           return true
         }
-        ctx.dispatch({
-          type: 'hydrate_projection_snapshot',
-          threadId,
-          snapshot: baselineReplay.state.projection,
-        })
-        ctx.setThreadTranscriptSource(threadId, 'replay')
-        ctx.clearThreadHistoryCursor(threadId)
-        ctx.replayCursorByThreadRef.current[threadId] = baselineReplay.latestCursor
-        ctx.syncPendingInputsFromReplayState(threadId, baselineReplay.state)
-        ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-        const nextMode = baselineReplay.state.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-        ctx.setMode(nextMode)
-        ctx.cacheThreadMode(threadId, nextMode)
         flushCanonicalProtocolAnomaliesLog()
         return true
       }
-      if (ctx.activeThreadIdRef.current === threadId) {
-        ctx.dispatch({ type: 'replace_logs', logs: [] })
-      }
-      ctx.setThreadTranscriptSource(threadId, 'replay')
-      ctx.clearThreadHistoryCursor(threadId)
-      ctx.replayCursorByThreadRef.current[threadId] =
-        baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor
-      if (ctx.activeThreadIdRef.current === threadId) {
-        ctx.syncPendingInputsFromReplayState(threadId, baselineReplay.state ?? null)
-        ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-        const nextMode = baselineReplay.state?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-        ctx.setMode(nextMode)
-        if (baselineReplay.state) {
-          ctx.cacheThreadMode(threadId, nextMode)
-        }
-      }
+      commitGapRebuild({
+        state: baselineReplay.state ?? null,
+        replayCursor: baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
+        projectionSnapshot: baselineReplay.state?.projection ?? null,
+        clearActiveLogs: true,
+      })
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
@@ -197,15 +198,7 @@ export async function replayThreadEvents(
         return false
       }
       ctx.replayCursorByThreadRef.current[threadId] = 0
-      if (ctx.activeThreadIdRef.current === threadId) {
-        ctx.syncPendingInputsFromReplayState(threadId, replay.state ?? null)
-        ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-        const nextMode = replay.state?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-        ctx.setMode(nextMode)
-        if (replay.state) {
-          ctx.cacheThreadMode(threadId, nextMode)
-        }
-      }
+      syncActiveThreadRuntimeState(replay.state ?? null)
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
@@ -249,15 +242,7 @@ export async function replayThreadEvents(
   }
 
   ctx.replayCursorByThreadRef.current[threadId] = after > 0 ? after : latestCursor
-  if (ctx.activeThreadIdRef.current === threadId) {
-    ctx.syncPendingInputsFromReplayState(threadId, replayState)
-    ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
-    const nextMode = replayState?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
-    ctx.setMode(nextMode)
-    if (replayState) {
-      ctx.cacheThreadMode(threadId, nextMode)
-    }
-  }
+  syncActiveThreadRuntimeState(replayState)
   flushCanonicalProtocolAnomaliesLog()
   return true
 }

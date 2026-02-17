@@ -17,13 +17,13 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N43 hasGap 路径补齐 replay refs 重建事务语义
-  - 目标：`hasGap=true` 触发重建时，确保 replay 相关 refs（cursor/anomaly/runtime）以“单事务重建”方式落地，避免中间态读写。
+- [ ] N45 replay cursor 单调推进断言收敛
+  - 目标：将 replay cursor 前进规则收敛到统一断言 helper，避免各分支手工比较导致的边界漂移。
   - 验收：
-    - 明确 reset/hydrate 顺序并统一到单入口 helper。
-    - 不再在多个回调路径重复手工重置 replay refs。
+    - 引入 cursor 前进断言 helper（含 nextCursor/latestCursor 边界）。
+    - `replayThreadEvents` 主循环使用统一 helper 判断中断/推进。
 
-- [ ] N44 hasGap 重建回归测试补齐
-  - 目标：覆盖“gap 后重建 + 后续增量 replay”场景，验证无重复 tool 行、无遗留 anomaly 重复告警。
+- [ ] N46 replay-vs-history 提升策略回归测试补齐
+  - 目标：补齐 `shouldPromoteReplayAsCanonical` 在 hasGap/rebuild 后的回归用例，确保 transcript source 切换稳定。
   - 验收：
     - 新增/扩展 web runtime 定向测试并通过。
