@@ -1118,6 +1118,7 @@ describe('AppServer', () => {
     expect((replay[0] as any).result.state).toEqual(
       expect.objectContaining({
         pendingInputCount: 1,
+        invariantIssues: expect.any(Array),
         pendingInputs: [
           expect.objectContaining({
             inputId: 'input-1',
@@ -1128,6 +1129,85 @@ describe('AppServer', () => {
             status: 'pending',
           }),
         ],
+      }),
+    )
+  })
+
+  it('includes invariant issues in replay state snapshot for terminal drift diagnostics', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const runtimeStateByThreadId = (server as any).runtimeStateByThreadId as Map<string, any>
+    const transcriptProjectionByThreadId = (server as any).transcriptProjectionByThreadId as Map<string, any>
+    runtimeStateByThreadId.set('thread-invariant', {
+      threadId: 'thread-invariant',
+      mode: 'normal',
+      activeTurnId: null,
+      lastTurnId: 'turn-1',
+      lastTurnStatus: 'completed',
+      pendingInputs: {
+        'input-1': {
+          inputId: 'input-1',
+          threadId: 'thread-invariant',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          kind: 'approval',
+          status: 'pending',
+          createdAt: '2026-02-17T00:00:01.000Z',
+          expiresAt: '2026-02-17T00:05:01.000Z',
+          payload: {},
+        },
+      },
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      updatedAt: '2026-02-17T00:00:02.000Z',
+      lastNotificationMethod: 'turn/completed',
+      lastReplaySeq: 3,
+    })
+    transcriptProjectionByThreadId.set('thread-invariant', {
+      threadId: 'thread-invariant',
+      segments: [
+        {
+          id: 'tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'running',
+          summary: 'Bash running',
+          detailLines: [],
+        },
+        {
+          id: 'footer-1',
+          kind: 'turn_footer',
+          turnId: 'turn-1',
+          status: 'completed',
+        },
+      ],
+      seenEventIds: new Set<string>(),
+      lastReplaySeq: 3,
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: {},
+    })
+
+    const replay = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-invariant' }))
+    expect((replay[0] as any).result.state).toEqual(
+      expect.objectContaining({
+        invariantIssues: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'running_tool_after_terminal_turn',
+            turnId: 'turn-1',
+            toolUseId: 'tool-1',
+          }),
+          expect.objectContaining({
+            kind: 'pending_input_after_terminal_turn',
+            turnId: 'turn-1',
+            inputId: 'input-1',
+            toolUseId: 'tool-1',
+          }),
+        ]),
       }),
     )
   })

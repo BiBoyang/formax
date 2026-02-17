@@ -45,6 +45,7 @@ import {
   reduceTranscriptProjection,
   type TranscriptProjectionState,
 } from '../features/semantics/projection/transcriptProjection.js'
+import { selectTerminalTurnInvariantIssues } from '../features/semantics/selectors/invariants.js'
 import { selectProjectionSnapshot } from '../features/semantics/selectors/transcriptSegments.js'
 import { toCanonicalEventsFromTurnNotification } from '../features/semantics/adapters/turnNotificationCanonicalAdapter.js'
 
@@ -605,6 +606,19 @@ export class AppServer {
         expiresAt: string
         payload: unknown
       }>
+      invariantIssues: Array<
+        | {
+            kind: 'running_tool_after_terminal_turn'
+            turnId: string
+            toolUseId: string
+          }
+        | {
+            kind: 'pending_input_after_terminal_turn'
+            turnId: string
+            inputId: string
+            toolUseId: string
+          }
+      >
       projection: {
         segments: TranscriptProjectionState['segments']
         lastReplaySeq: number
@@ -640,6 +654,10 @@ export class AppServer {
     const stateForSnapshot = state ?? fallbackSnapshotState
     const shouldIncludeProjectionSnapshot = Boolean(projection) && (hasGap || args.after == null)
     const projectionSnapshot = shouldIncludeProjectionSnapshot ? selectProjectionSnapshot(projection) : null
+    const invariantIssues = selectTerminalTurnInvariantIssues({
+      projection,
+      runtimeState: stateForSnapshot,
+    })
     const stateSnapshot = stateForSnapshot
       ? {
           mode: stateForSnapshot.mode,
@@ -658,6 +676,7 @@ export class AppServer {
             expiresAt: input.expiresAt,
             payload: input.payload,
           })),
+          invariantIssues,
           projection: projectionSnapshot,
           toolNameByUseId: { ...stateForSnapshot.toolNameByUseId },
           updatedAt: stateForSnapshot.updatedAt,

@@ -15,10 +15,24 @@
 4. 每项执行顺序固定：实现 -> 定向测试 -> `codex review` -> 提交。
 5. 历史完成记录以 Git commit 为准，不在 TODO-INDEX 长期保留。
 
+## P2：Contract & Adapter Consolidation
+
+- [ ] N20 thread/replay state contract fixture（invariantIssues 一致性）
+  - 目标：把 `invariantIssues` 纳入 replay state contract fixture，覆盖空状态/正常状态/异常状态三类输出。
+  - 验收：
+    - server 测试包含 `invariantIssues` 的稳定结构断言。
+    - 空状态下字段行为有明确断言（`state=null` 或空数组路径一致）。
+
 ## P4：Replay-First Invariants
 
-- [ ] N19 invariant selector 接入 app-server 诊断快照（只读）
-  - 目标：在 app-server 诊断/快照路径提供 invariant issues 只读输出，便于跨端排障。
+- [ ] N21 invariant issue 派生与快照构建解耦
+  - 目标：把 app-server 内 replay state snapshot 组装中的 invariant 派生抽到独立 helper，降低 `server.ts` 复杂度。
   - 验收：
-    - 诊断输出新增 invariant issues 字段（不改业务语义）。
-    - 至少一条测试覆盖该字段存在且结构稳定。
+    - `server.ts` 中 thread/replay 快照组装逻辑减少重复分支。
+    - 新 helper 有最小单元测试覆盖。
+
+- [ ] N22 realtime/replay parity fixture 扩面（inputResolved 边界）
+  - 目标：补齐 `turn/inputResolved` 边界（submitted/canceled/expired/failed）的 realtime/replay parity fixture。
+  - 验收：
+    - 至少覆盖两种 resolved 终局状态。
+    - parity fixture 下 runtime pendingInputs 无泄漏且两路径一致。
