@@ -33,7 +33,7 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N124 replay fixture 覆盖扩展到 connectRpcClient 场景
-  - 目标：验证共享 replay fixture 在 `connectRpcClient` 触发 replay 路径下也可复用。
+- [ ] N125 connectRpcClient 断线重连路径补共享 fixture 校验
+  - 目标：补充 `connected -> disconnected -> connected` 场景下 replay 触发行为与 shared fixture threadId 对齐。
   - 验收：
-    - `connectRpcClient` 相关测试新增至少 1 条共享 replay fixture 派生用例。
+    - `connectRpcClient.test.ts` 新增 1 条断线重连相关断言。
