@@ -279,6 +279,14 @@ AskUserQuestion payload：
   - app-server 路径：envelope 必须由 server 侧完整产出；客户端不应补造后参与语义投影。
   - local TUI 路径：可由 runtime 本地产出 envelope，但必须与本节字段契约保持等价。
 
+版本治理规则（实施顺序）：
+
+1. 先在 `INTERACTION-CONTRACT.md` 标注变更类型（兼容扩展 / 破坏性变更）。
+2. 破坏性变更必须先升级 `schemaVersion`，再落 adapter 双版本兼容。
+3. 同步更新本节、`canonicalEvents.ts` 类型定义与 notification adapter。
+4. 必须补齐 cross-path contract fixture 回归（stream / notification / replay-like）。
+5. 版本切换后再调整默认值；旧版本移除需有迁移窗口。
+
 ## 5. JSON-RPC 方法
 
 ## 5.1 `thread/start`

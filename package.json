@@ -32,6 +32,8 @@
     "test:surface-screen-model": "tsx ./scripts/surface-screen-model-smoke.tsx",
     "test:surface-all": "bun run test:surface-smoke && bun run test:surface-screen-model",
     "test:repl-semantic-gate": "node ./scripts/repl-semantic-pre-review.mjs",
+    "check:repl-single-writer": "node ./scripts/check-repl-single-writer.mjs",
+    "check:semantic-streaming-perf": "tsx ./scripts/check-semantic-streaming-perf.ts",
     "test:watch": "vitest",
     "test:changed": "node ./scripts/test-changed.mjs",
     "test:coverage": "vitest run --coverage --testTimeout 30000",

@@ -10,10 +10,10 @@
 
 import React from 'react'
 import { Box } from 'ink'
-import { formatToolCallParts } from '../../utils/toolFormatting'
 import { getTheme } from '../../utils/theme'
 import type { TokenUsage } from '../../streaming/types'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
+import { selectToolHeaderFromInput } from '../../features/tools/presentation/toolViewModel'
 import { ToolHeaderLine } from './ToolHeaderLine'
 import { ToolIndentedLine, ToolSubline } from './ToolSubline'
 
@@ -137,8 +137,12 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   }
 
   const { name, input, status, expandInfo, middleLines } = message.toolInfo
-  const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
-  const showParams = Boolean(params && params.trim().length > 0)
+  const header = selectToolHeaderFromInput({
+    toolName: name,
+    input,
+    preferRelativePaths: true,
+  })
+  const showParams = Boolean(header.paramsText && header.paramsText.trim().length > 0)
   const compactErrorDetail =
     status === 'error' ? pickCompactErrorDetailLine({ middleLines, expandInfo }) : null
   
@@ -149,8 +153,8 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
         {/* Tool call header: ⏺ ToolName(params) */}
         <ToolHeaderLine
           status={status}
-          label={toolName}
-          params={showParams ? params : null}
+          label={header.label}
+          params={showParams ? header.paramsText ?? null : null}
         />
       
       {/* Tool result (only shown when not running) */}

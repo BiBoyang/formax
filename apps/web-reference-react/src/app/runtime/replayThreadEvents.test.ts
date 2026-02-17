@@ -354,6 +354,60 @@ describe('replayThreadEvents', () => {
       expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
       expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
     })
+
+    it('[history-boundary] does not load history when fromStart is false and replay page is empty', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          nextCursor: 0,
+          latestCursor: 0,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: 0 } },
+        loadThreadHistory: vi.fn().mockResolvedValue(true),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.loadThreadHistory).not.toHaveBeenCalled()
+      expectReplayCursor(ctx, 0)
+    })
+
+    it('[history-boundary] does not load history in hasGap replay-first rebuild path', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          hasGap: true,
+          nextCursor: 120,
+          latestCursor: 120,
+          state: createReplayState({
+            projection: {
+              segments: [],
+              lastReplaySeq: 120,
+              toolNameByUseId: {},
+              openAssistantSegmentIdByTurn: {},
+              openThinkingSegmentIdByTurn: {},
+            },
+          }),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        loadThreadHistory: vi.fn().mockResolvedValue(true),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.loadThreadHistory).not.toHaveBeenCalled()
+      expect(ctx.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'hydrate_projection_snapshot',
+        }),
+      )
+    })
   })
 
   describe('pagination paths', () => {

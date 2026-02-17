@@ -118,6 +118,19 @@
 - 破坏性变更（改语义/改必填/改排序主键）必须升级 `schemaVersion`。
 - 严格模式下，若显式传入未知 `schemaVersion`，应视为协议异常并拒绝进入 canonical projector。
 
+`schemaVersion` 升级流程（必须按顺序）：
+
+1. 先在本文件定义“变更类型”：
+   - 向后兼容扩展：新增可选字段 / 新增可忽略 kind。
+   - 破坏性变更：修改既有语义、必填字段、排序主键或终局判定规则。
+2. 若为破坏性变更：先升级 `schemaVersion`，并在 adapter 中增加双版本兼容分支。
+3. 同步更新：
+   - `plans/app-server/API-REFERENCE.md`
+   - `src/features/semantics/core/canonicalEvents.ts`
+   - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
+4. 增加跨入口 contract fixture（stream / notification / replay-like）回归测试。
+5. 通过后才能切默认版本；旧版本下线需单独发布迁移公告。
+
 ### 3.0 Canonical Event Contract（客户端投影输入）
 
 本节约束 app-server 通知映射后进入 projector 的 canonical 事件结构，作为

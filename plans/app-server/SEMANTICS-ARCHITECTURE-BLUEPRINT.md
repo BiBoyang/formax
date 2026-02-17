@@ -91,6 +91,7 @@
 
 ### R3. 高频 streaming 下性能回退
 - 策略：changed-signal、dirty-id、批处理/节流；先做测量后调参。
+- 基线：`bun run check:semantic-streaming-perf`（见 `plans/app-server/PERF-BASELINE.md`）。
 
 ### R4. 恢复路径与实时路径分叉
 - 策略：统一 replay-first 恢复流程；history 仅作为 fallback。

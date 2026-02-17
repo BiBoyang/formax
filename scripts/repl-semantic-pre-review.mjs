@@ -6,6 +6,10 @@ const steps = [
     cmd: ['bun', 'run', 'check:partial-stage'],
   },
   {
+    label: 'single-writer semantic write-point gate',
+    cmd: ['bun', 'run', 'check:repl-single-writer'],
+  },
+  {
     label: 'targeted REPL semantic tests',
     cmd: [
       'bun',

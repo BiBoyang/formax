@@ -147,4 +147,133 @@ describe('processNotification', () => {
       'warn',
     )
   })
+
+  it('maps turn/completed to canonical finalize events only via adapter when envelope is complete', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        replaySeq: 30,
+        eventId: 'evt-30',
+        ts: '2026-02-18T00:00:00.000Z',
+        source: 'engine',
+        threadId: 'thread-1',
+        turn: { id: 'turn-30', threadId: 'thread-1', status: 'completed' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    const applyCalls = (ctx.dispatch as any).mock.calls
+      .map((call: unknown[]) => call[0])
+      .filter((action: { type?: string }) => action?.type === 'apply_canonical_event')
+    expect(applyCalls).toHaveLength(2)
+    expect(applyCalls[0]).toMatchObject({
+      type: 'apply_canonical_event',
+      event: expect.objectContaining({
+        kind: 'thinking_finalized',
+        turnId: 'turn-30',
+        replaySeq: 30,
+      }),
+    })
+    expect(applyCalls[1]).toMatchObject({
+      type: 'apply_canonical_event',
+      event: expect.objectContaining({
+        kind: 'turn_footer',
+        turnId: 'turn-30',
+        replaySeq: 31,
+        status: 'completed',
+      }),
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+  })
+
+  it('maps turn/failed to canonical finalize events only via adapter when envelope is complete', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/failed',
+      params: {
+        replaySeq: 40,
+        eventId: 'evt-40',
+        ts: '2026-02-18T00:00:01.000Z',
+        source: 'engine',
+        threadId: 'thread-1',
+        turn: { id: 'turn-40', threadId: 'thread-1', status: 'failed' },
+        error: 'boom',
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    const applyCalls = (ctx.dispatch as any).mock.calls
+      .map((call: unknown[]) => call[0])
+      .filter((action: { type?: string }) => action?.type === 'apply_canonical_event')
+    expect(applyCalls).toHaveLength(2)
+    expect(applyCalls[0]).toMatchObject({
+      type: 'apply_canonical_event',
+      event: expect.objectContaining({
+        kind: 'thinking_finalized',
+        turnId: 'turn-40',
+        replaySeq: 40,
+      }),
+    })
+    expect(applyCalls[1]).toMatchObject({
+      type: 'apply_canonical_event',
+      event: expect.objectContaining({
+        kind: 'turn_footer',
+        turnId: 'turn-40',
+        replaySeq: 41,
+        status: 'failed',
+        message: 'boom',
+      }),
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+  })
+
+  it('does not project canonical finalize events for turn/completed when envelope is incomplete', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        replaySeq: 50,
+        threadId: 'thread-1',
+        turn: { id: 'turn-50', threadId: 'thread-1', status: 'completed' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.log).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped canonical projection for turn/completed: missing envelope fields'),
+      'warn',
+    )
+  })
+
+  it('does not project canonical finalize events for turn/failed when envelope is incomplete', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/failed',
+      params: {
+        replaySeq: 51,
+        threadId: 'thread-1',
+        turn: { id: 'turn-51', threadId: 'thread-1', status: 'failed' },
+        error: 'boom',
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.log).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped canonical projection for turn/failed: missing envelope fields'),
+      'warn',
+    )
+  })
 })

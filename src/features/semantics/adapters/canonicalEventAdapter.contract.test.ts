@@ -4,9 +4,9 @@ import {
   mapStreamEventToCanonicalEvents,
   mapTurnNotificationToCanonicalEvents,
 } from './canonicalEventAdapter'
-import { CROSS_PATH_CONTRACT_FIXTURE } from './crossPathContractFixture'
+import { CROSS_PATH_CONTRACT_FIXTURE, type NotificationFixture } from './crossPathContractFixture'
 
-type NotificationEntry = (typeof CROSS_PATH_CONTRACT_FIXTURE.notifications)[number]
+type NotificationEntry = NotificationFixture
 
 function normalizeReplayNotificationEntries(entries: readonly NotificationEntry[]): NotificationEntry[] {
   return entries
@@ -68,6 +68,130 @@ describe('canonicalEventAdapter contract fixture', () => {
       })
 
     expect(normalize(fromStream)).toEqual(normalize(fromNotification))
+    expect(normalize(fromReplayNotifications)).toEqual(normalize(fromNotification))
+  })
+
+  it('keeps input lifecycle canonical mapping stable across notification and replay-like paths', () => {
+    const fixture = CROSS_PATH_CONTRACT_FIXTURE
+    const replayLikeEntries = [
+      fixture.inputLifecycleNotifications[1],
+      fixture.inputLifecycleNotifications[0],
+      fixture.inputLifecycleNotifications[0],
+    ]
+    const normalizedReplayEntries = normalizeReplayNotificationEntries(replayLikeEntries)
+    const fromNotification = fixture.inputLifecycleNotifications.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+    const fromReplayNotifications = normalizedReplayEntries.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+
+    const normalize = (events: ReturnType<typeof mapStreamEventToCanonicalEvents>) =>
+      events.map((event) => {
+        if (event.kind !== 'tool_input_state') return { kind: event.kind, replaySeq: event.replaySeq }
+        return {
+          kind: event.kind,
+          replaySeq: event.replaySeq,
+          turnId: event.turnId,
+          toolUseId: event.toolUseId,
+          inputKind: event.inputKind,
+          status: event.status,
+        }
+      })
+
+    expect(normalize(fromReplayNotifications)).toEqual(normalize(fromNotification))
+    expect(normalize(fromNotification)).toEqual([
+      {
+        kind: 'tool_input_state',
+        replaySeq: 5,
+        turnId: 'turn-contract',
+        toolUseId: 'tool-1',
+        inputKind: 'approval',
+        status: 'pending',
+      },
+      {
+        kind: 'tool_input_state',
+        replaySeq: 6,
+        turnId: 'turn-contract',
+        toolUseId: 'tool-1',
+        inputKind: 'approval',
+        status: 'submitted',
+      },
+    ])
+  })
+
+  it('keeps terminal status mapping stable across stream/notification/replay-like paths', () => {
+    const fixture = CROSS_PATH_CONTRACT_FIXTURE
+    let completedSeq = 0
+    let failedSeq = 0
+    const fromStreamCompleted = mapStreamEventToCanonicalEvents(
+      { type: 'complete' },
+      {
+        threadId: fixture.threadId,
+        turnId: 'turn-completed',
+        nextReplaySeq: () => {
+          completedSeq += 1
+          return completedSeq
+        },
+        now: () => fixture.ts,
+      },
+    )
+    const fromStreamFailed = mapStreamEventToCanonicalEvents(
+      { type: 'error', error: new Error('boom') },
+      {
+        threadId: fixture.threadId,
+        turnId: 'turn-failed',
+        nextReplaySeq: () => {
+          failedSeq += 1
+          return failedSeq
+        },
+        now: () => fixture.ts,
+      },
+    )
+
+    const fromNotification = fixture.terminalStatusNotifications.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+    const replayLikeEntries = [
+      fixture.terminalStatusNotifications[1],
+      fixture.terminalStatusNotifications[0],
+      fixture.terminalStatusNotifications[1],
+    ]
+    const normalizedReplayEntries = normalizeReplayNotificationEntries(replayLikeEntries)
+    const fromReplayNotifications = normalizedReplayEntries.flatMap((notification) =>
+      mapTurnNotificationToCanonicalEvents(notification, {
+        fallbackThreadId: fixture.threadId,
+        requireEnvelope: true,
+      }),
+    )
+
+    const normalize = (events: ReturnType<typeof mapStreamEventToCanonicalEvents>) =>
+      events.map((event) => {
+        if (event.kind !== 'turn_footer') return { kind: event.kind, replaySeq: event.replaySeq, turnId: event.turnId }
+        return {
+          kind: event.kind,
+          replaySeq: event.replaySeq,
+          turnId: event.turnId,
+          status: event.status,
+          message: event.message ?? null,
+        }
+      })
+
+    const expectedTerminalEvents = [
+      ...normalize(fromStreamCompleted).map((event) => ({ ...event, replaySeq: event.replaySeq + 19 })),
+      ...normalize(fromStreamFailed).map((event) => ({ ...event, replaySeq: event.replaySeq + 29 })),
+    ]
+
+    expect(normalize(fromNotification)).toEqual(expectedTerminalEvents)
     expect(normalize(fromReplayNotifications)).toEqual(normalize(fromNotification))
   })
 

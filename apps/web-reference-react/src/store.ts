@@ -9,7 +9,7 @@ import {
   type TranscriptProjectionState,
 } from '../../../src/features/semantics/projection/transcriptProjection'
 import { selectTurnSegments } from '../../../src/features/semantics/selectors/transcriptSegments'
-import { selectToolPresentation } from '../../../src/features/semantics/selectors/toolPresentation'
+import { selectToolViewModelFromSegment } from '../../../src/features/tools/presentation/toolViewModel'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -101,26 +101,18 @@ function toTranscriptItemFromProjectionSegment(args: {
   }
 
   if (segment.kind === 'tool') {
-    const presentation = selectToolPresentation(segment)
-    const summary =
-      segment.toolName === 'Task' && (segment.status === 'running' || segment.status === 'error')
-        ? presentation.taskSummaryLine
-        : presentation.taskCompletion?.kind === 'started'
-          ? `Started (task_id: ${presentation.taskCompletion.taskId})`
-        : presentation.hideSummaryContent
-          ? ''
-          : presentation.summary
+    const vm = selectToolViewModelFromSegment(segment)
     return {
       id: segment.id,
       kind: 'tool_call',
       turnId: segment.turnId,
       toolUseId: segment.toolUseId,
-      toolName: segment.toolName,
-      status: segment.status,
-      summary,
-      detailLines: presentation.detailLines,
-      ...(segment.paramsText ? { paramsText: segment.paramsText } : {}),
-      ...(segment.inputState ? { inputState: segment.inputState } : {}),
+      toolName: vm.toolName,
+      status: vm.status,
+      summary: vm.summary,
+      detailLines: vm.detailLines,
+      ...(vm.paramsText ? { paramsText: vm.paramsText } : {}),
+      ...(vm.inputState ? { inputState: vm.inputState } : {}),
     }
   }
 

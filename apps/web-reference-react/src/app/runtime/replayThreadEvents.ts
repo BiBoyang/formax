@@ -11,6 +11,21 @@ function shouldUseIncrementalReplayData(replay: ReplayResult): boolean {
   return !replay.hasGap
 }
 
+function shouldUseHistoryFallbackOnEmptyReplayPage(args: {
+  fromStart: boolean
+  replay: Pick<ReplayResult, 'latestCursor' | 'data'>
+}): boolean {
+  if (!args.fromStart) return false
+  return args.replay.latestCursor === 0 && args.replay.data.length === 0
+}
+
+function shouldUseHistoryFallbackAfterReplayLoop(args: {
+  fromStart: boolean
+  receivedEntries: boolean
+}): boolean {
+  return args.fromStart && !args.receivedEntries
+}
+
 export function resolveReplayCursorProgress(args: {
   after: number
   nextCursor: number
@@ -231,7 +246,7 @@ export async function replayThreadEvents(
       return true
     }
 
-    if (fromStart && replay.latestCursor === 0 && replay.data.length === 0) {
+    if (shouldUseHistoryFallbackOnEmptyReplayPage({ fromStart, replay })) {
       const loaded = await ctx.loadThreadHistory(threadId)
       if (!loaded) {
         flushCanonicalProtocolAnomaliesLog()
@@ -267,7 +282,7 @@ export async function replayThreadEvents(
     }
   }
 
-  if (fromStart && !receivedEntries) {
+  if (shouldUseHistoryFallbackAfterReplayLoop({ fromStart, receivedEntries })) {
     const loaded = await ctx.loadThreadHistory(threadId)
     if (!loaded) {
       flushCanonicalProtocolAnomaliesLog()

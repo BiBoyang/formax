@@ -377,6 +377,58 @@ describe('turnNotificationCanonicalAdapter', () => {
     expect(issues).toEqual([{ method: 'turn/event', missing: [], invalid: ['schemaVersion'] }])
   })
 
+  it('rejects strict envelope with invalid schemaVersion across finalize methods', () => {
+    const cases: Array<{
+      method: 'turn/completed' | 'turn/failed'
+      params: Record<string, unknown>
+    }> = [
+      {
+        method: 'turn/completed',
+        params: {
+          threadId: 'thread-1',
+          turn: { id: 'turn-1', threadId: 'thread-1' },
+          replaySeq: 2,
+          eventId: 'evt-2',
+          ts: '2026-02-10T00:00:00.000Z',
+          source: 'engine',
+          schemaVersion: 99,
+        },
+      },
+      {
+        method: 'turn/failed',
+        params: {
+          threadId: 'thread-1',
+          turn: { id: 'turn-2', threadId: 'thread-1', status: 'failed' },
+          replaySeq: 3,
+          eventId: 'evt-3',
+          ts: '2026-02-10T00:00:01.000Z',
+          source: 'engine',
+          schemaVersion: 99,
+          error: 'boom',
+        },
+      },
+    ]
+
+    for (const fixture of cases) {
+      const issues: Array<{ method: string; missing: string[]; invalid?: string[] }> = []
+      const events = toCanonicalEventsFromTurnNotification(
+        {
+          method: fixture.method,
+          params: fixture.params,
+        },
+        {
+          fallbackThreadId: 'thread-fallback',
+          requireEnvelope: true,
+          onInvalidEnvelope(issue) {
+            issues.push(issue)
+          },
+        },
+      )
+      expect(events).toEqual([])
+      expect(issues).toEqual([{ method: fixture.method, missing: [], invalid: ['schemaVersion'] }])
+    }
+  })
+
   it('enforces strict envelope consistently across turn notification methods', () => {
     const fixtures: Array<{
       method: 'turn/event' | 'turn/completed' | 'turn/failed' | 'turn/inputRequested' | 'turn/inputResolved'

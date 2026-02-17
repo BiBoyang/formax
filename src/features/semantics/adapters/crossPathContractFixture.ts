@@ -1,7 +1,7 @@
 import type { StreamEvent } from '../../../streaming/types'
 
 export type NotificationFixture = {
-  method: 'turn/event' | 'turn/completed'
+  method: 'turn/event' | 'turn/completed' | 'turn/failed' | 'turn/inputRequested' | 'turn/inputResolved'
   params: Record<string, unknown>
 }
 
@@ -61,6 +61,73 @@ export const CROSS_PATH_CONTRACT_FIXTURE = {
         eventId: 'evt-4',
         ts: '2026-02-17T00:10:00.000Z',
         source: 'engine',
+      },
+    },
+  ] satisfies NotificationFixture[],
+  inputLifecycleNotifications: [
+    {
+      method: 'turn/inputRequested',
+      params: {
+        threadId: 'thread-contract',
+        turnId: 'turn-contract',
+        replaySeq: 5,
+        eventId: 'evt-5',
+        ts: '2026-02-17T00:10:01.000Z',
+        source: 'policy',
+        input: {
+          inputId: 'input-1',
+          threadId: 'thread-contract',
+          turnId: 'turn-contract',
+          toolUseId: 'tool-1',
+          kind: 'approval',
+          status: 'pending',
+          payload: { toolName: 'Bash' },
+        },
+      },
+    },
+    {
+      method: 'turn/inputResolved',
+      params: {
+        threadId: 'thread-contract',
+        turnId: 'turn-contract',
+        replaySeq: 6,
+        eventId: 'evt-6',
+        ts: '2026-02-17T00:10:02.000Z',
+        source: 'policy',
+        input: {
+          inputId: 'input-1',
+          threadId: 'thread-contract',
+          turnId: 'turn-contract',
+          toolUseId: 'tool-1',
+          kind: 'approval',
+          status: 'submitted',
+          payload: { toolName: 'Bash' },
+        },
+      },
+    },
+  ] satisfies NotificationFixture[],
+  terminalStatusNotifications: [
+    {
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-contract',
+        turn: { id: 'turn-completed', threadId: 'thread-contract' },
+        replaySeq: 20,
+        eventId: 'evt-20',
+        ts: '2026-02-17T00:10:03.000Z',
+        source: 'engine',
+      },
+    },
+    {
+      method: 'turn/failed',
+      params: {
+        threadId: 'thread-contract',
+        turn: { id: 'turn-failed', threadId: 'thread-contract', status: 'failed' },
+        replaySeq: 30,
+        eventId: 'evt-30',
+        ts: '2026-02-17T00:10:04.000Z',
+        source: 'engine',
+        error: 'boom',
       },
     },
   ] satisfies NotificationFixture[],
