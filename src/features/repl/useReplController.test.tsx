@@ -584,6 +584,7 @@ describe('useReplController', () => {
 
     const bashPromise = controller.actions.send('! ls')
     await tick(0)
+    expect(controller.state.isLoading).toBe(false)
 
     // While bash-mode is in flight, new sends are ignored.
     await controller.actions.send('hi-ignored')
