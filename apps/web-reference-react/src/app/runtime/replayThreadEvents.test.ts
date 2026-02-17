@@ -9,13 +9,19 @@ import type { ReplayStateSnapshot } from '../core/rpcParsers'
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 const TEST_THREAD_ID = 'thread-1'
 const TEST_TURN_ID = 'turn-1'
-const INITIAL_REPLAY_CURSOR = 50
+
+// Replay sequence/time constants
 const REPLAY_STATE_UPDATED_AT = '2026-02-17T00:00:00.000Z'
 const REPLAY_SEQ_BASELINE = 51
 const REPLAY_SEQ_INCREMENTAL = 121
-const REPLAY_PAGE_LIMIT = 200
+
+// Replay cursor constants
+const INITIAL_REPLAY_CURSOR = 50
 const REPLAY_CURSOR_FROM_START = 0
 const REPLAY_CURSOR_REBUILD_COMPLETE = 120
+
+// Replay request constants
+const REPLAY_PAGE_LIMIT = 200
 
 // Assertion helpers
 function expectReplayPageRequestArgs(request: ReturnType<typeof vi.fn>, nth: number, after: number) {

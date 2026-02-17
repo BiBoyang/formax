@@ -17,12 +17,12 @@
 
 ## P4：Replay-First Invariants
 
-- [ ] N78 replay 常量区分层（cursor/seq/warning）整理
-  - 目标：让 replay 常量按语义类别分层，减少后续常量增减时的冲突。
+- [ ] N79 replay helper 类型别名收敛（request/log）
+  - 目标：减少 `ReturnType<typeof vi.fn>` 重复声明，统一测试 helper 的 mock 类型别名。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
 
-- [ ] N79 replay helper 类型别名收敛（request/log）
-  - 目标：减少 `ReturnType<typeof vi.fn>` 重复声明，统一测试 helper 的 mock 类型别名。
+- [ ] N80 replay progression helper 命名统一（progress/cursor）
+  - 目标：减少 helper 名称中 “advance/progress/cursor” 混用，提升可读性。
   - 验收：
     - 不改变现有断言语义，测试全量通过。
