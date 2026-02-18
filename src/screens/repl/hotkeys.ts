@@ -37,7 +37,7 @@ export function handleCtrlCKeypress(args: {
   nowMs?: number
   windowMs?: number
 }): 'armed' | 'exit' {
-  const windowMs = args.windowMs ?? 2000
+  const windowMs = args.windowMs ?? 1500
   const now = args.nowMs ?? Date.now()
 
   if (args.ctrlCArmedUntilMs !== null && now < args.ctrlCArmedUntilMs) {

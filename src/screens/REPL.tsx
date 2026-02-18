@@ -652,6 +652,8 @@ export function REPL({
     return text.startsWith('compacting conversation')
   }, [state.loadingText])
 
+  const showFooterContext = Boolean(contextLine && ctrlCArmedUntilMs === null)
+
   return (
     <PlanProvider planSession={planSession}>
       <ReplUiProvider abort={actions.abort}>
@@ -805,9 +807,11 @@ export function REPL({
               />
               {slashSuggestions.length === 0 && (
                 <Box flexDirection="column">
-                  {contextLine ? <Text dimColor>{contextLine}</Text> : null}
                   {state.isLoading && queuedDuringLoading.length > 0 ? (
-                    <Text dimColor>{'> Press up to edit queued messages'}</Text>
+                    <Box>
+                      <Text dimColor>{'> Press up to edit queued messages'}</Text>
+                      {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
+                    </Box>
                   ) : (
                     <Box>
                       <ReplFooterHint
@@ -815,6 +819,7 @@ export function REPL({
                         ctrlCArmed={ctrlCArmedUntilMs !== null}
                         isBashInput={bashModeActive}
                       />
+                      {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
                     </Box>
                   )}
                 </Box>

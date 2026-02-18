@@ -2,6 +2,25 @@ import { describe, it, expect, vi } from 'vitest'
 import { handleCtrlCKeypress } from './hotkeys.js'
 
 describe('handleCtrlCKeypress', () => {
+  it('uses 1500ms default arm window', () => {
+    const setInput = vi.fn()
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const setCtrlCArmedUntilMs = vi.fn()
+
+    const res = handleCtrlCKeypress({
+      ctrlCArmedUntilMs: null,
+      setCtrlCArmedUntilMs,
+      setInput,
+      setSlashIndex,
+      setSlashSelectionTouched,
+      nowMs: 1000,
+    })
+
+    expect(res).toBe('armed')
+    expect(setCtrlCArmedUntilMs).toHaveBeenCalledWith(2500)
+  })
+
   it('arms exit on first Ctrl+C and clears the prompt', () => {
     const setInput = vi.fn()
     const setSlashIndex = vi.fn()
@@ -80,4 +99,3 @@ describe('handleCtrlCKeypress', () => {
     expect(setCtrlCArmedUntilMs).toHaveBeenCalledWith(6000)
   })
 })
-
