@@ -23,6 +23,7 @@ describe('writeSetupFiles', () => {
         baseUrl: 'https://api.anthropic.com/v1',
         apiKey: 'sk-test',
         model: 'claude-3-5-sonnet-latest',
+        contextWindowTokens: 200000,
         tierModels: {
           haiku: 'claude-3-5-haiku-latest',
           sonnet: 'claude-3-5-sonnet-latest',
@@ -35,6 +36,7 @@ describe('writeSetupFiles', () => {
       expect(config.llm.provider).toBe('anthropic')
       expect(config.llm.baseUrl).toBe('https://api.anthropic.com/v1')
       expect(config.llm.model).toBe('claude-3-5-sonnet-latest')
+      expect(config.llm.contextWindowTokens).toBe(200000)
       expect(config.llm.tierModels).toEqual({
         haiku: 'claude-3-5-haiku-latest',
         sonnet: 'claude-3-5-sonnet-latest',

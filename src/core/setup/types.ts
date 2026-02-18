@@ -11,6 +11,7 @@ export type SetupProviderOption = {
 export type SetupStep =
   | 'welcome'
   | 'provider'
+  | 'anthropicVendor'
   | 'baseUrl'
   | 'apiKey'
   | 'test'
@@ -21,21 +22,25 @@ export type SetupStep =
   | 'done'
 
 export type SetupModelMode = 'quick' | 'advanced'
+export type SetupAnthropicVendor = 'anthropic' | 'glm' | 'kimi' | 'minimax' | 'custom'
 
 export type SetupTierModels = Record<ModelTier, string>
 
 export type SetupDraft = {
   provider: ProviderId | null
+  anthropicVendor: SetupAnthropicVendor | null
   baseUrl: string
   apiKey: string
   modelMode: SetupModelMode
   model: string
   tierModels: SetupTierModels
+  contextWindowTokens?: number
 }
 
 export type ConnectionTestOk = {
   ok: true
   models: string[]
+  modelContextWindows?: Record<string, number>
 }
 
 export type ConnectionTestError = {

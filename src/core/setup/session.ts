@@ -1,6 +1,7 @@
 import type { ModelTier, ProviderId } from '../config/schema.js'
 import type {
   ConnectionTestResult,
+  SetupAnthropicVendor,
   SetupDraft,
   SetupModelMode,
   SetupProviderOption,
@@ -16,6 +17,7 @@ export type SetupSessionState = {
   draft: SetupDraft
   providers: SetupProviderOption[]
   availableModels: string[]
+  modelContextWindows: Record<string, number>
   modelTier: ModelTier | null
   test: { status: 'idle' | 'running' | 'error'; lastError: ConnectionTestResult | null }
   error: string | null
@@ -24,6 +26,7 @@ export type SetupSessionState = {
 export type SetupSession = {
   getState: () => SetupSessionState
   setProvider: (provider: ProviderId) => void
+  setAnthropicVendor: (vendor: SetupAnthropicVendor) => void
   setBaseUrl: (baseUrl: string) => void
   setApiKey: (apiKey: string) => void
   setModelMode: (mode: SetupModelMode) => void
@@ -36,6 +39,12 @@ const DEFAULT_BASE_URL: Record<ProviderId, string> = {
   anthropic: 'https://api.anthropic.com/v1',
   openai: 'https://api.openai.com/v1',
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
+}
+const ANTHROPIC_VENDOR_BASE_URL: Record<Exclude<SetupAnthropicVendor, 'custom'>, string> = {
+  anthropic: 'https://api.anthropic.com/v1',
+  glm: 'https://open.bigmodel.cn/api/anthropic',
+  kimi: 'https://api.moonshot.cn/anthropic',
+  minimax: 'https://api.minimax.io/anthropic',
 }
 
 const ADVANCED_MODEL_TIERS: ModelTier[] = ['haiku', 'sonnet', 'opus']
@@ -51,6 +60,17 @@ function normalizeBaseUrl(_provider: ProviderId, input: string): string {
   return trimmed
 }
 
+function inferContextWindowTokens(model: string): number {
+  const m = String(model || '').trim().toLowerCase()
+  if (!m) return 32768
+  if (m.startsWith('claude-')) return 200000
+  if (m.startsWith('gpt-4o') || m.startsWith('gpt-4.1') || m.startsWith('gpt-4-turbo')) return 128000
+  if (m === 'gpt-4' || m.startsWith('gpt-4-')) return 8192
+  if (m.startsWith('gpt-3.5')) return 16385
+  if (m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) return 128000
+  return 32768
+}
+
 export function createSetupSession(args: {
   providers: SetupProviderOption[]
   testConnection: ConnectionTester
@@ -61,14 +81,17 @@ export function createSetupSession(args: {
     step: 'welcome',
     draft: {
       provider: null,
+      anthropicVendor: null,
       baseUrl: '',
       apiKey: '',
       modelMode: 'quick',
       model: '',
       tierModels: createEmptyTierModels(),
+      contextWindowTokens: undefined,
     },
     providers: args.providers,
     availableModels: [],
+    modelContextWindows: {},
     modelTier: null,
     test: { status: 'idle', lastError: null },
     error: null,
@@ -86,6 +109,7 @@ export function createSetupSession(args: {
 
   const resetTest = () => {
     state.availableModels = []
+    state.modelContextWindows = {}
     state.test = { status: 'idle', lastError: null }
     modelTierIndex = 0
     syncModelTierState()
@@ -95,8 +119,21 @@ export function createSetupSession(args: {
     state.draft.modelMode = 'quick'
     state.draft.model = ''
     state.draft.tierModels = createEmptyTierModels()
+    state.draft.contextWindowTokens = undefined
     modelTierIndex = 0
     syncModelTierState()
+  }
+
+  const updateDraftContextWindow = (model: string) => {
+    const key = String(model || '').trim()
+    if (!key) {
+      state.draft.contextWindowTokens = undefined
+      return
+    }
+    const fromDetection = state.modelContextWindows[key]
+    state.draft.contextWindowTokens = Number.isFinite(fromDetection) && fromDetection > 0
+      ? Math.round(fromDetection)
+      : inferContextWindowTokens(key)
   }
 
   const setError = (message: string | null) => {
@@ -104,11 +141,50 @@ export function createSetupSession(args: {
   }
 
   const setProvider = (provider: ProviderId) => {
+    const prevProvider = state.draft.provider
     state.draft.provider = provider
-    if (!state.draft.baseUrl.trim()) {
-      state.draft.baseUrl = DEFAULT_BASE_URL[provider]
+    if (provider === 'anthropic') {
+      if (!state.draft.anthropicVendor) state.draft.anthropicVendor = 'anthropic'
+      const vendor = state.draft.anthropicVendor
+      const hasExisting = state.draft.baseUrl.trim().length > 0
+      if (prevProvider === 'anthropic' && hasExisting) {
+        state.draft.baseUrl = normalizeBaseUrl(provider, state.draft.baseUrl)
+      } else {
+        state.draft.baseUrl =
+          vendor === 'custom'
+            ? ''
+            : normalizeBaseUrl(provider, ANTHROPIC_VENDOR_BASE_URL[vendor] || DEFAULT_BASE_URL[provider])
+      }
     } else {
-      state.draft.baseUrl = normalizeBaseUrl(provider, state.draft.baseUrl)
+      state.draft.anthropicVendor = null
+      const hasExisting = state.draft.baseUrl.trim().length > 0
+      if (prevProvider === provider && hasExisting) {
+        state.draft.baseUrl = normalizeBaseUrl(provider, state.draft.baseUrl)
+      } else {
+        state.draft.baseUrl = normalizeBaseUrl(provider, DEFAULT_BASE_URL[provider])
+      }
+    }
+    resetModelSelection()
+    resetTest()
+    setError(null)
+  }
+
+  const setAnthropicVendor = (vendor: SetupAnthropicVendor) => {
+    const prevVendor = state.draft.anthropicVendor
+    const hasExisting = state.draft.baseUrl.trim().length > 0
+    state.draft.anthropicVendor = vendor
+    if (vendor === 'custom') {
+      if (prevVendor === 'custom' && hasExisting) {
+        state.draft.baseUrl = normalizeBaseUrl('anthropic', state.draft.baseUrl)
+      } else {
+        state.draft.baseUrl = ''
+      }
+    } else {
+      if (prevVendor === vendor && hasExisting) {
+        state.draft.baseUrl = normalizeBaseUrl('anthropic', state.draft.baseUrl)
+      } else {
+        state.draft.baseUrl = normalizeBaseUrl('anthropic', ANTHROPIC_VENDOR_BASE_URL[vendor])
+      }
     }
     resetModelSelection()
     resetTest()
@@ -158,6 +234,7 @@ export function createSetupSession(args: {
     }
 
     modelTierIndex = 0
+    updateDraftContextWindow(state.draft.model)
     syncModelTierState()
     setError(null)
   }
@@ -167,11 +244,15 @@ export function createSetupSession(args: {
     if (state.draft.modelMode === 'quick') {
       state.draft.model = value
       state.draft.tierModels = { haiku: value, sonnet: value, opus: value }
+      updateDraftContextWindow(state.draft.model)
     } else {
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
       if (tier) {
         state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
-        if (tier === 'sonnet') state.draft.model = value
+        if (tier === 'sonnet') {
+          state.draft.model = value
+          updateDraftContextWindow(state.draft.model)
+        }
       }
     }
     setError(null)
@@ -181,7 +262,8 @@ export function createSetupSession(args: {
     setError(null)
     if (state.step === 'welcome') return
     if (state.step === 'provider') state.step = 'welcome'
-    else if (state.step === 'baseUrl') state.step = 'provider'
+    else if (state.step === 'anthropicVendor') state.step = 'provider'
+    else if (state.step === 'baseUrl') state.step = state.draft.provider === 'anthropic' ? 'anthropicVendor' : 'provider'
     else if (state.step === 'apiKey') state.step = 'baseUrl'
     else if (state.step === 'test') state.step = 'apiKey'
     else if (state.step === 'modelMode') state.step = 'apiKey'
@@ -227,6 +309,7 @@ export function createSetupSession(args: {
     }
     if (res.ok === true) {
       state.availableModels = res.models
+      state.modelContextWindows = { ...(res.modelContextWindows || {}) }
       state.test = { status: 'idle', lastError: null }
       state.step = 'modelMode'
       modelTierIndex = 0
@@ -249,6 +332,19 @@ export function createSetupSession(args: {
 
     if (state.step === 'provider') {
       if (!state.draft.provider) {
+        setError('Select a provider')
+        return
+      }
+      if (state.draft.provider === 'anthropic') {
+        state.step = 'anthropicVendor'
+        return
+      }
+      state.step = 'baseUrl'
+      return
+    }
+
+    if (state.step === 'anthropicVendor') {
+      if (!state.draft.anthropicVendor) {
         setError('Select a provider')
         return
       }
@@ -312,6 +408,7 @@ export function createSetupSession(args: {
       }
 
       state.draft.model = state.draft.tierModels.sonnet.trim()
+      updateDraftContextWindow(state.draft.model)
       state.step = 'confirm'
       syncModelTierState()
       return
@@ -331,6 +428,7 @@ export function createSetupSession(args: {
   return {
     getState: () => structuredClone(state),
     setProvider,
+    setAnthropicVendor,
     setBaseUrl,
     setApiKey,
     setModelMode,

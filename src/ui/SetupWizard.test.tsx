@@ -7,8 +7,6 @@ import { ErrorCode } from '../core/errors/codes.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 
 function tick(): Promise<void> {
-  // In coverage/instrumented runs, Ink can take a little longer to flush frames
-  // and input events. A small delay here reduces flakes without changing behavior.
   return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
@@ -36,8 +34,8 @@ async function waitForCondition(check: () => boolean, label: string, timeoutMs =
 }
 
 const PROVIDERS: SetupProviderOption[] = [
-  { id: 'anthropic', label: 'Anthropic (Claude)' },
-  { id: 'openai', label: 'OpenAI-compatible', disabled: true },
+  { id: 'anthropic', label: 'Anthropic-compatible' },
+  { id: 'openai', label: 'OpenAI-compatible' },
   { id: 'gemini', label: 'Gemini', disabled: true },
 ]
 
@@ -56,18 +54,33 @@ function renderSetupWizard(props?: Partial<React.ComponentProps<typeof SetupWiza
   )
 }
 
+async function goToProvider(lastFrame: () => string | undefined): Promise<void> {
+  await waitForText(lastFrame, 'Select a provider')
+}
+
+async function chooseAnthropicVendorAndGoToBaseUrl(args: {
+  stdin: { write: (data: string) => void }
+  lastFrame: () => string | undefined
+}): Promise<void> {
+  const { stdin, lastFrame } = args
+  stdin.write('\r')
+  await waitForText(lastFrame, 'Select Anthropic-compatible provider')
+  stdin.write('\r')
+  await waitForText(lastFrame, 'Base URL')
+}
+
 describe('SetupWizard', () => {
-  it('renders the welcome step', () => {
+  it('starts on provider selection (welcome is auto-skipped)', async () => {
     const { lastFrame } = renderSetupWizard()
-    expect(lastFrame()).toContain('Formax Setup')
+    await goToProvider(lastFrame)
+    expect(lastFrame()).toContain('Select provider protocol')
   })
 
   it('calls onCancel on Esc', async () => {
     const onCancel = vi.fn()
+    const { stdin, lastFrame } = renderSetupWizard({ onCancel })
 
-    const { stdin } = renderSetupWizard({ onCancel })
-
-    await tick()
+    await goToProvider(lastFrame)
     stdin.write('\u001b')
     await tick()
 
@@ -81,38 +94,23 @@ describe('SetupWizard', () => {
 
     const { lastFrame, stdin } = renderSetupWizard({ onWrite })
 
-    // Attach input listeners.
-    await tick()
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
 
-    // welcome -> provider
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-
-    // provider select anthropic -> baseUrl
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Base URL')
-
-    // baseUrl -> apiKey
     stdin.write('\r')
     await waitForText(lastFrame, 'API Key')
 
-    // apiKey -> test -> model mode
     stdin.write('sk-test')
     await tick()
     stdin.write('\r')
-    await tick()
-    await tick()
     await waitForText(lastFrame, 'Choose model setup mode')
 
-    // model mode -> model
     stdin.write('\r')
     await waitForText(lastFrame, 'Select model for quick mode')
 
-    // model -> confirm
     stdin.write('\r')
     await waitForText(lastFrame, 'Review your settings')
 
-    // confirm -> write (fails)
     stdin.write('\r')
     await tick()
     await tick()
@@ -125,11 +123,9 @@ describe('SetupWizard', () => {
       testConnection: async () => ({ ok: true, models: ['m1', 'm2', 'm3'] }),
     })
 
-    await tick()
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Base URL')
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
+
     stdin.write('\r')
     await waitForText(lastFrame, 'API Key')
 
@@ -138,7 +134,6 @@ describe('SetupWizard', () => {
     stdin.write('\r')
     await waitForText(lastFrame, 'Choose model setup mode')
 
-    // move to advanced and confirm
     stdin.write('\u001B[B')
     await waitForText(lastFrame, '❯ Advanced')
     stdin.write('\r')
@@ -154,6 +149,7 @@ describe('SetupWizard', () => {
     await tick()
     stdin.write('\r')
     await waitForText(lastFrame, 'Review your settings')
+
     const frame = lastFrame() || ''
     expect(frame).toContain('Mode: Advanced')
     expect(frame).toContain('Haiku: m1')
@@ -164,22 +160,18 @@ describe('SetupWizard', () => {
   it('allows moving focus onto disabled provider options', async () => {
     const { lastFrame, stdin } = renderSetupWizard()
 
-    // Attach input listeners.
-    await tick()
+    await goToProvider(lastFrame)
 
-    // welcome -> provider
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-
-    // Move focus down to the disabled OpenAI option.
     stdin.write('\u001B[B')
     await waitForText(lastFrame, '❯ OpenAI-compatible')
 
-    const frame = lastFrame() || ''
-    expect(frame).toContain('❯ OpenAI-compatible')
-    expect(frame).not.toContain('❯ Anthropic (Claude)')
+    stdin.write('\u001B[B')
+    await waitForText(lastFrame, '❯ Gemini')
 
-    // Hitting enter on a disabled option should not advance.
+    const frame = lastFrame() || ''
+    expect(frame).toContain('❯ Gemini')
+    expect(frame).not.toContain('❯ Anthropic-compatible')
+
     stdin.write('\r')
     await tick()
     await waitForText(lastFrame, 'Select a provider')
@@ -189,17 +181,9 @@ describe('SetupWizard', () => {
   it('supports cursor movement and insertion in Base URL input', async () => {
     const { lastFrame, stdin } = renderSetupWizard()
 
-    await tick()
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
 
-    // welcome -> provider
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-
-    // provider select anthropic -> baseUrl
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Base URL')
-
-    // Type: abcde, move cursor left twice, insert X -> abcXde
     stdin.write('abcde')
     await tick()
     stdin.write('\u001B[D')
@@ -215,17 +199,9 @@ describe('SetupWizard', () => {
   it('supports cursor movement in masked API Key input', async () => {
     const { lastFrame, stdin } = renderSetupWizard()
 
-    await tick()
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
 
-    // welcome -> provider
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-
-    // provider select anthropic -> baseUrl
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Base URL')
-
-    // baseUrl -> apiKey
     stdin.write('\r')
     await waitForText(lastFrame, 'API Key')
 
@@ -236,11 +212,9 @@ describe('SetupWizard', () => {
     await waitForText(lastFrame, '•')
     expect(countBullets()).toBeGreaterThan(0)
 
-    // Move cursor left in the input to ensure key events are handled (even though display is masked).
     stdin.write('\u001B[D')
     await tick()
 
-    // The raw key should not be shown.
     expect(lastFrame()).not.toContain('sk-test')
 
     const before = countBullets()
@@ -249,6 +223,76 @@ describe('SetupWizard', () => {
       () => countBullets() === before - 1,
       'masked API key bullet count decremented after backspace',
     )
+  })
+
+  it('supports anthropic vendor presets and custom placeholder', async () => {
+    const first = renderSetupWizard()
+    await goToProvider(first.lastFrame)
+    first.stdin.write('\r')
+    await waitForText(first.lastFrame, 'Select Anthropic-compatible provider')
+    first.stdin.write('\u001B[B')
+    await waitForText(first.lastFrame, '❯ GLM')
+    first.stdin.write('\r')
+    await waitForText(first.lastFrame, 'https://open.bigmodel.cn/api/anthropic')
+    first.unmount()
+
+    const second = renderSetupWizard()
+    await goToProvider(second.lastFrame)
+    second.stdin.write('\r')
+    await waitForText(second.lastFrame, 'Select Anthropic-compatible provider')
+    second.stdin.write('\u001B[B')
+    second.stdin.write('\u001B[B')
+    second.stdin.write('\u001B[B')
+    second.stdin.write('\u001B[B')
+    await waitForText(second.lastFrame, '❯ Custom')
+    second.stdin.write('\r')
+    await waitForText(second.lastFrame, 'https://your-provider.example.com/anthropic')
+  })
+
+  it('does not show anthropic vendor step for openai provider', async () => {
+    const { lastFrame, stdin } = renderSetupWizard()
+
+    await goToProvider(lastFrame)
+    stdin.write('\u001B[B')
+    await waitForText(lastFrame, '❯ OpenAI-compatible')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Base URL')
+    await waitForText(lastFrame, 'https://api.openai.com/v1')
+
+    const frame = lastFrame() || ''
+    expect(frame).not.toContain('Select Anthropic-compatible provider')
+  })
+
+  it('uses a 20-row scrolling window for long model lists', async () => {
+    const models = Array.from({ length: 25 }, (_, i) => `m${i + 1}`)
+    const { lastFrame, stdin } = renderSetupWizard({
+      testConnection: async () => ({ ok: true, models }),
+    })
+
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
+
+    stdin.write('\r')
+    await waitForText(lastFrame, 'API Key')
+    stdin.write('sk-test')
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Choose model setup mode')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select model for quick mode')
+
+    await waitForText(lastFrame, '1. m1')
+    await waitForText(lastFrame, '20. m20')
+
+    for (let i = 0; i < 20; i++) {
+      stdin.write('\u001B[B')
+      await tick()
+    }
+
+    await waitForText(lastFrame, '21. m21')
+    const frame = lastFrame() || ''
+    expect(frame).not.toMatch(/\n\s*1\. m1/)
+    expect(frame).toContain('↑')
   })
 
   it.each([
@@ -261,22 +305,12 @@ describe('SetupWizard', () => {
       testConnection: async () => ({ ok: false, code, message: 'boom' }),
     })
 
-    // Attach input listeners.
-    await tick()
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
 
-    // welcome -> provider
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Select a provider')
-
-    // provider select anthropic -> baseUrl
-    stdin.write('\r')
-    await waitForText(lastFrame, 'Base URL')
-
-    // baseUrl -> apiKey
     stdin.write('\r')
     await waitForText(lastFrame, 'API Key')
 
-    // apiKey -> test (fails)
     stdin.write('sk-test')
     await tick()
     stdin.write('\r')

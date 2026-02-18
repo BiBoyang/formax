@@ -72,6 +72,7 @@ export async function writeSetupFiles(args: {
   apiKey: string
   model: string
   tierModels?: TierModelMapping
+  contextWindowTokens?: number
   authRef?: string
 }): Promise<WriteSetupFilesResult> {
   const cwd = args.cwd ?? process.cwd()
@@ -98,6 +99,9 @@ export async function writeSetupFiles(args: {
       baseUrl: args.baseUrl,
       model: resolvedModel,
       ...(tierModels ? { tierModels } : {}),
+      ...(Number.isFinite(args.contextWindowTokens) && (args.contextWindowTokens || 0) > 0
+        ? { contextWindowTokens: Math.round(args.contextWindowTokens as number) }
+        : {}),
       authRef,
     },
     paths: { logsDir },

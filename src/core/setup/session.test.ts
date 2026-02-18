@@ -11,6 +11,11 @@ const PROVIDERS: SetupProviderOption[] = [
 ]
 
 const ok = (models: string[]): ConnectionTestResult => ({ ok: true, models })
+const okWithContext = (models: string[], modelContextWindows: Record<string, number>): ConnectionTestResult => ({
+  ok: true,
+  models,
+  modelContextWindows,
+})
 const err = (code: ErrorCodeValue, message: string): ConnectionTestResult => ({ ok: false, code, message })
 
 describe('createSetupSession', () => {
@@ -41,6 +46,8 @@ describe('createSetupSession', () => {
     expect(s.getState().step).toBe('provider')
 
     s.setProvider('anthropic')
+    await s.next()
+    expect(s.getState().step).toBe('anthropicVendor')
     await s.next()
     expect(s.getState().step).toBe('baseUrl')
 
@@ -90,6 +97,7 @@ describe('createSetupSession', () => {
     s.setProvider('anthropic')
     await s.next()
     await s.next()
+    await s.next()
     s.setApiKey('sk-test')
     await s.next()
 
@@ -111,6 +119,7 @@ describe('createSetupSession', () => {
 
     await s.next()
     s.setProvider('anthropic')
+    await s.next()
     await s.next()
     await s.next()
     s.setApiKey('sk-test')
@@ -141,6 +150,7 @@ describe('createSetupSession', () => {
     s.setProvider('anthropic')
     await s.next()
     await s.next()
+    await s.next()
     s.setApiKey('sk-test')
     await s.next()
 
@@ -166,9 +176,16 @@ describe('createSetupSession', () => {
     await s.next()
     s.setProvider('anthropic')
     await s.next()
-    expect(s.getState().step).toBe('baseUrl')
+    expect(s.getState().step).toBe('anthropicVendor')
     s.back()
     expect(s.getState().step).toBe('provider')
+
+    await s.next()
+    expect(s.getState().step).toBe('anthropicVendor')
+    await s.next()
+    expect(s.getState().step).toBe('baseUrl')
+    s.back()
+    expect(s.getState().step).toBe('anthropicVendor')
 
     await s.next()
     expect(s.getState().step).toBe('baseUrl')
@@ -194,6 +211,7 @@ describe('createSetupSession', () => {
 
     await s.next()
     s.setProvider('anthropic')
+    await s.next()
     await s.next()
     await s.next()
     s.setApiKey('sk-test')
@@ -230,6 +248,7 @@ describe('createSetupSession', () => {
     s.setProvider('anthropic')
     await s.next()
     await s.next()
+    await s.next()
     s.setApiKey('sk-test')
     await s.next()
     expect(s.getState().step).toBe('modelMode')
@@ -242,5 +261,88 @@ describe('createSetupSession', () => {
     const draft = s.getState().draft
     expect(draft.tierModels).toEqual({ haiku: 'm1', sonnet: 'm1', opus: 'm1' })
     expect(draft.model).toBe('m1')
+    expect(draft.contextWindowTokens).toBe(32768)
+  })
+
+  it('maps anthropic vendor presets to baseUrl and supports custom empty URL', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    expect(s.getState().draft.anthropicVendor).toBe('anthropic')
+    expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com/v1')
+
+    s.setAnthropicVendor('glm')
+    expect(s.getState().draft.baseUrl).toBe('https://open.bigmodel.cn/api/anthropic')
+
+    s.setAnthropicVendor('kimi')
+    expect(s.getState().draft.baseUrl).toBe('https://api.moonshot.cn/anthropic')
+
+    s.setAnthropicVendor('minimax')
+    expect(s.getState().draft.baseUrl).toBe('https://api.minimax.io/anthropic')
+
+    s.setAnthropicVendor('custom')
+    expect(s.getState().draft.baseUrl).toBe('')
+  })
+
+  it('preserves custom anthropic baseUrl when reselecting custom vendor', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    s.setAnthropicVendor('custom')
+    s.setBaseUrl('https://proxy.example.com/anthropic')
+    s.setAnthropicVendor('custom')
+    expect(s.getState().draft.baseUrl).toBe('https://proxy.example.com/anthropic')
+  })
+
+  it('goes directly to baseUrl for openai provider', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    s.back()
+    s.back()
+    s.setProvider('openai')
+    await s.next()
+    expect(s.getState().step).toBe('baseUrl')
+    expect(s.getState().draft.anthropicVendor).toBeNull()
+    expect(s.getState().draft.baseUrl).toBe('https://api.openai.com/v1')
+  })
+
+  it('preserves custom baseUrl when reselecting the same provider', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('openai')
+    s.setBaseUrl('https://proxy.local/v1')
+    s.setProvider('openai')
+    expect(s.getState().draft.baseUrl).toBe('https://proxy.local/v1')
+  })
+
+  it('tracks context window tokens from detected model metadata', async () => {
+    const testConnection = vi.fn(async () => okWithContext(['m1', 'm2'], { m1: 8000, m2: 64000 }))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    await s.next()
+
+    s.setModel('m2')
+    expect(s.getState().draft.contextWindowTokens).toBe(64000)
+
+    s.setModel('m1')
+    expect(s.getState().draft.contextWindowTokens).toBe(8000)
   })
 })

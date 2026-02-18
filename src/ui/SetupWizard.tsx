@@ -8,7 +8,7 @@ import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeC
 import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
 import { getConnectionTestHint } from '../core/setup/hints.js'
-import type { SetupDraft, SetupProviderOption } from '../core/setup/types.js'
+import type { SetupAnthropicVendor, SetupDraft, SetupProviderOption } from '../core/setup/types.js'
 import type { ModelTier, ProviderId } from '../core/config/schema.js'
 import type { ErrorCode as ErrorCodeValue } from '../core/errors/codes.js'
 
@@ -17,6 +17,19 @@ type ChoiceOption = {
   description?: string
   value: string
   disabled?: boolean
+}
+
+function resolveBaseUrlPlaceholder(args: { provider: ProviderId | null; anthropicVendor: SetupAnthropicVendor | null }): string {
+  if (args.provider === 'anthropic') {
+    if (args.anthropicVendor === 'custom') return 'https://your-provider.example.com/anthropic'
+    if (args.anthropicVendor === 'glm') return 'https://open.bigmodel.cn/api/anthropic'
+    if (args.anthropicVendor === 'kimi') return 'https://api.moonshot.cn/anthropic'
+    if (args.anthropicVendor === 'minimax') return 'https://api.minimax.io/anthropic'
+    return 'https://api.anthropic.com/v1'
+  }
+  if (args.provider === 'openai') return 'https://api.openai.com/v1'
+  if (args.provider === 'gemini') return 'https://generativelanguage.googleapis.com/v1beta'
+  return 'https://api.anthropic.com/v1'
 }
 
 function firstEnabledIndex(options: ChoiceOption[]): number {
@@ -29,14 +42,26 @@ function nextIndex(options: ChoiceOption[], from: number, dir: 1 | -1): number {
   return (from + dir + options.length) % options.length
 }
 
+function computeWindowTop(cursor: number, total: number, maxVisible: number): number {
+  if (total <= maxVisible) return 0
+  const maxTop = Math.max(0, total - maxVisible)
+  let top = 0
+  if (cursor > maxVisible - 1) top = cursor - (maxVisible - 1)
+  if (cursor < top) top = cursor
+  if (cursor > top + maxVisible - 1) top = cursor - (maxVisible - 1)
+  return Math.max(0, Math.min(top, maxTop))
+}
+
 function ChoiceListView({
   options,
   focusedIndex,
   selectedValue,
+  maxVisibleRows,
 }: {
   options: ChoiceOption[]
   focusedIndex: number
   selectedValue?: string
+  maxVisibleRows?: number
 }): React.ReactNode {
   const theme = getTheme()
 
@@ -48,6 +73,34 @@ function ChoiceListView({
   })
 
   const cursor = Math.max(0, Math.min(focusedIndex, Math.max(0, items.length - 1)))
+  const maxVisible = Math.max(1, maxVisibleRows ?? items.length)
+  const top = computeWindowTop(cursor, items.length, maxVisible)
+  const visible = items.slice(top, top + maxVisible)
+  const hasMoreAbove = top > 0
+  const hasMoreBelow = top + maxVisible < items.length
+
+  if (maxVisibleRows) {
+    const numberWidth = String(top + visible.length).length
+    return (
+      <Box flexDirection="column">
+        {visible.map((item, i) => {
+          const absIndex = top + i
+          const active = absIndex === cursor
+          const prefix = active ? '❯ ' : i === 0 && hasMoreAbove ? '↑ ' : i === visible.length - 1 && hasMoreBelow ? '↓ ' : '  '
+          const number = `${String(absIndex + 1).padStart(numberWidth, ' ')}. `
+          const color = item.disabled ? theme.secondaryText : active ? theme.permission : theme.text
+          return (
+            <Text key={item.key} color={color}>
+              {prefix}
+              <Text color={theme.secondaryText}>{number}</Text>
+              {item.label}
+              {item.right ? <Text color={theme.secondaryText}>{`  ${item.right}`}</Text> : null}
+            </Text>
+          )
+        })}
+      </Box>
+    )
+  }
 
   return (
     <SelectList
@@ -91,6 +144,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
 
   const [sessionState, setSessionState] = useState(() => session.getState())
   const [providerFocus, setProviderFocus] = useState(0)
+  const [anthropicVendorFocus, setAnthropicVendorFocus] = useState(0)
   const [modelModeFocus, setModelModeFocus] = useState(0)
   const [modelFocus, setModelFocus] = useState(0)
   const [confirmFocus, setConfirmFocus] = useState(0)
@@ -114,6 +168,16 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   }, [refresh, session])
 
   const providerOptions = useMemo(() => toProviderOptions(providers), [providers])
+  const anthropicVendorOptions = useMemo<ChoiceOption[]>(
+    () => [
+      { value: 'anthropic', label: 'Anthropic', description: 'Official Anthropic endpoint' },
+      { value: 'glm', label: 'GLM', description: 'Zhipu GLM Anthropic-compatible endpoint' },
+      { value: 'kimi', label: 'Kimi', description: 'Moonshot Kimi Anthropic-compatible endpoint' },
+      { value: 'minimax', label: 'MiniMax', description: 'MiniMax Anthropic-compatible endpoint' },
+      { value: 'custom', label: 'Custom', description: 'Provide your own Anthropic-compatible base URL' },
+    ],
+    [],
+  )
   const modelModeOptions = useMemo<ChoiceOption[]>(
     () => [
       {
@@ -154,6 +218,18 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     })
   }, [modelModeOptions])
 
+  useEffect(() => {
+    setAnthropicVendorFocus((prev) => {
+      const next = firstEnabledIndex(anthropicVendorOptions)
+      return Number.isFinite(prev) && prev >= 0 && prev < anthropicVendorOptions.length ? prev : next
+    })
+  }, [anthropicVendorOptions])
+
+  useEffect(() => {
+    if (sessionState.step !== 'welcome') return
+    void runNext()
+  }, [runNext, sessionState.step])
+
   const onProviderSelect = useCallback(
     (value: string) => {
       session.setProvider(value as ProviderId)
@@ -175,6 +251,15 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const onModelModeSelect = useCallback(
     (value: string) => {
       session.setModelMode(value === 'advanced' ? 'advanced' : 'quick')
+      refresh()
+      void runNext()
+    },
+    [refresh, runNext, session],
+  )
+
+  const onAnthropicVendorSelect = useCallback(
+    (value: string) => {
+      session.setAnthropicVendor(value as SetupAnthropicVendor)
       refresh()
       void runNext()
     },
@@ -256,6 +341,35 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     [goBack, modelFocus, modelOptions, onModelSelect],
   )
 
+  const handleAnthropicVendorInput = useCallback(
+    (input: string, key: any) => {
+      if (anthropicVendorOptions.length === 0) return
+      if (key.tab && key.shift) {
+        goBack()
+        return
+      }
+      if (key.downArrow) {
+        setAnthropicVendorFocus((idx) => nextIndex(anthropicVendorOptions, idx, 1))
+        return
+      }
+      if (key.upArrow) {
+        setAnthropicVendorFocus((idx) => nextIndex(anthropicVendorOptions, idx, -1))
+        return
+      }
+      if (input && /^[1-9]$/.test(input)) {
+        const idx = Number.parseInt(input, 10) - 1
+        if (idx >= 0 && idx < anthropicVendorOptions.length) setAnthropicVendorFocus(idx)
+        return
+      }
+      if (key.return) {
+        const opt = anthropicVendorOptions[anthropicVendorFocus]
+        if (!opt || opt.disabled) return
+        onAnthropicVendorSelect(opt.value)
+      }
+    },
+    [anthropicVendorFocus, anthropicVendorOptions, goBack, onAnthropicVendorSelect],
+  )
+
   const handleModelModeInput = useCallback(
     (input: string, key: any) => {
       if (modelModeOptions.length === 0) return
@@ -310,10 +424,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     [goBack, runNext, sessionState.test.status],
   )
 
-  const handleWelcomeInput = useCallback(() => {
-    void runNext()
-  }, [runNext])
-
   const handleBaseUrlInput = useCallback(
     (_input: string, key: any) => {
       if (key.tab && key.shift) goBack()
@@ -337,12 +447,16 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       }
 
       if (step === 'welcome') {
-        if (key.return) handleWelcomeInput()
         return
       }
 
       if (step === 'provider') {
         handleProviderInput(input, key)
+        return
+      }
+
+      if (step === 'anthropicVendor') {
+        handleAnthropicVendorInput(input, key)
         return
       }
 
@@ -395,9 +509,17 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
           selectedValue={draft.provider || undefined}
           error={sessionState.error}
         />
+      ) : step === 'anthropicVendor' ? (
+        <AnthropicVendorStep
+          options={anthropicVendorOptions}
+          focusedIndex={anthropicVendorFocus}
+          selectedValue={draft.anthropicVendor || undefined}
+          error={sessionState.error}
+        />
       ) : step === 'baseUrl' ? (
         <BaseUrlStep
           value={draft.baseUrl}
+          placeholder={resolveBaseUrlPlaceholder({ provider: draft.provider, anthropicVendor: draft.anthropicVendor })}
           error={sessionState.error}
           onBack={goBack}
           onChange={(v) => {
@@ -508,7 +630,15 @@ function ProviderStep({
   const theme = getTheme()
   return (
     <Box flexDirection="column" paddingTop={1}>
-      <Text bold>Select a provider</Text>
+      <Box marginTop={1}>
+        <Text bold>Select provider protocol</Text>
+      </Box>
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>Nothing is sent until connection test runs.</Text>
+      </Box>
+      <Box marginTop={1}>
+        <Text bold>Select a provider</Text>
+      </Box>
       <Box marginTop={1}>
         <ChoiceListView options={options} focusedIndex={focusedIndex} selectedValue={selectedValue} />
       </Box>
@@ -524,14 +654,46 @@ function ProviderStep({
   )
 }
 
+function AnthropicVendorStep({
+  options,
+  focusedIndex,
+  selectedValue,
+  error,
+}: {
+  options: ChoiceOption[]
+  focusedIndex: number
+  selectedValue?: string
+  error: string | null
+}): React.ReactNode {
+  const theme = getTheme()
+  return (
+    <Box flexDirection="column" paddingTop={1}>
+      <Text bold>Select Anthropic-compatible provider</Text>
+      <Box marginTop={1}>
+        <ChoiceListView options={options} focusedIndex={focusedIndex} selectedValue={selectedValue} />
+      </Box>
+      {error ? (
+        <Box marginTop={1}>
+          <Text color={theme.error}>Error: {error}</Text>
+        </Box>
+      ) : null}
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Shift+Tab to go back · Esc to cancel</Text>
+      </Box>
+    </Box>
+  )
+}
+
 function BaseUrlStep({
   value,
+  placeholder,
   error,
   onBack,
   onChange,
   onSubmit,
 }: {
   value: string
+  placeholder: string
   error: string | null
   onBack: () => void
   onChange: (v: string) => void
@@ -550,7 +712,7 @@ function BaseUrlStep({
           value={value}
           onChange={onChange}
           onSubmit={onSubmit}
-          placeholder="https://api.anthropic.com/v1"
+          placeholder={placeholder}
           focus
           scope="wizard:setup"
         />
@@ -746,7 +908,12 @@ function ModelStep({
       ) : null}
       <Box marginTop={1}>
         {options.length ? (
-          <ChoiceListView options={options} focusedIndex={Math.min(focusedIndex, options.length - 1)} selectedValue={selectedValue} />
+          <ChoiceListView
+            options={options}
+            focusedIndex={Math.min(focusedIndex, options.length - 1)}
+            selectedValue={selectedValue}
+            maxVisibleRows={20}
+          />
         ) : (
           <Text color={theme.secondaryText}>No models found.</Text>
         )}
