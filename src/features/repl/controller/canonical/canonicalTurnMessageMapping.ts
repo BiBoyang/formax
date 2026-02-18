@@ -77,17 +77,17 @@ export function canonicalTurnSegmentsToMessages(args: {
 
       const openAssistantSegmentId = args.openAssistantSegmentId ?? null
 
-      if (allowAssistantStreaming) {
-        const isOpen = Boolean(openAssistantSegmentId && segment.id === openAssistantSegmentId)
-        return {
-          id: `canonical:${segment.id}`,
-          role: 'assistant' as const,
-          content: segment.text,
-          timestamp: new Date(0),
-          surfaceOwner: (isOpen ? 'transient' : 'static') as const,
-          ...(isOpen ? { isStreaming: true } : {}),
-        }
-      }
+	      if (allowAssistantStreaming) {
+	        const isOpen = Boolean(openAssistantSegmentId && segment.id === openAssistantSegmentId)
+	        return {
+	          id: `canonical:${segment.id}`,
+	          role: 'assistant' as const,
+	          content: segment.text,
+	          timestamp: new Date(0),
+	          surfaceOwner: isOpen ? 'transient' : 'static',
+	          ...(isOpen ? { isStreaming: true } : {}),
+	        }
+	      }
 
       if (openAssistantSegmentId && segment.id === openAssistantSegmentId) return null
       const assistantSurfaceOwner = 'static' as const
@@ -126,7 +126,7 @@ export function canonicalTurnSegmentsToMessages(args: {
     const toolMessageId = `canonical:${args.turnId}:tool:${segment.toolUseId}`
     const isRunningTool = segment.status === 'running'
     const toolSurfaceOwner =
-      args.transientOnly && !isRunningTool ? ('static' as const) : (args.transientOnly ? 'transient' : 'static') as const
+      args.transientOnly && isRunningTool ? ('transient' as const) : ('static' as const)
     const input = segment.input ?? parseToolInputFromParamsText(segment.paramsText)
     const rawResult = segment.result
     const isError = segment.status === 'error'

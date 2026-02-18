@@ -11,6 +11,7 @@ import type { ChatEngine } from '../../chat/engine'
 import type { RuntimeConfig } from '../../env/config'
 import type { ToolDefinition } from '../../tools/types'
 import type { StreamEvent } from '../../streaming/types'
+import type { Msg } from '../../components/tool/ToolMessage'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { PromptBlock } from '../../prompts'
 import { readSessionFile } from './sessionSave/reader'
@@ -593,6 +594,61 @@ describe('useReplController', () => {
     expect(settledToolIndex).toBeGreaterThanOrEqual(0)
     expect(settledAssistantIndex).toBeGreaterThanOrEqual(0)
     expect(settledToolIndex).toBeLessThan(settledAssistantIndex)
+  })
+
+	  it('keeps assistant/tool order stable across multiple tool calls within one turn (buffered mode)', async () => {
+	    const engine: ChatEngine = {
+	      async runTurn({ history, onEvent, user }) {
+	        onEvent({ type: 'assistant_delta', text: 'Step 1.' } as StreamEvent)
+	        onEvent({ type: 'tool_start', id: 't1', name: 'Bash' } as StreamEvent)
+	        onEvent({ type: 'tool_input', id: 't1', input: { command: 'pwd' } } as StreamEvent)
+	        onEvent({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: '/repo', is_error: false } } as StreamEvent)
+	        onEvent({ type: 'assistant_delta', text: 'Step 2.' } as StreamEvent)
+	        onEvent({ type: 'tool_start', id: 't2', name: 'Bash' } as StreamEvent)
+	        onEvent({ type: 'tool_input', id: 't2', input: { command: 'ls' } } as StreamEvent)
+	        onEvent({ type: 'tool_end', id: 't2', result: { tool_use_id: 't2', content: 'ok', is_error: false } } as StreamEvent)
+	        onEvent({ type: 'assistant_delta', text: 'Done.' } as StreamEvent)
+	        onEvent({ type: 'complete' } as StreamEvent)
+	        return [...history, user]
+	      },
+	    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+	    await controller.actions.send('multi tool')
+	    await waitFor(() => controller.state.isLoading === false)
+
+	    await waitFor(() => {
+	      const visible = visibleMessages(controller)
+	      const assistant1Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Step 1.')
+	      const tool1Index = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
+	      const assistant2Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Step 2.')
+	      const tool2Index = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't2')
+	      const assistant3Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Done.')
+	      return assistant1Index >= 0 && tool1Index >= 0 && assistant2Index >= 0 && tool2Index >= 0 && assistant3Index >= 0
+	    })
+
+	    const visible = visibleMessages(controller)
+	    assertNoDuplicateCanonicalToolRows(visible)
+
+	    const assistant1Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Step 1.')
+	    const tool1Index = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')
+	    const assistant2Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Step 2.')
+	    const tool2Index = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't2')
+	    const assistant3Index = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === 'Done.')
+
+	    expect(assistant1Index).toBeGreaterThanOrEqual(0)
+	    expect(tool1Index).toBeGreaterThanOrEqual(0)
+	    expect(assistant2Index).toBeGreaterThanOrEqual(0)
+	    expect(tool2Index).toBeGreaterThanOrEqual(0)
+	    expect(assistant3Index).toBeGreaterThanOrEqual(0)
+
+    expect(assistant1Index).toBeLessThan(tool1Index)
+    expect(tool1Index).toBeLessThan(assistant2Index)
+    expect(assistant2Index).toBeLessThan(tool2Index)
+    expect(tool2Index).toBeLessThan(assistant3Index)
   })
 
   it('keeps single tool rows and assistant output in mixed slash+bash+llm flows', async () => {
@@ -1304,8 +1360,8 @@ describe('useReplController', () => {
   })
 })
 
-	describe('useReplController tool lifecycle', () => {
-	  it('updates a tool message via tool_input/tool_update and completes it on tool_end', async () => {
+		describe('useReplController tool lifecycle', () => {
+		  it('updates a tool message via tool_input/tool_update and completes it on tool_end', async () => {
     let releaseEnd!: () => void
     const endGate = new Promise<void>((resolve) => {
       releaseEnd = resolve
@@ -1356,8 +1412,50 @@ describe('useReplController', () => {
 	    expect(msg?.content).toBeTruthy()
 	    expect((msg?.timestamp?.getTime?.() ?? 0) > 0).toBe(true)
     expect(controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(false)
-    expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
-  })
+	    expect(controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't1')).toBe(true)
+	  })
+
+		  it('forces a transcript surface reset when a canonical static tool row is corrected after completion', async () => {
+	    let releaseCorrection!: () => void
+	    const correctionGate = new Promise<void>((resolve) => {
+	      releaseCorrection = resolve
+	    })
+
+	    const engine: ChatEngine = {
+	      async runTurn({ history, onEvent, user }) {
+	        onEvent({ type: 'tool_start', id: 't-correct', name: 'Bash' } as StreamEvent)
+	        onEvent({ type: 'tool_update', id: 't-correct', middleLines: ['initial'] } as StreamEvent)
+	        onEvent({
+	          type: 'tool_end',
+	          id: 't-correct',
+	          result: { tool_use_id: 't-correct', content: 'ok', is_error: false },
+	        } as StreamEvent)
+	        await correctionGate
+	        onEvent({ type: 'tool_update', id: 't-correct', middleLines: ['corrected'] } as StreamEvent)
+	        onEvent({ type: 'complete' } as StreamEvent)
+	        return [...history, user]
+	      },
+	    }
+
+	    let controller!: ReturnType<typeof useReplController>
+	    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+	    await waitFor(() => Boolean(controller))
+
+	    const beforeSeq = controller.state.transcriptSeq
+	    const sendPromise = controller.actions.send('correct tool')
+	    await waitFor(() =>
+	      controller.state.staticMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-correct' && m.toolInfo?.status === 'completed'),
+	    )
+
+	    releaseCorrection()
+	    await sendPromise
+
+		    await waitFor(() => {
+		      const msg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-correct')
+		      return Array.isArray(msg?.toolInfo?.middleLines) && msg?.toolInfo?.middleLines?.[0] === 'corrected'
+		    })
+		    await waitFor(() => controller.state.transcriptSeq > beforeSeq)
+		  })
 
   it('formats Task completion as Done(...tool uses · tokens · duration)', async () => {
     let releaseEnd!: () => void
@@ -2630,14 +2728,17 @@ describe('useReplController abort', () => {
 	      return toolMsg?.toolInfo?.status === 'error'
 	    })
 
-	    const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
-	    expect(toolMsg?.toolInfo?.status).toBe('error')
-	    expect(toolMsg?.content).toContain('Request aborted')
+		    const toolMsg = controller.state.messages.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-ask')
+		    expect(toolMsg?.toolInfo?.status).toBe('error')
+		    expect(toolMsg?.content).toContain('Request aborted')
 
-    const declined = controller.state.messages.filter(
-      (m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content),
-    )
-    expect(declined).toHaveLength(1)
+	    await waitFor(() =>
+	      controller.state.messages.some((m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content)),
+	    )
+	    const declined = controller.state.messages.filter(
+	      (m) => m.role === 'assistant' && /declined to answer questions/i.test(m.content),
+	    )
+	    expect(declined).toHaveLength(1)
 
     const assistantErrors = controller.state.messages.filter(
       (m) => m.role === 'assistant' && /^Error:\s*/.test(m.content),

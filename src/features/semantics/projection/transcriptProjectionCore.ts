@@ -44,6 +44,7 @@ export function prepareProjectionReduction(args: {
   }
 
   const turnAlreadyTerminal =
+    !(event.kind === 'system_message' && event.source === 'ui') &&
     event.kind !== 'turn_footer' &&
     state.segments.some((segment) => segment.kind === 'turn_footer' && segment.turnId === event.turnId)
   if (turnAlreadyTerminal) {

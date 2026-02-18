@@ -16,6 +16,10 @@ type TranscriptMessageRowProps = {
 const STATIC_HEADER_ITEM = { kind: 'header' } as const
 type StaticTranscriptItem = typeof STATIC_HEADER_ITEM | Msg
 
+function isHeaderItem(item: StaticTranscriptItem): item is typeof STATIC_HEADER_ITEM {
+  return (item as typeof STATIC_HEADER_ITEM).kind === 'header'
+}
+
 const TranscriptMessageRow = React.memo(
   function TranscriptMessageRow({ message, renderMessage }: TranscriptMessageRowProps) {
     return <Box>{renderMessage(message)}</Box>
@@ -75,7 +79,7 @@ export function ReplTranscript(props: {
       {/* Ink <Static> is append-only; we remount it via transcriptSeq when we need a fresh render surface. */}
       <Static key={transcriptSeq} items={staticItems}>
         {(item) => {
-          if (item === STATIC_HEADER_ITEM) {
+          if (isHeaderItem(item)) {
             return (
               <Box key="header">
                 <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
@@ -130,19 +134,19 @@ export function ExpandedReplTranscript(props: {
 
   return (
     <>
-      <Static key={transcriptSeq} items={staticItems}>
-        {(item) => {
-          if (item === STATIC_HEADER_ITEM) {
-            return (
-              <Box key="header">
-                <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
-              </Box>
-            )
-          }
+    <Static key={transcriptSeq} items={staticItems}>
+      {(item) => {
+        if (isHeaderItem(item)) {
+          return (
+            <Box key="header">
+              <HeaderBanner version={version} modelLabel={modelLabel} cwd={cwd} />
+            </Box>
+          )
+        }
 
-          return <TranscriptMessageRow key={item.id} message={item} renderMessage={renderMessage} />
-        }}
-      </Static>
+        return <TranscriptMessageRow key={item.id} message={item} renderMessage={renderMessage} />
+      }}
+    </Static>
     </>
   )
 }

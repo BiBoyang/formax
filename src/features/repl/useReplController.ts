@@ -26,6 +26,7 @@ import {
   assertReplCanonicalInvariants,
   appendCanonicalTailFinalRows,
   emitCanonicalUiMessageForTurn,
+  emitCanonicalTurnFooterForTurn,
   projectCanonicalEventToTransientMessages,
 } from './controller/canonical/canonical'
 import { resolveTurnProvider } from './controller/shared/shared'
@@ -68,20 +69,50 @@ import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '"[unserializable]"'
+  }
+}
+
+function areToolInfosEqual(a: Msg['toolInfo'] | undefined, b: Msg['toolInfo'] | undefined): boolean {
+  if (!a || !b) return false
+  if (a.name !== b.name) return false
+  if (a.toolUseId !== b.toolUseId) return false
+  if (a.status !== b.status) return false
+  if (a.result !== b.result) return false
+
+  if (safeJson(a.input) !== safeJson(b.input)) return false
+  if (safeJson(a.middleLines) !== safeJson(b.middleLines)) return false
+  if (safeJson(a.transcriptLines) !== safeJson(b.transcriptLines)) return false
+  if (safeJson(a.nestedTools) !== safeJson(b.nestedTools)) return false
+  if (a.toolUses !== b.toolUses) return false
+  if (safeJson(a.usage) !== safeJson(b.usage)) return false
+  if (a.durationMs !== b.durationMs) return false
+  if (a.patchStartLineNumber !== b.patchStartLineNumber) return false
+  if (safeJson(a.expandInfo) !== safeJson(b.expandInfo)) return false
+  return true
+}
+
 function shouldKeepExistingStaticRow(existing: Msg | undefined, incoming: Msg): boolean {
   if (!existing) return false
   if (existing.surfaceOwner !== 'static' || incoming.surfaceOwner !== 'static') return false
   if (existing.id !== incoming.id) return false
 
-  if (existing.role === 'tool' && incoming.role === 'tool') {
-    const existingStatus = existing.toolInfo?.status
-    if (existingStatus === 'completed' || existingStatus === 'error') return true
-    return false
-  }
-
   if (existing.role === incoming.role) {
     const existingUiKind = existing.ui?.kind ?? null
     const incomingUiKind = incoming.ui?.kind ?? null
+    if (existing.role === 'tool') {
+      return (
+        existingUiKind === incomingUiKind &&
+        existing.content === incoming.content &&
+        !existing.isStreaming &&
+        areToolInfosEqual(existing.toolInfo, incoming.toolInfo)
+      )
+    }
+
     if (existingUiKind === incomingUiKind && existing.content === incoming.content && !existing.isStreaming) {
       return true
     }
@@ -90,7 +121,11 @@ function shouldKeepExistingStaticRow(existing: Msg | undefined, incoming: Msg): 
   return false
 }
 
-function mergeProjectedStaticRows(args: { prev: Msg[]; projectedStaticRows: Msg[] }): Msg[] {
+function mergeProjectedStaticRows(args: {
+  prev: Msg[]
+  projectedStaticRows: Msg[]
+  onNonAppendUpdate?: () => void
+}): Msg[] {
   if (args.projectedStaticRows.length === 0) return args.prev
   const indexById = new Map<string, number>()
   for (let index = 0; index < args.prev.length; index += 1) {
@@ -159,6 +194,7 @@ function mergeProjectedStaticRows(args: { prev: Msg[]; projectedStaticRows: Msg[
       isStreaming: false,
       timestamp: existing?.timestamp ?? projectedRow.timestamp,
     }
+    args.onNonAppendUpdate?.()
     didChange = true
   }
 
@@ -301,13 +337,14 @@ export function useReplController(deps: {
     contextBudgetConfigRef: useRef<ContextBudgetConfig | null>(null),
     pendingInjectedBlocksRef: useRef<PromptBlock[]>([]),
   }
-  const runtimeStateRefs = {
-    sendSeqRef: useRef(0),
-    autoCompactSeqRef: useRef(-1_000_000),
-    previousIsLoadingRef: useRef(false),
-    claudeMdMetaSigRef: useRef<string | null>(null),
-    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
-  }
+	  const runtimeStateRefs = {
+	    sendSeqRef: useRef(0),
+	    autoCompactSeqRef: useRef(-1_000_000),
+	    previousIsLoadingRef: useRef(false),
+	    claudeMdMetaSigRef: useRef<string | null>(null),
+	    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
+	    pendingStaticSurfaceResetRef: useRef(false),
+	  }
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
   const bashModeInFlightRef = useRef(false)
   const sessionWriterRef = useRef<SessionWriter | null>(null)
@@ -497,28 +534,42 @@ export function useReplController(deps: {
     return canonicalRefs.turnSeqRef.current
   }, [])
 
-  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
-    const includeAssistantStreaming = assistantTextMode === 'stream'
-    const projected = projectCanonicalEventToTransientMessages({
-      projection: canonicalRefs.projectionRef.current,
-      event,
-      activeTurnId: canonicalRefs.turnIdRef.current,
-      includeAssistantStreaming,
-      previousTransient: canonicalRefs.transientSnapshotRef.current,
-    })
-    canonicalRefs.projectionRef.current = projected.projection
-    const projectedStaticRows: Msg[] = []
-    const projectedTransientRows: Msg[] = []
-    for (const message of projected.messages) {
-      if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
-      else projectedTransientRows.push(message)
-    }
+	  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+	    const includeAssistantStreaming = assistantTextMode === 'stream'
+	    const projected = projectCanonicalEventToTransientMessages({
+	      projection: canonicalRefs.projectionRef.current,
+	      event,
+	      activeTurnId: canonicalRefs.turnIdRef.current,
+	      includeAssistantStreaming,
+	      previousTransient: canonicalRefs.transientSnapshotRef.current,
+	    })
+	    canonicalRefs.projectionRef.current = projected.projection
+	    const projectedStaticRows: Msg[] = []
+	    const projectedTransientRows: Msg[] = []
+	    for (const message of projected.messages) {
+	      if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
+	      else projectedTransientRows.push(message)
+	    }
 
-    if (projectedStaticRows.length > 0) {
-      setMessages((prev) => {
-        return mergeProjectedStaticRows({ prev, projectedStaticRows })
-      })
-    }
+	    if (projectedStaticRows.length > 0 || event.kind === 'turn_footer') {
+	      setMessages((prev) => {
+	        const next = mergeProjectedStaticRows({
+	          prev,
+	          projectedStaticRows,
+	          onNonAppendUpdate: () => {
+	            runtimeStateRefs.pendingStaticSurfaceResetRef.current = true
+	          },
+	        })
+	        if (event.kind === 'turn_footer') {
+	          assertReplCanonicalInvariants({
+	            projection: projected.projection,
+	            messages: next,
+	            targetTurnId: projected.turnId,
+	          })
+	        }
+	        return next
+	      })
+	    }
 
     setCanonicalTransientActive(projectedTransientRows.length > 0)
     canonicalRefs.transientSnapshotRef.current = {
@@ -529,7 +580,17 @@ export function useReplController(deps: {
     if (projected.changed) {
       setCanonicalTurnMessages(projectedTransientRows)
     }
-  }, [assistantTextMode])
+	  }, [assistantTextMode])
+
+		  useEffect(() => {
+		    if (!runtimeStateRefs.pendingStaticSurfaceResetRef.current) return
+		    runtimeStateRefs.pendingStaticSurfaceResetRef.current = false
+		    void queueTranscriptSurfaceReset({
+		      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
+		      onClearTerminal: deps.onClearTerminal,
+		      setTranscriptSeq,
+		    })
+		  }, [deps.onClearTerminal, messages, runtimeStateRefs.surfaceOpQueueRef, setTranscriptSeq])
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
@@ -657,6 +718,51 @@ export function useReplController(deps: {
   })
 
   const abort = useCallback(() => {
+    const canonicalTurnId = canonicalRefs.turnIdRef.current
+    if (canonicalTurnId) {
+      const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
+      const hadInFlightRequest = Boolean(abortControllerRef.current) || isLoading
+
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+      bashModeInFlightRef.current = false
+
+      userInput?.clearBufferedAnswers()
+      userInput?.rejectAllPending(new Error('Request aborted'))
+
+      resetSessionUiState()
+      setIsLoading(false)
+      clearToolRuntimeState()
+
+      emitCanonicalTurnFooterForTurn({
+        threadId: CANONICAL_THREAD_ID,
+        turnId: canonicalTurnId,
+        status: 'interrupted',
+        message: 'Request aborted',
+        nextReplaySeq: nextCanonicalReplaySeq,
+        onCanonicalEvent,
+      })
+
+      const hadAsk =
+        trackedRunningToolsSnapshot.some(([, name]) => name === 'AskUserQuestion') ||
+        canonicalRefs.transientSnapshotRef.current?.messages.some(
+          (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
+        ) === true
+
+      if (hadAsk && hadInFlightRequest) {
+        emitCanonicalUiMessageForTurn({
+          threadId: CANONICAL_THREAD_ID,
+          turnId: canonicalTurnId,
+          message: { role: 'assistant', content: 'User declined to answer questions' },
+          nextReplaySeq: nextCanonicalReplaySeq,
+          onCanonicalEvent,
+        })
+      }
+
+      clearCanonicalTransientState()
+      return
+    }
+
     runAbortSessionTransition({
       isLoading,
       abortControllerRef,
@@ -670,7 +776,15 @@ export function useReplController(deps: {
       setMessages,
       setIsLoading,
     })
-  }, [clearCanonicalTransientState, clearToolRuntimeState, isLoading, resetSessionUiState, userInput])
+  }, [
+    clearCanonicalTransientState,
+    clearToolRuntimeState,
+    isLoading,
+    nextCanonicalReplaySeq,
+    onCanonicalEvent,
+    resetSessionUiState,
+    userInput,
+  ])
 
   const newSession = useCallback(() => {
     runNewSessionTransition({
@@ -891,19 +1005,29 @@ export function useReplController(deps: {
               nextReplaySeq: nextCanonicalReplaySeq,
               onCanonicalEvent,
             }),
-          finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
-            void turnOutcome
-            setMessages((prev) => {
-              assertReplCanonicalInvariants({
-                projection: canonicalRefs.projectionRef.current,
-                messages: prev,
-                targetTurnId: turnId,
-                targetTurnAnchorMessageId: userMessageId,
+	          finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
+            if (turnOutcome === 'aborted') {
+              emitCanonicalTurnFooterForTurn({
+                threadId: CANONICAL_THREAD_ID,
+                turnId,
+                status: 'interrupted',
+                message: 'Request aborted',
+                nextReplaySeq: nextCanonicalReplaySeq,
+                onCanonicalEvent,
               })
-              return prev
-            })
-            clearCanonicalTransientState()
-          },
+            } else if (turnOutcome === 'failed') {
+              emitCanonicalTurnFooterForTurn({
+                threadId: CANONICAL_THREAD_ID,
+                turnId,
+                status: 'failed',
+                nextReplaySeq: nextCanonicalReplaySeq,
+                onCanonicalEvent,
+              })
+            }
+
+	            void userMessageId
+	            clearCanonicalTransientState()
+	          },
         },
       })
     },

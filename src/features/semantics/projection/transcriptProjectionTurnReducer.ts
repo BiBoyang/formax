@@ -18,7 +18,10 @@ function finalizeRunningToolSegmentsForTurn(args: {
     const segment = args.draft.segments[index]
     if (!segment || segment.kind !== 'tool') continue
     if (segment.turnId !== args.event.turnId) continue
-    if (!(segment.status === 'running' || segment.terminalSource === 'turn_footer')) continue
+    if (!(segment.status === 'running' || segment.terminalSource === 'turn_footer')) {
+      args.draft.segments[index] = { ...segment, terminalSource: 'turn_footer' }
+      continue
+    }
 
     const autoSummaryCandidates = new Set([
       `${segment.toolName} running`,
@@ -29,11 +32,14 @@ function finalizeRunningToolSegmentsForTurn(args: {
     const summary = autoSummaryCandidates.has(segment.summary)
       ? `${segment.toolName} ${nextSummarySuffix}`
       : segment.summary
+    const shouldSetAbortResult = args.event.status === 'interrupted' && Boolean(args.event.message)
+    const result = shouldSetAbortResult ? `Error: ${String(args.event.message ?? '')}` : segment.result
     args.draft.segments[index] = {
       ...segment,
       status: nextToolStatus,
       terminalSource: 'turn_footer',
       summary,
+      ...(result !== undefined ? { result } : {}),
     }
   }
 }

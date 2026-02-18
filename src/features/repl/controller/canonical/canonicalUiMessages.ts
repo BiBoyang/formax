@@ -40,3 +40,28 @@ export function emitCanonicalUiMessageForTurn(args: {
     ...(args.message.uiKind ? { uiKind: args.message.uiKind } : {}),
   })
 }
+
+export function emitCanonicalTurnFooterForTurn(args: {
+  threadId: string
+  turnId: string
+  status: 'completed' | 'failed' | 'interrupted'
+  message?: string
+  nextReplaySeq: () => number
+  onCanonicalEvent: (event: CanonicalEvent) => void
+  nowIso?: () => string
+}): void {
+  const replaySeq = args.nextReplaySeq()
+  const ts = (args.nowIso ?? (() => new Date().toISOString()))()
+
+  args.onCanonicalEvent({
+    threadId: args.threadId,
+    replaySeq,
+    eventId: `${args.threadId}:${args.turnId}:turn_footer:${replaySeq}`,
+    ts,
+    source: 'ui',
+    kind: 'turn_footer',
+    turnId: args.turnId,
+    status: args.status,
+    ...(args.message ? { message: args.message } : {}),
+  })
+}
