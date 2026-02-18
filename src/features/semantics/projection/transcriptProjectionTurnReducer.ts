@@ -18,10 +18,7 @@ function finalizeRunningToolSegmentsForTurn(args: {
     const segment = args.draft.segments[index]
     if (!segment || segment.kind !== 'tool') continue
     if (segment.turnId !== args.event.turnId) continue
-    if (!(segment.status === 'running' || segment.terminalSource === 'turn_footer')) {
-      args.draft.segments[index] = { ...segment, terminalSource: 'turn_footer' }
-      continue
-    }
+    if (!(segment.status === 'running' || segment.terminalSource === 'turn_footer')) continue
 
     const autoSummaryCandidates = new Set([
       `${segment.toolName} running`,
