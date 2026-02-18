@@ -156,6 +156,15 @@ describe('runLocalBashTurn', () => {
       'tool_event',
       'turn_footer',
     ])
+    const startEvent = events.find((event): event is CanonicalEvent & { kind: 'tool_event'; phase: 'start' } =>
+      event.kind === 'tool_event' && event.phase === 'start',
+    )
+    expect(startEvent?.input).toEqual({ command: 'pwd' })
+    expect(startEvent?.paramsText).toBe('command="pwd"')
+    const endEvent = events.find((event): event is CanonicalEvent & { kind: 'tool_event'; phase: 'end' } =>
+      event.kind === 'tool_event' && event.phase === 'end',
+    )
+    expect(endEvent?.result).toContain('/repo')
     expect(abortControllerRef.current).toBeNull()
     expect(clearCanonicalTransientState).toHaveBeenCalledTimes(1)
   })

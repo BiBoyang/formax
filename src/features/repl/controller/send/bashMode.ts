@@ -121,9 +121,11 @@ export async function runLocalBashTurn(args: {
       },
     ])
   }
+  const toolInput = { command: args.command }
+  const paramsText = `command=${JSON.stringify(args.command)}`
   emitter.emitUserMessage(args.command)
-  emitter.emitToolEvent({ phase: 'start' })
-  emitter.emitToolEvent({ phase: 'update', line: `$ ${args.command}` })
+  emitter.emitToolEvent({ phase: 'start', input: toolInput, paramsText })
+  emitter.emitToolEvent({ phase: 'update', line: `$ ${args.command}`, input: toolInput, paramsText })
 
   try {
     const runCommand = args.runCommand ?? runBashModeCommand
@@ -168,7 +170,14 @@ export async function runLocalBashTurn(args: {
         }),
       )
     }
-    emitter.emitToolEvent({ phase: 'end', summary: outputText, isError })
+    emitter.emitToolEvent({
+      phase: 'end',
+      input: toolInput,
+      paramsText,
+      summary: outputText,
+      result: outputText,
+      isError,
+    })
     emitter.emitFooter(isError ? 'failed' : 'completed')
     return isError ? 'failed' : 'completed'
   } finally {
@@ -186,7 +195,15 @@ export function createLocalBashCanonicalEmitter(args: {
   nowIso?: () => string
 }): {
   emitUserMessage: (command: string) => void
-  emitToolEvent: (args: { phase: 'start' | 'update' | 'end'; line?: string; summary?: string; isError?: boolean }) => void
+  emitToolEvent: (args: {
+    phase: 'start' | 'update' | 'end'
+    input?: Record<string, unknown>
+    paramsText?: string
+    line?: string
+    summary?: string
+    result?: string
+    isError?: boolean
+  }) => void
   emitFooter: (status: 'completed' | 'failed' | 'interrupted', message?: string) => void
 } {
   const nowIso = args.nowIso ?? (() => new Date().toISOString())
@@ -218,8 +235,11 @@ export function createLocalBashCanonicalEmitter(args: {
         toolUseId: args.toolUseId,
         phase: toolEventArgs.phase,
         toolName: 'LocalBash',
+        ...(toolEventArgs.input ? { input: toolEventArgs.input } : {}),
+        ...(toolEventArgs.paramsText ? { paramsText: toolEventArgs.paramsText } : {}),
         ...(toolEventArgs.line ? { line: toolEventArgs.line } : {}),
         ...(toolEventArgs.summary ? { summary: toolEventArgs.summary } : {}),
+        ...(toolEventArgs.result !== undefined ? { result: toolEventArgs.result } : {}),
         ...(toolEventArgs.isError ? { isError: true } : {}),
       })
     },

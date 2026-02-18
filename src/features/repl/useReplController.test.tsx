@@ -784,7 +784,12 @@ describe('useReplController', () => {
         (m) => m.role === 'tool' && m.toolInfo?.name === 'LocalBash' && m.toolInfo?.status === 'completed',
       ),
     )
-    expect(controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.name === 'LocalBash')).toHaveLength(1)
+    const localBashRows = controller.state.messages.filter((m) => m.role === 'tool' && m.toolInfo?.name === 'LocalBash')
+    expect(localBashRows).toHaveLength(1)
+    expect(localBashRows[0]?.toolInfo?.input).toEqual({ command: 'ls -la' })
+    const localBashResult = String(localBashRows[0]?.toolInfo?.result || '')
+    expect(localBashResult.length).toBeGreaterThan(0)
+    expect(localBashResult).not.toContain('\n$ ls -la')
 
     await controller.actions.send('hi')
     expect(captured).toHaveLength(1)
