@@ -53,7 +53,7 @@ function getDefaultHeaders(apiKey: string): Record<string, string> {
     'x-api-key': apiKey,
     Authorization: `Bearer ${apiKey}`,
     'user-agent':
-      'claude-cli/2.0.74 (external, claude-vscode, agent-sdk/0.1.75)',
+      'claude-cli/2.1.45 (external, claude-vscode, agent-sdk/0.2.45)',
     'x-app': 'cli',
     'x-stainless-arch': process.arch || 'arm64',
     'x-stainless-helper-method': 'stream',
