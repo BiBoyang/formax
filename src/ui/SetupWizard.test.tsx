@@ -82,9 +82,112 @@ describe('SetupWizard', () => {
 
     await goToProvider(lastFrame)
     stdin.write('\u001b')
+    await waitForCondition(() => onCancel.mock.calls.length === 1, 'onCancel called on Esc')
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls onCancel on Ctrl+C', async () => {
+    const onCancel = vi.fn()
+    const { stdin, lastFrame } = renderSetupWizard({ onCancel })
+
+    await goToProvider(lastFrame)
+    stdin.write('\u0003')
+    await tick()
     await tick()
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses Esc to go back on non-root setup steps', async () => {
+    const onCancel = vi.fn()
+    const { stdin, lastFrame } = renderSetupWizard({ onCancel })
+
+    await goToProvider(lastFrame)
+    await waitForText(lastFrame, 'Esc to cancel')
+
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select Anthropic-compatible provider')
+    await waitForText(lastFrame, 'Esc to go back')
+
+    stdin.write('\u001b')
+    await waitForText(lastFrame, 'Select a provider')
+    expect(onCancel).toHaveBeenCalledTimes(0)
+  })
+
+  it('ignores Esc while connection test is running', async () => {
+    let resolveTest!: (value: { ok: true; models: string[] }) => void
+    const testConnection = vi.fn(
+      () =>
+        new Promise<{ ok: true; models: string[] }>((resolve) => {
+          resolveTest = resolve
+        }),
+    )
+    const onCancel = vi.fn()
+    const { stdin, lastFrame } = renderSetupWizard({ testConnection, onCancel })
+
+    await goToProvider(lastFrame)
+    await chooseAnthropicVendorAndGoToBaseUrl({ stdin, lastFrame })
+
+    stdin.write('\r')
+    await waitForText(lastFrame, 'API Key')
+
+    stdin.write('sk-test')
+    await tick()
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Testing connection')
+    await waitForText(lastFrame, 'Running…')
+
+    stdin.write('\u001b')
+    await tick()
+    await tick()
+
+    const frame = lastFrame() || ''
+    expect(frame).toContain('Testing connection')
+    expect(frame).toContain('Running…')
+    expect(frame).not.toContain('API Key')
+    expect(onCancel).toHaveBeenCalledTimes(0)
+
+    resolveTest({ ok: true, models: ['m1'] })
+    await waitForText(lastFrame, 'Choose model setup mode')
+  })
+
+  it('does not go back on Shift+Tab', async () => {
+    const { stdin, lastFrame } = renderSetupWizard()
+
+    await goToProvider(lastFrame)
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select Anthropic-compatible provider')
+    await waitForText(lastFrame, 'Esc to go back')
+
+    stdin.write('\u001B[Z')
+    await tick()
+    await tick()
+
+    const frame = lastFrame() || ''
+    expect(frame).toContain('Select Anthropic-compatible provider')
+    expect(frame).toContain('Esc to go back')
+    expect(frame).not.toContain('Shift+Tab')
+  })
+
+  it('does not treat split Shift+Tab escape chunks as Esc back', async () => {
+    const { stdin, lastFrame } = renderSetupWizard()
+
+    await goToProvider(lastFrame)
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Select Anthropic-compatible provider')
+    await waitForText(lastFrame, 'Esc to go back')
+
+    stdin.write('\u001b')
+    await tick()
+    stdin.write('[Z')
+    await tick()
+    await tick()
+
+    const frame = lastFrame() || ''
+    expect(frame).toContain('Select Anthropic-compatible provider')
+    expect(frame).toContain('Esc to go back')
+    expect(frame).not.toContain('Select a provider')
   })
 
   it('shows write errors without getting stuck', async () => {

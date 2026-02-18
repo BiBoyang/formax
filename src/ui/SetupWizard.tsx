@@ -5,6 +5,7 @@ import { LoadingStatusLine } from '../components/ui/LoadingStatusLine.js'
 import { SelectList } from '../components/ui/SelectList.js'
 import TextInput from '../components/ui/TextInput.js'
 import { useScopeActivation, useScopedInput } from '../features/repl/inputScopeContext.js'
+import { getInputToken, isCtrlChord } from '../features/repl/keys/keyTokens.js'
 import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
 import { getConnectionTestHint } from '../core/setup/hints.js'
@@ -136,8 +137,12 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const session = sessionRef.current
 
   const mountedRef = useRef(true)
+  const escapeFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     return () => {
+      const t = escapeFallbackTimerRef.current
+      if (t) clearTimeout(t)
+      escapeFallbackTimerRef.current = null
       mountedRef.current = false
     }
   }, [])
@@ -286,6 +291,12 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
 
   const step = sessionState.step
   const draft = sessionState.draft
+  const stepRef = useRef(step)
+  const testStatusRef = useRef(sessionState.test.status)
+  const writingStatusRef = useRef(writing.status)
+  stepRef.current = step
+  testStatusRef.current = sessionState.test.status
+  writingStatusRef.current = writing.status
 
   const handleProviderInput = useCallback(
     (input: string, key: any) => {
@@ -315,10 +326,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const handleModelInput = useCallback(
     (input: string, key: any) => {
       if (modelOptions.length === 0) return
-      if (key.tab && key.shift) {
-        goBack()
-        return
-      }
       if (key.downArrow) {
         setModelFocus((idx) => nextIndex(modelOptions, idx, 1))
         return
@@ -338,16 +345,12 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         onModelSelect(opt.value)
       }
     },
-    [goBack, modelFocus, modelOptions, onModelSelect],
+    [modelFocus, modelOptions, onModelSelect],
   )
 
   const handleAnthropicVendorInput = useCallback(
     (input: string, key: any) => {
       if (anthropicVendorOptions.length === 0) return
-      if (key.tab && key.shift) {
-        goBack()
-        return
-      }
       if (key.downArrow) {
         setAnthropicVendorFocus((idx) => nextIndex(anthropicVendorOptions, idx, 1))
         return
@@ -367,16 +370,12 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         onAnthropicVendorSelect(opt.value)
       }
     },
-    [anthropicVendorFocus, anthropicVendorOptions, goBack, onAnthropicVendorSelect],
+    [anthropicVendorFocus, anthropicVendorOptions, onAnthropicVendorSelect],
   )
 
   const handleModelModeInput = useCallback(
     (input: string, key: any) => {
       if (modelModeOptions.length === 0) return
-      if (key.tab && key.shift) {
-        goBack()
-        return
-      }
       if (key.downArrow) {
         setModelModeFocus((idx) => nextIndex(modelModeOptions, idx, 1))
         return
@@ -396,7 +395,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         onModelModeSelect(opt.value)
       }
     },
-    [goBack, modelModeFocus, modelModeOptions, onModelModeSelect],
+    [modelModeFocus, modelModeOptions, onModelModeSelect],
   )
 
   const handleConfirmInput = useCallback(
@@ -406,7 +405,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       if (key.upArrow) setConfirmFocus((idx) => Math.max(0, idx - 1))
       if (input === '1') setConfirmFocus(0)
       if (input === '2') setConfirmFocus(1)
-      if (key.tab && key.shift) goBack()
       if (key.return) {
         if (confirmFocus === 0) startWrite()
         else goBack()
@@ -418,31 +416,49 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const handleTestInput = useCallback(
     (_input: string, key: any) => {
       if (sessionState.test.status === 'running') return
-      if (key.tab && key.shift) goBack()
       if (key.return) void runNext()
     },
-    [goBack, runNext, sessionState.test.status],
+    [runNext, sessionState.test.status],
   )
 
   const handleBaseUrlInput = useCallback(
-    (_input: string, key: any) => {
-      if (key.tab && key.shift) goBack()
-    },
-    [goBack],
+    (_input: string, _key: any) => {},
+    [],
   )
 
   const handleApiKeyInput = useCallback(
-    (_input: string, key: any) => {
-      if (key.tab && key.shift) goBack()
-    },
-    [goBack],
+    (_input: string, _key: any) => {},
+    [],
   )
 
   useScopedInput(
     'wizard:setup',
     (input, key) => {
-      if (key.escape) {
+      const token = getInputToken({ input, key })
+
+      const pendingEscapeTimer = escapeFallbackTimerRef.current
+      if (pendingEscapeTimer && token) {
+        clearTimeout(pendingEscapeTimer)
+        escapeFallbackTimerRef.current = null
+      }
+
+      if (isCtrlChord({ input, key, chord: 'c' })) {
         onCancel()
+        return
+      }
+
+      // Treat only a real/bare Esc keypress as cancel/back. Escape-prefixed
+      // sequences (e.g. Shift+Tab in some terminals) must not trigger this.
+      if (key.escape && !token) {
+        const existing = escapeFallbackTimerRef.current
+        if (existing) clearTimeout(existing)
+        escapeFallbackTimerRef.current = setTimeout(() => {
+          escapeFallbackTimerRef.current = null
+          if (writingStatusRef.current === 'running') return
+          if (stepRef.current === 'test' && testStatusRef.current === 'running') return
+          if (stepRef.current === 'welcome' || stepRef.current === 'provider') onCancel()
+          else goBack()
+        }, 25)
         return
       }
 
@@ -648,7 +664,7 @@ function ProviderStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>↑↓ to navigate · Enter to select · Esc to cancel</Text>
       </Box>
     </Box>
   )
@@ -678,7 +694,7 @@ function AnthropicVendorStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>↑↓ to navigate · Enter to select · Esc to go back</Text>
       </Box>
     </Box>
   )
@@ -723,7 +739,7 @@ function BaseUrlStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Enter to continue · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>Enter to continue · Esc to go back</Text>
       </Box>
     </Box>
   )
@@ -771,7 +787,7 @@ function ApiKeyStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Enter to test connection · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>Enter to test connection · Esc to go back</Text>
       </Box>
     </Box>
   )
@@ -829,7 +845,7 @@ function TestStep({
 
       <Box marginTop={1}>
         <Text color={theme.secondaryText}>
-          {status === 'running' ? 'Running…' : 'Enter to retry · Shift+Tab to go back · Esc to cancel'}
+          {status === 'running' ? 'Running…' : 'Enter to retry · Esc to go back'}
         </Text>
       </Box>
     </Box>
@@ -860,7 +876,7 @@ function ModelModeStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>↑↓ to navigate · Enter to select · Esc to go back</Text>
       </Box>
     </Box>
   )
@@ -924,7 +940,7 @@ function ModelStep({
         </Box>
       ) : null}
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Up/Down to navigate · Enter to select · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>↑↓ to navigate · Enter to select · Esc to go back</Text>
       </Box>
     </Box>
   )
@@ -1017,7 +1033,7 @@ function ConfirmStep({
       ) : null}
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Up/Down to choose · Enter to confirm · Shift+Tab to go back · Esc to cancel</Text>
+        <Text color={theme.secondaryText}>↑↓ to choose · Enter to confirm · Esc to go back</Text>
       </Box>
     </Box>
   )
