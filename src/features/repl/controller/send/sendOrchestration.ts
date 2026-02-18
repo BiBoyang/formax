@@ -154,6 +154,5 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
       turnOutcome,
     })
     args.canonical.turnIdRef.current = null
-    args.canonical.clearCanonicalTransientState()
   }
 }

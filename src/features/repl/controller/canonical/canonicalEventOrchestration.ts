@@ -48,7 +48,7 @@ export function projectCanonicalEventToTransientMessages(args: {
     transientOnly: true,
     openAssistantSegmentId: nextProjection.openAssistantSegmentIdByTurn[turnId],
     includeAssistantStreaming: args.includeAssistantStreaming,
-    includeUserSystem: false,
+    includeUserSystem: true,
   })
   return { projection: nextProjection, messages, changed: true, turnId }
 }

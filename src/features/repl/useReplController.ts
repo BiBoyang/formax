@@ -25,11 +25,10 @@ import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/
 import {
   assertReplCanonicalInvariants,
   appendCanonicalTailFinalRows,
-  appendCanonicalTurnFinalRows,
   emitCanonicalUiMessageForTurn,
   projectCanonicalEventToTransientMessages,
 } from './controller/canonical/canonical'
-import { isErrorLikeSubline, resolveTurnProvider } from './controller/shared/shared'
+import { resolveTurnProvider } from './controller/shared/shared'
 import {
   applyConfigExitInjection,
   buildMessageByIdMap,
@@ -68,6 +67,103 @@ import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
 const CANONICAL_THREAD_ID = 'tui-live'
+
+function shouldKeepExistingStaticRow(existing: Msg | undefined, incoming: Msg): boolean {
+  if (!existing) return false
+  if (existing.surfaceOwner !== 'static' || incoming.surfaceOwner !== 'static') return false
+  if (existing.id !== incoming.id) return false
+
+  if (existing.role === 'tool' && incoming.role === 'tool') {
+    const existingStatus = existing.toolInfo?.status
+    if (existingStatus === 'completed' || existingStatus === 'error') return true
+    return false
+  }
+
+  if (existing.role === incoming.role) {
+    const existingUiKind = existing.ui?.kind ?? null
+    const incomingUiKind = incoming.ui?.kind ?? null
+    if (existingUiKind === incomingUiKind && existing.content === incoming.content && !existing.isStreaming) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function mergeProjectedStaticRows(args: { prev: Msg[]; projectedStaticRows: Msg[] }): Msg[] {
+  if (args.projectedStaticRows.length === 0) return args.prev
+  const indexById = new Map<string, number>()
+  for (let index = 0; index < args.prev.length; index += 1) {
+    const message = args.prev[index]
+    if (!message) continue
+    indexById.set(message.id, index)
+  }
+
+  let next: Msg[] | null = null
+  let didChange = false
+  let timestampCursor: number | null = null
+
+  const ensureNext = (): Msg[] => {
+    if (next) return next
+    next = [...args.prev]
+    return next
+  }
+
+  const ensureTimestampCursor = (): number => {
+    if (timestampCursor !== null) return timestampCursor
+    const source = next ?? args.prev
+    for (let index = source.length - 1; index >= 0; index -= 1) {
+      const message = source[index]
+      if (!message) continue
+      const ts = message.timestamp
+      if (ts instanceof Date) {
+        timestampCursor = ts.getTime()
+        return timestampCursor
+      }
+    }
+    timestampCursor = Date.now()
+    return timestampCursor
+  }
+
+  for (const projectedRow of args.projectedStaticRows) {
+    const existingIndex = indexById.get(projectedRow.id)
+    if (existingIndex === undefined) {
+      const list = ensureNext()
+      indexById.set(projectedRow.id, list.length)
+      let incoming: Msg = {
+        ...projectedRow,
+        surfaceOwner: 'static',
+        isStreaming: false,
+      }
+      const cursor = ensureTimestampCursor()
+      const raw = incoming.timestamp instanceof Date ? incoming.timestamp.getTime() : Number.NaN
+      if (Number.isFinite(raw) && raw > cursor) {
+        timestampCursor = raw
+      } else {
+        timestampCursor = cursor + 1
+        incoming = { ...incoming, timestamp: new Date(timestampCursor) }
+      }
+      list.push(incoming)
+      didChange = true
+      continue
+    }
+
+    const source = next ?? args.prev
+    const existing = source[existingIndex]
+    if (shouldKeepExistingStaticRow(existing, projectedRow)) continue
+
+    const list = ensureNext()
+    list[existingIndex] = {
+      ...projectedRow,
+      surfaceOwner: 'static',
+      isStreaming: false,
+      timestamp: existing?.timestamp ?? projectedRow.timestamp,
+    }
+    didChange = true
+  }
+
+  return didChange ? (next ?? args.prev) : args.prev
+}
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -411,14 +507,27 @@ export function useReplController(deps: {
       previousTransient: canonicalRefs.transientSnapshotRef.current,
     })
     canonicalRefs.projectionRef.current = projected.projection
-    setCanonicalTransientActive(true)
+    const projectedStaticRows: Msg[] = []
+    const projectedTransientRows: Msg[] = []
+    for (const message of projected.messages) {
+      if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
+      else projectedTransientRows.push(message)
+    }
+
+    if (projectedStaticRows.length > 0) {
+      setMessages((prev) => {
+        return mergeProjectedStaticRows({ prev, projectedStaticRows })
+      })
+    }
+
+    setCanonicalTransientActive(projectedTransientRows.length > 0)
     canonicalRefs.transientSnapshotRef.current = {
       turnId: projected.turnId,
       includeAssistantStreaming,
-      messages: projected.messages,
+      messages: projectedTransientRows,
     }
     if (projected.changed) {
-      setCanonicalTurnMessages(projected.messages)
+      setCanonicalTurnMessages(projectedTransientRows)
     }
   }, [assistantTextMode])
 
@@ -455,10 +564,10 @@ export function useReplController(deps: {
 
   const partitionedMessages = useMemo(() => partitionMessages(messages), [messages])
   const staticMessages = partitionedMessages.staticMessages
-  const transientMessages = useMemo(
-    () => (canonicalTransientActive ? canonicalTurnMessages : partitionedMessages.transientMessages),
-    [canonicalTransientActive, canonicalTurnMessages, partitionedMessages.transientMessages],
-  )
+  const transientMessages = useMemo(() => {
+    if (!canonicalTransientActive) return partitionedMessages.transientMessages
+    return canonicalTurnMessages.filter((message) => message.surfaceOwner !== 'static')
+  }, [canonicalTransientActive, canonicalTurnMessages, partitionedMessages.transientMessages])
 
   useEffect(() => {
     if (!sessionSaveEnabled) return
@@ -783,29 +892,17 @@ export function useReplController(deps: {
               onCanonicalEvent,
             }),
           finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
+            void turnOutcome
             setMessages((prev) => {
-              const nextMessages = appendCanonicalTurnFinalRows({
-                messages: prev,
-                userMessageId,
-                turnId,
-                turnOutcome,
-                projectionSegments: canonicalRefs.projectionRef.current.segments,
-                isFailureSubline: (message) =>
-                  Boolean(
-                    message &&
-                      message.role === 'assistant' &&
-                      message.ui?.kind === 'command_subline' &&
-                      isErrorLikeSubline(String(message.content || '')),
-                  ),
-              })
               assertReplCanonicalInvariants({
                 projection: canonicalRefs.projectionRef.current,
-                messages: nextMessages,
+                messages: prev,
                 targetTurnId: turnId,
                 targetTurnAnchorMessageId: userMessageId,
               })
-              return nextMessages
+              return prev
             })
+            clearCanonicalTransientState()
           },
         },
       })

@@ -122,6 +122,33 @@ function lastAssistantText(controller: ReturnType<typeof useReplController>): st
   return ''
 }
 
+function visibleMessages(controller: ReturnType<typeof useReplController>): Msg[] {
+  return [...controller.state.staticMessages, ...controller.state.transientMessages]
+}
+
+function canonicalToolScopeKey(message: { id: string; role: string; toolInfo?: { toolUseId?: string } }): string | null {
+  if (message.role !== 'tool') return null
+  const marker = ':tool:'
+  const prefix = 'canonical:'
+  if (!message.id.startsWith(prefix)) return null
+  const markerIndex = message.id.lastIndexOf(marker)
+  if (markerIndex <= prefix.length - 1) return null
+  const requestId = message.id.slice(prefix.length, markerIndex)
+  const toolUseId = String(message.toolInfo?.toolUseId || message.id.slice(markerIndex + marker.length)).trim()
+  if (!requestId || !toolUseId) return null
+  return `${requestId}::${toolUseId}`
+}
+
+function assertNoDuplicateCanonicalToolRows(messages: Array<{ id: string; role: string; toolInfo?: { toolUseId?: string } }>): void {
+  const seen = new Set<string>()
+  for (const message of messages) {
+    const key = canonicalToolScopeKey(message)
+    if (!key) continue
+    expect(seen.has(key)).toBe(false)
+    seen.add(key)
+  }
+}
+
 function isTextPromptBlock(b: PromptBlock): b is PromptBlock & { type: 'text'; text: string } {
   return (b as any).type === 'text' && typeof (b as any).text === 'string'
 }
@@ -193,11 +220,15 @@ describe('useReplController', () => {
 
     releaseToolEnd()
     await waitFor(() => controller.state.isLoading)
-    expect(
-      controller.state.transientMessages.some(
-        (m) => m.id.startsWith('canonical:') && m.role === 'tool' && m.toolInfo?.status !== 'running',
+    await waitFor(() =>
+      controller.state.staticMessages.some(
+        (m) =>
+          m.id.startsWith('canonical:') &&
+          m.role === 'tool' &&
+          m.toolInfo?.toolUseId === 'tool-1' &&
+          m.toolInfo?.status === 'completed',
       ),
-    ).toBe(false)
+    )
 
     releaseComplete()
     await sendPromise
@@ -421,6 +452,147 @@ describe('useReplController', () => {
       (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'dup-turn-tool',
     )
     expect(finalToolRows).toHaveLength(1)
+  })
+
+  it('keeps a single rendered row for the same (turnId, toolUseId) during transient->static handoff', async () => {
+    let releaseEnd!: () => void
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'handoff-tool', name: 'Write' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'handoff-tool', input: { file_path: 'f.html' } } as StreamEvent)
+        await endGate
+        onEvent({
+          type: 'tool_end',
+          id: 'handoff-tool',
+          result: { tool_use_id: 'handoff-tool', content: 'ok', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('handoff')
+    await waitFor(() =>
+      controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'handoff-tool'),
+    )
+    const during = visibleMessages(controller)
+    assertNoDuplicateCanonicalToolRows(during)
+    const transientTool = during.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'handoff-tool')
+    expect(transientTool?.surfaceOwner).toBe('transient')
+
+    releaseEnd()
+    await sendPromise
+    await waitFor(() => controller.state.isLoading === false)
+
+    const after = visibleMessages(controller)
+    assertNoDuplicateCanonicalToolRows(after)
+    const finalTool = after.find((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'handoff-tool')
+    expect(finalTool?.surfaceOwner).toBe('static')
+  })
+
+  it('keeps assistant-before-tool visible order in buffered mode during active tool execution', async () => {
+    let releaseEnd!: () => void
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'assistant_delta', text: "I'll execute `pwd` first." } as StreamEvent)
+        onEvent({ type: 'tool_start', id: 'order-tool', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'order-tool', input: { command: 'pwd' } } as StreamEvent)
+        await endGate
+        onEvent({
+          type: 'tool_end',
+          id: 'order-tool',
+          result: { tool_use_id: 'order-tool', content: '/repo', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'assistant_delta', text: '/repo' } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('pwd')
+    await waitFor(() =>
+      controller.state.transientMessages.some((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'order-tool'),
+    )
+    await waitFor(() =>
+      controller.state.staticMessages.some(
+        (m) => m.role === 'assistant' && String(m.content || '').includes("I'll execute `pwd` first."),
+      ),
+    )
+
+    const visible = visibleMessages(controller)
+    const assistantIndex = visible.findIndex(
+      (m) => m.role === 'assistant' && String(m.content || '').includes("I'll execute `pwd` first."),
+    )
+    const toolIndex = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'order-tool')
+    expect(assistantIndex).toBeGreaterThanOrEqual(0)
+    expect(toolIndex).toBeGreaterThanOrEqual(0)
+    expect(assistantIndex).toBeLessThan(toolIndex)
+
+    releaseEnd()
+    await sendPromise
+    await waitFor(() => controller.state.isLoading === false)
+  })
+
+  it('keeps final tool-before-assistant order after finalize in buffered mode', async () => {
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user }) {
+        onEvent({ type: 'tool_start', id: 'final-order-tool', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'final-order-tool', input: { command: 'pwd' } } as StreamEvent)
+        onEvent({
+          type: 'tool_end',
+          id: 'final-order-tool',
+          result: { tool_use_id: 'final-order-tool', content: '/repo', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'assistant_delta', text: '/repo' } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('pwd')
+    await waitFor(() => controller.state.isLoading === false)
+
+    const visible = visibleMessages(controller)
+    const toolIndex = visible.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'final-order-tool')
+    const assistantIndex = visible.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === '/repo')
+    if (toolIndex < 0 || assistantIndex < 0) {
+      await waitFor(() => {
+        const settled = visibleMessages(controller)
+        const settledToolIndex = settled.findIndex(
+          (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'final-order-tool',
+        )
+        const settledAssistantIndex = settled.findIndex(
+          (m) => m.role === 'assistant' && String(m.content || '').trim() === '/repo',
+        )
+        return settledToolIndex >= 0 && settledAssistantIndex >= 0
+      })
+    }
+    const settled = visibleMessages(controller)
+    const settledToolIndex = settled.findIndex((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'final-order-tool')
+    const settledAssistantIndex = settled.findIndex((m) => m.role === 'assistant' && String(m.content || '').trim() === '/repo')
+    expect(settledToolIndex).toBeGreaterThanOrEqual(0)
+    expect(settledAssistantIndex).toBeGreaterThanOrEqual(0)
+    expect(settledToolIndex).toBeLessThan(settledAssistantIndex)
   })
 
   it('keeps single tool rows and assistant output in mixed slash+bash+llm flows', async () => {
@@ -937,11 +1109,12 @@ describe('useReplController', () => {
     await waitFor(() => controller.state.isLoading)
     await waitFor(() => controller.state.transientMessages.some((m) => m.role === 'tool'))
     expect(controller.state.transientMessages.some((m) => m.role === 'assistant' && m.isStreaming)).toBe(false)
-    expect(controller.state.staticMessages.some((m) => m.role === 'assistant')).toBe(false)
+    expect(controller.state.transientMessages.some((m) => m.role === 'assistant')).toBe(false)
+    await waitFor(() => controller.state.staticMessages.some((m) => m.role === 'assistant' && String(m.content).includes('Hi')))
 
     releaseComplete()
     await sendPromise
-    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('Hi')))
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && String(m.content).includes(' there')))
     const assistantTexts = controller.state.messages
       .filter((m) => m.role === 'assistant')
       .map((m) => String(m.content))

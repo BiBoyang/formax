@@ -46,48 +46,87 @@ export function canonicalTurnSegmentsToMessages(args: {
         role: 'user' as const,
         content: segment.text,
         timestamp: new Date(0),
+        surfaceOwner: 'static' as const,
         ...(segment.messageKind ? { ui: { kind: segment.messageKind } } : {}),
       }
     }
 
     if (segment.kind === 'system') {
       if (args.includeUserSystem === false) return null
-      if (args.transientOnly) return null
       return {
         id: `canonical:${segment.id}`,
         role: segment.role,
         content: segment.text,
         timestamp: new Date(0),
+        surfaceOwner: 'static' as const,
         ...(segment.messageKind ? { ui: { kind: segment.messageKind } } : {}),
       }
     }
 
     if (segment.kind === 'assistant') {
       const allowAssistantStreaming = args.includeAssistantStreaming ?? true
-      if (args.transientOnly && !allowAssistantStreaming) return null
-      if (args.transientOnly && segment.id !== args.openAssistantSegmentId) return null
+      if (!args.transientOnly) {
+        return {
+          id: `canonical:${segment.id}`,
+          role: 'assistant' as const,
+          content: segment.text,
+          timestamp: new Date(0),
+          surfaceOwner: 'static' as const,
+        }
+      }
+
+      const openAssistantSegmentId = args.openAssistantSegmentId ?? null
+
+      if (allowAssistantStreaming) {
+        const isOpen = Boolean(openAssistantSegmentId && segment.id === openAssistantSegmentId)
+        return {
+          id: `canonical:${segment.id}`,
+          role: 'assistant' as const,
+          content: segment.text,
+          timestamp: new Date(0),
+          surfaceOwner: (isOpen ? 'transient' : 'static') as const,
+          ...(isOpen ? { isStreaming: true } : {}),
+        }
+      }
+
+      if (openAssistantSegmentId && segment.id === openAssistantSegmentId) return null
+      const assistantSurfaceOwner = 'static' as const
       return {
         id: `canonical:${segment.id}`,
         role: 'assistant' as const,
         content: segment.text,
         timestamp: new Date(0),
-        ...(args.transientOnly ? { isStreaming: true } : {}),
+        surfaceOwner: assistantSurfaceOwner,
       }
     }
 
     if (segment.kind === 'thinking') {
-      if (args.transientOnly) return null
+      if (args.transientOnly) {
+        if (segment.status !== 'finalized') return null
+        return {
+          id: `canonical:${segment.id}`,
+          role: 'assistant' as const,
+          ui: { kind: 'thinking_block' as const },
+          content: segment.text,
+          timestamp: new Date(0),
+          surfaceOwner: 'static' as const,
+        }
+      }
       return {
         id: `canonical:${segment.id}`,
         role: 'assistant' as const,
         ui: { kind: 'thinking_block' as const },
         content: segment.text,
         timestamp: new Date(0),
+        surfaceOwner: 'static' as const,
       }
     }
 
     if (segment.kind !== 'tool') return null
-    if (args.transientOnly && segment.status !== 'running') return null
+    const toolMessageId = `canonical:${args.turnId}:tool:${segment.toolUseId}`
+    const isRunningTool = segment.status === 'running'
+    const toolSurfaceOwner =
+      args.transientOnly && !isRunningTool ? ('static' as const) : (args.transientOnly ? 'transient' : 'static') as const
     const input = segment.input ?? parseToolInputFromParamsText(segment.paramsText)
     const rawResult = segment.result
     const isError = segment.status === 'error'
@@ -107,10 +146,12 @@ export function canonicalTurnSegmentsToMessages(args: {
               )})`
       const transcriptLines = parseTaskTranscript(rawResult ?? '') ?? segment.transcriptLines ?? undefined
       return {
-        id: `canonical:${segment.id}`,
+        id: toolMessageId,
         role: 'tool' as const,
         content: summaryText,
         timestamp: new Date(0),
+        surfaceOwner: toolSurfaceOwner,
+        ...(args.transientOnly && isRunningTool ? { isStreaming: true } : {}),
         toolInfo: {
           name: segment.toolName,
           toolUseId: segment.toolUseId,
@@ -145,10 +186,12 @@ export function canonicalTurnSegmentsToMessages(args: {
     const patchStartLineNumber = segment.patchStartLineNumber ?? null
 
     return {
-      id: `canonical:${segment.id}`,
+      id: toolMessageId,
       role: 'tool' as const,
       content,
       timestamp: new Date(0),
+      surfaceOwner: toolSurfaceOwner,
+      ...(args.transientOnly && isRunningTool ? { isStreaming: true } : {}),
       toolInfo: {
         name: segment.toolName,
         toolUseId: segment.toolUseId,

@@ -63,9 +63,10 @@ describe('canonicalTurnSegmentsToMessages', () => {
       content: 'answer',
     })
     expect(msgs[2]).toMatchObject({
-      id: 'canonical:turn-1:tool:3:tool-1',
+      id: 'canonical:turn-1:tool:tool-1',
       role: 'tool',
       content: 'total 1',
+      surfaceOwner: 'static',
       toolInfo: {
         name: 'Bash',
         toolUseId: 'tool-1',
@@ -255,6 +256,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
       role: 'tool',
       content: 'Task running',
       toolInfo: { status: 'running' },
+      isStreaming: true,
     })
   })
 
@@ -283,7 +285,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
-  it('omits completed tools in transient-only mode', () => {
+  it('keeps completed tools in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {
         id: 'turn-3:tool:1:tool-3',
@@ -309,8 +311,13 @@ describe('canonicalTurnSegmentsToMessages', () => {
       transientOnly: true,
       openAssistantSegmentId: 'turn-3:assistant:2',
     })
-    expect(msgs).toHaveLength(1)
-    expect(msgs[0]).toMatchObject({ role: 'assistant', content: 'continuing' })
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: { toolUseId: 'tool-3', status: 'completed' },
+      surfaceOwner: 'static',
+    })
+    expect(msgs[1]).toMatchObject({ role: 'assistant', content: 'continuing', isStreaming: true })
   })
 
   it('omits assistant streaming in transient-only mode when disabled by adapter', () => {
@@ -344,7 +351,48 @@ describe('canonicalTurnSegmentsToMessages', () => {
     expect(msgs[0]).toMatchObject({ role: 'tool', toolInfo: { name: 'Read', status: 'running' } })
   })
 
-  it('keeps only open assistant + running tool in transient-only mode', () => {
+  it('keeps closed assistant segments visible in transient-only mode when assistant streaming is disabled', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-3:assistant:1',
+        kind: 'assistant',
+        turnId: 'turn-3',
+        text: "I'll run pwd first.",
+      },
+      {
+        id: 'turn-3:tool:2:tool-3',
+        kind: 'tool',
+        turnId: 'turn-3',
+        toolUseId: 'tool-3',
+        toolName: 'Bash',
+        status: 'running',
+        summary: 'Bash running',
+        detailLines: [],
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-3',
+      segments,
+      transientOnly: true,
+      openAssistantSegmentId: undefined,
+      includeAssistantStreaming: false,
+    })
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toMatchObject({
+      role: 'assistant',
+      content: "I'll run pwd first.",
+      surfaceOwner: 'static',
+    })
+    expect(msgs[1]).toMatchObject({
+      role: 'tool',
+      toolInfo: { name: 'Bash', status: 'running' },
+      surfaceOwner: 'transient',
+      isStreaming: true,
+    })
+  })
+
+  it('keeps closed assistant segments visible while streaming in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {
         id: 'turn-4:assistant:1',
@@ -384,11 +432,19 @@ describe('canonicalTurnSegmentsToMessages', () => {
       openAssistantSegmentId: 'turn-4:assistant:3',
     })
 
-    expect(msgs).toHaveLength(2)
-    expect(msgs[0]).toMatchObject({ role: 'assistant', content: 'open segment' })
+    expect(msgs).toHaveLength(3)
+    expect(msgs[0]).toMatchObject({ role: 'assistant', content: 'closed segment', surfaceOwner: 'static' })
     expect(msgs[1]).toMatchObject({
+      role: 'assistant',
+      content: 'open segment',
+      surfaceOwner: 'transient',
+      isStreaming: true,
+    })
+    expect(msgs[2]).toMatchObject({
       role: 'tool',
       toolInfo: { name: 'Bash', status: 'running' },
+      surfaceOwner: 'transient',
+      isStreaming: true,
     })
   })
 
@@ -1012,16 +1068,17 @@ describe('appendCanonicalTurnFinalRows', () => {
 
   it('preserves legacy tool row identity while applying canonical final tool info', () => {
     const legacyTimestamp = new Date(200)
+    const legacyTool: Msg = {
+      id: 'legacy-tool',
+      role: 'tool',
+      content: '/repo',
+      timestamp: legacyTimestamp,
+      toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: { command: 'pwd' } },
+    }
     const next = appendCanonicalTurnFinalRows({
       messages: [
         { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
-        {
-          id: 'legacy-tool',
-          role: 'tool',
-          content: '/repo',
-          timestamp: legacyTimestamp,
-          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: { command: 'pwd' } },
-        },
+        legacyTool,
       ],
       userMessageId: 'u1',
       turnId: 'turn-1',
@@ -1047,6 +1104,157 @@ describe('appendCanonicalTurnFinalRows', () => {
     expect(next[1]?.content).toBe('/repo')
     expect(next[1]?.toolInfo?.status).toBe('completed')
     expect(next[1]?.toolInfo?.middleLines).toEqual(['line-1'])
+    expect(next[1]).not.toBe(legacyTool)
+  })
+
+  it('keeps completed legacy tool object stable when canonical tool row is equivalent', () => {
+    const legacyTimestamp = new Date(200)
+    const legacyTool: Msg = {
+      id: 'legacy-tool',
+      role: 'tool',
+      content: '/repo',
+      timestamp: legacyTimestamp,
+      surfaceOwner: 'static',
+      toolInfo: {
+        toolUseId: 'tool-1',
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'pwd' },
+        middleLines: ['line-1'],
+      },
+    }
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        legacyTool,
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-1:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: ['line-1'],
+          paramsText: 'command="pwd"',
+        },
+      ],
+      isFailureSubline: () => false,
+    })
+
+    expect(next.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(next[1]).toBe(legacyTool)
+  })
+
+  it('does not re-append completed legacy tool rows on finalize when canonical includes same tool + assistant', () => {
+    const legacyTool: Msg = {
+      id: 'legacy-tool',
+      role: 'tool',
+      content: '/repo',
+      timestamp: new Date(200),
+      surfaceOwner: 'static',
+      toolInfo: {
+        toolUseId: 'tool-1',
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'pwd' },
+      },
+    }
+
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        legacyTool,
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-1:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: [],
+          paramsText: 'command=\"pwd\"',
+        },
+        {
+          id: 'turn-1:assistant:2',
+          kind: 'assistant',
+          turnId: 'turn-1',
+          text: '当前工作目录：/repo',
+        },
+      ],
+      isFailureSubline: () => false,
+    })
+
+    const toolRows = next.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 'tool-1')
+    expect(toolRows).toHaveLength(1)
+    expect(toolRows[0]).toBe(legacyTool)
+    expect(next.some((m) => m.role === 'assistant' && String(m.content).includes('当前工作目录'))).toBe(true)
+  })
+
+  it('keeps canonical relative order when reusing completed legacy tool rows', () => {
+    const legacyTool: Msg = {
+      id: 'legacy-tool',
+      role: 'tool',
+      content: '/repo',
+      timestamp: new Date(200),
+      surfaceOwner: 'static',
+      toolInfo: {
+        toolUseId: 'tool-1',
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'pwd' },
+      },
+    }
+
+    const next = appendCanonicalTurnFinalRows({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        legacyTool,
+      ],
+      userMessageId: 'u1',
+      turnId: 'turn-1',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-1:assistant:1',
+          kind: 'assistant',
+          turnId: 'turn-1',
+          text: "I'll execute `pwd`.",
+        },
+        {
+          id: 'turn-1:tool:2:tool-1',
+          kind: 'tool',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Bash',
+          status: 'completed',
+          summary: 'done',
+          detailLines: [],
+          paramsText: 'command=\"pwd\"',
+        },
+        {
+          id: 'turn-1:assistant:3',
+          kind: 'assistant',
+          turnId: 'turn-1',
+          text: '/repo',
+        },
+      ],
+      isFailureSubline: () => false,
+    })
+
+    expect(next.map((m) => m.id)).toEqual(['u1', 'canonical:turn-1:assistant:1', 'legacy-tool', 'canonical:turn-1:assistant:3'])
+    expect(next[2]).toBe(legacyTool)
   })
 })
 

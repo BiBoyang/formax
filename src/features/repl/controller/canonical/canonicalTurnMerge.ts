@@ -96,25 +96,37 @@ export function mergeCanonicalTurnIntoMessages(args: {
       .filter((id) => id.length > 0),
   )
 
-  const canonicalRows = canonicalRowsForAppend.map((message) => {
+  const canonicalRows = canonicalRowsForAppend.flatMap((message) => {
     const baseMessage: Msg = {
       ...message,
       isStreaming: false,
       timestamp: message.timestamp,
     }
-    if (baseMessage.role !== 'tool') return baseMessage
+    if (baseMessage.role !== 'tool') return [baseMessage]
     const toolUseId = String(baseMessage.toolInfo?.toolUseId || '').trim()
-    if (!toolUseId) return baseMessage
+    if (!toolUseId) return [baseMessage]
     const legacyTool = legacyToolByUseId.get(toolUseId)
     const canonicalToolInfo = baseMessage.toolInfo
-    return {
+    const legacyToolStatus = legacyTool?.toolInfo?.status
+    // Keep stable completed/error rows immutable once they are on static surface.
+    // Rewriting the same row object can cause duplicate append artifacts in Ink <Static>.
+    if (
+      legacyTool &&
+      (legacyToolStatus === 'completed' || legacyToolStatus === 'error') &&
+      (!canonicalToolInfo?.status || canonicalToolInfo.status === legacyToolStatus)
+    ) {
+      // Keep the exact legacy object to avoid static duplicate-appends, while
+      // still letting canonical ordering place it correctly in the turn tail.
+      return [legacyTool]
+    }
+    return [{
       ...baseMessage,
       id: legacyTool?.id ?? baseMessage.id,
       timestamp: legacyTool?.timestamp ?? baseMessage.timestamp,
       content: legacyTool?.content || baseMessage.content,
       isStreaming: false,
       ...(canonicalToolInfo ? { toolInfo: canonicalToolInfo } : {}),
-    }
+    }]
   })
 
   const isReplacedLegacyRow = (message: Msg): boolean => {
