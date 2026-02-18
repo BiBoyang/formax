@@ -2689,6 +2689,56 @@ describe('useReplController abort', () => {
     expect(secondArgs.history).toEqual([])
   })
 
+  it('abort after explicit tool_end keeps tool completed and avoids duplicate tool rows', async () => {
+    const abortError = () => Object.assign(new Error('AbortError'), { name: 'AbortError' })
+    let resolveToolEnded!: () => void
+    const toolEnded = new Promise<void>((resolve) => {
+      resolveToolEnded = resolve
+    })
+
+    const engine: ChatEngine = {
+      async runTurn({ history, onEvent, user, signal }) {
+        onEvent({ type: 'tool_start', id: 't-finished', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 't-finished', input: { command: 'pwd' } } as StreamEvent)
+        onEvent({
+          type: 'tool_end',
+          id: 't-finished',
+          result: { tool_use_id: 't-finished', content: '/repo', is_error: false },
+        } as StreamEvent)
+        resolveToolEnded()
+        await new Promise<void>((_resolve, reject) => {
+          if (signal?.aborted) return reject(abortError())
+          signal?.addEventListener('abort', () => reject(abortError()), { once: true })
+        })
+        return [...history, user]
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    const sendPromise = controller.actions.send('pwd')
+    await waitFor(() =>
+      controller.state.messages.some(
+        (m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-finished' && m.toolInfo?.status === 'completed',
+      ),
+    )
+    await toolEnded
+
+    controller.actions.abort()
+    await sendPromise
+    await waitFor(() => controller.state.isLoading === false)
+
+    const visible = visibleMessages(controller)
+    assertNoDuplicateCanonicalToolRows(visible)
+
+    const toolRows = visible.filter((m) => m.role === 'tool' && m.toolInfo?.toolUseId === 't-finished')
+    expect(toolRows).toHaveLength(1)
+    expect(toolRows[0]?.toolInfo?.status).toBe('completed')
+    expect(String(toolRows[0]?.content ?? '')).toContain('/repo')
+  })
+
   it('marks running tools as error and appends a declined message for AskUserQuestion', async () => {
     const engine: ChatEngine = {
       async runTurn({ history, onEvent, user, signal }) {
