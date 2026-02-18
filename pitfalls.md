@@ -165,3 +165,22 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - maintain both fast logic tests (`compactProjection.test.ts`) and real-surface smoke (`surfaceSmoke`, `test:surface-screen-model`)
 - **Links**: `src/screens/repl/transcript.tsx`, `src/screens/repl/useSurfaceTransitionManager.ts`, `src/features/repl/useReplController.ts`, `src/screens/repl/compactProjection.test.ts`, `src/screens/repl/surfaceSmoke.test.tsx`
 - **Keywords**: Ink Static, append-only, reset race, remount transaction, test parity
+
+## REPL semantic handoff drift (duplicate tool rows / flicker / order flip)
+- **Problem**: during semanticization, tool rows could duplicate, flicker (disappear/reappear), or show unstable ordering with assistant text.
+- **Repro**:
+  1) run a turn with one or more tool calls
+  2) hit finalize/footer/abort around running->terminal handoff
+  3) observe duplicate/misaligned rows, especially in Static rendering path
+- **Root cause**:
+  - one semantic tool identity crossed transient/static ownership windows
+  - handoff was not always atomic at footer/finalize boundary
+  - Ink `<Static>` append-only behavior amplifies non-append row rewrites
+  - footer correction path can accidentally conflict with explicit `tool_end` authority if not guarded
+- **Fix**:
+  - enforce stable `(turnId, toolUseId)` identity + explicit `surfaceOwner`
+  - close turns through canonical footer semantics
+  - reset/remount transcript surface when static correction is non-append
+  - keep `tool_end` terminal authority when footer is corrected later
+- **Links**: `docs/pitfalls/repl-transcript-surface-handoff-pitfall.md`, `docs/pitfalls/repl-transcript-static-rootcause.md`
+- **Keywords**: semantic handoff, tool duplicate, flicker, order inversion, surfaceOwner, turn_footer, tool_end

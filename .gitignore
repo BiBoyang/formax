@@ -9,6 +9,7 @@ package-lock.json
 .cursor
 dist/
 docs/*
+!docs/pitfalls/
 !docs/troubleshooting.md
 !docs/LEARNINGS/
 !docs/LEARNINGS/**
