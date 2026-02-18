@@ -11,6 +11,7 @@ dist/
 docs/*
 !docs/pitfalls/
 !docs/troubleshooting.md
+!docs/environment-variables.md
 !docs/LEARNINGS/
 !docs/LEARNINGS/**
 .claude

@@ -1,6 +1,10 @@
 # Formax
 
-Formax is a terminal-first AI assistant for software engineering tasks. It is inspired by (but not affiliated with) Claude Code v2.0.67, and some behaviors are implemented by observation (e.g. network traces) rather than upstream source code. Formax is experimental—review changes and commands before approving them; you are responsible for any modifications it makes to your files or system.
+Formax is a terminal-first AI assistant for software engineering tasks.
+
+It is inspired by (but not affiliated with) Claude Code v2.0.67. Some behaviors are implemented by observation (for example, network traces) rather than upstream source code.
+
+This repository is primarily a learning and reference implementation for Claude Code-like architecture and behavior, not a production-recommended daily driver at this stage.
 
 [![CI](https://github.com/yusifeng/formax/actions/workflows/ci.yml/badge.svg)](https://github.com/yusifeng/formax/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/yusifeng/formax/branch/main/graph/badge.svg)](https://codecov.io/gh/yusifeng/formax)
@@ -12,103 +16,73 @@ Formax is a terminal-first AI assistant for software engineering tasks. It is in
   <img src="./demo.gif" width="600" />
 </p>
 
-## Quickstart
+## Project Positioning
+
+- This codebase is intended for engineers who want to study how a Claude Code-style tool can be implemented.
+- It focuses on architecture, behavior parity, and implementation transparency rather than polished end-user product experience.
+- Current release status is Beta; behavior can change and regressions are still possible.
+- If you are evaluating production usage, treat this project as experimental first.
+- For code reading and extension, start with [`CODEMAP.md`](CODEMAP.md) and subsystem READMEs.
+
+## Install
+
+Formax is published as an npm package:
 
 ```bash
-# Install (beta)
 npm i -g @yusifeng/formax@beta
+```
 
-# In your project directory
+Runtime requirement:
+
+- Node.js `>=20`
+
+## Quickstart
+
+Start in your project directory:
+
+```bash
 cd /path/to/your/project
-
-# Start the REPL
 formax
 ```
 
-## Web UI (for npm users)
-
-If you want to use Formax in the browser after installing from npm:
-
-```bash
-formax web
-```
-
-By default:
-
-- Web UI: `http://127.0.0.1:3781`
-- Bridge (WebSocket): `ws://127.0.0.1:3777` (token-protected; browser token is injected automatically)
-
-Optional flags:
-
-```bash
-formax web --host 127.0.0.1 --ui-port 3781 --bridge-port 3777
-```
-
-If you only need a standalone WebSocket bridge (without hosting the web UI):
-
-```bash
-formax serve --host 127.0.0.1 --port 3777
-```
-
-Optional security flags:
-
-```bash
-formax serve --token my-secret --allow-origin http://localhost:5173
-```
-
-## App Server (GUI Integration)
-
-Formax can run as a local subprocess JSON-RPC service (stdio JSONL transport) for IDE / GUI clients:
-
-```bash
-formax app-server
-```
-
-Handshake sequence:
-
-1. Client sends `initialize`
-2. Client sends `initialized` (notification)
-3. Call `thread/*`, `turn/*`, `turn/input/submit`
-
-Notes:
-
-- Transport: **stdio + JSONL + JSON-RPC 2.0**
-- Phase 1 focuses on thread/turn flows and the input lifecycle for approval and ask_user_question
-- Full API reference: `plans/app-server/API-REFERENCE.md`
-
-For source-level development, you can still use the legacy dev scripts (non-production transport):
-
-```bash
-bun run app-server:bridge -- --host 127.0.0.1 --port 3777
-```
-
-Or start the web reference client (React + Vite + bridge, for development validation):
-
-```bash
-bun run app-server:web-reference -- --host 127.0.0.1 --bridge-port 3777 --ui-port 3781
-```
-
-Frontend code:
-
-- `apps/web-reference-react/`
-
-## Configuration
-
-Formax will prompt you to configure missing credentials on first run.
-
-Optional (writes to `~/.formax/` and runs connectivity checks):
+On first run, Formax will prompt for missing credentials and runtime config.  
+Optional guided setup:
 
 ```bash
 formax setup
 ```
 
-### Environment variables
+Default config directory: `~/.formax/`
+
+## Runtime Modes
+
+| Command | Purpose | Default endpoint / transport |
+| --- | --- | --- |
+| `formax` / `formax repl` | Start terminal REPL | Local TUI session |
+| `formax web` | Start local web UI with bridge | UI: `http://127.0.0.1:3781`, Bridge: `ws://127.0.0.1:3777` |
+| `formax serve` | Start standalone WebSocket bridge | `ws://127.0.0.1:3777` |
+| `formax app-server` | Start JSON-RPC app server for GUI/IDE clients | `stdio + JSONL + JSON-RPC 2.0` |
+
+## Command Reference
+
+All commands below are implemented in [`src/cli/help.ts`](src/cli/help.ts) and dispatched in [`src/cli/main.ts`](src/cli/main.ts).
+
+| Area | Commands |
+| --- | --- |
+| General | `formax help`, `formax --version`, `formax version` |
+| Runtime | `formax`, `formax repl`, `formax web`, `formax serve`, `formax app-server` |
+| Diagnostics | `formax status`, `formax doctor [--bundle] [--bundle-tar]` |
+| Config | `formax config show`, `formax config migrate` |
+| Auth | `formax auth list`, `formax auth set <provider> <authRef> <apiKey>`, `formax auth delete <provider> <authRef>` |
+| Policy | `formax policy list`, `formax policy explain ...`, `formax policy test ...`, `formax policy disable <ruleId>`, `formax policy delete <ruleId>` |
+
+## Configuration
+
+Common environment variables:
 
 ```bash
 export FORMAX_API_KEY="..."
-export FORMAX_BASE_URL="https://api.anthropic.com"   # normalized to .../v1
-
-# optional
+export FORMAX_BASE_URL="https://api.anthropic.com"
 export FORMAX_TIMEOUT_MS="600000"
 ```
 
@@ -120,42 +94,91 @@ export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-4-5-20250929"
 export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-3-opus-latest"
 ```
 
-Full list: `docs/environment-variables.md`
+Complete runtime variable reference:
 
-### Providers
+- [`docs/environment-variables.md`](docs/environment-variables.md)
 
-Formax currently supports **Anthropic-compatible** APIs only. **OpenAI-compatible** and **Gemini** providers are not supported yet.
+## REPL Slash Commands
 
-## REPL slash commands
+| Command | Description |
+| --- | --- |
+| `/agents` | Create and manage sub-agents |
+| `/permissions` | Manage tool permissions and workspace access |
+| `/hooks` | Configure hook behavior |
+| `/todos` | List current todos |
+| `/clear` | Clear visible transcript |
+| `/compact [instructions]` | Compact history into a summary in context |
+| `/doctor` | Run diagnostics from inside the REPL |
 
-Built-in commands (inside the REPL):
-
-- `/agents` — create/manage sub-agents
-- `/permissions` — manage tool permissions and workspace access
-- `/hooks` — configure hooks
-- `/todos` — list current todos
-- `/clear` — clear the visible transcript
-- `/compact [instructions]` — compact history into a summary in-context
-- `/doctor` — run diagnostics from inside the REPL
-
-## Customization (project-local)
+## Project-local Customization
 
 Common `.formax/` folders:
 
-- `.formax/commands/` — custom slash commands (`.md`)
-- `.formax/agents/` — custom agents (`.md`)
-- `.formax/hooks/` — hook scripts (e.g. `*.py`)
-- `.formax/settings.local.json` — repo-local settings (permissions, hooks, etc.)
+- `.formax/commands/` - custom slash commands (`.md`)
+- `.formax/agents/` - custom agents (`.md`)
+- `.formax/hooks/` - hook scripts (for example, `*.py`)
+- `.formax/settings.local.json` - repo-local settings (permissions, hooks, and related toggles)
+
+## Development
+
+```bash
+bun install
+bun run dev
+bun run type-check
+bun run test
+```
+
+Run a single test file:
+
+```bash
+bun run test -- src/tools/registry.test.ts
+```
+
+## Architecture & Deep Dives
+
+- Code navigation index: [`CODEMAP.md`](CODEMAP.md)
+- Core configuration and setup internals: [`src/core/README.md`](src/core/README.md)
+- Tool registry/execution/presentation internals: [`src/tools/README.md`](src/tools/README.md)
+- Streaming client and parser internals: [`src/streaming/README.md`](src/streaming/README.md)
+- Sub-agent registry and runner internals: [`src/subagents/README.md`](src/subagents/README.md)
 
 ## Troubleshooting
 
-Generate a redacted debug bundle:
+Check effective runtime/config state:
+
+```bash
+formax status
+```
+
+Generate a redacted diagnostics bundle:
 
 ```bash
 formax doctor --bundle --bundle-tar
 ```
 
+Show config source-of-truth resolution:
+
+```bash
+formax config show
+```
+
+## Tooling Notes (Current Gaps)
+
+- Tool execution behavior is not guaranteed to be fully identical to Claude Code.
+- `WebFetch` and `WebSearch` currently have known stability and behavior gaps, and may not always match expected results.
+- MCP is not supported in Formax at this stage.
+
+## Safety & Limitations
+
+Formax is experimental. Always review proposed commands and file changes before approval. You are responsible for any modifications made in your environment.
+
+This project is currently better suited for learning, reverse-engineering, and experimentation than for stable production workflows.
+
+Provider support notes:
+
+- Anthropic and OpenAI-compatible paths are available in setup/runtime flows.
+- Gemini is present in config surfaces but not fully supported in runtime execution yet.
 
 ## License
 
-MIT (see `LICENSE`).
+MIT (see [`LICENSE`](LICENSE)).
