@@ -12,18 +12,18 @@ import type { BootstrapContext } from './types.js'
 const SETUP_PROVIDER_OPTIONS: SetupProviderOption[] = [
   {
     id: 'anthropic',
-    label: 'Anthropic (Claude)',
-    description: 'Claude API (streaming + tools supported)',
+    label: 'Anthropic-compatible',
+    description: 'Anthropic-compatible API',
   },
   {
     id: 'openai',
     label: 'OpenAI-compatible',
-    description: 'OpenAI-compatible API (streaming + tools supported)',
+    description: 'OpenAI-compatible API',
   },
   {
     id: 'gemini',
     label: 'Gemini',
-    description: 'Not supported yet in Formax REPL',
+    description: 'Not supported yet in setup',
     disabled: true,
   },
 ]
@@ -47,6 +47,7 @@ async function runSetupWizard(args: { cwd: string; env: NodeJS.ProcessEnv }): Pr
               apiKey: draft.apiKey,
               model: draft.model,
               tierModels: draft.tierModels,
+              contextWindowTokens: draft.contextWindowTokens,
             })
           }}
           onDone={() => {

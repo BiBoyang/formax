@@ -6,6 +6,7 @@ const loadRuntimeConfig = vi.fn()
 
 let wizardAction: 'done' | 'cancel' = 'done'
 const SetupWizard = vi.fn(() => null)
+let lastSetupWizardProps: Record<string, unknown> | null = null
 
 function findSetupWizardProps(node: unknown): Record<string, unknown> | null {
   if (!node || typeof node !== 'object') return null
@@ -25,6 +26,7 @@ function findSetupWizardProps(node: unknown): Record<string, unknown> | null {
 
 const render = vi.fn((tree: unknown) => {
   const props = findSetupWizardProps(tree)
+  lastSetupWizardProps = props
   if (props) {
     queueMicrotask(() => {
       if (wizardAction === 'cancel') {
@@ -67,6 +69,7 @@ describe('createRuntimeConfigContext', () => {
     vi.resetModules()
     vi.clearAllMocks()
     wizardAction = 'done'
+    lastSetupWizardProps = null
   })
 
   it('loads config once when api key exists', async () => {
