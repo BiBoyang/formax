@@ -4,7 +4,13 @@ import { ToolHeaderLine } from './ToolHeaderLine'
 import { ToolIndentedLine, ToolSubline } from './ToolSubline'
 import type { ToolUiBlock } from './toolUiBlocksTypes'
 
-export function ToolUiBlocks({ blocks }: { blocks: ToolUiBlock[] }): React.ReactNode {
+export function ToolUiBlocks({
+  blocks,
+  headerSuffix,
+}: {
+  blocks: ToolUiBlock[]
+  headerSuffix?: string | null
+}): React.ReactNode {
   if (!blocks.length) return null
   return (
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -16,6 +22,7 @@ export function ToolUiBlocks({ blocks }: { blocks: ToolUiBlock[] }): React.React
               status={block.status}
               label={block.label}
               params={block.params ?? null}
+              suffix={headerSuffix}
             />
           )
         }

@@ -80,6 +80,10 @@ export interface Msg {
   timestamp: Date
   /** Whether the message is currently streaming */
   isStreaming?: boolean
+  /** Canonical transcript surface owner for this row. */
+  surfaceOwner?: 'static' | 'transient'
+  /** Debug-only hint describing which transcript surface rendered this row. */
+  surfaceHint?: 'static' | 'transient'
   /** Tool-specific information */
   toolInfo?: ToolInfo
 }
@@ -90,6 +94,23 @@ export interface Msg {
 export interface ToolMessageProps {
   /** The message object containing tool information */
   message: Msg
+}
+
+function shouldShowSurfaceSuffix(): boolean {
+  const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
+function toSurfaceSuffix(message: Msg): string | null {
+  if (!shouldShowSurfaceSuffix()) return null
+  const hint = message.surfaceHint ?? message.surfaceOwner
+  const surface = hint === 'transient' ? 'trans' : hint === 'static' ? 'static' : null
+  if (!surface) return null
+  const toolUseId = String(message.toolInfo?.toolUseId || '').trim()
+  const messageId = String(message.id || '').trim()
+  const messageIdTail = messageId.slice(-4)
+  if (!toolUseId) return `${surface}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
+  return `${surface}#${toolUseId.slice(-4)}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
 }
 
 /**
@@ -137,6 +158,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
   }
 
   const { name, input, status, expandInfo, middleLines } = message.toolInfo
+  const surfaceTag = toSurfaceSuffix(message)
   const header = selectToolHeaderFromInput({
     toolName: name,
     input,
@@ -155,6 +177,7 @@ export function ToolMessage({ message }: ToolMessageProps): React.ReactNode {
           status={status}
           label={header.label}
           params={showParams ? header.paramsText ?? null : null}
+          suffix={surfaceTag}
         />
       
       {/* Tool result (only shown when not running) */}

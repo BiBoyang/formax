@@ -13,6 +13,11 @@ import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
 
+function shouldShowSurfaceSuffix(): boolean {
+  const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
 // Component that renders the complete write tool UI
 // Handles plan file detection internally since it needs usePlanSession hook
 function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
@@ -33,6 +38,16 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   const showParams = Boolean(params && params.trim().length > 0)
 
   const toolUseId = message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
+  const showSurfaceSuffix = shouldShowSurfaceSuffix()
+  const hint = message.surfaceHint ?? message.surfaceOwner
+  const surface = hint === 'transient' ? 'trans' : hint === 'static' ? 'static' : null
+  const messageId = String(message.id || '').trim()
+  const messageIdTail = messageId.slice(-4)
+  const headerSuffix = showSurfaceSuffix && surface
+    ? toolUseId
+      ? `${surface}#${String(toolUseId).slice(-4)}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
+      : `${surface}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
+    : null
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = path.basename(filePathRaw || 'file')
 
@@ -42,7 +57,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   if (isPlanFile) {
     return (
       <Box flexDirection="column" marginBottom={0}>
-        <ToolHeaderLine status={status} label="Updated plan" />
+        <ToolHeaderLine status={status} label="Updated plan" suffix={headerSuffix} />
 
         {status !== 'running' && (
           <ToolSubline status={status === 'error' ? 'error' : 'completed'}>
@@ -66,7 +81,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
 
   return (
     <Box flexDirection="column" marginBottom={0}>
-      <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
+      <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} suffix={headerSuffix} />
 
       {status === 'running' ? (
         <WriteApprovalToolBlock

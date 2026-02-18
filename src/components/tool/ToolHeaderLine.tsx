@@ -9,6 +9,7 @@ export function ToolHeaderLine({
   status,
   label,
   params,
+  suffix,
   labelColor,
   labelBold = true,
   pulse,
@@ -17,6 +18,7 @@ export function ToolHeaderLine({
   status: ToolHeaderStatus
   label: string
   params?: string | null
+  suffix?: string | null
   labelColor?: string
   labelBold?: boolean
   pulse?: boolean
@@ -35,6 +37,13 @@ export function ToolHeaderLine({
   const resolvedPulse = pulse ?? status === 'running'
 
   return (
-    <Text><PulsingDot color={resolvedDotColor} pulse={resolvedPulse} trailingSpace /><Text bold={labelBold} color={labelColor ?? theme.text}>{label}</Text>{params ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}</Text>
+    <Text>
+      <PulsingDot color={resolvedDotColor} pulse={resolvedPulse} trailingSpace />
+      <Text bold={labelBold} color={labelColor ?? theme.text}>
+        {label}
+      </Text>
+      {suffix ? <Text color={theme.secondaryText}>{`(${suffix})`}</Text> : null}
+      {params ? <Text color={theme.secondaryText}>{`(${params})`}</Text> : null}
+    </Text>
   )
 }
