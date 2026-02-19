@@ -9,16 +9,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun run loade` - Run loading examples entrypoint
 - `bun run perf:transcript` - Run transcript performance playground (no network calls)
 - `bun run build` - Bundle CLI to `dist/cli.js` (requires Bun)
-- `bun run type-check` - Run TypeScript type checks (no emit) plus core + UI boundary checks
+- `bun run type-check` - Run TypeScript type checks (no emit) plus core + UI + features boundary checks
 - `bun run core:boundaries` - Run core module boundary checks
 - `bun run ui:boundaries` - Run UI boundary checks
+- `bun run features:boundaries` - Run feature module boundary checks
+- `bun run build:web-ui` - Build web UI assets (used by `prepack`)
+- `bun run build:web-ui:fast` - Build web UI assets, skip install step
 - `bun run test` - Run all tests (Vitest)
 - `bun run test:watch` - Run tests in watch mode
 - `bun run test -- <path>` - Run a specific test file (e.g., `bun run test -- src/tools/registry.test.ts`)
 - `bun run test:watch -- -t "<test-name>"` - Run tests matching a pattern
+- `bun run test:changed` - Run only tests affected by uncommitted changes
 - `bun run test:coverage` - Run tests with coverage report
 - `bun run test:coverage:watch` - Run tests in watch mode with coverage
 - `bun run test:coverage:gate` - Run tests with coverage and check thresholds
+- `bun run test:surface-smoke` - Run surface/TTY smoke tests (`surfaceSmoke.test.tsx`)
+- `bun run test:surface-screen-model` - Run terminal screen-model smoke (catches real TTY regressions)
+- `bun run test:surface-all` - Run both surface smoke suites (required for compact/expanded UI changes)
+- `bun run test:repl-semantic-gate` - REPL semantic pre-review gate (run before committing `src/features/repl/**` changes)
+- `bun run check:repl-single-writer` - Static check: enforce single-writer invariant in REPL state
+- `bun run check:semantic-streaming-perf` - Check semantic streaming performance constraints
+- `bun run check:partial-stage` - Check for partial staging issues before commit
 - `bun run tools:coverage` - Check tool implementation coverage vs reference specs
 - `bun run tools:parity` - Compare tool specs and schemas with reference file (default: `src/tools/specs/reference/tools-copy.json`)
 
@@ -42,6 +53,8 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 
 **Entry Points**
 - `src/entrypoints/cli.tsx` - Main CLI entry, parses args and dispatches to commands or REPL
+- `src/entrypoints/app-server-bridge.ts` - Dev bridge entrypoint (WebSocket → stdio loop)
+- `src/entrypoints/app-server-web-reference.ts` - Dev entrypoint for bridge + React web UI
 - `src/entrypoints/tool-examples.tsx` - Tool testing/demo entry point
 - `src/entrypoints/loading-examples.tsx` - Loading examples entry point
 - `src/entrypoints/perf-transcript.tsx` - Transcript performance playground
@@ -50,6 +63,20 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 - `src/cli/args.ts` - CLI argument parsing
 - `src/cli/main.ts` - Command dispatch (handles `formax doctor`, `formax auth`, etc.)
 - `src/legacy/runLegacyCli.tsx` - Legacy REPL initialization flow
+
+**App Server** (`src/app-server/`)
+JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Also exposes a WebSocket dev bridge (`formax serve`, `formax web`) for the web reference UI.
+- `src/app-server/server.ts` - JSON-RPC router
+- `src/app-server/protocol.ts`, `src/app-server/protocol/input.ts` - Protocol parsing + param validation
+- `src/app-server/jsonrpc.ts` - Message classification and encoding
+- `src/app-server/threadStore.ts` - Thread/session mapping
+- `src/app-server/turnRunner.ts` - Turn execution and streaming forwarding
+- `src/app-server/devBridge.ts` - WebSocket fan-in/fan-out to app-server loop
+- `src/app-server/transport/stdio.ts` - Stdio JSONL transport
+- `src/network/runtime.ts` - Shared host/port/URL/security helpers for web + bridge
+- `src/serve/localServer.ts` - `formax serve` WebSocket bridge launcher
+- `src/web/localUi.ts` - `formax web` bridge + static host launcher
+- `apps/web-reference-react/` - Reference React web client (isolated app)
 
 **Core Layer** (productized configuration, auth, policy)
 - `src/core/config/` - Multi-source config merging (default → global → project → env → flags)
@@ -211,6 +238,9 @@ Full list and classification (public/internal/deprecated):
 - Ink UI tests use `ink-testing-library`
 - Property-based tests use `fast-check` where applicable
 - Tool handlers tested with mocked dependencies and context fixtures
+- **Coverage mindset**: Prioritize edge cases and regressions for user-visible or stability-critical paths (tools, permissions, hooks, REPL input, UI flows). Avoid happy-path-only tests.
+- **REPL semantic gate (mandatory)**: For any change to `src/features/repl/**` semantic flow, run `bun run test:repl-semantic-gate` before committing.
+- **Surface tests (mandatory for UI changes)**: For compact/expanded toggle or Static-path changes, run `bun run test:surface-all` in addition to regular Vitest.
 
 ### Refactor Guardrails (Important)
 
@@ -246,6 +276,11 @@ Example: `refactor(tools): extract handler execution into separate module`
 - `PascalCase` for components and classes
 - `camelCase` for functions and hooks
 - Tool modules: `createXToolModule`, files: `{index,handler,presenter}.ts(x)`
+
+### Mandatory Agent Behavior Rules
+
+- **Clarification first (mandatory)**: In any task, if user intent is ambiguous (UI, behavior, scope, risk, tradeoff, or acceptance criteria), ask the user BEFORE making directional choices. Do not infer beyond explicit requirements.
+- **Use question tool**: When clarification is needed, use `AskUserQuestion` (or ask directly in chat if the tool is unavailable) instead of guessing.
 
 ## Pitfalls & Gotchas (Keep Updated)
 When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `AGENTS.md` so future agents can avoid re-discovering it.
