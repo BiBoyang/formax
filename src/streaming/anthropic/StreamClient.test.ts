@@ -107,7 +107,9 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
-    expect(init.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14')
+    expect(init.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
   })
 
   it('uses per-turn model override when provided', async () => {
@@ -236,7 +238,9 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
     const firstBody = JSON.parse(firstInit.body)
     expect(firstBody.thinking).toBeDefined()
-    expect(firstInit.headers['anthropic-beta']).toBe('interleaved-thinking-2025-05-14')
+    expect(firstInit.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
 
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     const secondBody = JSON.parse(secondInit.body)

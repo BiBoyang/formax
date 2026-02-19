@@ -45,24 +45,23 @@ export type StreamOnceArgs = LlmStreamOnceArgs
 
 function getDefaultHeaders(apiKey: string): Record<string, string> {
   return {
-    accept: 'text/event-stream',
-    'accept-encoding': 'gzip, deflate, br',
+    accept: 'application/json',
+    'accept-encoding': 'gzip, deflate, br, zstd',
     'content-type': 'application/json',
     'anthropic-version': '2023-06-01',
     'anthropic-dangerous-direct-browser-access': 'true',
-    'x-api-key': apiKey,
     Authorization: `Bearer ${apiKey}`,
     'user-agent':
       'claude-cli/2.1.45 (external, claude-vscode, agent-sdk/0.2.45)',
     'x-app': 'cli',
     'x-stainless-arch': process.arch || 'arm64',
-    'x-stainless-helper-method': 'stream',
     'x-stainless-lang': 'js',
     'x-stainless-os': process.platform === 'darwin' ? 'MacOS' : process.platform,
-    'x-stainless-package-version': '0.70.0',
+    'x-stainless-package-version': '0.74.0',
     'x-stainless-retry-count': '0',
     'x-stainless-runtime': 'node',
-    'x-stainless-runtime-version': process.version,
+    'x-stainless-runtime-version': 'v24.3.0',
+    'x-stainless-timeout': '3000',
   }
 }
 
@@ -88,7 +87,11 @@ function shouldRetryWithoutThinking(errorText: string): boolean {
 }
 
 function addThinkingHeaders(headers: Record<string, string>): Record<string, string> {
-  return { ...headers, 'anthropic-beta': 'interleaved-thinking-2025-05-14' }
+  return {
+    ...headers,
+    'anthropic-beta':
+      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+  }
 }
 
 function stripThinkingHeaders(headers: Record<string, string>): Record<string, string> {
