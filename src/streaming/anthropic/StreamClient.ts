@@ -274,7 +274,9 @@ export class AnthropicStreamClient implements LlmStreamClient {
           }
         }
         if (block.type === 'thinking') {
-          return { type: 'thinking', thinking: block.thinking || '' }
+          return block.signature
+            ? ({ type: 'thinking', thinking: block.thinking || '', signature: block.signature } as PromptBlock)
+            : ({ type: 'thinking', thinking: block.thinking || '' } as PromptBlock)
         }
         return block as any
       })

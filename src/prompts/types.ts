@@ -23,6 +23,7 @@ export type ToolResultBlock = {
 export type ThinkingBlock = {
   type: 'thinking'
   thinking: string
+  signature?: string
 }
 
 export type PromptBlock =

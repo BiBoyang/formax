@@ -20,6 +20,7 @@ export interface ContentBlock {
   name?: string    // for tool_use
   input?: any      // for tool_use, parsed from JSON
   thinking?: string // for thinking blocks
+  signature?: string // for thinking blocks
 }
 
 export interface SSECallbacks {
@@ -213,7 +214,8 @@ function handleSSEEvent(
         contentBlocks[index] = {
           index,
           type: 'thinking',
-          thinking: block.thinking || ''
+          thinking: block.thinking || '',
+          signature: block.signature || '',
         }
         if (block.thinking) {
           callbacks.onThinkingDelta(block.thinking, index)
@@ -235,6 +237,8 @@ function handleSSEEvent(
           inputJSONBuffers.set(index, '')
         } else if (delta?.type === 'thinking_delta') {
           contentBlocks[index] = { index, type: 'thinking', thinking: '' }
+        } else if (delta?.type === 'signature_delta') {
+          contentBlocks[index] = { index, type: 'thinking', thinking: '', signature: '' }
         }
       }
 
@@ -257,6 +261,11 @@ function handleSSEEvent(
         }
         if (thinking) {
           callbacks.onThinkingDelta(thinking, index)
+        }
+      } else if (delta?.type === 'signature_delta') {
+        const signature = delta.signature ?? ''
+        if (contentBlocks[index]) {
+          contentBlocks[index].signature = (contentBlocks[index].signature || '') + signature
         }
       }
       break
