@@ -184,3 +184,17 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - keep `tool_end` terminal authority when footer is corrected later
 - **Links**: `docs/pitfalls/repl-transcript-surface-handoff-pitfall.md`, `docs/pitfalls/repl-transcript-static-rootcause.md`
 - **Keywords**: semantic handoff, tool duplicate, flicker, order inversion, surfaceOwner, turn_footer, tool_end
+
+## `/v1/messages` “负载上限”伪错误：先分离 signature 与 header 路由问题
+- **Problem**: 出现 `500 new_api_error`（“负载上限”）且在第 N 轮随机失败，容易误判为额度/容量问题。
+- **Repro**: 混合主请求与 auto-title 请求做 A/B；或在历史回传中丢失 `thinking.signature`。
+- **Root cause**:
+  - 协议层：`thinking.signature` 未透传会导致后续轮次失败；
+  - 路由层：主请求 header profile 会影响上游处理路径；
+  - 统计层：auto-title（`tools=0/thinking=false`）失败会污染主请求结论。
+- **Fix**:
+  - 先修复 signature 透传；
+  - 主请求单独做 header 二分，auto-title 单独统计；
+  - 使用稳定主请求 header profile（见下方链接）。
+- **Links**: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`
+- **Keywords**: anthropic, signature_delta, thinking.signature, header routing, auto-title, new_api_error, fake overload
