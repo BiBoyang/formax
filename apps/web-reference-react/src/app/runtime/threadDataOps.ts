@@ -1,6 +1,10 @@
 import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
 import type { DiffFilePatchPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
-import { asResolvedInputs, asThreadMessages, asThreadSummaries } from '../core/rpcParsers'
+import {
+  parseResolvedInputsResponse,
+  parseThreadListResponse,
+  parseThreadMessagesResponse,
+} from '../core/rpcContracts'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey } from '../core/threadCache'
 import type { TranscriptItem } from '../../types'
@@ -104,7 +108,7 @@ function asDiffFilePatchPayload(value: unknown): DiffFilePatchPayload | null {
 export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const refreshThreads = async () => {
     const result = await ctx.request('thread/list', { limit: 50 })
-    ctx.dispatch({ type: 'set_threads', threads: asThreadSummaries(result) })
+    ctx.dispatch({ type: 'set_threads', threads: parseThreadListResponse(result) })
   }
 
   const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {
@@ -192,7 +196,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       if (token !== ctx.historyLoadTokenRef.current) return false
       if (ctx.activeThreadIdRef.current !== threadId) return false
 
-      const parsed = asThreadMessages(historyResult)
+      const parsed = parseThreadMessagesResponse(historyResult)
       const logs = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       ctx.dispatch({ type: 'clear_pending_inputs' })
@@ -213,7 +217,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const resumeThreadInputs = async (threadId: string) => {
     try {
       const resumeResult = await ctx.request('thread/resume', { threadId })
-      const staleInputs = asResolvedInputs(resumeResult)
+      const staleInputs = parseResolvedInputsResponse(resumeResult)
       for (const input of staleInputs) {
         if (ctx.seenStaleInputIdRef.current.has(input.inputId)) continue
         ctx.seenStaleInputIdRef.current.add(input.inputId)
@@ -242,7 +246,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       if (token !== ctx.historyLoadTokenRef.current) return
       if (ctx.activeThreadIdRef.current !== threadId) return
 
-      const parsed = asThreadMessages(result)
+      const parsed = parseThreadMessagesResponse(result)
       const prepended = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
       ctx.dispatch({ type: 'prepend_logs', logs: prepended })
       ctx.setLogsByThreadId((prev) => {

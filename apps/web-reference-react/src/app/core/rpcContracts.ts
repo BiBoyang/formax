@@ -1,4 +1,11 @@
-import { asThreadReplay, type ReplayStateSnapshot } from './rpcParsers'
+import type { ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
+import {
+  asResolvedInputs,
+  asThreadMessages,
+  asThreadReplay,
+  asThreadSummaries,
+  type ReplayStateSnapshot,
+} from './rpcParsers'
 
 export type RpcStartedThread = {
   id: string
@@ -20,6 +27,11 @@ export type RpcThreadReplayResult = {
   latestCursor: number
   hasGap: boolean
   state: ReplayStateSnapshot | null
+}
+
+export type RpcThreadMessagesResult = {
+  data: ThreadMessage[]
+  nextCursor: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -55,4 +67,16 @@ export function parseInputSubmitResponse(value: unknown): RpcInputSubmitResult {
 
 export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult {
   return asThreadReplay(value)
+}
+
+export function parseThreadListResponse(value: unknown): ThreadSummary[] {
+  return asThreadSummaries(value)
+}
+
+export function parseThreadMessagesResponse(value: unknown): RpcThreadMessagesResult {
+  return asThreadMessages(value)
+}
+
+export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {
+  return asResolvedInputs(value)
 }

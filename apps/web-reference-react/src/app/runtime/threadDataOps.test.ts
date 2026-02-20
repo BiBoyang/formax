@@ -5,10 +5,10 @@ vi.mock('../../eventAdapters', () => ({
   mapThreadHistoryToCanonicalLogs: vi.fn(() => [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }]),
 }))
 
-vi.mock('../core/rpcParsers', () => ({
-  asResolvedInputs: vi.fn(() => []),
-  asThreadMessages: vi.fn(() => ({ data: [], nextCursor: 'cursor-next' })),
-  asThreadSummaries: vi.fn(() => []),
+vi.mock('../core/rpcContracts', () => ({
+  parseResolvedInputsResponse: vi.fn(() => []),
+  parseThreadMessagesResponse: vi.fn(() => ({ data: [], nextCursor: 'cursor-next' })),
+  parseThreadListResponse: vi.fn(() => []),
 }))
 
 function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): ThreadDataOpsContext {

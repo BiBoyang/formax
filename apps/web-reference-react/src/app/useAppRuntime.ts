@@ -8,9 +8,7 @@ import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
-import {
-  asThreadReplay,
-} from './core/rpcParsers'
+import { parseThreadReplayResponse } from './core/rpcContracts'
 import {
   type ThreadTranscriptSource,
 } from './core/replayMachine'
@@ -380,7 +378,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
       return runReplayThreadEvents(threadId, options, {
         request,
-        asThreadReplay,
+        parseThreadReplayResponse,
         toRuntimePendingInputsById,
         replayCursorByThreadRef,
         replayAnomalyCountSeenByThreadRef,
@@ -407,6 +405,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       loadThreadHistory,
       handleNotification,
       log,
+      parseThreadReplayResponse,
       setThreadTranscriptSource,
       syncPendingInputsFromReplayState,
     ],

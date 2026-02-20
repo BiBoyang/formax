@@ -19,7 +19,7 @@ import {
 } from './testFixtures/replayFixtures'
 import { CROSS_PATH_CONTRACT_FIXTURE } from '../../semantics'
 
-type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
+type ReplayPage = ReturnType<ReplayThreadEventsContext['parseThreadReplayResponse']>
 // Type aliases
 type ReplayMockFn = ReturnType<typeof vi.fn>
 type ReplayRequestMock = ReplayMockFn
@@ -113,7 +113,7 @@ function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): Replay
 function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {}): ReplayThreadEventsContext {
   return {
     request: vi.fn(),
-    asThreadReplay: (value) => value as ReplayPage,
+    parseThreadReplayResponse: (value) => value as ReplayPage,
     toRuntimePendingInputsById: vi.fn().mockReturnValue({}),
     replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: INITIAL_REPLAY_CURSOR } },
     replayAnomalyCountSeenByThreadRef: { current: {} },

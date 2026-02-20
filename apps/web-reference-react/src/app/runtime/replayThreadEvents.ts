@@ -1,12 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { AppAction } from '../../store'
-import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
+import type { RpcThreadReplayResult } from '../core/rpcContracts'
+import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
 
-type ReplayResult = ReturnType<typeof asThreadReplay>
+type ReplayResult = RpcThreadReplayResult
 
 function shouldUseIncrementalReplayData(replay: ReplayResult): boolean {
   return !replay.hasGap
@@ -44,7 +45,7 @@ export function resolveReplayCursorProgress(args: {
 
 export type ReplayThreadEventsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>
-  asThreadReplay: (value: unknown) => ReplayResult
+  parseThreadReplayResponse: (value: unknown) => ReplayResult
   toRuntimePendingInputsById: (pendingInputs: ReplayStateSnapshot['pendingInputs']) => ThreadRuntimeState['pendingInputs']
   replayCursorByThreadRef: { current: Record<string, number> }
   replayAnomalyCountSeenByThreadRef: { current: Record<string, number> }
@@ -186,12 +187,12 @@ export async function replayThreadEvents(
 
   const fetchReplayPage = async (afterCursor: number): Promise<ReplayResult> => {
     const result = await ctx.request('thread/replay', { threadId, after: afterCursor, limit: 200 })
-    return ctx.asThreadReplay(result)
+    return ctx.parseThreadReplayResponse(result)
   }
 
   const fetchReplayBaseline = async (): Promise<ReplayResult> => {
     const baselineResult = await ctx.request('thread/replay', { threadId })
-    return ctx.asThreadReplay(baselineResult)
+    return ctx.parseThreadReplayResponse(baselineResult)
   }
 
   const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {
