@@ -10,7 +10,8 @@ type MarkdownRendererProps = Omit<HTMLAttributes<HTMLDivElement>, 'dangerouslySe
 
 type CacheEntry = {
   hash: string
-  html: string
+  baseHtml: string
+  highlightedHtml?: string
 }
 
 const CACHE_LIMIT = 200
@@ -129,6 +130,45 @@ function touchCache(key: string, value: CacheEntry) {
   markdownCache.delete(first)
 }
 
+function scheduleLowPriorityTask(run: () => void): () => void {
+  const schedulerLike = globalThis as typeof globalThis & {
+    scheduler?: {
+      postTask?: (callback: () => void, options?: { priority?: 'user-blocking' | 'user-visible' | 'background' }) => unknown
+    }
+  }
+  if (schedulerLike.scheduler?.postTask) {
+    let cancelled = false
+    const task = schedulerLike.scheduler.postTask(
+      () => {
+        if (!cancelled) run()
+      },
+      { priority: 'background' },
+    ) as { cancel?: () => void } | undefined
+    return () => {
+      cancelled = true
+      task?.cancel?.()
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const win = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+    if (typeof win.requestIdleCallback === 'function') {
+      const handle = win.requestIdleCallback(() => run())
+      return () => {
+        win.cancelIdleCallback?.(handle)
+      }
+    }
+  }
+
+  const timeout = setTimeout(run, 0)
+  return () => {
+    clearTimeout(timeout)
+  }
+}
+
 function normalizeLanguage(raw: string | undefined, bundledLanguages: Record<string, unknown>): string {
   const normalized = (raw ?? '').trim().toLowerCase()
   if (!normalized) return 'text'
@@ -224,44 +264,51 @@ async function highlightCodeBlocks(html: string): Promise<string> {
 
 export function MarkdownRenderer({ text, cacheKey, className, ...rest }: MarkdownRendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
-
+  const hash = useMemo(() => checksum(text), [text])
+  const key = cacheKey ?? hash
+  const cached = useMemo(() => {
+    const entry = markdownCache.get(key)
+    if (!entry || entry.hash !== hash) return null
+    return entry
+  }, [hash, key])
   const rawHtml = useMemo(() => parseMarkdown(text), [text])
-  const safeBaseHtml = useMemo(() => sanitizeHtml(rawHtml), [rawHtml])
-  const [html, setHtml] = useState<string>(safeBaseHtml)
+  const safeBaseHtml = useMemo(() => cached?.baseHtml ?? sanitizeHtml(rawHtml), [cached, rawHtml])
+  const [html, setHtml] = useState<string>(cached?.highlightedHtml ?? cached?.baseHtml ?? safeBaseHtml)
 
   useEffect(() => {
-    setHtml(safeBaseHtml)
-  }, [safeBaseHtml])
+    setHtml(cached?.highlightedHtml ?? cached?.baseHtml ?? safeBaseHtml)
+  }, [cached, safeBaseHtml])
 
   useEffect(() => {
-    const hash = checksum(text)
-    const key = cacheKey ?? hash
-
-    const cached = markdownCache.get(key)
-    if (cached && cached.hash === hash) {
+    const hasCodeBlocks = HAS_CODE_BLOCK_REGEX.test(rawHtml)
+    if (cached) {
       touchCache(key, cached)
-      setHtml(cached.html)
-      return
-    }
-
-    if (!HAS_CODE_BLOCK_REGEX.test(rawHtml)) {
-      touchCache(key, { hash, html: safeBaseHtml })
-      return
+      if (cached.highlightedHtml || !hasCodeBlocks) {
+        return
+      }
+    } else {
+      touchCache(key, { hash, baseHtml: safeBaseHtml })
+      if (!hasCodeBlocks) {
+        return
+      }
     }
 
     let cancelled = false
-    void (async () => {
-      const highlighted = await highlightCodeBlocks(rawHtml)
-      if (cancelled) return
-      const safeHighlighted = sanitizeHtml(highlighted)
-      touchCache(key, { hash, html: safeHighlighted })
-      setHtml(safeHighlighted)
-    })()
+    const cancelScheduled = scheduleLowPriorityTask(() => {
+      void (async () => {
+        const highlighted = await highlightCodeBlocks(rawHtml)
+        if (cancelled) return
+        const safeHighlighted = sanitizeHtml(highlighted)
+        touchCache(key, { hash, baseHtml: safeBaseHtml, highlightedHtml: safeHighlighted })
+        setHtml(safeHighlighted)
+      })()
+    })
 
     return () => {
       cancelled = true
+      cancelScheduled()
     }
-  }, [text, cacheKey, rawHtml, safeBaseHtml])
+  }, [cached, hash, key, rawHtml, safeBaseHtml])
 
   useEffect(() => {
     const root = rootRef.current
