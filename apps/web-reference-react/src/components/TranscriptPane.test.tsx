@@ -211,6 +211,29 @@ describe('TranscriptPane', () => {
     expect(container.querySelectorAll('[data-turn-group-start=\"true\"]')).toHaveLength(2)
   })
 
+  it('marks first visible turn as a boundary after render-window slicing', () => {
+    const logs = Array.from({ length: 35 }, (_, index) => ({
+      id: `slice-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `slice-msg-${index}`,
+      turnId: index >= 4 && index <= 8 ? 'turn-1' : index >= 9 && index <= 11 ? 'turn-2' : undefined,
+    }))
+
+    const { container } = render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+        })}
+      />,
+    )
+
+    expect(container.querySelectorAll('[data-turn-group-start=\"true\"]')).toHaveLength(2)
+
+    const firstVisibleTurn = screen.getByText('slice-msg-5').closest('[data-turn-group-start=\"true\"]')
+    expect(firstVisibleTurn).not.toBeNull()
+  })
+
   it('renders provided logs and keeps load-earlier callback wiring', () => {
     const onLoadEarlier = vi.fn()
 

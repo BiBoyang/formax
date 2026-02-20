@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
-import { memo, useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -290,7 +290,24 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     (isSending || Boolean(activeTurnId))
 
   const hiddenInMemoryCount = Math.max(0, logs.length - renderLimit)
-  const renderedLogs = hiddenInMemoryCount > 0 ? logs.slice(-renderLimit) : logs
+  const renderedLogs = useMemo(() => {
+    if (hiddenInMemoryCount <= 0) return logs
+    return logs.slice(-renderLimit)
+  }, [hiddenInMemoryCount, logs, renderLimit])
+  const renderedRows = useMemo(() => {
+    let lastKnownTurnId: string | undefined
+    return renderedLogs.map((item, index) => {
+      const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
+      if (item.turnId) {
+        lastKnownTurnId = item.turnId
+      }
+      return {
+        item,
+        turnGroupStart,
+        showTurnGap: turnGroupStart && index > 0,
+      }
+    })
+  }, [renderedLogs])
   const showJumpToBottom = logs.length > 0 && !isNearBottom
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -586,29 +603,19 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 </div>
             ) : null}
 
-            {(() => {
-              let lastKnownTurnId: string | undefined
-              return renderedLogs.map((item, index) => {
-                const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
-                if (item.turnId) {
-                  lastKnownTurnId = item.turnId
-                }
-
-                return (
-                  <TranscriptItemRow
-                    key={item.id}
-                    item={item}
-                    turnGroupStart={turnGroupStart}
-                    showTurnGap={turnGroupStart && index > 0}
-                    activeThreadCwd={activeThread?.cwd}
-                    toolOpen={openToolIds.has(item.id)}
-                    thinkingOpen={openThinkingIds.has(item.id)}
-                    onToggleTool={toggleToolOpen}
-                    onToggleThinking={toggleThinkingOpen}
-                  />
-                )
-              })
-            })()}
+            {renderedRows.map((row) => (
+              <TranscriptItemRow
+                key={row.item.id}
+                item={row.item}
+                turnGroupStart={row.turnGroupStart}
+                showTurnGap={row.showTurnGap}
+                activeThreadCwd={activeThread?.cwd}
+                toolOpen={openToolIds.has(row.item.id)}
+                thinkingOpen={openThinkingIds.has(row.item.id)}
+                onToggleTool={toggleToolOpen}
+                onToggleThinking={toggleThinkingOpen}
+              />
+            ))}
 
             {showTurnLoading ? (
               <div data-testid="turn-loading" className="py-1">
