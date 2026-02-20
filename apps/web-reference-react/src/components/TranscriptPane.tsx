@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -17,6 +17,21 @@ const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
 const HISTORY_BATCH_RENDER_SIZE = 50
 const RENDER_WINDOW_CAP = 200
+
+type OpenIdsAction =
+  | { type: 'toggle'; id: string }
+  | { type: 'reset' }
+
+function openIdsReducer(state: Set<string>, action: OpenIdsAction): Set<string> {
+  if (action.type === 'reset') return new Set<string>()
+  const next = new Set(state)
+  if (next.has(action.id)) {
+    next.delete(action.id)
+  } else {
+    next.add(action.id)
+  }
+  return next
+}
 
 type RpcErrorLike = {
   at: string
@@ -248,8 +263,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const [isImeComposing, setIsImeComposing] = useState(false)
   const [renderLimit, setRenderLimit] = useState(TURN_INIT_RENDER_LIMIT)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
-  const [openToolIds, setOpenToolIds] = useState<Record<string, boolean>>({})
-  const [openThinkingIds, setOpenThinkingIds] = useState<Record<string, boolean>>({})
+  const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
+  const [openThinkingIds, dispatchOpenThinkingIds] = useReducer(openIdsReducer, new Set<string>())
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
@@ -356,11 +371,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }
 
   const toggleToolOpen = useCallback((id: string) => {
-    setOpenToolIds((prev) => ({ ...prev, [id]: !prev[id] }))
+    dispatchOpenToolIds({ type: 'toggle', id })
   }, [])
 
   const toggleThinkingOpen = useCallback((id: string) => {
-    setOpenThinkingIds((prev) => ({ ...prev, [id]: !prev[id] }))
+    dispatchOpenThinkingIds({ type: 'toggle', id })
   }, [])
 
   const modeInfo = modeMeta(mode)
@@ -478,8 +493,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                     turnGroupStart={turnGroupStart}
                     showTurnGap={turnGroupStart && index > 0}
                     activeThreadCwd={activeThread?.cwd}
-                    toolOpen={Boolean(openToolIds[item.id])}
-                    thinkingOpen={Boolean(openThinkingIds[item.id])}
+                    toolOpen={openToolIds.has(item.id)}
+                    thinkingOpen={openThinkingIds.has(item.id)}
                     onToggleTool={toggleToolOpen}
                     onToggleThinking={toggleThinkingOpen}
                   />
