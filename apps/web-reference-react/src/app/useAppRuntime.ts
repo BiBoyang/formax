@@ -47,6 +47,10 @@ import {
   type ThreadRuntimeState,
 } from '../../../../src/features/semantics/runtime/threadRuntimeState'
 import { isReplMode, type ReplMode } from '../../../../src/features/semantics/core/replModeTransition'
+import {
+  isDevPerformanceEnabled,
+  withDevPerformanceSync,
+} from './core/devPerformance'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -131,6 +135,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
   const activeLogs = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
+  const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
 
   const pruneThreadScopedRuntimeRefs = useCallback(
     (threads: Array<{ id: string }>) => {
@@ -289,30 +294,36 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
-      processNotification(notification, {
-        runtimeStateByThreadRef,
-        replayCursorByThreadRef,
-        activeThreadIdRef,
-        commandByTurnRef,
-        createInitialThreadRuntimeState,
-        shouldProcessSequencedNotification,
-        dispatch,
-        setMode,
-        cacheThreadMode,
-        isReplMode,
-        refreshThreads,
-        refreshWorkspaceDiff,
-        log,
-        setAskDockOpenByInputId,
-        setAskPageIndexByInputId,
-        setAskDraftByInputId,
-        setSubmitStatusByInputId,
-        reduceThreadRuntimeState,
-        onThreadArchivedNotification: handleThreadArchivedNotification,
+      withDevPerformanceSync({
+        enabled: devPerfEnabled,
+        label: `web-ref:notification:${notification.method}`,
+        run: () =>
+          processNotification(notification, {
+            runtimeStateByThreadRef,
+            replayCursorByThreadRef,
+            activeThreadIdRef,
+            commandByTurnRef,
+            createInitialThreadRuntimeState,
+            shouldProcessSequencedNotification,
+            dispatch,
+            setMode,
+            cacheThreadMode,
+            isReplMode,
+            refreshThreads,
+            refreshWorkspaceDiff,
+            log,
+            setAskDockOpenByInputId,
+            setAskPageIndexByInputId,
+            setAskDraftByInputId,
+            setSubmitStatusByInputId,
+            reduceThreadRuntimeState,
+            onThreadArchivedNotification: handleThreadArchivedNotification,
+          }),
       })
     },
     [
       cacheThreadMode,
+      devPerfEnabled,
       handleThreadArchivedNotification,
       log,
       refreshThreads,

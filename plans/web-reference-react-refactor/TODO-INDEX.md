@@ -9,7 +9,6 @@
 ## 当前待办
 
 - Phase 0：基线与护栏（可观测性 + 重构护栏）
-  - 增加开发态性能标记（console.time/measure 或轻量 instrumentation 开关）
   - 明确并写成可验证不变量：
     - notification 顺序不变量
     - projection hydrate 行为不变量
@@ -80,4 +79,3 @@
 - `npm run type-check`
 - `npm run test`
 - `npm run test:e2e`
-
