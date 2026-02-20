@@ -231,13 +231,15 @@ describe('threadActions', () => {
     await actions.archiveThread('active-thread')
 
     expect(ctx.clearArchiveOp).toHaveBeenCalledWith(expect.any(String))
-    expect(ctx.dispatch).toHaveBeenCalledWith({
-      type: 'set_threads',
-      threads: [
-        { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' },
-        { id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' },
-      ],
-    })
+    expect(ctx.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'set_threads',
+        threads: expect.arrayContaining([
+          expect.objectContaining({ id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' }),
+          expect.objectContaining({ id: 'next-thread', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next' }),
+        ]),
+      }),
+    )
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'clear_pending_inputs' })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'input_requested', input: pendingInput })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_selected_input', inputId: 'input-1' })

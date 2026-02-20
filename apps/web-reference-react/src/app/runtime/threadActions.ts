@@ -1,9 +1,23 @@
+import type { Dispatch } from 'react'
+import type { AppAction } from '../../store'
 import type { PendingInput, TranscriptItem } from '../../types'
+import type { ThreadSummary } from '../../types'
 import {
+  type ReplMode,
   type ArchiveThreadLike,
   resolveArchiveSelection,
 } from '../../semantics'
 import { selectThreadTranscriptLogs } from '../core/logSelectors'
+
+type ThreadListItem = {
+  id: string
+  cwd?: string
+  createdAt?: string
+  updatedAt: string
+  messageCount?: number | null
+  label?: string | null
+  lastUserPrompt?: string | null
+}
 
 export type ThreadActionsContext = {
   selectedCwd: string | null
@@ -14,15 +28,15 @@ export type ThreadActionsContext = {
     selectedInputId: string | null
     pendingInputs: Record<string, PendingInput>
     logs: TranscriptItem[]
-    threads: Array<{ id: string; cwd?: string; updatedAt: string; label?: string | null; lastUserPrompt?: string | null }>
+    threads: ThreadListItem[]
   }
-  sortedThreads: Array<{ id: string; cwd?: string; updatedAt: string; label?: string | null; lastUserPrompt?: string | null }>
+  sortedThreads: ThreadListItem[]
   logsByThreadId: Record<string, TranscriptItem[]>
-  request: (method: string, params?: unknown) => Promise<any>
-  dispatch: (action: any) => void
+  request: (method: string, params?: unknown) => Promise<unknown>
+  dispatch: Dispatch<AppAction>
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
-  setMode: (mode: 'normal' | 'plan' | 'acceptEdits') => void
-  runtimeStateByThreadRef: { current: Record<string, { mode: 'normal' | 'plan' | 'acceptEdits' }> }
+  setMode: (mode: ReplMode) => void
+  runtimeStateByThreadRef: { current: Record<string, { mode: ReplMode }> }
   replayCursorByThreadRef: { current: Record<string, number> }
   activeThreadIdRef: { current: string | null }
   setIsThreadActionBusy: (busy: boolean) => void
@@ -36,6 +50,32 @@ export type ThreadActionsContext = {
 }
 
 export type SelectThreadOptions = { restoreOnReplayFailure?: boolean }
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {}
+  return value as Record<string, unknown>
+}
+
+function parseThreadStartResponse(value: unknown): { id: string; cwd?: string } | null {
+  const record = asRecord(value)
+  const thread = asRecord(record.thread)
+  const id = typeof thread.id === 'string' ? thread.id : ''
+  if (!id) return null
+  const cwd = typeof thread.cwd === 'string' ? thread.cwd : undefined
+  return { id, ...(cwd ? { cwd } : {}) }
+}
+
+function toThreadSummary(thread: ThreadListItem): ThreadSummary {
+  return {
+    id: thread.id,
+    cwd: thread.cwd ?? '',
+    createdAt: thread.createdAt ?? thread.updatedAt,
+    updatedAt: thread.updatedAt,
+    messageCount: typeof thread.messageCount === 'number' ? thread.messageCount : 0,
+    label: thread.label ?? null,
+    lastUserPrompt: thread.lastUserPrompt ?? null,
+  }
+}
 
 export function createThreadActions(ctx: ThreadActionsContext) {
   const applyActiveThreadState = (threadId: string, logs: TranscriptItem[]) => {
@@ -76,8 +116,8 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     ctx.setIsThreadActionBusy(true)
     try {
       const result = await ctx.request('thread/start', ctx.selectedCwd ? { cwd: ctx.selectedCwd } : {})
-      const thread = result?.thread as { id?: string; cwd?: string } | undefined
-      if (!thread?.id) return
+      const thread = parseThreadStartResponse(result)
+      if (!thread) return
 
       if (thread.cwd) {
         ctx.setSelectedCwd(thread.cwd)
@@ -207,7 +247,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
         : `archive-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
     const nextThreads = snapshot.threads.filter((thread) => thread.id !== threadId)
-    ctx.dispatch({ type: 'set_threads', threads: nextThreads })
+    ctx.dispatch({ type: 'set_threads', threads: nextThreads.map(toThreadSummary) })
 
     if (selection.shouldSwitchActiveThread) {
       if (selection.nextActiveThreadId) {
@@ -235,7 +275,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       if (!shouldRollback) {
         return
       }
-      ctx.dispatch({ type: 'set_threads', threads: snapshot.threads })
+      ctx.dispatch({ type: 'set_threads', threads: snapshot.threads.map(toThreadSummary) })
       restorePendingInputsState({
         pendingInputs: snapshot.pendingInputs,
         selectedInputId: snapshot.selectedInputId,
