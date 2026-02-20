@@ -23,6 +23,7 @@ import {
 } from './core/threadTransforms'
 import { selectThreadViewModelById } from './core/threadViewModel'
 import { selectActiveTranscriptLogs } from './core/logSelectors'
+import { createTranscriptSelectorStore } from './core/transcriptSelectorStore'
 import {
   formatArchiveNotice,
   resolveArchiveSelection,
@@ -154,6 +155,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
   const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
+  const transcriptSelectorStoreRef = useRef(createTranscriptSelectorStore())
   const historyCursorByThreadIdRef = useRef<Record<string, string | null>>(historyCursorByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const replayAnomalyCountSeenByThreadRef = useRef<Record<string, number>>({})
@@ -166,10 +168,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
-  const activeLogs = useMemo(
-    () => selectActiveTranscriptLogs({ activeThreadId: state.activeThreadId, logs: state.logs, logsByThreadId }),
-    [logsByThreadId, state.activeThreadId, state.logs],
-  )
+  const activeLogs = transcriptSelectorStoreRef.current.select(selectActiveTranscriptLogs, {
+    activeThreadId: state.activeThreadId,
+    logs: state.logs,
+    logsByThreadId,
+  })
   const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
 
   const pruneThreadScopedRuntimeRefs = useCallback(
