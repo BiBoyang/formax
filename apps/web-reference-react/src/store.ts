@@ -4,12 +4,14 @@ import { transitionResolvedFromPending } from '../../../src/features/semantics/r
 import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
 import {
   createInitialTranscriptProjectionState,
-  reduceTranscriptProjection,
   type TranscriptSegment,
   type TranscriptProjectionState,
 } from '../../../src/features/semantics/projection/transcriptProjection'
-import { selectTurnSegments } from '../../../src/features/semantics/selectors/transcriptSegments'
-import { selectToolViewModelFromSegment } from '../../../src/features/tools/presentation/toolViewModel'
+import {
+  applyCanonicalProjectionEvent as applyCanonicalProjectionEventInEngine,
+  collectToolNameByUseIdFromLogs,
+  toTranscriptItemFromProjectionSegment,
+} from './app/core/projectionEngine'
 
 export type AppState = {
   connectionStatus: ConnectionStatus
@@ -67,143 +69,6 @@ function itemId(): string {
 
 function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled' | 'expired' | 'failed' {
   return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
-}
-
-function isProjectionManagedTurnItem(item: TranscriptItem, turnId: string): boolean {
-  if (item.turnId !== turnId) return false
-  if (item.kind === 'thinking' || item.kind === 'turn_footer' || item.kind === 'tool_call') return true
-  return item.kind === 'message' && item.role === 'assistant'
-}
-
-function toTranscriptItemFromProjectionSegment(args: {
-  segment: TranscriptProjectionState['segments'][number]
-  existingItemById: Map<string, TranscriptItem>
-}): TranscriptItem | null {
-  const { segment, existingItemById } = args
-  if (segment.kind === 'assistant') {
-    return {
-      id: segment.id,
-      kind: 'message',
-      role: 'assistant',
-      turnId: segment.turnId,
-      text: segment.text,
-    }
-  }
-
-  if (segment.kind === 'thinking') {
-    return {
-      id: segment.id,
-      kind: 'thinking',
-      turnId: segment.turnId,
-      text: segment.text,
-      status: segment.status,
-    }
-  }
-
-  if (segment.kind === 'tool') {
-    const vm = selectToolViewModelFromSegment(segment)
-    return {
-      id: segment.id,
-      kind: 'tool_call',
-      turnId: segment.turnId,
-      toolUseId: segment.toolUseId,
-      toolName: vm.toolName,
-      status: vm.status,
-      summary: vm.summary,
-      detailLines: vm.detailLines,
-      ...(vm.paramsText ? { paramsText: vm.paramsText } : {}),
-      ...(vm.inputState ? { inputState: vm.inputState } : {}),
-    }
-  }
-
-  if (segment.kind === 'turn_footer') {
-    const existing = existingItemById.get(segment.id)
-    const createdAt =
-      existing && existing.kind === 'turn_footer' ? existing.createdAt : new Date().toISOString()
-    return {
-      id: segment.id,
-      kind: 'turn_footer',
-      turnId: segment.turnId,
-      status: segment.status,
-      createdAt,
-      ...(segment.message ? { message: segment.message } : {}),
-    }
-  }
-
-  return null
-}
-
-function collectToolNameByUseIdFromLogs(logs: TranscriptItem[]): Record<string, string> {
-  const next: Record<string, string> = {}
-  for (const item of logs) {
-    if (item.kind !== 'tool_call') continue
-    if (typeof item.toolUseId !== 'string' || !item.toolUseId.trim()) continue
-    if (typeof item.toolName !== 'string') continue
-    const toolName = item.toolName.trim()
-    if (!toolName || toolName === 'Tool') continue
-    next[item.toolUseId] = toolName
-  }
-  return next
-}
-
-function mergeTurnProjectionLogs(args: {
-  logs: TranscriptItem[]
-  turnId: string
-  projectedItems: TranscriptItem[]
-}): TranscriptItem[] {
-  const { logs, turnId, projectedItems } = args
-  const pendingProjectionItems = [...projectedItems]
-  const merged: TranscriptItem[] = []
-  for (const item of logs) {
-    if (isProjectionManagedTurnItem(item, turnId)) {
-      if (pendingProjectionItems.length > 0) {
-        merged.push(pendingProjectionItems.shift()!)
-      }
-      continue
-    }
-    merged.push(item)
-  }
-  if (pendingProjectionItems.length === 0) return merged
-
-  let insertionIndex = merged.length
-  for (let index = merged.length - 1; index >= 0; index -= 1) {
-    if (merged[index]?.turnId === turnId) {
-      insertionIndex = index + 1
-      break
-    }
-  }
-  return [...merged.slice(0, insertionIndex), ...pendingProjectionItems, ...merged.slice(insertionIndex)]
-}
-
-function applyCanonicalProjectionEvent(state: AppState, event: CanonicalEvent): AppState {
-  if (!event.threadId || !event.turnId) return state
-  const currentProjection =
-    state.transcriptProjection && state.transcriptProjection.threadId === event.threadId
-      ? state.transcriptProjection
-      : (() => {
-          const seeded = createInitialTranscriptProjectionState({ threadId: event.threadId })
-          const toolNameByUseId = collectToolNameByUseIdFromLogs(state.logs)
-          if (Object.keys(toolNameByUseId).length === 0) return seeded
-          return {
-            ...seeded,
-            toolNameByUseId,
-          }
-        })()
-  const nextProjection = reduceTranscriptProjection(currentProjection, event)
-  const existingItemById = new Map(state.logs.map((item) => [item.id, item]))
-  const projectedItems = selectTurnSegments(nextProjection.segments, event.turnId)
-    .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
-    .filter((segment): segment is TranscriptItem => Boolean(segment))
-  const logs = mergeTurnProjectionLogs({
-    logs: state.logs,
-    turnId: event.turnId,
-    projectedItems,
-  })
-  return {
-    ...state,
-    logs,
-    transcriptProjection: nextProjection,
-  }
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -358,7 +223,25 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'apply_canonical_event':
-      return applyCanonicalProjectionEvent(state, action.event)
+      {
+        const projectionPatch = applyCanonicalProjectionEventInEngine({
+          state: {
+            logs: state.logs,
+            transcriptProjection: state.transcriptProjection,
+          },
+          event: action.event,
+        })
+        if (
+          projectionPatch.logs === state.logs &&
+          projectionPatch.transcriptProjection === state.transcriptProjection
+        ) {
+          return state
+        }
+        return {
+          ...state,
+          ...projectionPatch,
+        }
+      }
 
     default:
       return state

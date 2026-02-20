@@ -14,7 +14,6 @@
     - B) 引入 external store + `useSyncExternalStore`（仅限本 app），selectors 精确订阅
   - 具体落点：
     - 明确 `logs` 的定位：渲染模型 vs 协议事件派生结果
-    - 若走 A：将 `applyCanonicalProjectionEvent` 的重逻辑迁出到 `src/app/core/projectionEngine.ts`（或类似），做增量 patch
     - 统一 thread-scoped 缓存：收敛 `logsByThreadId` / `historyCursor` / `transcriptSource` 到 `ThreadCache`
   - 验收：
     - 性能对比：同等 transcript 规模下滚动/输入不卡顿（主观 + 简单 measure）
