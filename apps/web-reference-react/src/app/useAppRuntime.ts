@@ -21,9 +21,6 @@ import {
   toRpcError,
   toRuntimePendingInputsById,
 } from './core/threadTransforms'
-import { selectThreadViewModelById } from './core/threadViewModel'
-import { selectActiveTranscriptLogs } from './core/logSelectors'
-import { createTranscriptSelectorStore } from './core/transcriptSelectorStore'
 import { isTranscriptVirtualizationEnabled } from './core/transcriptVirtualization'
 import {
   formatArchiveNotice,
@@ -47,6 +44,7 @@ import { useRpcRequest } from './runtime/useRpcRequest'
 import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import { pruneThreadScopedRefs } from './runtime/threadScopedRefs'
+import { useTranscriptDisplayState } from './runtime/useTranscriptDisplayState'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -156,7 +154,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
   const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
-  const transcriptSelectorStoreRef = useRef(createTranscriptSelectorStore())
   const historyCursorByThreadIdRef = useRef<Record<string, string | null>>(historyCursorByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const replayAnomalyCountSeenByThreadRef = useRef<Record<string, number>>({})
@@ -166,19 +163,26 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const hasInitializedThreadFromUrlRef = useRef(false)
   const pendingThreadIdFromUrlRef = useRef<string | null>(null)
-  const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
-  const activeTranscriptSource =
-    state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
-  const activeLogs = transcriptSelectorStoreRef.current.select(selectActiveTranscriptLogs, {
-    activeThreadId: state.activeThreadId,
-    logs: state.logs,
-    logsByThreadId,
-  })
   const transcriptVirtualizationEnabled = useMemo(
     () => isTranscriptVirtualizationEnabled({ isDevRuntime: isDevRuntime() }),
     [],
   )
   const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
+  const {
+    activeHistoryLoading,
+    activeLogs,
+    activeThread,
+    activeThreadTitle,
+    historyMore,
+  } = useTranscriptDisplayState({
+    activeThreadId: state.activeThreadId,
+    threads: state.threads,
+    logs: state.logs,
+    logsByThreadId,
+    historyCursorByThreadId,
+    historyLoadingByThreadId,
+    transcriptSourceByThreadId,
+  })
 
   const pruneThreadScopedRuntimeRefs = useCallback(
     (threads: Array<{ id: string }>) => {
@@ -577,16 +581,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     ],
   )
 
-  const activeThread = useMemo(
-    () => state.threads.find((t) => t.id === state.activeThreadId),
-    [state.threads, state.activeThreadId],
-  )
-  const activeThreadViewModel = useMemo(
-    () => selectThreadViewModelById({ threads: state.threads, threadId: state.activeThreadId }),
-    [state.activeThreadId, state.threads],
-  )
-  const activeThreadTitle = activeThreadViewModel?.title ?? 'New Thread'
-
   useEffect(() => {
     if (hasInitializedThreadFromUrlRef.current) return
     const threadIdFromUrl = readThreadIdFromUrl()
@@ -746,7 +740,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onInputTextChange: setInputText,
     onSend,
     onInterrupt: () => void interruptTurn().catch(() => undefined),
-    historyMore: Boolean(state.activeThreadId && activeTranscriptSource === 'history' && historyCursorByThreadId[state.activeThreadId]),
+    historyMore,
     historyLoading: activeHistoryLoading,
     onLoadEarlier: () => void loadEarlierHistory().catch(() => undefined),
     isSending: isSendingTurn,

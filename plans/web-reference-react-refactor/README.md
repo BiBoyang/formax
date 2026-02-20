@@ -6,7 +6,7 @@
 
 ## 执行状态（Active）
 
-- 进行中：Frontend 轻量优化回合（1 项）
+- 进行中：Frontend 轻量优化回合（已完成，待再生）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,10 +17,7 @@
 
 ## 当前任务清单（唯一来源）
 
-### 1) 拆分 `useAppRuntime` 的局部职责
-
-- 文件：`src/app/useAppRuntime.ts` 及新增 runtime hook 文件
-- 目标：把 transcript 展示态相关计算/拼装从超长 hook 中抽离，提升可维护性（不改变行为）。
+- 当前无待办（已按 `TODO-INDEX` 完成本轮任务）
 
 ## 执行循环（固定）
 
