@@ -286,11 +286,15 @@ export default function TextInput({
     // Prefer `raw` (sequence) because in some terminals Ink may surface the printable character via
     // `key.sequence` with an empty `input` string.
     if (raw && !raw.startsWith('\u001b') && !key.ctrl && !key.meta) {
-      if (reservedChars?.includes(raw)) return false
-      const newValue = currentValue.slice(0, currentCursorOffset) + raw + currentValue.slice(currentCursorOffset)
+      // Pasted multiline content may come as CRLF/CR chunks. Keep only LF in the model
+      // to avoid carriage-return rendering artifacts in terminal UIs.
+      const insertText = multiline ? raw.replace(/\r\n?/g, '\n') : raw.replace(/\r/g, '')
+      if (!insertText) return true
+      if (reservedChars?.includes(insertText)) return false
+      const newValue = currentValue.slice(0, currentCursorOffset) + insertText + currentValue.slice(currentCursorOffset)
       onChangeRef.current(newValue)
       valueRef.current = newValue
-      const nextCursorOffset = currentCursorOffset + raw.length
+      const nextCursorOffset = currentCursorOffset + insertText.length
       cursorOffsetRef.current = nextCursorOffset
       setCursorOffset(nextCursorOffset)
       return true

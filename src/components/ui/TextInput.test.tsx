@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
+import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
 import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext'
@@ -63,6 +64,25 @@ function MultilineWrapper({ onSubmit }: { onSubmit?: (v: string) => void }): Rea
         cursorChar="▏"
         multiline
       />
+    </ReplUiProvider>
+  )
+}
+
+function MultilineValueEchoWrapper(): React.ReactNode {
+  const [value, setValue] = useState('')
+  const encoded = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <>
+        <TextInput
+          value={value}
+          onChange={setValue}
+          cursorStyle="bar"
+          cursorChar="▏"
+          multiline
+        />
+        <Text>{`__VAL__:${encoded}`}</Text>
+      </>
     </ReplUiProvider>
   )
 }
@@ -331,6 +351,18 @@ describe('TextInput', () => {
     expect(lastFrame()).toContain('b')
     expect(lastFrame()).not.toContain('ab')
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('normalizes CRLF pasted chunks in multiline mode', async () => {
+    const { stdin, lastFrame } = render(<MultilineValueEchoWrapper />)
+
+    await tick()
+    stdin.write('line1\r\nline2')
+    await tick()
+
+    await waitForFrameContains(() => lastFrame() ?? '', '__VAL__:line1\\nline2')
+    expect(lastFrame()).toContain('__VAL__:line1\\nline2')
+    expect(lastFrame()).not.toContain('\\r')
   })
 
   it('supports left cursor movement and insertion in block mode', async () => {
