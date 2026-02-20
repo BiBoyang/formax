@@ -1,5 +1,6 @@
 import { RpcClient } from '../../rpcClient'
 import { createTurnEventCursorState } from '../../turnEventCursor'
+import { initializeRuntime } from './initializeRuntime'
 
 export type ConnectRpcClientArgs = {
   bridgeUrl: string
@@ -27,18 +28,16 @@ export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
       if (connectionStatus !== 'connected') return
 
       args.eventCursorRef.current = createTurnEventCursorState(args.seenEventCap)
-      void args
-        .initializeHandshake()
-        .then(async () => {
-          await Promise.all([args.refreshThreads(), args.refreshWorkspaceDiff()])
-          const activeThreadId = args.activeThreadIdRef.current
-          if (!activeThreadId) return
-          await args.resumeThreadInputs(activeThreadId)
-          await args.replayThreadEvents(activeThreadId)
-        })
-        .catch((error) => {
-          args.captureError('initialize', error)
-        })
+      void initializeRuntime({
+        initializeHandshake: args.initializeHandshake,
+        refreshThreads: args.refreshThreads,
+        refreshWorkspaceDiff: args.refreshWorkspaceDiff,
+        activeThreadIdRef: args.activeThreadIdRef,
+        resumeThreadInputs: args.resumeThreadInputs,
+        replayThreadEvents: args.replayThreadEvents,
+      }).catch((error) => {
+        args.captureError('initialize', error)
+      })
     },
     onNotification: args.handleNotification,
     onError: (error) => {

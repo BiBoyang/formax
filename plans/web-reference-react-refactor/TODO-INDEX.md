@@ -9,7 +9,6 @@
 ## 当前待办
 
 - Phase 1：拆分 `useAppRuntime`（职责解耦，不改 store 语义）
-  - 保持 `src/app/runtime/connectRpcClient.ts`，抽初始化链到 `initializeRuntime.ts`
   - `createThreadDataOps` / `createThreadActions` / `createComposerActions`：收敛依赖参数，避免“把整个世界塞进去”
   - 验收：
     - 全部单测 + e2e
