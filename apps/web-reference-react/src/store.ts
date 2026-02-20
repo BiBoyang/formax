@@ -18,6 +18,7 @@ export type AppState = {
   threads: ThreadSummary[]
   activeThreadId: string | null
   activeTurnId: string | null
+  // Render model consumed by transcript UI; built from history hydrate + canonical projection patches.
   logs: TranscriptItem[]
   pendingInputs: Record<string, PendingInput>
   selectedInputId: string | null

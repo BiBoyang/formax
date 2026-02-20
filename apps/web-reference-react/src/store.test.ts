@@ -310,7 +310,7 @@ describe('appReducer', () => {
     expect(secondFooter.createdAt).toBe(firstCreatedAt)
   })
 
-  it('preserves turn-scoped log ordering when canonical projection expands', () => {
+  it('[invariant:logs-role] keeps render-model log rows while canonical projection expands', () => {
     let state = appReducer(initialAppState, {
       type: 'apply_canonical_event',
       event: createCanonicalEvent(

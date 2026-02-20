@@ -13,7 +13,6 @@
     - A) 继续用 React `useReducer`，把投影合并/日志 merge 移到 reducer 外投影引擎，reducer 只存最小事实（events/projection snapshot cursor）
     - B) 引入 external store + `useSyncExternalStore`（仅限本 app），selectors 精确订阅
   - 具体落点：
-    - 明确 `logs` 的定位：渲染模型 vs 协议事件派生结果
   - 验收：
     - 性能对比：同等 transcript 规模下滚动/输入不卡顿（主观 + 简单 measure）
     - 全测试通过
