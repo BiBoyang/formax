@@ -411,3 +411,14 @@ export async function renderHighlightedMarkdown(args: {
     return highlightCodeBlocks(args.rawHtml)
   }
 }
+
+export function resetMarkdownServiceForTests(): void {
+  markdownCache.clear()
+  shikiRuntimePromise = null
+  highlighterPromise = null
+  if (sharedMarkdownWorkerClient) {
+    sharedMarkdownWorkerClient.worker.terminate()
+    sharedMarkdownWorkerClient = null
+  }
+  sanitizeHookInitialized = false
+}

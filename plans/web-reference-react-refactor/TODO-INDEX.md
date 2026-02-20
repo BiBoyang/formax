@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] 6.2-B 增补 markdown service 单测（worker error / abort / cache）
 - [ ] 6.3-A 新增 Thread ViewModel selector 与单测
 - [ ] 6.3-B LeftRail/useAppRuntime 接入 Thread ViewModel selector
 - [ ] 7.1-A 建立 runtime orchestrator 骨架并迁移连接初始化编排
