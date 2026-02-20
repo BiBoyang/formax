@@ -6,9 +6,9 @@
 
 ## 执行状态（Active）
 
-- 进行中：Phase 6（契约层 + 渲染服务层）
-- 待开始：Phase 7（runtime orchestrator 拆分）
-- 待开始：Phase 8（transcript 订阅化与大会话性能）
+- 已完成：Phase 6（契约层 + 渲染服务层）
+- 已完成：Phase 7（runtime orchestrator 拆分）
+- 已完成：Phase 8（transcript 订阅化与大会话性能）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 长期约束（不变）

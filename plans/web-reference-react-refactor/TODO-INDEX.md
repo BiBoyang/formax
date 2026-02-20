@@ -8,6 +8,8 @@
 
 ## 当前待办
 
+- （空，等待按 README 再生下一批切片）
+
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/web-reference-react-refactor/README.md` 派生下一批任务。
