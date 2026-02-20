@@ -18,7 +18,6 @@
     - 全测试通过
 
 - Phase 3：Transcript 渲染优化（局部更新，避免全量 rerender）
-  - 可选：将 `filteredLogs` filter 移到 selector 层（仅在 logs 变更时计算）
   - 验收：
     - 手动：连续 toggle 50 次无明显掉帧
     - e2e：tool summary rows 刷新后仍可展开（已有用例）
