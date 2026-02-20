@@ -4,6 +4,16 @@
 
 最后更新时间：2026-02-21
 
+## 执行状态（2026-02-21）
+
+- Phase 0：已完成
+- Phase 1：已完成
+- Phase 2：已完成（保持 `useReducer` 路线，projection/log selectors/thread cache 已收敛）
+- Phase 3：已完成
+- Phase 4：已完成（含 worker 路径与 fallback）
+- Phase 5：已完成
+- 当前待办：无（以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准）
+
 ## 背景与现状（快速画像）
 
 该 app 当前具备良好的测试基础（Vitest + Playwright），并且在语义/协议层面复用了仓库内的 canonical semantics（例如投影、thread runtime state、canonical event adapter 等）。但在 Web 侧实现上，存在几个明显的“高耦合/高 churn”热点：
@@ -156,4 +166,3 @@
 ## 建议的落地顺序（最小风险路径）
 
 优先按 Phase 0 → 1 → 3 执行（先解耦，再做局部渲染优化），最后再动 Phase 2/4（涉及数据模型与计算调度，收益大但风险更高）。
-
