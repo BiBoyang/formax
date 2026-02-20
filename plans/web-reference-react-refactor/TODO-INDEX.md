@@ -1,6 +1,6 @@
 # TODO-INDEX：web-reference-react-refactor（Rolling）
 
-更新时间：2026-02-21
+更新时间：2026-02-20
 任务来源（唯一）：
 - `plans/web-reference-react-refactor/README.md`
 
@@ -8,7 +8,18 @@
 
 ## 当前待办
 
-- （空）
+- [ ] 6.1-B 迁移 `composerActions` / `threadActions` 到契约层
+- [ ] 6.1-C 迁移 replay/data ops 调用点到契约层
+- [ ] 6.2-A 抽离 `markdownService`（worker/cache/fallback）并保持行为不变
+- [ ] 6.2-B 增补 markdown service 单测（worker error / abort / cache）
+- [ ] 6.3-A 新增 Thread ViewModel selector 与单测
+- [ ] 6.3-B LeftRail/useAppRuntime 接入 Thread ViewModel selector
+- [ ] 7.1-A 建立 runtime orchestrator 骨架并迁移连接初始化编排
+- [ ] 7.2-A 下沉线程事务（switch/archive/replay hydrate）到 orchestrator
+- [ ] 7.3-A 为 reconnect/rollback 路径补集成回归测试
+- [ ] 8.1-A 搭建 transcript selector-store（保留现有语义）
+- [ ] 8.2-A 引入可开关 virtualization（默认关闭）
+- [ ] 8.3-A 建立固定性能压测场景与回归门禁
 
 ## 再生规则（当“当前待办”为空时）
 
@@ -16,16 +27,3 @@
 2. 按“小切片可提交”拆分（每项尽量 2-6 文件改动）。
 3. 每项固定流程：实现 -> 定向测试 -> `codex review` -> 提交。
 4. 新任务写入本文件后，旧的已完成项不回填。
-
-## 长期约束（重构不变的底线）
-
-- 该 app 是**协议验证客户端**：不把它演进为生产 UI。
-- 语义/协议正确性第一：事件顺序、投影输出、pending input 行为必须保持稳定；先补测试再动结构。
-- 性能调度边界清晰：UI 可延迟，协议状态不可延迟；必要时保留同步 fallback。
-- thread 切换一致性：跨线程缓存/refs/state 同步要有单一入口，避免多处 effect 竞写。
-
-## 固定验收命令（在 `apps/web-reference-react/` 下执行）
-
-- `npm run type-check`
-- `npm run test`
-- `npm run test:e2e`
