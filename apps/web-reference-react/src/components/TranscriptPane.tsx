@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -144,6 +144,83 @@ function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_
   )
 }
 
+type TranscriptItemRowProps = {
+  item: TranscriptItem
+  turnGroupStart: boolean
+  showTurnGap: boolean
+  activeThreadCwd?: string
+  toolOpen: boolean
+  thinkingOpen: boolean
+  onToggleTool: (id: string) => void
+  onToggleThinking: (id: string) => void
+}
+
+const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemRowProps) {
+  const {
+    item,
+    turnGroupStart,
+    showTurnGap,
+    activeThreadCwd,
+    toolOpen,
+    thinkingOpen,
+    onToggleTool,
+    onToggleThinking,
+  } = props
+
+  return (
+    <div
+      data-turn-group-start={turnGroupStart ? 'true' : undefined}
+      className={cn(
+        'min-w-0',
+        showTurnGap ? 'mt-3 pt-1' : null,
+      )}
+    >
+      {item.kind === 'log' ? (
+        <div className={cn('rounded-lg border px-3 py-2 ui-text-meta bg-muted/20')}>
+          <div className="mb-1 flex items-center gap-2">
+            <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 ui-text-micro uppercase font-bold tracking-wider">{item.level}</Badge>
+          </div>
+          <div className="text-muted-foreground font-mono ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
+        </div>
+      ) : item.kind === 'thinking' ? (
+        <ThinkingItem
+          item={item}
+          open={thinkingOpen}
+          onToggle={() => onToggleThinking(item.id)}
+        />
+      ) : item.kind === 'turn_footer' ? (
+        <TurnFooterItem item={item} />
+      ) : item.kind === 'tool_call' ? (
+        <ToolTranscriptItem
+          item={item}
+          cwd={activeThreadCwd}
+          open={toolOpen}
+          onToggle={() => onToggleTool(item.id)}
+        />
+      ) : (
+        <div className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
+          <div
+            className={cn(
+              'max-w-[85%] transition-all duration-300',
+              item.role === 'user'
+                ? 'rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20'
+                : 'text-foreground py-2'
+            )}
+          >
+            {item.role === 'assistant' ? (
+              <MarkdownRenderer text={item.text} cacheKey={item.id} className="ui-text-base leading-relaxed" />
+            ) : (
+              <div className="ui-text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
+                {item.text}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+})
+
 export function TranscriptPane(props: TranscriptPaneProps) {
   const {
     activeThread,
@@ -278,6 +355,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     onSend(event)
   }
 
+  const toggleToolOpen = useCallback((id: string) => {
+    setOpenToolIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }, [])
+
+  const toggleThinkingOpen = useCallback((id: string) => {
+    setOpenThinkingIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }, [])
+
   const modeInfo = modeMeta(mode)
 
   const increaseRenderLimit = (delta: number, preserveAnchor: boolean, maxLimit: number) => {
@@ -387,57 +472,17 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 }
 
                 return (
-                  <div
+                  <TranscriptItemRow
                     key={item.id}
-                    data-turn-group-start={turnGroupStart ? 'true' : undefined}
-                    className={cn(
-                      'min-w-0',
-                      turnGroupStart && index > 0 ? 'mt-3 pt-1' : null,
-                    )}
-                  >
-                    {item.kind === 'log' ? (
-                      <div className={cn('rounded-lg border px-3 py-2 ui-text-meta bg-muted/20')}>
-                        <div className="mb-1 flex items-center gap-2">
-                          <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 ui-text-micro uppercase font-bold tracking-wider">{item.level}</Badge>
-                        </div>
-                        <div className="text-muted-foreground font-mono ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
-                      </div>
-                    ) : item.kind === 'thinking' ? (
-                      <ThinkingItem
-                        item={item}
-                        open={Boolean(openThinkingIds[item.id])}
-                        onToggle={() => setOpenThinkingIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                      />
-                    ) : item.kind === 'turn_footer' ? (
-                      <TurnFooterItem item={item} />
-                    ) : item.kind === 'tool_call' ? (
-                      <ToolTranscriptItem
-                        item={item}
-                        cwd={activeThread?.cwd}
-                        open={Boolean(openToolIds[item.id])}
-                        onToggle={() => setOpenToolIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                      />
-                    ) : (
-                      <div className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
-                        <div
-                          className={cn(
-                            'max-w-[85%] transition-all duration-300',
-                            item.role === 'user'
-                              ? 'rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20'
-                              : 'text-foreground py-2'
-                          )}
-                        >
-                          {item.role === 'assistant' ? (
-                            <MarkdownRenderer text={item.text} cacheKey={item.id} className="ui-text-base leading-relaxed" />
-                          ) : (
-                            <div className="ui-text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
-                              {item.text}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    item={item}
+                    turnGroupStart={turnGroupStart}
+                    showTurnGap={turnGroupStart && index > 0}
+                    activeThreadCwd={activeThread?.cwd}
+                    toolOpen={Boolean(openToolIds[item.id])}
+                    thinkingOpen={Boolean(openThinkingIds[item.id])}
+                    onToggleTool={toggleToolOpen}
+                    onToggleThinking={toggleThinkingOpen}
+                  />
                 )
               })
             })()}
