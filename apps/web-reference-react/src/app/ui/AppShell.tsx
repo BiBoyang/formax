@@ -10,12 +10,13 @@ import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
+import type { ThreadViewModel } from '../core/threadViewModel'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
 
 export type AppShellProps = {
-  sortedThreads: ThreadSummary[]
+  sortedThreads: ThreadViewModel[]
   selectedCwd: string | null
   onSelectCwd: (cwd: string) => void
   activeThreadId: string | null

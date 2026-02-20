@@ -11,6 +11,7 @@ const threads = [
     messageCount: 1,
     lastUserPrompt: 'hello',
     label: null,
+    title: 'hello',
   },
   {
     id: 'thread-22222222',
@@ -20,6 +21,7 @@ const threads = [
     messageCount: 1,
     lastUserPrompt: 'world',
     label: null,
+    title: 'world',
   },
 ]
 

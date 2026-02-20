@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Folder, FolderOpen, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
-import type { ThreadSummary } from '../types'
+import type { ThreadViewModel } from '../app/core/threadViewModel'
 import { Button } from './ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 import {
@@ -29,7 +29,7 @@ export type LeftRailProps = {
   onResumeThreadIdChange?: (value: string) => void
   onRefreshThreads?: () => void
   onResumeThread?: () => void
-  threads: ThreadSummary[]
+  threads: ThreadViewModel[]
   selectedCwd: string | null
   onSelectCwd: (cwd: string) => void
   activeThreadId: string | null
@@ -38,14 +38,6 @@ export type LeftRailProps = {
   onArchiveThread?: (threadId: string) => Promise<void> | void
   onStartThread: () => void
   isBusy?: boolean
-}
-
-function threadTitle(thread: ThreadSummary): string {
-  const label = thread.label?.trim()
-  if (label) return label
-  const prompt = thread.lastUserPrompt?.trim()
-  if (prompt) return prompt
-  return 'New Thread'
 }
 
 function relativeTime(updatedAt: string): string {
@@ -61,8 +53,8 @@ function relativeTime(updatedAt: string): string {
   return `${days}d`
 }
 
-function groupThreadsByCwd(threads: ThreadSummary[]): Array<{ cwd: string; threads: ThreadSummary[] }> {
-  const groupMap = new Map<string, ThreadSummary[]>()
+function groupThreadsByCwd(threads: ThreadViewModel[]): Array<{ cwd: string; threads: ThreadViewModel[] }> {
+  const groupMap = new Map<string, ThreadViewModel[]>()
   const groupOrder: string[] = []
   for (const thread of threads) {
     const cwd = thread.cwd
@@ -105,7 +97,7 @@ export function LeftRail(props: LeftRailProps) {
   const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
   const activeThreadCwd = activeThread?.cwd ?? null
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>({})
-  const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadSummary | null>(null)
+  const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
 
@@ -128,25 +120,25 @@ export function LeftRail(props: LeftRailProps) {
     setRenameValue('')
   }
 
-  const openRenameDialog = (thread: ThreadSummary) => {
+  const openRenameDialog = (thread: ThreadViewModel) => {
     setRenameThreadTarget(thread)
-    setRenameValue(thread.label?.trim() || threadTitle(thread))
+    setRenameValue(thread.label?.trim() || thread.title)
   }
 
-  const handleRenameFromContextMenu = (thread: ThreadSummary) => {
+  const handleRenameFromContextMenu = (thread: ThreadViewModel) => {
     if (!onRenameThread) return
     openRenameDialog(thread)
   }
 
-  const handleCopyContextCwd = (thread: ThreadSummary) => {
+  const handleCopyContextCwd = (thread: ThreadViewModel) => {
     void copyToClipboard(thread.cwd).catch(() => undefined)
   }
 
-  const handleCopyContextThreadId = (thread: ThreadSummary) => {
+  const handleCopyContextThreadId = (thread: ThreadViewModel) => {
     void copyToClipboard(thread.id).catch(() => undefined)
   }
 
-  const handleArchiveFromContextMenu = (thread: ThreadSummary) => {
+  const handleArchiveFromContextMenu = (thread: ThreadViewModel) => {
     if (!onArchiveThread) return
     void onArchiveThread(thread.id)
   }
@@ -243,7 +235,7 @@ export function LeftRail(props: LeftRailProps) {
                                 )}
                                 onClick={() => onSelectThread(thread.id)}
                               >
-                                <span className="min-w-0 flex-1 truncate text-left">{threadTitle(thread)}</span>
+                                <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
                                 <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
                                   {relativeTime(thread.updatedAt)}
                                 </span>

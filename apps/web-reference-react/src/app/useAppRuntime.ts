@@ -18,10 +18,10 @@ import {
   type ThreadCacheState,
 } from './core/threadCache'
 import {
-  displayThreadTitle,
   toRpcError,
   toRuntimePendingInputsById,
 } from './core/threadTransforms'
+import { selectThreadViewModelById } from './core/threadViewModel'
 import { selectActiveTranscriptLogs } from './core/logSelectors'
 import {
   formatArchiveNotice,
@@ -573,7 +573,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     () => state.threads.find((t) => t.id === state.activeThreadId),
     [state.threads, state.activeThreadId],
   )
-  const activeThreadTitle = displayThreadTitle(activeThread)
+  const activeThreadViewModel = useMemo(
+    () => selectThreadViewModelById({ threads: state.threads, threadId: state.activeThreadId }),
+    [state.activeThreadId, state.threads],
+  )
+  const activeThreadTitle = activeThreadViewModel?.title ?? 'New Thread'
 
   useEffect(() => {
     if (hasInitializedThreadFromUrlRef.current) return

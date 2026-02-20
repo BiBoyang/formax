@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import type { ThreadSummary } from '../../types'
+import { selectSortedThreadViewModels } from '../core/threadViewModel'
 
 export function useThreadSelection(args: {
   threads: ThreadSummary[]
@@ -10,7 +11,7 @@ export function useThreadSelection(args: {
   const { threads, activeThreadId, selectedCwd, setSelectedCwd } = args
 
   const sortedThreads = useMemo(
-    () => [...threads].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
+    () => selectSortedThreadViewModels(threads),
     [threads],
   )
 
