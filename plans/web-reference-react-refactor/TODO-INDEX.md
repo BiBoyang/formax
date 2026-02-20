@@ -17,11 +17,6 @@
     - 性能对比：同等 transcript 规模下滚动/输入不卡顿（主观 + 简单 measure）
     - 全测试通过
 
-- Phase 3：Transcript 渲染优化（局部更新，避免全量 rerender）
-  - 验收：
-    - 手动：连续 toggle 50 次无明显掉帧
-    - e2e：tool summary rows 刷新后仍可展开（已有用例）
-
 - Phase 4：Markdown pipeline 主线程预算（解析/净化/高亮渐进）
   - 可选：引入 Web Worker（marked + shiki 在 worker；主线程做 DOMPurify，或先非高亮渲染后替换）
   - 验收：
