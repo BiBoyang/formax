@@ -28,13 +28,6 @@
   - 验收：
     - 人工构造长 code blocks：输入可即时、滚动不中断
 
-- Phase 5（可选）：边界稳定性（集中语义引用入口，降低相对路径耦合）
-  - 在 `apps/web-reference-react/src/semantics/` 建薄适配层，统一 re-export 语义函数/类型（集中入口）
-  - 或给 root semantics 建 Vite/TS paths 别名（仅内部开发用途）
-  - 验收：
-    - build/type-check 通过
-    - 语义文件移动时，仅需改一个适配入口
-
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/web-reference-react-refactor/README.md` 派生下一批任务。
