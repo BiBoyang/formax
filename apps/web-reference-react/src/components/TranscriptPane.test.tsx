@@ -406,6 +406,42 @@ describe('TranscriptPane', () => {
     expect(screen.getByText('server-msg-180')).toBeInTheDocument()
   })
 
+  it('keeps earlier history visible after load-earlier prep request', () => {
+    const onLoadEarlier = vi.fn()
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          historyMore: true,
+          onLoadEarlier,
+          logs: [
+            { id: 'newer-q', kind: 'message', role: 'user', text: 'newer question' },
+            { id: 'newer-a', kind: 'message', role: 'assistant', text: 'newer answer' },
+          ],
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+    expect(onLoadEarlier).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          historyMore: false,
+          logs: [
+            { id: 'older-q', kind: 'message', role: 'user', text: 'older question' },
+            { id: 'older-a', kind: 'message', role: 'assistant', text: 'older answer' },
+            { id: 'newer-q', kind: 'message', role: 'user', text: 'newer question' },
+            { id: 'newer-a', kind: 'message', role: 'assistant', text: 'newer answer' },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('older answer')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Render earlier messages/i })).not.toBeInTheDocument()
+  })
+
   it('keeps scroll anchor stable when rendering earlier in-memory messages', async () => {
     const logs = Array.from({ length: 260 }, (_, index) => ({
       id: `a-${index}`,

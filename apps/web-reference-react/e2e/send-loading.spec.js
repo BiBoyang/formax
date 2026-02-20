@@ -48,7 +48,9 @@ test.describe('send loading indicator', () => {
     await page.getByLabel('Send message').click()
 
     await expect(page.getByTestId('turn-loading')).toBeVisible()
-    await expect(page.getByText('thinking')).toBeVisible()
+    await expect(page.getByTestId('turn-loading')).toContainText(
+      /(Thinking|Processing|Considering|Analyzing|Synthesizing|Reasoning|Evaluating|Planning)\.\.\./i,
+    )
     await expect(page.getByTestId('turn-loading')).toHaveCount(0)
   })
 })

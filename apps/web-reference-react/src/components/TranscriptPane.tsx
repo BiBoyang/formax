@@ -285,7 +285,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     const viewport = viewportRef.current
     const beforeTop = viewport?.scrollTop ?? 0
     const beforeHeight = viewport?.scrollHeight ?? 0
-    setRenderLimit((previous) => Math.min(maxLimit, previous + delta))
+    setRenderLimit((previous) => {
+      const boundedNext = Math.min(maxLimit, previous + delta)
+      return Math.max(previous, boundedNext)
+    })
     if (!viewport) return
     if (!preserveAnchor) return
     window.requestAnimationFrame(() => {

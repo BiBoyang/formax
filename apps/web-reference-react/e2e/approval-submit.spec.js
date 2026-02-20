@@ -45,10 +45,10 @@ test.describe('approval flow', () => {
     })
 
     await page.goto('/')
-    await expect(page.getByText('Approval Required')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Do you want to run this command?' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Submit Decision' }).click()
-    await expect(page.getByText('submitted')).toBeVisible()
+    await page.getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText('Input submit: submitted')).toBeVisible()
 
     const submissions = await page.evaluate(() => window.__mockRpcState?.submissions || [])
     expect(submissions).toHaveLength(1)
