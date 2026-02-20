@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { resolveCommandRouting } from '../../semantics'
 import { isWebSupportedCommand } from '../core/commandSupport'
+import { parseInputSubmitResponse, parseTurnStartLikeResponse } from '../core/rpcContracts'
 import { toSubmitUiStatus } from '../core/threadTransforms'
 import type { PendingInput } from '../../types'
 import type { AppAction } from '../../store'
@@ -27,11 +28,6 @@ export type ComposerActionsContext = {
   toRpcError: (method: string, error: unknown) => { code?: number; message: string }
   nowMs: () => number
   startThread: () => Promise<void>
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object') return {}
-  return value as Record<string, unknown>
 }
 
 export function createComposerActions(ctx: ComposerActionsContext) {
@@ -92,17 +88,13 @@ export function createComposerActions(ctx: ComposerActionsContext) {
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
           })
-      const resultRecord = asRecord(result)
-      const localRecord = asRecord(resultRecord.local)
-      const localStdout =
-        typeof localRecord.stdout === 'string'
-          ? localRecord.stdout
-          : ''
+      const parsedTurnResult = parseTurnStartLikeResponse(result)
+      const localStdout = parsedTurnResult.localStdout
       if (localStdout) {
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
-      const turnId = String(asRecord(resultRecord.turn).id ?? '')
+      const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
         ctx.dispatch({ type: 'set_active_turn', turnId })
         ctx.dispatch({ type: 'bind_last_user_message_turn', turnId })
@@ -143,7 +135,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         answers,
         submissionId: `web-${ctx.nowMs()}`,
       })
-      const status = String((response as { status?: string })?.status ?? 'unknown')
+      const { status } = parseInputSubmitResponse(response)
       const uiStatus = toSubmitUiStatus(status)
       ctx.setSubmitStatusByInputId((prev) => ({
         ...prev,

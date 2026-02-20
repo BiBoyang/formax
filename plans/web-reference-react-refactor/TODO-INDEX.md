@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] 6.1-B 迁移 `composerActions` / `threadActions` 到契约层
 - [ ] 6.1-C 迁移 replay/data ops 调用点到契约层
 - [ ] 6.2-A 抽离 `markdownService`（worker/cache/fallback）并保持行为不变
 - [ ] 6.2-B 增补 markdown service 单测（worker error / abort / cache）

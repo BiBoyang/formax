@@ -8,6 +8,7 @@ import {
   resolveArchiveSelection,
 } from '../../semantics'
 import { selectThreadTranscriptLogs } from '../core/logSelectors'
+import { parseThreadStartResponse } from '../core/rpcContracts'
 
 type ThreadListItem = {
   id: string
@@ -50,20 +51,6 @@ export type ThreadActionsContext = {
 }
 
 export type SelectThreadOptions = { restoreOnReplayFailure?: boolean }
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object') return {}
-  return value as Record<string, unknown>
-}
-
-function parseThreadStartResponse(value: unknown): { id: string; cwd?: string } | null {
-  const record = asRecord(value)
-  const thread = asRecord(record.thread)
-  const id = typeof thread.id === 'string' ? thread.id : ''
-  if (!id) return null
-  const cwd = typeof thread.cwd === 'string' ? thread.cwd : undefined
-  return { id, ...(cwd ? { cwd } : {}) }
-}
 
 function toThreadSummary(thread: ThreadListItem): ThreadSummary {
   return {
