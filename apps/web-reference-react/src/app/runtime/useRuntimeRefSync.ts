@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { TranscriptItem } from '../../types'
+import { withRecordValue } from '../core/threadCache'
 
 export function useRuntimeRefSync(args: {
   activeThreadId: string | null
@@ -42,6 +43,6 @@ export function useRuntimeRefSync(args: {
 
   useEffect(() => {
     if (!activeThreadId) return
-    setLogsByThreadId((prev) => ({ ...prev, [activeThreadId]: logs }))
+    setLogsByThreadId((prev) => withRecordValue(prev, activeThreadId, logs))
   }, [activeThreadId, logs, setLogsByThreadId])
 }

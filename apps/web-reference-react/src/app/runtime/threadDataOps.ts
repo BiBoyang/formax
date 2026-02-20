@@ -2,6 +2,7 @@ import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
 import type { DiffFilePatchPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
 import { asResolvedInputs, asThreadMessages, asThreadSummaries } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
+import { withRecordValue, withoutRecordKey } from '../core/threadCache'
 import type { TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 
@@ -141,49 +142,33 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   }
 
   const setThreadHistoryLoading = (threadId: string, loading: boolean) => {
-    if (loading) {
-      ctx.historyLoadingRef.current = { ...ctx.historyLoadingRef.current, [threadId]: true }
-    } else {
-      const nextRef = { ...ctx.historyLoadingRef.current }
-      delete nextRef[threadId]
-      ctx.historyLoadingRef.current = nextRef
-    }
+    ctx.historyLoadingRef.current = loading
+      ? withRecordValue(ctx.historyLoadingRef.current, threadId, true)
+      : withoutRecordKey(ctx.historyLoadingRef.current, threadId)
 
     ctx.setHistoryLoadingByThreadId((prev) => {
       const current = Boolean(prev[threadId])
       if (current === loading) return prev
-      if (loading) return { ...prev, [threadId]: true }
-      const next = { ...prev }
-      delete next[threadId]
-      return next
+      return loading ? withRecordValue(prev, threadId, true) : withoutRecordKey(prev, threadId)
     })
   }
 
   const setThreadTranscriptSource = (threadId: string, source: ThreadTranscriptSource) => {
-    ctx.transcriptSourceByThreadRef.current = { ...ctx.transcriptSourceByThreadRef.current, [threadId]: source }
+    ctx.transcriptSourceByThreadRef.current = withRecordValue(ctx.transcriptSourceByThreadRef.current, threadId, source)
     ctx.setTranscriptSourceByThreadId((prev) => {
-      if (prev[threadId] === source) return prev
-      return { ...prev, [threadId]: source }
+      return withRecordValue(prev, threadId, source)
     })
   }
 
   const clearThreadHistoryCursor = (threadId: string) => {
-    const nextHistoryLoadingRef = { ...ctx.historyLoadingRef.current }
-    delete nextHistoryLoadingRef[threadId]
-    ctx.historyLoadingRef.current = nextHistoryLoadingRef
+    ctx.historyLoadingRef.current = withoutRecordKey(ctx.historyLoadingRef.current, threadId)
 
     ctx.setHistoryLoadingByThreadId((prev) => {
-      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
-      const next = { ...prev }
-      delete next[threadId]
-      return next
+      return withoutRecordKey(prev, threadId)
     })
 
     ctx.setHistoryCursorByThreadId((prev) => {
-      if (!Object.prototype.hasOwnProperty.call(prev, threadId)) return prev
-      const next = { ...prev }
-      delete next[threadId]
-      return next
+      return withoutRecordKey(prev, threadId)
     })
   }
 
@@ -212,8 +197,8 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs })
-      ctx.setLogsByThreadId((prev) => ({ ...prev, [threadId]: logs }))
-      ctx.setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+      ctx.setLogsByThreadId((prev) => withRecordValue(prev, threadId, logs))
+      ctx.setHistoryCursorByThreadId((prev) => withRecordValue(prev, threadId, parsed.nextCursor))
       setThreadTranscriptSource(threadId, 'history')
       return true
     } catch {
@@ -265,9 +250,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           prev[threadId] ??
           ctx.logsByThreadIdRef.current[threadId] ??
           ctx.stateLogsRef.current
-        return { ...prev, [threadId]: [...prepended, ...current] }
+        return withRecordValue(prev, threadId, [...prepended, ...current])
       })
-      ctx.setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))
+      ctx.setHistoryCursorByThreadId((prev) => withRecordValue(prev, threadId, parsed.nextCursor))
     } finally {
       endThreadHistoryRequest(threadId, seq)
     }

@@ -24,3 +24,18 @@ export function withThreadCacheSlice<K extends keyof ThreadCacheState>(
     [key]: nextSlice,
   }
 }
+
+export function withRecordValue<T>(record: Record<string, T>, key: string, value: T): Record<string, T> {
+  if (record[key] === value) return record
+  return {
+    ...record,
+    [key]: value,
+  }
+}
+
+export function withoutRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return record
+  const next = { ...record }
+  delete next[key]
+  return next
+}

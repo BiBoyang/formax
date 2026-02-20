@@ -8,7 +8,9 @@
 
 ## 当前待办
 
-- （空）
+- Phase 2：收敛 state（SSOT + selectors）
+  - 明确 active transcript logs 的单一选择入口（thread cache + fallback + visible filter）并补 selector 测试。
+  - 将 thread 切换/回滚路径中的 transcript logs 读取统一到 selector，减少 `state.logs`/`logsByThreadId` 分散读取。
 
 ## 再生规则（当“当前待办”为空时）
 
