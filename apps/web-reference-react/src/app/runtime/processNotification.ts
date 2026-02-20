@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { AppAction } from '../../store'
 import type { PendingInput, ResolvedInput, RpcNotification } from '../../types'
 import { isNotificationForActiveThread } from '../core/appEventMachine'
 import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
@@ -11,8 +12,8 @@ export type ProcessNotificationContext = {
   activeThreadIdRef: { current: string | null }
   commandByTurnRef: { current: Map<string, string> }
   createInitialThreadRuntimeState: (args: { threadId: string; replaySeq: number; method: string; ts?: unknown }) => ThreadRuntimeState
-  shouldProcessSequencedNotification: (params: any) => boolean
-  dispatch: Dispatch<any>
+  shouldProcessSequencedNotification: (params: unknown) => boolean
+  dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string | null | undefined, nextMode: ReplMode) => void
   isReplMode: (value: unknown) => value is ReplMode
@@ -27,10 +28,15 @@ export type ProcessNotificationContext = {
   onThreadArchivedNotification?: (params: unknown) => void
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {}
+  return value as Record<string, unknown>
+}
+
 export function processNotification(notification: RpcNotification, ctx: ProcessNotificationContext): void {
-  const params = (notification.params ?? {}) as any
+  const params = asObject(notification.params)
   const threadId = extractThreadIdFromNotificationParams(params)
-  const replaySeq = typeof params?.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
+  const replaySeq = typeof params.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
   if (threadId && replaySeq != null) {
     const current = ctx.runtimeStateByThreadRef.current[threadId]
     const baseState =
@@ -39,7 +45,7 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
         threadId,
         replaySeq,
         method: notification.method,
-        ts: params?.ts,
+        ts: params.ts,
       })
     ctx.runtimeStateByThreadRef.current[threadId] = ctx.reduceThreadRuntimeState(baseState, {
       method: notification.method,
@@ -87,8 +93,9 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
   switch (notification.method) {
     case 'turn/started': {
       if (!isActiveThread()) break
-      const turnId = String(params?.turn?.id ?? '')
-      const nextMode = params?.turn?.mode
+      const turn = asObject(params.turn)
+      const turnId = typeof turn.id === 'string' ? turn.id : ''
+      const nextMode = turn.mode
       if (ctx.isReplMode(nextMode)) {
         ctx.setMode(nextMode)
         ctx.cacheThreadMode(threadId ?? ctx.activeThreadIdRef.current, nextMode)
@@ -99,7 +106,7 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
 
     case 'turn/modeChanged': {
       if (!isActiveThread()) break
-      if (ctx.isReplMode(params?.mode)) {
+      if (ctx.isReplMode(params.mode)) {
         ctx.setMode(params.mode)
         ctx.cacheThreadMode(threadId ?? ctx.activeThreadIdRef.current, params.mode)
       }
@@ -112,7 +119,8 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      const turnId = String(params?.turn?.id ?? '')
+      const turn = asObject(params.turn)
+      const turnId = typeof turn.id === 'string' ? turn.id : ''
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       if (turnId) {
         ctx.commandByTurnRef.current.delete(turnId)
@@ -127,26 +135,28 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      const turnId = String(params?.turn?.id ?? '')
+      const turn = asObject(params.turn)
+      const turnId = typeof turn.id === 'string' ? turn.id : ''
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       const command = turnId ? ctx.commandByTurnRef.current.get(turnId) : undefined
       if (command) {
         ctx.log(`Command failed: ${command}`, 'error', turnId)
         ctx.commandByTurnRef.current.delete(turnId)
       }
-      ctx.log(`Turn failed: ${String(params?.error ?? 'unknown')}`, 'error', turnId || undefined)
+      ctx.log(`Turn failed: ${String(params.error ?? 'unknown')}`, 'error', turnId || undefined)
       void ctx.refreshWorkspaceDiff().catch(() => undefined)
       break
     }
 
     case 'turn/event': {
       if (!isActiveThread()) break
-      const turnId = String(params?.turnId ?? '')
+      const turnId = typeof params.turnId === 'string' ? params.turnId : ''
       if (!turnId) break
-      const eventType = params?.event?.type
+      const event = asObject(params.event)
+      const eventType = event.type
 
       if (eventType === 'error') {
-        ctx.log(String(params?.event?.error ?? 'Stream error'), 'error', turnId)
+        ctx.log(String(event.error ?? 'Stream error'), 'error', turnId)
         break
       }
       break
@@ -154,7 +164,7 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
 
     case 'turn/inputRequested': {
       if (!isActiveThread()) break
-      const input = params?.input as PendingInput | undefined
+      const input = params.input as PendingInput | undefined
       if (!input?.inputId) break
       ctx.dispatch({ type: 'input_requested', input })
       ctx.dispatch({ type: 'set_selected_input', inputId: input.inputId })
@@ -167,7 +177,7 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
 
     case 'turn/inputResolved': {
       if (!isActiveThread()) break
-      const input = params?.input as ResolvedInput | undefined
+      const input = params.input as ResolvedInput | undefined
       const inputId = input?.inputId as string | undefined
       if (!inputId) break
       ctx.setAskDockOpenByInputId((prev) => {

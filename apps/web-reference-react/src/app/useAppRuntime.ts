@@ -177,7 +177,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const { initializeHandshake } = useInitializeHandshake({ clientRef })
 
   const shouldProcessSequencedNotification = useCallback(
-    (params: any): boolean => {
+    (params: unknown): boolean => {
       return shouldAcceptSequencedNotification(eventCursorRef.current, params)
     },
     [],
