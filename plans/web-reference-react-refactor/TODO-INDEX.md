@@ -10,7 +10,6 @@
 
 - Phase 0：基线与护栏（可观测性 + 重构护栏）
   - 明确并写成可验证不变量：
-    - projection hydrate 行为不变量
     - history fallback 条件不变量
   - 验收：
     - `npm run type-check`

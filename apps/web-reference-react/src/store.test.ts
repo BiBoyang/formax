@@ -242,6 +242,46 @@ describe('appReducer', () => {
     })
   })
 
+  it('[invariant:projection-hydrate] detaches hydrated projection state from snapshot references', () => {
+    const snapshot = {
+      segments: [
+        {
+          id: 'turn-2:assistant:1',
+          kind: 'assistant' as const,
+          turnId: 'turn-2',
+          text: 'before-mutate',
+        },
+      ],
+      lastReplaySeq: 4,
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      openAssistantSegmentIdByTurn: { 'turn-2': 'turn-2:assistant:1' },
+      openThinkingSegmentIdByTurn: {},
+    }
+
+    const state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-2',
+      snapshot,
+    })
+
+    snapshot.segments[0].text = 'after-mutate'
+    snapshot.toolNameByUseId['tool-1'] = 'Task'
+    snapshot.openAssistantSegmentIdByTurn['turn-2'] = 'changed-segment'
+    snapshot.lastReplaySeq = 99
+
+    expect(state.logs[0]).toMatchObject({
+      kind: 'message',
+      role: 'assistant',
+      text: 'before-mutate',
+    })
+    expect(state.transcriptProjection).toMatchObject({
+      threadId: 'thread-2',
+      lastReplaySeq: 4,
+      toolNameByUseId: { 'tool-1': 'Bash' },
+      openAssistantSegmentIdByTurn: { 'turn-2': 'turn-2:assistant:1' },
+    })
+  })
+
   it('keeps turn footer createdAt stable when projection is rebuilt', () => {
     let state = appReducer(initialAppState, {
       type: 'apply_canonical_event',
