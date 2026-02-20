@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] 7.1-A 建立 runtime orchestrator 骨架并迁移连接初始化编排
 - [ ] 7.2-A 下沉线程事务（switch/archive/replay hydrate）到 orchestrator
 - [ ] 7.3-A 为 reconnect/rollback 路径补集成回归测试
 - [ ] 8.1-A 搭建 transcript selector-store（保留现有语义）

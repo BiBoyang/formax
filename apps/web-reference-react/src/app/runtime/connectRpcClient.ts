@@ -1,9 +1,9 @@
 import { RpcClient } from '../../rpcClient'
-import type { ConnectionStatus } from '../../rpcClient'
 import type { AppAction } from '../../store'
 import type { RpcNotification } from '../../types'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import { initializeRuntime } from './initializeRuntime'
+import { createConnectionInitOrchestrator } from './orchestrator/connectionInitOrchestrator'
 
 export type ConnectRpcClientArgs = {
   bridgeUrl: string
@@ -24,53 +24,27 @@ export type ConnectRpcClientArgs = {
 export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
   const client = new RpcClient()
   args.clientRef.current = client
-  let latestStatus: ConnectionStatus = 'disconnected'
-  let connectedEpoch = 0
-  let initializeInFlight: Promise<void> | null = null
-  let initializePending = false
-
-  const shouldContinueForEpoch = (epoch: number): boolean => {
-    return latestStatus === 'connected' && connectedEpoch === epoch && args.clientRef.current === client
-  }
-
-  const runInitializeLoop = () => {
-    if (initializeInFlight) return
-    initializeInFlight = (async () => {
-      while (initializePending && latestStatus === 'connected') {
-        initializePending = false
-        const epoch = connectedEpoch
-        try {
-          await initializeRuntime({
-            initializeHandshake: args.initializeHandshake,
-            refreshThreads: args.refreshThreads,
-            refreshWorkspaceDiff: args.refreshWorkspaceDiff,
-            activeThreadIdRef: args.activeThreadIdRef,
-            resumeThreadInputs: args.resumeThreadInputs,
-            replayThreadEvents: args.replayThreadEvents,
-            shouldContinue: () => shouldContinueForEpoch(epoch),
-          })
-        } catch (error) {
-          args.captureError('initialize', error)
-        }
-      }
-    })().finally(() => {
-      initializeInFlight = null
-      if (initializePending && latestStatus === 'connected') {
-        runInitializeLoop()
-      }
-    })
-  }
+  const initializeOrchestrator = createConnectionInitOrchestrator({
+    seenEventCap: args.seenEventCap,
+    eventCursorRef: args.eventCursorRef,
+    runInitialize: ({ shouldContinue }) =>
+      initializeRuntime({
+        initializeHandshake: args.initializeHandshake,
+        refreshThreads: args.refreshThreads,
+        refreshWorkspaceDiff: args.refreshWorkspaceDiff,
+        activeThreadIdRef: args.activeThreadIdRef,
+        resumeThreadInputs: args.resumeThreadInputs,
+        replayThreadEvents: args.replayThreadEvents,
+        shouldContinue,
+      }),
+    captureError: args.captureError,
+    isCurrentClient: () => args.clientRef.current === client,
+  })
 
   client.connect(args.bridgeUrl, {
     onStatus: (connectionStatus) => {
-      latestStatus = connectionStatus
       args.dispatch({ type: 'set_connection_status', status: connectionStatus })
-      if (connectionStatus !== 'connected') return
-
-      connectedEpoch += 1
-      args.eventCursorRef.current = createTurnEventCursorState(args.seenEventCap)
-      initializePending = true
-      runInitializeLoop()
+      initializeOrchestrator.onStatus(connectionStatus)
     },
     onNotification: args.handleNotification,
     onError: (error) => {
@@ -79,8 +53,7 @@ export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
   })
 
   return () => {
-    latestStatus = 'disconnected'
-    initializePending = false
+    initializeOrchestrator.dispose()
     client.disconnect()
     args.clientRef.current = null
   }
