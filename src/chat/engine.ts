@@ -183,7 +183,6 @@ export function createChatEngine(deps: {
         const res = await deps.executor(call, executorCtxBase)
 
         if (deps.hooks) {
-          onEvent({ type: 'tool_update', id: call.id, middleLines: ['Running PostToolUse hook…'] })
           const post = await deps.hooks.runPostToolUse({
             toolUseId: call.id,
             toolName: call.name,
