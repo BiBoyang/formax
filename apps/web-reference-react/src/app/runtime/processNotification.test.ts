@@ -7,7 +7,7 @@ import {
 } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
 import { createReplayTurnEventEnvelope } from './testFixtures/replayFixtures'
 
-function createContext(): ProcessNotificationContext {
+function createContext(overrides: Partial<ProcessNotificationContext> = {}): ProcessNotificationContext {
   return {
     runtimeStateByThreadRef: { current: {} },
     replayCursorByThreadRef: { current: {} },
@@ -28,10 +28,38 @@ function createContext(): ProcessNotificationContext {
     setAskDraftByInputId: vi.fn(),
     setSubmitStatusByInputId: vi.fn(),
     reduceThreadRuntimeState,
+    ...overrides,
   }
 }
 
 describe('processNotification', () => {
+  it('[invariant:notification-order] skips side effects when sequenced notification is rejected', () => {
+    const shouldProcessSequencedNotification = vi.fn(() => false)
+    const ctx = createContext({
+      shouldProcessSequencedNotification,
+    })
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: {
+        replaySeq: 18,
+        eventId: 'evt-18',
+        ts: '2026-02-20T00:00:00.000Z',
+        source: 'engine',
+        threadId: 'thread-1',
+        turn: { id: 'turn-18', threadId: 'thread-1', status: 'completed' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(shouldProcessSequencedNotification).toHaveBeenCalledWith(notification.params)
+    expect(ctx.dispatch).not.toHaveBeenCalled()
+    expect(ctx.setMode).not.toHaveBeenCalled()
+    expect(ctx.refreshThreads).not.toHaveBeenCalled()
+    expect(ctx.refreshWorkspaceDiff).not.toHaveBeenCalled()
+  })
+
   it('does not advance runtime semantic state when replaySeq is missing', () => {
     const ctx = createContext()
     const notification: RpcNotification = {
