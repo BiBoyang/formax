@@ -16,7 +16,7 @@ export type ComposerActionsContext = {
   activeTurnId: string | null
   resolveRequestCwd: (threadId: string) => string | null
   getPendingInputById: (inputId: string) => PendingInput | undefined
-  request: (method: string, params?: unknown) => Promise<any>
+  request: (method: string, params?: unknown) => Promise<unknown>
   dispatch: (action: AppAction) => void
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
   commandByTurnRef: { current: Map<string, string> }
@@ -27,6 +27,11 @@ export type ComposerActionsContext = {
   toRpcError: (method: string, error: unknown) => { code?: number; message: string }
   nowMs: () => number
   startThread: () => Promise<void>
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {}
+  return value as Record<string, unknown>
 }
 
 export function createComposerActions(ctx: ComposerActionsContext) {
@@ -87,15 +92,17 @@ export function createComposerActions(ctx: ComposerActionsContext) {
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
           })
+      const resultRecord = asRecord(result)
+      const localRecord = asRecord(resultRecord.local)
       const localStdout =
-        typeof (result as { local?: { stdout?: unknown } } | null)?.local?.stdout === 'string'
-          ? ((result as { local?: { stdout?: string } }).local?.stdout ?? '')
+        typeof localRecord.stdout === 'string'
+          ? localRecord.stdout
           : ''
       if (localStdout) {
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
-      const turnId = String((result as any)?.turn?.id ?? '')
+      const turnId = String(asRecord(resultRecord.turn).id ?? '')
       if (turnId) {
         ctx.dispatch({ type: 'set_active_turn', turnId })
         ctx.dispatch({ type: 'bind_last_user_message_turn', turnId })

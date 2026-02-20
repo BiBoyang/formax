@@ -1,8 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { AppAction } from '../../store'
 import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
-import type { ThreadRuntimeState } from '../../semantics'
+import type { ReplMode, ThreadRuntimeState } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
@@ -42,19 +43,19 @@ export function resolveReplayCursorProgress(args: {
 }
 
 export type ReplayThreadEventsContext = {
-  request: (method: string, params?: unknown) => Promise<any>
+  request: (method: string, params?: unknown) => Promise<unknown>
   asThreadReplay: (value: unknown) => ReplayResult
   toRuntimePendingInputsById: (pendingInputs: ReplayStateSnapshot['pendingInputs']) => ThreadRuntimeState['pendingInputs']
   replayCursorByThreadRef: { current: Record<string, number> }
   replayAnomalyCountSeenByThreadRef: { current: Record<string, number> }
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
   activeThreadIdRef: { current: string | null }
-  logsByThreadIdRef: { current: Record<string, any[]> }
-  stateLogsRef: { current: any[] }
+  logsByThreadIdRef: { current: Record<string, unknown[]> }
+  stateLogsRef: { current: unknown[] }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
-  dispatch: Dispatch<any>
-  setMode: Dispatch<SetStateAction<any>>
-  cacheThreadMode: (threadId: string, mode: any) => void
+  dispatch: Dispatch<AppAction>
+  setMode: Dispatch<SetStateAction<ReplMode>>
+  cacheThreadMode: (threadId: string, mode: ReplMode) => void
   setThreadTranscriptSource: (threadId: string, source: ThreadTranscriptSource) => void
   clearThreadHistoryCursor: (threadId: string) => void
   syncPendingInputsFromReplayState: (threadId: string, replayState: ReplayStateSnapshot | null) => void

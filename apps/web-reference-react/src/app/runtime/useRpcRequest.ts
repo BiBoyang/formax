@@ -20,7 +20,7 @@ export function useRpcRequest(args: {
   )
 
   const request = useCallback(
-    async (method: string, params?: unknown): Promise<any> => {
+    async (method: string, params?: unknown): Promise<unknown> => {
       const client = clientRef.current
       if (!client) throw new Error('RPC client is not ready')
       try {
