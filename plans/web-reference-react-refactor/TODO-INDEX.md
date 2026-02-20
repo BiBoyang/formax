@@ -18,8 +18,6 @@
     - 全测试通过
 
 - Phase 3：Transcript 渲染优化（局部更新，避免全量 rerender）
-  - 抽 `TranscriptItemRow`，对 `message` / `thinking` / `tool` / `turn_footer` / `log` 分支 memo 化
-  - 将 `openToolIds` / `openThinkingIds` 改为更细粒度状态（Map + 局部订阅，或 `useReducer` + row 拆分）
   - 可选：将 `filteredLogs` filter 移到 selector 层（仅在 logs 变更时计算）
   - 验收：
     - 手动：连续 toggle 50 次无明显掉帧
