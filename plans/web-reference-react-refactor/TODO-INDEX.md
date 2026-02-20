@@ -8,14 +8,6 @@
 
 ## 当前待办
 
-- Phase 0：基线与护栏（可观测性 + 重构护栏）
-  - 明确并写成可验证不变量：
-    - history fallback 条件不变量
-  - 验收：
-    - `npm run type-check`
-    - `npm run test`
-    - `npm run test:e2e`
-
 - Phase 1：拆分 `useAppRuntime`（职责解耦，不改 store 语义）
   - 保持 `src/app/runtime/connectRpcClient.ts`，抽初始化链到 `initializeRuntime.ts`
   - `processNotification`：保持纯函数风格，收紧 context 类型（减少 `any`）

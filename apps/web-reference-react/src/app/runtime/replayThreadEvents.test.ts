@@ -408,6 +408,57 @@ describe('replayThreadEvents', () => {
         }),
       )
     })
+
+    it('[invariant:history-fallback] falls back to history after fromStart replay loop with no entries', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [],
+          nextCursor: 60,
+          latestCursor: 100,
+          state: createReplayState(),
+        }),
+        createReplayPage({
+          data: [],
+          nextCursor: 100,
+          latestCursor: 100,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        loadThreadHistory: vi.fn().mockResolvedValue(true),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.loadThreadHistory).toHaveBeenCalledTimes(1)
+      expect(ctx.loadThreadHistory).toHaveBeenCalledWith(TEST_THREAD_ID)
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
+      expectReplayCursor(ctx, 100)
+    })
+
+    it('[invariant:history-fallback] does not fall back to history when fromStart replay already received entries', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [createReplayTurnEvent(REPLAY_SEQ_BASELINE)],
+          nextCursor: REPLAY_SEQ_BASELINE,
+          latestCursor: REPLAY_SEQ_BASELINE,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        loadThreadHistory: vi.fn().mockResolvedValue(true),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.loadThreadHistory).not.toHaveBeenCalled()
+      expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+      expectReplayCursor(ctx, REPLAY_SEQ_BASELINE)
+    })
   })
 
   describe('pagination paths', () => {
