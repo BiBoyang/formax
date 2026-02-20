@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RpcClient } from '../../rpcClient'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import { REPLAY_FIXTURE_THREAD_ID } from './testFixtures/replayFixtures'
 
@@ -36,7 +37,7 @@ describe('connectRpcClient', () => {
   })
 
   it('replays the active thread on connected status using shared replay fixture id', async () => {
-    const clientRef = { current: null as any }
+    const clientRef: { current: RpcClient | null } = { current: null }
     const eventCursorRef = { current: createTurnEventCursorState(20) }
     const dispatch = vi.fn()
     const initializeHandshake = vi.fn(async () => {})
@@ -83,7 +84,7 @@ describe('connectRpcClient', () => {
   })
 
   it('replays again after disconnected -> connected transition', async () => {
-    const clientRef = { current: null as any }
+    const clientRef: { current: RpcClient | null } = { current: null }
     const eventCursorRef = { current: createTurnEventCursorState(20) }
     const initializeHandshake = vi.fn(async () => {})
     const refreshThreads = vi.fn(async () => {})
@@ -120,6 +121,59 @@ describe('connectRpcClient', () => {
     await vi.waitFor(() => {
       expect(replayThreadEvents).toHaveBeenCalledTimes(2)
       expect(replayThreadEvents).toHaveBeenNthCalledWith(2, REPLAY_FIXTURE_THREAD_ID)
+    })
+  })
+
+  it('serializes reconnect initialization and skips stale connected epoch side effects', async () => {
+    const clientRef: { current: RpcClient | null } = { current: null }
+    const eventCursorRef = { current: createTurnEventCursorState(20) }
+
+    let releaseFirstHandshake: () => void = () => undefined
+    const firstHandshake = new Promise<void>((resolve) => {
+      releaseFirstHandshake = resolve
+    })
+    const initializeHandshake = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(async () => {
+        await firstHandshake
+      })
+      .mockImplementation(async () => {})
+    const refreshThreads = vi.fn(async () => {})
+    const refreshWorkspaceDiff = vi.fn(async () => {})
+    const resumeThreadInputs = vi.fn(async () => {})
+    const replayThreadEvents = vi.fn(async () => true)
+
+    connectRpcClient({
+      bridgeUrl: 'ws://localhost:3001',
+      seenEventCap: 20,
+      dispatch: vi.fn(),
+      clientRef,
+      eventCursorRef,
+      initializeHandshake,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      resumeThreadInputs,
+      replayThreadEvents,
+      activeThreadIdRef: { current: REPLAY_FIXTURE_THREAD_ID },
+      handleNotification: vi.fn(),
+      captureError: vi.fn((method, error) => ({ method, error })),
+    })
+
+    mockRpcState.handlers?.onStatus('connected')
+    await vi.waitFor(() => {
+      expect(initializeHandshake).toHaveBeenCalledTimes(1)
+    })
+
+    mockRpcState.handlers?.onStatus('disconnected')
+    mockRpcState.handlers?.onStatus('connected')
+    releaseFirstHandshake()
+
+    await vi.waitFor(() => {
+      expect(initializeHandshake).toHaveBeenCalledTimes(2)
+      expect(refreshThreads).toHaveBeenCalledTimes(1)
+      expect(refreshWorkspaceDiff).toHaveBeenCalledTimes(1)
+      expect(resumeThreadInputs).toHaveBeenCalledTimes(1)
+      expect(replayThreadEvents).toHaveBeenCalledTimes(1)
     })
   })
 })

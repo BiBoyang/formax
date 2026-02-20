@@ -54,4 +54,31 @@ describe('initializeRuntime', () => {
     expect(resumeThreadInputs).not.toHaveBeenCalled()
     expect(replayThreadEvents).not.toHaveBeenCalled()
   })
+
+  it('stops initialization when connection guard flips to false', async () => {
+    let connected = true
+    const initializeHandshake = vi.fn(async () => {
+      connected = false
+    })
+    const refreshThreads = vi.fn(async () => {})
+    const refreshWorkspaceDiff = vi.fn(async () => {})
+    const resumeThreadInputs = vi.fn(async () => {})
+    const replayThreadEvents = vi.fn(async () => true)
+
+    await initializeRuntime({
+      initializeHandshake,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      activeThreadIdRef: { current: 'thread-1' },
+      resumeThreadInputs,
+      replayThreadEvents,
+      shouldContinue: () => connected,
+    })
+
+    expect(initializeHandshake).toHaveBeenCalledTimes(1)
+    expect(refreshThreads).not.toHaveBeenCalled()
+    expect(refreshWorkspaceDiff).not.toHaveBeenCalled()
+    expect(resumeThreadInputs).not.toHaveBeenCalled()
+    expect(replayThreadEvents).not.toHaveBeenCalled()
+  })
 })
