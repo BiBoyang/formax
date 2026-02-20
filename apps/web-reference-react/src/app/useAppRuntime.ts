@@ -491,13 +491,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         isInterruptingTurn,
         isSubmittingInput,
         mode,
-        selectedCwd,
-        state: {
-          activeThreadId: state.activeThreadId,
-          activeTurnId: state.activeTurnId,
-          threads: state.threads,
-          pendingInputs: state.pendingInputs,
+        activeThreadId: state.activeThreadId,
+        activeTurnId: state.activeTurnId,
+        resolveRequestCwd: (threadId) => {
+          const activeThread = state.threads.find((thread) => thread.id === threadId)
+          return selectedCwd ?? activeThread?.cwd ?? null
         },
+        getPendingInputById: (inputId) => state.pendingInputs[inputId],
         request,
         dispatch,
         log,
@@ -523,8 +523,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       startThread,
       state.activeThreadId,
       state.activeTurnId,
-      state.pendingInputs,
       state.threads,
+      state.pendingInputs,
     ],
   )
 

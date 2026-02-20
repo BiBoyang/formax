@@ -2,6 +2,8 @@ import type { FormEvent } from 'react'
 import { resolveCommandRouting } from '../../../../../src/features/semantics/core/commandRouting'
 import { isWebSupportedCommand } from '../core/commandSupport'
 import { toSubmitUiStatus } from '../core/threadTransforms'
+import type { PendingInput } from '../../types'
+import type { AppAction } from '../../store'
 
 export type ComposerActionsContext = {
   inputText: string
@@ -10,15 +12,12 @@ export type ComposerActionsContext = {
   isInterruptingTurn: boolean
   isSubmittingInput: boolean
   mode: 'normal' | 'plan' | 'acceptEdits'
-  selectedCwd: string | null
-  state: {
-    activeThreadId: string | null
-    activeTurnId: string | null
-    threads: Array<{ id: string; cwd?: string }>
-    pendingInputs: Record<string, any>
-  }
+  activeThreadId: string | null
+  activeTurnId: string | null
+  resolveRequestCwd: (threadId: string) => string | null
+  getPendingInputById: (inputId: string) => PendingInput | undefined
   request: (method: string, params?: unknown) => Promise<any>
-  dispatch: (action: any) => void
+  dispatch: (action: AppAction) => void
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
   commandByTurnRef: { current: Map<string, string> }
   setIsSendingTurn: (value: boolean) => void
@@ -60,14 +59,13 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       return
     }
 
-    if (!ctx.state.activeThreadId) {
+    if (!ctx.activeThreadId) {
       ctx.log('Please select or create a thread first', 'warn')
       return
     }
 
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
-    const activeThread = ctx.state.threads.find((thread) => thread.id === ctx.state.activeThreadId)
-    const requestCwd = ctx.selectedCwd ?? activeThread?.cwd
+    const requestCwd = ctx.resolveRequestCwd(ctx.activeThreadId)
     ctx.dispatch({ type: 'push_message', role: 'user', text })
     ctx.setInputText('')
     if (shouldDispatchCommand) {
@@ -78,13 +76,13 @@ export function createComposerActions(ctx: ComposerActionsContext) {
     try {
       const result = shouldDispatchCommand
         ? await ctx.request('command/dispatch', {
-            threadId: ctx.state.activeThreadId,
+            threadId: ctx.activeThreadId,
             command: text,
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
           })
         : await ctx.request('turn/start', {
-            threadId: ctx.state.activeThreadId,
+            threadId: ctx.activeThreadId,
             input: { text },
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
@@ -111,21 +109,21 @@ export function createComposerActions(ctx: ComposerActionsContext) {
   }
 
   const interruptTurn = async () => {
-    if (!ctx.state.activeThreadId || !ctx.state.activeTurnId || ctx.isInterruptingTurn) return
+    if (!ctx.activeThreadId || !ctx.activeTurnId || ctx.isInterruptingTurn) return
     ctx.setIsInterruptingTurn(true)
     try {
       await ctx.request('turn/interrupt', {
-        threadId: ctx.state.activeThreadId,
-        turnId: ctx.state.activeTurnId,
+        threadId: ctx.activeThreadId,
+        turnId: ctx.activeTurnId,
       })
-      ctx.log(`Interrupt requested: ${ctx.state.activeTurnId}`, 'warn', ctx.state.activeTurnId)
+      ctx.log(`Interrupt requested: ${ctx.activeTurnId}`, 'warn', ctx.activeTurnId)
     } finally {
       ctx.setIsInterruptingTurn(false)
     }
   }
 
   const submitInputById = async (inputId: string, answers: Record<string, string>) => {
-    const input = ctx.state.pendingInputs[inputId]
+    const input = ctx.getPendingInputById(inputId)
     if (!input || ctx.isSubmittingInput) return
 
     ctx.setIsSubmittingInput(true)
