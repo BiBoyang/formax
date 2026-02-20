@@ -15,6 +15,11 @@ import {
   type ThreadTranscriptSource,
 } from './core/replayMachine'
 import {
+  INITIAL_THREAD_CACHE_STATE,
+  withThreadCacheSlice,
+  type ThreadCacheState,
+} from './core/threadCache'
+import {
   displayThreadTitle,
   toRpcError,
   toRuntimePendingInputsById,
@@ -106,10 +111,37 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
-  const [logsByThreadId, setLogsByThreadId] = useState<Record<string, TranscriptItem[]>>({})
-  const [historyCursorByThreadId, setHistoryCursorByThreadId] = useState<Record<string, string | null>>({})
+  const [threadCache, setThreadCache] = useState<ThreadCacheState>(INITIAL_THREAD_CACHE_STATE)
+  const logsByThreadId = threadCache.logsByThreadId
+  const historyCursorByThreadId = threadCache.historyCursorByThreadId
   const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
-  const [transcriptSourceByThreadId, setTranscriptSourceByThreadId] = useState<Record<string, ThreadTranscriptSource>>({})
+  const transcriptSourceByThreadId = threadCache.transcriptSourceByThreadId
+  const setLogsByThreadId = useCallback(
+    (updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>) => {
+      setThreadCache((prev) => withThreadCacheSlice(prev, 'logsByThreadId', updater(prev.logsByThreadId)))
+    },
+    [],
+  )
+  const setHistoryCursorByThreadId = useCallback(
+    (updater: (prev: Record<string, string | null>) => Record<string, string | null>) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(prev, 'historyCursorByThreadId', updater(prev.historyCursorByThreadId)),
+      )
+    },
+    [],
+  )
+  const setTranscriptSourceByThreadId = useCallback(
+    (
+      updater: (
+        prev: Record<string, ThreadTranscriptSource>,
+      ) => Record<string, ThreadTranscriptSource>,
+    ) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(prev, 'transcriptSourceByThreadId', updater(prev.transcriptSourceByThreadId)),
+      )
+    },
+    [],
+  )
   const clientRef = useRef<RpcClient | null>(null)
   const commandByTurnRef = useRef<Map<string, string>>(new Map())
   const eventCursorRef = useRef(createTurnEventCursorState(SEEN_EVENT_CAP))
