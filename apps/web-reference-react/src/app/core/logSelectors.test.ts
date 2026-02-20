@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptItem } from '../../types'
-import { selectVisibleTranscriptLogs } from './logSelectors'
+import { selectActiveTranscriptLogs, selectVisibleTranscriptLogs } from './logSelectors'
 
 describe('selectVisibleTranscriptLogs', () => {
   it('keeps warn/error logs and hides info logs', () => {
@@ -26,5 +26,40 @@ describe('selectVisibleTranscriptLogs', () => {
 
     const filtered = selectVisibleTranscriptLogs(logs)
     expect(filtered).toBe(logs)
+  })
+})
+
+describe('selectActiveTranscriptLogs', () => {
+  it('prefers active thread cache logs and filters info logs', () => {
+    const fallbackLogs: TranscriptItem[] = [
+      { id: 'fallback-msg', kind: 'message', role: 'assistant', text: 'fallback' },
+    ]
+    const threadLogs: TranscriptItem[] = [
+      { id: 'thread-info', kind: 'log', level: 'info', text: 'hidden info' },
+      { id: 'thread-msg', kind: 'message', role: 'assistant', text: 'visible' },
+    ]
+
+    const selected = selectActiveTranscriptLogs({
+      activeThreadId: 'thread-1',
+      logs: fallbackLogs,
+      logsByThreadId: { 'thread-1': threadLogs },
+    })
+
+    expect(selected).toEqual([{ id: 'thread-msg', kind: 'message', role: 'assistant', text: 'visible' }])
+  })
+
+  it('falls back to current logs when active thread has no cache entry', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
+    ]
+
+    const selected = selectActiveTranscriptLogs({
+      activeThreadId: 'thread-missing',
+      logs,
+      logsByThreadId: {},
+    })
+
+    expect(selected).toBe(logs)
   })
 })

@@ -24,7 +24,7 @@ import {
   toRpcError,
   toRuntimePendingInputsById,
 } from './core/threadTransforms'
-import { selectVisibleTranscriptLogs } from './core/logSelectors'
+import { selectActiveTranscriptLogs } from './core/logSelectors'
 import {
   formatArchiveNotice,
   resolveArchiveSelection,
@@ -168,8 +168,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const activeHistoryLoading = state.activeThreadId ? Boolean(historyLoadingByThreadId[state.activeThreadId]) : false
   const activeTranscriptSource =
     state.activeThreadId != null ? transcriptSourceByThreadId[state.activeThreadId] ?? null : null
-  const activeLogsRaw = state.activeThreadId ? (logsByThreadId[state.activeThreadId] ?? state.logs) : state.logs
-  const activeLogs = useMemo(() => selectVisibleTranscriptLogs(activeLogsRaw), [activeLogsRaw])
+  const activeLogs = useMemo(
+    () => selectActiveTranscriptLogs({ activeThreadId: state.activeThreadId, logs: state.logs, logsByThreadId }),
+    [logsByThreadId, state.activeThreadId, state.logs],
+  )
   const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
 
   const pruneThreadScopedRuntimeRefs = useCallback(

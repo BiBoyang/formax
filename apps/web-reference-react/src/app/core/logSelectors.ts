@@ -12,3 +12,16 @@ export function selectVisibleTranscriptLogs(logs: TranscriptItem[]): TranscriptI
   if (!hasHiddenInfoLog) return logs
   return logs.filter((item) => item.kind !== 'log' || item.level !== 'info')
 }
+
+export function selectActiveTranscriptLogs(args: {
+  activeThreadId: string | null
+  logs: TranscriptItem[]
+  logsByThreadId: Record<string, TranscriptItem[]>
+}): TranscriptItem[] {
+  const { activeThreadId, logs, logsByThreadId } = args
+  const activeLogs =
+    activeThreadId == null
+      ? logs
+      : (logsByThreadId[activeThreadId] ?? logs)
+  return selectVisibleTranscriptLogs(activeLogs)
+}
