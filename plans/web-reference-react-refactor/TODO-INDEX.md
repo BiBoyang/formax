@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] 6.3-A 新增 Thread ViewModel selector 与单测
 - [ ] 6.3-B LeftRail/useAppRuntime 接入 Thread ViewModel selector
 - [ ] 7.1-A 建立 runtime orchestrator 骨架并迁移连接初始化编排
 - [ ] 7.2-A 下沉线程事务（switch/archive/replay hydrate）到 orchestrator
