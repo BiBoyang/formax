@@ -14,7 +14,9 @@
     "test:e2e:external": "PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test",
     "test:e2e:headed": "playwright test --headed --project=chromium",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "test:perf:gate": "playwright test e2e/transcript-performance-gate.spec.js --project=chromium",
+    "test:perf:gate:external": "PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test e2e/transcript-performance-gate.spec.js --project=chromium"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",

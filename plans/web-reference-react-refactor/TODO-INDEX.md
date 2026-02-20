@@ -8,8 +8,6 @@
 
 ## 当前待办
 
-- [ ] 8.3-A 建立固定性能压测场景与回归门禁
-
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/web-reference-react-refactor/README.md` 派生下一批任务。
