@@ -24,9 +24,7 @@
     - e2e：tool summary rows 刷新后仍可展开（已有用例）
 
 - Phase 4：Markdown pipeline 主线程预算（解析/净化/高亮渐进）
-  - 高亮调度：`highlightCodeBlocks` 使用 `requestIdleCallback` / `scheduler.postTask`（可降级）做低优先级
   - 可选：引入 Web Worker（marked + shiki 在 worker；主线程做 DOMPurify，或先非高亮渲染后替换）
-  - cache 策略：区分 base html 与 highlighted html，避免重复 sanitize
   - 验收：
     - 人工构造长 code blocks：输入可即时、滚动不中断
 
