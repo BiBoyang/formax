@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] 7.2-A 下沉线程事务（switch/archive/replay hydrate）到 orchestrator
 - [ ] 7.3-A 为 reconnect/rollback 路径补集成回归测试
 - [ ] 8.1-A 搭建 transcript selector-store（保留现有语义）
 - [ ] 8.2-A 引入可开关 virtualization（默认关闭）
