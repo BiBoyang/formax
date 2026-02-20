@@ -194,10 +194,12 @@ export async function replayThreadEvents(
   }
 
   const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {
+    const gapRebuildCursor = replay.latestCursor
+    const withGapCursorFloor = (cursor: number): number => Math.max(gapRebuildCursor, cursor)
     if (replay.state?.projection) {
       commitGapRebuild({
         state: replay.state,
-        replayCursor: replay.latestCursor,
+        replayCursor: withGapCursorFloor(replay.latestCursor),
         projectionSnapshot: replay.state.projection,
         clearActiveLogs: false,
       })
@@ -214,7 +216,7 @@ export async function replayThreadEvents(
     if (baselineReplay.state?.projection) {
       commitGapRebuild({
         state: baselineReplay.state,
-        replayCursor: baselineReplay.latestCursor,
+        replayCursor: withGapCursorFloor(baselineReplay.latestCursor),
         projectionSnapshot: baselineReplay.state.projection,
         clearActiveLogs: false,
       })
@@ -223,7 +225,9 @@ export async function replayThreadEvents(
 
     commitGapRebuild({
       state: baselineReplay.state ?? null,
-      replayCursor: baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
+      replayCursor: withGapCursorFloor(
+        baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
+      ),
       projectionSnapshot: baselineReplay.state?.projection ?? null,
       clearActiveLogs: true,
     })

@@ -23,7 +23,6 @@ type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 // Type aliases
 type ReplayMockFn = ReturnType<typeof vi.fn>
 type ReplayRequestMock = ReplayMockFn
-type ReplayLogMock = ReplayMockFn
 type ReplayCursorParams = { after?: number }
 type ReplayTurnEventMethod = 'turn/started' | 'turn/progress'
 type ReplayTurnEventPayload = { replaySeq: number; method: ReplayTurnEventMethod; params: { replaySeq: number } }
@@ -75,15 +74,21 @@ function replayAnomalyWarning(count: number) {
   return `Replay canonical protocol anomalies detected (count=${count})`
 }
 
-function expectSingleWarning(log: ReplayLogMock, message: string) {
-  expect(log).toHaveBeenCalledTimes(1)
-  expect(log).toHaveBeenCalledWith(message, 'warn')
+function toReplayLogMock(log: ReplayThreadEventsContext['log']): ReplayMockFn {
+  return log as unknown as ReplayMockFn
 }
 
-function expectWarningSequence(log: ReplayLogMock, messages: string[]) {
-  expect(log).toHaveBeenCalledTimes(messages.length)
+function expectSingleWarning(log: ReplayThreadEventsContext['log'], message: string) {
+  const replayLogMock = toReplayLogMock(log)
+  expect(replayLogMock).toHaveBeenCalledTimes(1)
+  expect(replayLogMock).toHaveBeenCalledWith(message, 'warn')
+}
+
+function expectWarningSequence(log: ReplayThreadEventsContext['log'], messages: string[]) {
+  const replayLogMock = toReplayLogMock(log)
+  expect(replayLogMock).toHaveBeenCalledTimes(messages.length)
   messages.forEach((message, index) => {
-    expect(log).toHaveBeenNthCalledWith(index + 1, message, 'warn')
+    expect(replayLogMock).toHaveBeenNthCalledWith(index + 1, message, 'warn')
   })
 }
 
@@ -706,6 +711,35 @@ describe('replayThreadEvents', () => {
         threadId: TEST_THREAD_ID,
         snapshot: gapState.projection,
       })
+    })
+
+    it('[rebuild] keeps hasGap cursor floor when baseline replay has no projection/state', async () => {
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          nextCursor: 20,
+          latestCursor: 30,
+          hasGap: true,
+          state: null,
+        }),
+        createReplayPage({
+          nextCursor: 0,
+          latestCursor: 0,
+          hasGap: false,
+          state: null,
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: 0 } },
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+      expect(ok).toBe(true)
+      expectReplayPageRequestArgs({ request, nth: 1, afterCursor: 0 })
+      expect(request).toHaveBeenNthCalledWith(2, 'thread/replay', { threadId: TEST_THREAD_ID })
+      expectReplayCursor(ctx, 30)
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
     })
 
     it('[rebuild] does not consume incremental replay data from a hasGap page', async () => {
