@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
+import { memo, useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -270,24 +270,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const viewportRef = useRef<HTMLElement | null>(null)
   const previousActiveTurnIdRef = useRef<string | null>(activeTurnId)
 
-  // Filter out INFO logs for product view (User Feedback: "Not a log panel")
-  const filteredLogs = useMemo(() => {
-    return logs.filter((item) => {
-      // Always show non-log items (user, assistant, tool, thinking)
-      if (item.kind !== 'log') return true
-      // Only show warn/error logs, hide info logs
-      return item.level === 'warn' || item.level === 'error'
-    })
-  }, [logs])
-
   const showTurnLoading = Boolean(activeThreadId) &&
     connectionStatus === 'connected' &&
     !isInterrupting &&
     (isSending || Boolean(activeTurnId))
 
-  const hiddenInMemoryCount = Math.max(0, filteredLogs.length - renderLimit)
-  const renderedLogs = hiddenInMemoryCount > 0 ? filteredLogs.slice(-renderLimit) : filteredLogs
-  const showJumpToBottom = filteredLogs.length > 0 && !isNearBottom
+  const hiddenInMemoryCount = Math.max(0, logs.length - renderLimit)
+  const renderedLogs = hiddenInMemoryCount > 0 ? logs.slice(-renderLimit) : logs
+  const showJumpToBottom = logs.length > 0 && !isNearBottom
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const viewport = viewportRef.current
@@ -347,7 +337,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       window.cancelAnimationFrame(raf)
     }
-  }, [autoStick, filteredLogs.length, showTurnLoading])
+  }, [autoStick, logs.length, showTurnLoading])
 
   useEffect(() => {
     const root = scrollAreaRef.current
@@ -363,7 +353,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       viewport.removeEventListener('scroll', handleViewportScroll)
       viewport.removeEventListener('wheel', handleBoundaryWheel)
     }
-  }, [activeThreadId, autoStick, filteredLogs.length])
+  }, [activeThreadId, autoStick, logs.length])
 
   const handleSend = (event: FormEvent) => {
     setAutoStick(true)
@@ -399,7 +389,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const renderEarlierMessages = () => {
     if (hiddenInMemoryCount <= 0) return
-    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, filteredLogs.length)
+    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, logs.length)
   }
 
   useEffect(() => {
@@ -407,7 +397,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [activeThreadId])
 
   const handleLoadEarlier = () => {
-    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, filteredLogs.length)
+    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, logs.length)
     onLoadEarlier?.()
   }
 
@@ -420,7 +410,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   useEffect(() => {
     if (!activeTurnId) return
-    const target = Math.min(filteredLogs.length, RENDER_WINDOW_CAP)
+    const target = Math.min(logs.length, RENDER_WINDOW_CAP)
     if (renderLimit >= target) return
     const schedule = (callback: () => void): number => {
       const withIdle = window as Window & {
@@ -447,7 +437,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       cancel(handle)
     }
-  }, [activeTurnId, autoStick, filteredLogs.length, renderLimit])
+  }, [activeTurnId, autoStick, logs.length, renderLimit])
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">

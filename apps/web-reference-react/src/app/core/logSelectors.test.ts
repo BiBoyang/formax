@@ -1,0 +1,30 @@
+import { describe, expect, it } from 'vitest'
+import type { TranscriptItem } from '../../types'
+import { selectVisibleTranscriptLogs } from './logSelectors'
+
+describe('selectVisibleTranscriptLogs', () => {
+  it('keeps warn/error logs and hides info logs', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
+      { id: 'l-2', kind: 'log', level: 'info', text: 'info log' },
+      { id: 'l-3', kind: 'log', level: 'error', text: 'error log' },
+    ]
+
+    const filtered = selectVisibleTranscriptLogs(logs)
+    expect(filtered).toHaveLength(3)
+    expect(filtered.find((item) => item.id === 'l-2')).toBeUndefined()
+    expect(filtered.find((item) => item.id === 'l-1')).toBeDefined()
+    expect(filtered.find((item) => item.id === 'l-3')).toBeDefined()
+  })
+
+  it('returns the same array reference when no info logs are present', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
+    ]
+
+    const filtered = selectVisibleTranscriptLogs(logs)
+    expect(filtered).toBe(logs)
+  })
+})

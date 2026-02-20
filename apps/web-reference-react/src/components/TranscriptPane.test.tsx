@@ -211,7 +211,7 @@ describe('TranscriptPane', () => {
     expect(container.querySelectorAll('[data-turn-group-start=\"true\"]')).toHaveLength(2)
   })
 
-  it('filters info logs while keeping warn/error and tool events visible', () => {
+  it('renders provided logs and keeps load-earlier callback wiring', () => {
     const onLoadEarlier = vi.fn()
 
     render(
@@ -222,7 +222,6 @@ describe('TranscriptPane', () => {
           logs: [
             { id: 'm1', kind: 'message', role: 'assistant', text: 'hello' },
             { id: 'l1', kind: 'log', text: 'warn log', level: 'warn' },
-            { id: 'l2', kind: 'log', text: 'info log', level: 'info' },
             {
               id: 't1',
               kind: 'tool_call',
@@ -239,7 +238,6 @@ describe('TranscriptPane', () => {
     )
 
     expect(screen.getByText('warn log')).toBeInTheDocument()
-    expect(screen.queryByText('info log')).not.toBeInTheDocument()
     expect(screen.getByText(/^Bash$/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
