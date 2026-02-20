@@ -17,6 +17,10 @@ const TURN_INIT_RENDER_LIMIT = 30
 const TURN_BATCH_RENDER_SIZE = 20
 const HISTORY_BATCH_RENDER_SIZE = 50
 const RENDER_WINDOW_CAP = 200
+const VIRTUALIZED_TURN_INIT_RENDER_LIMIT = 20
+const VIRTUALIZED_TURN_BATCH_RENDER_SIZE = 16
+const VIRTUALIZED_HISTORY_BATCH_RENDER_SIZE = 40
+const VIRTUALIZED_RENDER_WINDOW_CAP = 120
 
 type OpenIdsAction =
   | { type: 'toggle'; id: string }
@@ -77,6 +81,7 @@ export type TranscriptPaneProps = {
   activeThread?: ThreadSummary | undefined
   activeThreadId: string | null
   activeTurnId?: string | null
+  virtualizationEnabled?: boolean
 
   logs: TranscriptItem[]
   composerLocked?: boolean
@@ -241,6 +246,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     activeThread,
     activeThreadId,
     activeTurnId = null,
+    virtualizationEnabled = false,
     logs,
     composerLocked = false,
     inputText,
@@ -257,11 +263,15 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     isInterrupting = false,
     lastRpcError = null,
   } = props
+  const turnInitRenderLimit = virtualizationEnabled ? VIRTUALIZED_TURN_INIT_RENDER_LIMIT : TURN_INIT_RENDER_LIMIT
+  const turnBatchRenderSize = virtualizationEnabled ? VIRTUALIZED_TURN_BATCH_RENDER_SIZE : TURN_BATCH_RENDER_SIZE
+  const historyBatchRenderSize = virtualizationEnabled ? VIRTUALIZED_HISTORY_BATCH_RENDER_SIZE : HISTORY_BATCH_RENDER_SIZE
+  const renderWindowCap = virtualizationEnabled ? VIRTUALIZED_RENDER_WINDOW_CAP : RENDER_WINDOW_CAP
 
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [autoStick, setAutoStick] = useState(true)
   const [isImeComposing, setIsImeComposing] = useState(false)
-  const [renderLimit, setRenderLimit] = useState(TURN_INIT_RENDER_LIMIT)
+  const [renderLimit, setRenderLimit] = useState(turnInitRenderLimit)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
   const [openThinkingIds, dispatchOpenThinkingIds] = useReducer(openIdsReducer, new Set<string>())
@@ -389,28 +399,28 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const renderEarlierMessages = () => {
     if (hiddenInMemoryCount <= 0) return
-    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, logs.length)
+    increaseRenderLimit(historyBatchRenderSize, true, logs.length)
   }
 
   useEffect(() => {
-    setRenderLimit(TURN_INIT_RENDER_LIMIT)
-  }, [activeThreadId])
+    setRenderLimit(turnInitRenderLimit)
+  }, [activeThreadId, turnInitRenderLimit])
 
   const handleLoadEarlier = () => {
-    increaseRenderLimit(HISTORY_BATCH_RENDER_SIZE, true, logs.length)
+    increaseRenderLimit(historyBatchRenderSize, true, logs.length)
     onLoadEarlier?.()
   }
 
   useEffect(() => {
     if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {
-      setRenderLimit(TURN_INIT_RENDER_LIMIT)
+      setRenderLimit(turnInitRenderLimit)
     }
     previousActiveTurnIdRef.current = activeTurnId
-  }, [activeTurnId])
+  }, [activeTurnId, turnInitRenderLimit])
 
   useEffect(() => {
     if (!activeTurnId) return
-    const target = Math.min(logs.length, RENDER_WINDOW_CAP)
+    const target = Math.min(logs.length, renderWindowCap)
     if (renderLimit >= target) return
     const schedule = (callback: () => void): number => {
       const withIdle = window as Window & {
@@ -432,12 +442,12 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       window.clearTimeout(handle)
     }
     const handle = schedule(() => {
-      increaseRenderLimit(TURN_BATCH_RENDER_SIZE, true, target)
+      increaseRenderLimit(turnBatchRenderSize, true, target)
     })
     return () => {
       cancel(handle)
     }
-  }, [activeTurnId, autoStick, logs.length, renderLimit])
+  }, [activeTurnId, autoStick, logs.length, renderLimit, renderWindowCap, turnBatchRenderSize])
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">

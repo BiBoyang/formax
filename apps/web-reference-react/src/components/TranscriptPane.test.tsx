@@ -647,6 +647,36 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
   })
 
+  it('applies tighter active-turn render cap when virtualization is enabled', async () => {
+    const logs = Array.from({ length: 600 }, (_, index) => ({
+      id: `virt-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `virt-msg-${index}`,
+    }))
+
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+          activeTurnId: 'turn-virt',
+          virtualizationEnabled: true,
+        })}
+      />,
+    )
+
+    expect(screen.getByText('virt-msg-599')).toBeInTheDocument()
+    expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('virt-msg-480')).toBeInTheDocument()
+      },
+      { timeout: 4000 },
+    )
+    expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
+  })
+
   it('stops wheel propagation only when viewport can still scroll in that direction', () => {
     expect(
       shouldStopWheelPropagation({

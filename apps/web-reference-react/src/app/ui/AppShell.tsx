@@ -35,6 +35,7 @@ export type AppShellProps = {
   activeTurnId: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   activeThread: ThreadSummary | undefined
+  transcriptVirtualizationEnabled: boolean
   composerLocked: boolean
   logs: TranscriptItem[]
   inputText: string
@@ -213,6 +214,7 @@ export function AppShell(props: AppShellProps) {
                     activeThreadId={props.activeThreadId}
                     activeTurnId={props.activeTurnId}
                     composerLocked={props.composerLocked}
+                    virtualizationEnabled={props.transcriptVirtualizationEnabled}
                     logs={props.logs}
                     inputText={props.inputText}
                     mode={props.mode}

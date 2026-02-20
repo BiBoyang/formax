@@ -24,6 +24,7 @@ import {
 import { selectThreadViewModelById } from './core/threadViewModel'
 import { selectActiveTranscriptLogs } from './core/logSelectors'
 import { createTranscriptSelectorStore } from './core/transcriptSelectorStore'
+import { isTranscriptVirtualizationEnabled } from './core/transcriptVirtualization'
 import {
   formatArchiveNotice,
   resolveArchiveSelection,
@@ -173,6 +174,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     logs: state.logs,
     logsByThreadId,
   })
+  const transcriptVirtualizationEnabled = useMemo(
+    () => isTranscriptVirtualizationEnabled({ isDevRuntime: isDevRuntime() }),
+    [],
+  )
   const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
 
   const pruneThreadScopedRuntimeRefs = useCallback(
@@ -729,6 +734,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeTurnId: state.activeTurnId,
     connectionStatus: state.connectionStatus,
     activeThread,
+    transcriptVirtualizationEnabled,
     composerLocked,
     logs: activeLogs,
     inputText,
