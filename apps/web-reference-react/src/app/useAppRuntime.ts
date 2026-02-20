@@ -123,6 +123,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
   const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
   const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
+  const historyCursorByThreadIdRef = useRef<Record<string, string | null>>(historyCursorByThreadId)
   const replayCursorByThreadRef = useRef<Record<string, number>>({})
   const replayAnomalyCountSeenByThreadRef = useRef<Record<string, number>>({})
   const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
@@ -165,6 +166,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     threadsRef.current = state.threads
     pruneThreadScopedRuntimeRefs(state.threads)
   }, [pruneThreadScopedRuntimeRefs, state.threads])
+
+  useEffect(() => {
+    historyCursorByThreadIdRef.current = historyCursorByThreadId
+  }, [historyCursorByThreadId])
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -226,7 +231,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         historyLoadTokenRef,
         historyLoadSeqByThreadRef,
         historyLoadingRef,
+        historyCursorByThreadIdRef,
         transcriptSourceByThreadRef,
+        logsByThreadIdRef,
+        stateLogsRef,
         seenStaleInputIdRef,
         setIsRefreshingDiff,
         setDiffSnapshot,
@@ -429,7 +437,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         },
         sortedThreads,
         logsByThreadId,
-        historyCursorByThreadId,
         request,
         dispatch,
         log,
@@ -452,7 +459,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         loadEarlierHistoryAction,
       }),
     [
-      historyCursorByThreadId,
       log,
       logsByThreadId,
       refreshThreads,

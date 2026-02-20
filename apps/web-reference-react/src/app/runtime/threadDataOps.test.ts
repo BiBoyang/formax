@@ -16,6 +16,8 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
   let historyCursorByThread: Record<string, string | null> = {}
   let transcriptSourceByThread: Record<string, 'history' | 'replay'> = {}
   let logsByThread: Record<string, any[]> = {}
+  const historyCursorByThreadIdRef = { current: {} as Record<string, string | null> }
+  const logsByThreadIdRef = { current: {} as Record<string, any[]> }
 
   return {
     request: vi.fn(),
@@ -25,7 +27,10 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     historyLoadTokenRef: { current: 0 },
     historyLoadSeqByThreadRef: { current: {} },
     historyLoadingRef: { current: {} },
+    historyCursorByThreadIdRef,
     transcriptSourceByThreadRef: { current: {} },
+    logsByThreadIdRef,
+    stateLogsRef: { current: [] },
     seenStaleInputIdRef: { current: new Set<string>() },
     setIsRefreshingDiff: vi.fn(),
     setDiffSnapshot: vi.fn(),
@@ -35,6 +40,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     }),
     setHistoryCursorByThreadId: vi.fn((updater) => {
       historyCursorByThread = updater(historyCursorByThread)
+      historyCursorByThreadIdRef.current = historyCursorByThread
       return historyCursorByThread
     }),
     setTranscriptSourceByThreadId: vi.fn((updater) => {
@@ -43,6 +49,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     }),
     setLogsByThreadId: vi.fn((updater) => {
       logsByThread = updater(logsByThread)
+      logsByThreadIdRef.current = logsByThread
       return logsByThread
     }),
     resolveDiffCwd: vi.fn(() => '/repo'),
@@ -209,6 +216,33 @@ describe('threadDataOps', () => {
       additions: 3,
       deletions: 1,
       untracked: undefined,
+    })
+  })
+
+  it('loads earlier history from refs when transcript source is history', async () => {
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      historyCursorByThreadIdRef: { current: { 'thread-1': 'cursor-prev' } },
+      transcriptSourceByThreadRef: { current: { 'thread-1': 'history' } },
+      logsByThreadIdRef: {
+        current: {
+          'thread-1': [{ id: 'existing-log', kind: 'message', role: 'assistant', text: 'existing' }],
+        },
+      },
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await ops.loadEarlierHistory()
+
+    expect(ctx.request).toHaveBeenCalledWith('thread/messages', {
+      threadId: 'thread-1',
+      limit: 50,
+      cursor: 'cursor-prev',
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'prepend_logs',
+      logs: [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }],
     })
   })
 })

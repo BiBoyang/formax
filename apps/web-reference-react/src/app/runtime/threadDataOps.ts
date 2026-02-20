@@ -3,16 +3,20 @@ import type { DiffFilePatchPayload, DiffSnapshot } from '../../components/Worktr
 import { asResolvedInputs, asThreadMessages, asThreadSummaries } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { TranscriptItem } from '../../types'
+import type { AppAction } from '../../store'
 
 export type ThreadDataOpsContext = {
-  request: (method: string, params?: unknown) => Promise<any>
-  dispatch: (action: any) => void
+  request: (method: string, params?: unknown) => Promise<unknown>
+  dispatch: (action: AppAction) => void
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
   activeThreadIdRef: { current: string | null }
   historyLoadTokenRef: { current: number }
   historyLoadSeqByThreadRef: { current: Record<string, number> }
   historyLoadingRef: { current: Record<string, boolean> }
+  historyCursorByThreadIdRef: { current: Record<string, string | null> }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
+  logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
+  stateLogsRef: { current: TranscriptItem[] }
   seenStaleInputIdRef: { current: Set<string> }
   setIsRefreshingDiff: (value: boolean) => void
   setDiffSnapshot: (value: DiffSnapshot | null) => void
@@ -239,15 +243,11 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     }
   }
 
-  const loadEarlierHistory = async (args: {
-    activeThreadId: string | null
-    historyCursorByThreadId: Record<string, string | null>
-    activeLogs: TranscriptItem[]
-  }) => {
-    const threadId = args.activeThreadId
+  const loadEarlierHistory = async () => {
+    const threadId = ctx.activeThreadIdRef.current
     if (!threadId || ctx.historyLoadingRef.current[threadId]) return
     if (ctx.transcriptSourceByThreadRef.current[threadId] !== 'history') return
-    const cursor = args.historyCursorByThreadId[threadId]
+    const cursor = ctx.historyCursorByThreadIdRef.current[threadId]
     if (!cursor) return
 
     const token = ctx.historyLoadTokenRef.current
@@ -261,7 +261,10 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       const prepended = mapThreadHistoryToCanonicalLogs({ threadId, messages: parsed.data })
       ctx.dispatch({ type: 'prepend_logs', logs: prepended })
       ctx.setLogsByThreadId((prev) => {
-        const current = prev[threadId] ?? args.activeLogs
+        const current =
+          prev[threadId] ??
+          ctx.logsByThreadIdRef.current[threadId] ??
+          ctx.stateLogsRef.current
         return { ...prev, [threadId]: [...prepended, ...current] }
       })
       ctx.setHistoryCursorByThreadId((prev) => ({ ...prev, [threadId]: parsed.nextCursor }))

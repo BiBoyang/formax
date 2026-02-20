@@ -8,12 +8,6 @@
 
 ## 当前待办
 
-- Phase 1：拆分 `useAppRuntime`（职责解耦，不改 store 语义）
-  - `createThreadDataOps` / `createThreadActions`：收敛依赖参数，避免“把整个世界塞进去”
-  - 验收：
-    - 全部单测 + e2e
-    - 手动验证：切线程/回放、load earlier、diff patch 展开、archive rollback
-
 - Phase 2：收敛 state（SSOT + selectors）
   - 选择策略（两种选其一，建议从 A 开始）：
     - A) 继续用 React `useReducer`，把投影合并/日志 merge 移到 reducer 外投影引擎，reducer 只存最小事实（events/projection snapshot cursor）

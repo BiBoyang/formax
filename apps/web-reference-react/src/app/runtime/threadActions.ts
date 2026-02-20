@@ -17,7 +17,6 @@ export type ThreadActionsContext = {
   }
   sortedThreads: Array<{ id: string; cwd?: string; updatedAt: string; label?: string | null; lastUserPrompt?: string | null }>
   logsByThreadId: Record<string, TranscriptItem[]>
-  historyCursorByThreadId: Record<string, string | null>
   request: (method: string, params?: unknown) => Promise<any>
   dispatch: (action: any) => void
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
@@ -32,11 +31,7 @@ export type ThreadActionsContext = {
   refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
   trackArchiveOp?: (args: { opId: string; threadId: string; thread: ArchiveThreadLike | null | undefined }) => void
   clearArchiveOp?: (opId: string) => boolean
-  loadEarlierHistoryAction: (args: {
-    activeThreadId: string | null
-    historyCursorByThreadId: Record<string, string | null>
-    activeLogs: TranscriptItem[]
-  }) => Promise<void>
+  loadEarlierHistoryAction: () => Promise<void>
 }
 
 export type SelectThreadOptions = { restoreOnReplayFailure?: boolean }
@@ -254,12 +249,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     }
   }
 
-  const loadEarlierHistory = async () =>
-    ctx.loadEarlierHistoryAction({
-      activeThreadId: ctx.state.activeThreadId,
-      historyCursorByThreadId: ctx.historyCursorByThreadId,
-      activeLogs: ctx.state.logs,
-    })
+  const loadEarlierHistory = async () => ctx.loadEarlierHistoryAction()
 
   return {
     startThread,

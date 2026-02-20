@@ -31,7 +31,6 @@ function createBaseContext(overrides: ThreadActionsTestOverrides = {}): ThreadAc
     logsByThreadId: {
       'prev-thread': [{ id: 'l-prev-cached', kind: 'message', role: 'assistant', text: 'cached' }],
     },
-    historyCursorByThreadId: {},
     request: vi.fn(),
     dispatch: vi.fn(),
     log: vi.fn(),
