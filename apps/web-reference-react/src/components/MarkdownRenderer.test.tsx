@@ -53,4 +53,56 @@ describe('MarkdownRenderer', () => {
       ;(window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback = originalCic
     }
   })
+
+  it('prefers worker rendering path when Worker is available', async () => {
+    const originalRic = (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback
+    const originalCic = (window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback
+    const originalWorker = (window as Window & { Worker?: unknown }).Worker
+
+    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+      callback({
+        didTimeout: false,
+        timeRemaining: () => 50,
+      } as IdleDeadline)
+      return 1
+    })
+    const cancelIdleCallback = vi.fn()
+
+    class MockWorker {
+      onmessage: ((event: MessageEvent<{ ok: boolean; html: string }>) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      terminate = vi.fn()
+
+      postMessage(_payload: unknown) {
+        this.onmessage?.({
+          data: {
+            ok: true,
+            html: '<div data-component="markdown-code"><pre><code>worker-code</code></pre><button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>',
+          },
+        } as MessageEvent<{ ok: boolean; html: string }>)
+      }
+    }
+
+    const workerCtor = vi.fn(() => new MockWorker())
+
+    ;(window as Window & { requestIdleCallback?: (callback: IdleRequestCallback) => number }).requestIdleCallback = requestIdleCallback
+    ;(window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback = cancelIdleCallback
+    ;(window as Window & { Worker?: unknown }).Worker = workerCtor as unknown as typeof Worker
+
+    try {
+      const cacheKey = `markdown-worker-${Math.random().toString(36).slice(2)}`
+      const markdown = '```js\nconsole.log(\"worker\")\n```'
+
+      const view = render(<MarkdownRenderer text={markdown} cacheKey={cacheKey} />)
+      await waitFor(() => {
+        expect(workerCtor).toHaveBeenCalledTimes(1)
+        expect(view.container.querySelector('[data-copy-code]')).not.toBeNull()
+      })
+      view.unmount()
+    } finally {
+      ;(window as Window & { requestIdleCallback?: unknown }).requestIdleCallback = originalRic
+      ;(window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback = originalCic
+      ;(window as Window & { Worker?: unknown }).Worker = originalWorker
+    }
+  })
 })

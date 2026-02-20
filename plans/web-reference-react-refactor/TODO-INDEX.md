@@ -8,19 +8,7 @@
 
 ## 当前待办
 
-- Phase 2：收敛 state（SSOT + selectors）
-  - 选择策略（两种选其一，建议从 A 开始）：
-    - A) 继续用 React `useReducer`，把投影合并/日志 merge 移到 reducer 外投影引擎，reducer 只存最小事实（events/projection snapshot cursor）
-    - B) 引入 external store + `useSyncExternalStore`（仅限本 app），selectors 精确订阅
-  - 具体落点：
-  - 验收：
-    - 性能对比：同等 transcript 规模下滚动/输入不卡顿（主观 + 简单 measure）
-    - 全测试通过
-
-- Phase 4：Markdown pipeline 主线程预算（解析/净化/高亮渐进）
-  - 可选：引入 Web Worker（marked + shiki 在 worker；主线程做 DOMPurify，或先非高亮渲染后替换）
-  - 验收：
-    - 人工构造长 code blocks：输入可即时、滚动不中断
+- （空）
 
 ## 再生规则（当“当前待办”为空时）
 

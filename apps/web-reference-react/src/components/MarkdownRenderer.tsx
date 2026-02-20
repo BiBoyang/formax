@@ -262,6 +262,56 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   return result
 }
 
+async function renderMarkdownInWorker(text: string, signal?: AbortSignal): Promise<string> {
+  if (typeof window === 'undefined' || typeof window.Worker !== 'function') {
+    throw new Error('worker_unavailable')
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const worker = new window.Worker(new URL('../workers/markdownRender.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+
+    const cleanup = () => {
+      if (signal) {
+        signal.removeEventListener('abort', onAbort)
+      }
+      worker.onmessage = null
+      worker.onerror = null
+      worker.terminate()
+    }
+
+    worker.onmessage = (event: MessageEvent<{ ok?: boolean; html?: unknown; error?: unknown }>) => {
+      const payload = event.data
+      cleanup()
+      if (payload?.ok === true && typeof payload.html === 'string') {
+        resolve(payload.html)
+        return
+      }
+      reject(new Error(typeof payload?.error === 'string' ? payload.error : 'worker_render_failed'))
+    }
+
+    worker.onerror = () => {
+      cleanup()
+      reject(new Error('worker_render_error'))
+    }
+
+    const onAbort = () => {
+      cleanup()
+      reject(new Error('worker_aborted'))
+    }
+    if (signal) {
+      if (signal.aborted) {
+        onAbort()
+        return
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    worker.postMessage({ text })
+  })
+}
+
 export function MarkdownRenderer({ text, cacheKey, className, ...rest }: MarkdownRendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const hash = useMemo(() => checksum(text), [text])
@@ -294,9 +344,16 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
     }
 
     let cancelled = false
+    const workerAbortController = new AbortController()
     const cancelScheduled = scheduleLowPriorityTask(() => {
       void (async () => {
-        const highlighted = await highlightCodeBlocks(rawHtml)
+        let highlighted = ''
+        try {
+          highlighted = await renderMarkdownInWorker(text, workerAbortController.signal)
+        } catch {
+          if (workerAbortController.signal.aborted) return
+          highlighted = await highlightCodeBlocks(rawHtml)
+        }
         if (cancelled) return
         const safeHighlighted = sanitizeHtml(highlighted)
         touchCache(key, { hash, baseHtml: safeBaseHtml, highlightedHtml: safeHighlighted })
@@ -306,9 +363,10 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
 
     return () => {
       cancelled = true
+      workerAbortController.abort()
       cancelScheduled()
     }
-  }, [cached, hash, key, rawHtml, safeBaseHtml])
+  }, [cached, hash, key, rawHtml, safeBaseHtml, text])
 
   useEffect(() => {
     const root = rootRef.current
