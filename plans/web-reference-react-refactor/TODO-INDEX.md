@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- （空，等待按 README 再生下一批切片）
+- [ ] F1-C TranscriptPane 衍生渲染数据 memo 化（含测试）
+- [ ] F1-D 抽取 useAppRuntime transcript 展示态 hook 并接入
 
 ## 再生规则（当“当前待办”为空时）
 

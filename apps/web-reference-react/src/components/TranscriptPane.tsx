@@ -278,6 +278,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
+  const autoStickRef = useRef(autoStick)
+  const autoStickStateRef = useRef(autoStick)
+  const scrollRafHandleRef = useRef<number | null>(null)
+  const scrollFallbackHandleRef = useRef<number | null>(null)
   const previousActiveTurnIdRef = useRef<string | null>(activeTurnId)
 
   const showTurnLoading = Boolean(activeThreadId) &&
@@ -294,6 +298,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     if (!viewport) {
       bottomRef.current?.scrollIntoView({ behavior, block: 'end' })
       setAutoStick(true)
+      autoStickRef.current = true
+      autoStickStateRef.current = true
       setIsNearBottom(true)
       return
     }
@@ -304,24 +310,89 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       viewport.scrollTop = viewport.scrollHeight
     }
     setAutoStick(true)
+    autoStickRef.current = true
+    autoStickStateRef.current = true
     setIsNearBottom(true)
   }
+
+  useEffect(() => {
+    autoStickRef.current = autoStick
+    autoStickStateRef.current = autoStick
+  }, [autoStick])
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafHandleRef.current != null) {
+        window.cancelAnimationFrame(scrollRafHandleRef.current)
+        scrollRafHandleRef.current = null
+      }
+      if (scrollFallbackHandleRef.current != null) {
+        window.clearTimeout(scrollFallbackHandleRef.current)
+        scrollFallbackHandleRef.current = null
+      }
+    }
+  }, [])
+
+  const flushScrollFrame = useCallback(() => {
+    if (scrollRafHandleRef.current != null) {
+      window.cancelAnimationFrame(scrollRafHandleRef.current)
+      scrollRafHandleRef.current = null
+    }
+    if (scrollFallbackHandleRef.current != null) {
+      window.clearTimeout(scrollFallbackHandleRef.current)
+      scrollFallbackHandleRef.current = null
+    }
+    const nextViewport = viewportRef.current
+    if (!nextViewport) return
+    const bottomDistance = nextViewport.scrollHeight - nextViewport.scrollTop - nextViewport.clientHeight
+    const nearBottom = bottomDistance <= 32
+    setIsNearBottom((previous) => (previous === nearBottom ? previous : nearBottom))
+
+    if (nearBottom) {
+      nextViewport.style.overflowAnchor = 'auto'
+      if (!autoStickStateRef.current) {
+        autoStickRef.current = true
+        autoStickStateRef.current = true
+        setAutoStick(true)
+      }
+      return
+    }
+
+    nextViewport.style.overflowAnchor = 'none'
+    if (autoStickStateRef.current) {
+      autoStickRef.current = false
+      autoStickStateRef.current = false
+      setAutoStick(false)
+    }
+  }, [])
 
   const handleViewportScroll = () => {
     const viewport = viewportRef.current
     if (!viewport) return
     const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
     const nearBottom = bottomDistance <= 32
-    setIsNearBottom(nearBottom)
+    viewport.style.overflowAnchor = nearBottom ? 'auto' : 'none'
     if (nearBottom) {
-      viewport.style.overflowAnchor = 'auto'
-      setAutoStick(true)
-    } else if (autoStick) {
-      viewport.style.overflowAnchor = 'none'
-      setAutoStick(false)
+      autoStickRef.current = true
+      if (!autoStickStateRef.current) {
+        autoStickStateRef.current = true
+        setAutoStick(true)
+      }
     } else {
-      viewport.style.overflowAnchor = 'none'
+      autoStickRef.current = false
+      if (autoStickStateRef.current) {
+        autoStickStateRef.current = false
+        setAutoStick(false)
+      }
     }
+    if (scrollRafHandleRef.current != null || scrollFallbackHandleRef.current != null) return
+    scrollRafHandleRef.current = window.requestAnimationFrame(() => {
+      flushScrollFrame()
+    })
+    // jsdom and throttled tabs may defer RAF indefinitely; keep scroll state eventually consistent.
+    scrollFallbackHandleRef.current = window.setTimeout(() => {
+      flushScrollFrame()
+    }, 48)
   }
 
   const handleBoundaryWheel = (event: WheelEvent) => {
@@ -342,6 +413,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   useEffect(() => {
     if (!autoStick) return
     const raf = window.requestAnimationFrame(() => {
+      if (!autoStickRef.current) return
       scrollToBottom('auto')
     })
     return () => {
@@ -350,22 +422,58 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [autoStick, logs.length, showTurnLoading])
 
   useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    viewport.style.overflowAnchor = autoStick ? 'auto' : 'none'
+  }, [autoStick])
+
+  useEffect(() => {
     const root = scrollAreaRef.current
     if (!root) return
     const viewport = root.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
     if (!viewport) return
     viewportRef.current = viewport
-    viewport.style.overflowAnchor = autoStick ? 'auto' : 'none'
+    viewport.style.overflowAnchor = autoStickRef.current ? 'auto' : 'none'
     viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
     viewport.addEventListener('wheel', handleBoundaryWheel, { passive: true })
-    handleViewportScroll()
+    const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const nearBottom = bottomDistance <= 32
+    setIsNearBottom((previous) => (previous === nearBottom ? previous : nearBottom))
+    if (nearBottom) {
+      if (!autoStickStateRef.current) {
+        autoStickRef.current = true
+        autoStickStateRef.current = true
+        setAutoStick(true)
+      }
+      viewport.style.overflowAnchor = 'auto'
+    } else {
+      if (autoStickStateRef.current) {
+        autoStickRef.current = false
+        autoStickStateRef.current = false
+        setAutoStick(false)
+      }
+      viewport.style.overflowAnchor = 'none'
+    }
     return () => {
+      if (scrollRafHandleRef.current != null) {
+        window.cancelAnimationFrame(scrollRafHandleRef.current)
+        scrollRafHandleRef.current = null
+      }
+      if (scrollFallbackHandleRef.current != null) {
+        window.clearTimeout(scrollFallbackHandleRef.current)
+        scrollFallbackHandleRef.current = null
+      }
       viewport.removeEventListener('scroll', handleViewportScroll)
       viewport.removeEventListener('wheel', handleBoundaryWheel)
+      if (viewportRef.current === viewport) {
+        viewportRef.current = null
+      }
     }
-  }, [activeThreadId, autoStick, logs.length])
+  }, [activeThreadId])
 
   const handleSend = (event: FormEvent) => {
+    autoStickRef.current = true
+    autoStickStateRef.current = true
     setAutoStick(true)
     onSend(event)
   }

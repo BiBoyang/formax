@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptPaneProps } from './TranscriptPane'
 import { TranscriptPane } from './TranscriptPane'
@@ -299,6 +299,72 @@ describe('TranscriptPane', () => {
     await waitFor(() => {
       expect(viewport.style.overflowAnchor).toBe('auto')
     })
+  })
+
+  it('coalesces burst scroll events into a single animation frame update', async () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [
+            { id: 'm1', kind: 'message', role: 'assistant', text: 'a' },
+            { id: 'm2', kind: 'message', role: 'assistant', text: 'b' },
+          ],
+        })}
+      />,
+    )
+
+    const viewport = document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    expect(viewport).not.toBeNull()
+    if (!viewport) return
+
+    let scrollTopValue = 0
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => 1000,
+    })
+    Object.defineProperty(viewport, 'clientHeight', {
+      configurable: true,
+      get: () => 300,
+    })
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value
+      },
+    })
+    await waitFor(() => {
+      expect(viewport.style.overflowAnchor).toBe('auto')
+    })
+
+    // First transition away from bottom before spying; this may trigger state/effect rebinding.
+    scrollTopValue = 120
+    fireEvent.scroll(viewport)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
+    })
+
+    const queuedFrames: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      queuedFrames.push(callback)
+      return queuedFrames.length
+    })
+
+    try {
+      fireEvent.scroll(viewport)
+      fireEvent.scroll(viewport)
+
+      expect(queuedFrames).toHaveLength(1)
+      act(() => {
+        queuedFrames[0]?.(0)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
+      })
+    } finally {
+      rafSpy.mockRestore()
+    }
   })
 
   it('sticks to bottom when turn loading appears even if log length is unchanged', async () => {
