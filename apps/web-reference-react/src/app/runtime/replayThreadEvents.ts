@@ -2,8 +2,8 @@ import type { Dispatch, SetStateAction } from 'react'
 import { asThreadReplay, type ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
-import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
-import { summarizeInvariantIssues } from '../../../../../src/features/semantics/selectors/invariants'
+import type { ThreadRuntimeState } from '../../semantics'
+import { summarizeInvariantIssues } from '../../semantics'
 
 type ReplayResult = ReturnType<typeof asThreadReplay>
 

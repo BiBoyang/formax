@@ -10,14 +10,14 @@ import type { RpcNotification } from '../../types'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
-} from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+} from '../../semantics'
 // Shared replay fixtures are centralized in ./testFixtures/replayFixtures.ts.
 import {
   REPLAY_FIXTURE_THREAD_ID,
   REPLAY_FIXTURE_TURN_ID,
   createReplayTurnEventEnvelope,
 } from './testFixtures/replayFixtures'
-import { CROSS_PATH_CONTRACT_FIXTURE } from '../../../../../src/features/semantics/adapters/crossPathContractFixture'
+import { CROSS_PATH_CONTRACT_FIXTURE } from '../../semantics'
 
 type ReplayPage = ReturnType<ReplayThreadEventsContext['asThreadReplay']>
 // Type aliases

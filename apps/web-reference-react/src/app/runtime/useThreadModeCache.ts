@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
-import { createInitialThreadRuntimeState, type ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
-import type { ReplMode } from '../../../../../src/features/semantics/core/replModeTransition'
+import { createInitialThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
+import type { ReplMode } from '../../semantics'
 
 export function useThreadModeCache(args: {
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }

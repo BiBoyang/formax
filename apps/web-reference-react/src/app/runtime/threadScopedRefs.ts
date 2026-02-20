@@ -1,4 +1,4 @@
-import type { ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+import type { ThreadRuntimeState } from '../../semantics'
 
 type ThreadScopedRefs = {
   replayCursorByThreadRef: { current: Record<string, number> }

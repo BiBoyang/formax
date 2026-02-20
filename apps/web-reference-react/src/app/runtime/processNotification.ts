@@ -2,9 +2,9 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { AppAction } from '../../store'
 import type { PendingInput, ResolvedInput, RpcNotification } from '../../types'
 import { isNotificationForActiveThread } from '../core/appEventMachine'
-import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../../../../src/features/semantics/runtime/threadRuntimeState'
-import type { ReplMode } from '../../../../../src/features/semantics/core/replModeTransition'
-import { mapTurnNotificationToCanonicalEvents } from '../../../../../src/features/semantics/adapters/canonicalEventAdapter'
+import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
+import type { ReplMode } from '../../semantics'
+import { mapTurnNotificationToCanonicalEvents } from '../../semantics'
 
 export type ProcessNotificationContext = {
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }

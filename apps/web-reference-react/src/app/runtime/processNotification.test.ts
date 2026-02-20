@@ -4,7 +4,7 @@ import { processNotification, type ProcessNotificationContext } from './processN
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
-} from '../../../../../src/features/semantics/runtime/threadRuntimeState'
+} from '../../semantics'
 import { createReplayTurnEventEnvelope } from './testFixtures/replayFixtures'
 
 function createContext(overrides: Partial<ProcessNotificationContext> = {}): ProcessNotificationContext {

@@ -28,7 +28,7 @@ import {
   formatArchiveNotice,
   resolveArchiveSelection,
   type ArchiveThreadLike,
-} from '../../../../src/features/semantics/runtime/threadArchiveSemantics'
+} from '../semantics'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
@@ -50,8 +50,8 @@ import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
   type ThreadRuntimeState,
-} from '../../../../src/features/semantics/runtime/threadRuntimeState'
-import { isReplMode, type ReplMode } from '../../../../src/features/semantics/core/replModeTransition'
+} from '../semantics'
+import { isReplMode, type ReplMode } from '../semantics'
 import {
   isDevPerformanceEnabled,
   withDevPerformanceSync,

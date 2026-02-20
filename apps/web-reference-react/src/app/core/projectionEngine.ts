@@ -1,10 +1,10 @@
-import type { CanonicalEvent } from '../../../../../src/features/semantics/core/canonicalEvents'
+import type { CanonicalEvent } from '../../semantics'
 import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
   type TranscriptProjectionState,
-} from '../../../../../src/features/semantics/projection/transcriptProjection'
-import { selectTurnSegments } from '../../../../../src/features/semantics/selectors/transcriptSegments'
+} from '../../semantics'
+import { selectTurnSegments } from '../../semantics'
 import { selectToolViewModelFromSegment } from '../../../../../src/features/tools/presentation/toolViewModel'
 import type { TranscriptItem } from '../../types'
 

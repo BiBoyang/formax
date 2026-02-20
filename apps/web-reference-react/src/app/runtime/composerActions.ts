@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { resolveCommandRouting } from '../../../../../src/features/semantics/core/commandRouting'
+import { resolveCommandRouting } from '../../semantics'
 import { isWebSupportedCommand } from '../core/commandSupport'
 import { toSubmitUiStatus } from '../core/threadTransforms'
 import type { PendingInput } from '../../types'

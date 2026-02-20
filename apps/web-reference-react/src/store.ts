@@ -1,12 +1,12 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
-import { transitionResolvedFromPending } from '../../../src/features/semantics/runtime/inputStateMachine'
-import type { CanonicalEvent } from '../../../src/features/semantics/core/canonicalEvents'
+import { transitionResolvedFromPending } from './semantics'
+import type { CanonicalEvent } from './semantics'
 import {
   createInitialTranscriptProjectionState,
   type TranscriptSegment,
   type TranscriptProjectionState,
-} from '../../../src/features/semantics/projection/transcriptProjection'
+} from './semantics'
 import {
   applyCanonicalProjectionEvent as applyCanonicalProjectionEventInEngine,
   collectToolNameByUseIdFromLogs,
