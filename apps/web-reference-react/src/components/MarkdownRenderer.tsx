@@ -59,6 +59,7 @@ const sanitizeConfig = {
 let sanitizeHookInitialized = false
 let shikiRuntimePromise: Promise<ShikiRuntime> | null = null
 let highlighterPromise: Promise<ShikiHighlighter> | null = null
+let sharedMarkdownWorkerClient: SharedMarkdownWorkerClient | null = null
 
 type ShikiRuntime = {
   bundledLanguages: Record<string, unknown>
@@ -69,6 +70,26 @@ type ShikiHighlighter = {
   getLoadedLanguages: () => string[]
   loadLanguage: (lang: string) => Promise<unknown>
   codeToHtml: (code: string, options: { lang: string; theme: string }) => string
+}
+
+type MarkdownWorkerRequest = {
+  id: number
+  text: string
+}
+
+type MarkdownWorkerResponse =
+  | { id: number; ok: true; html: string }
+  | { id: number; ok: false; error: string }
+
+type WorkerPendingRequest = {
+  resolve: (html: string) => void
+  reject: (error: Error) => void
+}
+
+type SharedMarkdownWorkerClient = {
+  worker: Worker
+  nextRequestId: number
+  pending: Map<number, WorkerPendingRequest>
 }
 
 function initSanitizeHook() {
@@ -262,53 +283,98 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   return result
 }
 
-async function renderMarkdownInWorker(text: string, signal?: AbortSignal): Promise<string> {
+function resetSharedMarkdownWorkerClient(client: SharedMarkdownWorkerClient): void {
+  if (sharedMarkdownWorkerClient !== client) return
+  sharedMarkdownWorkerClient = null
+  client.worker.terminate()
+}
+
+function getSharedMarkdownWorkerClient(): SharedMarkdownWorkerClient {
   if (typeof window === 'undefined' || typeof window.Worker !== 'function') {
     throw new Error('worker_unavailable')
   }
+  if (sharedMarkdownWorkerClient) return sharedMarkdownWorkerClient
+
+  const worker = new window.Worker(new URL('../workers/markdownRender.worker.ts', import.meta.url), {
+    type: 'module',
+  })
+  const client: SharedMarkdownWorkerClient = {
+    worker,
+    nextRequestId: 1,
+    pending: new Map(),
+  }
+
+  worker.onmessage = (event: MessageEvent<MarkdownWorkerResponse>) => {
+    const payload = event.data
+    if (!payload || typeof payload.id !== 'number') return
+    const pending = client.pending.get(payload.id)
+    if (!pending) return
+    client.pending.delete(payload.id)
+
+    if (payload.ok === true && typeof payload.html === 'string') {
+      pending.resolve(payload.html)
+      return
+    }
+
+    pending.reject(new Error(payload.ok === false ? payload.error : 'worker_render_failed'))
+  }
+
+  worker.onerror = () => {
+    const pending = Array.from(client.pending.values())
+    client.pending.clear()
+    resetSharedMarkdownWorkerClient(client)
+    for (const request of pending) {
+      request.reject(new Error('worker_render_error'))
+    }
+  }
+
+  sharedMarkdownWorkerClient = client
+  return client
+}
+
+async function renderMarkdownInWorker(text: string, signal?: AbortSignal): Promise<string> {
+  const client = getSharedMarkdownWorkerClient()
+  const requestId = client.nextRequestId
+  client.nextRequestId += 1
 
   return new Promise<string>((resolve, reject) => {
-    const worker = new window.Worker(new URL('../workers/markdownRender.worker.ts', import.meta.url), {
-      type: 'module',
-    })
-
     const cleanup = () => {
-      if (signal) {
-        signal.removeEventListener('abort', onAbort)
-      }
-      worker.onmessage = null
-      worker.onerror = null
-      worker.terminate()
+      signal?.removeEventListener('abort', onAbort)
     }
 
-    worker.onmessage = (event: MessageEvent<{ ok?: boolean; html?: unknown; error?: unknown }>) => {
-      const payload = event.data
+    const resolvePending = (html: string) => {
       cleanup()
-      if (payload?.ok === true && typeof payload.html === 'string') {
-        resolve(payload.html)
-        return
-      }
-      reject(new Error(typeof payload?.error === 'string' ? payload.error : 'worker_render_failed'))
+      resolve(html)
     }
 
-    worker.onerror = () => {
+    const rejectPending = (error: Error) => {
       cleanup()
-      reject(new Error('worker_render_error'))
+      reject(error)
     }
 
     const onAbort = () => {
-      cleanup()
-      reject(new Error('worker_aborted'))
+      if (!client.pending.delete(requestId)) return
+      rejectPending(new Error('worker_aborted'))
     }
+
+    client.pending.set(requestId, { resolve: resolvePending, reject: rejectPending })
+
     if (signal) {
       if (signal.aborted) {
-        onAbort()
+        client.pending.delete(requestId)
+        rejectPending(new Error('worker_aborted'))
         return
       }
       signal.addEventListener('abort', onAbort, { once: true })
     }
 
-    worker.postMessage({ text })
+    try {
+      const message: MarkdownWorkerRequest = { id: requestId, text }
+      client.worker.postMessage(message)
+    } catch (error) {
+      client.pending.delete(requestId)
+      rejectPending(error instanceof Error ? error : new Error(String(error)))
+    }
   })
 }
 

@@ -32,12 +32,13 @@ type ShikiHighlighter = {
 }
 
 type WorkerRequest = {
+  id: number
   text: string
 }
 
 type WorkerResponse =
-  | { ok: true; html: string }
-  | { ok: false; error: string }
+  | { id: number; ok: true; html: string }
+  | { id: number; ok: false; error: string }
 
 const markedParser = new Marked({
   gfm: true,
@@ -169,14 +170,16 @@ async function renderMarkdown(text: string): Promise<string> {
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
+  const id = typeof event.data?.id === 'number' && Number.isFinite(event.data.id) ? event.data.id : -1
+  if (id < 0) return
   const text = typeof event.data?.text === 'string' ? event.data.text : ''
   void renderMarkdown(text)
     .then((html) => {
-      const response: WorkerResponse = { ok: true, html }
+      const response: WorkerResponse = { id, ok: true, html }
       self.postMessage(response)
     })
     .catch((error) => {
-      const response: WorkerResponse = { ok: false, error: error instanceof Error ? error.message : String(error) }
+      const response: WorkerResponse = { id, ok: false, error: error instanceof Error ? error.message : String(error) }
       self.postMessage(response)
     })
 }
