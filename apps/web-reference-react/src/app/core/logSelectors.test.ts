@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptItem } from '../../types'
-import { selectActiveTranscriptLogs, selectVisibleTranscriptLogs } from './logSelectors'
+import { selectActiveTranscriptLogs, selectThreadTranscriptLogs, selectVisibleTranscriptLogs } from './logSelectors'
 
 describe('selectVisibleTranscriptLogs', () => {
   it('keeps warn/error logs and hides info logs', () => {
@@ -61,5 +61,38 @@ describe('selectActiveTranscriptLogs', () => {
     })
 
     expect(selected).toBe(logs)
+  })
+})
+
+describe('selectThreadTranscriptLogs', () => {
+  it('returns cached logs for matching thread', () => {
+    const cachedLogs: TranscriptItem[] = [{ id: 'cached-1', kind: 'message', role: 'assistant', text: 'cached' }]
+    const fallbackLogs: TranscriptItem[] = [{ id: 'fallback-1', kind: 'message', role: 'assistant', text: 'fallback' }]
+
+    const selected = selectThreadTranscriptLogs({
+      threadId: 'thread-1',
+      logsByThreadId: { 'thread-1': cachedLogs },
+      fallbackLogs,
+    })
+
+    expect(selected).toBe(cachedLogs)
+  })
+
+  it('falls back when thread is missing or null', () => {
+    const fallbackLogs: TranscriptItem[] = [{ id: 'fallback-1', kind: 'message', role: 'assistant', text: 'fallback' }]
+
+    const missingThread = selectThreadTranscriptLogs({
+      threadId: 'thread-missing',
+      logsByThreadId: {},
+      fallbackLogs,
+    })
+    const nullThread = selectThreadTranscriptLogs({
+      threadId: null,
+      logsByThreadId: { 'thread-1': [] },
+      fallbackLogs,
+    })
+
+    expect(missingThread).toBe(fallbackLogs)
+    expect(nullThread).toBe(fallbackLogs)
   })
 })

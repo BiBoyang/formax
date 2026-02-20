@@ -1,5 +1,15 @@
 import type { TranscriptItem } from '../../types'
 
+export function selectThreadTranscriptLogs(args: {
+  threadId: string | null
+  logsByThreadId: Record<string, TranscriptItem[]>
+  fallbackLogs: TranscriptItem[]
+}): TranscriptItem[] {
+  const { threadId, logsByThreadId, fallbackLogs } = args
+  if (threadId == null) return fallbackLogs
+  return logsByThreadId[threadId] ?? fallbackLogs
+}
+
 export function selectVisibleTranscriptLogs(logs: TranscriptItem[]): TranscriptItem[] {
   let hasHiddenInfoLog = false
   for (const item of logs) {
@@ -19,9 +29,10 @@ export function selectActiveTranscriptLogs(args: {
   logsByThreadId: Record<string, TranscriptItem[]>
 }): TranscriptItem[] {
   const { activeThreadId, logs, logsByThreadId } = args
-  const activeLogs =
-    activeThreadId == null
-      ? logs
-      : (logsByThreadId[activeThreadId] ?? logs)
+  const activeLogs = selectThreadTranscriptLogs({
+    threadId: activeThreadId,
+    logsByThreadId,
+    fallbackLogs: logs,
+  })
   return selectVisibleTranscriptLogs(activeLogs)
 }

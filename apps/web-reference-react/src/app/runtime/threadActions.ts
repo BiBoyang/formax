@@ -3,6 +3,7 @@ import {
   type ArchiveThreadLike,
   resolveArchiveSelection,
 } from '../../semantics'
+import { selectThreadTranscriptLogs } from '../core/logSelectors'
 
 export type ThreadActionsContext = {
   selectedCwd: string | null
@@ -86,14 +87,21 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       ctx.dispatch({ type: 'set_active_thread', threadId: thread.id })
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       ctx.dispatch({ type: 'clear_pending_inputs' })
-      ctx.dispatch({ type: 'replace_logs', logs: ctx.logsByThreadId[thread.id] ?? [] })
+      ctx.dispatch({
+        type: 'replace_logs',
+        logs: selectThreadTranscriptLogs({ threadId: thread.id, logsByThreadId: ctx.logsByThreadId, fallbackLogs: [] }),
+      })
       const replayLoaded = await ctx.replayThreadEvents(thread.id, { fromStart: true })
       if (!replayLoaded) {
         ctx.activeThreadIdRef.current = previousThreadId
         ctx.dispatch({ type: 'set_active_thread', threadId: previousThreadId })
         ctx.dispatch({
           type: 'replace_logs',
-          logs: previousThreadId ? (ctx.logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
+          logs: selectThreadTranscriptLogs({
+            threadId: previousThreadId,
+            logsByThreadId: ctx.logsByThreadId,
+            fallbackLogs: previousLogs,
+          }),
         })
         ctx.log('Failed to hydrate new thread transcript. Restored previous thread.', 'warn')
         return
@@ -116,7 +124,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     }
     const previousThreadId = ctx.state.activeThreadId
     const previousLogs = ctx.state.logs
-    const cachedLogs = ctx.logsByThreadId[threadId] ?? []
+    const cachedLogs = selectThreadTranscriptLogs({ threadId, logsByThreadId: ctx.logsByThreadId, fallbackLogs: [] })
     applyActiveThreadState(threadId, cachedLogs)
     void (async () => {
       const hasReplayCursor = typeof ctx.replayCursorByThreadRef.current[threadId] === 'number'
@@ -127,7 +135,11 @@ export function createThreadActions(ctx: ThreadActionsContext) {
           ctx.dispatch({ type: 'set_active_thread', threadId: previousThreadId })
           ctx.dispatch({
             type: 'replace_logs',
-            logs: previousThreadId ? (ctx.logsByThreadId[previousThreadId] ?? previousLogs) : previousLogs,
+            logs: selectThreadTranscriptLogs({
+              threadId: previousThreadId,
+              logsByThreadId: ctx.logsByThreadId,
+              fallbackLogs: previousLogs,
+            }),
           })
           ctx.log('Failed to hydrate selected thread transcript. Restored previous thread.', 'warn')
         } else if (!restoreOnReplayFailure) {

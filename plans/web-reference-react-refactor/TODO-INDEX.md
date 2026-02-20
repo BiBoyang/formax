@@ -8,8 +8,7 @@
 
 ## 当前待办
 
-- Phase 2：收敛 state（SSOT + selectors）
-  - 将 thread 切换/回滚路径中的 transcript logs 读取统一到 selector，减少 `state.logs`/`logsByThreadId` 分散读取。
+- （空）
 
 ## 再生规则（当“当前待办”为空时）
 
