@@ -18,7 +18,7 @@ export const GlobToolPresenter = createToolBlocksPresenter(
     }
   }
 
-  const { name, input, status } = message.toolInfo
+  const { name, input, status, middleLines, expandInfo } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId =
