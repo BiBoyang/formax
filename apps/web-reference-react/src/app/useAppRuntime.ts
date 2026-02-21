@@ -159,6 +159,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
+    displayPolicy: 'debug',
   })
 
   const pruneThreadScopedRuntimeRefs = useCallback(

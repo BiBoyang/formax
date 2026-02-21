@@ -1,9 +1,11 @@
 import type { TranscriptItem } from '../../types'
+import type { TranscriptDisplayPolicy } from './logSelectors'
 
 export type TranscriptSelectorSnapshot = {
   activeThreadId: string | null
   logs: TranscriptItem[]
   logsByThreadId: Record<string, TranscriptItem[]>
+  displayPolicy: TranscriptDisplayPolicy
 }
 
 type SelectorFn<T> = (snapshot: TranscriptSelectorSnapshot) => T
@@ -12,6 +14,7 @@ type SelectorCacheEntry = {
   activeThreadId: string | null
   logs: TranscriptItem[]
   logsByThreadId: Record<string, TranscriptItem[]>
+  displayPolicy: TranscriptDisplayPolicy
   value: unknown
 }
 
@@ -21,7 +24,12 @@ export type TranscriptSelectorStore = {
 }
 
 function isSameSnapshot(a: TranscriptSelectorSnapshot, b: SelectorCacheEntry): boolean {
-  return a.activeThreadId === b.activeThreadId && a.logs === b.logs && a.logsByThreadId === b.logsByThreadId
+  return (
+    a.activeThreadId === b.activeThreadId &&
+    a.logs === b.logs &&
+    a.logsByThreadId === b.logsByThreadId &&
+    a.displayPolicy === b.displayPolicy
+  )
 }
 
 export function createTranscriptSelectorStore(): TranscriptSelectorStore {
@@ -38,6 +46,7 @@ export function createTranscriptSelectorStore(): TranscriptSelectorStore {
       activeThreadId: snapshot.activeThreadId,
       logs: snapshot.logs,
       logsByThreadId: snapshot.logsByThreadId,
+      displayPolicy: snapshot.displayPolicy,
       value,
     })
     return value

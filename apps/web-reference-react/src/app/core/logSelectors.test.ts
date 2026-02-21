@@ -3,7 +3,7 @@ import type { TranscriptItem } from '../../types'
 import { selectActiveTranscriptLogs, selectThreadTranscriptLogs, selectVisibleTranscriptLogs } from './logSelectors'
 
 describe('selectVisibleTranscriptLogs', () => {
-  it('keeps warn/error logs and hides info logs', () => {
+  it('keeps warn/error logs and hides info logs in debug mode', () => {
     const logs: TranscriptItem[] = [
       { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
       { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
@@ -11,20 +11,40 @@ describe('selectVisibleTranscriptLogs', () => {
       { id: 'l-3', kind: 'log', level: 'error', text: 'error log' },
     ]
 
-    const filtered = selectVisibleTranscriptLogs(logs)
+    const filtered = selectVisibleTranscriptLogs({ logs, displayPolicy: 'debug' })
     expect(filtered).toHaveLength(3)
     expect(filtered.find((item) => item.id === 'l-2')).toBeUndefined()
     expect(filtered.find((item) => item.id === 'l-1')).toBeDefined()
     expect(filtered.find((item) => item.id === 'l-3')).toBeDefined()
   })
 
-  it('returns the same array reference when no info logs are present', () => {
+  it('hides all logs in chat mode', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
+      { id: 'l-2', kind: 'log', level: 'info', text: 'info log' },
+    ]
+
+    const filtered = selectVisibleTranscriptLogs({ logs, displayPolicy: 'chat' })
+    expect(filtered).toEqual([{ id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' }])
+  })
+
+  it('returns the same array reference when no logs are present in chat mode', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+    ]
+
+    const filtered = selectVisibleTranscriptLogs({ logs, displayPolicy: 'chat' })
+    expect(filtered).toBe(logs)
+  })
+
+  it('returns the same array reference when no info logs are present in debug mode', () => {
     const logs: TranscriptItem[] = [
       { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
       { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
     ]
 
-    const filtered = selectVisibleTranscriptLogs(logs)
+    const filtered = selectVisibleTranscriptLogs({ logs, displayPolicy: 'debug' })
     expect(filtered).toBe(logs)
   })
 })
@@ -43,6 +63,7 @@ describe('selectActiveTranscriptLogs', () => {
       activeThreadId: 'thread-1',
       logs: fallbackLogs,
       logsByThreadId: { 'thread-1': threadLogs },
+      displayPolicy: 'debug',
     })
 
     expect(selected).toEqual([{ id: 'thread-msg', kind: 'message', role: 'assistant', text: 'visible' }])
@@ -58,9 +79,26 @@ describe('selectActiveTranscriptLogs', () => {
       activeThreadId: 'thread-missing',
       logs,
       logsByThreadId: {},
+      displayPolicy: 'debug',
     })
 
     expect(selected).toBe(logs)
+  })
+
+  it('filters all logs in chat policy', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
+    ]
+
+    const selected = selectActiveTranscriptLogs({
+      activeThreadId: 'thread-missing',
+      logs,
+      logsByThreadId: {},
+      displayPolicy: 'chat',
+    })
+
+    expect(selected).toEqual([{ id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' }])
   })
 })
 

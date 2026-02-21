@@ -2,11 +2,11 @@
 
 目标：在不改变现有语义和交互的前提下，完成一轮“不过度”的前端稳态优化，优先降低渲染开销与维护负担。
 
-最后更新时间：2026-02-20
+最后更新时间：2026-02-21
 
 ## 执行状态（Active）
 
-- 进行中：Frontend 轻量优化回合（已完成，待再生）
+- 进行中：Chat 展示对接准备回合（2 项）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,17 @@
 
 ## 当前任务清单（唯一来源）
 
-- 当前无待办（已按 `TODO-INDEX` 完成本轮任务）
+### 1) 系统反馈从 log 迁移到显式 notice 类型
+
+- 文件：`src/types.ts`、`src/store.ts`、`src/components/TranscriptPane.tsx`（及对应测试）
+- 目标：把关键用户反馈（如 input resolved）从 `log` 行迁移为显式 `notice`（命名可在实现时确定），避免隐藏 log 后丢反馈。
+- 预期收益：聊天流保持干净，同时保留必要系统反馈。
+
+### 2) Tool 展示密度模式（compact/verbose）
+
+- 文件：`src/components/tool/toolUiBlocksTypes.ts`、`src/components/tool/ToolUiBlocks.tsx`、`src/components/tool/toolBlocksRegistry.ts`（必要时分模块）
+- 目标：引入 tool 展示密度配置，先落地 `compact` 基线，保留 `verbose` 兼容模式。
+- 预期收益：后续聊天 UI 改造可先切密度，不需重写每个 tool 渲染器。
 
 ## 执行循环（固定）
 

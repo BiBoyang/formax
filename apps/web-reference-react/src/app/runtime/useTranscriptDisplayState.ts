@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import type { ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import { selectActiveTranscriptLogs } from '../core/logSelectors'
+import { selectActiveTranscriptLogs, type TranscriptDisplayPolicy } from '../core/logSelectors'
 import { createTranscriptSelectorStore } from '../core/transcriptSelectorStore'
 import { selectThreadViewModelById } from '../core/threadViewModel'
 
@@ -13,6 +13,7 @@ type UseTranscriptDisplayStateArgs = {
   historyCursorByThreadId: Record<string, string | null>
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  displayPolicy?: TranscriptDisplayPolicy
 }
 
 type TranscriptDisplayState = {
@@ -32,6 +33,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
+    displayPolicy = 'debug',
   } = args
 
   const transcriptSelectorStoreRef = useRef(createTranscriptSelectorStore())
@@ -39,6 +41,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     activeThreadId,
     logs,
     logsByThreadId,
+    displayPolicy,
   })
 
   const activeHistoryLoading = activeThreadId ? Boolean(historyLoadingByThreadId[activeThreadId]) : false

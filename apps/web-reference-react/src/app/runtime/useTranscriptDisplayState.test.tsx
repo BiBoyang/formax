@@ -32,6 +32,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: { 'thread-1': true },
         transcriptSourceByThreadId: { 'thread-1': 'history' },
+        displayPolicy: 'debug',
       }),
     )
 
@@ -57,6 +58,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        displayPolicy: 'debug',
       }),
     )
 
@@ -64,5 +66,27 @@ describe('useTranscriptDisplayState', () => {
     expect(result.current.activeHistoryLoading).toBe(false)
     expect(result.current.historyMore).toBe(false)
     expect(result.current.activeLogs).toEqual([{ id: 'visible-warn', kind: 'log', level: 'warn', text: 'warn' }])
+  })
+
+  it('hides logs from active transcript when display policy is chat', () => {
+    const logs: TranscriptItem[] = [
+      { id: 'log-warn', kind: 'log', level: 'warn', text: 'warn' },
+      { id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' },
+    ]
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs,
+        logsByThreadId: {},
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: {},
+        displayPolicy: 'chat',
+      }),
+    )
+
+    expect(result.current.activeLogs).toEqual([{ id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' }])
   })
 })
