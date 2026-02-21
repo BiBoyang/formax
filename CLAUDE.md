@@ -291,6 +291,8 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Compact + Ctrl+O duplicate rows**: duplicated `HeaderBanner`/compact rows are usually surface ownership/race issues in Ink `Static`, not transcript-slice logic bugs. Do not move header/messages out of `Static` as a workaround.
 - **Static parity checks required**: for compact/expanded toggles, run forced-Static + terminal-model smoke (`surfaceSmoke`, `test:surface-screen-model`) in addition to regular Vitest paths.
 - **Prefer reset over clear-only on Static transitions**: for return/toggle paths touching `Static`, use clear+remount transaction semantics; clear-only flows can leave stale appended rows.
+- **Surface reset workflow skill required on clear/reset changes**: for `/resume`, `/clear`, `onClearTerminal`, `transcriptSeq`, or `Static` remount paths, apply `formax-surface-reset-workflow` before implementation.
+- **Resume selection must use shared surface reset transaction**: `/resume` Enter path should go through `resetTranscriptSurface` queue; avoid ad-hoc clear/remount sequencing and avoid duplicate terminal clear paths (`replInstance.clear` + ANSI).
 - **Anthropic `/v1/messages` fake-overload triage**: separate main turns from auto-title (`tools=0` + `thinking=false`) before A/B, and debug `thinking.signature` propagation separately from header profile routing. Details: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`.
 
 ## Module Documentation

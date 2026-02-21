@@ -111,9 +111,25 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - If we manually write ANSI clear sequences (e.g. `\x1b[2J\x1b[3J\x1b[H`) *before* the React state is cleared, Ink may render one more frame using the old buffer/state and “paint back” the old transcript (buffer/terminal becomes out of sync).
 - **Fix**:
   - Clear transcript state first (`setMessages([])` + `setTranscriptSeq(+1)`), then clear the terminal.
-  - When clearing the terminal, clear Ink’s buffer too: `instance.clear()` *then* `clearTerminal()` (ANSI).
+  - Keep a single clear path for legacy REPL (`resetInkStaticOutputForStdout` + `clearTerminal()`), avoid extra `replInstance.clear()` calls that can race with the next paint.
 - **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/utils/terminal.ts`
 - **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
+
+## `/resume` select-session black screen (bypassed reset transaction)
+- **Problem**: `/resume` shows session list, pressing Enter on a session can leave a blank screen while process is still alive.
+- **Repro**:
+  1) run `bun run dev`
+  2) input `/resume`, pick a session, press Enter
+  3) terminal is cleared but transcript does not repaint
+- **Root cause**:
+  - Resume path used its own clear/remount ordering, bypassing the shared serialized surface reset queue.
+  - Terminal clear path also had duplicate clear sources (`replInstance.clear()` + ANSI clear), which amplified race windows.
+- **Fix**:
+  - Route resume surface updates through shared `resetTranscriptSurface()` transaction (same owner/queue as Ctrl+O paths).
+  - Keep only one terminal clear path in legacy runner.
+  - Add regression test asserting resume uses shared surface reset transaction ordering.
+- **Links**: `src/features/repl/controller/session/sessionTransitions.ts`, `src/features/repl/useReplController.ts`, `src/features/repl/controller/ui/surfaceReset.ts`, `src/legacy/runLegacyCli.tsx`
+- **Keywords**: resume, black screen, Static, reset transaction, surface queue, clear race
 
 ## Bash-mode Backspace fails after toggling mode (stale callback closure)
 - **Problem**: after pressing `!` to enter bash mode, Backspace sometimes cannot exit bash mode.
