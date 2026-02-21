@@ -61,11 +61,6 @@ export const GrepToolPresenter = createToolBlocksPresenter(
     return { blocks }
   }
 
-  const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
-  if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
-  if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
-  if (lines.length > 0) blocks.push({ kind: 'lines', lines })
-
   return { blocks }
 })
 

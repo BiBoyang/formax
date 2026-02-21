@@ -18,7 +18,7 @@ export const GlobToolPresenter = createToolBlocksPresenter(
     }
   }
 
-  const { name, input, status, middleLines, expandInfo } = message.toolInfo
+  const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
   const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId =
@@ -60,11 +60,6 @@ export const GlobToolPresenter = createToolBlocksPresenter(
     }
     return { blocks }
   }
-
-  const lines: Array<{ text: string; tone?: 'default' | 'muted' | 'error' }> = []
-  if (middleLines) lines.push(...middleLines.map((line) => ({ text: line })))
-  if (expandInfo) lines.push({ tone: 'muted', text: expandInfo })
-  if (lines.length > 0) blocks.push({ kind: 'lines', lines })
 
   return { blocks }
 })

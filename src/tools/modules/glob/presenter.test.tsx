@@ -66,7 +66,7 @@ describe('GlobToolPresenter', () => {
     expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'cancel' })
   })
 
-  it('renders a completed summary with middle lines and expand info', () => {
+  it('renders only the completed summary for search results', () => {
     const message: Msg = {
       id: 'tool-1',
       role: 'tool',
@@ -87,8 +87,8 @@ describe('GlobToolPresenter', () => {
 
     expect(frame).toContain('⎿')
     expect(frame).toContain('Found 3 files')
-    expect(frame).toContain('a')
-    expect(frame).toContain('b')
-    expect(frame).toContain('more')
+    expect(frame).not.toContain('     a')
+    expect(frame).not.toContain('     b')
+    expect(frame).not.toContain('     more')
   })
 })

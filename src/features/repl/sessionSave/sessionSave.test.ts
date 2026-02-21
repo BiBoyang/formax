@@ -233,6 +233,45 @@ describe('sessionSave (jsonl)', () => {
     })
   })
 
+  it('reader normalizes persisted Glob output to Found N files summary', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-glob-summary-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-glob',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'glob-1',
+          toolName: 'Glob',
+          phase: 'end',
+          status: 'completed',
+          summary: '/tmp/a.ts',
+          lines: ['/tmp/a.ts', '/tmp/b.ts', '/tmp/c.ts'],
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.toolInfo?.name).toBe('Glob')
+    expect(tool?.content).toBe('Found 3 files')
+    expect(tool?.toolInfo?.middleLines).toBeUndefined()
+  })
+
   it('readSessionSummary prefers firstUserPrompt from ui_stats for title fallback', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-'))
     const filePath = path.join(tmp, 'session.jsonl')

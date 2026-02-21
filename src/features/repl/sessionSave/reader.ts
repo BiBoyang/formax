@@ -4,6 +4,7 @@ import readline from 'node:readline'
 import path from 'node:path'
 import type { ChatHistory } from '../../../chat/engine'
 import type { Msg } from '../../../components/tool/ToolMessage'
+import { formatToolResult } from '../../../utils/toolFormatting'
 import type { HistoryStateRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
 import { getArchivedSessionsRoot, getSessionsRoot } from './paths'
 
@@ -100,25 +101,62 @@ function detailLinesFromPersistedTool(args: { summary: string; detailLines: stri
   return args.detailLines
 }
 
+function isSearchLikeToolName(toolName: string): boolean {
+  return toolName === 'Glob' || toolName === 'Grep' || toolName === 'Search'
+}
+
+function normalizePersistedToolDisplay(args: {
+  toolName: string
+  status: 'running' | 'completed' | 'error'
+  summary: string
+  detailLines: string[]
+}): {
+  summary: string
+  middleLines: string[]
+  rawResult: string
+} {
+  const defaultMiddleLines = detailLinesFromPersistedTool({
+    summary: args.summary,
+    detailLines: args.detailLines,
+  })
+  const defaultRawResult = args.detailLines.length > 0 ? args.detailLines.join('\n') : defaultMiddleLines.join('\n')
+  if (!isSearchLikeToolName(args.toolName) || args.status === 'running') {
+    return {
+      summary: args.summary,
+      middleLines: defaultMiddleLines,
+      rawResult: defaultRawResult,
+    }
+  }
+
+  const rawSearchResult = args.detailLines.length > 0 ? args.detailLines.join('\n') : args.summary
+  const formatted = formatToolResult(args.toolName, rawSearchResult, args.status === 'error')
+  return {
+    summary: formatted.summary || args.summary,
+    middleLines: Array.isArray(formatted.middleLines) ? formatted.middleLines : [],
+    rawResult: rawSearchResult,
+  }
+}
+
 function toToolMsgFromPersisted(args: { tool: PersistedToolReplayMessage; fallbackTimestamp: Date }): Msg {
   const timestamp = args.tool.occurredAtMs > 0 ? new Date(args.tool.occurredAtMs) : args.fallbackTimestamp
-  const detailLines = detailLinesFromPersistedTool({
+  const display = normalizePersistedToolDisplay({
+    toolName: args.tool.toolName,
+    status: args.tool.status,
     summary: args.tool.summary,
     detailLines: args.tool.detailLines,
   })
-  const resultLines = args.tool.detailLines.length > 0 ? args.tool.detailLines : detailLines
   return {
     id: args.tool.id,
     role: 'tool',
-    content: args.tool.summary,
+    content: display.summary,
     timestamp,
     toolInfo: {
       name: args.tool.toolName,
       ...(args.tool.toolUseId ? { toolUseId: args.tool.toolUseId } : {}),
       input: args.tool.input ?? {},
       status: args.tool.status,
-      ...(detailLines.length > 0 ? { middleLines: detailLines } : {}),
-      ...(resultLines.length > 0 ? { result: resultLines.join('\n') } : {}),
+      ...(display.middleLines.length > 0 ? { middleLines: display.middleLines } : {}),
+      ...(display.rawResult ? { result: display.rawResult } : {}),
       ...(args.tool.patchStartLineNumber !== undefined ? { patchStartLineNumber: args.tool.patchStartLineNumber } : {}),
     },
   }
@@ -136,27 +174,27 @@ function mergeUiMsgWithPersistedTool(args: {
         ? new Date(args.tool.occurredAtMs)
         : args.fallbackTimestamp
   const existingToolInfo = args.uiMsg.toolInfo
-  const detailLines = detailLinesFromPersistedTool({
+  const display = normalizePersistedToolDisplay({
+    toolName: args.tool.toolName,
+    status: args.tool.status,
     summary: args.tool.summary,
     detailLines: args.tool.detailLines,
   })
   const existingMiddleLines = Array.isArray(existingToolInfo?.middleLines)
     ? existingToolInfo.middleLines.filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
     : []
-  const mergedMiddleLines = existingMiddleLines.length > 0 ? existingMiddleLines : detailLines
+  const mergedMiddleLines = existingMiddleLines.length > 0 ? existingMiddleLines : display.middleLines
   const existingResult = typeof existingToolInfo?.result === 'string' ? existingToolInfo.result : ''
   const nextResult =
     existingResult.length > 0
       ? existingResult
-      : args.tool.detailLines.length > 0
-        ? args.tool.detailLines.join('\n')
-        : mergedMiddleLines.join('\n')
+      : display.rawResult
   const existingContent = typeof args.uiMsg.content === 'string' ? args.uiMsg.content.trim() : ''
 
   return {
     ...args.uiMsg,
     role: 'tool',
-    content: existingContent || args.tool.summary,
+    content: existingContent || display.summary,
     timestamp,
     toolInfo: {
       name: args.tool.toolName,
