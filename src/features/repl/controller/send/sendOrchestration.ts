@@ -54,7 +54,7 @@ type RunReplModelSendFlowArgs = {
   callbacks: {
     openOverlay: (spec: OverlaySpec) => void
     closeOverlay: () => void
-    newSession: () => void
+    newSession: () => void | Promise<void>
     handleEvent: (ev: StreamEvent) => void
     onCompactLifecycle?: (event: CompactLifecycleEvent) => void
     onCompactRequested: () => void

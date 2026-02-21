@@ -20,7 +20,13 @@ import type {
 } from '../../ui/agents/AgentsDialog.js'
 import type { ConfigDialogExit } from '../../ui/config/ConfigDialog.js'
 import type { ModelDialogExit } from '../../ui/model/ModelDialog.js'
-import { partitionMessages, queueTranscriptSurfaceReset, useReplOverlays } from './controller/ui/ui'
+import type { ResumeDialogExit } from '../../ui/resume/ResumeDialog.js'
+import {
+  partitionMessages,
+  queueTranscriptSurfaceReplace,
+  queueTranscriptSurfaceReset,
+  useReplOverlays,
+} from './controller/ui/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   assertReplCanonicalInvariants,
@@ -238,7 +244,7 @@ export type ReplController = {
     closeHooksDialog: () => void
     closeConfigDialog: (exit: ConfigDialogExit) => void
     closeModelDialog: (exit: ModelDialogExit) => void
-    closeResumeDialog: () => void
+    closeResumeDialog: (exit?: ResumeDialogExit) => void
     resumeSession: (filePath: string) => Promise<void>
     renameSession: (filePath: string, label: string) => Promise<void>
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
@@ -344,9 +350,11 @@ export function useReplController(deps: {
 	    claudeMdMetaSigRef: useRef<string | null>(null),
 	    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
 	    pendingStaticSurfaceResetRef: useRef(false),
-	  }
+  }
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
   const bashModeInFlightRef = useRef(false)
+  const sessionTransitionQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const sessionTransitionPendingCountRef = useRef(0)
   const sessionWriterRef = useRef<SessionWriter | null>(null)
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
@@ -786,22 +794,6 @@ export function useReplController(deps: {
     userInput,
   ])
 
-  const newSession = useCallback(() => {
-    runNewSessionTransition({
-      beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
-        sessionSaveEnabled,
-        sessionWriterRef,
-        lastPersistedSigByMsgIdRef,
-        lastPersistedMsgByIdRef,
-        resetSessionState,
-        setTranscriptSeq,
-        setMessages,
-      onClearTerminal: deps.onClearTerminal,
-      startNewSessionWriter,
-      sessionWriterInitPromiseRef,
-    })
-  }, [deps.engine, deps.onClearTerminal, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
-
   const resetTranscriptSurface = useCallback(() => {
     // Ink <Static> is append-only; clear + remount must be serialized to avoid
     // rapid keypress races (Ctrl+O/Ctrl+E) that can leave stale frame artifacts.
@@ -811,6 +803,52 @@ export function useReplController(deps: {
       setTranscriptSeq,
     })
   }, [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef])
+
+  const replaceTranscript = useCallback(
+    (nextMessages: Msg[]) => {
+      return queueTranscriptSurfaceReplace({
+        surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
+        onClearTerminal: deps.onClearTerminal,
+        setTranscriptSeq,
+        setMessages,
+        nextMessages,
+      })
+    },
+    [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef],
+  )
+
+  const queueSessionTransition = useCallback((run: () => Promise<void>): Promise<void> => {
+    sessionTransitionPendingCountRef.current += 1
+    const next = sessionTransitionQueueRef.current.catch(() => undefined).then(async () => {
+      try {
+        await run()
+      } finally {
+        sessionTransitionPendingCountRef.current = Math.max(0, sessionTransitionPendingCountRef.current - 1)
+      }
+    })
+    sessionTransitionQueueRef.current = next.catch(() => undefined)
+    return next
+  }, [])
+
+  const runNewSession = useCallback(async (): Promise<void> => {
+    await queueSessionTransition(async () => {
+      await runNewSessionTransition({
+        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
+        sessionSaveEnabled,
+        sessionWriterRef,
+        lastPersistedSigByMsgIdRef,
+        lastPersistedMsgByIdRef,
+        resetSessionState,
+        replaceTranscript,
+        startNewSessionWriter,
+        sessionWriterInitPromiseRef,
+      })
+    })
+  }, [deps.engine, queueSessionTransition, replaceTranscript, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
+
+  const newSession = useCallback(() => {
+    void runNewSession()
+  }, [runNewSession])
 
   const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
     const writer = await SessionWriter.openExisting({ filePath })
@@ -822,32 +860,38 @@ export function useReplController(deps: {
     async (filePath: string): Promise<void> => {
       if (isLoading) return
 
-      abort()
       closeResumeDialog()
-      await runResumeSessionTransition({
-        filePath,
-        readSessionFile,
-        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
-        sessionSaveEnabled,
-        sessionWriterRef,
-        lastPersistedSigByMsgIdRef,
-        lastPersistedMsgByIdRef,
-        resetSessionState,
-        historyRef,
-        setMessages,
-        setTranscriptSeq,
-        onClearTerminal: deps.onClearTerminal,
-        openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
-        buildPersistedSigMap,
-        buildPersistedMsgRefMap,
-      })
+      try {
+        await queueSessionTransition(async () => {
+          abort()
+          await runResumeSessionTransition({
+            filePath,
+            readSessionFile,
+            beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
+            sessionSaveEnabled,
+            sessionWriterRef,
+            lastPersistedSigByMsgIdRef,
+            lastPersistedMsgByIdRef,
+            resetSessionState,
+            historyRef,
+            replaceTranscript,
+            openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
+            buildPersistedSigMap,
+            buildPersistedMsgRefMap,
+          })
+        })
+      } catch (resumeError) {
+        const message = resumeError instanceof Error ? resumeError.message : String(resumeError)
+        setError(`Failed to resume session: ${message}`)
+      }
     },
     [
       abort,
       closeResumeDialog,
       deps.engine,
-      deps.onClearTerminal,
       isLoading,
+      queueSessionTransition,
+      replaceTranscript,
       resetSessionState,
       sessionSaveEnabled,
     ],
@@ -856,7 +900,7 @@ export function useReplController(deps: {
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
       const text = value.trim()
-      if (!text || isLoading || bashModeInFlightRef.current) return
+      if (!text || isLoading || bashModeInFlightRef.current || sessionTransitionPendingCountRef.current > 0) return
 
       let provider: 'openai' | 'anthropic' = 'anthropic'
       let providerError: string | null = null
@@ -991,7 +1035,7 @@ export function useReplController(deps: {
         callbacks: {
           openOverlay,
           closeOverlay,
-          newSession,
+          newSession: runNewSession,
           handleEvent,
           onCompactLifecycle,
           onCompactRequested,
@@ -1047,7 +1091,7 @@ export function useReplController(deps: {
       onCanonicalEvent,
       nextCanonicalReplaySeq,
       nextCanonicalTurnSeq,
-      newSession,
+      runNewSession,
       onCompactRequested,
       openOverlay,
       onSlashLocalAsyncRecordForNextTurn,

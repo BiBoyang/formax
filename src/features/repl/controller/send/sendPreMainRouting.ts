@@ -26,7 +26,7 @@ export async function resolvePreMainSendRouting(args: {
   commandRegistry?: SlashCommandRegistry
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
-  newSession: () => void
+  newSession: () => void | Promise<void>
   handleEvent: (ev: StreamEvent) => void
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   onCompactRequested?: () => void
@@ -38,7 +38,7 @@ export async function resolvePreMainSendRouting(args: {
   const commandRouting = resolveCommandRouting(args.text)
   if (
     commandRouting.isExactClear &&
-    maybeHandleClearCommand({
+    await maybeHandleClearCommand({
       text: args.text,
       isLoading: args.isLoading,
       setMessages: args.setMessages,

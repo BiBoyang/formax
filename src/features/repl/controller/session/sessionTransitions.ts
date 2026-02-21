@@ -13,6 +13,38 @@ type ResumeSessionWriterLike = SessionWriterLike & {
   appendHistorySnapshot: (history: ChatHistory) => Promise<void>
 }
 
+function trimTrailingResumeCommandRows(messages: Msg[]): Msg[] {
+  if (messages.length === 0) return messages
+  let end = messages.length
+  while (end > 0) {
+    const tail = messages[end - 1]
+    if (!tail) break
+    // New dismiss flow writes:
+    //   user "/resume"
+    //   assistant command_subline "Resume cancelled"
+    // Strip this trailing pair when replaying a restored session.
+    if (
+      tail.role === 'assistant' &&
+      tail.ui?.kind === 'command_subline' &&
+      String(tail.content ?? '').trim().toLowerCase() === 'resume cancelled'
+    ) {
+      const prev = end > 1 ? messages[end - 2] : null
+      if (prev?.role === 'user' && String(prev.content ?? '').trim().toLowerCase() === '/resume') {
+        end -= 2
+        continue
+      }
+      break
+    }
+    if (tail.role === 'user' && String(tail.content ?? '').trim().toLowerCase() === '/resume') {
+      end -= 1
+      continue
+    }
+    break
+  }
+  if (end === messages.length) return messages
+  return messages.slice(0, end)
+}
+
 export function runAbortSessionTransition(args: {
   isLoading: boolean
   abortControllerRef: { current: AbortController | null }
@@ -55,19 +87,17 @@ export function runAbortSessionTransition(args: {
   })
 }
 
-export function runNewSessionTransition(args: {
+export async function runNewSessionTransition(args: {
   beginNewSession: () => void
   sessionSaveEnabled: boolean
   sessionWriterRef: { current: SessionWriterLike | null }
   lastPersistedSigByMsgIdRef: { current: Map<string, string> }
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
-  setTranscriptSeq: Dispatch<SetStateAction<number>>
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  onClearTerminal?: () => void | Promise<void>
+  replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   startNewSessionWriter: () => Promise<void>
   sessionWriterInitPromiseRef: { current: Promise<void> | null }
-}): void {
+}): Promise<void> {
   args.beginNewSession()
   if (args.sessionSaveEnabled) {
     const oldWriter = args.sessionWriterRef.current
@@ -81,14 +111,7 @@ export function runNewSessionTransition(args: {
     })()
   }
   args.resetSessionState()
-
-  // Ink <Static> is append-only; when clearing messages we must force a remount
-  // so the new transcript starts from a fresh render surface.
-  args.setTranscriptSeq((n) => n + 1)
-  args.setMessages(() => [])
-  // Clear the terminal *after* scheduling state resets, otherwise Ink may
-  // re-render the old transcript once before the clear takes effect.
-  void args.onClearTerminal?.()
+  await args.replaceTranscript([])
 
   if (args.sessionSaveEnabled) {
     // Coordinate writer initialization with ensureSessionWriter() so a fast
@@ -111,14 +134,13 @@ export async function runResumeSessionTransition(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  setTranscriptSeq: Dispatch<SetStateAction<number>>
-  onClearTerminal?: () => void | Promise<void>
+  replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   openExistingSessionWriter: (filePath: string) => Promise<ResumeSessionWriterLike>
   buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
   buildPersistedMsgRefMap: (messages: Msg[]) => Map<string, Msg>
 }): Promise<void> {
   const replay = await args.readSessionFile(args.filePath)
+  const sanitizedMessages = trimTrailingResumeCommandRows(replay.messages)
   args.beginNewSession()
 
   // Flush and close the current writer (if any) before switching to the resumed session file.
@@ -138,12 +160,9 @@ export async function runResumeSessionTransition(args: {
   args.resetSessionState()
   args.historyRef.current = replay.history
 
-  // Replace transcript and remount Ink <Static> so old append-only content disappears.
-  args.setMessages(() => replay.messages)
-  args.lastPersistedSigByMsgIdRef.current = args.buildPersistedSigMap(replay.messages)
-  args.lastPersistedMsgByIdRef.current = args.buildPersistedMsgRefMap(replay.messages)
-  args.setTranscriptSeq((n) => n + 1)
-  void args.onClearTerminal?.()
+  await args.replaceTranscript(sanitizedMessages)
+  args.lastPersistedSigByMsgIdRef.current = args.buildPersistedSigMap(sanitizedMessages)
+  args.lastPersistedMsgByIdRef.current = args.buildPersistedMsgRefMap(sanitizedMessages)
 
   if (args.sessionSaveEnabled) {
     const writer = await args.openExistingSessionWriter(args.filePath)

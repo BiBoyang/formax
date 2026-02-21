@@ -15,6 +15,7 @@ import type { Msg } from '../../components/tool/ToolMessage'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { PromptBlock } from '../../prompts'
 import { readSessionFile } from './sessionSave/reader'
+import * as sessionReader from './sessionSave/reader'
 import { SessionWriter } from './sessionSave/writer'
 
 const { estimatePromptTokensMock } = vi.hoisted(() => ({
@@ -1921,6 +1922,74 @@ describe('useReplController sessionSave resume', () => {
     }
   })
 
+  it('ignores sends while resume transition is in flight', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+
+    const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+    await writer.appendStableMsg({
+      id: 'assistant-replay',
+      role: 'assistant',
+      content: 'from replay',
+      timestamp: new Date('2026-02-02T00:00:00.000Z'),
+    } as any)
+    await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'resume-history' }] }] as any)
+    await writer.shutdown()
+
+    const runTurn = vi.fn(async ({ history, user, onEvent }: any) => {
+      onEvent({ type: 'complete' } as StreamEvent)
+      return [...history, user]
+    })
+    const engine: ChatEngine = { runTurn } as any
+
+    const realReadSessionFile = sessionReader.readSessionFile
+    let releaseRead!: () => void
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve
+    })
+    const readSpy = vi.spyOn(sessionReader, 'readSessionFile').mockImplementation(async (path) => {
+      await readGate
+      return realReadSessionFile(path)
+    })
+
+    try {
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <Harness
+          engine={engine}
+          cwd={cwdDir}
+          cfg={createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })}
+          onController={(c) => (controller = c)}
+        />,
+      )
+      await waitFor(() => Boolean(controller))
+
+      const resumePromise = controller.actions.resumeSession(filePath)
+      await waitFor(() => readSpy.mock.calls.length === 1)
+
+      await controller.actions.send('during-resume')
+      expect(runTurn).toHaveBeenCalledTimes(0)
+
+      releaseRead()
+      await resumePromise
+      await waitFor(() => controller.state.messages.some((m) => m.id === 'assistant-replay'))
+
+      await controller.actions.send('after-resume')
+      await waitFor(() => controller.state.isLoading === false)
+      expect(runTurn).toHaveBeenCalledTimes(1)
+    } finally {
+      releaseRead?.()
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
   it('newSession + resumeSession: restores replay history as next-turn baseline', async () => {
     const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
     const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
@@ -2032,6 +2101,36 @@ describe('useReplController sessionSave resume', () => {
       restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })
       await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('surfaces resume failures without throwing from resumeSession', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    try {
+      const runTurn = vi.fn(async ({ history, user, onEvent }: any) => {
+        onEvent({ type: 'complete' } as any)
+        return [...history, user]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <Harness
+          engine={engine}
+          cwd={cwdDir}
+          cfg={createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })}
+          onController={(c) => (controller = c)}
+        />,
+      )
+      await waitFor(() => Boolean(controller))
+
+      const missingFilePath = path.join(cwdDir, 'missing-session.jsonl')
+      await expect(controller.actions.resumeSession(missingFilePath)).resolves.toBeUndefined()
+      await waitFor(() =>
+        String(controller.state.error ?? '').startsWith('Failed to resume session:'),
+      )
+    } finally {
+      await fsp.rm(cwdDir, { recursive: true, force: true })
     }
   })
 })
@@ -2881,6 +2980,123 @@ describe('useReplController consumed slash commands', () => {
     await controller.actions.send('/model')
     await waitFor(() => controller.state.modelDialogOpen === true)
     expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
+  it('does not append /resume command into transcript when opening resume overlay', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (command) => (command === '/resume' ? { kind: 'open_resume_dialog' } : null),
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <Harness
+        engine={engine}
+        onController={(c) => (controller = c)}
+        commandRegistry={commandRegistry}
+      />,
+    )
+
+    await waitFor(() => Boolean(controller))
+    await controller.actions.send('/resume')
+    await waitFor(() => controller.state.resumeDialogOpen)
+    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === '/resume')).toBe(false)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
+  it('records /resume command in current transcript when resume dialog is dismissed', async () => {
+    const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+    const engine: ChatEngine = { runTurn } as any
+    const commandRegistry: SlashCommandRegistry = {
+      list: () => [],
+      suggest: () => [],
+      dispatch: (command) => (command === '/resume' ? { kind: 'open_resume_dialog' } : null),
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <Harness
+        engine={engine}
+        onController={(c) => (controller = c)}
+        commandRegistry={commandRegistry}
+      />,
+    )
+
+    await waitFor(() => Boolean(controller))
+    await controller.actions.send('/resume')
+    await waitFor(() => controller.state.resumeDialogOpen)
+    controller.actions.closeResumeDialog({ kind: 'dismissed' })
+    await waitFor(() => controller.state.resumeDialogOpen === false)
+    await waitFor(() =>
+      controller.state.messages.some((m) => m.role === 'assistant' && m.ui?.kind === 'command_subline' && m.content === 'Resume cancelled'),
+    )
+    expect(controller.state.messages.some((m) => m.role === 'user' && m.content === '/resume')).toBe(true)
+    expect(runTurn).toHaveBeenCalledTimes(0)
+  })
+
+  it('closes resume overlay before async resume transition completes', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-resume-overlay-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-resume-overlay-config-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    let releaseRead: (() => void) | undefined
+    try {
+      const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+      await writer.appendStableMsg({
+        id: 'assistant-replay',
+        role: 'assistant',
+        content: 'from replay',
+        timestamp: new Date('2026-02-02T00:00:00.000Z'),
+      } as any)
+      await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'resume-history' }] }] as any)
+      await writer.shutdown()
+
+      const runTurn = vi.fn(async ({ history, user }) => [...history, user])
+      const engine: ChatEngine = { runTurn } as any
+      const commandRegistry: SlashCommandRegistry = {
+        list: () => [],
+        suggest: () => [],
+        dispatch: (command) => (command === '/resume' ? { kind: 'open_resume_dialog' } : null),
+      }
+
+      const realReadSessionFile = sessionReader.readSessionFile
+      const readGate = new Promise<void>((resolve) => {
+        releaseRead = resolve
+      })
+      vi.spyOn(sessionReader, 'readSessionFile').mockImplementation(async (path) => {
+        await readGate
+        return realReadSessionFile(path)
+      })
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <Harness
+          engine={engine}
+          cwd={cwdDir}
+          onController={(c) => (controller = c)}
+          commandRegistry={commandRegistry}
+        />,
+      )
+
+      await waitFor(() => Boolean(controller))
+      await controller.actions.send('/resume')
+      await waitFor(() => controller.state.resumeDialogOpen)
+
+      const resumePromise = controller.actions.resumeSession(filePath)
+      await waitFor(() => controller.state.resumeDialogOpen === false)
+
+      releaseRead()
+      await resumePromise
+      expect(runTurn).toHaveBeenCalledTimes(0)
+    } finally {
+      releaseRead?.()
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
   })
 
   it('passes preferredSlashSpecId through to commandRegistry.dispatch as preferredSpecId', async () => {

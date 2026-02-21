@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
 
+function tick(ms = 0): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function createBaseCfg() {
   return {
     llm: {
@@ -98,6 +102,35 @@ describe('resolvePreMainSendRouting', () => {
     expect(newSession).toHaveBeenCalledTimes(1)
   })
 
+  it('awaits async newSession before returning from /clear routing', async () => {
+    const order: string[] = []
+    let releaseNewSession!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseNewSession = resolve
+    })
+    const newSession = vi.fn(async () => {
+      order.push('newSession:start')
+      await gate
+      order.push('newSession:end')
+    })
+    const { args } = createRoutingHarness({
+      text: '/clear',
+      newSession,
+    })
+
+    const routingPromise = resolvePreMainSendRouting(args).then((result) => {
+      order.push('routing:return')
+      return result
+    })
+    await tick()
+    expect(order).toEqual(['newSession:start'])
+
+    releaseNewSession()
+    const result = await routingPromise
+    expect(result).toEqual({ slashEffect: null, shouldReturn: true })
+    expect(order).toEqual(['newSession:start', 'newSession:end', 'routing:return'])
+  })
+
   it('handles consumed local slash command and appends command sublines', async () => {
     const onSlashLocalRecordForNextTurn = vi.fn()
     const { args, getMessages } = createRoutingHarness({
@@ -129,6 +162,43 @@ describe('resolvePreMainSendRouting', () => {
     expect(messages[0]).toMatchObject({ role: 'user', content: '/todos' })
     expect(messages[1]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'line-1' })
     expect(messages[2]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'line-2' })
+  })
+
+  it('does not append a transcript row for overlay-only slash commands', async () => {
+    const openOverlay = vi.fn()
+    const { args, getMessages } = createRoutingHarness({
+      text: '/resume',
+      openOverlay,
+      commandRegistry: {
+        list: () => [],
+        suggest: () => [],
+        dispatch: () => ({ kind: 'open_resume_dialog' }),
+      },
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result).toEqual({ slashEffect: { kind: 'open_resume_dialog' }, shouldReturn: true })
+    expect(openOverlay).toHaveBeenCalledWith({ kind: 'resume' })
+    expect(getMessages()).toEqual([])
+  })
+
+  it('keeps user command row for non-resume overlay-only slash commands', async () => {
+    const openOverlay = vi.fn()
+    const { args, getMessages } = createRoutingHarness({
+      text: '/agents',
+      openOverlay,
+      commandRegistry: {
+        list: () => [],
+        suggest: () => [],
+        dispatch: () => ({ kind: 'open_agents_dialog' }),
+      },
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result).toEqual({ slashEffect: { kind: 'open_agents_dialog' }, shouldReturn: true })
+    expect(openOverlay).toHaveBeenCalledWith({ kind: 'agents' })
+    expect(getMessages()).toHaveLength(1)
+    expect(getMessages()[0]).toMatchObject({ role: 'user', content: '/agents' })
   })
 
   it('returns to main turn when slash command resolves to llm effect', async () => {

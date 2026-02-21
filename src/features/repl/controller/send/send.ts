@@ -24,12 +24,12 @@ const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
 const MANUAL_COMPACT_KEEP_LAST_TURNS = 0
 
-export function maybeHandleClearCommand(args: {
+export async function maybeHandleClearCommand(args: {
   text: string
   isLoading: boolean
   setMessages: Dispatch<SetStateAction<Msg[]>>
-  newSession: () => void
-}): boolean {
+  newSession: () => void | Promise<void>
+}): Promise<boolean> {
   if (args.isLoading) return false
   if (!isExactSlashCommand(args.text, '/clear')) return false
 
@@ -47,8 +47,7 @@ export function maybeHandleClearCommand(args: {
     return true
   }
 
-  args.newSession()
-
+  await args.newSession()
   return true
 }
 
@@ -321,7 +320,10 @@ export async function maybeHandleConsumedSlashCommand(args: {
   }
 
   const data = isSlashCommandResultData(slashResult.data) ? slashResult.data : null
-  if (data?.kind !== 'llm') {
+  const shouldAppendUserCommandRow =
+    data?.kind !== 'llm' &&
+    (appended.length > 0 || (slashResult.model?.length ?? 0) > 0 || slashEffect?.kind !== 'open_resume_dialog')
+  if (shouldAppendUserCommandRow) {
     args.setMessages((prev) => [...prev, userMsg, ...appended])
   }
 

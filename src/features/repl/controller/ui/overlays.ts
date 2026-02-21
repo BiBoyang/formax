@@ -65,6 +65,26 @@ export function useReplOverlays(args: {
     [setMessages],
   )
 
+  const appendResumeDismissedRows = useCallback(() => {
+    const timestamp = new Date()
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: makeMessageId('user'),
+        role: 'user',
+        content: '/resume',
+        timestamp,
+      },
+      {
+        id: makeMessageId('assistant'),
+        role: 'assistant',
+        ui: { kind: 'command_subline' as const },
+        content: 'Resume cancelled',
+        timestamp,
+      },
+    ])
+  }, [setMessages])
+
   const closeAgentsDialog = useCallback(
     ({ createdAgents }: { createdAgents: string[] }) => {
       overlayManagerRef.current.close()
@@ -108,9 +128,9 @@ export function useReplOverlays(args: {
   const closeResumeDialog = useCallback((exit?: ResumeDialogExit) => {
     overlayManagerRef.current.close()
     if (exit?.kind === 'dismissed') {
-      appendCommandSublines(['Resume cancelled'])
+      appendResumeDismissedRows()
     }
-  }, [appendCommandSublines])
+  }, [appendResumeDismissedRows])
 
   const generateAgentDraft = useCallback(
     async (description: string, signal?: AbortSignal): Promise<AgentsDialogGenerateDraft> => {
