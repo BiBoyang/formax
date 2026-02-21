@@ -6,7 +6,7 @@
 
 ## 执行状态（Active）
 
-- 进行中：Chat 展示对接准备回合（1 项）
+- 进行中：Chat 展示对接准备回合（已完成，待再生）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,11 +17,7 @@
 
 ## 当前任务清单（唯一来源）
 
-### 1) Tool 展示密度模式（compact/verbose）
-
-- 文件：`src/components/tool/toolUiBlocksTypes.ts`、`src/components/tool/ToolUiBlocks.tsx`、`src/components/tool/toolBlocksRegistry.ts`（必要时分模块）
-- 目标：引入 tool 展示密度配置，先落地 `compact` 基线，保留 `verbose` 兼容模式。
-- 预期收益：后续聊天 UI 改造可先切密度，不需重写每个 tool 渲染器。
+- 当前无待办（已按 `TODO-INDEX` 完成本轮任务）
 
 ## 执行循环（固定）
 

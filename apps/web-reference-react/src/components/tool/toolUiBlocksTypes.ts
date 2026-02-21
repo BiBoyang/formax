@@ -3,6 +3,7 @@ import type { DiffFileViewModel } from '../diff/diffTypes'
 
 export type ToolCallItem = Extract<TranscriptItem, { kind: 'tool_call' }>
 export type ToolInputState = NonNullable<ToolCallItem['inputState']>
+export type ToolDisplayDensity = 'compact' | 'verbose'
 
 export type ToolStatus = 'running' | 'completed' | 'error' | 'pending'
 

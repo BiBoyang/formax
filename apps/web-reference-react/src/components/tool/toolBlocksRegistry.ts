@@ -1,4 +1,4 @@
-import type { ToolCallItem, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
+import type { ToolCallItem, ToolDisplayDensity, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { formatPathForToolDisplay, sanitizeToolTextPaths } from './pathDisplay'
 import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
@@ -22,6 +22,7 @@ import { resolveInteractivePromptModel } from '../../../../../src/features/tools
 
 type ToolRenderContext = {
   cwd?: string
+  density?: ToolDisplayDensity
 }
 
 type ToolBlockRenderer = (item: ToolCallItem, context: ToolRenderContext) => ToolUiBlock[]
@@ -424,5 +425,8 @@ const semanticRenderers: Partial<Record<ToolPresentationSemantic, ToolBlockRende
 export function buildToolUiBlocks(item: ToolCallItem, context: ToolRenderContext = {}): ToolUiBlock[] {
   const semantic = getToolPresentationSemantic(item.toolName)
   const renderer = semanticRenderers[semantic] ?? renderers[item.toolName] ?? defaultRenderer
-  return renderer(item, context)
+  return renderer(item, {
+    cwd: context.cwd,
+    density: context.density ?? 'compact',
+  })
 }

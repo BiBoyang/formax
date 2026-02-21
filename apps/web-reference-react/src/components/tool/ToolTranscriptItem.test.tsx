@@ -215,6 +215,22 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('UnknownTool (--raw --flag)')).toBeInTheDocument()
   })
 
+  it('shows params on collapsed expandable header in verbose density', () => {
+    const item = makeToolItem({
+      toolName: 'UnknownTool',
+      paramsText: '--raw --flag',
+      detailLines: ['line'],
+    })
+    const onToggle = vi.fn()
+    const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={onToggle} />)
+
+    expect(screen.getByText('UnknownTool')).toBeInTheDocument()
+    expect(screen.queryByText('UnknownTool (--raw --flag)')).not.toBeInTheDocument()
+
+    rerender(<ToolTranscriptItem item={item} displayDensity="verbose" open={false} onToggle={onToggle} />)
+    expect(screen.getByText('UnknownTool (--raw --flag)')).toBeInTheDocument()
+  })
+
   it('renders workspace-relative paths when cwd is provided', () => {
     const item = makeToolItem({
       toolName: 'Write',

@@ -2,12 +2,13 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { DiffPatchView } from '../diff/DiffPatchView'
 import { truncatePathFromLeft } from '../diff/diffTypes'
-import type { ToolInputState, ToolUiBlock, ToolUiBlockDetails, ToolUiBlockHeader, ToolStatus, ToolUiBlockDiff } from './toolUiBlocksTypes'
+import type { ToolDisplayDensity, ToolInputState, ToolUiBlock, ToolUiBlockDetails, ToolUiBlockHeader, ToolStatus, ToolUiBlockDiff } from './toolUiBlocksTypes'
 
 export type ToolUiBlocksProps = {
   blocks: ToolUiBlock[]
   open: boolean
   onToggle: () => void
+  displayDensity?: ToolDisplayDensity
 }
 
 function statusDotClass(status: ToolStatus): string {
@@ -37,9 +38,9 @@ function inputStateClass(inputState: ToolInputState): string {
   return 'bg-muted text-muted-foreground border-border'
 }
 
-function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle: () => void }) {
-  const { block, open, onToggle } = props
-  const showParams = Boolean(block.paramsText) && (open || !block.expandable)
+function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle: () => void; displayDensity: ToolDisplayDensity }) {
+  const { block, open, onToggle, displayDensity } = props
+  const showParams = Boolean(block.paramsText) && (displayDensity === 'verbose' || open || !block.expandable)
   const label = showParams && block.paramsText ? `${block.title} (${block.paramsText})` : block.title
   return (
     <button
@@ -104,7 +105,7 @@ function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
   )
 }
 
-export function ToolUiBlocks({ blocks, open, onToggle }: ToolUiBlocksProps) {
+export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact' }: ToolUiBlocksProps) {
   const header = blocks.find((block): block is ToolUiBlockHeader => block.kind === 'header')
   const details = blocks.find((block): block is ToolUiBlockDetails => block.kind === 'details')
   const info = blocks.find((block) => block.kind === 'info')
@@ -113,7 +114,7 @@ export function ToolUiBlocks({ blocks, open, onToggle }: ToolUiBlocksProps) {
 
   return (
     <div className="py-0.5">
-      {header ? <HeaderBlock block={header} open={open} onToggle={onToggle} /> : null}
+      {header ? <HeaderBlock block={header} open={open} onToggle={onToggle} displayDensity={displayDensity} /> : null}
       {info && info.kind === 'info' ? (
         <div className="ml-[18px] ui-text-base text-muted-foreground">{info.text}</div>
       ) : null}

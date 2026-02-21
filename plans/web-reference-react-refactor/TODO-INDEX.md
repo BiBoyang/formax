@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] C1-C 引入 tool display density（compact/verbose）并落地 compact 基线
+- 无（等待按再生规则派生下一批）
 
 ## 再生规则（当“当前待办”为空时）
 

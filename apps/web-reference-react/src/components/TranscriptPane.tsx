@@ -222,6 +222,7 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
         <ToolTranscriptItem
           item={item}
           cwd={activeThreadCwd}
+          displayDensity="compact"
           open={toolOpen}
           onToggle={() => onToggleTool(item.id)}
         />
