@@ -18,7 +18,7 @@ This workflow prevents:
 
 Use this skill whenever the change touches any of:
 - `onClearTerminal`, `clearTerminal`, `resetInkStaticOutputForStdout`
-- `resetTranscriptSurface`, `queueTranscriptSurfaceReset`, `surfaceOpQueueRef`
+- `replaceTranscript`, `queueTranscriptSurfaceReplace`, `resetTranscriptSurface`, `queueTranscriptSurfaceReset`, `surfaceOpQueueRef`
 - `transcriptSeq` remount behavior in `ReplTranscript` / `ExpandedReplTranscript`
 - `/resume`, `/clear`, compact/view transitions touching transcript surface
 - files under:
@@ -31,7 +31,9 @@ Use this skill whenever the change touches any of:
 ## Non-Negotiable Rules
 
 1. Single owner:
-   - Surface reset must go through `resetTranscriptSurface` -> `queueTranscriptSurfaceReset`.
+   - Transcript replacement/reset must go through shared transaction helpers:
+     - content replacement: `replaceTranscript` -> `queueTranscriptSurfaceReplace`
+     - pure reset/remount: `resetTranscriptSurface` -> `queueTranscriptSurfaceReset`
    - Do not add a second independent clear/remount path.
 
 2. Transaction semantics:
@@ -51,7 +53,7 @@ Use this skill whenever the change touches any of:
    - Confirm whether it already routes through `resetTranscriptSurface`.
 
 2. Route to canonical reset path
-   - If not routed, wire the path to shared reset transaction instead of local sequencing hacks.
+   - If not routed, wire the path to shared reset transaction helpers instead of local sequencing hacks.
    - Keep behavior parity; avoid introducing new UI copy/interaction.
 
 3. Lock with targeted tests
@@ -74,6 +76,7 @@ If change touches compact/expanded toggles broadly, also run:
 ## Red Flags (Stop and Rework)
 
 - New direct calls to `onClearTerminal` inside feature flows that already have reset queue access.
+- `/clear` or `/resume` paths that bypass `replaceTranscript`.
 - Per-feature bespoke clear/remount ordering logic.
 - Fixes that only patch one path but bypass shared transaction owner.
 - “Works in Vitest but fails in real TTY” without running surface smoke.
