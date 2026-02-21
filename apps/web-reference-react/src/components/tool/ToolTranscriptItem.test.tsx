@@ -173,10 +173,15 @@ describe('ToolTranscriptItem', () => {
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
     expect(screen.getByText('Edit')).toBeInTheDocument()
-    expect(screen.getByText('src/demo.js')).toBeInTheDocument()
+    expect(screen.getAllByText('src/demo.js').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('+1')).toBeInTheDocument()
+    expect(screen.getByText('-1')).toBeInTheDocument()
+    expect(screen.getByText('foo')).toBeInTheDocument()
+    expect(screen.getByText('bar')).toBeInTheDocument()
+    expect(screen.queryByText('Updated 1 occurrence')).not.toBeInTheDocument()
   })
 
-  it('shows edit params in verbose mode even when subtitle is present', () => {
+  it('keeps edit header as title + file even in verbose mode', () => {
     const item = makeToolItem({
       toolName: 'Edit',
       status: 'completed',
@@ -186,8 +191,73 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} displayDensity="verbose" open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText('src/demo.js')).toBeInTheDocument()
-    expect(screen.getByText(/old_string="foo"/)).toBeInTheDocument()
+    expect(screen.getAllByText('src/demo.js').length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText(/old_string="foo"/)).not.toBeInTheDocument()
+  })
+
+  it('hides submitted approval badge on tool header', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      inputState: {
+        kind: 'approval',
+        status: 'submitted',
+      },
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.queryByText('approval:submitted')).not.toBeInTheDocument()
+  })
+
+  it('does not show edit truncation warning copy', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText:
+        'file_path="src/demo.js", old_string="line1\\nline2\\nline3\\nline4\\nline5\\nline6...", new_string="bar"',
+      summary: 'Applied edit',
+      detailLines: ['Edited src/demo.js'],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.queryByText('Diff preview unavailable (tool input was truncated).')).not.toBeInTheDocument()
+  })
+
+  it('shows edit content preview fallback when only one side is available', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText:
+        'file_path="src/demo.js", old_string="line1\\nline2\\nline3\\nline4\\nline5\\nline6..."',
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('line1')).toBeInTheDocument()
+  })
+
+  it('shows edit diff from raw input when paramsText is truncated', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      input: {
+        file_path: 'src/demo.js',
+        old_string: 'foo',
+        new_string: 'bar',
+      },
+      paramsText:
+        'file_path="src/demo.js", old_string="line1\\nline2\\nline3\\nline4\\nline5\\nline6...", new_string="bar"',
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('foo')).toBeInTheDocument()
+    expect(screen.getByText('bar')).toBeInTheDocument()
   })
 
   it('renders websearch with query promoted to title', () => {

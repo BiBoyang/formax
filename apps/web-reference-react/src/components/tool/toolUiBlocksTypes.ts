@@ -32,6 +32,7 @@ export type ToolUiBlockInfo = {
 export type ToolUiBlockDiff = {
   kind: 'diff'
   files: DiffFileViewModel[]
+  alwaysVisible?: boolean
 }
 
 export type ToolUiBlockIo = {

@@ -259,7 +259,7 @@ describe('buildToolUiBlocks', () => {
     expect(blocks.find((block) => block.kind === 'io')).toBeUndefined()
   })
 
-  it('uses subtitle for read-like file context and keeps extra params separate', () => {
+  it('renders edit as diff block with file subtitle only in header', () => {
     const item = makeToolItem({
       toolName: 'Edit',
       status: 'completed',
@@ -269,9 +269,154 @@ describe('buildToolUiBlocks', () => {
     })
     const blocks = buildToolUiBlocks(item)
     const header = blocks.find((block) => block.kind === 'header')
+    const diff = blocks.find((block) => block.kind === 'diff')
     expect(header?.kind).toBe('header')
     expect(header?.subtitle).toBe('src/demo.js')
-    expect(header?.paramsText).toContain('old_string')
+    expect(header?.paramsText).toBeUndefined()
+    expect(header?.expandable).toBe(false)
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.alwaysVisible).toBe(true)
+    expect(diff?.files[0]?.path).toBe('src/demo.js')
+    expect(diff?.files[0]?.patch).toContain('@@ @@')
+    expect(diff?.files[0]?.patch).toContain('-foo')
+    expect(diff?.files[0]?.patch).toContain('+bar')
+    expect(blocks.find((block) => block.kind === 'details')).toBeUndefined()
+  })
+
+  it('keeps unchanged lines as context in edit diff preview', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="alpha\\nbeta\\ngamma", new_string="alpha\\nBETA\\ngamma"',
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.patch).toContain('alpha')
+    expect(diff?.files[0]?.patch).toContain('-beta')
+    expect(diff?.files[0]?.patch).toContain('+BETA')
+    expect(diff?.files[0]?.patch).toContain('gamma')
+    expect(diff?.files[0]?.additions).toBe(1)
+    expect(diff?.files[0]?.deletions).toBe(1)
+  })
+
+  it('keeps context lines that start with dash as context instead of deletions', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="- keep\\nreplace", new_string="- keep\\nreplaced"',
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.patch).toContain(' - keep')
+    expect(diff?.files[0]?.additions).toBe(1)
+    expect(diff?.files[0]?.deletions).toBe(1)
+  })
+
+  it('shows EOF newline changes in edit diff preview', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="foo\\n", new_string="foo"',
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.patch).toContain('-[EOF newline]')
+    expect(diff?.files[0]?.additions).toBe(0)
+    expect(diff?.files[0]?.deletions).toBe(1)
+  })
+
+  it('renders one-sided edit diff when only old_string is available', () => {
+    const paramsText = formatToolInputAsParamsText({
+      file_path: 'src/demo.js',
+      old_string: 'x'.repeat(300),
+    })
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: paramsText ?? undefined,
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    const preview = blocks.find((block) => block.kind === 'code_preview')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.deletions).toBeGreaterThan(0)
+    expect(preview).toBeUndefined()
+  })
+
+  it('renders edit diff from raw input even when params text is truncated', () => {
+    const paramsText = formatToolInputAsParamsText({
+      file_path: 'src/demo.js',
+      old_string: 'x'.repeat(300),
+      new_string: 'bar',
+    })
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      input: {
+        file_path: 'src/demo.js',
+        old_string: 'foo',
+        new_string: 'bar',
+      },
+      paramsText: paramsText ?? undefined,
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.patch).toContain('-foo')
+    expect(diff?.files[0]?.patch).toContain('+bar')
+  })
+
+  it('uses patchStartLineNumber as diff hunk line anchor', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      patchStartLineNumber: 22,
+      input: {
+        file_path: 'src/demo.js',
+        old_string: 'foo',
+        new_string: 'bar',
+      },
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.patch).toContain('@@ -22,1 +22,1 @@')
+  })
+
+  it('normalizes edit subtitle to cwd-relative path', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      input: {
+        file_path: '/Users/david/Documents/github/formax/demo.txt',
+        old_string: 'foo',
+        new_string: 'bar',
+      },
+      summary: 'Applied edit',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item, { cwd: '/Users/david/Documents/github/formax' })
+    const header = blocks.find((block) => block.kind === 'header')
+    const diff = blocks.find((block) => block.kind === 'diff')
+    expect(header?.kind).toBe('header')
+    expect(header?.subtitle).toBe('demo.txt')
+    expect(diff?.kind).toBe('diff')
+    expect(diff?.files[0]?.path).toBe('demo.txt')
   })
 
   it('keeps AskUserQuestion title unchanged when questions param is missing', () => {

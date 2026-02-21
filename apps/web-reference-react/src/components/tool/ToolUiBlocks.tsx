@@ -55,6 +55,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
   const label = block.title
   const subtitle = block.subtitle ?? (showParams ? block.paramsText : undefined)
   const trailingParams = block.subtitle && showParams ? block.paramsText : undefined
+  const showInputStateBadge = Boolean(block.inputState && block.inputState.status !== 'submitted')
   return (
     <button
       type="button"
@@ -84,7 +85,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
           {trailingParams}
         </span>
       ) : null}
-      {block.inputState ? (
+      {showInputStateBadge && block.inputState ? (
         <span className={cn('shrink-0 rounded-full border px-2 py-0.5 ui-text-micro font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
           {inputStateLabel(block.inputState)}
         </span>
@@ -196,7 +197,7 @@ export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact
   const details = blocks.find((block): block is ToolUiBlockDetails => block.kind === 'details')
   const info = blocks.find((block) => block.kind === 'info')
   const diff = blocks.find((block): block is ToolUiBlockDiff => block.kind === 'diff')
-  const showDiff = Boolean(diff) && (open || !header || !header.expandable)
+  const showDiff = Boolean(diff) && (diff?.alwaysVisible || open || !header || !header.expandable)
 
   return (
     <div className="py-0.5">

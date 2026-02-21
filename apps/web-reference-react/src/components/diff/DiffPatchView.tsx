@@ -9,8 +9,8 @@ type DiffRow = {
 
 function parsePatchRows(patch: string): DiffRow[] {
   const rows: DiffRow[] = []
-  let oldLine = 0
-  let newLine = 0
+  let oldLine: number | null = null
+  let newLine: number | null = null
   let inHunk = false
 
   for (const line of patch.split('\n')) {
@@ -19,22 +19,25 @@ function parsePatchRows(patch: string): DiffRow[] {
       if (m) {
         oldLine = Number(m[1])
         newLine = Number(m[2])
-        inHunk = true
+      } else {
+        oldLine = null
+        newLine = null
       }
+      inHunk = true
       rows.push({ kind: 'meta', text: line.replace(/^@@.*?@@\s?/, '').trim() || '···', oldLine: null, newLine: null })
       continue
     }
 
     if (line.startsWith('+') && !line.startsWith('+++')) {
       rows.push({ kind: 'add', text: line, oldLine: null, newLine })
-      newLine += 1
+      if (newLine !== null) newLine += 1
     } else if (line.startsWith('-') && !line.startsWith('---')) {
       rows.push({ kind: 'del', text: line, oldLine, newLine: null })
-      oldLine += 1
+      if (oldLine !== null) oldLine += 1
     } else if (inHunk && !line.startsWith('\\')) {
       rows.push({ kind: 'ctx', text: line, oldLine, newLine })
-      oldLine += 1
-      newLine += 1
+      if (oldLine !== null) oldLine += 1
+      if (newLine !== null) newLine += 1
     }
   }
   return rows

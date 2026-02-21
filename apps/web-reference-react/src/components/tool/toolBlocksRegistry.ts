@@ -198,27 +198,18 @@ const searchRenderer: ToolBlockRenderer = (item, context) => {
   })
 }
 
-function readLikeSummary(item: ToolCallItem, file: string | undefined, context: ToolRenderContext): string {
-  const fallback = sanitizeToolTextPaths(item.summary, context.cwd)
-  if (item.status === 'error') return fallback
-  if (!file) return fallback
-  if (item.status !== 'completed') return fallback
-  if (item.toolName === 'Write') return `Wrote ${file}`
-  if (item.toolName === 'Edit') return `Edited ${file}`
-  return fallback
-}
-
 const WRITE_PARAM_STRING_CLIP_LEN = 120
+const EDIT_DIFF_MAX_LINES = 400
 
 function isLikelyTruncatedParamsText(paramsText: string | undefined): boolean {
   if (typeof paramsText !== 'string') return false
   return paramsText.trimEnd().endsWith('...')
 }
 
-function isLikelyClippedWriteContent(content: string, paramsText: string | undefined): boolean {
+function isLikelyClippedParamString(value: string, paramsText: string | undefined): boolean {
   if (typeof paramsText !== 'string') return false
-  if (!content.endsWith('...')) return false
-  return content.length === WRITE_PARAM_STRING_CLIP_LEN
+  if (!value.endsWith('...')) return false
+  return value.length === WRITE_PARAM_STRING_CLIP_LEN
 }
 
 function toWriteContentLines(content: string): string[] {
@@ -229,10 +220,114 @@ function toWriteContentLines(content: string): string[] {
   return lines
 }
 
+type EditDiffLineOp =
+  | { kind: 'equal'; line: string }
+  | { kind: 'delete'; line: string }
+  | { kind: 'insert'; line: string }
+
+function diffLines(oldLines: string[], newLines: string[]): EditDiffLineOp[] {
+  const m = oldLines.length
+  const n = newLines.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array.from({ length: n + 1 }, () => 0))
+
+  for (let i = m - 1; i >= 0; i -= 1) {
+    for (let j = n - 1; j >= 0; j -= 1) {
+      if (oldLines[i] === newLines[j]) {
+        dp[i][j] = dp[i + 1][j + 1] + 1
+      } else {
+        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1])
+      }
+    }
+  }
+
+  const ops: EditDiffLineOp[] = []
+  let i = 0
+  let j = 0
+  while (i < m && j < n) {
+    if (oldLines[i] === newLines[j]) {
+      ops.push({ kind: 'equal', line: oldLines[i] })
+      i += 1
+      j += 1
+      continue
+    }
+    if (dp[i][j + 1] >= dp[i + 1][j]) {
+      ops.push({ kind: 'insert', line: newLines[j] })
+      j += 1
+    } else {
+      ops.push({ kind: 'delete', line: oldLines[i] })
+      i += 1
+    }
+  }
+  while (i < m) {
+    ops.push({ kind: 'delete', line: oldLines[i] })
+    i += 1
+  }
+  while (j < n) {
+    ops.push({ kind: 'insert', line: newLines[j] })
+    j += 1
+  }
+  return ops
+}
+
+function makeEditPatch(
+  oldText: string,
+  newText: string,
+  startLineNumber?: number,
+): { patch: string; additions: number; deletions: number } {
+  const oldNormalized = oldText.replace(/\r\n/g, '\n')
+  const newNormalized = newText.replace(/\r\n/g, '\n')
+  const oldEndsWithNewline = oldNormalized.endsWith('\n')
+  const newEndsWithNewline = newNormalized.endsWith('\n')
+  const oldLines = toWriteContentLines(oldText)
+  const newLines = toWriteContentLines(newText)
+  const clippedOld = oldLines.slice(0, EDIT_DIFF_MAX_LINES)
+  const clippedNew = newLines.slice(0, EDIT_DIFF_MAX_LINES)
+  const ops = diffLines(clippedOld, clippedNew)
+  if (oldEndsWithNewline !== newEndsWithNewline) {
+    ops.push({
+      kind: oldEndsWithNewline ? 'delete' : 'insert',
+      line: '[EOF newline]',
+    })
+  }
+  const additions = ops.reduce((count, op) => count + (op.kind === 'insert' ? 1 : 0), 0)
+  const deletions = ops.reduce((count, op) => count + (op.kind === 'delete' ? 1 : 0), 0)
+  const hasAnchoredStartLineNumber =
+    typeof startLineNumber === 'number' && Number.isFinite(startLineNumber) && startLineNumber > 0
+  const hunkStart = hasAnchoredStartLineNumber ? Math.floor(startLineNumber) : null
+  const patchLines: string[] = [
+    hunkStart === null ? '@@ @@' : `@@ -${hunkStart},${clippedOld.length} +${hunkStart},${clippedNew.length} @@`,
+  ]
+  for (const op of ops) {
+    if (op.kind === 'equal') {
+      patchLines.push(` ${op.line}`)
+      continue
+    }
+    patchLines.push(`${op.kind === 'delete' ? '-' : '+'}${op.line}`)
+  }
+  if (oldLines.length > clippedOld.length || newLines.length > clippedNew.length) {
+    patchLines.push(` ... diff truncated to first ${EDIT_DIFF_MAX_LINES} lines per side ...`)
+  }
+  const patch = patchLines.join('\n')
+  return {
+    patch,
+    additions,
+    deletions,
+  }
+}
+
 function pickRawParam(parsed: ReturnType<typeof parseToolParamsText>, keys: string[]): string | undefined {
   for (const key of keys) {
     const hit = parsed.find((entry) => entry.label === key)
     if (hit) return hit.value
+  }
+  return undefined
+}
+
+function pickInputString(input: Record<string, unknown> | undefined, keys: string[]): string | undefined {
+  if (!input) return undefined
+  for (const key of keys) {
+    const value = input[key]
+    if (typeof value === 'string') return value
   }
   return undefined
 }
@@ -252,21 +347,6 @@ const readRenderer: ToolBlockRenderer = (item, context) => {
   ]
 }
 
-const readLikeRenderer: ToolBlockRenderer = (item, context) => {
-  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
-  const file = params.find((param) => param.label === 'file')?.value
-  const nonFileParams = stringifyToolParams(params.filter((param) => param.label !== 'file'))
-  const paramsText = nonFileParams ?? (!file ? item.paramsText : undefined)
-  return withStandardBlocks({
-    item,
-    title: item.toolName,
-    summary: readLikeSummary(item, file, context),
-    ...(file ? { subtitle: file, subtitleMono: true } : {}),
-    cwd: context.cwd,
-    ...(paramsText ? { paramsText } : {}),
-  })
-}
-
 const writeRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const file = params.find((param) => param.label === 'file')?.value
@@ -274,7 +354,7 @@ const writeRenderer: ToolBlockRenderer = (item, context) => {
   const rawParams = parseToolParamsText(item.paramsText)
   const rawContent = pickRawParam(rawParams, ['content'])
   const contentTruncated =
-    typeof rawContent === 'string' && isLikelyClippedWriteContent(rawContent, item.paramsText)
+    typeof rawContent === 'string' && isLikelyClippedParamString(rawContent, item.paramsText)
   const previewLines = typeof rawContent === 'string' ? toWriteContentLines(rawContent) : []
   const errorLines = item.status === 'error' ? collectToolOutputLines({ item, cwd: context.cwd }) : []
   const blocks: ToolUiBlock[] = [
@@ -304,6 +384,61 @@ const writeRenderer: ToolBlockRenderer = (item, context) => {
       })
     }
   }
+  return blocks
+}
+
+const editRenderer: ToolBlockRenderer = (item, context) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
+  const fileFromInput = pickInputString(item.input, ['file_path', 'path'])
+  const rawFile = fileFromInput ?? params.find((param) => param.label === 'file')?.value
+  const file = rawFile ? sanitizeToolTextPaths(rawFile, context.cwd) : undefined
+  const rawParams = parseToolParamsText(item.paramsText)
+  const inputOldString = pickInputString(item.input, ['old_string'])
+  const inputNewString = pickInputString(item.input, ['new_string'])
+  const rawOldString = inputOldString ?? pickRawParam(rawParams, ['old_string'])
+  const rawNewString = inputNewString ?? pickRawParam(rawParams, ['new_string'])
+  const outputLines = item.status === 'error'
+    ? collectToolOutputLines({ item, cwd: context.cwd })
+    : []
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Edit',
+      ...(file ? { subtitle: file, subtitleMono: true } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: outputLines.length > 0,
+    },
+  ]
+
+  if (outputLines.length > 0) {
+    blocks.push({ kind: 'details', lines: outputLines })
+  }
+
+  if (item.status !== 'running') {
+    const hasOld = typeof rawOldString === 'string'
+    const hasNew = typeof rawNewString === 'string'
+    if (hasOld || hasNew) {
+      const patch = makeEditPatch(
+        hasOld ? rawOldString : '',
+        hasNew ? rawNewString : '',
+        item.patchStartLineNumber,
+      )
+      blocks.push({
+        kind: 'diff',
+        alwaysVisible: true,
+        files: [
+          {
+            path: file ?? 'file',
+            additions: patch.additions,
+            deletions: patch.deletions,
+            patch: patch.patch,
+          },
+        ],
+      })
+    }
+  }
+
   return blocks
 }
 
@@ -453,7 +588,7 @@ const renderers: Record<string, ToolBlockRenderer> = {
   Search: searchRenderer,
   Read: readRenderer,
   Write: writeRenderer,
-  Edit: readLikeRenderer,
+  Edit: editRenderer,
   WebSearch: webSearchRenderer,
   WebFetch: webFetchRenderer,
   Task: taskRenderer,

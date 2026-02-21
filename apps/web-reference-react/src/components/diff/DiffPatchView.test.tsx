@@ -14,4 +14,12 @@ describe('DiffPatchView', () => {
     expect(scroller).not.toBeNull()
     expect(scroller?.className).toContain('max-h-[40px]')
   })
+
+  it('keeps line number column blank when patch has no anchored hunk line numbers', () => {
+    const patch = ['@@ @@', '-alpha', '+beta'].join('\n')
+    const { container } = render(<DiffPatchView patch={patch} />)
+    const lineNumberCells = Array.from(container.querySelectorAll('.text-right'))
+    expect(lineNumberCells.length).toBeGreaterThan(0)
+    expect(lineNumberCells.every((cell) => (cell.textContent ?? '').trim() === '')).toBe(true)
+  })
 })
