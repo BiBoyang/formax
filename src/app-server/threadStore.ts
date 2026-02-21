@@ -7,6 +7,7 @@ import {
   SessionWriter,
   type SessionSummary,
 } from '../features/repl/sessionSave/index.js'
+import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import type { InputResolvedPayload } from './protocol/input.js'
 import type {
   Thread,
@@ -51,6 +52,8 @@ export type ThreadToolMessage = {
   toolName: string
   status: 'running' | 'completed' | 'error'
   summary: string
+  input?: Record<string, unknown>
+  patchStartLineNumber?: number
   paramsText?: string
   detailLines?: string[]
 }
@@ -205,6 +208,77 @@ function collectToolDetailLines(message: {
   return deduped
 }
 
+function mergeToolDetailLines(existing: string[] | undefined, incoming: string[]): string[] | undefined {
+  const merged = [...(existing ?? [])]
+  for (const line of incoming) {
+    if (!line.trim()) continue
+    if (merged.includes(line)) continue
+    merged.push(line)
+  }
+  return merged.length > 0 ? merged : undefined
+}
+
+function parseToolUseInput(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value as Record<string, unknown>
+}
+
+function parseToolUseId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function parseToolUseName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function extractToolUseInputById(
+  history: Array<{
+    role?: unknown
+    content?: unknown
+  }>,
+): Map<string, { toolName?: string; input?: Record<string, unknown> }> {
+  const byId = new Map<string, { toolName?: string; input?: Record<string, unknown> }>()
+  for (const message of history) {
+    if (!Array.isArray(message.content)) continue
+    for (const block of message.content) {
+      if (!block || typeof block !== 'object') continue
+      const record = block as Record<string, unknown>
+      if (record.type !== 'tool_use') continue
+      const id = parseToolUseId(record.id)
+      if (!id) continue
+      const input = parseToolUseInput(record.input)
+      const toolName = parseToolUseName(record.name)
+      const current = byId.get(id)
+      byId.set(id, {
+        ...(current ?? {}),
+        ...(toolName ? { toolName } : {}),
+        ...(input ? { input } : {}),
+      })
+    }
+  }
+  return byId
+}
+
+function resolveEditPatchStartLineNumber(args: {
+  cwd: string
+  toolName: string
+  input?: Record<string, unknown>
+}): number | undefined {
+  if (args.toolName !== 'Edit') return undefined
+  if (!args.input) return undefined
+  const lineNumber = computeEditPatchStartLineNumber({
+    cwd: args.cwd,
+    input: args.input,
+  })
+  return typeof lineNumber === 'number' && Number.isFinite(lineNumber) && lineNumber > 0
+    ? Math.floor(lineNumber)
+    : undefined
+}
+
 function extractThreadTimelineFromUi(
   messages: Array<{
     id?: unknown
@@ -215,6 +289,7 @@ function extractThreadTimelineFromUi(
       toolUseId?: unknown
       name?: unknown
       input?: unknown
+      patchStartLineNumber?: unknown
       status?: unknown
       result?: unknown
       middleLines?: unknown
@@ -251,8 +326,18 @@ function extractThreadTimelineFromUi(
         : message.toolInfo.status === 'running'
           ? 'running'
           : 'completed'
+    const input =
+      message.toolInfo.input && typeof message.toolInfo.input === 'object' && !Array.isArray(message.toolInfo.input)
+        ? (message.toolInfo.input as Record<string, unknown>)
+        : undefined
     const detailLines = collectToolDetailLines(message)
-    const paramsText = formatToolParamsText(message.toolInfo.input)
+    const paramsText = formatToolParamsText(input)
+    const patchStartLineNumber =
+      typeof message.toolInfo.patchStartLineNumber === 'number' &&
+      Number.isFinite(message.toolInfo.patchStartLineNumber) &&
+      message.toolInfo.patchStartLineNumber > 0
+        ? Math.floor(message.toolInfo.patchStartLineNumber)
+        : undefined
     const summary =
       detailLines[0] ??
       (status === 'error'
@@ -273,6 +358,8 @@ function extractThreadTimelineFromUi(
         toolName: message.toolInfo.name,
         status,
         summary,
+        ...(input ? { input } : {}),
+        ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
         ...(paramsText ? { paramsText } : {}),
         ...(detailLines.length > 0 ? { detailLines } : {}),
       },
@@ -388,6 +475,9 @@ export class ThreadStore {
     if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
 
     const replay = await readSessionFile(filePath)
+    const toolUseInputById = extractToolUseInputById(
+      replay.history as Array<{ role?: unknown; content?: unknown }>,
+    )
     const fromUi = extractThreadTimelineFromUi(
       replay.messages as Array<{ id?: unknown; role?: unknown; content?: unknown; timestamp?: unknown }>,
     )
@@ -398,16 +488,70 @@ export class ThreadStore {
       }
 
       const timeline = [...fromUi]
-      const knownToolUseIds = new Set<string>()
-      for (const entry of timeline) {
+      for (let index = 0; index < timeline.length; index += 1) {
+        const entry = timeline[index]
+        if (entry.item.kind !== 'tool') continue
+        const historyTool = entry.item.toolUseId ? toolUseInputById.get(entry.item.toolUseId) : undefined
+        const input = entry.item.input ?? historyTool?.input
+        const patchStartLineNumber =
+          entry.item.patchStartLineNumber ??
+          resolveEditPatchStartLineNumber({
+            cwd: replay.meta.cwd,
+            toolName: historyTool?.toolName ?? entry.item.toolName,
+            input,
+          })
+        entry.item = {
+          ...entry.item,
+          ...(input ? { input } : {}),
+          ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
+        }
+      }
+      const toolIndexByUseId = new Map<string, number>()
+      for (let index = 0; index < timeline.length; index += 1) {
+        const entry = timeline[index]
         if (entry.item.kind !== 'tool') continue
         if (!entry.item.toolUseId) continue
-        knownToolUseIds.add(entry.item.toolUseId)
+        if (!toolIndexByUseId.has(entry.item.toolUseId)) {
+          toolIndexByUseId.set(entry.item.toolUseId, index)
+        }
       }
 
       let extraSequence = timeline.length
       for (const tool of persistedTools) {
-        if (tool.toolUseId && knownToolUseIds.has(tool.toolUseId)) continue
+        const existingIndex = tool.toolUseId ? toolIndexByUseId.get(tool.toolUseId) : undefined
+        if (existingIndex !== undefined) {
+          const existingEntry = timeline[existingIndex]
+          if (existingEntry?.item.kind === 'tool') {
+            const mergedDetailLines = mergeToolDetailLines(existingEntry.item.detailLines, tool.detailLines)
+            const historyTool = existingEntry.item.toolUseId ? toolUseInputById.get(existingEntry.item.toolUseId) : undefined
+            const input = existingEntry.item.input ?? tool.input ?? historyTool?.input
+            const patchStartLineNumber =
+              existingEntry.item.patchStartLineNumber ??
+              tool.patchStartLineNumber ??
+              resolveEditPatchStartLineNumber({
+                cwd: replay.meta.cwd,
+                toolName: historyTool?.toolName ?? existingEntry.item.toolName,
+                input,
+              })
+            existingEntry.item = {
+              ...existingEntry.item,
+              ...(input ? { input } : {}),
+              ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
+              ...(existingEntry.item.paramsText ? {} : tool.paramsText ? { paramsText: tool.paramsText } : {}),
+              ...(mergedDetailLines ? { detailLines: mergedDetailLines } : {}),
+            }
+          }
+          continue
+        }
+        const historyTool = tool.toolUseId ? toolUseInputById.get(tool.toolUseId) : undefined
+        const input = tool.input ?? historyTool?.input
+        const patchStartLineNumber =
+          tool.patchStartLineNumber ??
+          resolveEditPatchStartLineNumber({
+            cwd: replay.meta.cwd,
+            toolName: historyTool?.toolName ?? tool.toolName,
+            input,
+          })
         timeline.push({
           occurredAtMs: tool.occurredAtMs,
           sequence: extraSequence++,
@@ -418,6 +562,8 @@ export class ThreadStore {
             toolName: tool.toolName,
             status: tool.status,
             summary: tool.summary,
+            ...(input ? { input } : {}),
+            ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
             ...(tool.paramsText ? { paramsText: tool.paramsText } : {}),
             ...(tool.detailLines.length > 0 ? { detailLines: tool.detailLines } : {}),
           },

@@ -58,6 +58,10 @@ export function mapThreadHistoryToCanonicalLogs(args: {
           kind: 'tool_call',
           toolUseId: toolSegment.toolUseId,
           toolName: toolSegment.toolName,
+          ...(toolSegment.input ? { input: toolSegment.input } : {}),
+          ...(toolSegment.patchStartLineNumber !== undefined
+            ? { patchStartLineNumber: toolSegment.patchStartLineNumber }
+            : {}),
           status: 'running',
           summary: message.summary || toolSegment.summary,
           detailLines: message.detailLines ?? toolSegment.detailLines,
@@ -69,6 +73,10 @@ export function mapThreadHistoryToCanonicalLogs(args: {
         kind: 'tool_call',
         toolUseId: toolSegment.toolUseId,
         toolName: toolSegment.toolName,
+        ...(toolSegment.input ? { input: toolSegment.input } : {}),
+        ...(toolSegment.patchStartLineNumber !== undefined
+          ? { patchStartLineNumber: toolSegment.patchStartLineNumber }
+          : {}),
         status: toolSegment.status,
         summary: toolSegment.summary,
         detailLines: toolSegment.detailLines,
@@ -80,6 +88,10 @@ export function mapThreadHistoryToCanonicalLogs(args: {
       kind: 'tool_call',
       toolUseId: message.toolUseId,
       toolName: message.toolName,
+      ...(message.input ? { input: message.input } : {}),
+      ...(message.patchStartLineNumber !== undefined
+        ? { patchStartLineNumber: message.patchStartLineNumber }
+        : {}),
       status: message.status,
       summary: message.summary,
       detailLines: message.detailLines ?? [],

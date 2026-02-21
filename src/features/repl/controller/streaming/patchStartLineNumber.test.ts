@@ -118,4 +118,62 @@ describe('computeEditPatchStartLineNumber', () => {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }
   })
+
+  it('falls back to containing-line match when snippet line is partial', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(
+        filePath,
+        [
+          'line 1',
+          'to use, copy, modify, merge, publish, distribute, sublicense, and/or sell',
+          'line 3',
+        ].join('\n'),
+        'utf8',
+      )
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'use, copy, modify, merge, publish, distribute',
+          new_string: 'use, copy, modify, merge, publish, distribute, sublicense, and/or sell',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not anchor to unrelated short lines when partial line is not contained', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(
+        filePath,
+        [
+          'const',
+          'let value = 1',
+          'target payload string',
+        ].join('\n'),
+        'utf8',
+      )
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'const target payload string with extra context',
+          new_string: 'const target payload string with extra context updated',
+        },
+      })
+
+      expect(lineNo).toBeNull()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
 })

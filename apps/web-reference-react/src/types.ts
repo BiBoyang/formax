@@ -51,6 +51,8 @@ export type ThreadHistoryTool = {
   toolName: string
   status: 'running' | 'completed' | 'error'
   summary: string
+  input?: Record<string, unknown>
+  patchStartLineNumber?: number
   paramsText?: string
   detailLines?: string[]
 }
@@ -101,6 +103,8 @@ export type TranscriptItem =
       turnId?: string
       toolUseId?: string
       toolName: string
+      input?: Record<string, unknown>
+      patchStartLineNumber?: number
       paramsText?: string
       status: 'running' | 'completed' | 'error'
       summary: string

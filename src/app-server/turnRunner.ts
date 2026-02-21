@@ -28,6 +28,7 @@ import {
   resolveReplModeTransition,
   type ReplMode,
 } from '../features/semantics/core/replModeTransition.js'
+import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -76,6 +77,7 @@ type RunningTurn = {
     instructions: string
   }
   toolNameByUseId: Map<string, string>
+  toolInputByUseId: Map<string, unknown>
 }
 
 export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
@@ -106,6 +108,19 @@ function compactParamsText(input: unknown): string | undefined {
   const parts = entries.map(([key, value]) => `${key}=${JSON.stringify(value)}`)
   const text = parts.join(', ')
   return text.length > 220 ? `${text.slice(0, 220)}...` : text
+}
+
+function resolveEditPatchStartLineNumber(args: {
+  cwd: string
+  toolName: string | undefined
+  isError: boolean
+  toolInput: unknown
+}): number | null {
+  if (args.toolName !== 'Edit' || args.isError) return null
+  return computeEditPatchStartLineNumber({
+    cwd: args.cwd,
+    input: args.toolInput ?? {},
+  })
 }
 
 function flattenPromptText(content: unknown): string {
@@ -280,6 +295,7 @@ export class TurnRunner {
         instructions: commandRouting.isExactCompact ? commandRouting.commandArgs ?? '' : '',
       },
       toolNameByUseId: new Map<string, string>(),
+      toolInputByUseId: new Map<string, unknown>(),
     }
     this.runningByThreadId.set(params.threadId, running)
 
@@ -477,12 +493,18 @@ export class TurnRunner {
           })
         } else if (event.type === 'tool_input') {
           const toolName = running.toolNameByUseId.get(event.id)
+          running.toolInputByUseId.set(event.id, event.input)
+          const toolInput =
+            event.input && typeof event.input === 'object' && !Array.isArray(event.input)
+              ? (event.input as Record<string, unknown>)
+              : null
           this.appendAppEvent(running, 'app_tool_event', {
             threadId: running.threadId,
             turnId: running.turnId,
             toolUseId: event.id,
             ...(toolName ? { toolName } : {}),
             phase: 'update',
+            ...(toolInput ? { input: toolInput } : {}),
             ...(compactParamsText(event.input) ? { paramsText: compactParamsText(event.input) } : {}),
           })
         } else if (event.type === 'tool_update') {
@@ -501,6 +523,12 @@ export class TurnRunner {
         } else if (event.type === 'tool_end') {
           const toolName = running.toolNameByUseId.get(event.id)
           const payload = toToolEndPayload(event)
+          const patchStartLineNumber = resolveEditPatchStartLineNumber({
+            cwd: running.cwd,
+            toolName,
+            isError: Boolean(event.result.is_error),
+            toolInput: running.toolInputByUseId.get(event.id),
+          })
           this.appendAppEvent(running, 'app_tool_event', {
             threadId: running.threadId,
             turnId: running.turnId,
@@ -510,8 +538,13 @@ export class TurnRunner {
             status: payload.status,
             summary: payload.summary,
             lines: payload.lines,
+            ...(patchStartLineNumber !== null ? { patchStartLineNumber } : {}),
           })
           running.toolNameByUseId.delete(event.id)
+          running.toolInputByUseId.delete(event.id)
+          if (patchStartLineNumber !== null) {
+            event = { ...event, patchStartLineNumber } as StreamEvent
+          }
         }
         emitStreamTurnEvent(event)
       }

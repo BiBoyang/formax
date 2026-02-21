@@ -13,6 +13,7 @@ describe('historyCanonicalAdapter', () => {
         toolName: 'Bash',
         status: 'completed',
         summary: 'done',
+        input: { command: 'pwd' },
         detailLines: ['line-1', 'line-2'],
       },
     ]
@@ -28,6 +29,11 @@ describe('historyCanonicalAdapter', () => {
       'history:thread-1:t1:tool_update:4',
       'history:thread-1:t1:tool_end:5',
     ])
+    expect(events[1]).toMatchObject({
+      kind: 'tool_event',
+      phase: 'start',
+      input: { command: 'pwd' },
+    })
   })
 
   it('falls back toolUseId and marks error status at tool_end', () => {

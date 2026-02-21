@@ -11,6 +11,7 @@ describe('toolEventNormalizer', () => {
         toolName: 'Bash',
         status: 'completed',
         summary: 'Ran command',
+        input: { command: 'pwd' },
         detailLines: ['$ ls'],
       },
     })
@@ -21,6 +22,7 @@ describe('toolEventNormalizer', () => {
       toolName: 'Bash',
       status: 'completed',
       summary: 'Ran command',
+      input: { command: 'pwd' },
       detailLines: ['$ ls'],
     })
   })

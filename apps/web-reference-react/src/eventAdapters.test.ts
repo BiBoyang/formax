@@ -14,6 +14,7 @@ describe('mapThreadHistoryToCanonicalLogs', () => {
         toolName: 'Bash',
         status: 'completed',
         summary: 'done',
+        patchStartLineNumber: 8,
         detailLines: ['line-1', 'line-2'],
       },
     ]
@@ -28,6 +29,7 @@ describe('mapThreadHistoryToCanonicalLogs', () => {
       toolName: 'Bash',
       status: 'completed',
       summary: 'done',
+      patchStartLineNumber: 8,
       detailLines: ['line-1', 'line-2'],
     })
   })
@@ -41,6 +43,7 @@ describe('mapThreadHistoryToCanonicalLogs', () => {
         toolName: 'Write',
         status: 'error',
         summary: 'permission denied',
+        input: { file_path: '.claude/plan.md' },
         paramsText: 'path=".claude/plan.md"',
       },
     ]
@@ -53,6 +56,7 @@ describe('mapThreadHistoryToCanonicalLogs', () => {
       toolName: 'Write',
       status: 'error',
       summary: 'permission denied',
+      input: { file_path: '.claude/plan.md' },
       paramsText: 'path=".claude/plan.md"',
       detailLines: [],
     })

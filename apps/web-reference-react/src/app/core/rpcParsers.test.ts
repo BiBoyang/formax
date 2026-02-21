@@ -6,7 +6,16 @@ describe('rpcParsers', () => {
     const parsed = asThreadMessages({
       data: [
         { id: 'm1', kind: 'message', role: 'assistant', text: 'hello' },
-        { id: 't1', kind: 'tool', toolName: 'Bash', status: 'running', summary: 'Running', detailLines: ['ok', 1] },
+        {
+          id: 't1',
+          kind: 'tool',
+          toolName: 'Bash',
+          status: 'running',
+          summary: 'Running',
+          input: { command: 'pwd' },
+          patchStartLineNumber: 12,
+          detailLines: ['ok', 1],
+        },
         { id: 'bad', kind: 'message', role: 'system', text: 'ignore' },
       ],
       nextCursor: 'cursor-1',
@@ -15,7 +24,13 @@ describe('rpcParsers', () => {
     expect(parsed.nextCursor).toBe('cursor-1')
     expect(parsed.data).toHaveLength(2)
     expect(parsed.data[0]).toMatchObject({ kind: 'message', text: 'hello' })
-    expect(parsed.data[1]).toMatchObject({ kind: 'tool', toolName: 'Bash', status: 'running' })
+    expect(parsed.data[1]).toMatchObject({
+      kind: 'tool',
+      toolName: 'Bash',
+      status: 'running',
+      input: { command: 'pwd' },
+      patchStartLineNumber: 12,
+    })
   })
 
   it('normalizes replay state and keeps only valid pending inputs', () => {
@@ -131,6 +146,18 @@ describe('rpcParsers', () => {
               turnId: 'turn-1',
               text: 'reply',
             },
+            {
+              id: 'turn-1:tool:4',
+              kind: 'tool',
+              turnId: 'turn-1',
+              toolUseId: 'tool-1',
+              toolName: 'Edit',
+              status: 'completed',
+              summary: 'Edit completed',
+              detailLines: [],
+              patchStartLineNumber: 22,
+              input: { file_path: 'a.ts', old_string: 'a', new_string: 'b' },
+            },
           ],
           lastReplaySeq: 2,
           toolNameByUseId: {},
@@ -146,6 +173,18 @@ describe('rpcParsers', () => {
       { id: 'turn-1:user:1', kind: 'user', turnId: 'turn-1', text: 'hello', messageKind: 'compact_summary' },
       { id: 'turn-1:system:2', kind: 'system', turnId: 'turn-1', role: 'assistant', text: 'system note', messageKind: 'command_subline' },
       { id: 'turn-1:assistant:3', kind: 'assistant', turnId: 'turn-1', text: 'reply' },
+      {
+        id: 'turn-1:tool:4',
+        kind: 'tool',
+        turnId: 'turn-1',
+        toolUseId: 'tool-1',
+        toolName: 'Edit',
+        status: 'completed',
+        summary: 'Edit completed',
+        detailLines: [],
+        patchStartLineNumber: 22,
+        input: { file_path: 'a.ts', old_string: 'a', new_string: 'b' },
+      },
     ])
   })
 })

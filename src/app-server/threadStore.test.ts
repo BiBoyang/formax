@@ -188,6 +188,7 @@ describe('ThreadStore', () => {
       ]),
     )
     const tool = out.data.find((entry) => entry.id === 'tool-1') as any
+    expect(tool.input).toEqual({ command: 'npm run type-check' })
     expect(tool.paramsText).toContain('command=')
     expect(tool.detailLines).toEqual(expect.arrayContaining(['Ran command for 3s', 'update', 'end']))
   })
@@ -220,6 +221,7 @@ describe('ThreadStore', () => {
       toolUseId: 'tool-evt-1',
       toolName: 'Bash',
       phase: 'update',
+      input: { command: 'npm run type-check' },
       paramsText: 'command="npm run type-check"',
       line: 'running...',
     })
@@ -231,6 +233,7 @@ describe('ThreadStore', () => {
       phase: 'end',
       status: 'completed',
       summary: 'Ran command for 3s',
+      patchStartLineNumber: 22,
       lines: ['> tsc --noEmit'],
     })
     await writer.appendStableMsg({
@@ -256,8 +259,137 @@ describe('ThreadStore', () => {
       ]),
     )
     const tool = out.data.find((entry) => (entry as any).toolUseId === 'tool-evt-1') as any
+    expect(tool.input).toEqual({ command: 'npm run type-check' })
+    expect(tool.patchStartLineNumber).toBe(22)
     expect(tool.paramsText).toBe('command="npm run type-check"')
     expect(tool.detailLines).toEqual(expect.arrayContaining(['running...', '> tsc --noEmit']))
+  })
+
+  it('enriches existing ui tool rows with persisted app_tool_event input', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendStableMsg({
+      id: 'tool-edit-1',
+      role: 'tool',
+      content: 'Edited demo.txt',
+      timestamp: new Date('2026-02-08T00:00:01.000Z'),
+      toolInfo: {
+        name: 'Edit',
+        toolUseId: 'edit-1',
+        status: 'completed',
+      },
+    } as any)
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'edit-1',
+      toolName: 'Edit',
+      phase: 'update',
+      input: {
+        file_path: 'demo.txt',
+        old_string: 'before',
+        new_string: 'after',
+      },
+      line: 'patched',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'edit-1',
+      toolName: 'Edit',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Edited demo.txt',
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const tool = out.data.find((entry) => (entry as any).toolUseId === 'edit-1') as any
+    expect(tool).toBeTruthy()
+    expect(tool.input).toEqual({
+      file_path: 'demo.txt',
+      old_string: 'before',
+      new_string: 'after',
+    })
+    expect(tool.detailLines).toEqual(expect.arrayContaining(['Edited demo.txt', 'patched']))
+  })
+
+  it('hydrates Edit input and patch line from history tool_use when persisted tool input is missing', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const demoFilePath = path.join(cwd, 'demo.txt')
+    await fs.writeFile(demoFilePath, ['first line', 'patched line', 'last line'].join('\n'), 'utf8')
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'edit demo.txt',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'edit demo.txt' }] },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'edit-hist-1',
+            name: 'Edit',
+            input: {
+              file_path: 'demo.txt',
+              old_string: 'old line',
+              new_string: 'patched line',
+            },
+          },
+        ],
+      },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'edit-hist-1', content: 'Edited demo.txt' }] },
+    ] as any)
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'edit-hist-1',
+      toolName: 'Edit',
+      phase: 'start',
+      status: 'running',
+      summary: 'Edit running',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'edit-hist-1',
+      toolName: 'Edit',
+      phase: 'update',
+      paramsText: 'file_path="demo.txt", old_string="old line", new_string="patched line"',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'edit-hist-1',
+      toolName: 'Edit',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Edited demo.txt',
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const tool = out.data.find((entry) => (entry as any).toolUseId === 'edit-hist-1') as any
+    expect(tool).toBeTruthy()
+    expect(tool.input).toEqual({
+      file_path: 'demo.txt',
+      old_string: 'old line',
+      new_string: 'patched line',
+    })
+    expect(tool.patchStartLineNumber).toBe(2)
   })
 
   it('uses overridden homedir consistently across start and resume', async () => {

@@ -14,6 +14,8 @@ export type HistoryCanonicalMessage =
       toolName: string
       status: 'running' | 'completed' | 'error'
       summary: string
+      input?: Record<string, unknown>
+      patchStartLineNumber?: number
       paramsText?: string
       detailLines?: string[]
     }
@@ -80,6 +82,8 @@ export function toCanonicalEventsFromHistoryMessages(args: {
       ts: toHistoryTimestamp(replaySeq),
       source: 'system' as const,
       phase: 'start' as const,
+      input: message.input,
+      patchStartLineNumber: message.patchStartLineNumber,
       paramsText: message.paramsText,
     }
     out.push(baseToolEvent)

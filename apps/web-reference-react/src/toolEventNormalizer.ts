@@ -22,6 +22,7 @@ export function mapHistoryToolToTranscript(args: {
     ...(args.turnId ? { turnId: args.turnId } : {}),
     toolUseId: args.tool.toolUseId,
     toolName: args.tool.toolName,
+    ...(args.tool.input ? { input: args.tool.input } : {}),
     ...(args.tool.paramsText ? { paramsText: args.tool.paramsText } : {}),
     status: args.tool.status,
     summary: args.tool.summary,

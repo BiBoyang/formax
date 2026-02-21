@@ -33,7 +33,7 @@ export type StreamEvent =
       }>
     }
   | { type: 'usage'; usage: TokenUsage; model?: string }
-  | { type: 'tool_end'; id: string; result: ToolResult }
+  | { type: 'tool_end'; id: string; result: ToolResult; patchStartLineNumber?: number }
   | {
       type: 'approval_request'
       toolUseId: string

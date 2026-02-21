@@ -30,6 +30,11 @@ export type ReplayStateSnapshot = {
   updatedAt: string
 }
 
+function parseRecordValue(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
 function parseInvariantIssues(value: unknown): SemanticsInvariantIssue[] {
   if (!Array.isArray(value)) return []
   const out: SemanticsInvariantIssue[] = []
@@ -86,12 +91,17 @@ export function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextC
               ? 'running'
               : 'completed'
         const summary = typeof record.summary === 'string' ? record.summary : `${record.toolName} completed`
+        const input = parseRecordValue(record.input)
         return {
           id: typeof record.id === 'string' ? record.id : `tool-${index}`,
           kind: 'tool' as const,
           toolName: record.toolName,
           status,
           summary,
+          ...(input ? { input } : {}),
+          ...(typeof record.patchStartLineNumber === 'number' && Number.isFinite(record.patchStartLineNumber)
+            ? { patchStartLineNumber: record.patchStartLineNumber }
+            : {}),
           ...(typeof record.toolUseId === 'string' ? { toolUseId: record.toolUseId } : {}),
           ...(typeof record.paramsText === 'string' ? { paramsText: record.paramsText } : {}),
           ...(Array.isArray(record.detailLines)
@@ -214,6 +224,7 @@ export function parseProjectionSegments(value: unknown): TranscriptSegment[] {
               return { kind, status }
             })()
           : null
+      const input = parseRecordValue(segment.input)
       out.push({
         id,
         kind: 'tool',
@@ -223,6 +234,10 @@ export function parseProjectionSegments(value: unknown): TranscriptSegment[] {
         status: segment.status,
         summary: segment.summary,
         detailLines,
+        ...(input ? { input } : {}),
+        ...(typeof segment.patchStartLineNumber === 'number' && Number.isFinite(segment.patchStartLineNumber)
+          ? { patchStartLineNumber: segment.patchStartLineNumber }
+          : {}),
         ...(typeof segment.paramsText === 'string' ? { paramsText: segment.paramsText } : {}),
         ...(inputState ? { inputState } : {}),
       })

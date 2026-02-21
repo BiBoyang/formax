@@ -83,6 +83,7 @@ describe('readStaleInputsFromSession', () => {
       toolUseId: 'tool-1',
       toolName: 'Bash',
       phase: 'update',
+      input: { command: 'npm run type-check' },
       paramsText: 'command="npm run type-check"',
       line: 'update',
     })
@@ -94,6 +95,7 @@ describe('readStaleInputsFromSession', () => {
       phase: 'end',
       status: 'completed',
       summary: 'Ran command for 3s',
+      patchStartLineNumber: 18,
       lines: ['> tsc --noEmit'],
     })
     await writer.shutdown()
@@ -105,6 +107,8 @@ describe('readStaleInputsFromSession', () => {
       toolName: 'Bash',
       status: 'completed',
       summary: 'Ran command for 3s',
+      input: { command: 'npm run type-check' },
+      patchStartLineNumber: 18,
       paramsText: 'command="npm run type-check"',
     })
     expect(toolMessages[0]?.detailLines).toEqual(expect.arrayContaining(['update', '> tsc --noEmit']))

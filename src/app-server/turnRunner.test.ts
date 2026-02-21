@@ -431,6 +431,77 @@ describe('TurnRunner', () => {
     for (const event of updateOrEnd) {
       expect(event.toolName).toBe('Bash')
     }
+    const inputUpdate = targetEvents.find(
+      (event) => event.phase === 'update' && event.input && typeof event.input === 'object',
+    )
+    expect(inputUpdate?.input).toEqual({ command: 'ls -la' })
+  })
+
+  it('computes and emits patchStartLineNumber for Edit tool_end', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    await fs.writeFile(
+      path.join(fixture.cwd, 'demo.txt'),
+      ['Copyright (c) 2026 yusifeng', 'use, copy, modify', 'tail line'].join('\n'),
+      'utf8',
+    )
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'tool_start', id: 'edit-1', name: 'Edit' })
+          args.onEvent({
+            type: 'tool_input',
+            id: 'edit-1',
+            input: {
+              file_path: 'demo.txt',
+              old_string: 'use, copy, modify',
+              new_string: 'use, copy, modify, merge',
+            },
+          })
+          args.onEvent({
+            type: 'tool_end',
+            id: 'edit-1',
+            result: { tool_use_id: 'edit-1', content: 'Edited demo.txt', is_error: false },
+          })
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'edit now' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const toolEndNotification = notifications.find(
+      (n) =>
+        n.method === 'turn/event' &&
+        n.params?.event?.type === 'tool_end' &&
+        n.params?.event?.id === 'edit-1',
+    )
+    expect(typeof toolEndNotification?.params?.event?.patchStartLineNumber).toBe('number')
+    expect(toolEndNotification?.params?.event?.patchStartLineNumber).toBe(2)
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const toolEvents = await readAppToolEvents(filePath!)
+    const endEvent = toolEvents.find(
+      (event) => event.toolUseId === 'edit-1' && event.phase === 'end',
+    )
+    expect(endEvent?.patchStartLineNumber).toBe(2)
   })
 
   it('auto-generates session title once after completed turn', async () => {

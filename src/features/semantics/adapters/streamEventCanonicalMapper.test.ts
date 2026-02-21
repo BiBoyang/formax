@@ -66,4 +66,29 @@ describe('streamEventCanonicalMapper', () => {
       middleLines: ['line-a'],
     })
   })
+
+  it('passes patchStartLineNumber through to canonical tool_event', () => {
+    const base = createEnvelopeFactory()
+    const events = toCanonicalEventsFromStreamPayload(
+      {
+        type: 'tool_end',
+        id: 'edit-1',
+        patchStartLineNumber: 22,
+        result: { is_error: false, content: 'ok' },
+      },
+      {
+        turnId: 'turn-1',
+        nextReplaySeq: base.nextReplaySeq,
+        envelopeFor: base.envelopeFor,
+        inferFailureStatus: inferCanonicalFailureStatus,
+      },
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      kind: 'tool_event',
+      phase: 'end',
+      patchStartLineNumber: 22,
+    })
+  })
 })

@@ -72,6 +72,8 @@ export function toTranscriptItemFromProjectionSegment(args: {
       turnId: segment.turnId,
       toolUseId: segment.toolUseId,
       toolName: vm.toolName,
+      ...(segment.input ? { input: segment.input } : {}),
+      ...(segment.patchStartLineNumber !== undefined ? { patchStartLineNumber: segment.patchStartLineNumber } : {}),
       status: vm.status,
       summary: vm.summary,
       detailLines: vm.detailLines,

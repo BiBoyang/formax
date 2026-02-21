@@ -20,6 +20,8 @@ export type PersistedToolMessage = {
   toolName: string
   status: 'running' | 'completed' | 'error'
   summary: string
+  input?: Record<string, unknown>
+  patchStartLineNumber?: number
   paramsText?: string
   detailLines: string[]
 }
@@ -83,6 +85,17 @@ function parseLines(value: unknown): string[] {
     lines.push(trimmed)
   }
   return lines
+}
+
+function parseInputObject(value: unknown): Record<string, unknown> | undefined {
+  if (!isObject(value) || Array.isArray(value)) return undefined
+  return value
+}
+
+function parsePatchStartLineNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  if (value <= 0) return undefined
+  return Math.floor(value)
 }
 
 function toStaleInput(input: PendingInput, resolvedAt: string): InputResolvedPayload {
@@ -183,6 +196,8 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
     }
     const ts = parseTimestampMs(parsed.ts)
     const summary = coerceNonEmptyString(data.summary)
+    const input = parseInputObject(data.input)
+    const patchStartLineNumber = parsePatchStartLineNumber(data.patchStartLineNumber)
     const paramsText = coerceNonEmptyString(data.paramsText) ?? undefined
     const status = parseToolStatus(data.status)
     const lineValue = coerceNonEmptyString(data.line)
@@ -198,6 +213,8 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
         toolName,
         status: status ?? 'running',
         summary: summary ?? `${toolName} running`,
+        ...(input ? { input } : {}),
+        ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
         ...(paramsText ? { paramsText } : {}),
         detailLines: [],
       }
@@ -209,6 +226,8 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
     }
     if (status) current.status = status
     if (summary) current.summary = summary
+    if (input) current.input = input
+    if (patchStartLineNumber !== undefined) current.patchStartLineNumber = patchStartLineNumber
     if (paramsText) current.paramsText = paramsText
     if (lineValue) appendUniqueLine(current.detailLines, lineValue)
     for (const detailLine of linesValue) appendUniqueLine(current.detailLines, detailLine)

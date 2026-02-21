@@ -47,6 +47,13 @@ function readToolResultError(event: StreamPayloadEvent): boolean {
   return Boolean((result as Record<string, unknown>).is_error)
 }
 
+function readPatchStartLineNumber(event: StreamPayloadEvent): number | undefined {
+  const raw = event.patchStartLineNumber
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  if (raw <= 0) return undefined
+  return Math.floor(raw)
+}
+
 function readToolNestedTools(event: StreamPayloadEvent):
   | Array<{
       id: string
@@ -146,6 +153,7 @@ export function toCanonicalEventsFromStreamPayload(
     const paramsText = formatToolInputAsParamsText(event.input)
     const result = type === 'tool_end' ? readToolResultContent(event) : ''
     const isError = type === 'tool_end' ? readToolResultError(event) : false
+    const patchStartLineNumber = readPatchStartLineNumber(event)
 
     const toolEvent: Record<string, unknown> = {
       ...toEnvelope('tool_event', seq),
@@ -163,6 +171,7 @@ export function toCanonicalEventsFromStreamPayload(
     if (summary) toolEvent.summary = summary
     if (result) toolEvent.result = result
     if (isError || options.alwaysIncludeToolEndIsError) toolEvent.isError = isError
+    if (patchStartLineNumber !== undefined) toolEvent.patchStartLineNumber = patchStartLineNumber
     if (type === 'tool_update' || (type === 'tool_end' && options.includeToolProgressFieldsOnEnd)) {
       appendToolProgressFields(toolEvent, event)
     }
