@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { queueTranscriptSurfaceReset } from './surfaceReset'
+import type { Msg } from '../../../../components/tool/ToolMessage'
+import { queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './surfaceReset'
 
 describe('queueTranscriptSurfaceReset', () => {
   it('serializes reset operations on a shared queue', async () => {
@@ -103,6 +104,77 @@ describe('queueTranscriptSurfaceReset', () => {
     await expect(second).resolves.toBeUndefined()
 
     expect(clearCallCount).toBe(2)
+    expect(seq).toBe(2)
+  })
+
+  it('replaces messages inside the same serialized reset transaction', async () => {
+    let seq = 0
+    let messages: Msg[] = [{ id: 'old', role: 'assistant', content: 'old', timestamp: new Date() }]
+    const order: string[] = []
+    const surfaceOpQueueRef = { current: Promise.resolve() }
+
+    const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])): void => {
+      messages = typeof updater === 'function' ? updater(messages) : updater
+      order.push(`messages:${messages.map((m) => m.id).join(',')}`)
+    }
+    const onClearTerminal = async (): Promise<void> => {
+      order.push('clear')
+    }
+    const setTranscriptSeq = (updater: number | ((prev: number) => number)): void => {
+      seq = typeof updater === 'function' ? updater(seq) : updater
+      order.push(`seq:${seq}`)
+    }
+
+    await queueTranscriptSurfaceReplace({
+      surfaceOpQueueRef,
+      onClearTerminal,
+      setTranscriptSeq,
+      setMessages,
+      nextMessages: [{ id: 'next', role: 'assistant', content: 'next', timestamp: new Date() }],
+      waitForNextMacrotaskFn: async () => {
+        order.push('settle')
+      },
+    })
+
+    expect(messages.map((m) => m.id)).toEqual(['next'])
     expect(seq).toBe(1)
+    expect(order).toEqual(['messages:next', 'clear', 'seq:1', 'settle'])
+  })
+
+  it('still remounts after replace when terminal clear fails', async () => {
+    let seq = 0
+    let messages: Msg[] = [{ id: 'old', role: 'assistant', content: 'old', timestamp: new Date() }]
+    const order: string[] = []
+    const surfaceOpQueueRef = { current: Promise.resolve() }
+
+    const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])): void => {
+      messages = typeof updater === 'function' ? updater(messages) : updater
+      order.push(`messages:${messages.map((m) => m.id).join(',')}`)
+    }
+    const onClearTerminal = async (): Promise<void> => {
+      order.push('clear')
+      throw new Error('clear failed')
+    }
+    const setTranscriptSeq = (updater: number | ((prev: number) => number)): void => {
+      seq = typeof updater === 'function' ? updater(seq) : updater
+      order.push(`seq:${seq}`)
+    }
+
+    await expect(
+      queueTranscriptSurfaceReplace({
+        surfaceOpQueueRef,
+        onClearTerminal,
+        setTranscriptSeq,
+        setMessages,
+        nextMessages: [{ id: 'next', role: 'assistant', content: 'next', timestamp: new Date() }],
+        waitForNextMacrotaskFn: async () => {
+          order.push('settle')
+        },
+      }),
+    ).rejects.toThrow('clear failed')
+
+    expect(messages.map((m) => m.id)).toEqual(['next'])
+    expect(seq).toBe(1)
+    expect(order).toEqual(['messages:next', 'clear', 'seq:1', 'settle'])
   })
 })
