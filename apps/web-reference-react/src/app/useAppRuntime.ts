@@ -44,7 +44,9 @@ import { useRpcRequest } from './runtime/useRpcRequest'
 import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import { pruneThreadScopedRefs } from './runtime/threadScopedRefs'
+import { useDevRuntimeApi } from './runtime/useDevRuntimeApi'
 import { useTranscriptDisplayState } from './runtime/useTranscriptDisplayState'
+import { useThreadUrlSync } from './runtime/useThreadUrlSync'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
@@ -70,32 +72,9 @@ function isDevRuntime(): boolean {
   return meta.env?.DEV === true
 }
 
-const THREAD_QUERY_PARAM = 'thread'
-
-function readThreadIdFromUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  const raw = new URL(window.location.href).searchParams.get(THREAD_QUERY_PARAM)
-  if (!raw) return null
-  const trimmed = raw.trim()
-  return trimmed ? trimmed : null
-}
-
-function replaceThreadIdInUrl(threadId: string | null): void {
-  if (typeof window === 'undefined') return
-  const url = new URL(window.location.href)
-  const current = url.searchParams.get(THREAD_QUERY_PARAM)
-  if (threadId) {
-    if (current === threadId) return
-    url.searchParams.set(THREAD_QUERY_PARAM, threadId)
-  } else {
-    if (!current) return
-    url.searchParams.delete(THREAD_QUERY_PARAM)
-  }
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
-}
-
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
+  const devRuntime = useMemo(() => isDevRuntime(), [])
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [inputText, setInputText] = useState('')
   const [diffSnapshot, setDiffSnapshot] = useState<DiffSnapshot | null>(null)
@@ -161,13 +140,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
-  const hasInitializedThreadFromUrlRef = useRef(false)
-  const pendingThreadIdFromUrlRef = useRef<string | null>(null)
   const transcriptVirtualizationEnabled = useMemo(
-    () => isTranscriptVirtualizationEnabled({ isDevRuntime: isDevRuntime() }),
-    [],
+    () => isTranscriptVirtualizationEnabled({ isDevRuntime: devRuntime }),
+    [devRuntime],
   )
-  const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: isDevRuntime() }), [])
+  const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: devRuntime }), [devRuntime])
   const {
     activeHistoryLoading,
     activeLogs,
@@ -581,132 +558,18 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     ],
   )
 
-  useEffect(() => {
-    if (hasInitializedThreadFromUrlRef.current) return
-    const threadIdFromUrl = readThreadIdFromUrl()
-    if (!threadIdFromUrl) {
-      hasInitializedThreadFromUrlRef.current = true
-      return
-    }
-    if (state.activeThreadId === threadIdFromUrl) {
-      hasInitializedThreadFromUrlRef.current = true
-      return
-    }
-    if (state.activeThreadId) {
-      hasInitializedThreadFromUrlRef.current = true
-      return
-    }
-    if (state.threads.length === 0) return
-    const matched = state.threads.some((thread) => thread.id === threadIdFromUrl)
-    hasInitializedThreadFromUrlRef.current = true
-    if (!matched) {
-      replaceThreadIdInUrl(null)
-      return
-    }
-    pendingThreadIdFromUrlRef.current = threadIdFromUrl
-    selectThread(threadIdFromUrl)
-  }, [selectThread, state.activeThreadId, state.threads])
+  useThreadUrlSync({
+    activeThreadId: state.activeThreadId,
+    threads: state.threads,
+    selectThread,
+  })
 
-  useEffect(() => {
-    if (!hasInitializedThreadFromUrlRef.current) return
-    const pending = pendingThreadIdFromUrlRef.current
-    if (pending) {
-      if (state.activeThreadId === pending) {
-        pendingThreadIdFromUrlRef.current = null
-      } else if (!state.activeThreadId) {
-        return
-      } else {
-        pendingThreadIdFromUrlRef.current = null
-      }
-    }
-    replaceThreadIdInUrl(state.activeThreadId)
-  }, [state.activeThreadId])
-
-  useEffect(() => {
-    if (!isDevRuntime() || typeof window === 'undefined') return
-    type DevApiWindow = Window & {
-      __formaxDevAskUserQuestion?: (overrides?: {
-        inputId?: string
-        threadId?: string
-        turnId?: string
-        toolUseId?: string
-      }) => string
-      __formaxDevClearPendingInputs?: () => void
-    }
-
-    const devWindow = window as DevApiWindow
-    devWindow.__formaxDevAskUserQuestion = (overrides) => {
-      const now = Date.now()
-      const inputId = overrides?.inputId ?? `dev-ask-${now}`
-      const threadId = overrides?.threadId ?? state.activeThreadId ?? 'dev-thread'
-      const turnId = overrides?.turnId ?? state.activeTurnId ?? `dev-turn-${now}`
-      const toolUseId = overrides?.toolUseId ?? `dev-tool-ask-${now}`
-      const createdAt = new Date(now).toISOString()
-      const expiresAt = new Date(now + 10 * 60 * 1000).toISOString()
-
-      dispatch({
-        type: 'input_requested',
-        input: {
-          inputId,
-          threadId,
-          turnId,
-          toolUseId,
-          kind: 'ask_user_question',
-          status: 'pending',
-          createdAt,
-          expiresAt,
-          payload: {
-            questions: [
-              {
-                header: 'Coding Time',
-                question: '你平时更喜欢在什么时间写代码？',
-                fieldId: 'coding_time',
-                options: [
-                  { label: '清晨', description: '早上精力充沛，环境安静' },
-                  { label: '下午', description: '白天工作时间' },
-                  { label: '深夜', description: '夜深人静时专注力高' },
-                ],
-                multiSelect: false,
-              },
-              {
-                header: 'Review Depth',
-                question: '这次希望我把 review 做到什么深度？',
-                fieldId: 'review_depth',
-                options: [
-                  { label: '只看 blocker', description: '只看会阻塞发布的问题' },
-                  { label: '常规完整', description: '覆盖中高优先级问题' },
-                  { label: '尽可能严格', description: '包括低优先级潜在风险' },
-                ],
-                multiSelect: false,
-              },
-              {
-                header: 'Output Style',
-                question: '你更偏好哪种回复风格？',
-                fieldId: 'output_style',
-                options: [
-                  { label: '短答案', description: '结论优先，简洁输出' },
-                  { label: '带解释', description: '给出简短原因和取舍' },
-                  { label: '详细展开', description: '附上下文、步骤和风险点' },
-                ],
-                multiSelect: false,
-              },
-            ],
-          },
-        },
-      })
-      dispatch({ type: 'set_selected_input', inputId })
-      return inputId
-    }
-
-    devWindow.__formaxDevClearPendingInputs = () => {
-      dispatch({ type: 'clear_pending_inputs' })
-    }
-
-    return () => {
-      delete devWindow.__formaxDevAskUserQuestion
-      delete devWindow.__formaxDevClearPendingInputs
-    }
-  }, [dispatch, state.activeThreadId, state.activeTurnId])
+  useDevRuntimeApi({
+    dispatch,
+    activeThreadId: state.activeThreadId,
+    activeTurnId: state.activeTurnId,
+    enabled: devRuntime,
+  })
 
   return {
     sortedThreads,
