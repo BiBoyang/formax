@@ -173,7 +173,7 @@ describe('sessionSave (jsonl)', () => {
     expect(tool?.toolInfo?.result).toContain('Applied edit')
   })
 
-  it('reader merges persisted tool input when ui tool input is empty object', async () => {
+  it('reader ignores ui tool rows and rebuilds tool input from app_tool_event', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-merge-'))
     const filePath = path.join(tmp, 'session.jsonl')
     const lines = [
@@ -221,16 +221,245 @@ describe('sessionSave (jsonl)', () => {
           },
         },
       }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:03.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Edit',
+          phase: 'end',
+          status: 'completed',
+          summary: 'Applied edit',
+        },
+      }),
     ]
     await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
 
     const replay = await readSessionFile(filePath)
     const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.id).toBe('tool-tool-1')
+    expect(tool?.content).toBe('Applied edit')
     expect(tool?.toolInfo?.input).toEqual({
       file_path: 'demo.txt',
       old_string: 'old line',
       new_string: 'new line',
     })
+  })
+
+  it('reader falls back to legacy ui_msg tool rows when app_tool_event is absent', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-legacy-ui-only-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-legacy-only',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'ui_msg',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        msg: {
+          id: 'tool-ui-only-1',
+          role: 'tool',
+          content: 'Legacy tool row',
+          timestamp: '2026-02-02T00:00:01.000Z',
+          toolInfo: {
+            name: 'Edit',
+            toolUseId: 'legacy-tool-1',
+            input: { file_path: 'demo.txt' },
+            status: 'completed',
+          },
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.id).toBe('tool-ui-only-1')
+    expect(tool?.toolInfo?.toolUseId).toBe('legacy-tool-1')
+    expect(tool?.content).toBe('Legacy tool row')
+  })
+
+  it('reader keeps unmatched legacy ui tool rows in mixed legacy + event sessions', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-mixed-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-mixed',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'ui_msg',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        msg: {
+          id: 'legacy-tool-ui-1',
+          role: 'tool',
+          content: 'Legacy read output',
+          timestamp: '2026-02-02T00:00:01.000Z',
+          toolInfo: {
+            name: 'Read',
+            toolUseId: 'legacy-read-1',
+            input: { file_path: 'legacy.txt' },
+            status: 'completed',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-2',
+          toolUseId: 'new-bash-1',
+          toolName: 'Bash',
+          phase: 'end',
+          status: 'completed',
+          summary: '/repo',
+          lines: ['/repo'],
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tools = replay.messages.filter((message) => message.role === 'tool')
+    expect(tools).toHaveLength(2)
+    expect(tools.some((message) => message.id === 'legacy-tool-ui-1')).toBe(true)
+    expect(tools.some((message) => message.toolInfo?.toolUseId === 'new-bash-1')).toBe(true)
+  })
+
+  it('reader prefers legacy terminal ui tool row over non-terminal persisted event for same toolUseId', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-partial-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-partial',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'ui_msg',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        msg: {
+          id: 'legacy-bash-complete',
+          role: 'tool',
+          content: 'pwd => /repo',
+          timestamp: '2026-02-02T00:00:02.000Z',
+          toolInfo: {
+            name: 'Bash',
+            toolUseId: 'bash-1',
+            input: { command: 'pwd' },
+            status: 'completed',
+            result: '/repo',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'bash-1',
+          toolName: 'Bash',
+          phase: 'start',
+          status: 'running',
+          summary: 'Bash running',
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tools = replay.messages.filter((message) => message.role === 'tool')
+    expect(tools).toHaveLength(1)
+    expect(tools[0]?.id).toBe('legacy-bash-complete')
+    expect(tools[0]?.toolInfo?.status).toBe('completed')
+    expect(tools[0]?.content).toBe('pwd => /repo')
+  })
+
+  it('reader backfills missing terminal event fields from legacy ui tool row', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-terminal-backfill-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-terminal-backfill',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'ui_msg',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        msg: {
+          id: 'legacy-edit-1',
+          role: 'tool',
+          content: 'Edited demo.txt',
+          timestamp: '2026-02-02T00:00:02.000Z',
+          toolInfo: {
+            name: 'Edit',
+            toolUseId: 'edit-1',
+            input: { file_path: 'demo.txt', old_string: 'before', new_string: 'after' },
+            status: 'completed',
+            result: 'Edited demo.txt',
+            patchStartLineNumber: 33,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'edit-1',
+          toolName: 'Edit',
+          phase: 'end',
+          status: 'completed',
+          summary: 'Edited demo.txt',
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool' && message.toolInfo?.toolUseId === 'edit-1')
+    expect(tool?.id).toBe('tool-edit-1')
+    expect(tool?.toolInfo?.status).toBe('completed')
+    expect(tool?.toolInfo?.input).toEqual({ file_path: 'demo.txt', old_string: 'before', new_string: 'after' })
+    expect(tool?.toolInfo?.result).toBe('Edited demo.txt')
+    expect(tool?.toolInfo?.patchStartLineNumber).toBe(33)
   })
 
   it('reader normalizes persisted Glob output to Found N files summary', async () => {
@@ -418,6 +647,40 @@ describe('sessionSave (jsonl)', () => {
     const ui = JSON.parse(lines.find((l) => JSON.parse(l).type === 'ui_msg')!) as any
     expect(ui.truncated).toBe(true)
     expect(String(ui.msg.toolInfo.result)).toContain('Truncated')
+  })
+
+  it('keeps oversized app_tool_event records by truncating payload instead of dropping the event', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const { writer, filePath } = await SessionWriter.createNew({ cwd, env, maxLineBytes: 700 })
+    await writer.appendEvent('app_tool_event', {
+      threadId: 'tui-live',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      toolName: 'Read',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Read completed',
+      lines: ['x'.repeat(10_000), 'y'.repeat(10_000)],
+      input: {
+        file_path: '/tmp/demo.txt',
+        old_string: 'o'.repeat(10_000),
+        new_string: 'n'.repeat(10_000),
+      },
+    })
+    await writer.shutdown()
+
+    const records = (await readLines(filePath)).map((line) => JSON.parse(line))
+    const appToolEvents = records.filter((record) => record.type === 'event' && record.name === 'app_tool_event')
+    expect(appToolEvents).toHaveLength(1)
+    expect(records.some((record) => record.type === 'event' && record.name === 'line_truncated')).toBe(false)
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool' && message.toolInfo?.toolUseId === 'tool-1')
+    expect(tool?.toolInfo?.status).toBe('completed')
+    expect(String(tool?.content ?? '').length).toBeGreaterThan(0)
   })
 
   it('does not mutate live msg/history when truncating oversized records', async () => {

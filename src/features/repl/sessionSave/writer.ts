@@ -105,6 +105,142 @@ function truncateHistoryInPlace(args: { history: ChatHistory; maxTextBytes: numb
   return didTruncate
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function truncateTextValue(value: unknown, maxBytes: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return truncateUtf8WithMarker(value, maxBytes).text
+}
+
+function compactInputObjectForEvent(args: {
+  input: Record<string, unknown>
+  maxEntries: number
+  maxStringBytes: number
+}): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  let count = 0
+  for (const [rawKey, rawValue] of Object.entries(args.input)) {
+    if (count >= args.maxEntries) break
+    const key = truncateUtf8WithMarker(String(rawKey), 96).text
+    if (!key) continue
+    if (typeof rawValue === 'string') {
+      out[key] = truncateUtf8WithMarker(rawValue, args.maxStringBytes).text
+      count += 1
+      continue
+    }
+    if (typeof rawValue === 'number' || typeof rawValue === 'boolean' || rawValue === null) {
+      out[key] = rawValue
+      count += 1
+      continue
+    }
+    if (Array.isArray(rawValue) || (rawValue && typeof rawValue === 'object')) {
+      out[key] = truncateUtf8WithMarker(JSON.stringify(rawValue), args.maxStringBytes).text
+      count += 1
+      continue
+    }
+  }
+  return out
+}
+
+function sanitizeAppToolEventData(args: {
+  data: Record<string, unknown>
+  maxStringBytes: number
+  maxLineBytes: number
+  maxLines: number
+  dropInput: boolean
+}): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...args.data }
+
+  const longStringKeys = ['threadId', 'turnId', 'toolUseId', 'toolName', 'phase', 'status', 'summary', 'paramsText', 'line']
+  for (const key of longStringKeys) {
+    const value = truncateTextValue(next[key], args.maxStringBytes)
+    if (value !== undefined) next[key] = value
+  }
+
+  if (Array.isArray(next.lines)) {
+    const lines = next.lines
+      .filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
+      .slice(0, args.maxLines)
+      .map((line) => truncateUtf8WithMarker(line, args.maxLineBytes).text)
+    if (lines.length > 0) next.lines = lines
+    else delete next.lines
+  }
+
+  if (args.dropInput) {
+    delete next.input
+  } else if (isPlainObject(next.input)) {
+    next.input = compactInputObjectForEvent({
+      input: next.input,
+      maxEntries: 24,
+      maxStringBytes: args.maxStringBytes,
+    })
+  } else {
+    delete next.input
+  }
+
+  if (typeof next.patchStartLineNumber === 'number' && Number.isFinite(next.patchStartLineNumber)) {
+    next.patchStartLineNumber = Math.max(1, Math.floor(next.patchStartLineNumber))
+  } else {
+    delete next.patchStartLineNumber
+  }
+
+  return next
+}
+
+function buildEssentialAppToolEventData(data: Record<string, unknown>, maxStringBytes: number): Record<string, unknown> {
+  const phaseRaw = truncateTextValue(data.phase, 24)
+  const phase = phaseRaw === 'start' || phaseRaw === 'update' || phaseRaw === 'end' ? phaseRaw : 'update'
+  const statusRaw = truncateTextValue(data.status, 16)
+  const status =
+    statusRaw === 'running' || statusRaw === 'completed' || statusRaw === 'error' ? statusRaw : undefined
+  const summaryFromData = truncateTextValue(data.summary, maxStringBytes)
+  const summary =
+    summaryFromData ??
+    (phase === 'start' ? 'Tool running' : phase === 'end' ? (status === 'error' ? 'Tool failed' : 'Tool completed') : undefined)
+
+  return {
+    ...(truncateTextValue(data.threadId, 96) ? { threadId: truncateTextValue(data.threadId, 96) } : {}),
+    ...(truncateTextValue(data.turnId, 96) ? { turnId: truncateTextValue(data.turnId, 96) } : {}),
+    ...(truncateTextValue(data.toolUseId, 96) ? { toolUseId: truncateTextValue(data.toolUseId, 96) } : {}),
+    ...(truncateTextValue(data.toolName, 80) ? { toolName: truncateTextValue(data.toolName, 80) } : {}),
+    phase,
+    ...(status ? { status } : {}),
+    ...(summary ? { summary } : {}),
+    ...(truncateTextValue(data.line, maxStringBytes) ? { line: truncateTextValue(data.line, maxStringBytes) } : {}),
+  }
+}
+
+function buildAppToolEventTrimCandidates(args: {
+  record: SessionEventRecord
+  maxLineBytes: number
+}): SessionEventRecord[] {
+  if (!isPlainObject(args.record.data)) return []
+
+  const medium = sanitizeAppToolEventData({
+    data: args.record.data,
+    maxStringBytes: Math.max(160, Math.floor(args.maxLineBytes * 0.08)),
+    maxLineBytes: Math.max(160, Math.floor(args.maxLineBytes * 0.08)),
+    maxLines: 24,
+    dropInput: false,
+  })
+  const aggressive = sanitizeAppToolEventData({
+    data: args.record.data,
+    maxStringBytes: Math.max(96, Math.floor(args.maxLineBytes * 0.05)),
+    maxLineBytes: Math.max(96, Math.floor(args.maxLineBytes * 0.05)),
+    maxLines: 8,
+    dropInput: true,
+  })
+  const essential = buildEssentialAppToolEventData(args.record.data, Math.max(80, Math.floor(args.maxLineBytes * 0.04)))
+
+  return [
+    { ...args.record, data: medium },
+    { ...args.record, data: aggressive },
+    { ...args.record, data: essential },
+  ]
+}
+
 function encodeRecord(record: SessionRecord, maxLineBytes: number): { line: string; truncated: boolean } {
   const tryEncode = (rec: SessionRecord): { json: string; bytes: number } => {
     const json = safeStringify(rec)
@@ -140,6 +276,14 @@ function encodeRecord(record: SessionRecord, maxLineBytes: number): { line: stri
     while (rec.messages.length > 0) {
       rec.messages = rec.messages.slice(1)
       ;({ json, bytes } = tryEncode(rec))
+      if (bytes <= maxLineBytes) return { line: json + '\n', truncated: true }
+    }
+  }
+
+  if (record.type === 'event' && record.name === 'app_tool_event') {
+    const candidates = buildAppToolEventTrimCandidates({ record, maxLineBytes })
+    for (const candidate of candidates) {
+      ;({ json, bytes } = tryEncode(candidate))
       if (bytes <= maxLineBytes) return { line: json + '\n', truncated: true }
     }
   }

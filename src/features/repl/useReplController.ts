@@ -71,6 +71,7 @@ import {
 } from '../semantics/core/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
+import { toPersistedAppToolEventData } from './sessionSave/appToolEventPayload'
 import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
 
 const CANONICAL_THREAD_ID = 'tui-live'
@@ -543,6 +544,13 @@ export function useReplController(deps: {
   }, [])
 
 	  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+    if (sessionSaveEnabled && event.kind === 'tool_event') {
+      const writer = sessionWriterRef.current
+      if (writer) {
+        void writer.appendEvent('app_tool_event', toPersistedAppToolEventData(event))
+      }
+    }
+
 	    const includeAssistantStreaming = assistantTextMode === 'stream'
 	    const projected = projectCanonicalEventToTransientMessages({
 	      projection: canonicalRefs.projectionRef.current,
@@ -588,7 +596,7 @@ export function useReplController(deps: {
     if (projected.changed) {
       setCanonicalTurnMessages(projectedTransientRows)
     }
-	  }, [assistantTextMode])
+	  }, [assistantTextMode, sessionSaveEnabled])
 
 		  useEffect(() => {
 		    if (!runtimeStateRefs.pendingStaticSurfaceResetRef.current) return

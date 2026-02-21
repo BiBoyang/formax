@@ -5,6 +5,10 @@ import path from 'node:path'
 import type { ChatHistory } from '../../../chat/engine'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import { formatToolResult } from '../../../utils/toolFormatting'
+import {
+  createPersistedToolEventAggregator,
+  type PersistedToolMessage,
+} from './persistedToolEvents'
 import type { HistoryStateRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
 import { getArchivedSessionsRoot, getSessionsRoot } from './paths'
 
@@ -28,71 +32,14 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
 }
 
-type PersistedToolReplayMessage = {
-  id: string
-  occurredAtMs: number
-  sequence: number
-  toolUseId?: string
-  toolName: string
-  status: 'running' | 'completed' | 'error'
-  summary: string
-  input?: Record<string, unknown>
-  patchStartLineNumber?: number
-  paramsText?: string
-  detailLines: string[]
+function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
+  return isObject(value) && !Array.isArray(value) && Object.keys(value).length > 0
 }
 
 function coerceNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
-}
-
-function parseTimestampMs(value: unknown): number {
-  if (typeof value !== 'string') return 0
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function parseToolStatus(value: unknown): 'running' | 'completed' | 'error' | null {
-  if (value === 'running' || value === 'completed' || value === 'error') return value
-  return null
-}
-
-function parseInputObject(value: unknown): Record<string, unknown> | undefined {
-  if (!isObject(value) || Array.isArray(value)) return undefined
-  return value
-}
-
-function parseNonEmptyInputObject(value: unknown): Record<string, unknown> | undefined {
-  const parsed = parseInputObject(value)
-  if (!parsed) return undefined
-  return Object.keys(parsed).length > 0 ? parsed : undefined
-}
-
-function parsePatchStartLineNumber(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
-  if (value <= 0) return undefined
-  return Math.floor(value)
-}
-
-function parseLines(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const lines: string[] = []
-  for (const line of value) {
-    if (typeof line !== 'string') continue
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    lines.push(trimmed)
-  }
-  return lines
-}
-
-function appendUniqueLine(lines: string[], line: string): void {
-  const normalized = line.trim()
-  if (!normalized) return
-  if (lines[lines.length - 1] === normalized) return
-  lines.push(normalized)
 }
 
 function detailLinesFromPersistedTool(args: { summary: string; detailLines: string[] }): string[] {
@@ -137,7 +84,7 @@ function normalizePersistedToolDisplay(args: {
   }
 }
 
-function toToolMsgFromPersisted(args: { tool: PersistedToolReplayMessage; fallbackTimestamp: Date }): Msg {
+function toToolMsgFromPersisted(args: { tool: PersistedToolMessage; fallbackTimestamp: Date }): Msg {
   const timestamp = args.tool.occurredAtMs > 0 ? new Date(args.tool.occurredAtMs) : args.fallbackTimestamp
   const display = normalizePersistedToolDisplay({
     toolName: args.tool.toolName,
@@ -162,62 +109,61 @@ function toToolMsgFromPersisted(args: { tool: PersistedToolReplayMessage; fallba
   }
 }
 
-function mergeUiMsgWithPersistedTool(args: {
-  uiMsg: Msg
-  tool: PersistedToolReplayMessage
-  fallbackTimestamp: Date
-}): Msg {
-  const timestamp =
-    args.uiMsg.timestamp instanceof Date
-      ? args.uiMsg.timestamp
-      : args.tool.occurredAtMs > 0
-        ? new Date(args.tool.occurredAtMs)
-        : args.fallbackTimestamp
-  const existingToolInfo = args.uiMsg.toolInfo
-  const display = normalizePersistedToolDisplay({
-    toolName: args.tool.toolName,
-    status: args.tool.status,
-    summary: args.tool.summary,
-    detailLines: args.tool.detailLines,
-  })
-  const existingMiddleLines = Array.isArray(existingToolInfo?.middleLines)
-    ? existingToolInfo.middleLines.filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
-    : []
-  const mergedMiddleLines = existingMiddleLines.length > 0 ? existingMiddleLines : display.middleLines
-  const existingResult = typeof existingToolInfo?.result === 'string' ? existingToolInfo.result : ''
-  const nextResult =
-    existingResult.length > 0
-      ? existingResult
-      : display.rawResult
-  const existingContent = typeof args.uiMsg.content === 'string' ? args.uiMsg.content.trim() : ''
-
-  return {
-    ...args.uiMsg,
-    role: 'tool',
-    content: existingContent || display.summary,
-    timestamp,
-    toolInfo: {
-      name: args.tool.toolName,
-      ...(args.tool.toolUseId ? { toolUseId: args.tool.toolUseId } : {}),
-      input: parseNonEmptyInputObject(existingToolInfo?.input) ?? parseNonEmptyInputObject(args.tool.input) ?? {},
-      status: args.tool.status,
-      ...(mergedMiddleLines.length > 0 ? { middleLines: mergedMiddleLines } : {}),
-      ...(nextResult ? { result: nextResult } : {}),
-      ...(existingToolInfo?.patchStartLineNumber !== undefined
-        ? { patchStartLineNumber: existingToolInfo.patchStartLineNumber }
-        : args.tool.patchStartLineNumber !== undefined
-          ? { patchStartLineNumber: args.tool.patchStartLineNumber }
-          : {}),
-    },
-  }
-}
-
 function reviveMsg(raw: Msg): Msg {
   return { ...raw, timestamp: new Date((raw as any).timestamp) }
 }
 
 function reviveHistory(history: ChatHistory): ChatHistory {
   return history
+}
+
+function mergeLegacyToolFieldsIntoPersisted(args: { persisted: Msg; legacy: Msg }): Msg {
+  if (args.persisted.role !== 'tool' || args.legacy.role !== 'tool') return args.persisted
+  const persistedToolInfo = args.persisted.toolInfo
+  const legacyToolInfo = args.legacy.toolInfo
+  if (!persistedToolInfo || !legacyToolInfo) return args.persisted
+
+  const mergedInput =
+    isNonEmptyRecord(persistedToolInfo.input) || !isNonEmptyRecord(legacyToolInfo.input)
+      ? persistedToolInfo.input
+      : legacyToolInfo.input
+  const mergedResult =
+    typeof persistedToolInfo.result === 'string' && persistedToolInfo.result.trim().length > 0
+      ? persistedToolInfo.result
+      : legacyToolInfo.result
+  const mergedMiddleLines =
+    Array.isArray(persistedToolInfo.middleLines) && persistedToolInfo.middleLines.length > 0
+      ? persistedToolInfo.middleLines
+      : legacyToolInfo.middleLines
+  const mergedPatchStartLineNumber =
+    typeof persistedToolInfo.patchStartLineNumber === 'number' &&
+    Number.isFinite(persistedToolInfo.patchStartLineNumber) &&
+    persistedToolInfo.patchStartLineNumber > 0
+      ? Math.floor(persistedToolInfo.patchStartLineNumber)
+      : typeof legacyToolInfo.patchStartLineNumber === 'number' &&
+          Number.isFinite(legacyToolInfo.patchStartLineNumber) &&
+          legacyToolInfo.patchStartLineNumber > 0
+        ? Math.floor(legacyToolInfo.patchStartLineNumber)
+        : undefined
+
+  const mergedToolInfo = {
+    ...persistedToolInfo,
+    ...(mergedInput !== undefined ? { input: mergedInput } : {}),
+    ...(mergedResult !== undefined ? { result: mergedResult } : {}),
+    ...(mergedMiddleLines !== undefined ? { middleLines: mergedMiddleLines } : {}),
+    ...(mergedPatchStartLineNumber !== undefined ? { patchStartLineNumber: mergedPatchStartLineNumber } : {}),
+  }
+
+  const mergedContent =
+    (typeof args.persisted.content === 'string' && args.persisted.content.trim().length > 0
+      ? args.persisted.content
+      : args.legacy.content) ?? args.persisted.content
+
+  return {
+    ...args.persisted,
+    ...(typeof mergedContent === 'string' ? { content: mergedContent } : {}),
+    toolInfo: mergedToolInfo,
+  }
 }
 
 async function collectSessionCandidates(args: { root: string; archived: boolean }): Promise<string[]> {
@@ -279,9 +225,8 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
   let meta: SessionMetaRecord | null = null
   let lastHistory: HistoryStateRecord | null = null
   const msgById = new Map<string, Msg>()
-  const toolByKey = new Map<string, PersistedToolReplayMessage>()
-  const activeAnonymousKeyByBucket = new Map<string, string>()
-  let toolSequence = 0
+  const uiToolById = new Map<string, Msg>()
+  const persistedToolAggregator = createPersistedToolEventAggregator()
   let parseErrors = 0
 
   const rl = readline.createInterface({
@@ -309,7 +254,12 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
     if (type === 'ui_msg') {
       const rec = parsed as UiMsgRecord
       if (!rec.msg?.id) continue
-      msgById.set(rec.msg.id, reviveMsg(rec.msg))
+      const revived = reviveMsg(rec.msg)
+      if (revived.role === 'tool') {
+        uiToolById.set(revived.id, revived)
+        continue
+      }
+      msgById.set(revived.id, revived)
       continue
     }
     if (type === 'history_state') {
@@ -320,68 +270,10 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
     if (type === 'event') {
       const name = coerceNonEmptyString(parsed.name)
       if (name !== 'app_tool_event') continue
-      const data = isObject(parsed.data) ? parsed.data : null
-      if (!data) continue
-
-      const toolUseId = coerceNonEmptyString(data.toolUseId) ?? undefined
-      const turnId = coerceNonEmptyString(data.turnId) ?? 'turn'
-      const parsedToolName = coerceNonEmptyString(data.toolName)
-      const toolName = parsedToolName ?? 'Tool'
-      const phase = coerceNonEmptyString(data.phase)
-      const bucketKey = `${turnId}:${toolName}`
-
-      let key: string
-      if (toolUseId) {
-        key = toolUseId
-      } else {
-        if (phase === 'start' || !activeAnonymousKeyByBucket.has(bucketKey)) {
-          activeAnonymousKeyByBucket.set(bucketKey, `anon:${bucketKey}:${toolSequence}`)
-        }
-        key = activeAnonymousKeyByBucket.get(bucketKey) ?? `anon:${bucketKey}:${toolSequence}`
-      }
-
-      const ts = parseTimestampMs(parsed.ts)
-      const summary = coerceNonEmptyString(data.summary)
-      const input = parseInputObject(data.input)
-      const patchStartLineNumber = parsePatchStartLineNumber(data.patchStartLineNumber)
-      const paramsText = coerceNonEmptyString(data.paramsText) ?? undefined
-      const status = parseToolStatus(data.status)
-      const lineValue = coerceNonEmptyString(data.line)
-      const linesValue = parseLines(data.lines)
-
-      let current = toolByKey.get(key)
-      if (!current) {
-        current = {
-          id: `tool-${key}`,
-          occurredAtMs: ts,
-          sequence: toolSequence,
-          ...(toolUseId ? { toolUseId } : {}),
-          toolName,
-          status: status ?? 'running',
-          summary: summary ?? `${toolName} running`,
-          ...(input ? { input } : {}),
-          ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
-          ...(paramsText ? { paramsText } : {}),
-          detailLines: [],
-        }
-        toolByKey.set(key, current)
-      }
-
-      if (parsedToolName) current.toolName = parsedToolName
-      if (status) current.status = status
-      if (summary) current.summary = summary
-      if (input) current.input = input
-      if (patchStartLineNumber !== undefined) current.patchStartLineNumber = patchStartLineNumber
-      if (paramsText) current.paramsText = paramsText
-      if (lineValue) appendUniqueLine(current.detailLines, lineValue)
-      for (const detailLine of linesValue) appendUniqueLine(current.detailLines, detailLine)
-      if (current.occurredAtMs === 0 && ts > 0) current.occurredAtMs = ts
-
-      const terminal = phase === 'end' || status === 'completed' || status === 'error'
-      if (!toolUseId && terminal) {
-        activeAnonymousKeyByBucket.delete(bucketKey)
-      }
-      toolSequence += 1
+      persistedToolAggregator.ingest({
+        ts: parsed.ts,
+        data: parsed.data,
+      })
     }
   }
 
@@ -389,41 +281,47 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
     throw new Error(`Invalid session file (missing session_meta): ${filePath}`)
   }
 
-  if (toolByKey.size > 0) {
+  const persistedTools = persistedToolAggregator.finalize()
+  const persistedTerminalToolUseIds = new Set<string>()
+  const persistedMessageIdByToolUseId = new Map<string, string>()
+  if (persistedTools.length > 0) {
     const fallbackTimestamp = new Date(meta.startedAt)
-    const uiToolByUseId = new Map<string, Msg>()
-    for (const msg of msgById.values()) {
-      if (msg.role !== 'tool') continue
-      const toolUseId = typeof msg.toolInfo?.toolUseId === 'string' ? msg.toolInfo.toolUseId.trim() : ''
-      if (!toolUseId) continue
-      uiToolByUseId.set(toolUseId, msg)
-    }
-
-    const persistedTools = Array.from(toolByKey.values()).sort((a, b) => {
-      if (a.occurredAtMs !== b.occurredAtMs) return a.occurredAtMs - b.occurredAtMs
-      return a.sequence - b.sequence
-    })
-
     for (const persistedTool of persistedTools) {
-      const existing = persistedTool.toolUseId ? uiToolByUseId.get(persistedTool.toolUseId) : null
-      if (existing) {
-        const merged = mergeUiMsgWithPersistedTool({
-          uiMsg: existing,
-          tool: persistedTool,
-          fallbackTimestamp,
-        })
-        msgById.set(merged.id, merged)
-        continue
-      }
       const nextMsg = toToolMsgFromPersisted({
         tool: persistedTool,
         fallbackTimestamp,
       })
-      msgById.set(nextMsg.id, nextMsg)
       if (persistedTool.toolUseId) {
-        uiToolByUseId.set(persistedTool.toolUseId, nextMsg)
+        persistedMessageIdByToolUseId.set(persistedTool.toolUseId, nextMsg.id)
+        if (persistedTool.status === 'completed' || persistedTool.status === 'error') {
+          persistedTerminalToolUseIds.add(persistedTool.toolUseId)
+        }
+      }
+      msgById.set(nextMsg.id, nextMsg)
+    }
+  }
+
+  for (const toolMsg of uiToolById.values()) {
+    const toolUseId = coerceNonEmptyString(toolMsg.toolInfo?.toolUseId)
+    if (toolUseId) {
+      const persistedMsgId = persistedMessageIdByToolUseId.get(toolUseId)
+      if (persistedMsgId) {
+        const persistedMsg = msgById.get(persistedMsgId)
+        if (persistedMsg && persistedTerminalToolUseIds.has(toolUseId)) {
+          msgById.set(
+            persistedMsgId,
+            mergeLegacyToolFieldsIntoPersisted({
+              persisted: persistedMsg,
+              legacy: toolMsg,
+            }),
+          )
+          continue
+        }
+        msgById.delete(persistedMsgId)
       }
     }
+    if (msgById.has(toolMsg.id)) continue
+    msgById.set(toolMsg.id, toolMsg)
   }
 
   const messages = Array.from(msgById.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())

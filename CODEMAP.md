@@ -30,6 +30,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Shared web/bridge network + security helpers (host/port/url/origin/token): `src/network/runtime.ts`
 - Web reference React client (isolated app): `apps/web-reference-react/*`
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
+- Shared persisted tool-event reconstruction (used by app-server + REPL resume): `src/features/repl/sessionSave/persistedToolEvents.ts`
 - Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)
@@ -37,6 +38,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/{send,streaming,canonical,session,ui,shared}/*`
 - Canonical event projection helper (hook-level orchestration): `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
 - Session transition helpers (abort/new session): `src/features/repl/controller/session/sessionTransitions.ts`
+- Session save/replay core (writer/reader + app tool-event payload mapping): `src/features/repl/sessionSave/{writer,reader,appToolEventPayload}.ts`
 - REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `src/screens/repl/hotkeys.ts`
 - Prompt mode gating (overlays/prompt blocks disable hotkeys): `src/screens/repl/promptMode.ts`
 - Transcript renderers (Primary vs Expanded): `src/screens/repl/transcript.tsx`

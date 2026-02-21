@@ -47,13 +47,38 @@ function tick(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function waitFor(fn: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitFor(fn: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    if (fn()) return
+    if (await fn()) return
     await tick(5)
   }
   throw new Error('Timed out waiting for condition')
+}
+
+async function listSessionFiles(configDir: string): Promise<string[]> {
+  const root = path.join(configDir, 'sessions')
+  const out: string[] = []
+  const walk = async (dir: string) => {
+    const ents = await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const ent of ents) {
+      const full = path.join(dir, ent.name)
+      if (ent.isDirectory()) await walk(full)
+      else if (ent.isFile() && ent.name.endsWith('.jsonl')) out.push(full)
+    }
+  }
+  await walk(root)
+  return out.sort()
+}
+
+async function waitForSessionFiles(configDir: string, minCount: number): Promise<string[]> {
+  const start = Date.now()
+  while (Date.now() - start < 2000) {
+    const files = await listSessionFiles(configDir)
+    if (files.length >= minCount) return files
+    await tick(10)
+  }
+  throw new Error('Timed out waiting for session files')
 }
 
 function createCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
@@ -1915,6 +1940,74 @@ describe('useReplController sessionSave resume', () => {
       expect(observedResume).toBe(true)
     } finally {
       process.chdir(prevCwd)
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('persists app_tool_event records for live tool turns so replay can rebuild tool rows', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+
+    try {
+      const runTurn = vi.fn(async ({ history, user, onEvent }: any) => {
+        onEvent({ type: 'tool_start', id: 'tool-1', name: 'Bash' } as StreamEvent)
+        onEvent({ type: 'tool_input', id: 'tool-1', input: { command: 'pwd' } } as StreamEvent)
+        onEvent({
+          type: 'tool_end',
+          id: 'tool-1',
+          result: { tool_use_id: 'tool-1', content: '/repo\nsecond line', is_error: false },
+        } as StreamEvent)
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user]
+      })
+      const engine: ChatEngine = { runTurn } as any
+
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <Harness
+          engine={engine}
+          cwd={cwdDir}
+          cfg={createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })}
+          onController={(c) => (controller = c)}
+        />,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('run tool')
+      await waitFor(() => controller.state.isLoading === false)
+
+      const files = await waitForSessionFiles(configDir, 1)
+      const filePath = files[files.length - 1]
+      expect(filePath).toBeTruthy()
+
+      let appToolEvents: any[] = []
+      await waitFor(async () => {
+        const raw = await fsp.readFile(String(filePath), 'utf8')
+        const records = raw
+          .split('\n')
+          .map((line) => line.trimEnd())
+          .filter(Boolean)
+          .map((line) => JSON.parse(line))
+        appToolEvents = records.filter((record: any) => record.type === 'event' && record.name === 'app_tool_event')
+        const phases = new Set(appToolEvents.map((record: any) => record?.data?.phase))
+        return phases.has('start') && phases.has('update') && phases.has('end')
+      })
+
+      expect(appToolEvents.length).toBeGreaterThanOrEqual(3)
+
+      const replay = await readSessionFile(String(filePath))
+      const tool = replay.messages.find((message) => message.role === 'tool' && message.toolInfo?.toolUseId === 'tool-1')
+      expect(tool?.toolInfo?.status).toBe('completed')
+      expect(tool?.toolInfo?.input).toEqual({ command: 'pwd' })
+      expect(String(tool?.content ?? '')).toContain('/repo')
+    } finally {
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
       restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })

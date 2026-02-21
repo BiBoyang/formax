@@ -140,7 +140,7 @@ describe('ThreadStore', () => {
     expect(page3.nextCursor).toBeNull()
   })
 
-  it('includes persisted tool messages in thread/messages', async () => {
+  it('hydrates legacy ui_msg-only tool rows in thread/messages when event rows are absent', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
@@ -178,19 +178,19 @@ describe('ThreadStore', () => {
           role: 'user',
           text: 'run type-check',
         }),
+      ]),
+    )
+    expect(out.data).toEqual(
+      expect.arrayContaining([
         expect.objectContaining({
-          id: 'tool-1',
           kind: 'tool',
           toolUseId: 'call-1',
           toolName: 'Bash',
           status: 'completed',
+          summary: 'Ran command for 3s',
         }),
       ]),
     )
-    const tool = out.data.find((entry) => entry.id === 'tool-1') as any
-    expect(tool.input).toEqual({ command: 'npm run type-check' })
-    expect(tool.paramsText).toContain('command=')
-    expect(tool.detailLines).toEqual(expect.arrayContaining(['Ran command for 3s', 'update', 'end']))
   })
 
   it('hydrates tool rows from app_tool_event records when ui_msg has no tool role', async () => {
