@@ -159,18 +159,18 @@ describe('TranscriptPane', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('renders running thinking as lightweight label without delta body text', () => {
+  it('renders running thinking as lightweight line', () => {
     render(
       <TranscriptPane
         {...baseProps({ logs: [{ id: 'thinking-1', kind: 'thinking', status: 'running', text: 'Step A. Step B.', turnId: 'turn-1' }] })}
       />,
     )
 
-    expect(screen.getByText('thinking')).toBeInTheDocument()
+    expect(screen.getByText('∴ Thinking…')).toBeInTheDocument()
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
   })
 
-  it('renders finalized thinking collapsed and can expand details', () => {
+  it('does not render finalized thinking rows in the primary transcript', () => {
     render(
       <TranscriptPane
         {...baseProps({
@@ -179,10 +179,35 @@ describe('TranscriptPane', () => {
       />,
     )
 
-    expect(screen.getByText('thinking')).toBeInTheDocument()
+    expect(screen.queryByText('∴ Thinking…')).not.toBeInTheDocument()
     expect(screen.queryByText(/Step A\.\s*Step B\./)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /thinking/i }))
-    expect(screen.getByText(/Step A\.\s*Step B\./)).toBeInTheDocument()
+  })
+
+  it('does not count finalized thinking rows against transcript render window', () => {
+    const messageLogs = Array.from({ length: 25 }, (_, index) => ({
+      id: `msg-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `msg-${index}`,
+    }))
+    const finalizedThinking = Array.from({ length: 10 }, (_, index) => ({
+      id: `thinking-final-${index}`,
+      kind: 'thinking' as const,
+      status: 'finalized' as const,
+      text: `hidden-think-${index}`,
+      turnId: 'turn-1',
+    }))
+
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [...messageLogs, ...finalizedThinking],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('msg-0')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Render earlier messages/i })).not.toBeInTheDocument()
   })
 
   it('adds visual turn boundaries when turn id changes in transcript stream', () => {

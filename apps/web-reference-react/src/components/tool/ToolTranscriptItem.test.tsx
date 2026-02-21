@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptItem } from '../../types'
 import { ToolTranscriptItem } from './ToolTranscriptItem'
@@ -18,18 +18,14 @@ function makeToolItem(overrides: Partial<Extract<TranscriptItem, { kind: 'tool_c
 }
 
 describe('ToolTranscriptItem', () => {
-  it('renders running status with pulsing dot and toggles details', () => {
-    const onToggle = vi.fn()
+  it('renders running bash as header plus IN row only', () => {
     const item = makeToolItem()
-    const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={onToggle} />)
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
     expect(document.querySelector('.animate-pulse')).not.toBeNull()
-    expect(screen.queryByText('/repo')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button'))
-    expect(onToggle).toHaveBeenCalledTimes(1)
-
-    rerender(<ToolTranscriptItem item={item} open onToggle={onToggle} />)
-    expect(screen.getByText('/repo')).toBeInTheDocument()
+    expect(screen.getByText('Bash')).toBeInTheDocument()
+    expect(screen.getByText('IN')).toBeInTheDocument()
+    expect(screen.queryByText('OUT')).not.toBeInTheDocument()
   })
 
   it('renders approval input lifecycle label', () => {
@@ -67,8 +63,10 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Bash ls -la/i)).toBeInTheDocument()
-    expect(document.querySelector('[class*="bg-emerald-500/80"]')).not.toBeNull()
+    expect(screen.getByText('Bash')).toBeInTheDocument()
+    expect(screen.getByText('ls -la')).toBeInTheDocument()
+    expect(screen.getByText('OUT')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-status-dot')).not.toHaveClass('animate-pulse')
   })
 
   it('parses bash params when command contains comma and pairs have no spaces', () => {
@@ -80,7 +78,47 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Bash echo "a, b"/i)).toBeInTheDocument()
+    expect(screen.getByText('Bash')).toBeInTheDocument()
+    expect(screen.getByText('echo "a, b"')).toBeInTheDocument()
+  })
+
+  it('promotes exit code to the first OUT line for bash errors', () => {
+    const item = makeToolItem({
+      status: 'error',
+      paramsText: 'command="forma --version", description="Show forma version"',
+      summary: 'process failed with exit code 127',
+      detailLines: ['(eval):1: command not found: forma'],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Exit code 127')).toBeInTheDocument()
+    expect(screen.getByText('(eval):1: command not found: forma')).toBeInTheDocument()
+  })
+
+  it('clamps long OUT previews with internal scrolling', () => {
+    const item = makeToolItem({
+      status: 'completed',
+      paramsText: 'command="npm install"',
+      summary: 'added 129 packages',
+      detailLines: ['line-1', 'line-2', 'line-3', 'line-4', 'line-5', 'line-6', 'line-7'],
+    })
+    const { container } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(container.querySelector('.overflow-y-auto')).not.toBeNull()
+  })
+
+  it('caps rendered preview rows for very large outputs', () => {
+    const item = makeToolItem({
+      status: 'completed',
+      paramsText: 'command="tree -L 4 src"',
+      summary: 'src',
+      detailLines: Array.from({ length: 350 }, (_, index) => `line-${index + 1}`),
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('line-1')).toBeInTheDocument()
+    expect(screen.queryByText('line-350')).not.toBeInTheDocument()
+    expect(screen.getByText(/more lines not shown/)).toBeInTheDocument()
   })
 
   it('renders glob renderer summary from pattern param', () => {
@@ -120,7 +158,36 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Read package\.json/)).toBeInTheDocument()
+    expect(screen.getByText('Read')).toBeInTheDocument()
+    expect(screen.getByText('package.json')).toBeInTheDocument()
+  })
+
+  it('keeps edit target file visible when collapsed', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      summary: 'Applied edit',
+      detailLines: ['Updated 1 occurrence'],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Edit')).toBeInTheDocument()
+    expect(screen.getByText('src/demo.js')).toBeInTheDocument()
+  })
+
+  it('shows edit params in verbose mode even when subtitle is present', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      summary: 'Applied edit',
+      detailLines: ['Updated 1 occurrence'],
+    })
+    render(<ToolTranscriptItem item={item} displayDensity="verbose" open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('src/demo.js')).toBeInTheDocument()
+    expect(screen.getByText(/old_string="foo"/)).toBeInTheDocument()
   })
 
   it('renders websearch with query promoted to title', () => {
@@ -212,7 +279,8 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText('UnknownTool (--raw --flag)')).toBeInTheDocument()
+    expect(screen.getByText('UnknownTool')).toBeInTheDocument()
+    expect(screen.getByText('--raw --flag')).toBeInTheDocument()
   })
 
   it('shows params on collapsed expandable header in verbose density', () => {
@@ -225,10 +293,10 @@ describe('ToolTranscriptItem', () => {
     const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={onToggle} />)
 
     expect(screen.getByText('UnknownTool')).toBeInTheDocument()
-    expect(screen.queryByText('UnknownTool (--raw --flag)')).not.toBeInTheDocument()
+    expect(screen.queryByText('--raw --flag')).not.toBeInTheDocument()
 
     rerender(<ToolTranscriptItem item={item} displayDensity="verbose" open={false} onToggle={onToggle} />)
-    expect(screen.getByText('UnknownTool (--raw --flag)')).toBeInTheDocument()
+    expect(screen.getByText('--raw --flag')).toBeInTheDocument()
   })
 
   it('renders workspace-relative paths when cwd is provided', () => {
@@ -249,7 +317,8 @@ describe('ToolTranscriptItem', () => {
       />,
     )
 
-    expect(screen.getByText(/Write snake-game\/index\.html/)).toBeInTheDocument()
+    expect(screen.getByText('Write')).toBeInTheDocument()
+    expect(screen.getByText('snake-game/index.html')).toBeInTheDocument()
     expect(screen.queryByText(/\/Users\/david\/Documents\/github\/formax/)).not.toBeInTheDocument()
   })
 
@@ -263,6 +332,7 @@ describe('ToolTranscriptItem', () => {
     })
 
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    expect(screen.getByText('2 lines')).toBeInTheDocument()
     expect(screen.getByText('line1')).toBeInTheDocument()
     expect(screen.getByText('line2')).toBeInTheDocument()
   })
@@ -278,7 +348,7 @@ describe('ToolTranscriptItem', () => {
     })
 
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText('Diff preview unavailable (tool input was truncated).')).toBeInTheDocument()
+    expect(screen.getByText('Preview unavailable (tool input was truncated).')).toBeInTheDocument()
   })
 
   it('renders Enter/ExitPlanMode with semantic titles', () => {

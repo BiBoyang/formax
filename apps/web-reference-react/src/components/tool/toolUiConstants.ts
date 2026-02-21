@@ -1,0 +1,2 @@
+export const TOOL_PREVIEW_MAX_LINES = 6
+export const TOOL_PREVIEW_MAX_RENDER_LINES = 200

@@ -65,9 +65,12 @@ describe('buildToolUiBlocks', () => {
     })
     const blocks = buildToolUiBlocks(item)
     const header = blocks.find((block) => block.kind === 'header')
+    const io = blocks.find((block) => block.kind === 'io')
     expect(header?.kind).toBe('header')
-    expect(header?.title).toBe('Bash ls -la')
-    expect(header?.paramsText).toBe('cwd="/repo", timeout=1000')
+    expect(header?.title).toBe('Bash')
+    expect(header?.paramsText).toBeUndefined()
+    expect(io?.kind).toBe('io')
+    expect(io?.inputText).toBe('ls -la')
   })
 
   it('keeps bash command-only params hidden from header params', () => {
@@ -80,9 +83,12 @@ describe('buildToolUiBlocks', () => {
     })
     const blocks = buildToolUiBlocks(item)
     const header = blocks.find((block) => block.kind === 'header')
+    const io = blocks.find((block) => block.kind === 'io')
     expect(header?.kind).toBe('header')
-    expect(header?.title).toBe('Bash pwd')
+    expect(header?.title).toBe('Bash')
     expect(header?.paramsText).toBeUndefined()
+    expect(io?.kind).toBe('io')
+    expect(io?.inputText).toBe('pwd')
   })
 
   it('keeps empty bash command-only params hidden from header params', () => {
@@ -100,6 +106,35 @@ describe('buildToolUiBlocks', () => {
     expect(header?.paramsText).toBeUndefined()
   })
 
+  it('omits OUT rows for running bash tools', () => {
+    const item = makeToolItem({
+      toolName: 'Bash',
+      status: 'running',
+      summary: 'Bash running',
+      paramsText: 'command="npm install"',
+      detailLines: ['partial output line'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const io = blocks.find((block) => block.kind === 'io')
+    expect(io?.kind).toBe('io')
+    expect(io?.inputText).toBe('npm install')
+    expect(io?.outputLines).toBeUndefined()
+  })
+
+  it('keeps bash OUT content as raw output text instead of collapsing cwd path', () => {
+    const item = makeToolItem({
+      toolName: 'Bash',
+      status: 'completed',
+      summary: '/Users/david/Documents/github/formax',
+      paramsText: 'command="pwd"',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item, { cwd: '/Users/david/Documents/github/formax' })
+    const io = blocks.find((block) => block.kind === 'io')
+    expect(io?.kind).toBe('io')
+    expect(io?.outputLines).toEqual(['/Users/david/Documents/github/formax'])
+  })
+
   it('does not use completed write summary while write is still running', () => {
     const item = makeToolItem({
       toolName: 'Write',
@@ -110,11 +145,13 @@ describe('buildToolUiBlocks', () => {
     })
     const blocks = buildToolUiBlocks(item)
     const header = blocks.find((block) => block.kind === 'header')
+    const preview = blocks.find((block) => block.kind === 'code_preview')
     expect(header?.kind).toBe('header')
-    expect(header?.summary).toBe('Write running')
+    expect(header?.title).toBe('Write')
+    expect(preview).toBeUndefined()
   })
 
-  it('renders write tool as diff block when content exists', () => {
+  it('renders write tool as code preview block when content exists', () => {
     const item = makeToolItem({
       toolName: 'Write',
       status: 'completed',
@@ -123,14 +160,13 @@ describe('buildToolUiBlocks', () => {
       detailLines: [],
     })
     const blocks = buildToolUiBlocks(item)
-    const diff = blocks.find((block) => block.kind === 'diff')
-    expect(diff?.kind).toBe('diff')
-    expect(diff?.files[0]?.path).toBe('snake-game/index.html')
-    expect(diff?.files[0]?.additions).toBe(2)
-    expect(diff?.files[0]?.deletions).toBe(0)
+    const preview = blocks.find((block) => block.kind === 'code_preview')
+    expect(preview?.kind).toBe('code_preview')
+    expect(preview?.lineCount).toBe(2)
+    expect(preview?.lines).toEqual(['line1', 'line2'])
   })
 
-  it('renders empty write content with zero added lines', () => {
+  it('does not render preview for empty write content', () => {
     const item = makeToolItem({
       toolName: 'Write',
       status: 'completed',
@@ -139,15 +175,8 @@ describe('buildToolUiBlocks', () => {
       detailLines: [],
     })
     const blocks = buildToolUiBlocks(item)
-    const diff = blocks.find((block) => block.kind === 'diff')
-    expect(diff?.kind).toBe('diff')
-    expect(diff?.files[0]?.additions).toBe(0)
-    expect(diff?.files[0]?.deletions).toBe(0)
-    const patch = diff?.files[0]?.patch ?? ''
-    const addedLines = patch
-      .split('\n')
-      .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
-    expect(addedLines).toEqual([])
+    const preview = blocks.find((block) => block.kind === 'code_preview')
+    expect(preview).toBeUndefined()
   })
 
   it('omits write diff when params text is truncated', () => {
@@ -164,7 +193,7 @@ describe('buildToolUiBlocks', () => {
     const info = blocks.find((block) => block.kind === 'info')
     expect(diff).toBeUndefined()
     expect(info?.kind).toBe('info')
-    expect(info?.text).toBe('Diff preview unavailable (tool input was truncated).')
+    expect(info?.text).toBe('Preview unavailable (tool input was truncated).')
   })
 
   it('omits write diff when content value is clipped by params formatter', () => {
@@ -184,7 +213,24 @@ describe('buildToolUiBlocks', () => {
     const info = blocks.find((block) => block.kind === 'info')
     expect(diff).toBeUndefined()
     expect(info?.kind).toBe('info')
-    expect(info?.text).toBe('Diff preview unavailable (tool input was truncated).')
+    expect(info?.text).toBe('Preview unavailable (tool input was truncated).')
+  })
+
+  it('preserves write error details for debugging', () => {
+    const item = makeToolItem({
+      toolName: 'Write',
+      status: 'error',
+      summary: 'Failed to write file',
+      paramsText: 'file_path="snake-game/index.html", content="line1\\nline2"',
+      detailLines: ['EACCES: permission denied'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const details = blocks.find((block) => block.kind === 'details')
+    expect(header?.kind).toBe('header')
+    expect(header?.expandable).toBe(true)
+    expect(details?.kind).toBe('details')
+    expect(details?.lines).toEqual(['Failed to write file', 'EACCES: permission denied'])
   })
 
   it('normalizes exit plan mode approval summary', () => {
@@ -197,6 +243,35 @@ describe('buildToolUiBlocks', () => {
     const header = blocks.find((block) => block.kind === 'header')
     expect(header?.kind).toBe('header')
     expect(header?.summary).toBe('Plan approved. You can start coding.')
+  })
+
+  it('keeps read renderer as header-only even when error details exist', () => {
+    const item = makeToolItem({
+      toolName: 'Read',
+      status: 'error',
+      paramsText: 'file_path="aaa.js"',
+      summary: 'Error reading file',
+      detailLines: ['ENOENT: no such file or directory'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    expect(blocks.find((block) => block.kind === 'header')).toBeDefined()
+    expect(blocks.find((block) => block.kind === 'details')).toBeUndefined()
+    expect(blocks.find((block) => block.kind === 'io')).toBeUndefined()
+  })
+
+  it('uses subtitle for read-like file context and keeps extra params separate', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'completed',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      summary: 'Applied edit',
+      detailLines: ['Updated 1 occurrence'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.subtitle).toBe('src/demo.js')
+    expect(header?.paramsText).toContain('old_string')
   })
 
   it('keeps AskUserQuestion title unchanged when questions param is missing', () => {

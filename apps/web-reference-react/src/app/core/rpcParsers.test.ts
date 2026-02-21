@@ -92,4 +92,60 @@ describe('rpcParsers', () => {
       { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'i-1', toolUseId: 'tool-1' },
     ])
   })
+
+  it('preserves user/system projection segments from replay state snapshots', () => {
+    const parsed = asThreadReplay({
+      data: [],
+      nextCursor: 2,
+      latestCursor: 2,
+      hasGap: false,
+      state: {
+        mode: 'normal',
+        activeTurnId: null,
+        lastTurnId: 'turn-1',
+        lastTurnStatus: 'completed',
+        pendingInputCount: 0,
+        canonicalProtocolAnomalyCount: 0,
+        pendingInputs: [],
+        invariantIssues: [],
+        projection: {
+          segments: [
+            {
+              id: 'turn-1:user:1',
+              kind: 'user',
+              turnId: 'turn-1',
+              text: 'hello',
+              messageKind: 'compact_summary',
+            },
+            {
+              id: 'turn-1:system:2',
+              kind: 'system',
+              turnId: 'turn-1',
+              role: 'assistant',
+              text: 'system note',
+              messageKind: 'command_subline',
+            },
+            {
+              id: 'turn-1:assistant:3',
+              kind: 'assistant',
+              turnId: 'turn-1',
+              text: 'reply',
+            },
+          ],
+          lastReplaySeq: 2,
+          toolNameByUseId: {},
+          openAssistantSegmentIdByTurn: {},
+          openThinkingSegmentIdByTurn: {},
+        },
+        toolNameByUseId: {},
+        updatedAt: '2026-02-10T00:06:00.000Z',
+      },
+    })
+
+    expect(parsed.state?.projection?.segments).toMatchObject([
+      { id: 'turn-1:user:1', kind: 'user', turnId: 'turn-1', text: 'hello', messageKind: 'compact_summary' },
+      { id: 'turn-1:system:2', kind: 'system', turnId: 'turn-1', role: 'assistant', text: 'system note', messageKind: 'command_subline' },
+      { id: 'turn-1:assistant:3', kind: 'assistant', turnId: 'turn-1', text: 'reply' },
+    ])
+  })
 })

@@ -73,6 +73,9 @@
   --diff-del: oklch(0.62 0.21 27);
   --diff-untracked: oklch(0.62 0.18 258);
   --button-disabled: color-mix(in oklch, var(--foreground) 46%, white);
+  --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
+  --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
+  --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
 }
 
 .dark {
@@ -142,6 +145,9 @@
   --diff-del: oklch(0.70 0.19 27);
   --diff-untracked: oklch(0.72 0.15 258);
   --button-disabled: color-mix(in oklch, var(--foreground) 52%, var(--background));
+  --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
+  --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
+  --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
 }
 
 @theme inline {

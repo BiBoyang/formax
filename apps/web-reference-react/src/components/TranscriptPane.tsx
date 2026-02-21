@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsRight, MessageSquare, Pause, Pencil, Square } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
@@ -25,6 +25,11 @@ const VIRTUALIZED_RENDER_WINDOW_CAP = 120
 type OpenIdsAction =
   | { type: 'toggle'; id: string }
   | { type: 'reset' }
+
+function shouldRenderTranscriptItem(item: TranscriptItem): boolean {
+  if (item.kind !== 'thinking') return true
+  return item.status === 'running'
+}
 
 function openIdsReducer(state: Set<string>, action: OpenIdsAction): Set<string> {
   if (action.type === 'reset') return new Set<string>()
@@ -108,38 +113,12 @@ function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline
 
 function ThinkingItem(props: {
   item: Extract<TranscriptItem, { kind: 'thinking' }>
-  open: boolean
-  onToggle: () => void
 }) {
-  const { item, open, onToggle } = props
-  const summary = item.text.trim().split('\n')[0]?.trim() || 'thinking'
-  const compactSummary = summary.length > 90 ? `${summary.slice(0, 90)}...` : summary
-  if (item.status === 'running') {
-    return (
-      <div className="flex items-center gap-2 py-1">
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-pulse" />
-        <div className="ui-text-meta ui-text-muted tracking-tight animate-pulse">{'thinking'}</div>
-      </div>
-    )
-  }
+  const { item } = props
+  if (item.status !== 'running') return null
   return (
-    <div className="rounded-md border bg-muted/15">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
-        onClick={onToggle}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="ui-text-meta ui-text-muted">thinking</span>
-        </div>
-        <span className="max-w-[320px] truncate ui-text-meta text-muted-foreground/80">{compactSummary}</span>
-      </button>
-      {open ? (
-        <div className="border-t bg-background/70 px-3 py-2 font-mono ui-text-meta text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-          {item.text}
-        </div>
-      ) : null}
+    <div className="flex items-center gap-2 py-1">
+      <div className="ui-text-meta ui-text-muted tracking-tight animate-pulse">{'\u2234 Thinking\u2026'}</div>
     </div>
   )
 }
@@ -170,9 +149,7 @@ type TranscriptItemRowProps = {
   showTurnGap: boolean
   activeThreadCwd?: string
   toolOpen: boolean
-  thinkingOpen: boolean
   onToggleTool: (id: string) => void
-  onToggleThinking: (id: string) => void
 }
 
 const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemRowProps) {
@@ -182,9 +159,7 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
     showTurnGap,
     activeThreadCwd,
     toolOpen,
-    thinkingOpen,
     onToggleTool,
-    onToggleThinking,
   } = props
 
   return (
@@ -211,11 +186,7 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
           <div className="text-muted-foreground ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
         </div>
       ) : item.kind === 'thinking' ? (
-        <ThinkingItem
-          item={item}
-          open={thinkingOpen}
-          onToggle={() => onToggleThinking(item.id)}
-        />
+        <ThinkingItem item={item} />
       ) : item.kind === 'turn_footer' ? (
         <TurnFooterItem item={item} />
       ) : item.kind === 'tool_call' ? (
@@ -283,7 +254,6 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const [renderLimit, setRenderLimit] = useState(turnInitRenderLimit)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
-  const [openThinkingIds, dispatchOpenThinkingIds] = useReducer(openIdsReducer, new Set<string>())
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
@@ -298,11 +268,12 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     !isInterrupting &&
     (isSending || Boolean(activeTurnId))
 
-  const hiddenInMemoryCount = Math.max(0, logs.length - renderLimit)
+  const visibleLogs = useMemo(() => logs.filter(shouldRenderTranscriptItem), [logs])
+  const hiddenInMemoryCount = Math.max(0, visibleLogs.length - renderLimit)
   const renderedLogs = useMemo(() => {
-    if (hiddenInMemoryCount <= 0) return logs
-    return logs.slice(-renderLimit)
-  }, [hiddenInMemoryCount, logs, renderLimit])
+    if (hiddenInMemoryCount <= 0) return visibleLogs
+    return visibleLogs.slice(-renderLimit)
+  }, [hiddenInMemoryCount, visibleLogs, renderLimit])
   const renderedRows = useMemo(() => {
     let lastKnownTurnId: string | undefined
     return renderedLogs.map((item, index) => {
@@ -317,7 +288,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       }
     })
   }, [renderedLogs])
-  const showJumpToBottom = logs.length > 0 && !isNearBottom
+  const showJumpToBottom = visibleLogs.length > 0 && !isNearBottom
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const viewport = viewportRef.current
@@ -445,7 +416,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       window.cancelAnimationFrame(raf)
     }
-  }, [autoStick, logs.length, showTurnLoading])
+  }, [autoStick, visibleLogs.length, showTurnLoading])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -508,10 +479,6 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     dispatchOpenToolIds({ type: 'toggle', id })
   }, [])
 
-  const toggleThinkingOpen = useCallback((id: string) => {
-    dispatchOpenThinkingIds({ type: 'toggle', id })
-  }, [])
-
   const modeInfo = modeMeta(mode)
 
   const increaseRenderLimit = (delta: number, preserveAnchor: boolean, maxLimit: number) => {
@@ -533,7 +500,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const renderEarlierMessages = () => {
     if (hiddenInMemoryCount <= 0) return
-    increaseRenderLimit(historyBatchRenderSize, true, logs.length)
+    increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
   }
 
   useEffect(() => {
@@ -541,7 +508,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [activeThreadId, turnInitRenderLimit])
 
   const handleLoadEarlier = () => {
-    increaseRenderLimit(historyBatchRenderSize, true, logs.length)
+    increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
     onLoadEarlier?.()
   }
 
@@ -554,7 +521,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   useEffect(() => {
     if (!activeTurnId) return
-    const target = Math.min(logs.length, renderWindowCap)
+    const target = Math.min(visibleLogs.length, renderWindowCap)
     if (renderLimit >= target) return
     const schedule = (callback: () => void): number => {
       const withIdle = window as Window & {
@@ -581,7 +548,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       cancel(handle)
     }
-  }, [activeTurnId, autoStick, logs.length, renderLimit, renderWindowCap, turnBatchRenderSize])
+  }, [activeTurnId, autoStick, visibleLogs.length, renderLimit, renderWindowCap, turnBatchRenderSize])
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
@@ -620,9 +587,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 showTurnGap={row.showTurnGap}
                 activeThreadCwd={activeThread?.cwd}
                 toolOpen={openToolIds.has(row.item.id)}
-                thinkingOpen={openThinkingIds.has(row.item.id)}
                 onToggleTool={toggleToolOpen}
-                onToggleThinking={toggleThinkingOpen}
               />
             ))}
 

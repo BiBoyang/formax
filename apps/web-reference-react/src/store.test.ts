@@ -214,6 +214,12 @@ describe('appReducer', () => {
       snapshot: {
         segments: [
           {
+            id: 'turn-1:user:0',
+            kind: 'user',
+            turnId: 'turn-1',
+            text: 'hello from user',
+          },
+          {
             id: 'turn-1:assistant:1',
             kind: 'assistant',
             turnId: 'turn-1',
@@ -233,13 +239,134 @@ describe('appReducer', () => {
       },
     })
 
-    expect(state.logs).toHaveLength(2)
-    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'assistant', text: 'hello', turnId: 'turn-1' })
-    expect(state.logs[1]).toMatchObject({ kind: 'turn_footer', turnId: 'turn-1', status: 'completed' })
+    expect(state.logs).toHaveLength(3)
+    expect(state.logs[0]).toMatchObject({ kind: 'message', role: 'user', text: 'hello from user', turnId: 'turn-1' })
+    expect(state.logs[1]).toMatchObject({ kind: 'message', role: 'assistant', text: 'hello', turnId: 'turn-1' })
+    expect(state.logs[2]).toMatchObject({ kind: 'turn_footer', turnId: 'turn-1', status: 'completed' })
     expect(state.transcriptProjection).toMatchObject({
       threadId: 'thread-1',
       lastReplaySeq: 2,
     })
+  })
+
+  it('keeps hydrated user rows stable when canonical projection appends assistant deltas', () => {
+    let state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          {
+            id: 'turn-1:user:0',
+            kind: 'user',
+            turnId: 'turn-1',
+            text: 'hello from user',
+          },
+          {
+            id: 'turn-1:assistant:1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'alpha',
+          },
+        ],
+        lastReplaySeq: 1,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: { 'turn-1': 'turn-1:assistant:1' },
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 2, eventId: 'assistant-delta-2' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: ' beta' },
+      ),
+    })
+
+    const userRows = state.logs.filter((item) => item.kind === 'message' && item.role === 'user')
+    expect(userRows).toHaveLength(1)
+    expect(userRows[0]).toMatchObject({ text: 'hello from user', turnId: 'turn-1' })
+  })
+
+  it('keeps hydrated system rows stable when canonical projection appends assistant deltas', () => {
+    let state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          {
+            id: 'turn-1:system:0',
+            kind: 'system',
+            turnId: 'turn-1',
+            role: 'assistant',
+            text: '(system) command accepted',
+            messageKind: 'command_subline',
+          },
+          {
+            id: 'turn-1:assistant:1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'alpha',
+          },
+        ],
+        lastReplaySeq: 1,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: { 'turn-1': 'turn-1:assistant:1' },
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 2, eventId: 'assistant-delta-system-2' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: ' beta' },
+      ),
+    })
+
+    expect(state.logs.some((item) => item.kind === 'message' && item.text === '(system) command accepted')).toBe(true)
+  })
+
+  it('does not duplicate user-role system rows after canonical updates', () => {
+    let state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          {
+            id: 'turn-1:system-user:0',
+            kind: 'system',
+            turnId: 'turn-1',
+            role: 'user',
+            text: '(system-user) compact summary',
+            messageKind: 'compact_summary',
+          },
+          {
+            id: 'turn-1:assistant:1',
+            kind: 'assistant',
+            turnId: 'turn-1',
+            text: 'alpha',
+          },
+        ],
+        lastReplaySeq: 1,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: { 'turn-1': 'turn-1:assistant:1' },
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 2, eventId: 'assistant-delta-system-user-2' },
+        { kind: 'assistant_delta', turnId: 'turn-1', textDelta: ' beta' },
+      ),
+    })
+
+    const systemUserRows = state.logs.filter(
+      (item) => item.kind === 'message' && item.text === '(system-user) compact summary',
+    )
+    expect(systemUserRows).toHaveLength(1)
   })
 
   it('[invariant:projection-hydrate] detaches hydrated projection state from snapshot references', () => {

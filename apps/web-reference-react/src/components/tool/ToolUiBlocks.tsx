@@ -2,7 +2,18 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { DiffPatchView } from '../diff/DiffPatchView'
 import { truncatePathFromLeft } from '../diff/diffTypes'
-import type { ToolDisplayDensity, ToolInputState, ToolUiBlock, ToolUiBlockDetails, ToolUiBlockHeader, ToolStatus, ToolUiBlockDiff } from './toolUiBlocksTypes'
+import { TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
+import type {
+  ToolDisplayDensity,
+  ToolInputState,
+  ToolUiBlock,
+  ToolUiBlockCodePreview,
+  ToolUiBlockDetails,
+  ToolUiBlockDiff,
+  ToolUiBlockHeader,
+  ToolUiBlockIo,
+  ToolStatus,
+} from './toolUiBlocksTypes'
 
 export type ToolUiBlocksProps = {
   blocks: ToolUiBlock[]
@@ -12,9 +23,9 @@ export type ToolUiBlocksProps = {
 }
 
 function statusDotClass(status: ToolStatus): string {
-  if (status === 'running') return 'bg-emerald-500 animate-pulse'
-  if (status === 'error') return 'bg-red-500'
-  if (status === 'completed') return 'bg-emerald-500/80'
+  if (status === 'running') return 'bg-[var(--tool-status-running)] animate-pulse'
+  if (status === 'error') return 'bg-[var(--tool-status-error)]'
+  if (status === 'completed') return 'bg-[var(--tool-status-completed)]'
   return 'bg-muted-foreground/40'
 }
 
@@ -41,7 +52,9 @@ function inputStateClass(inputState: ToolInputState): string {
 function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle: () => void; displayDensity: ToolDisplayDensity }) {
   const { block, open, onToggle, displayDensity } = props
   const showParams = Boolean(block.paramsText) && (displayDensity === 'verbose' || open || !block.expandable)
-  const label = showParams && block.paramsText ? `${block.title} (${block.paramsText})` : block.title
+  const label = block.title
+  const subtitle = block.subtitle ?? (showParams ? block.paramsText : undefined)
+  const trailingParams = block.subtitle && showParams ? block.paramsText : undefined
   return (
     <button
       type="button"
@@ -55,7 +68,22 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         data-testid="tool-status-dot"
         className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
       />
-      <span className="min-w-0 truncate ui-text-base leading-5 font-normal ui-text-primary">{label}</span>
+      <span className="min-w-0 truncate ui-text-base leading-5 font-semibold ui-text-primary">{label}</span>
+      {subtitle ? (
+        <span
+          className={cn(
+            'min-w-0 truncate ui-text-base leading-5 text-muted-foreground',
+            block.subtitleMono ? 'font-mono' : null,
+          )}
+        >
+          {subtitle}
+        </span>
+      ) : null}
+      {trailingParams ? (
+        <span className="min-w-0 truncate ui-text-base leading-5 text-muted-foreground">
+          {trailingParams}
+        </span>
+      ) : null}
       {block.inputState ? (
         <span className={cn('shrink-0 rounded-full border px-2 py-0.5 ui-text-micro font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
           {inputStateLabel(block.inputState)}
@@ -65,6 +93,62 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       ) : null}
     </button>
+  )
+}
+
+function PreviewLines(props: { lines: string[]; maxLines?: number }) {
+  const { lines, maxLines = TOOL_PREVIEW_MAX_LINES } = props
+  const renderLimit = Math.max(maxLines, TOOL_PREVIEW_MAX_RENDER_LINES)
+  const renderedLines = lines.slice(0, renderLimit)
+  const hiddenLineCount = Math.max(0, lines.length - renderedLines.length)
+  const shouldClamp = renderedLines.length > maxLines
+  const maxHeightEm = maxLines * 1.7
+  return (
+    <div className="relative min-w-0">
+      <div
+        className={cn('space-y-0.5 font-mono ui-text-base ui-text-secondary leading-8 whitespace-pre-wrap break-words [overflow-wrap:anywhere]', shouldClamp ? 'overflow-y-auto pr-2' : null)}
+        style={shouldClamp ? { maxHeight: `${maxHeightEm}em` } : undefined}
+      >
+        {renderedLines.map((line, index) => (
+          <div key={`preview-line-${index}`}>{line || '\u00a0'}</div>
+        ))}
+        {hiddenLineCount > 0 ? (
+          <div className="ui-text-meta text-muted-foreground">{`... ${hiddenLineCount} more lines not shown`}</div>
+        ) : null}
+      </div>
+      {shouldClamp ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-background via-background/95 to-transparent" />
+      ) : null}
+    </div>
+  )
+}
+
+function IoBlock({ block }: { block: ToolUiBlockIo }) {
+  const outputLines = block.outputLines ?? []
+  return (
+    <div className="mt-2 rounded-[12px] border border-border/60 bg-muted/20 overflow-hidden">
+      <div className="grid grid-cols-[56px_minmax(0,1fr)] items-start gap-2 px-3 py-2">
+        <div className="ui-text-base font-semibold tracking-tight text-muted-foreground">{block.inputLabel}</div>
+        <div className="font-mono ui-text-base ui-text-primary whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{block.inputText}</div>
+      </div>
+      {block.outputLabel && outputLines.length > 0 ? (
+        <div className="grid grid-cols-[56px_minmax(0,1fr)] items-start gap-2 border-t border-border/60 px-3 py-2">
+          <div className="ui-text-base font-semibold tracking-tight text-muted-foreground">{block.outputLabel}</div>
+          <PreviewLines lines={outputLines} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function CodePreviewBlock({ block }: { block: ToolUiBlockCodePreview }) {
+  return (
+    <div className="mt-1">
+      <div className="ui-text-base text-muted-foreground">{`${block.lineCount} lines`}</div>
+      <div className="mt-2 rounded-[12px] border border-border/70 bg-background/60 px-4 py-3">
+        <PreviewLines lines={block.lines} />
+      </div>
+    </div>
   )
 }
 
@@ -107,6 +191,8 @@ function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
 
 export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact' }: ToolUiBlocksProps) {
   const header = blocks.find((block): block is ToolUiBlockHeader => block.kind === 'header')
+  const ioBlock = blocks.find((block): block is ToolUiBlockIo => block.kind === 'io')
+  const codePreviewBlock = blocks.find((block): block is ToolUiBlockCodePreview => block.kind === 'code_preview')
   const details = blocks.find((block): block is ToolUiBlockDetails => block.kind === 'details')
   const info = blocks.find((block) => block.kind === 'info')
   const diff = blocks.find((block): block is ToolUiBlockDiff => block.kind === 'diff')
@@ -115,6 +201,8 @@ export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact
   return (
     <div className="py-0.5">
       {header ? <HeaderBlock block={header} open={open} onToggle={onToggle} displayDensity={displayDensity} /> : null}
+      {ioBlock ? <IoBlock block={ioBlock} /> : null}
+      {codePreviewBlock ? <CodePreviewBlock block={codePreviewBlock} /> : null}
       {info && info.kind === 'info' ? (
         <div className="ml-[18px] ui-text-base text-muted-foreground">{info.text}</div>
       ) : null}

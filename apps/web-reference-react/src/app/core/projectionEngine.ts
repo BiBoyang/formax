@@ -24,6 +24,26 @@ export function toTranscriptItemFromProjectionSegment(args: {
   existingItemById: Map<string, TranscriptItem>
 }): TranscriptItem | null {
   const { segment, existingItemById } = args
+  if (segment.kind === 'user') {
+    return {
+      id: segment.id,
+      kind: 'message',
+      role: 'user',
+      turnId: segment.turnId,
+      text: segment.text,
+    }
+  }
+
+  if (segment.kind === 'system') {
+    return {
+      id: segment.id,
+      kind: 'message',
+      role: segment.role,
+      turnId: segment.turnId,
+      text: segment.text,
+    }
+  }
+
   if (segment.kind === 'assistant') {
     return {
       id: segment.id,
@@ -97,9 +117,10 @@ function mergeTurnProjectionLogs(args: {
 }): TranscriptItem[] {
   const { logs, turnId, projectedItems } = args
   const pendingProjectionItems = [...projectedItems]
+  const projectedItemIds = new Set(projectedItems.map((item) => item.id))
   const merged: TranscriptItem[] = []
   for (const item of logs) {
-    if (isProjectionManagedTurnItem(item, turnId)) {
+    if (isProjectionManagedTurnItem(item, turnId) || projectedItemIds.has(item.id)) {
       if (pendingProjectionItems.length > 0) {
         merged.push(pendingProjectionItems.shift()!)
       }
@@ -140,6 +161,7 @@ export function applyCanonicalProjectionEvent(args: {
   const nextProjection = reduceTranscriptProjection(currentProjection, event)
   const existingItemById = new Map(state.logs.map((item) => [item.id, item]))
   const projectedItems = selectTurnSegments(nextProjection.segments, event.turnId)
+    .filter((segment) => segment.kind !== 'user')
     .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
     .filter((segment): segment is TranscriptItem => Boolean(segment))
   const logs = mergeTurnProjectionLogs({

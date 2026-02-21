@@ -1,6 +1,6 @@
 import type { ToolCallItem, ToolDisplayDensity, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
-import { formatPathForToolDisplay, sanitizeToolTextPaths } from './pathDisplay'
+import { sanitizeToolTextPaths } from './pathDisplay'
 import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
 import {
   parseJsonArrayLength,
@@ -13,7 +13,6 @@ import {
   summarizePlanModeStatus,
   summarizeTodoWriteStatus,
 } from '../../../../../src/features/tools/presentation/labels'
-import { buildBashParamsFromParamsText } from '../../../../../src/features/tools/presentation/bashParams'
 import {
   getToolPresentationSemantic,
   type ToolPresentationSemantic,
@@ -54,6 +53,8 @@ function withStandardBlocks(args: {
   item: ToolCallItem
   title: string
   summary: string
+  subtitle?: string
+  subtitleMono?: boolean
   paramsText?: string
   cwd?: string
   detailLines?: string[]
@@ -66,6 +67,8 @@ function withStandardBlocks(args: {
       kind: 'header',
       status: toToolStatus(args.item.status),
       title: args.title,
+      ...(args.subtitle ? { subtitle: args.subtitle } : {}),
+      ...(args.subtitleMono ? { subtitleMono: true } : {}),
       ...(args.paramsText ? { paramsText: args.paramsText } : {}),
       summary,
       ...(args.item.inputState ? { inputState: args.item.inputState } : {}),
@@ -90,24 +93,70 @@ const defaultRenderer: ToolBlockRenderer = (item, context) => {
   })
 }
 
+function pickParamValue(params: ReturnType<typeof formatToolParams>, label: string): string | undefined {
+  return params.find((param) => param.label === label)?.value
+}
+
+function collectToolOutputLines(args: { item: ToolCallItem; cwd?: string; sanitizePaths?: boolean }): string[] {
+  const sanitize = args.sanitizePaths !== false
+  const normalize = (text: string): string =>
+    (sanitize ? sanitizeToolTextPaths(text, args.cwd) : text).replace(/\s+$/g, '')
+  const summary = normalize(args.item.summary)
+  const detailLines = args.item.detailLines.map((line) => normalize(line))
+  const out: string[] = []
+  if (summary) out.push(summary)
+  for (const line of detailLines) {
+    if (out.length > 0 && out[out.length - 1] === line) continue
+    out.push(line)
+  }
+  return out
+}
+
+function withExitCodeLead(lines: string[]): string[] {
+  if (lines.length === 0) return lines
+  const pattern = /\bexit code\s+(\d+)\b/i
+  const hit = lines.find((line) => pattern.exec(line))
+  if (!hit) return lines
+  const code = pattern.exec(hit)?.[1]
+  if (!code) return lines
+  const lead = `Exit code ${code}`
+  if (lines[0]?.trim().toLowerCase() === lead.toLowerCase()) return lines
+  const rest = lines.filter((line) => line.trim().toLowerCase() !== lead.toLowerCase())
+  return [lead, ...rest]
+}
+
 const bashRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
-  const bashParams = buildBashParamsFromParamsText(item.paramsText)
-  const command = bashParams.command ?? params.find((param) => param.label === 'command')?.value
-  const title = command ? `Bash ${command}` : item.toolName
-  const normalizedNonCommandParams =
-    params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'command')) : undefined
-  const paramsText =
-    normalizedNonCommandParams ??
-    bashParams.paramsTextWithoutCommand ??
-    (bashParams.hasCommandParam ? undefined : item.paramsText)
-  return withStandardBlocks({
-    item,
-    title,
-    summary: item.summary,
-    cwd: context.cwd,
-    ...(paramsText ? { paramsText } : {}),
-  })
+  const command = pickParamValue(params, 'command') ?? ''
+  const description = pickParamValue(params, 'description')
+  const outputLines = item.status === 'running'
+    ? []
+    : item.status === 'error'
+      ? withExitCodeLead(collectToolOutputLines({ item, cwd: context.cwd, sanitizePaths: false }))
+      : collectToolOutputLines({ item, cwd: context.cwd, sanitizePaths: false })
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Bash',
+      ...(description ? { subtitle: sanitizeToolTextPaths(description, context.cwd) } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: false,
+    },
+    {
+      kind: 'io',
+      inputLabel: 'IN',
+      inputText: sanitizeToolTextPaths(command, context.cwd),
+      ...(outputLines.length > 0
+        ? {
+            outputLabel: 'OUT',
+            outputLines,
+          }
+        : {}),
+      status: toToolStatus(item.status),
+    },
+  ]
+  return blocks
 }
 
 const globRenderer: ToolBlockRenderer = (item, context) => {
@@ -159,7 +208,6 @@ function readLikeSummary(item: ToolCallItem, file: string | undefined, context: 
   return fallback
 }
 
-const WRITE_DIFF_MAX_LINES = 220
 const WRITE_PARAM_STRING_CLIP_LEN = 120
 
 function isLikelyTruncatedParamsText(paramsText: string | undefined): boolean {
@@ -181,23 +229,6 @@ function toWriteContentLines(content: string): string[] {
   return lines
 }
 
-function makeWritePatch(content: string): { patch: string; additions: number; deletions: number } {
-  const sourceLines = toWriteContentLines(content)
-  const clipped = sourceLines.slice(0, WRITE_DIFF_MAX_LINES)
-  const clippedCount = Math.max(0, sourceLines.length - clipped.length)
-  const patchLines = clipped.map((line) => `+${line}`)
-  if (clippedCount > 0) {
-    patchLines.push(`+… (${clippedCount} more lines not shown)`)
-  }
-  const startLine = sourceLines.length > 0 ? 1 : 0
-  const patch = [`@@ -0,0 +${startLine},${sourceLines.length} @@`, ...patchLines].join('\n')
-  return {
-    patch,
-    additions: sourceLines.length,
-    deletions: 0,
-  }
-}
-
 function pickRawParam(parsed: ReturnType<typeof parseToolParamsText>, keys: string[]): string | undefined {
   for (const key of keys) {
     const hit = parsed.find((entry) => entry.label === key)
@@ -206,15 +237,31 @@ function pickRawParam(parsed: ReturnType<typeof parseToolParamsText>, keys: stri
   return undefined
 }
 
+const readRenderer: ToolBlockRenderer = (item, context) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
+  const file = params.find((param) => param.label === 'file')?.value
+  return [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Read',
+      ...(file ? { subtitle: file, subtitleMono: true } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: false,
+    },
+  ]
+}
+
 const readLikeRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const file = params.find((param) => param.label === 'file')?.value
-  const title = file ? `${item.toolName} ${file}` : item.toolName
-  const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'file')) : item.paramsText
+  const nonFileParams = stringifyToolParams(params.filter((param) => param.label !== 'file'))
+  const paramsText = nonFileParams ?? (!file ? item.paramsText : undefined)
   return withStandardBlocks({
     item,
-    title,
+    title: item.toolName,
     summary: readLikeSummary(item, file, context),
+    ...(file ? { subtitle: file, subtitleMono: true } : {}),
     cwd: context.cwd,
     ...(paramsText ? { paramsText } : {}),
   })
@@ -223,43 +270,40 @@ const readLikeRenderer: ToolBlockRenderer = (item, context) => {
 const writeRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const file = params.find((param) => param.label === 'file')?.value
-  const title = file ? `${item.toolName} ${file}` : item.toolName
-  const summary = readLikeSummary(item, file, context)
   const paramsTextTruncated = isLikelyTruncatedParamsText(item.paramsText)
   const rawParams = parseToolParamsText(item.paramsText)
   const rawContent = pickRawParam(rawParams, ['content'])
   const contentTruncated =
     typeof rawContent === 'string' && isLikelyClippedWriteContent(rawContent, item.paramsText)
-  const rawFilePath = pickRawParam(rawParams, ['file_path', 'path'])
-  const displayPath = formatPathForToolDisplay(rawFilePath ?? file ?? 'untitled', context.cwd)
-
-  const blocks = withStandardBlocks({
-    item,
-    title,
-    summary,
-    cwd: context.cwd,
-  })
-
-  if (item.status === 'completed' && (paramsTextTruncated || contentTruncated)) {
-    blocks.push({
-      kind: 'info',
-      text: 'Diff preview unavailable (tool input was truncated).',
-    })
-  } else if (item.status === 'completed' && typeof rawContent === 'string') {
-    const writePatch = makeWritePatch(rawContent)
-    blocks.push({
-      kind: 'diff',
-      files: [
-        {
-          path: displayPath,
-          additions: writePatch.additions,
-          deletions: writePatch.deletions,
-          patch: writePatch.patch,
-        },
-      ],
-    })
+  const previewLines = typeof rawContent === 'string' ? toWriteContentLines(rawContent) : []
+  const errorLines = item.status === 'error' ? collectToolOutputLines({ item, cwd: context.cwd }) : []
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Write',
+      ...(file ? { subtitle: file, subtitleMono: true } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: errorLines.length > 0,
+    },
+  ]
+  if (errorLines.length > 0) {
+    blocks.push({ kind: 'details', lines: errorLines })
   }
-
+  if (item.status !== 'running') {
+    if (paramsTextTruncated || contentTruncated) {
+      blocks.push({
+        kind: 'info',
+        text: 'Preview unavailable (tool input was truncated).',
+      })
+    } else if (previewLines.length > 0) {
+      blocks.push({
+        kind: 'code_preview',
+        lineCount: previewLines.length,
+        lines: previewLines,
+      })
+    }
+  }
   return blocks
 }
 
@@ -407,7 +451,7 @@ const renderers: Record<string, ToolBlockRenderer> = {
   Glob: globRenderer,
   Grep: searchRenderer,
   Search: searchRenderer,
-  Read: readLikeRenderer,
+  Read: readRenderer,
   Write: writeRenderer,
   Edit: readLikeRenderer,
   WebSearch: webSearchRenderer,

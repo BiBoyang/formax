@@ -119,6 +119,19 @@ export function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextC
 export function parseProjectionSegments(value: unknown): TranscriptSegment[] {
   if (!Array.isArray(value)) return []
   const out: TranscriptSegment[] = []
+  const parseSystemUiKind = (
+    raw: unknown,
+  ): 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary' | undefined => {
+    if (
+      raw === 'command_subline' ||
+      raw === 'compact_boundary' ||
+      raw === 'compact_banner' ||
+      raw === 'compact_summary'
+    ) {
+      return raw
+    }
+    return undefined
+  }
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue
     const segment = raw as Record<string, unknown>
@@ -127,6 +140,32 @@ export function parseProjectionSegments(value: unknown): TranscriptSegment[] {
     const turnId = typeof segment.turnId === 'string' ? segment.turnId : null
     if (!id || !turnId) continue
 
+    if (kind === 'user') {
+      if (typeof segment.text !== 'string') continue
+      const uiKind = segment.messageKind === 'compact_summary' ? 'compact_summary' : undefined
+      out.push({
+        id,
+        kind: 'user',
+        turnId,
+        text: segment.text,
+        ...(uiKind ? { messageKind: uiKind } : {}),
+      })
+      continue
+    }
+    if (kind === 'system') {
+      if (typeof segment.text !== 'string') continue
+      if (segment.role !== 'assistant' && segment.role !== 'user') continue
+      const uiKind = parseSystemUiKind(segment.messageKind)
+      out.push({
+        id,
+        kind: 'system',
+        turnId,
+        role: segment.role,
+        text: segment.text,
+        ...(uiKind ? { messageKind: uiKind } : {}),
+      })
+      continue
+    }
     if (kind === 'assistant') {
       if (typeof segment.text !== 'string') continue
       out.push({ id, kind: 'assistant', turnId, text: segment.text })

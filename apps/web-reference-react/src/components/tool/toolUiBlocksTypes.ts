@@ -11,6 +11,8 @@ export type ToolUiBlockHeader = {
   kind: 'header'
   status: ToolStatus
   title: string
+  subtitle?: string
+  subtitleMono?: boolean
   paramsText?: string
   summary?: string
   inputState?: ToolInputState
@@ -32,4 +34,19 @@ export type ToolUiBlockDiff = {
   files: DiffFileViewModel[]
 }
 
-export type ToolUiBlock = ToolUiBlockHeader | ToolUiBlockDetails | ToolUiBlockInfo | ToolUiBlockDiff
+export type ToolUiBlockIo = {
+  kind: 'io'
+  inputLabel: 'IN'
+  inputText: string
+  outputLabel?: 'OUT'
+  outputLines?: string[]
+  status: ToolStatus
+}
+
+export type ToolUiBlockCodePreview = {
+  kind: 'code_preview'
+  lineCount: number
+  lines: string[]
+}
+
+export type ToolUiBlock = ToolUiBlockHeader | ToolUiBlockDetails | ToolUiBlockInfo | ToolUiBlockDiff | ToolUiBlockIo | ToolUiBlockCodePreview
