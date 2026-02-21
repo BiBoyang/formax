@@ -23,10 +23,14 @@ describe('selectVisibleTranscriptLogs', () => {
       { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
       { id: 'l-1', kind: 'log', level: 'warn', text: 'warn log' },
       { id: 'l-2', kind: 'log', level: 'info', text: 'info log' },
+      { id: 'n-1', kind: 'notice', level: 'info', text: 'system notice' },
     ]
 
     const filtered = selectVisibleTranscriptLogs({ logs, displayPolicy: 'chat' })
-    expect(filtered).toEqual([{ id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' }])
+    expect(filtered).toEqual([
+      { id: 'm-1', kind: 'message', role: 'assistant', text: 'hello' },
+      { id: 'n-1', kind: 'notice', level: 'info', text: 'system notice' },
+    ])
   })
 
   it('returns the same array reference when no logs are present in chat mode', () => {

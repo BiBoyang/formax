@@ -267,6 +267,19 @@ describe('TranscriptPane', () => {
     expect(onLoadEarlier).toHaveBeenCalledTimes(1)
   })
 
+  it('renders notice rows as system feedback items', () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          logs: [{ id: 'n1', kind: 'notice', level: 'info', text: 'Input resolved: submitted' }],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('notice')).toBeInTheDocument()
+    expect(screen.getByText('Input resolved: submitted')).toBeInTheDocument()
+  })
+
   it('shows jump-to-bottom button when user scrolls up', async () => {
     render(
       <TranscriptPane

@@ -72,6 +72,12 @@ function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled'
   return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
 }
 
+function noticeLevelForResolvedInputStatus(status: string): 'info' | 'warn' | 'error' {
+  if (status === 'failed') return 'error'
+  if (status === 'canceled' || status === 'expired') return 'warn'
+  return 'info'
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'set_connection_status':
@@ -166,9 +172,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
               ...state.logs,
               {
                 id: itemId(),
-                kind: 'log',
+                kind: 'notice',
                 text: `Input resolved: ${resolvedStatus}`,
-                level: 'info',
+                level: noticeLevelForResolvedInputStatus(resolvedStatus),
               } as TranscriptItem,
             ]
       return {

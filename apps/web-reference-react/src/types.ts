@@ -84,6 +84,7 @@ export type ResolvedInput = {
 
 export type TranscriptItem =
   | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
+  | { id: string; kind: 'notice'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
   | { id: string; kind: 'thinking'; text: string; status: 'running' | 'finalized'; turnId?: string }
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }
   | {

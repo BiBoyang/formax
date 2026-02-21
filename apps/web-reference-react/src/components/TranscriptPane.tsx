@@ -202,6 +202,14 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
           </div>
           <div className="text-muted-foreground font-mono ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
         </div>
+      ) : item.kind === 'notice' ? (
+        <div className={cn('rounded-lg border px-3 py-2 ui-text-meta bg-muted/15')}>
+          <div className="mb-1 flex items-center gap-2">
+            <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 ui-text-micro uppercase font-bold tracking-wider">{item.level}</Badge>
+            <span className="ui-text-micro uppercase tracking-wider text-muted-foreground/80">notice</span>
+          </div>
+          <div className="text-muted-foreground ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
+        </div>
       ) : item.kind === 'thinking' ? (
         <ThinkingItem
           item={item}
