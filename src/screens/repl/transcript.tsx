@@ -28,7 +28,7 @@ const TranscriptMessageRow = React.memo(
 )
 
 export function ReplTranscript(props: {
-  transcriptSeq: number
+  transcriptSeq: number | string
   version: string
   modelLabel: string
   cwd: string
@@ -96,7 +96,7 @@ export function ReplTranscript(props: {
 }
 
 export function ExpandedReplTranscript(props: {
-  transcriptSeq: number
+  transcriptSeq: number | string
   version: string
   modelLabel: string
   cwd: string

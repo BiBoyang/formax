@@ -40,6 +40,7 @@ import { isPromptMode as computePromptMode } from './repl/promptMode'
 import { ExpandedReplTranscript, ReplTranscript } from './repl/transcript'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingBlock'
 import { useSurfaceTransitionManager } from './repl/useSurfaceTransitionManager'
+import { buildPrimaryTranscriptStaticKey } from './repl/transcriptKey'
 import { createSlashCommandSpecMap, resolveSlashCommandInputHint } from './repl/inputHint'
 import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
@@ -318,7 +319,7 @@ export function REPL({
   const primaryPartition = useMemo(() => partitionMessages(primaryTranscriptMessages), [primaryTranscriptMessages])
 
   const primaryTranscriptSeq = useMemo(
-    () => state.transcriptSeq + Math.max(0, primaryTranscriptStartIndex),
+    () => buildPrimaryTranscriptStaticKey(state.transcriptSeq, primaryTranscriptStartIndex),
     [primaryTranscriptStartIndex, state.transcriptSeq],
   )
 

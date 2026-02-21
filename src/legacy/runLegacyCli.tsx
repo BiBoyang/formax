@@ -26,13 +26,11 @@ export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forc
     return
   }
 
-  let replInstance: ReturnType<typeof renderReplApp> | null = null
   const onClearTerminal = async () => {
     // Keep Ink's frame state and terminal buffer in sync.
     await resetInkStaticOutputForStdout(process.stdout)
-    if (replInstance) {
-      replInstance.clear()
-    }
+    // Avoid clearing via Ink instance here: when a clear happens between two
+    // equivalent frames, Ink can skip the next paint and leave a blank screen.
     await clearTerminal()
   }
   const initialSession = await resolveInitialSession({
@@ -40,7 +38,7 @@ export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forc
     env: runtime.env,
     resumeLast: opts.resumeLast === true,
   })
-  replInstance = renderReplApp({
+  renderReplApp({
     engine: runtime.engine,
     tools: runtime.tools,
     cfg: runtime.cfg,
