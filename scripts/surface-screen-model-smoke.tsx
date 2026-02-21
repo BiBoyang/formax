@@ -3,6 +3,9 @@
 import React from 'react'
 import { render } from 'ink'
 import { PassThrough, Writable } from 'node:stream'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { REPL } from '../src/screens/REPL.js'
 import { InputScopeProvider } from '../src/features/repl/inputScopeContext.js'
 import { createSafeInkStdout, resetInkStaticOutputForStdout } from '../src/utils/inkStreams.js'
@@ -333,7 +336,10 @@ function assertFinalScreen(args: { screenText: string; label: string }) {
 
 async function main() {
   const prevForceStatic = process.env.FORMAX_FORCE_INK_STATIC
+  const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+  const tmpConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-surface-screen-model-'))
   process.env.FORMAX_FORCE_INK_STATIC = '1'
+  process.env.FORMAX_CONFIG_DIR = tmpConfigDir
 
   const engine: ChatEngine = {
     async runTurn({ history, user, onEvent }) {
@@ -536,6 +542,9 @@ async function main() {
     instance?.unmount()
     if (prevForceStatic === undefined) delete process.env.FORMAX_FORCE_INK_STATIC
     else process.env.FORMAX_FORCE_INK_STATIC = prevForceStatic
+    if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+    else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+    await fsp.rm(tmpConfigDir, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
