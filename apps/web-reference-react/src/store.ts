@@ -1,6 +1,5 @@
 import type { ConnectionStatus } from './rpcClient'
 import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
-import { transitionResolvedFromPending } from './semantics'
 import type { CanonicalEvent } from './semantics'
 import {
   createInitialTranscriptProjectionState,
@@ -66,16 +65,6 @@ export const initialAppState: AppState = {
 
 function itemId(): string {
   return `${Date.now()}-${Math.random()}`
-}
-
-function isResolvedInputStatus(value: string): value is 'submitted' | 'canceled' | 'expired' | 'failed' {
-  return value === 'submitted' || value === 'canceled' || value === 'expired' || value === 'failed'
-}
-
-function noticeLevelForResolvedInputStatus(status: string): 'info' | 'warn' | 'error' {
-  if (status === 'failed') return 'error'
-  if (status === 'canceled' || status === 'expired') return 'warn'
-  return 'info'
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -147,41 +136,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'input_resolved': {
       const nextPending = { ...state.pendingInputs }
-      const pending = nextPending[action.inputId]
       delete nextPending[action.inputId]
       const nextSelected =
         state.selectedInputId === action.inputId ? (Object.keys(nextPending)[0] ?? null) : state.selectedInputId
-      const resolvedAt = action.resolvedAt ?? new Date().toISOString()
-      const resolvedStatus =
-        action.status && pending && isResolvedInputStatus(action.status)
-          ? transitionResolvedFromPending({
-              state: {
-                status: 'pending',
-                createdAt: pending.createdAt,
-                expiresAt: pending.expiresAt,
-              },
-              status: action.status,
-              resolvedAt,
-              reason: action.reason,
-            }).status
-          : action.status
-      const nextLogs =
-        resolvedStatus == null
-          ? state.logs
-          : [
-              ...state.logs,
-              {
-                id: itemId(),
-                kind: 'notice',
-                text: `Input resolved: ${resolvedStatus}`,
-                level: noticeLevelForResolvedInputStatus(resolvedStatus),
-              } as TranscriptItem,
-            ]
       return {
         ...state,
         pendingInputs: nextPending,
         selectedInputId: nextSelected,
-        logs: nextLogs,
       }
     }
 

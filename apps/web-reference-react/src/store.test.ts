@@ -73,7 +73,7 @@ describe('appReducer', () => {
 
     expect(state.pendingInputs[input.inputId]).toBeUndefined()
     expect(state.selectedInputId).toBeNull()
-    expect(state.logs[state.logs.length - 1]).toMatchObject({ kind: 'notice', text: 'Input resolved: submitted' })
+    expect(state.logs).toHaveLength(0)
   })
 
   it('handles resolved metadata (resolvedAt/reason) without keeping stale pending rows', () => {
@@ -89,7 +89,7 @@ describe('appReducer', () => {
     })
 
     expect(state.pendingInputs[input.inputId]).toBeUndefined()
-    expect(state.logs[state.logs.length - 1]).toMatchObject({ kind: 'notice', text: 'Input resolved: failed', level: 'error' })
+    expect(state.logs).toHaveLength(0)
   })
 
   it('replaces transcript logs when loading thread history', () => {
