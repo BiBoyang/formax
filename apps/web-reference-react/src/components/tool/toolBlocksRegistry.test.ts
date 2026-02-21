@@ -121,6 +121,88 @@ describe('buildToolUiBlocks', () => {
     expect(io?.outputLines).toBeUndefined()
   })
 
+  it('renders glob with pattern subtitle and summary info', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'completed',
+      paramsText: 'pattern="**/*.ts"',
+      summary: 'Found 101 files',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Glob')
+    expect(header?.subtitle).toBe('pattern: "**/*.ts"')
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('Found 101 files')
+  })
+
+  it('keeps glob compact even when detail lines exist', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'completed',
+      paramsText: 'pattern="**/*.ts"',
+      summary: 'Found 2 files',
+      detailLines: ['src/a.ts', 'src/b.ts'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const details = blocks.find((block) => block.kind === 'details')
+    expect(header?.kind).toBe('header')
+    expect(header?.expandable).toBe(false)
+    expect(details).toBeUndefined()
+  })
+
+  it('normalizes raw glob output into Found N files summary', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'completed',
+      paramsText: 'pattern="**/*.ts"',
+      summary: 'src/a.ts\nsrc/b.ts\nsrc/c.ts',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('Found 3 files')
+  })
+
+  it('does not count running-status text as glob results', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'running',
+      paramsText: 'pattern="**/*.ts"',
+      summary: 'Glob running',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(info).toBeUndefined()
+  })
+
+  it('keeps grep compact and summary-only when output exists', () => {
+    const item = makeToolItem({
+      toolName: 'Grep',
+      status: 'completed',
+      paramsText: 'pattern="export const", path="src"',
+      summary: 'a.ts:1:export const a = 1',
+      detailLines: ['b.ts:2:export const b = 2'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const info = blocks.find((block) => block.kind === 'info')
+    const details = blocks.find((block) => block.kind === 'details')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Grep')
+    expect(header?.subtitle).toBe('"export const" (in src)')
+    expect(header?.expandable).toBe(false)
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('2 lines of output')
+    expect(details).toBeUndefined()
+  })
+
   it('keeps bash OUT content as raw output text instead of collapsing cwd path', () => {
     const item = makeToolItem({
       toolName: 'Bash',

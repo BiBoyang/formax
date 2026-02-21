@@ -112,6 +112,34 @@ function collectToolOutputLines(args: { item: ToolCallItem; cwd?: string; saniti
   return out
 }
 
+function formatOutputLineCount(count: number): string {
+  return `${count} ${count === 1 ? 'line' : 'lines'} of output`
+}
+
+function expandAndDedupeLines(lines: string[]): string[] {
+  const out: string[] = []
+  for (const raw of lines) {
+    const exploded = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    for (const line of exploded) {
+      if (!out.includes(line)) out.push(line)
+    }
+  }
+  return out
+}
+
+function parseGlobFoundCount(summary: string): number | null {
+  const trimmed = summary.trim()
+  if (!trimmed) return null
+  if (/^no files found$/i.test(trimmed)) return 0
+  const hit = /^found\s+(\d+)\s+files?$/i.exec(trimmed)
+  if (!hit) return null
+  const parsed = Number.parseInt(hit[1] ?? '', 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function withExitCodeLead(lines: string[]): string[] {
   if (lines.length === 0) return lines
   const pattern = /\bexit code\s+(\d+)\b/i
@@ -162,24 +190,31 @@ const bashRenderer: ToolBlockRenderer = (item, context) => {
 const globRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const pattern = params.find((param) => param.label === 'pattern')?.value
-  const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'pattern')) : item.paramsText
-  const headerSummary = pattern ? `pattern: ${pattern}` : sanitizeToolTextPaths(item.summary, context.cwd)
   const detailLines = item.detailLines.map((line) => sanitizeToolTextPaths(line, context.cwd))
+  const otherParams = params.filter((param) => param.label !== 'pattern')
+  const paramsText = otherParams.length > 0 ? stringifyToolParams(otherParams) : undefined
+  const summary = sanitizeToolTextPaths(item.summary, context.cwd)
+  const summaryText = (() => {
+    if (item.status !== 'completed') return ''
+    const explicitCount = parseGlobFoundCount(summary)
+    const sourceLines = detailLines.length > 0 ? detailLines : [summary]
+    const normalizedLines = expandAndDedupeLines(sourceLines)
+    const fileCount = explicitCount ?? normalizedLines.filter((line) => !/^no files found$/i.test(line)).length
+    return `Found ${fileCount} ${fileCount === 1 ? 'file' : 'files'}`
+  })()
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
       status: toToolStatus(item.status),
-      title: item.toolName,
+      title: 'Glob',
+      ...(pattern ? { subtitle: `pattern: ${JSON.stringify(pattern)}` } : {}),
       ...(paramsText ? { paramsText } : {}),
-      summary: headerSummary,
       ...(item.inputState ? { inputState: item.inputState } : {}),
-      expandable: detailLines.length > 0,
+      expandable: false,
     },
   ]
-  if (detailLines.length > 0) {
-    blocks.push({ kind: 'details', lines: detailLines })
-  } else if (pattern && item.summary && item.summary !== headerSummary) {
-    blocks.push({ kind: 'info', text: sanitizeToolTextPaths(item.summary, context.cwd) })
+  if (summaryText) {
+    blocks.push({ kind: 'info', text: summaryText })
   }
   return blocks
 }
@@ -196,6 +231,39 @@ const searchRenderer: ToolBlockRenderer = (item, context) => {
     cwd: context.cwd,
     ...(paramsText ? { paramsText } : {}),
   })
+}
+
+const grepRenderer: ToolBlockRenderer = (item, context) => {
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
+  const pattern = params.find((param) => param.label === 'pattern')?.value
+  const pathValue = params.find((param) => param.label === 'path')?.value
+  const otherParams = params.filter((param) => param.label !== 'pattern' && param.label !== 'path')
+  const paramsText = otherParams.length > 0 ? stringifyToolParams(otherParams) : undefined
+  const subtitleParts: string[] = []
+  if (pattern) subtitleParts.push(JSON.stringify(pattern))
+  if (pathValue) subtitleParts.push(`(in ${pathValue})`)
+  const outputLines =
+    item.status === 'running'
+      ? []
+      : collectToolOutputLines({ item, cwd: context.cwd })
+
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Grep',
+      ...(subtitleParts.length > 0 ? { subtitle: subtitleParts.join(' ') } : {}),
+      ...(paramsText ? { paramsText } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: false,
+    },
+  ]
+
+  if (item.status !== 'running' && outputLines.length > 0) {
+    blocks.push({ kind: 'info', text: formatOutputLineCount(outputLines.length) })
+  }
+
+  return blocks
 }
 
 const WRITE_PARAM_STRING_CLIP_LEN = 120
@@ -584,7 +652,7 @@ const exitPlanModeRenderer: ToolBlockRenderer = (item, context) => {
 const renderers: Record<string, ToolBlockRenderer> = {
   Bash: bashRenderer,
   Glob: globRenderer,
-  Grep: searchRenderer,
+  Grep: grepRenderer,
   Search: searchRenderer,
   Read: readRenderer,
   Write: writeRenderer,

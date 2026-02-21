@@ -223,6 +223,19 @@ function parseToolUseInput(value: unknown): Record<string, unknown> | undefined 
   return value as Record<string, unknown>
 }
 
+function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.keys(value as Record<string, unknown>).length > 0
+}
+
+function choosePreferredInput(...candidates: Array<Record<string, unknown> | undefined>): Record<string, unknown> | undefined {
+  for (const candidate of candidates) {
+    if (!isNonEmptyRecord(candidate)) continue
+    return candidate
+  }
+  return undefined
+}
+
 function parseToolUseId(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
@@ -326,10 +339,9 @@ function extractThreadTimelineFromUi(
         : message.toolInfo.status === 'running'
           ? 'running'
           : 'completed'
-    const input =
-      message.toolInfo.input && typeof message.toolInfo.input === 'object' && !Array.isArray(message.toolInfo.input)
-        ? (message.toolInfo.input as Record<string, unknown>)
-        : undefined
+    const input = isNonEmptyRecord(message.toolInfo.input)
+      ? (message.toolInfo.input as Record<string, unknown>)
+      : undefined
     const detailLines = collectToolDetailLines(message)
     const paramsText = formatToolParamsText(input)
     const patchStartLineNumber =
@@ -492,7 +504,7 @@ export class ThreadStore {
         const entry = timeline[index]
         if (entry.item.kind !== 'tool') continue
         const historyTool = entry.item.toolUseId ? toolUseInputById.get(entry.item.toolUseId) : undefined
-        const input = entry.item.input ?? historyTool?.input
+        const input = choosePreferredInput(entry.item.input, historyTool?.input)
         const patchStartLineNumber =
           entry.item.patchStartLineNumber ??
           resolveEditPatchStartLineNumber({
@@ -524,7 +536,7 @@ export class ThreadStore {
           if (existingEntry?.item.kind === 'tool') {
             const mergedDetailLines = mergeToolDetailLines(existingEntry.item.detailLines, tool.detailLines)
             const historyTool = existingEntry.item.toolUseId ? toolUseInputById.get(existingEntry.item.toolUseId) : undefined
-            const input = existingEntry.item.input ?? tool.input ?? historyTool?.input
+            const input = choosePreferredInput(existingEntry.item.input, tool.input, historyTool?.input)
             const patchStartLineNumber =
               existingEntry.item.patchStartLineNumber ??
               tool.patchStartLineNumber ??
@@ -544,7 +556,7 @@ export class ThreadStore {
           continue
         }
         const historyTool = tool.toolUseId ? toolUseInputById.get(tool.toolUseId) : undefined
-        const input = tool.input ?? historyTool?.input
+        const input = choosePreferredInput(tool.input, historyTool?.input)
         const patchStartLineNumber =
           tool.patchStartLineNumber ??
           resolveEditPatchStartLineNumber({

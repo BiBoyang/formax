@@ -121,7 +121,7 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/more lines not shown/)).toBeInTheDocument()
   })
 
-  it('renders glob renderer summary from pattern param', () => {
+  it('renders glob with pattern subtitle and summary info line', () => {
     const item = makeToolItem({
       toolName: 'Glob',
       status: 'completed',
@@ -131,11 +131,12 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Glob/)).toBeInTheDocument()
-    expect(screen.queryByText('pattern: **/*.md')).not.toBeInTheDocument()
+    expect(screen.getByText('Glob')).toBeInTheDocument()
+    expect(screen.getByText('pattern: "**/*.md"')).toBeInTheDocument()
+    expect(screen.getByText('Found 10 files')).toBeInTheDocument()
   })
 
-  it('does not duplicate glob summary when pattern is missing', () => {
+  it('renders glob count summary when pattern is missing', () => {
     const item = makeToolItem({
       toolName: 'Glob',
       status: 'completed',
@@ -145,8 +146,36 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Glob/)).toBeInTheDocument()
-    expect(screen.queryByText('No files found')).not.toBeInTheDocument()
+    expect(screen.getByText('Glob')).toBeInTheDocument()
+    expect(screen.getByText('Found 0 files')).toBeInTheDocument()
+  })
+
+  it('renders glob file count from raw output lines instead of listing files', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'completed',
+      paramsText: 'pattern="**/*.test.ts"',
+      summary: 'src/a.test.ts\nsrc/b.test.ts',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Found 2 files')).toBeInTheDocument()
+    expect(screen.queryByText(/src\/a\.test\.ts/)).not.toBeInTheDocument()
+  })
+
+  it('does not fabricate glob count while tool is running', () => {
+    const item = makeToolItem({
+      toolName: 'Glob',
+      status: 'running',
+      paramsText: 'pattern="**/*.test.ts"',
+      summary: 'Glob running',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Glob')).toBeInTheDocument()
+    expect(screen.queryByText(/Found \d+ files?/)).not.toBeInTheDocument()
   })
 
   it('renders read-like tools as `<Tool> <file>` in header', () => {
@@ -320,9 +349,10 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/TodoWrite 3 items/)).toBeInTheDocument()
   })
 
-  it('renders grep/search with pattern promoted to title', () => {
+  it('renders grep/search with grep pattern in subtitle', () => {
     const grep = makeToolItem({
       toolName: 'Grep',
+      status: 'completed',
       paramsText: 'pattern="TODO", path="src", output_mode="files_with_matches"',
       summary: 'Found matches',
       detailLines: [],
@@ -335,10 +365,29 @@ describe('ToolTranscriptItem', () => {
     })
 
     const { rerender } = render(<ToolTranscriptItem item={grep} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText(/Grep TODO/)).toBeInTheDocument()
+    expect(screen.getByText('Grep')).toBeInTheDocument()
+    expect(screen.getByText('"TODO" (in src)')).toBeInTheDocument()
+    expect(screen.getByText('1 line of output')).toBeInTheDocument()
 
     rerender(<ToolTranscriptItem item={search} open={false} onToggle={vi.fn()} />)
     expect(screen.getByText(/Search useEffect/)).toBeInTheDocument()
+  })
+
+  it('keeps grep output compact without inline raw error details', () => {
+    const item = makeToolItem({
+      toolName: 'Grep',
+      status: 'error',
+      paramsText: 'pattern="export const", path="/missing/path"',
+      summary: '<tool_use_error>Path does not exist: /missing/path</tool_use_error>',
+      detailLines: [],
+    })
+    const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('1 line of output')).toBeInTheDocument()
+    expect(screen.queryByText(/Path does not exist:/)).not.toBeInTheDocument()
+
+    rerender(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
+    expect(screen.queryByText(/Path does not exist: \/missing\/path/)).not.toBeInTheDocument()
   })
 
   it('falls back to raw params text when formatter cannot parse them', () => {

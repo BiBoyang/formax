@@ -90,6 +90,149 @@ describe('sessionSave (jsonl)', () => {
     expect((replay.history[0] as any).content?.[0]?.text).toBe('b')
   })
 
+  it('reader reconstructs tool messages from app_tool_event records', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tools-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Edit',
+          phase: 'start',
+          status: 'running',
+          summary: 'Edit running',
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          phase: 'update',
+          input: {
+            file_path: 'demo.txt',
+            old_string: 'foo',
+            new_string: 'bar',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:03.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          phase: 'end',
+          status: 'completed',
+          summary: 'Applied edit',
+          lines: ['Applied edit', 'Updated 1 occurrence'],
+          patchStartLineNumber: 12,
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const toolMessages = replay.messages.filter((message) => message.role === 'tool')
+    expect(toolMessages).toHaveLength(1)
+
+    const tool = toolMessages[0]
+    expect(tool?.content).toBe('Applied edit')
+    expect(tool?.toolInfo?.name).toBe('Edit')
+    expect(tool?.toolInfo?.toolUseId).toBe('tool-1')
+    expect(tool?.toolInfo?.status).toBe('completed')
+    expect(tool?.toolInfo?.input).toEqual({
+      file_path: 'demo.txt',
+      old_string: 'foo',
+      new_string: 'bar',
+    })
+    expect(tool?.toolInfo?.patchStartLineNumber).toBe(12)
+    expect(tool?.toolInfo?.middleLines).toEqual(['Updated 1 occurrence'])
+    expect(tool?.toolInfo?.result).toContain('Applied edit')
+  })
+
+  it('reader merges persisted tool input when ui tool input is empty object', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-tool-merge-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-merge',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'ui_msg',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        msg: {
+          id: 'tool-ui-1',
+          role: 'tool',
+          content: 'Applied edit',
+          timestamp: '2026-02-02T00:00:01.000Z',
+          toolInfo: {
+            name: 'Edit',
+            toolUseId: 'tool-1',
+            input: {},
+            status: 'completed',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'tool-1',
+          toolName: 'Edit',
+          phase: 'update',
+          input: {
+            file_path: 'demo.txt',
+            old_string: 'old line',
+            new_string: 'new line',
+          },
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.toolInfo?.input).toEqual({
+      file_path: 'demo.txt',
+      old_string: 'old line',
+      new_string: 'new line',
+    })
+  })
+
   it('readSessionSummary prefers firstUserPrompt from ui_stats for title fallback', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-'))
     const filePath = path.join(tmp, 'session.jsonl')
