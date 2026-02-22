@@ -203,6 +203,68 @@ describe('buildToolUiBlocks', () => {
     expect(details).toBeUndefined()
   })
 
+  it('keeps dynamic params in subtitle while titles stay short', () => {
+    const searchBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'Search',
+        status: 'completed',
+        paramsText: 'pattern="resolveArchiveSelection", path="src/app"',
+        summary: 'Found references',
+        detailLines: [],
+      }),
+    )
+    const searchHeader = searchBlocks.find((block) => block.kind === 'header')
+    expect(searchHeader?.kind).toBe('header')
+    expect(searchHeader?.title).toBe('Search')
+    expect(searchHeader?.subtitle).toBe('resolveArchiveSelection')
+    expect(searchHeader?.paramsText).toContain('path="src/app"')
+
+    const webSearchBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'WebSearch',
+        status: 'completed',
+        paramsText: 'query="react hooks", recency=30',
+        summary: 'Found results',
+        detailLines: [],
+      }),
+    )
+    const webSearchHeader = webSearchBlocks.find((block) => block.kind === 'header')
+    expect(webSearchHeader?.kind).toBe('header')
+    expect(webSearchHeader?.title).toBe('WebSearch')
+    expect(webSearchHeader?.subtitle).toBe('react hooks')
+    expect(webSearchHeader?.paramsText).toContain('recency=30')
+
+    const webFetchBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'WebFetch',
+        status: 'completed',
+        paramsText: 'url="https://example.com/docs", timeout=30000',
+        summary: 'Fetched',
+        detailLines: [],
+      }),
+    )
+    const webFetchHeader = webFetchBlocks.find((block) => block.kind === 'header')
+    expect(webFetchHeader?.kind).toBe('header')
+    expect(webFetchHeader?.title).toBe('WebFetch')
+    expect(webFetchHeader?.subtitle).toBe('https://example.com/docs')
+    expect(webFetchHeader?.paramsText).toContain('timeout=30000')
+
+    const taskBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'Task',
+        status: 'completed',
+        paramsText: 'subagent_type="planner", description="analyze docs", priority="high"',
+        summary: 'Delegated task',
+        detailLines: [],
+      }),
+    )
+    const taskHeader = taskBlocks.find((block) => block.kind === 'header')
+    expect(taskHeader?.kind).toBe('header')
+    expect(taskHeader?.title).toBe('Task')
+    expect(taskHeader?.subtitle).toBe('planner(analyze docs)')
+    expect(taskHeader?.paramsText).toContain('priority="high"')
+  })
+
   it('keeps bash OUT content as raw output text instead of collapsing cwd path', () => {
     const item = makeToolItem({
       toolName: 'Bash',
@@ -339,6 +401,24 @@ describe('buildToolUiBlocks', () => {
     expect(blocks.find((block) => block.kind === 'header')).toBeDefined()
     expect(blocks.find((block) => block.kind === 'details')).toBeUndefined()
     expect(blocks.find((block) => block.kind === 'io')).toBeUndefined()
+  })
+
+  it('keeps edit renderer as header-only when edit fails', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'error',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      summary: '<tool_use_error>No exact match found</tool_use_error>',
+      detailLines: ['No exact match found for old_string in src/demo.js'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Edit')
+    expect(header?.subtitle).toBe('src/demo.js')
+    expect(header?.expandable).toBe(false)
+    expect(blocks.find((block) => block.kind === 'details')).toBeUndefined()
+    expect(blocks.find((block) => block.kind === 'diff')).toBeUndefined()
   })
 
   it('renders edit as diff block with file subtitle only in header', () => {

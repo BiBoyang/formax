@@ -46,7 +46,7 @@ function parsePatchRows(patch: string): DiffRow[] {
 export function DiffPatchView(props: { patch: string; maxHeightClassName?: string }) {
   const rows = parsePatchRows(props.patch)
   return (
-    <div className="bg-white rounded-b-[10px] overflow-hidden">
+    <div className="bg-muted/35 rounded-b-[10px] overflow-hidden">
       <div
         className={cn(
           'min-w-0 overflow-x-hidden overflow-y-auto font-mono text-[12px] leading-relaxed',

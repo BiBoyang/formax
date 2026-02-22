@@ -222,13 +222,14 @@ const globRenderer: ToolBlockRenderer = (item, context) => {
 const searchRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const pattern = params.find((param) => param.label === 'pattern')?.value
-  const title = pattern ? `${item.toolName} ${pattern}` : item.toolName
+  const title = item.toolName
   const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'pattern')) : item.paramsText
   return withStandardBlocks({
     item,
     title,
     summary: item.summary,
     cwd: context.cwd,
+    ...(pattern ? { subtitle: pattern } : {}),
     ...(paramsText ? { paramsText } : {}),
   })
 }
@@ -465,9 +466,6 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
   const inputNewString = pickInputString(item.input, ['new_string'])
   const rawOldString = inputOldString ?? pickRawParam(rawParams, ['old_string'])
   const rawNewString = inputNewString ?? pickRawParam(rawParams, ['new_string'])
-  const outputLines = item.status === 'error'
-    ? collectToolOutputLines({ item, cwd: context.cwd })
-    : []
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
@@ -475,13 +473,11 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
       title: 'Edit',
       ...(file ? { subtitle: file, subtitleMono: true } : {}),
       ...(item.inputState ? { inputState: item.inputState } : {}),
-      expandable: outputLines.length > 0,
+      expandable: false,
     },
   ]
 
-  if (outputLines.length > 0) {
-    blocks.push({ kind: 'details', lines: outputLines })
-  }
+  if (item.status === 'error') return blocks
 
   if (item.status !== 'running') {
     const hasOld = typeof rawOldString === 'string'
@@ -513,13 +509,14 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
 const webSearchRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const query = params.find((param) => param.label === 'query')?.value
-  const title = query ? `WebSearch ${query}` : item.toolName
+  const title = item.toolName
   const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'query')) : item.paramsText
   return withStandardBlocks({
     item,
     title,
     summary: item.summary,
     cwd: context.cwd,
+    ...(query ? { subtitle: query } : {}),
     ...(paramsText ? { paramsText } : {}),
   })
 }
@@ -527,13 +524,14 @@ const webSearchRenderer: ToolBlockRenderer = (item, context) => {
 const webFetchRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const url = params.find((param) => param.label === 'url')?.value
-  const title = url ? `WebFetch ${url}` : item.toolName
+  const title = item.toolName
   const paramsText = params.length > 0 ? stringifyToolParams(params.filter((param) => param.label !== 'url')) : item.paramsText
   return withStandardBlocks({
     item,
     title,
     summary: item.summary,
     cwd: context.cwd,
+    ...(url ? { subtitle: url } : {}),
     ...(paramsText ? { paramsText } : {}),
   })
 }
@@ -542,14 +540,15 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const subagent = params.find((param) => param.label === 'subagent_type')?.value
   const description = params.find((param) => param.label === 'description')?.value
-  const title =
+  const title = item.toolName
+  const subtitle =
     subagent && description
-      ? `Task ${subagent}(${description})`
+      ? `${subagent}(${description})`
       : subagent
-        ? `Task ${subagent}`
+        ? subagent
         : description
-          ? `Task (${description})`
-          : item.toolName
+          ? `(${description})`
+          : undefined
   const paramsText =
     params.length > 0
       ? stringifyToolParams(params.filter((param) => param.label !== 'subagent_type' && param.label !== 'description'))
@@ -559,6 +558,7 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
     title,
     summary: item.summary,
     cwd: context.cwd,
+    ...(subtitle ? { subtitle } : {}),
     ...(paramsText ? { paramsText } : {}),
   })
 }

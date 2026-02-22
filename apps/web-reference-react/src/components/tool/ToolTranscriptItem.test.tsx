@@ -202,9 +202,7 @@ describe('ToolTranscriptItem', () => {
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
     expect(screen.getByText('Edit')).toBeInTheDocument()
-    expect(screen.getAllByText('src/demo.js').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText('+1')).toBeInTheDocument()
-    expect(screen.getByText('-1')).toBeInTheDocument()
+    expect(screen.getAllByText('src/demo.js')).toHaveLength(1)
     expect(screen.getByText('foo')).toBeInTheDocument()
     expect(screen.getByText('bar')).toBeInTheDocument()
     expect(screen.queryByText('Updated 1 occurrence')).not.toBeInTheDocument()
@@ -220,7 +218,7 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} displayDensity="verbose" open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getAllByText('src/demo.js').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('src/demo.js')).toHaveLength(1)
     expect(screen.queryByText(/old_string="foo"/)).not.toBeInTheDocument()
   })
 
@@ -289,7 +287,24 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('bar')).toBeInTheDocument()
   })
 
-  it('renders websearch with query promoted to title', () => {
+  it('shows only edit header when edit fails', () => {
+    const item = makeToolItem({
+      toolName: 'Edit',
+      status: 'error',
+      paramsText: 'file_path="src/demo.js", old_string="foo", new_string="bar"',
+      summary: '<tool_use_error>No exact match found</tool_use_error>',
+      detailLines: ['No exact match found for old_string in src/demo.js'],
+    })
+    render(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Edit')).toBeInTheDocument()
+    expect(screen.getByText('src/demo.js')).toBeInTheDocument()
+    expect(screen.queryByText('foo')).not.toBeInTheDocument()
+    expect(screen.queryByText('bar')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No exact match found/)).not.toBeInTheDocument()
+  })
+
+  it('renders websearch with query in same header row', () => {
     const item = makeToolItem({
       toolName: 'WebSearch',
       paramsText: 'query="react hooks", recency=30',
@@ -298,10 +313,11 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/WebSearch react hooks/)).toBeInTheDocument()
+    expect(screen.getByText('WebSearch')).toBeInTheDocument()
+    expect(screen.getByText('react hooks')).toBeInTheDocument()
   })
 
-  it('renders webfetch with url promoted to title', () => {
+  it('renders webfetch with url in same header row', () => {
     const item = makeToolItem({
       toolName: 'WebFetch',
       paramsText: 'url="https://example.com", timeout=30000',
@@ -310,10 +326,11 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/WebFetch https:\/\/example\.com/)).toBeInTheDocument()
+    expect(screen.getByText('WebFetch')).toBeInTheDocument()
+    expect(screen.getByText('https://example.com')).toBeInTheDocument()
   })
 
-  it('renders task with subagent and description promoted to title', () => {
+  it('renders task subtitle in same header row', () => {
     const item = makeToolItem({
       toolName: 'Task',
       paramsText: 'subagent_type="planner", description="analyze docs", priority="high"',
@@ -322,7 +339,24 @@ describe('ToolTranscriptItem', () => {
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/Task planner\(analyze docs\)/)).toBeInTheDocument()
+    expect(screen.getByText('Task')).toBeInTheDocument()
+    expect(screen.getByText('planner(analyze docs)')).toBeInTheDocument()
+  })
+
+  it('keeps webfetch tool label visible with very long url params', () => {
+    const tailMarker = 'URLTAILMARKER'
+    const veryLongSuffix = `${'x'.repeat(180)}${tailMarker}`
+    const item = makeToolItem({
+      toolName: 'WebFetch',
+      paramsText: `url="https://example.com/${veryLongSuffix}", timeout=30000`,
+      summary: 'Fetched content',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('WebFetch')).toBeInTheDocument()
+    expect(screen.getByText(/https:\/\/example\.com\//)).toBeInTheDocument()
+    expect(screen.queryByText(tailMarker)).not.toBeInTheDocument()
   })
 
   it('renders ask-user-question count in title', () => {
@@ -349,7 +383,7 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/TodoWrite 3 items/)).toBeInTheDocument()
   })
 
-  it('renders grep/search with grep pattern in subtitle', () => {
+  it('renders grep/search pattern in subtitle while keeping short titles', () => {
     const grep = makeToolItem({
       toolName: 'Grep',
       status: 'completed',
@@ -370,7 +404,25 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('1 line of output')).toBeInTheDocument()
 
     rerender(<ToolTranscriptItem item={search} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText(/Search useEffect/)).toBeInTheDocument()
+    expect(screen.getByText('Search')).toBeInTheDocument()
+    expect(screen.getByText('useEffect')).toBeInTheDocument()
+  })
+
+  it('clips very long grep params to protect header title visibility', () => {
+    const tailMarker = 'TAILMARKER'
+    const longOutputMode = `${'x'.repeat(140)}${tailMarker}`
+    const item = makeToolItem({
+      toolName: 'Grep',
+      status: 'completed',
+      paramsText: `pattern="resolveArchiveSelection", path="apps/web-reference-react/src/app/useAppRuntime.ts", output_mode="${longOutputMode}"`,
+      summary: 'Found matches',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Grep')).toBeInTheDocument()
+    expect(screen.getByText(/output_mode=/)).toBeInTheDocument()
+    expect(screen.queryByText(tailMarker)).not.toBeInTheDocument()
   })
 
   it('keeps grep output compact without inline raw error details', () => {

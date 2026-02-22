@@ -22,6 +22,14 @@ export type ToolUiBlocksProps = {
   displayDensity?: ToolDisplayDensity
 }
 
+const TOOL_HEADER_DETAIL_MAX_CHARS = 120
+
+function clipHeaderDetailText(text: string | undefined): string | undefined {
+  if (!text) return undefined
+  if (text.length <= TOOL_HEADER_DETAIL_MAX_CHARS) return text
+  return `${text.slice(0, TOOL_HEADER_DETAIL_MAX_CHARS - 3)}...`
+}
+
 function statusDotClass(status: ToolStatus): string {
   if (status === 'running') return 'bg-[var(--tool-status-running)] animate-pulse'
   if (status === 'error') return 'bg-[var(--tool-status-error)]'
@@ -53,8 +61,8 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
   const { block, open, onToggle, displayDensity } = props
   const showParams = Boolean(block.paramsText) && (displayDensity === 'verbose' || open || !block.expandable)
   const label = block.title
-  const subtitle = block.subtitle ?? (showParams ? block.paramsText : undefined)
-  const trailingParams = block.subtitle && showParams ? block.paramsText : undefined
+  const subtitle = clipHeaderDetailText(block.subtitle ?? (showParams ? block.paramsText : undefined))
+  const trailingParams = clipHeaderDetailText(block.subtitle && showParams ? block.paramsText : undefined)
   const showInputStateBadge = Boolean(block.inputState && block.inputState.status !== 'submitted')
   return (
     <button
@@ -69,7 +77,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         data-testid="tool-status-dot"
         className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
       />
-      <span className="min-w-0 truncate ui-text-base leading-5 font-semibold ui-text-primary">{label}</span>
+      <span className="shrink-0 ui-text-base leading-5 font-semibold ui-text-primary">{label}</span>
       {subtitle ? (
         <span
           className={cn(
@@ -168,21 +176,24 @@ function DetailsBlock({ block }: { block: ToolUiBlockDetails }) {
 }
 
 function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
+  const showFileHeader = block.files.length > 1
   return (
     <div className="ml-3 mt-2 space-y-2">
       {block.files.map((file) => (
-        <div key={`${file.path}-${(file.patch ?? '').length}`} className="rounded-[10px] overflow-hidden">
-          <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 ui-surface-subtle border border-transparent rounded-t-[10px]">
-            <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
-              <span title={file.path} className="font-mono min-w-0 truncate ui-text-primary ui-text-base leading-4 font-medium">
-                {truncatePathFromLeft(file.path)}
-              </span>
-              <div className="flex items-center gap-1 ui-text-base leading-4 font-mono font-normal shrink-0">
-                <span className="ui-text-diff-add">+{file.additions}</span>
-                <span className="ui-text-diff-del">-{file.deletions}</span>
+        <div key={`${file.path}-${(file.patch ?? '').length}`} className="rounded-[10px] overflow-hidden border border-border/70 bg-muted/25">
+          {showFileHeader ? (
+            <div className="flex min-w-0 items-center justify-between w-full text-left px-3.5 py-2 ui-surface-subtle">
+              <div className="flex items-center gap-x-2.5 min-w-0 flex-1">
+                <span title={file.path} className="font-mono min-w-0 truncate ui-text-primary ui-text-base leading-4 font-medium">
+                  {truncatePathFromLeft(file.path)}
+                </span>
+                <div className="flex items-center gap-1 ui-text-base leading-4 font-mono font-normal shrink-0">
+                  <span className="ui-text-diff-add">+{file.additions}</span>
+                  <span className="ui-text-diff-del">-{file.deletions}</span>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
           <DiffPatchView patch={file.patch ?? ''} maxHeightClassName="max-h-[420px]" />
         </div>
       ))}
