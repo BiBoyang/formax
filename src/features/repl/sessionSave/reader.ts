@@ -52,6 +52,18 @@ function isSearchLikeToolName(toolName: string): boolean {
   return toolName === 'Glob' || toolName === 'Grep' || toolName === 'Search'
 }
 
+function hasCompactReadSummary(summary: string): boolean {
+  return /^Read\s+\d+\s+lines$/.test(summary.trim())
+}
+
+function hasCompactSearchSummary(args: { toolName: string; summary: string }): boolean {
+  const summary = args.summary.trim()
+  if (!summary) return false
+  if (args.toolName === 'Glob' || args.toolName === 'Search') return /^Found\s+\d+\s+files$/.test(summary)
+  if (args.toolName === 'Grep') return /^Found\s+\d+\s+(matches|files|lines)$/.test(summary)
+  return false
+}
+
 function normalizePersistedToolDisplay(args: {
   toolName: string
   status: 'running' | 'completed' | 'error'
@@ -67,10 +79,41 @@ function normalizePersistedToolDisplay(args: {
     detailLines: args.detailLines,
   })
   const defaultRawResult = args.detailLines.length > 0 ? args.detailLines.join('\n') : defaultMiddleLines.join('\n')
-  if (!isSearchLikeToolName(args.toolName) || args.status === 'running') {
+  if (args.status === 'running') {
     return {
       summary: args.summary,
       middleLines: defaultMiddleLines,
+      rawResult: defaultRawResult,
+    }
+  }
+
+  if (args.toolName === 'Read') {
+    if (hasCompactReadSummary(args.summary)) {
+      return {
+        summary: args.summary,
+        middleLines: [],
+        rawResult: defaultRawResult,
+      }
+    }
+    return {
+      summary: args.summary,
+      middleLines: defaultMiddleLines,
+      rawResult: defaultRawResult,
+    }
+  }
+
+  if (!isSearchLikeToolName(args.toolName)) {
+    return {
+      summary: args.summary,
+      middleLines: defaultMiddleLines,
+      rawResult: defaultRawResult,
+    }
+  }
+
+  if (hasCompactSearchSummary({ toolName: args.toolName, summary: args.summary })) {
+    return {
+      summary: args.summary,
+      middleLines: [],
       rawResult: defaultRawResult,
     }
   }

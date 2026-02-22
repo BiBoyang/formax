@@ -501,6 +501,84 @@ describe('sessionSave (jsonl)', () => {
     expect(tool?.toolInfo?.middleLines).toBeUndefined()
   })
 
+  it('reader keeps compact Read summary and hides persisted detail lines', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-summary-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-read',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+          phase: 'end',
+          status: 'completed',
+          summary: 'Read 630 lines',
+          lines: ['1\timport x', '2\timport y', '3\timport z'],
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.toolInfo?.name).toBe('Read')
+    expect(tool?.content).toBe('Read 630 lines')
+    expect(tool?.toolInfo?.middleLines).toBeUndefined()
+  })
+
+  it('reader does not recompute Read line count from truncated persisted lines', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-read-noncompact-'))
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-tools-read-noncompact',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: tmp,
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_tool_event',
+        data: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          toolUseId: 'read-legacy-1',
+          toolName: 'Read',
+          phase: 'end',
+          status: 'completed',
+          summary: 'Tool completed',
+          lines: Array.from({ length: 80 }, (_, i) => `${i + 1}\tline ${i + 1}`),
+        },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const replay = await readSessionFile(filePath)
+    const tool = replay.messages.find((message) => message.role === 'tool')
+    expect(tool?.toolInfo?.name).toBe('Read')
+    expect(tool?.content).toBe('Tool completed')
+    expect(tool?.content).not.toBe('Read 80 lines')
+  })
+
   it('readSessionSummary prefers firstUserPrompt from ui_stats for title fallback', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-'))
     const filePath = path.join(tmp, 'session.jsonl')

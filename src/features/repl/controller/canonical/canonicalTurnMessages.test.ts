@@ -119,6 +119,30 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('does not expand Read rows from multiline summary when raw result is present', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-read:tool:1:read-1',
+        kind: 'tool',
+        turnId: 'turn-read',
+        toolUseId: 'read-1',
+        toolName: 'Read',
+        status: 'completed',
+        summary: '1\tfirst line\n2\tsecond line\n3\tthird line',
+        detailLines: [],
+        result: '1\tfirst line\n2\tsecond line\n3\tthird line',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-read', segments })
+    expect(msgs[0]).toMatchObject({
+      content: 'Read 3 lines',
+      toolInfo: {
+        middleLines: [],
+      },
+    })
+  })
+
   it('formats Task completion from canonical metadata and preserves nested details', () => {
     const segments: TranscriptSegment[] = [
       {

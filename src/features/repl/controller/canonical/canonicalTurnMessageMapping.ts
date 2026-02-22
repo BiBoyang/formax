@@ -26,6 +26,14 @@ function parseToolInputFromParamsText(paramsText: string | undefined): Record<st
   return out
 }
 
+function shouldUseSummaryRemainderFallback(args: { hasRawResult: boolean }): boolean {
+  // When we already have a raw tool result, `formatToolResult` is the canonical
+  // source for summary/detail projection. Falling back to multi-line `summary`
+  // causes Read/Glob/Grep rows to re-expand full payload content in TUI.
+  if (args.hasRawResult) return false
+  return true
+}
+
 export function canonicalTurnSegmentsToMessages(args: {
   turnId: string
   segments: TranscriptSegment[]
@@ -178,7 +186,13 @@ export function canonicalTurnSegmentsToMessages(args: {
     const middleLines =
       segment.middleLines ??
       formatted?.middleLines ??
-      (segment.detailLines.length > 0 ? segment.detailLines : summary.remainingSummaryLines)
+      (segment.detailLines.length > 0
+        ? segment.detailLines
+        : shouldUseSummaryRemainderFallback({
+            hasRawResult: typeof displayResult === 'string',
+          })
+          ? summary.remainingSummaryLines
+          : [])
     const resultLines =
       formatted?.lines ?? segment.resultLines ?? [firstLine, ...middleLines].join('\n').split(/\r?\n/).length
     const hideSummaryContent = summary.hideSummaryContent
