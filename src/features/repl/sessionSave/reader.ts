@@ -152,8 +152,16 @@ function toToolMsgFromPersisted(args: { tool: PersistedToolMessage; fallbackTime
   }
 }
 
-function reviveMsg(raw: Msg): Msg {
-  return { ...raw, timestamp: new Date((raw as any).timestamp) }
+function reviveMsg(raw: Msg, recordTimestamp?: string): Msg {
+  const recordDate = typeof recordTimestamp === 'string' ? new Date(recordTimestamp) : null
+  const rowDate = new Date((raw as any).timestamp)
+  const timestamp =
+    recordDate && Number.isFinite(recordDate.getTime())
+      ? recordDate
+      : Number.isFinite(rowDate.getTime())
+        ? rowDate
+        : new Date(0)
+  return { ...raw, timestamp }
 }
 
 function reviveHistory(history: ChatHistory): ChatHistory {
@@ -297,7 +305,7 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
     if (type === 'ui_msg') {
       const rec = parsed as UiMsgRecord
       if (!rec.msg?.id) continue
-      const revived = reviveMsg(rec.msg)
+      const revived = reviveMsg(rec.msg, rec.ts)
       if (revived.role === 'tool') {
         uiToolById.set(revived.id, revived)
         continue

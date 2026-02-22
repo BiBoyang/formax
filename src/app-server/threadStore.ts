@@ -298,6 +298,7 @@ function extractThreadTimelineFromUi(
     role?: unknown
     content?: unknown
     timestamp?: unknown
+    ui?: { kind?: unknown }
     toolInfo?: {
       toolUseId?: unknown
       name?: unknown
@@ -316,6 +317,7 @@ function extractThreadTimelineFromUi(
     const id = typeof message.id === 'string' && message.id.trim() ? message.id : String(out.length)
     const occurredAtMs = parseOccurredAtMs(message.timestamp)
     if (message.role === 'user' || message.role === 'assistant') {
+      if (message.role === 'assistant' && message.ui?.kind === 'thinking_block') continue
       if (typeof message.content !== 'string') continue
       const text = message.content.trim()
       if (!text) continue

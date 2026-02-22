@@ -193,6 +193,108 @@ describe('ThreadStore', () => {
     )
   })
 
+  it('omits assistant thinking_block rows from thread/messages', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'hello',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendStableMsg({
+      id: 'thinking-1',
+      role: 'assistant',
+      content: 'internal thinking that should stay hidden',
+      timestamp: new Date('2026-02-08T00:00:01.000Z'),
+      ui: { kind: 'thinking_block' },
+    } as any)
+    await writer.appendStableMsg({
+      id: 'a1',
+      role: 'assistant',
+      content: 'visible assistant message',
+      timestamp: new Date('2026-02-08T00:00:02.000Z'),
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const messageRows = out.data.filter((entry) => entry.kind === 'message')
+    expect(messageRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'u1', role: 'user', text: 'hello' }),
+        expect.objectContaining({ id: 'a1', role: 'assistant', text: 'visible assistant message' }),
+      ]),
+    )
+    expect(messageRows.some((entry) => entry.id === 'thinking-1')).toBe(false)
+    expect(
+      messageRows.some(
+        (entry) =>
+          entry.role === 'assistant' &&
+          typeof entry.text === 'string' &&
+          entry.text.includes('internal thinking that should stay hidden'),
+      ),
+    ).toBe(false)
+  })
+
+  it('orders UI messages with persisted record timestamps so tools stay interleaved', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(filePath).toBeTruthy()
+    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const staleTimestamp = new Date('2026-02-08T00:00:00.000Z')
+
+    await writer.appendStableMsg({
+      id: 'a-before',
+      role: 'assistant',
+      content: 'before tool',
+      timestamp: staleTimestamp,
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-evt-ordered-1',
+      toolName: 'Read',
+      phase: 'start',
+      status: 'running',
+      summary: 'Read running',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-evt-ordered-1',
+      toolName: 'Read',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Read 1 lines',
+    })
+    await writer.appendStableMsg({
+      id: 'a-after',
+      role: 'assistant',
+      content: 'after tool',
+      timestamp: staleTimestamp,
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const beforeIndex = out.data.findIndex((entry) => entry.kind === 'message' && entry.id === 'a-before')
+    const toolIndex = out.data.findIndex(
+      (entry) => entry.kind === 'tool' && entry.toolUseId === 'tool-evt-ordered-1',
+    )
+    const afterIndex = out.data.findIndex((entry) => entry.kind === 'message' && entry.id === 'a-after')
+
+    expect(beforeIndex).toBeGreaterThan(-1)
+    expect(toolIndex).toBeGreaterThan(-1)
+    expect(afterIndex).toBeGreaterThan(-1)
+    expect(beforeIndex).toBeLessThan(toolIndex)
+    expect(toolIndex).toBeLessThan(afterIndex)
+  })
+
   it('hydrates tool rows from app_tool_event records when ui_msg has no tool role', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
