@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { RpcClient } from '../rpcClient'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
-import { createTurnEventCursorState, shouldAcceptSequencedNotification } from '../turnEventCursor'
+import { shouldAcceptSequencedNotification } from '../turnEventCursor'
 import { type DiffSnapshot } from '../components/WorktreeDiffPane'
 import {
   DEFAULT_BRIDGE_URL,
@@ -22,25 +21,28 @@ import {
   toRuntimePendingInputsById,
 } from './core/threadTransforms'
 import { isTranscriptVirtualizationEnabled } from './core/transcriptVirtualization'
-import {
-  formatArchiveNotice,
-  resolveArchiveSelection,
-  type ArchiveThreadLike,
-} from '../semantics'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
 import { processNotification } from './runtime/processNotification'
 import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
+import { createThreadArchivedHandler } from './runtime/notifications/handleThreadArchived'
 import { createComposerActions } from './runtime/composerActions'
 import { createThreadActions } from './runtime/threadActions'
 import type { SelectThreadOptions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
-import { connectRpcClient } from './runtime/connectRpcClient'
+import { useRpcConnectionEffect } from './runtime/useRpcConnectionEffect'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
 import { useRpcRequest } from './runtime/useRpcRequest'
+import {
+  useRpcRefs,
+  useThreadSnapshotRefs,
+  useHistoryRefs,
+  useThreadCacheRefs,
+  useThreadRuntimeRefs,
+} from './runtime/useRuntimeRefs'
 import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import { pruneThreadScopedRefs } from './runtime/threadScopedRefs'
@@ -50,7 +52,7 @@ import { useThreadUrlSync } from './runtime/useThreadUrlSync'
 import {
   createInitialThreadRuntimeState,
   reduceThreadRuntimeState,
-  type ThreadRuntimeState,
+  type ArchiveThreadLike,
 } from '../semantics'
 import { isReplMode, type ReplMode } from '../semantics'
 import {
@@ -120,23 +122,28 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     },
     [],
   )
-  const clientRef = useRef<RpcClient | null>(null)
-  const commandByTurnRef = useRef<Map<string, string>>(new Map())
-  const eventCursorRef = useRef(createTurnEventCursorState(SEEN_EVENT_CAP))
-  const historyLoadTokenRef = useRef(0)
-  const historyLoadSeqByThreadRef = useRef<Record<string, number>>({})
-  const historyLoadingRef = useRef<Record<string, boolean>>({})
-  const transcriptSourceByThreadRef = useRef<Record<string, ThreadTranscriptSource>>({})
-  const activeThreadIdRef = useRef<string | null>(state.activeThreadId)
-  const selectedCwdRef = useRef<string | null>(selectedCwd)
-  const threadsRef = useRef(state.threads)
-  const selectedInputIdRef = useRef<string | null>(state.selectedInputId)
-  const stateLogsRef = useRef<TranscriptItem[]>(state.logs)
-  const logsByThreadIdRef = useRef<Record<string, TranscriptItem[]>>(logsByThreadId)
-  const historyCursorByThreadIdRef = useRef<Record<string, string | null>>(historyCursorByThreadId)
-  const replayCursorByThreadRef = useRef<Record<string, number>>({})
-  const replayAnomalyCountSeenByThreadRef = useRef<Record<string, number>>({})
-  const runtimeStateByThreadRef = useRef<Record<string, ThreadRuntimeState>>({})
+
+  // Refs 分组（130+ 行 → 6 行）
+  const rpcRefs = useRpcRefs()
+  const threadSnapshotRefs = useThreadSnapshotRefs(
+    state.activeThreadId,
+    state.threads,
+    selectedCwd,
+    state.selectedInputId,
+    state.logs
+  )
+  const historyRefs = useHistoryRefs(historyCursorByThreadId)
+  const threadCacheRefs = useThreadCacheRefs(logsByThreadId, transcriptSourceByThreadId)
+  const threadRuntimeRefs = useThreadRuntimeRefs()
+
+  // 展开使用（如果需要）
+  const { clientRef, eventCursorRef, commandByTurnRef } = rpcRefs
+  const { activeThreadIdRef, threadsRef, selectedCwdRef, selectedInputIdRef, stateLogsRef } = threadSnapshotRefs
+  const { historyLoadTokenRef, historyLoadSeqByThreadRef, historyLoadingRef, historyCursorByThreadIdRef } = historyRefs
+  const { logsByThreadIdRef, transcriptSourceByThreadRef } = threadCacheRefs
+  const { replayCursorByThreadRef, replayAnomalyCountSeenByThreadRef, runtimeStateByThreadRef } = threadRuntimeRefs
+
+  // 其他 Refs（不在分组中）
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
@@ -183,17 +190,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   )
 
   useEffect(() => {
-    selectedCwdRef.current = selectedCwd
-  }, [selectedCwd])
-
-  useEffect(() => {
-    threadsRef.current = state.threads
     pruneThreadScopedRuntimeRefs(state.threads)
   }, [pruneThreadScopedRuntimeRefs, state.threads])
-
-  useEffect(() => {
-    historyCursorByThreadIdRef.current = historyCursorByThreadId
-  }, [historyCursorByThreadId])
 
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
@@ -276,52 +274,20 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [log, request],
   )
 
-  const handleThreadArchivedNotification = useCallback(
-    (params: unknown) => {
-      const event = params && typeof params === 'object' ? (params as Record<string, unknown>) : null
-      const threadId = typeof event?.threadId === 'string' ? event.threadId.trim() : ''
-      if (!threadId) return
-
-      const opId = typeof event?.opId === 'string' ? event.opId.trim() : ''
-      if (opId) {
-        const tracked = pendingArchiveOpsRef.current.get(opId)
-        if (tracked) {
-          pendingArchiveOpsRef.current.delete(opId)
-          pruneThreadScopedRuntimeRefs(threadsRef.current)
-          setNoticeMessage(formatArchiveNotice(tracked.thread))
-        }
-      }
-
-      const currentThreads = threadsRef.current
-      if (!currentThreads.some((thread) => thread.id === threadId)) return
-      const nextThreads = currentThreads.filter((thread) => thread.id !== threadId)
-      dispatch({ type: 'set_threads', threads: nextThreads })
-
-      if (activeThreadIdRef.current !== threadId) return
-
-      const orderedThreadIds = [...currentThreads]
-        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-        .map((thread) => thread.id)
-      const selection = resolveArchiveSelection({
-        activeThreadId: threadId,
-        archivedThreadId: threadId,
-        orderedThreadIds,
-      })
-      if (selection.nextActiveThreadId) {
-        selectThreadRef.current(selection.nextActiveThreadId, { restoreOnReplayFailure: false })
-        return
-      }
-
-      activeThreadIdRef.current = null
-      setMode('normal')
-      dispatch({ type: 'set_active_thread', threadId: null })
-      dispatch({ type: 'set_active_turn', turnId: null })
-      dispatch({ type: 'clear_pending_inputs' })
-      dispatch({ type: 'replace_logs', logs: [] })
-      setSelectedCwd(null)
-      void refreshWorkspaceDiff(null).catch(() => undefined)
-    },
-    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setSelectedCwd],
+  const handleThreadArchivedNotification = useMemo(
+    () => createThreadArchivedHandler({
+      dispatch,
+      pruneThreadScopedRuntimeRefs,
+      refreshWorkspaceDiff,
+      setNoticeMessage,
+      setSelectedCwd,
+      selectThreadRef, // 传 ref 本身，不是 current
+      setMode,
+      threadsRef,
+      activeThreadIdRef,
+      pendingArchiveOpsRef,
+    }),
+    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setNoticeMessage, setSelectedCwd, setMode],
   )
 
   const handleNotification = useCallback(
@@ -412,33 +378,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     logsByThreadIdRef,
     setLogsByThreadId,
   })
-
-  useEffect(() => {
-    return connectRpcClient({
-      bridgeUrl,
-      seenEventCap: SEEN_EVENT_CAP,
-      dispatch,
-      clientRef,
-      eventCursorRef,
-      initializeHandshake,
-      refreshThreads,
-      refreshWorkspaceDiff,
-      resumeThreadInputs,
-      replayThreadEvents,
-      activeThreadIdRef,
-      handleNotification,
-      captureError,
-    })
-  }, [
-    bridgeUrl,
-    captureError,
-    handleNotification,
-    initializeHandshake,
-    refreshThreads,
-    refreshWorkspaceDiff,
-    replayThreadEvents,
-    resumeThreadInputs,
-  ])
 
   const { sortedThreads } = useThreadSelection({
     threads: state.threads,
@@ -570,6 +509,22 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadId: state.activeThreadId,
     activeTurnId: state.activeTurnId,
     enabled: devRuntime,
+  })
+
+  useRpcConnectionEffect({
+    bridgeUrl,
+    seenEventCap: SEEN_EVENT_CAP,
+    dispatch,
+    initializeHandshake,
+    refreshThreads,
+    refreshWorkspaceDiff,
+    resumeThreadInputs,
+    replayThreadEvents,
+    activeThreadIdRef,
+    handleNotification,
+    captureError,
+    clientRef,
+    eventCursorRef,
   })
 
   return {
