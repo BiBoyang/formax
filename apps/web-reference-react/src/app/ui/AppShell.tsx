@@ -47,6 +47,9 @@ export type AppShellProps = {
   historyMore: boolean
   historyLoading: boolean
   onLoadEarlier: () => void
+  devLoadAllEnabled?: boolean
+  devLoadAllRunning?: boolean
+  onDevLoadAllEarlier?: () => void
   isSending: boolean
   isInterrupting: boolean
   lastRpcError: { at: string; method: string; message: string; code?: number; data?: unknown } | null
@@ -80,6 +83,7 @@ export function AppShell(props: AppShellProps) {
   const pendingRightRailPercentRef = useRef(rightRailPercent)
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
+  const showDevLoadAllButton = props.devLoadAllEnabled === true
 
   const onLeftResize = (sidebarSizePercent: number) => {
     if (!props.isSidebarOpen) return
@@ -186,6 +190,19 @@ export function AppShell(props: AppShellProps) {
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
+                  {showDevLoadAllButton ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="header-dev-load-all-earlier"
+                      className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground"
+                      onClick={() => props.onDevLoadAllEarlier?.()}
+                      disabled={!props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning}
+                    >
+                      {props.devLoadAllRunning ? 'Loading all earlier...' : 'Load all earlier (Dev)'}
+                    </Button>
+                  ) : null}
                   {props.activeTurnId ? (
                     <div className="rounded-full border border-border bg-background px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
                       turn {props.activeTurnId.slice(0, 8)}
@@ -226,6 +243,7 @@ export function AppShell(props: AppShellProps) {
                     historyMore={props.historyMore}
                     historyLoading={props.historyLoading}
                     onLoadEarlier={props.onLoadEarlier}
+                    devLoadAllActive={props.devLoadAllRunning === true}
                     isSending={props.isSending}
                     isInterrupting={props.isInterrupting}
                     lastRpcError={props.lastRpcError}
@@ -246,7 +264,10 @@ export function AppShell(props: AppShellProps) {
                 </div>
               </ResizablePanel>
 
-              <ResizableHandle className="relative z-[120]" onDragging={onRightDragStateChange} />
+              <ResizableHandle
+                className="relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0"
+                onDragging={onRightDragStateChange}
+              />
 
               <ResizablePanel
                 defaultSize={rightRailPercent}

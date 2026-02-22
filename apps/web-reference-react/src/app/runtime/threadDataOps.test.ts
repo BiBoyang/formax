@@ -245,4 +245,37 @@ describe('threadDataOps', () => {
       logs: [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }],
     })
   })
+
+  it('bootstraps history from replay source before loading earlier pages', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ data: [], nextCursor: 'cursor-prev' })
+      .mockResolvedValueOnce({ data: [], nextCursor: 'cursor-next' })
+    const ctx = createBaseContext({
+      request,
+      activeThreadIdRef: { current: 'thread-1' },
+      transcriptSourceByThreadRef: { current: { 'thread-1': 'replay' } },
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await ops.loadEarlierHistory()
+
+    expect(request).toHaveBeenNthCalledWith(1, 'thread/messages', {
+      threadId: 'thread-1',
+      limit: 50,
+    })
+    expect(request).toHaveBeenNthCalledWith(2, 'thread/messages', {
+      threadId: 'thread-1',
+      limit: 50,
+      cursor: 'cursor-next',
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'replace_logs',
+      logs: [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }],
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'prepend_logs',
+      logs: [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }],
+    })
+  })
 })

@@ -100,6 +100,7 @@ export type TranscriptPaneProps = {
   historyMore?: boolean
   historyLoading?: boolean
   onLoadEarlier?: () => void
+  devLoadAllActive?: boolean
   isSending?: boolean
   isInterrupting?: boolean
   lastRpcError?: RpcErrorLike | null
@@ -239,6 +240,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     historyMore = false,
     historyLoading = false,
     onLoadEarlier,
+    devLoadAllActive = false,
     isSending = false,
     isInterrupting = false,
     lastRpcError = null,
@@ -511,6 +513,17 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
     onLoadEarlier?.()
   }
+
+  useEffect(() => {
+    if (!devLoadAllActive) return
+    if (hiddenInMemoryCount > 0) {
+      increaseRenderLimit(hiddenInMemoryCount, true, visibleLogs.length)
+    }
+  }, [
+    devLoadAllActive,
+    hiddenInMemoryCount,
+    visibleLogs.length,
+  ])
 
   useEffect(() => {
     if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {

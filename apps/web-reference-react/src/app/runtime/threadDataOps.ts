@@ -157,6 +157,15 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     })
   }
 
+  const setThreadHistoryCursor = (threadId: string, cursor: string | null) => {
+    ctx.historyCursorByThreadIdRef.current = withRecordValue(
+      ctx.historyCursorByThreadIdRef.current,
+      threadId,
+      cursor,
+    )
+    ctx.setHistoryCursorByThreadId((prev) => withRecordValue(prev, threadId, cursor))
+  }
+
   const setThreadTranscriptSource = (threadId: string, source: ThreadTranscriptSource) => {
     ctx.transcriptSourceByThreadRef.current = withRecordValue(ctx.transcriptSourceByThreadRef.current, threadId, source)
     ctx.setTranscriptSourceByThreadId((prev) => {
@@ -166,6 +175,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
 
   const clearThreadHistoryCursor = (threadId: string) => {
     ctx.historyLoadingRef.current = withoutRecordKey(ctx.historyLoadingRef.current, threadId)
+    ctx.historyCursorByThreadIdRef.current = withoutRecordKey(ctx.historyCursorByThreadIdRef.current, threadId)
 
     ctx.setHistoryLoadingByThreadId((prev) => {
       return withoutRecordKey(prev, threadId)
@@ -202,7 +212,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs })
       ctx.setLogsByThreadId((prev) => withRecordValue(prev, threadId, logs))
-      ctx.setHistoryCursorByThreadId((prev) => withRecordValue(prev, threadId, parsed.nextCursor))
+      setThreadHistoryCursor(threadId, parsed.nextCursor)
       setThreadTranscriptSource(threadId, 'history')
       return true
     } catch {
@@ -235,8 +245,12 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const loadEarlierHistory = async () => {
     const threadId = ctx.activeThreadIdRef.current
     if (!threadId || ctx.historyLoadingRef.current[threadId]) return
-    if (ctx.transcriptSourceByThreadRef.current[threadId] !== 'history') return
-    const cursor = ctx.historyCursorByThreadIdRef.current[threadId]
+    let cursor = ctx.historyCursorByThreadIdRef.current[threadId]
+    if (ctx.transcriptSourceByThreadRef.current[threadId] !== 'history') {
+      const loaded = await loadThreadHistory(threadId)
+      if (!loaded) return
+      cursor = ctx.historyCursorByThreadIdRef.current[threadId]
+    }
     if (!cursor) return
 
     const token = ctx.historyLoadTokenRef.current
@@ -256,7 +270,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           ctx.stateLogsRef.current
         return withRecordValue(prev, threadId, [...prepended, ...current])
       })
-      ctx.setHistoryCursorByThreadId((prev) => withRecordValue(prev, threadId, parsed.nextCursor))
+      setThreadHistoryCursor(threadId, parsed.nextCursor)
     } finally {
       endThreadHistoryRequest(threadId, seq)
     }

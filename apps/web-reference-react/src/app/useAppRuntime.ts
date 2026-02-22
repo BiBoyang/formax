@@ -70,8 +70,7 @@ function resolveBridgeUrl(): string {
 }
 
 function isDevRuntime(): boolean {
-  const meta = import.meta as ImportMeta & { env?: { DEV?: boolean } }
-  return meta.env?.DEV === true
+  return import.meta.env.DEV
 }
 
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
@@ -87,6 +86,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
+  const [devLoadAllRequested, setDevLoadAllRequested] = useState(false)
+  const [devLoadAllBootstrapAttempts, setDevLoadAllBootstrapAttempts] = useState(0)
+  const [devLoadAllSawHistoryLoading, setDevLoadAllSawHistoryLoading] = useState(false)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
@@ -452,6 +454,16 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     return () => window.clearTimeout(timer)
   }, [noticeMessage])
 
+  const stopDevLoadAll = useCallback(() => {
+    setDevLoadAllRequested(false)
+    setDevLoadAllBootstrapAttempts(0)
+    setDevLoadAllSawHistoryLoading(false)
+  }, [])
+
+  useEffect(() => {
+    stopDevLoadAll()
+  }, [state.activeThreadId, stopDevLoadAll])
+
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
       createComposerActions({
@@ -503,6 +515,66 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     threads: state.threads,
     selectThread,
   })
+
+  const onDevLoadAllEarlier = useCallback(() => {
+    if (!devRuntime) return
+    if (!state.activeThreadId) return
+    setDevLoadAllRequested(true)
+    setDevLoadAllBootstrapAttempts(0)
+    setDevLoadAllSawHistoryLoading(false)
+  }, [devRuntime, state.activeThreadId])
+
+  const runDevLoadAllStep = useCallback(() => {
+    void loadEarlierHistory().catch(() => {
+      stopDevLoadAll()
+    })
+  }, [loadEarlierHistory, stopDevLoadAll])
+
+  useEffect(() => {
+    if (!devRuntime) return
+    if (!devLoadAllRequested) return
+
+    if (!state.activeThreadId) {
+      stopDevLoadAll()
+      return
+    }
+
+    if (activeHistoryLoading) {
+      if (!devLoadAllSawHistoryLoading) {
+        setDevLoadAllSawHistoryLoading(true)
+      }
+      return
+    }
+
+    if (historyMore) {
+      runDevLoadAllStep()
+      return
+    }
+
+    if (devLoadAllBootstrapAttempts === 0) {
+      setDevLoadAllBootstrapAttempts(1)
+      runDevLoadAllStep()
+      return
+    }
+
+    if (devLoadAllBootstrapAttempts === 1 && devLoadAllSawHistoryLoading) {
+      setDevLoadAllBootstrapAttempts(2)
+      runDevLoadAllStep()
+      return
+    }
+
+    stopDevLoadAll()
+  }, [
+    activeHistoryLoading,
+    devLoadAllBootstrapAttempts,
+    devLoadAllRequested,
+    devLoadAllSawHistoryLoading,
+    devRuntime,
+    historyMore,
+    runDevLoadAllStep,
+    state.activeThreadId,
+    stopDevLoadAll,
+  ])
 
   useDevRuntimeApi({
     dispatch,
@@ -562,6 +634,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyMore,
     historyLoading: activeHistoryLoading,
     onLoadEarlier: () => void loadEarlierHistory().catch(() => undefined),
+    devLoadAllEnabled: devRuntime,
+    devLoadAllRunning: devLoadAllRequested,
+    onDevLoadAllEarlier,
     isSending: isSendingTurn,
     isInterrupting: isInterruptingTurn,
     lastRpcError,

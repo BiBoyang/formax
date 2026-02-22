@@ -531,6 +531,39 @@ describe('TranscriptPane', () => {
     expect(screen.getByText('server-msg-180')).toBeInTheDocument()
   })
 
+  it('reveals all earlier in-memory messages when dev load-all is active', async () => {
+    const logs = Array.from({ length: 260 }, (_, index) => ({
+      id: `all-${index}`,
+      kind: 'message' as const,
+      role: 'assistant' as const,
+      text: `all-msg-${index}`,
+    }))
+
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+          devLoadAllActive: false,
+        })}
+      />,
+    )
+
+    expect(screen.queryByText('all-msg-0')).not.toBeInTheDocument()
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          logs,
+          devLoadAllActive: true,
+        })}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('all-msg-0')).toBeInTheDocument()
+    })
+  })
+
   it('keeps earlier history visible after load-earlier prep request', () => {
     const onLoadEarlier = vi.fn()
     const { rerender } = render(
