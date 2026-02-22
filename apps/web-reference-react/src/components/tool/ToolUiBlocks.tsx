@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { DiffPatchView } from '../diff/DiffPatchView'
 import { truncatePathFromLeft } from '../diff/diffTypes'
+import { Button } from '../ui/button'
 import { TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
 import type {
   ToolDisplayDensity,
@@ -12,6 +13,7 @@ import type {
   ToolUiBlockDiff,
   ToolUiBlockHeader,
   ToolUiBlockIo,
+  ToolUiBlockTodoList,
   ToolStatus,
 } from './toolUiBlocksTypes'
 
@@ -175,6 +177,48 @@ function DetailsBlock({ block }: { block: ToolUiBlockDetails }) {
   )
 }
 
+function TodoListBlock({ block }: { block: ToolUiBlockTodoList }) {
+  const toStatusGlyph = (status: ToolUiBlockTodoList['items'][number]['status']): string => {
+    if (status === 'completed') return '✓'
+    if (status === 'in_progress') return '*'
+    return ''
+  }
+
+  return (
+    <div className="ml-[18px] mt-2 space-y-2.5">
+      {block.items.map((item, index) => (
+        <div key={`todo-item-${index}-${item.content}`} className="flex items-center gap-2 min-w-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            tabIndex={-1}
+            aria-hidden="true"
+            data-testid={`todo-item-status-${index}`}
+            data-status={item.status}
+            className={cn(
+              'h-4 w-4 flex items-center justify-center shrink-0 rounded-[5px] p-0 text-[13px] leading-none font-semibold pointer-events-none',
+              item.status === 'completed' ? 'border-border/80 text-muted-foreground/80 bg-muted/25' : null,
+              item.status === 'in_progress' ? 'border-border/80 text-muted-foreground bg-muted/15' : null,
+              item.status === 'pending' ? 'border-border/80 text-transparent bg-transparent' : null,
+            )}
+          >
+            {toStatusGlyph(item.status)}
+          </Button>
+          <span
+            className={cn(
+              'min-w-0 truncate ui-text-base leading-6',
+              item.status === 'completed' ? 'line-through text-muted-foreground/70' : 'ui-text-primary',
+            )}
+          >
+            {item.content}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
   const showFileHeader = block.files.length > 1
   return (
@@ -207,6 +251,7 @@ export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact
   const codePreviewBlock = blocks.find((block): block is ToolUiBlockCodePreview => block.kind === 'code_preview')
   const details = blocks.find((block): block is ToolUiBlockDetails => block.kind === 'details')
   const info = blocks.find((block) => block.kind === 'info')
+  const todoList = blocks.find((block): block is ToolUiBlockTodoList => block.kind === 'todo_list')
   const diff = blocks.find((block): block is ToolUiBlockDiff => block.kind === 'diff')
   const showDiff = Boolean(diff) && (diff?.alwaysVisible || open || !header || !header.expandable)
 
@@ -218,6 +263,7 @@ export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact
       {info && info.kind === 'info' ? (
         <div className="ml-[18px] ui-text-base text-muted-foreground">{info.text}</div>
       ) : null}
+      {todoList ? <TodoListBlock block={todoList} /> : null}
       {showDiff && diff ? <DiffBlock block={diff} /> : null}
       {details && open ? <DetailsBlock block={details} /> : null}
     </div>

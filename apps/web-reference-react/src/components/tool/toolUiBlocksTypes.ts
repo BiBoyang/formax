@@ -50,4 +50,21 @@ export type ToolUiBlockCodePreview = {
   lines: string[]
 }
 
-export type ToolUiBlock = ToolUiBlockHeader | ToolUiBlockDetails | ToolUiBlockInfo | ToolUiBlockDiff | ToolUiBlockIo | ToolUiBlockCodePreview
+export type ToolUiTodoItemStatus = 'pending' | 'in_progress' | 'completed'
+
+export type ToolUiBlockTodoList = {
+  kind: 'todo_list'
+  items: Array<{
+    content: string
+    status: ToolUiTodoItemStatus
+  }>
+}
+
+export type ToolUiBlock =
+  | ToolUiBlockHeader
+  | ToolUiBlockDetails
+  | ToolUiBlockInfo
+  | ToolUiBlockDiff
+  | ToolUiBlockIo
+  | ToolUiBlockCodePreview
+  | ToolUiBlockTodoList

@@ -371,16 +371,30 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText(/AskUserQuestion 2 questions/)).toBeInTheDocument()
   })
 
-  it('renders todowrite count in title', () => {
+  it('renders TodoWrite checklist with completed/in_progress/pending states', () => {
     const item = makeToolItem({
       toolName: 'TodoWrite',
-      paramsText: 'todos=[{"content":"a"},{"content":"b"},{"content":"c"}], op="replace"',
-      summary: 'Updated todos',
+      status: 'completed',
+      summary: 'Todos have been modified successfully.',
+      input: {
+        todos: [
+          { content: 'Task1', status: 'completed' },
+          { content: 'Task2', status: 'in_progress' },
+          { content: 'Task3', status: 'pending' },
+        ],
+      },
+      paramsText: 'todos=[{"content":"Task1","status":"completed"}], op="replace"',
       detailLines: [],
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(screen.getByText(/TodoWrite 3 items/)).toBeInTheDocument()
+    expect(screen.getByText('Update Todos')).toBeInTheDocument()
+    expect(screen.getByText('Task1')).toHaveClass('line-through')
+    expect(screen.getByText('Task2')).toBeInTheDocument()
+    expect(screen.getByText('Task3')).toBeInTheDocument()
+    expect(screen.getByTestId('todo-item-status-0')).toHaveAttribute('data-status', 'completed')
+    expect(screen.getByTestId('todo-item-status-1')).toHaveAttribute('data-status', 'in_progress')
+    expect(screen.getByTestId('todo-item-status-2')).toHaveAttribute('data-status', 'pending')
   })
 
   it('renders grep/search pattern in subtitle while keeping short titles', () => {

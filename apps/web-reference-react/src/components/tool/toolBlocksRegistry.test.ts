@@ -55,6 +55,102 @@ describe('buildToolUiBlocks', () => {
     expect(details?.lines).toEqual(['platform: Mac', 'theme: dark'])
   })
 
+  it('renders TodoWrite as Update Todos with checklist statuses', () => {
+    const item = makeToolItem({
+      toolName: 'TodoWrite',
+      status: 'completed',
+      summary: 'Todos have been modified successfully.',
+      input: {
+        todos: [
+          { content: 'Task1', status: 'completed' },
+          { content: 'Task2', status: 'in_progress' },
+          { content: 'Task3', status: 'pending' },
+        ],
+      },
+      paramsText: 'todos=[{"content":"Task1","status":"completed"}]',
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const todoList = blocks.find((block) => block.kind === 'todo_list')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Update Todos')
+    expect(header?.expandable).toBe(false)
+    expect(todoList?.kind).toBe('todo_list')
+    expect(todoList?.items).toEqual([
+      { content: 'Task1', status: 'completed' },
+      { content: 'Task2', status: 'in_progress' },
+      { content: 'Task3', status: 'pending' },
+    ])
+    expect(info).toBeUndefined()
+  })
+
+  it('uses spec-defined todo statuses only and falls back unknown values to pending', () => {
+    const item = makeToolItem({
+      toolName: 'TodoWrite',
+      status: 'completed',
+      summary: 'Todos have been modified successfully.',
+      input: {
+        todos: [
+          { content: 'Strict Pending', status: 'pending' },
+          { content: 'Strict In Progress', status: 'in_progress' },
+          { content: 'Strict Completed', status: 'completed' },
+          { content: 'Invalid Typo', status: 'in_porgess' },
+        ],
+      },
+    })
+    const blocks = buildToolUiBlocks(item)
+    const todoList = blocks.find((block) => block.kind === 'todo_list')
+    expect(todoList?.kind).toBe('todo_list')
+    expect(todoList?.items).toEqual([
+      { content: 'Strict Pending', status: 'pending' },
+      { content: 'Strict In Progress', status: 'in_progress' },
+      { content: 'Strict Completed', status: 'completed' },
+      { content: 'Invalid Typo', status: 'pending' },
+    ])
+  })
+
+  it('falls back to semantic summary when TodoWrite items are unavailable', () => {
+    const item = makeToolItem({
+      toolName: 'TodoWrite',
+      status: 'running',
+      summary: 'custom fallback',
+      paramsText: 'todos=[not-json',
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const todoList = blocks.find((block) => block.kind === 'todo_list')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Update Todos')
+    expect(todoList).toBeUndefined()
+    expect(info?.kind).toBe('info')
+    expect(info?.text).toBe('Updating todo list')
+  })
+
+  it('parses TodoWrite todos from raw params text when display params are clipped', () => {
+    const longContent = `Task ${'x'.repeat(120)}`
+    const paramsText = formatToolInputAsParamsText({
+      todos: [{ content: longContent, status: 'pending' }],
+    })
+    const item = makeToolItem({
+      toolName: 'TodoWrite',
+      status: 'completed',
+      summary: 'Todos have been modified successfully.',
+      paramsText: paramsText ?? undefined,
+      detailLines: [],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const todoList = blocks.find((block) => block.kind === 'todo_list')
+    const info = blocks.find((block) => block.kind === 'info')
+    expect(todoList?.kind).toBe('todo_list')
+    expect(todoList?.items).toEqual([
+      { content: longContent, status: 'pending' },
+    ])
+    expect(info).toBeUndefined()
+  })
+
   it('uses shared bash params presentation model for title and non-command params', () => {
     const item = makeToolItem({
       toolName: 'Bash',

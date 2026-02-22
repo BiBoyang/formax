@@ -1,4 +1,4 @@
-import type { ToolCallItem, ToolDisplayDensity, ToolStatus, ToolUiBlock } from './toolUiBlocksTypes'
+import type { ToolCallItem, ToolDisplayDensity, ToolStatus, ToolUiBlock, ToolUiTodoItemStatus } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
 import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
@@ -7,7 +7,6 @@ import {
   parseToolParamsText,
 } from '../../../../../src/features/tools/presentation/paramsText'
 import {
-  formatItemCountLabel,
   formatQuestionCountLabel,
   summarizeAskUserQuestionStatus,
   summarizePlanModeStatus,
@@ -47,6 +46,27 @@ function parseJsonArray(raw: string | undefined): unknown[] | null {
   } catch {
     return null
   }
+}
+
+function normalizeTodoStatus(status: unknown): ToolUiTodoItemStatus {
+  if (status === 'pending' || status === 'in_progress' || status === 'completed') return status
+  return 'pending'
+}
+
+function toTodoItems(raw: unknown, cwd?: string): Array<{ content: string; status: ToolUiTodoItemStatus }> {
+  if (!Array.isArray(raw)) return []
+  const items: Array<{ content: string; status: ToolUiTodoItemStatus }> = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const item = entry as { content?: unknown; activeForm?: unknown; status?: unknown }
+    const contentCandidate = typeof item.content === 'string' && item.content.trim() ? item.content : item.activeForm
+    if (typeof contentCandidate !== 'string' || !contentCandidate.trim()) continue
+    items.push({
+      content: sanitizeToolTextPaths(contentCandidate.trim(), cwd),
+      status: normalizeTodoStatus(item.status),
+    })
+  }
+  return items
 }
 
 function withStandardBlocks(args: {
@@ -603,20 +623,32 @@ const askQuestionRenderer: ToolBlockRenderer = (item, context) => {
 }
 
 const todoWriteRenderer: ToolBlockRenderer = (item, context) => {
-  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
-  const todos = params.find((param) => param.label === 'todos')
-  const count = todos ? parseJsonArrayLength(todos.value) : null
-  const title = count == null ? item.toolName : `${item.toolName} ${formatItemCountLabel(count)}`
+  const rawParams = parseToolParamsText(item.paramsText)
+  const rawTodosParam = rawParams.find((param) => param.label === 'todos')
+  const todosFromInput = toTodoItems(item.input?.todos, context.cwd)
+  const todosFromParams = toTodoItems(parseJsonArray(rawTodosParam?.value), context.cwd)
+  const todoItems = todosFromInput.length > 0 ? todosFromInput : todosFromParams
   const summary = summarizeTodoWriteStatus({
     status: toToolStatus(item.status),
     fallbackSummary: sanitizeToolTextPaths(item.summary, context.cwd),
   })
-  return withStandardBlocks({
-    item,
-    title,
-    summary,
-    cwd: context.cwd,
-  })
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title: 'Update Todos',
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable: false,
+    },
+  ]
+  if (todoItems.length > 0) {
+    blocks.push({ kind: 'todo_list', items: todoItems })
+    return blocks
+  }
+  if (summary.trim()) {
+    blocks.push({ kind: 'info', text: summary })
+  }
+  return blocks
 }
 
 function getPlanModeSummary(args: {

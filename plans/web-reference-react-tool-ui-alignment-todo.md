@@ -19,7 +19,7 @@ Scope: /Users/david/Documents/github/formax/apps/web-reference-react tool transc
 | WebFetch | Generic semantic renderer | partial | Not validated against target visual reference line-by-line | Collect screenshot + align layout details |
 | Task | Generic semantic renderer with title synthesis | partial | Not validated against target visual reference line-by-line | Collect screenshot + align layout details |
 | AskUserQuestion (semantic) | Semantic title/summary + parsed answers | partial | UX details not fully aligned to target reference | Add reference-driven UI pass |
-| TodoWrite (semantic) | Semantic title/summary | partial | UX details not fully aligned to target reference | Add reference-driven UI pass |
+| TodoWrite (semantic) | Dedicated checklist renderer (`completed` / `in_progress` / `pending`) with compact header `Update Todos` | aligned_v1 | Minor spacing/typography polish may remain | Keep visual polish in follow-up passes |
 | EnterPlanMode / ExitPlanMode (semantic) | Semantic title/summary | partial | UX details not fully aligned to target reference | Add reference-driven UI pass |
 | Other fallback tools | defaultRenderer only | todo | No dedicated parity target yet | Add per-tool renderer when target is provided |
 
@@ -30,6 +30,7 @@ Scope: /Users/david/Documents/github/formax/apps/web-reference-react tool transc
 - [x] Edit moved to dedicated diff renderer (non-running preview + truncation fallback).
 - [x] Replay hydration fix for user/system projection segments on refresh.
 - [x] Basic performance guard for long preview rendering.
+- [x] TodoWrite checklist alignment (three states: completed/in_progress/pending).
 
 ### In Progress
 - [ ] Reference-driven parity for remaining partial tools (Search/WebSearch/WebFetch/Task).
