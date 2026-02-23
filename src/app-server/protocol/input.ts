@@ -1,4 +1,19 @@
 import type { TraceContext } from '../../core/audit/schema.js'
+import type {
+  InputKind,
+  InputPendingStatus,
+  InputResolvedStatus,
+  InputStatus,
+  TurnInputSubmitStatus,
+} from '../../shared/inputContracts.js'
+
+export type {
+  InputKind,
+  InputPendingStatus,
+  InputResolvedStatus,
+  InputStatus,
+  TurnInputSubmitStatus,
+} from '../../shared/inputContracts.js'
 
 /**
  * App-server input protocol only unifies lifecycle and transport shape.
@@ -7,22 +22,6 @@ import type { TraceContext } from '../../core/audit/schema.js'
  * - approval keeps permission/policy side effects.
  * - ask_user_question keeps tool question/answer semantics.
  */
-export type InputKind = 'approval' | 'ask_user_question'
-
-export type InputPendingStatus = 'pending'
-
-export type InputResolvedStatus = 'submitted' | 'canceled' | 'expired' | 'failed'
-
-export type InputStatus = InputPendingStatus | InputResolvedStatus
-
-export type TurnInputSubmitStatus =
-  | 'accepted'
-  | 'already_submitted_same'
-  | 'conflict_already_submitted'
-  | 'not_pending'
-  | 'expired'
-  | 'canceled'
-
 export type InputEnvelopeMeta = {
   traceId: string
   seq: number
