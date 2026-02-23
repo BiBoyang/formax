@@ -714,38 +714,6 @@
       "rule": "LAYER_ORDER"
     },
     {
-      "sourceFile": "src/ui/config/ConfigDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/configFiles.js",
-      "targetPath": "src/adapters/fs/configFiles.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/config/ConfigDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/configPaths.js",
-      "targetPath": "src/adapters/fs/configPaths.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/config/ConfigDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/fileStore.js",
-      "targetPath": "src/adapters/fs/fileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/config/ConfigDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/nodeFileStore.js",
-      "targetPath": "src/adapters/fs/nodeFileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
       "sourceFile": "src/ui/hooks/HooksDialog.tsx",
       "sourceLayer": "UI",
       "specifier": "../../adapters/fs/nodeFileStore.js",

@@ -129,7 +129,7 @@ describe('ConfigDialog', () => {
         const onExit = vi.fn()
         const { lastFrame } = render(
           <InputScopeProvider>
-            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={createNodeFileStore()} />
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
           </InputScopeProvider>,
         )
 
@@ -149,10 +149,9 @@ describe('ConfigDialog', () => {
     async () => {
       await withTempConfigDirs(async ({ env, cwd }) => {
         const onExit = vi.fn()
-        const store = createNodeFileStore()
         const { lastFrame, stdin } = render(
           <InputScopeProvider>
-            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
           </InputScopeProvider>,
         )
 
@@ -187,10 +186,9 @@ describe('ConfigDialog', () => {
     async () => {
       await withTempConfigDirs(async ({ env, cwd }) => {
         const onExit = vi.fn()
-        const store = createNodeFileStore()
         const { lastFrame, stdin } = render(
           <InputScopeProvider>
-            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
           </InputScopeProvider>,
         )
 
@@ -242,7 +240,7 @@ describe('ConfigDialog', () => {
         const onExit = vi.fn()
         const { lastFrame } = render(
           <InputScopeProvider>
-            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
           </InputScopeProvider>,
         )
 
@@ -264,11 +262,10 @@ describe('ConfigDialog', () => {
     'closes on Escape from main list with dismissed exit kind by default',
     async () => {
       const onExit = vi.fn()
-      const store = createNodeFileStore()
       await withTempConfigDirs(async ({ env, cwd }) => {
         const { lastFrame, stdin } = render(
           <InputScopeProvider>
-            <ConfigDialog onExit={onExit} env={env} cwd={cwd} fileStore={store} />
+            <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
           </InputScopeProvider>,
         )
 

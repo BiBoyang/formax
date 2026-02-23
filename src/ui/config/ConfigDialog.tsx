@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import type { FileStore } from '../../adapters/fs/fileStore.js'
-import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
-import { loadConfigFiles } from '../../adapters/fs/configFiles.js'
-import { getConfigPaths } from '../../adapters/fs/configPaths.js'
-import { resolveRuntimeConfig } from '../../core/config/resolve.js'
-import { OutputStyleSchema } from '../../core/config/schema.js'
-import { updateConfigPatchFile } from '../../core/config/persist.js'
+import {
+  createConfigDialogService,
+  type ConfigDialogService,
+  type ConfigDialogSettingId,
+} from '../../features/commands/configDialogService.js'
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
@@ -44,73 +42,38 @@ function clamp(n: number, min: number, max: number): number {
   return n
 }
 
-function sourceToLabel(source: string | undefined): string {
-  switch (source) {
-    case 'default':
-      return 'Default'
-    case 'global':
-      return 'User'
-    case 'project':
-      return 'Project'
-    case 'env':
-      return 'Env'
-    case 'flags':
-      return 'Flags'
-    default:
-      return 'Default'
-  }
-}
-
-function formatChangeMessage(id: string, value: unknown): string {
+function formatChangeMessage(id: ConfigDialogSettingId, value: unknown): string {
   if (id === 'outputStyle') {
     const label = OUTPUT_STYLE_OPTIONS.find((o) => o.id === String(value))?.label ?? 'Default'
     return `Set output style to ${label}`
   }
   if (id === 'thinkingMode') return `Set thinking mode to ${Boolean(value)}`
-  if (id === 'verboseOutput') return `Set verbose output to ${Boolean(value)}`
-  return 'Status dialog dismissed'
+  return `Set verbose output to ${Boolean(value)}`
 }
 
-function buildConfigPatch(id: string, value: unknown) {
-  if (id === 'outputStyle') {
-    const parsed = OutputStyleSchema.safeParse(value)
-    return { ui: { outputStyle: parsed.success ? parsed.data : 'default' } }
-  }
-  if (id === 'thinkingMode') return { llm: { thinkingMode: Boolean(value) } }
-  if (id === 'verboseOutput') return { ui: { verboseOutput: Boolean(value) } }
-  return {}
-}
-
-function getTargetFilePath(args: {
-  id: string
-  globalConfigPath: string
-  projectConfigPath: string
-}): string {
-  if (args.id === 'outputStyle') return args.projectConfigPath
-  return args.globalConfigPath
+function isConfigDialogSettingId(id: string): id is ConfigDialogSettingId {
+  return id === 'outputStyle' || id === 'thinkingMode' || id === 'verboseOutput'
 }
 
 export function ConfigDialog(args: {
   onExit: (exit: ConfigDialogExit) => void
-  fileStore?: FileStore
+  service?: ConfigDialogService
   cwd?: string
   env?: NodeJS.ProcessEnv
 }): React.ReactNode {
   useScopeActivation(SCOPE)
 
   const theme = useMemo(() => getTheme(), [])
-  const fileStore = useMemo(() => args.fileStore ?? createNodeFileStore(), [args.fileStore])
   const cwd = args.cwd ?? process.cwd()
   const env = args.env ?? process.env
+  const service = useMemo(
+    () => args.service ?? createConfigDialogService({ cwd, env }),
+    [args.service, cwd, env],
+  )
 
   const [configState, setConfigState] = useState<ConfigState>(INITIAL_CONFIG_STATE)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [state, dispatch] = useReducer(dialogReducer, undefined, initialDialogState)
-
-  const paths = useMemo(() => {
-    const p = getConfigPaths({ cwd, env })
-    return { globalConfigPath: p.globalConfigPath, projectConfigPath: p.projectConfigPath }
-  }, [cwd, env])
 
   const escapeBufferRef = useRef('')
   const stateRef = useRef<DialogState>(state)
@@ -126,27 +89,8 @@ export function ConfigDialog(args: {
 
   const reloadFromDisk = useCallback(async () => {
     setLoadError(null)
-    const disk = await loadConfigFiles({ fileStore, cwd, env })
-    const resolved = resolveRuntimeConfig({
-      env: env as Record<string, string | undefined>,
-      globalConfig: disk.globalConfig,
-      projectConfig: disk.projectConfig,
-      authStore: disk.authStore,
-    })
-
-    const nextValues = {
-      outputStyle: resolved.config.ui.outputStyle,
-      thinkingMode: resolved.config.llm.thinkingMode,
-      verboseOutput: resolved.config.ui.verboseOutput,
-    }
-    const nextSources = {
-      outputStyle: sourceToLabel(resolved.sources['ui.outputStyle']),
-      thinkingMode: sourceToLabel(resolved.sources['llm.thinkingMode']),
-      verboseOutput: sourceToLabel(resolved.sources['ui.verboseOutput']),
-    }
-
-    setConfigState({ values: nextValues, sources: nextSources })
-  }, [cwd, env, fileStore])
+    setConfigState(await service.load())
+  }, [service])
 
   useEffect(() => {
     void (async () => {
@@ -176,22 +120,9 @@ export function ConfigDialog(args: {
   }, [configState, state.tab])
 
   const persistSetting = useCallback(
-    async (id: string, value: unknown) => {
+    async (id: ConfigDialogSettingId, value: unknown) => {
       try {
-        const patch = buildConfigPatch(id, value)
-        const filePath = getTargetFilePath({
-          id,
-          globalConfigPath: paths.globalConfigPath,
-          projectConfigPath: paths.projectConfigPath,
-        })
-
-        await updateConfigPatchFile({
-          fileStore,
-          filePath,
-          nextPatch: patch,
-          label: id,
-        })
-
+        await service.persist({ id, value })
         lastExitRef.current = { kind: 'changed', message: formatChangeMessage(id, value) }
         await reloadFromDisk()
       } catch (e) {
@@ -199,7 +130,7 @@ export function ConfigDialog(args: {
         setLoadError(msg)
       }
     },
-    [fileStore, paths, reloadFromDisk],
+    [reloadFromDisk, service],
   )
 
   useScopedInput(SCOPE, (input, key) => {
@@ -251,6 +182,7 @@ export function ConfigDialog(args: {
         const rowItem = listRowsRef.current[listCursorRef.current]
         if (!rowItem) return
         const row = rowItem.row
+        if (!isConfigDialogSettingId(row.id)) return
 
         if (row.kind === 'toggle') {
           const current = Boolean(configState.values[row.id] ?? row.getValue(configState))
