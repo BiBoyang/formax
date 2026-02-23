@@ -3,7 +3,7 @@ import path from 'node:path'
 import { ToolMessage } from '../../../components/tool/ToolMessage'
 import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 

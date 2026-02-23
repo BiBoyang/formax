@@ -2,8 +2,8 @@ import React from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { createToolBlocksPresenter } from '../../presenters/types'
-import type { Msg } from '../../../components/tool/ToolMessage'
-import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
+import type { Msg } from '../../../shared/toolMessageTypes'
+import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
 
 export const KillShellToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {

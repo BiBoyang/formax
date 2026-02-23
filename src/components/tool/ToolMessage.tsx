@@ -11,82 +11,13 @@
 import React from 'react'
 import { Box } from 'ink'
 import { getTheme } from '../../utils/theme'
-import type { TokenUsage } from '../../streaming/types'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 import { selectToolHeaderFromInput } from '../../features/tools/presentation/toolViewModel'
 import { ToolHeaderLine } from './ToolHeaderLine'
 import { ToolIndentedLine, ToolSubline } from './ToolSubline'
 
-/**
- * Tool information attached to a message
- */
-export interface ToolInfo {
-  /** Tool name (e.g., 'Read', 'Write', 'Bash') */
-  name: string
-  /** Tool use id (matches tool call id / tool_use_id) */
-  toolUseId?: string
-  /** Tool input parameters */
-  input: Record<string, any>
-  /** Current execution status */
-  status: 'running' | 'completed' | 'error'
-  /** Raw result string from tool execution */
-  result?: string
-  /** Number of lines in the result */
-  resultLines?: number
-  /** Expand info text for multi-line results */
-  expandInfo?: string
-  /** Middle lines for multi-line output (e.g., Bash) */
-  middleLines?: string[]
-  /** Optional verbose transcript lines (e.g. Task ctrl+o detailed transcript). */
-  transcriptLines?: string[]
-  /** Nested tool previews (used by Task to surface sub-agent tool activity) */
-  nestedTools?: Array<{
-    id: string
-    name: string
-    input: Record<string, any>
-    status: 'running' | 'completed' | 'error'
-    summary?: string
-  }>
-  /** Task-only stats (used for Claude-style summary and grouping UI). */
-  toolUses?: number
-  usage?: TokenUsage
-  durationMs?: number
-  /** UI-only: whether this tool message is expanded (e.g., ctrl+o) */
-  expanded?: boolean
-  /** UI-only: start line number for patch-like previews (Edit/Write previews). */
-  patchStartLineNumber?: number
-}
-
-/**
- * Message object containing tool information
- */
-export interface Msg {
-  /** Unique message identifier */
-  id: string
-  /** Message role */
-  role: 'user' | 'assistant' | 'tool'
-  /**
-   * UI-only hint for how this message should be rendered in the transcript.
-   * Must NOT affect LLM messages/history.
-   */
-  ui?: {
-    kind: 'command_subline' | 'thinking_block' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
-  }
-  /** Message content (formatted result summary) */
-  content: string
-  /** Raw content for API calls */
-  rawContent?: any[]
-  /** Message timestamp */
-  timestamp: Date
-  /** Whether the message is currently streaming */
-  isStreaming?: boolean
-  /** Canonical transcript surface owner for this row. */
-  surfaceOwner?: 'static' | 'transient'
-  /** Debug-only hint describing which transcript surface rendered this row. */
-  surfaceHint?: 'static' | 'transient'
-  /** Tool-specific information */
-  toolInfo?: ToolInfo
-}
+export type { Msg, ToolInfo } from '../../shared/toolMessageTypes'
 
 /**
  * Props for the ToolMessage component

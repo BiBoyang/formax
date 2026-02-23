@@ -93,51 +93,6 @@
     },
     {
       "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/askUserQuestion/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/askUserQuestion/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/bash/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/bash/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/edit/EditPlanFileBlock.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/edit/EditPlanFileBlock.tsx",
       "line": 1,
       "specifier": "../../../components/tool/ToolSubline",
@@ -158,27 +113,9 @@
       "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/edit/presenter.tsx",
       "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/edit/presenter.tsx",
-      "line": 1,
       "specifier": "../../../components/tool/ToolSubline",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolSubline.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/enterPlanMode/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
       "targetLayer": "UI"
     },
     {
@@ -188,15 +125,6 @@
       "specifier": "../../../components/tool/ToolHeaderLine",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolHeaderLine.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/exitPlanMode/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
       "targetLayer": "UI"
     },
     {
@@ -219,60 +147,6 @@
     },
     {
       "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/glob/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/glob/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/grep/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/grep/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/killShell/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/killShell/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/notebookEdit/presenter.tsx",
       "line": 1,
       "specifier": "../../../components/tool/ToolMessage",
@@ -282,56 +156,11 @@
     },
     {
       "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/read/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/read/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/search/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/search/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/skill/presenter.tsx",
       "line": 1,
       "specifier": "../../../components/tool/ToolHeaderLine",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolHeaderLine.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/skill/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
       "targetLayer": "UI"
     },
     {
@@ -350,15 +179,6 @@
       "specifier": "../../../components/tool/ToolHeaderLine",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolHeaderLine.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/task/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
       "targetLayer": "UI"
     },
     {
@@ -381,33 +201,6 @@
     },
     {
       "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/taskOutput/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/taskOutput/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/todoWrite/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/todoWrite/presenter.tsx",
       "line": 1,
       "specifier": "../../../components/tool/ToolSubline",
@@ -417,15 +210,6 @@
     },
     {
       "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/todoWrite/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/modules/webFetch/presenter.tsx",
       "line": 1,
       "specifier": "../../../components/tool/ToolHeaderLine",
@@ -467,15 +251,6 @@
       "specifier": "../../../components/tool/ToolHeaderLine",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolHeaderLine.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/modules/write/presenter.tsx",
-      "line": 1,
-      "specifier": "../../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
       "targetLayer": "UI"
     },
     {
@@ -554,27 +329,9 @@
       "rule": "NO_BUSINESS_TO_UI",
       "sourceFile": "src/tools/presenters/LocalBashPresenter.tsx",
       "line": 1,
-      "specifier": "../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/presenters/LocalBashPresenter.tsx",
-      "line": 1,
       "specifier": "../../components/tool/ToolSubline",
       "sourceLayer": "Service",
       "targetPath": "src/components/tool/ToolSubline.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/presenters/LocalBashPresenter.tsx",
-      "line": 1,
-      "specifier": "../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
       "targetLayer": "UI"
     },
     {
@@ -584,24 +341,6 @@
       "specifier": "../../components/ui/ConfirmMenu.js",
       "sourceLayer": "Service",
       "targetPath": "src/components/ui/ConfirmMenu.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/presenters/types.ts",
-      "line": 1,
-      "specifier": "../../components/tool/ToolMessage",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/ToolMessage.tsx",
-      "targetLayer": "UI"
-    },
-    {
-      "rule": "NO_BUSINESS_TO_UI",
-      "sourceFile": "src/tools/presenters/types.ts",
-      "line": 1,
-      "specifier": "../../components/tool/toolUiBlocksTypes",
-      "sourceLayer": "Service",
-      "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
       "targetLayer": "UI"
     }
   ]

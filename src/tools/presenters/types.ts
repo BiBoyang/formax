@@ -1,6 +1,6 @@
 import type React from 'react'
-import type { Msg } from '../../components/tool/ToolMessage'
-import type { ToolBlocksOutput, ToolUiBlock } from '../../components/tool/toolUiBlocksTypes'
+import type { Msg } from '../../shared/toolMessageTypes'
+import type { ToolBlocksOutput, ToolUiBlock } from '../../shared/toolMessageTypes'
 
 export type ToolPresenterProps = {
   message: Msg

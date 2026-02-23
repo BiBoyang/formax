@@ -4,7 +4,7 @@ import { ToolSubline } from '../../../components/tool/ToolSubline'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 
 export function EditPlanFileBlock({ message }: { message: Msg }): React.ReactNode {
   const theme = getTheme()

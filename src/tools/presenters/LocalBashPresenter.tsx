@@ -1,8 +1,8 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { createToolBlocksPresenter } from './types'
-import type { Msg } from '../../components/tool/ToolMessage'
-import type { ToolBlocksOutput } from '../../components/tool/toolUiBlocksTypes'
+import type { Msg } from '../../shared/toolMessageTypes'
+import type { ToolBlocksOutput } from '../../shared/toolMessageTypes'
 import { ToolIndentedLine, ToolSubline } from '../../components/tool/ToolSubline'
 import { getTheme } from '../../utils/theme'
 

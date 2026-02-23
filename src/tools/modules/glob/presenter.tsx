@@ -3,9 +3,9 @@ import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import { createToolBlocksPresenter } from '../../presenters/types'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
-import type { ToolBlocksOutput } from '../../../components/tool/toolUiBlocksTypes'
+import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
 import { FsReadApprovalToolBlock } from '../../presenters/FsReadApprovalToolBlock'
 
 export const GlobToolPresenter = createToolBlocksPresenter(
