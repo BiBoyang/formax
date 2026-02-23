@@ -3,8 +3,8 @@ import { Box, Text } from 'ink'
 import { ApprovalHeader } from '../../presenters/ApprovalHeader'
 import { ApprovalPreview } from '../../presenters/ApprovalPreview'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
+import { MarkdownBlock } from '../../presenters/MarkdownBlock'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
 
 function buildPreviewMarkdown(
   raw: string,

@@ -9,7 +9,6 @@
 ## 当前待办
 
 - [ ] `HRL-SU-03`：清理 `tools/presenters` 审批链路的 `Service -> UI` 依赖（`ConfirmMenu` + `ApprovalHeader`）。
-- [ ] `HRL-SU-04`：清理 `WriteApprovalToolBlock` 对 `MarkdownBlock` 的 `Service -> UI` 依赖。
 
 ## 再生规则（当“当前待办”为空时）
 
