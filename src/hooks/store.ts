@@ -1,5 +1,6 @@
 import type { FileStore } from '../adapters/fs/fileStore.js'
 import type { Platform } from '../adapters/fs/configPaths.js'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPath } from '../adapters/permissions/permissionsStore.js'
 import type { HookEventName, HookRuleEntry, HookSource, MergedHooks } from './types.js'
 
@@ -193,12 +194,13 @@ export type HooksBySource = {
 }
 
 export async function loadHooksBySource(args: {
-  fileStore: FileStore
+  fileStore?: FileStore
   cwd: string
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
 }): Promise<HooksBySource> {
+  const fileStore = args.fileStore ?? createNodeFileStore()
   const cwd = args.cwd || process.cwd()
   const filePaths = {
     projectLocal: getProjectSettingsLocalPath(cwd),
@@ -216,12 +218,12 @@ export async function loadHooksBySource(args: {
   const settingsBySource: Partial<Record<HookSource, Record<string, unknown> | null>> = {}
 
   for (const s of sources) {
-    if (!(await args.fileStore.exists(s.filePath))) {
+    if (!(await fileStore.exists(s.filePath))) {
       settingsBySource[s.source] = null
       continue
     }
     try {
-      const raw = await args.fileStore.readText(s.filePath)
+      const raw = await fileStore.readText(s.filePath)
       const parsed = tryParseJsonRecord(raw)
       if (!parsed) {
         warnings.push(`Invalid JSON in ${s.source} settings (${s.filePath}); treating hooks as empty`)

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { useInputScope, useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getKeyName, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
@@ -44,7 +43,6 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
   const { push: pushScope, pop: popScope } = useInputScope()
 
   const theme = useMemo(() => getTheme(), [])
-  const fileStore = useMemo(() => createNodeFileStore(), [])
   const originalWorkingDir = useMemo(() => process.cwd(), [])
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -53,14 +51,14 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
   useEffect(() => {
     let alive = true
     void (async () => {
-      const loaded = await loadHooksBySource({ fileStore, cwd: originalWorkingDir, env: process.env })
+      const loaded = await loadHooksBySource({ cwd: originalWorkingDir, env: process.env })
       if (!alive) return
       setHooksBySource(loaded)
     })()
     return () => {
       alive = false
     }
-  }, [fileStore, originalWorkingDir, reloadKey])
+  }, [originalWorkingDir, reloadKey])
 
   const [state, dispatch] = useReducer(dialogReducer, undefined, initialDialogState)
 
@@ -270,7 +268,6 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
         }
         void (async () => {
           await deleteHookCommand({
-            fileStore,
             cwd: originalWorkingDir,
             source: view.source,
             eventName: view.event,
@@ -294,7 +291,6 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
 
         void (async () => {
           await persistHookCommand({
-            fileStore,
             cwd: originalWorkingDir,
             source: scope,
             eventName: view.event,

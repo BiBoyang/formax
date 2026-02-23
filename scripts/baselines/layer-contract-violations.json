@@ -714,14 +714,6 @@
       "rule": "LAYER_ORDER"
     },
     {
-      "sourceFile": "src/ui/hooks/HooksDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/nodeFileStore.js",
-      "targetPath": "src/adapters/fs/nodeFileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
       "sourceFile": "src/ui/permissions/PermissionsDialog.tsx",
       "sourceLayer": "UI",
       "specifier": "../../adapters/fs/nodeFileStore.js",

@@ -1,4 +1,5 @@
 import type { FileStore } from '../adapters/fs/fileStore.js'
+import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { getProjectSettingsLocalPath, getProjectSettingsPath, getUserSettingsPath } from '../adapters/permissions/permissionsStore.js'
 import type { Platform } from '../adapters/fs/configPaths.js'
 import type { HookEventName, HookSource } from './types.js'
@@ -88,7 +89,7 @@ function buildRule(args: { eventName: HookEventName; base: any; matcher: string;
 }
 
 export async function persistHookCommand(args: {
-  fileStore: FileStore
+  fileStore?: FileStore
   cwd: string
   source: HookSource
   eventName: HookEventName
@@ -98,6 +99,7 @@ export async function persistHookCommand(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
+  const fileStore = args.fileStore ?? createNodeFileStore()
   const cwd = args.cwd || process.cwd()
   const filePath = getSettingsPathForSource({ source: args.source, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
 
@@ -105,7 +107,7 @@ export async function persistHookCommand(args: {
   const command = normalizeCommand(args.command)
   if (!command) return
 
-  const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
+  const existingSettings = await loadSettingsRecord({ fileStore, filePath })
   const hooksRoot = getOrInitHooksRoot(existingSettings)
   const rules = getOrInitEventRules(hooksRoot, args.eventName)
 
@@ -133,11 +135,11 @@ export async function persistHookCommand(args: {
 
   hooksRoot[args.eventName] = rules
   const out = writeSettingsRecord({ existingSettings, hooksRoot })
-  await args.fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
+  await fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
 }
 
 export async function deleteHookCommand(args: {
-  fileStore: FileStore
+  fileStore?: FileStore
   cwd: string
   source: HookSource
   eventName: HookEventName
@@ -147,13 +149,14 @@ export async function deleteHookCommand(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
+  const fileStore = args.fileStore ?? createNodeFileStore()
   const cwd = args.cwd || process.cwd()
   const filePath = getSettingsPathForSource({ source: args.source, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
   const matcher = eventUsesMatcher(args.eventName) ? normalizeMatcher(args.matcher) : '*'
   const command = normalizeCommand(args.command)
   if (!command) return
 
-  const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
+  const existingSettings = await loadSettingsRecord({ fileStore, filePath })
   if (!existingSettings) return
 
   const hooksRoot = getOrInitHooksRoot(existingSettings)
@@ -186,5 +189,5 @@ export async function deleteHookCommand(args: {
   else hooksRoot[args.eventName] = nextRules
 
   const out = writeSettingsRecord({ existingSettings, hooksRoot })
-  await args.fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
+  await fileStore.writeJsonAtomic(filePath, out, { pretty: true, trailingNewline: true })
 }
