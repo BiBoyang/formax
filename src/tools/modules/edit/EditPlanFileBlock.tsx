@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import { ToolSubline } from '../../presenters/ToolUiPrimitives'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'

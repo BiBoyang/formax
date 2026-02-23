@@ -1,17 +1,14 @@
 import React from 'react'
 import { Box } from 'ink'
-import { ToolMessage } from '../../../components/tool/ToolMessage'
-import { getTheme } from '../../../utils/theme'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
+import { ToolHeaderLine } from '../../presenters/ToolUiPrimitives'
 
 export const WebFetchToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
-  const theme = getTheme()
   const userInput = useUserInputManager()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
@@ -45,5 +42,5 @@ export const WebFetchToolPresenter: ToolPresenterComponent = ({ message }: { mes
     )
   }
 
-  return <ToolMessage message={message} />
+  return <FallbackToolPresenter message={message} />
 }

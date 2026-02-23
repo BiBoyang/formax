@@ -5,8 +5,7 @@ import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
+import { ToolHeaderLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
 import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
 
 export const SkillToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
