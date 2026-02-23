@@ -1,5 +1,5 @@
 import type { PromptBlock, PromptMessage } from '../prompts'
-import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
+import type { ToolCall, ToolDefinition, ToolResult } from '../shared/toolContracts'
 
 export type TokenUsage = Partial<{
   input_tokens: number
