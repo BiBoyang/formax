@@ -8,8 +8,6 @@
 
 ## 当前待办
 
-- [ ] `HRL-SU-03`：清理 `tools/presenters` 审批链路的 `Service -> UI` 依赖（`ConfirmMenu` + `ApprovalHeader`）。
-
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/harness-refactor-loop/README.md` 派生下一批任务。
