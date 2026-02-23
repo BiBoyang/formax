@@ -7,10 +7,8 @@
  * Run with: bun run perf:transcript
  */
 
-import React from 'react'
-import { render } from 'ink'
 import { clearTerminal } from '../utils/terminal.js'
-import { TranscriptPerfScreen } from '../screens/perf/TranscriptPerfScreen.js'
+import { renderTranscriptPerfEntry } from '../services/runtimeUiBridge.js'
 
 function parseArgs(argv: string[]): { count: number } {
   const idx = argv.indexOf('--count')
@@ -26,17 +24,12 @@ async function main() {
   const { count } = parseArgs(process.argv.slice(2))
   await clearTerminal()
 
-  render(
-    <TranscriptPerfScreen
-      count={count}
-      onExit={() => {
-        process.exit(0)
-      }}
-    />,
-    {
-      exitOnCtrlC: false,
+  renderTranscriptPerfEntry({
+    count,
+    onExit: () => {
+      process.exit(0)
     },
-  )
+  })
 }
 
 main().catch((err) => {

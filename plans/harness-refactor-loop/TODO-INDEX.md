@@ -8,8 +8,6 @@
 
 ## 当前待办
 
-- [ ] `HRL-RUNTIME-01`：清理剩余 `Runtime -> UI` 违规点并收敛到统一 service 边界。
-
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/harness-refactor-loop/README.md` 派生下一批任务。

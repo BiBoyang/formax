@@ -7,24 +7,17 @@
  * Run with: bun run loade
  */
 
-import React from 'react'
-import { render } from 'ink'
 import { clearTerminal } from '../utils/terminal.js'
-import { LoadingExampleScreen } from '../screens/LoadingExampleScreen.js'
+import { renderLoadingExamplesEntry } from '../services/runtimeUiBridge.js'
 
 async function main() {
   await clearTerminal()
 
-  render(
-    <LoadingExampleScreen
-      onExit={() => {
-        process.exit(0)
-      }}
-    />,
-    {
-      exitOnCtrlC: false,
+  renderLoadingExamplesEntry({
+    onExit: () => {
+      process.exit(0)
     },
-  )
+  })
 }
 
 main().catch(err => {
