@@ -1,4 +1,4 @@
-import type { SessionSummary } from '../../features/repl/sessionSave/reader.js'
+import type { ResumeSessionSummary } from '../../features/commands/resumeDialogService.js'
 import type { PreviewRow, ResumeListView } from './types.js'
 
 export function clamp(n: number, min: number, max: number): number {
@@ -25,7 +25,7 @@ export function normalizePromptText(value: string | null): string {
   return t ? t : 'No prompt'
 }
 
-export function matchesQuery(summary: SessionSummary, queryRaw: string): boolean {
+export function matchesQuery(summary: ResumeSessionSummary, queryRaw: string): boolean {
   const q = queryRaw.trim().toLowerCase()
   if (!q) return true
   const parts = [
@@ -69,4 +69,3 @@ export function computeResumeListView<T>(args: {
 
   return { top, visible, hasMoreAbove, hasMoreBelow, total: items.length }
 }
-

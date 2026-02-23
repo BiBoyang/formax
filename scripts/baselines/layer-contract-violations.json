@@ -744,22 +744,6 @@
       "targetPath": "src/adapters/permissions/permissionsStore.ts",
       "targetLayer": "Repo",
       "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/resume/ResumeDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../features/repl/sessionSave/reader.js",
-      "targetPath": "src/features/repl/sessionSave/reader.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/resume/utils.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../features/repl/sessionSave/reader.js",
-      "targetPath": "src/features/repl/sessionSave/reader.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
     }
   ]
 }

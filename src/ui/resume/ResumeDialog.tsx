@@ -5,9 +5,8 @@ import { ApprovalHeader } from '../../components/ui/ApprovalHeader.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
+import { listResumeDialogSessions, loadResumeDialogPreview, type ResumeSessionSummary } from '../../features/commands/resumeDialogService.js'
 import { getTheme } from '../../utils/theme.js'
-import type { SessionSummary } from '../../features/repl/sessionSave/reader.js'
-import { listRecentSessions, readSessionPreview } from '../../features/repl/sessionSave/reader.js'
 
 import { MAX_SESSIONS, MAX_VISIBLE_SESSIONS, RESUME_SCOPE } from './constants.js'
 import { dialogReducer, initialDialogState } from './reducer.js'
@@ -35,7 +34,7 @@ export function ResumeDialog(args: {
 
   const [dialog, dispatch] = useReducer(dialogReducer, undefined, initialDialogState)
 
-  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [sessions, setSessions] = useState<ResumeSessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [previewRows, setPreviewRows] = useState<PreviewRow[] | null>(null)
@@ -61,7 +60,7 @@ export function ResumeDialog(args: {
     setLoading(true)
     setLoadError(null)
     try {
-      const next = await listRecentSessions({
+      const next = await listResumeDialogSessions({
         cwd,
         includeAllProjects,
         limit: MAX_SESSIONS,
@@ -98,7 +97,7 @@ export function ResumeDialog(args: {
       return
     }
     try {
-      const preview = await readSessionPreview(selected.filePath, { maxMessages: 6 })
+      const preview = await loadResumeDialogPreview(selected.filePath, { maxMessages: 6 })
       const title = selected.label ?? normalizePromptText(selected.lastUserPrompt)
       setPreviewRows(buildPreviewRows({ title, rows: preview }))
     } catch (e) {

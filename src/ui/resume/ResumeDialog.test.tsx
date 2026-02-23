@@ -19,10 +19,10 @@ const readSessionPreviewMock = vi.fn<
   (filePath: string, opts?: { maxMessages?: number }) => Promise<Array<{ role: 'user' | 'assistant'; text: string }>>
 >()
 
-vi.mock('../../features/repl/sessionSave/reader.js', () => {
+vi.mock('../../features/commands/resumeDialogService.js', () => {
   return {
-    listRecentSessions: (args: any) => listRecentSessionsMock(args),
-    readSessionPreview: (filePath: string, opts?: any) => readSessionPreviewMock(filePath, opts),
+    listResumeDialogSessions: (args: any) => listRecentSessionsMock(args),
+    loadResumeDialogPreview: (filePath: string, opts?: any) => readSessionPreviewMock(filePath, opts),
   }
 })
 
