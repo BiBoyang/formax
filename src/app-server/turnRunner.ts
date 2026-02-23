@@ -430,6 +430,11 @@ export class TurnRunner {
           event,
         })
       }
+      const turnTrace = {
+        traceId: running.traceId,
+        threadId: running.threadId,
+        turnId: running.turnId,
+      }
       const getReplMode = () => running.replMode
       const setReplMode = (nextMode: ReplMode) => {
         const transition = resolveReplModeTransition({ current: running.replMode, next: nextMode })
@@ -577,7 +582,13 @@ export class TurnRunner {
           cwd: running.cwd,
           signal: running.abortController.signal,
           thinkingEnabled: this.thinkingEnabled,
-          exec: { interactive: true, replMode: running.replMode, getReplMode, setReplMode },
+          exec: {
+            interactive: true,
+            replMode: running.replMode,
+            getReplMode,
+            setReplMode,
+            trace: turnTrace,
+          },
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
@@ -607,7 +618,13 @@ export class TurnRunner {
           cwd: running.cwd,
           signal: running.abortController.signal,
           thinkingEnabled: this.thinkingEnabled,
-          exec: { interactive: true, replMode: running.replMode, getReplMode, setReplMode },
+          exec: {
+            interactive: true,
+            replMode: running.replMode,
+            getReplMode,
+            setReplMode,
+            trace: turnTrace,
+          },
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
@@ -745,6 +762,13 @@ export class TurnRunner {
       seq,
       ts,
       eventId,
+      trace: {
+        traceId: running.traceId,
+        threadId: running.threadId,
+        turnId: running.turnId,
+        eventId,
+        replaySeq: seq,
+      },
       source,
       ...params,
     })

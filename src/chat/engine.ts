@@ -34,6 +34,7 @@ export interface ChatEngine {
         | 'replMode'
         | 'getReplMode'
         | 'setReplMode'
+        | 'trace'
         | 'getPlanPath'
         | 'planPath'
         | 'interactive'
@@ -90,6 +91,13 @@ export function createChatEngine(deps: {
       const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
       let pendingUserPromptSubmitText: string[] | null = null
       const audit = deps.audit
+      const withTrace = (toolUseId?: string) => {
+        if (!exec?.trace && !toolUseId) return undefined
+        return {
+          ...(exec?.trace ?? {}),
+          ...(toolUseId ? { toolUseId } : {}),
+        }
+      }
 
       const executorCtxBase: ExecutionContext = {
         cwd,
@@ -105,6 +113,7 @@ export function createChatEngine(deps: {
         allowTools: exec?.allowTools,
         denyTools: exec?.denyTools,
         hooks: deps.hooks,
+        trace: exec?.trace,
       }
 
       const runSessionStart = async (): Promise<void> => {
@@ -121,6 +130,7 @@ export function createChatEngine(deps: {
           agentDepth: executorCtxBase.agentDepth,
           eventName: 'SessionStart',
           runs: res.runs,
+          trace: withTrace('session_start'),
         })
 
         if (res.additionalContext.length > 0) {
@@ -146,6 +156,7 @@ export function createChatEngine(deps: {
           agentDepth: executorCtxBase.agentDepth,
           eventName: 'UserPromptSubmit',
           runs: res.runs,
+          trace: withTrace('user_prompt'),
         })
 
         if (res.additionalContext.length > 0) {
@@ -171,6 +182,7 @@ export function createChatEngine(deps: {
           agentDepth: executorCtxBase.agentDepth,
           eventName: 'Stop',
           runs: res.runs,
+          trace: withTrace('stop'),
         })
 
         if (res.additionalContext.length > 0) {
@@ -199,6 +211,7 @@ export function createChatEngine(deps: {
             agentDepth: executorCtxBase.agentDepth,
             eventName: 'PostToolUse',
             runs: post.runs,
+            trace: withTrace(call.id),
           })
 
           const lines: string[] = []

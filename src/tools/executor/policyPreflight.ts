@@ -14,7 +14,7 @@ import { isSameFilePath } from '../../utils/planMode.js'
 import { explainPolicy } from '../../core/policy/engine.js'
 import { toolCallToPolicyAction } from './policyAction.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
-import { nowIso } from '../../core/audit/schema.js'
+import { nowIso, type TraceContext } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
@@ -214,6 +214,7 @@ export function createPolicyPreflight(args: {
 
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
+    const traceForCall: TraceContext = { ...(ctx.trace ?? {}), toolUseId: call.id }
     let workspaceRequest: WorkspaceAccessRequest | null = null
     const auditHookRuns = (eventName: string, runs: HookRun[]) => {
       appendHookRunAuditEvents({
@@ -223,6 +224,7 @@ export function createPolicyPreflight(args: {
         agentDepth: ctx.agentDepth,
         eventName,
         runs,
+        trace: traceForCall,
       })
     }
     let mergedPermissions: Awaited<ReturnType<typeof loadMergedPermissions>> | null = null
@@ -279,6 +281,7 @@ export function createPolicyPreflight(args: {
             ts: nowIso(),
             kind: 'policy.decision',
             agentDepth: ctx.agentDepth,
+            trace: traceForCall,
             tool: { name: call.name, toolUseId: call.id },
             replMode: replMode ?? undefined,
             action: installAction,
@@ -481,6 +484,7 @@ export function createPolicyPreflight(args: {
         ts: nowIso(),
         kind: 'policy.decision',
         agentDepth: ctx.agentDepth,
+        trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
         replMode: replMode ?? undefined,
         action,

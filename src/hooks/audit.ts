@@ -1,5 +1,5 @@
 import type { AuditLog } from '../adapters/audit/auditLog.js'
-import { nowIso } from '../core/audit/schema.js'
+import { nowIso, type TraceContext } from '../core/audit/schema.js'
 import type { HookRun } from './types.js'
 
 function isHooksDebugEnabled(env: NodeJS.ProcessEnv): boolean {
@@ -26,6 +26,7 @@ export function appendHookRunAuditEvents(args: {
   agentDepth: number
   eventName: string
   runs: HookRun[]
+  trace?: TraceContext
   env?: NodeJS.ProcessEnv
   hooksDebugEnabled?: boolean
   previewLimit?: number
@@ -48,6 +49,7 @@ export function appendHookRunAuditEvents(args: {
       ts: nowIso(),
       kind: 'hook.run',
       agentDepth: args.agentDepth,
+      ...(args.trace ? { trace: args.trace } : {}),
       tool: args.tool,
       hook: {
         eventName: args.eventName,
@@ -69,4 +71,3 @@ export function appendHookRunAuditEvents(args: {
     })
   }
 }
-

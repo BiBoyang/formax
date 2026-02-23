@@ -19,6 +19,8 @@
     "perf:transcript": "tsx ./src/entrypoints/perf-transcript.tsx",
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
+    "check:layer-contracts": "node ./scripts/check-layer-contracts.mjs",
+    "check:golden-principles": "node ./scripts/check-golden-principles.mjs",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
     "build:web-ui": "node ./scripts/build-web-ui.mjs",
     "build:web-ui:fast": "node ./scripts/build-web-ui.mjs --skip-install",

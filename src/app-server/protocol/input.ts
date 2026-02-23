@@ -1,3 +1,5 @@
+import type { TraceContext } from '../../core/audit/schema.js'
+
 /**
  * App-server input protocol only unifies lifecycle and transport shape.
  *
@@ -27,6 +29,7 @@ export type InputEnvelopeMeta = {
   ts: string
   eventId: string
   source: 'engine' | 'tool' | 'policy' | 'system'
+  trace?: TraceContext
 }
 
 export type ApprovalInputPayload = {

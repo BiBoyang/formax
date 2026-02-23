@@ -71,3 +71,50 @@ jobs:
       - name: Skip (no code changes)
         if: steps.changes.outputs.code != 'true' && steps.changes.outputs.web_reference != 'true'
         run: echo "No code or web-reference changes; skipping checks."
+
+  harness-checks:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect code changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.mjs'
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.code == 'true'
+        with:
+          node-version: '20'
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.changes.outputs.code == 'true'
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        if: steps.changes.outputs.code == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Harness type-check
+        if: steps.changes.outputs.code == 'true'
+        run: bun run type-check
+
+      - name: Harness semantic gate
+        if: steps.changes.outputs.code == 'true'
+        run: bun run test:repl-semantic-gate
+
+      - name: Harness layer contract
+        if: steps.changes.outputs.code == 'true'
+        run: bun run check:layer-contracts
+
+      - name: Skip (no code changes)
+        if: steps.changes.outputs.code != 'true'
+        run: echo "No code changes; skipping harness checks."

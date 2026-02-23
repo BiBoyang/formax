@@ -228,6 +228,17 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Streaming (SSE parsing + tool execution): `src/streaming/README.md`
 - Sub-agents (registry/runner/allowlist): `src/subagents/README.md`
 
+## Harness Governance (Contracts / Invariants)
+- Harness source-of-truth docs: `docs/harness/README.md`
+- Layer contract config + baseline:
+  - `scripts/layer-contract.config.json`
+  - `scripts/check-layer-contracts.mjs`
+  - `scripts/baselines/layer-contract-violations.json`
+- Golden principles checks + baseline:
+  - `scripts/check-golden-principles.mjs`
+  - `scripts/baselines/golden-principles-violations.json`
+- Single-writer gate: `scripts/check-repl-single-writer.mjs`
+
 ## If You’re Adding a Feature, Start Here
 - UI behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
 - New tool: add `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}`, then register in `src/tools/registry.ts`

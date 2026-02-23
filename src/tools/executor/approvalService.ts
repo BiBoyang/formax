@@ -9,7 +9,7 @@ import type { ExecutionContext } from './index.js'
 import { createAllowRuleFromAction } from '../../core/approval/rules.js'
 import { formatPolicyExplainLines } from './policyExplain.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
-import { nowIso } from '../../core/audit/schema.js'
+import { nowIso, type TraceContext } from '../../core/audit/schema.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import { persistProjectPermissionAllow, persistWorkspaceDirectory } from '../../adapters/permissions/permissionsStore.js'
@@ -106,6 +106,7 @@ export function createApprovalService(args: {
     workspaceRequest?: WorkspaceAccessRequest | null
   }): Promise<{ ok: true } | { ok: false; result: ToolResult }> {
     const { call, ctx } = args2
+    const traceForCall: TraceContext = { ...(ctx.trace ?? {}), toolUseId: call.id }
 
     if (!args.userInput) {
       return {
@@ -128,6 +129,7 @@ export function createApprovalService(args: {
         ts: nowIso(),
         kind: 'approval.prompt',
         agentDepth: ctx.agentDepth,
+        trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
         action: args2.action,
         effectiveDecision: args2.effectiveDecision,
@@ -176,6 +178,7 @@ export function createApprovalService(args: {
           ts: nowIso(),
           kind: 'approval.result',
           agentDepth: ctx.agentDepth,
+          trace: traceForCall,
           tool: { name: call.name, toolUseId: call.id },
           action: args2.action,
           outcome: 'approve',
@@ -191,6 +194,7 @@ export function createApprovalService(args: {
           ts: nowIso(),
           kind: 'approval.result',
           agentDepth: ctx.agentDepth,
+          trace: traceForCall,
           tool: { name: call.name, toolUseId: call.id },
           action: args2.action,
           outcome: 'approve_remember',
@@ -278,6 +282,7 @@ export function createApprovalService(args: {
             ts: nowIso(),
             kind: 'approval.result',
             agentDepth: ctx.agentDepth,
+            trace: traceForCall,
             tool: { name: call.name, toolUseId: call.id },
             action: args2.action,
             outcome: 'cancel',
@@ -291,6 +296,7 @@ export function createApprovalService(args: {
           ts: nowIso(),
           kind: 'approval.result',
           agentDepth: ctx.agentDepth,
+          trace: traceForCall,
           tool: { name: call.name, toolUseId: call.id },
           action: args2.action,
           outcome: 'feedback',
@@ -312,6 +318,7 @@ export function createApprovalService(args: {
         ts: nowIso(),
         kind: 'approval.result',
         agentDepth: ctx.agentDepth,
+        trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
         action: args2.action,
         outcome: 'cancel',

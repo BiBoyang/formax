@@ -14,6 +14,8 @@ docs/*
 !docs/environment-variables.md
 !docs/LEARNINGS/
 !docs/LEARNINGS/**
+!docs/harness/
+!docs/harness/**
 .claude
 proxy/*
 Kode-cli

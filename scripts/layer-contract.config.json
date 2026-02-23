@@ -1,0 +1,48 @@
+{
+  "layerOrder": ["Types", "Config", "Repo", "Service", "Runtime", "UI"],
+  "scanRoots": ["src", "apps/web-reference-react/src"],
+  "layers": {
+    "Types": [
+      "src/shared",
+      "src/prompts/types.ts",
+      "src/streaming/types.ts",
+      "src/features/semantics/core"
+    ],
+    "Config": [
+      "src/core/config",
+      "src/env"
+    ],
+    "Repo": [
+      "src/adapters",
+      "src/features/repl/sessionSave",
+      "src/commands/CommandStore.ts",
+      "src/skills/SkillStore.ts"
+    ],
+    "Service": [
+      "src/chat",
+      "src/tools",
+      "src/hooks",
+      "src/subagents",
+      "src/features/commands",
+      "src/features/sessionTitle",
+      "src/features/semantics/projection",
+      "src/features/semantics/adapters",
+      "src/features/semantics/runtime"
+    ],
+    "Runtime": [
+      "src/runtime",
+      "src/legacy/bootstrap",
+      "src/app-server",
+      "src/serve",
+      "src/web",
+      "src/entrypoints",
+      "src/network"
+    ],
+    "UI": [
+      "src/ui",
+      "src/screens",
+      "src/components",
+      "apps/web-reference-react/src"
+    ]
+  }
+}

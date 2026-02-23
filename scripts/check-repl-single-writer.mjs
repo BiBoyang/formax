@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import fs from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 
 const WRITE_CALL_PATTERN = /\bsetMessages\(/g
+const SEMANTIC_ROOT = 'src/features/repl'
 
 /**
  * Baseline for semantic-critical direct transcript write points.
@@ -12,6 +14,12 @@ const SEMANTIC_BASELINE_COUNTS = {
   'src/features/repl/controller/streaming/streamingLegacyTranscript.ts': 1,
   'src/features/repl/controller/send/sendMainTurn.ts': 2,
   'src/features/repl/controller/send/bashMode.ts': 2,
+  'src/features/repl/controller/send/send.ts': 7,
+  'src/features/repl/controller/send/sendAutoCompact.ts': 1,
+  'src/features/repl/controller/session/sessionTransitions.ts': 2,
+  'src/features/repl/controller/ui/overlays.ts': 4,
+  'src/features/repl/controller/ui/surfaceReset.ts': 1,
+  'src/features/repl/controller/shared/providerError.ts': 1,
   'src/features/repl/useReplController.ts': 3,
 }
 
@@ -21,14 +29,54 @@ function countWritePoints(filePath) {
   return matches ? matches.length : 0
 }
 
+function listSemanticSourceFiles(rootPath) {
+  const rootAbs = resolve(rootPath)
+  if (!fs.existsSync(rootAbs)) return []
+
+  const out = []
+  const stack = [rootAbs]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (!current) continue
+
+    const entries = fs.readdirSync(current, { withFileTypes: true })
+    for (const entry of entries) {
+      const full = join(current, entry.name)
+      if (entry.isDirectory()) {
+        stack.push(full)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (!/\.(ts|tsx)$/.test(entry.name)) continue
+      if (/\.d\.ts$/.test(entry.name)) continue
+      if (/\.(test|spec)\.(ts|tsx)$/.test(entry.name)) continue
+
+      out.push(full)
+    }
+  }
+
+  return out
+}
+
 const rows = []
 const regressions = []
+const baselineFiles = new Set(Object.keys(SEMANTIC_BASELINE_COUNTS))
 
 for (const [filePath, baselineCount] of Object.entries(SEMANTIC_BASELINE_COUNTS)) {
   const currentCount = countWritePoints(filePath)
   rows.push({ filePath, baselineCount, currentCount })
   if (currentCount > baselineCount) {
     regressions.push({ filePath, baselineCount, currentCount })
+  }
+}
+
+const newWritePointFiles = []
+for (const absPath of listSemanticSourceFiles(SEMANTIC_ROOT)) {
+  const relPath = relative(resolve('.'), absPath).replace(/\\/g, '/')
+  if (baselineFiles.has(relPath)) continue
+  const currentCount = countWritePoints(relPath)
+  if (currentCount > 0) {
+    newWritePointFiles.push({ filePath: relPath, currentCount })
   }
 }
 
@@ -44,6 +92,17 @@ if (regressions.length > 0) {
   }
   process.stderr.write(
     '\nTo proceed, either refactor back to canonical write path or update baseline with architecture review notes.\n',
+  )
+  process.exit(1)
+}
+
+if (newWritePointFiles.length > 0) {
+  process.stderr.write('\n[single-writer] regression detected: new semantic write-point file(s)\n')
+  for (const row of newWritePointFiles) {
+    process.stderr.write(`- ${row.filePath}: ${row.currentCount} setMessages() call(s) (no baseline entry)\n`)
+  }
+  process.stderr.write(
+    '\nBefore baseline updates, add architecture review notes under plans/app-server and keep canonical write ownership explicit.\n',
   )
   process.exit(1)
 }

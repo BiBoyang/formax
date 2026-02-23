@@ -1,7 +1,7 @@
 import type { ToolCall, ToolResult } from '../types'
 import type { StreamSink } from '../../streaming/types'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
-import { nowIso } from '../../core/audit/schema.js'
+import { nowIso, type TraceContext } from '../../core/audit/schema.js'
 import { SUBAGENT_DENY_TOOLS_SET } from './subagentDenyTools'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
@@ -36,6 +36,9 @@ export type ExecutionContext = {
 
   // Optional hooks runtime (Claude Code-style hooks)
   hooks?: HooksRuntime
+
+  // Optional trace context for audit/event correlation.
+  trace?: TraceContext
 }
 
 export interface ToolHandler {
@@ -70,6 +73,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     allowTools: ctx.allowTools,
     denyTools: ctx.denyTools,
     hooks: ctx.hooks,
+    trace: ctx.trace,
   }
 }
 
@@ -128,6 +132,11 @@ export function createToolExecutor(
     const ctx = normalizeCtx(ctxPartial)
     const startedAt = Date.now()
     const audit = opts.audit
+    const baseTrace = ctx.trace ?? {}
+    const traceForCall: TraceContext = {
+      ...baseTrace,
+      toolUseId: call.id,
+    }
 
     const auditStart = () => {
       if (!audit) return
@@ -136,6 +145,7 @@ export function createToolExecutor(
         ts: nowIso(),
         kind: 'tool.start',
         agentDepth: ctx.agentDepth,
+        trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
       })
     }
@@ -146,6 +156,7 @@ export function createToolExecutor(
         ts: nowIso(),
         kind: 'tool.end',
         agentDepth: ctx.agentDepth,
+        trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
         durationMs: Math.max(0, Date.now() - startedAt),
         isError,
@@ -164,6 +175,7 @@ export function createToolExecutor(
         agentDepth: ctx.agentDepth,
         eventName,
         runs,
+        trace: traceForCall,
       })
     }
 

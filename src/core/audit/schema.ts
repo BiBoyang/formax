@@ -3,11 +3,21 @@ import type { PolicyMatchedRule } from '../policy/engine.js'
 
 export type AuditSchemaVersion = 1
 
+export type TraceContext = {
+  traceId?: string
+  threadId?: string
+  turnId?: string
+  toolUseId?: string
+  eventId?: string
+  replaySeq?: number
+}
+
 export type AuditEventBase = {
   schemaVersion: AuditSchemaVersion
   ts: string
   kind: string
   agentDepth: number
+  trace?: TraceContext
 }
 
 export type ToolStartEvent = AuditEventBase & {
