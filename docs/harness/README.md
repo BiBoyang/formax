@@ -15,6 +15,7 @@
 - `bun run test:repl-semantic-gate`
 - `bun run check:layer-contracts`
 - `bun run check:golden-principles`
+- `bun run check:presenter-parity`（告警型漂移观察）
 
 ## 建议阅读顺序
 

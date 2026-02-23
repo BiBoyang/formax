@@ -8,6 +8,8 @@
 
 ## 当前待办
 
+- [ ] `HRL-CLEAN-02`：评估 `ConfirmMenu` 双实现分叉是否保留；若保留则补架构说明与测试矩阵，若不保留则收敛实现并清理基线。
+
 ## 再生规则（当“当前待办”为空时）
 
 1. 仅从 `plans/harness-refactor-loop/README.md` 派生下一批任务。

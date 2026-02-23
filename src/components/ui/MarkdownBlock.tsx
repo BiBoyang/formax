@@ -55,19 +55,19 @@ function parseMarkdown(raw: string): Block[] {
     const line = lines[i] ?? ''
 
     if (line.trim().length === 0) {
-      while (i < lines.length && (lines[i] ?? '').trim().length === 0) i++
+      while (i < lines.length && (lines[i] ?? '').trim().length === 0) i += 1
       blocks.push({ kind: 'blank' })
       continue
     }
 
     if ((line.trimStart() || '').startsWith('```')) {
-      i++
+      i += 1
       const codeLines: string[] = []
       while (i < lines.length && !String(lines[i] ?? '').trimStart().startsWith('```')) {
         codeLines.push(String(lines[i] ?? ''))
-        i++
+        i += 1
       }
-      if (i < lines.length && String(lines[i] ?? '').trimStart().startsWith('```')) i++
+      if (i < lines.length && String(lines[i] ?? '').trimStart().startsWith('```')) i += 1
       blocks.push({ kind: 'code', lines: codeLines })
       continue
     }
@@ -76,7 +76,7 @@ function parseMarkdown(raw: string): Block[] {
       const items: string[] = []
       while (i < lines.length && String(lines[i] ?? '').startsWith('- ')) {
         items.push(String(lines[i] ?? '').slice(2))
-        i++
+        i += 1
       }
       blocks.push({ kind: 'list', items })
       continue
@@ -89,7 +89,7 @@ function parseMarkdown(raw: string): Block[] {
       if (cur.trimStart().startsWith('```')) break
       if (cur.startsWith('- ')) break
       paraLines.push(cur)
-      i++
+      i += 1
     }
     blocks.push({ kind: 'paragraph', lines: paraLines })
   }
@@ -134,4 +134,3 @@ function renderInline(text: string, theme: ReturnType<typeof getTheme>): React.R
     </>
   )
 }
-

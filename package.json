@@ -21,6 +21,7 @@
     "tools:parity": "tsx ./scripts/tools-parity.ts",
     "check:layer-contracts": "node ./scripts/check-layer-contracts.mjs",
     "check:golden-principles": "node ./scripts/check-golden-principles.mjs",
+    "check:presenter-parity": "node ./scripts/check-duplicate-presenters-parity.mjs",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
     "build:web-ui": "node ./scripts/build-web-ui.mjs",
     "build:web-ui:fast": "node ./scripts/build-web-ui.mjs --skip-install",
