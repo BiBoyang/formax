@@ -280,6 +280,84 @@ describe('ExitPlanModeToolPresenter', () => {
     }
   })
 
+  it('supports left-arrow cursor editing while typing feedback', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message = createRunningExitPlanModeMessage()
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={message} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('ab')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('\u001B[D')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('X')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('\r')
+      for (let i = 0; i < 2; i += 1) await tick()
+
+      expect(submitAnswers).toHaveBeenCalledTimes(1)
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'aXb' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('applies backspace semantics while typing feedback', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message = createRunningExitPlanModeMessage()
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={message} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('abc')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('\x7f')
+      for (let i = 0; i < 2; i += 1) await tick()
+      stdin.write('\r')
+      for (let i = 0; i < 2; i += 1) await tick()
+
+      expect(submitAnswers).toHaveBeenCalledTimes(1)
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'ab' })
+    } finally {
+      cleanup()
+    }
+  })
+
   it('exits typing on up/down arrows and moves the cursor without submitting', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\n')
     try {

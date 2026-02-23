@@ -8,11 +8,10 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { formatPlanPathForDisplay } from '../../../utils/planMode'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolSubline } from '../../../components/tool/ToolSubline'
-import TextInput from '../../../components/ui/TextInput.js'
+import { ToolHeaderLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
-import { consumeBufferedArrow } from '../../../features/repl/keys/escapeSequences.js'
+import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../../features/repl/keys/escapeSequences.js'
+import { isDeleteOrBackspaceToken, isPrintableToken, isReturnKeyToken } from '../../../features/repl/keys/keyTokens'
 import { resolveInteractivePromptModel } from '../../../features/tools/presentation/interactivePrompts'
 
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
@@ -144,7 +143,7 @@ function ExitPlanModePrompt({
   const [cursor, setCursor] = useState(0) // 0..2
   const cursorRef = useRef(0)
   const [typing, setTyping] = useState(false)
-  const [typingValue, setTypingValue] = useState('')
+  const [typingState, setTypingState] = useState({ value: '', cursor: 0 })
   const submittedRef = useRef(false)
   const escapeBufferRef = useRef('')
 
@@ -179,45 +178,109 @@ function ExitPlanModePrompt({
     (input, key) => {
       if (submittedRef.current) return
       const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
-      const token = (typeof seq === 'string' && seq.length > 0 ? seq : input) || ''
+      const rawInput = typeof input === 'string' ? input : ''
+      const rawSeq = typeof seq === 'string' ? seq : ''
+      const token = (rawInput.length > 0 ? rawInput : rawSeq) || ''
+      const keyName = typeof (key as any)?.name === 'string' ? String((key as any).name) : ''
 
       // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
-      // Buffer ESC chunks so Up/Down works reliably even when `key.upArrow` isn't set.
-      let bufferedDelta = 0
-      if ((escapeBufferRef.current || token.startsWith('\u001B')) && !key.upArrow && !key.downArrow) {
-        const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
-        escapeBufferRef.current = res.nextBuffer
-        if (res.pending && res.delta === 0) return
-        bufferedDelta = res.delta
+      // Buffer ESC chunks so arrows/delete work reliably even when key flags are unset.
+      let bufferedVerticalDelta = 0
+      let bufferedHorizontalDelta = 0
+      let bufferedDeletes = 0
+      if (
+        (escapeBufferRef.current || token.startsWith('\u001B')) &&
+        !key.upArrow &&
+        !key.downArrow &&
+        !key.leftArrow &&
+        !key.rightArrow
+      ) {
+        const horiz = consumeBufferedHorizontal({ buffer: escapeBufferRef.current, chunk: token })
+        if (horiz.pending && horiz.delta === 0 && horiz.deletes === 0) {
+          escapeBufferRef.current = horiz.nextBuffer
+          return
+        }
+        if (horiz.delta !== 0 || horiz.deletes !== 0) {
+          escapeBufferRef.current = horiz.nextBuffer
+          bufferedHorizontalDelta = horiz.delta
+          bufferedDeletes = horiz.deletes
+        } else {
+          const vert = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
+          escapeBufferRef.current = vert.nextBuffer
+          if (vert.pending && vert.delta === 0) return
+          bufferedVerticalDelta = vert.delta
+        }
       } else if (!token.startsWith('\u001B')) {
         escapeBufferRef.current = ''
       }
 
-      const arrowDelta = (key.upArrow ? -1 : 0) + (key.downArrow ? 1 : 0) + bufferedDelta
+      const verticalDelta = (key.upArrow ? -1 : 0) + (key.downArrow ? 1 : 0) + bufferedVerticalDelta
+      const horizontalDelta =
+        (key.leftArrow ? -1 : 0) + (key.rightArrow ? 1 : 0) + bufferedHorizontalDelta
 
       if (typing) {
-        if (arrowDelta < 0) {
+        if (verticalDelta < 0) {
           setTyping(false)
           setCursorSafe((c) => Math.max(0, c - 1))
           return
         }
-        if (arrowDelta > 0) {
+        if (verticalDelta > 0) {
           setTyping(false)
           setCursorSafe((c) => Math.min(2, c + 1))
+          return
+        }
+        if (horizontalDelta !== 0) {
+          setTypingState((state) => ({
+            ...state,
+            cursor: Math.max(0, Math.min(state.value.length, state.cursor + horizontalDelta)),
+          }))
           return
         }
         if (key.escape) {
           setTyping(false)
           return
         }
-        // Let `TextInput` handle editing + Enter submission.
+        const isForwardDelete = bufferedDeletes > 0 || keyName === 'delete' || token === '\u001B[3~'
+        if (isForwardDelete) {
+          const deleteCount = Math.max(1, bufferedDeletes)
+          setTypingState((state) => {
+            if (state.cursor >= state.value.length) return state
+            const nextValue =
+              state.value.slice(0, state.cursor) + state.value.slice(Math.min(state.value.length, state.cursor + deleteCount))
+            return { value: nextValue, cursor: state.cursor }
+          })
+          return
+        }
+        const isBackspaceLike =
+          isDeleteOrBackspaceToken({ token, key }) &&
+          keyName !== 'delete' &&
+          token !== '\u001B[3~'
+        if (isBackspaceLike) {
+          setTypingState((state) => {
+            if (state.cursor <= 0) return state
+            const nextValue = state.value.slice(0, state.cursor - 1) + state.value.slice(state.cursor)
+            return { value: nextValue, cursor: Math.max(0, state.cursor - 1) }
+          })
+          return
+        }
+        if (isReturnKeyToken({ token, key })) {
+          submit('feedback', typingState.value.trim())
+          return
+        }
+        if (isPrintableToken({ token, key })) {
+          setTypingState((state) => {
+            const nextValue = state.value.slice(0, state.cursor) + token + state.value.slice(state.cursor)
+            return { value: nextValue, cursor: state.cursor + token.length }
+          })
+          return
+        }
         return
       }
 
       // If we handled navigation, stop here so split escape-sequence chunks (like the final "A"/"B")
       // don't accidentally enter typing mode or trigger numeric shortcuts.
-      if (arrowDelta !== 0) {
-        setCursorSafe((c) => Math.max(0, Math.min(2, c + arrowDelta)))
+      if (verticalDelta !== 0) {
+        setCursorSafe((c) => Math.max(0, Math.min(2, c + verticalDelta)))
         return
       }
 
@@ -228,9 +291,13 @@ function ExitPlanModePrompt({
 
       // When the "custom message" row is selected, any character (including digits)
       // should start editing instead of triggering numeric shortcuts.
-      if (cursorRef.current === 2 && input && !key.ctrl && !key.meta) {
+      if (cursorRef.current === 2 && isPrintableToken({ token, key })) {
         setTyping(true)
-        setTypingValue((v) => v + input)
+        setTypingState((state) => {
+          const cursorAtEnd = state.value.length
+          const nextValue = state.value + token
+          return { value: nextValue, cursor: cursorAtEnd + token.length }
+        })
         return
       }
 
@@ -242,11 +309,18 @@ function ExitPlanModePrompt({
         const resolvedCursor = cursorRef.current
         if (resolvedCursor === 0) submit('auto')
         else if (resolvedCursor === 1) submit('manual')
-        else setTyping(true)
+        else {
+          setTyping(true)
+          setTypingState((state) => ({ ...state, cursor: state.value.length }))
+        }
       }
     },
   )
 
+  const typingValue = typingState.value
+  const typingCursor = Math.max(0, Math.min(typingState.cursor, typingValue.length))
+  const typingBeforeCursor = typingValue.slice(0, typingCursor)
+  const typingAfterCursor = typingValue.slice(typingCursor)
   const feedbackLine = typingValue.trim() ? typingValue.trim() : ''
   const planBody = useMemo(() => {
     const raw = (planText || '').trimEnd()
@@ -288,15 +362,11 @@ function ExitPlanModePrompt({
           <Text>{cursor === 2 ? '❯ ' : '  '}</Text>
           <Text color={cursor === 2 ? theme.text : theme.secondaryText}>3. </Text>
           {typing ? (
-            <TextInput
-              value={typingValue}
-              onChange={setTypingValue}
-              onSubmit={(next) => submit('feedback', next.trim())}
-              cursorStyle="bar"
-              cursorChar="▏"
-              focus={cursor === 2}
-              scope={scope}
-            />
+            <Text color={cursor === 2 ? theme.text : theme.secondaryText}>
+              {typingBeforeCursor}
+              ▏
+              {typingAfterCursor}
+            </Text>
           ) : feedbackLine ? (
             <Text color={cursor === 2 ? theme.text : theme.secondaryText}>{feedbackLine}</Text>
           ) : (

@@ -4,8 +4,7 @@ import { getTheme } from '../../../utils/theme'
 import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
-import { ToolHeaderLine } from '../../../components/tool/ToolHeaderLine'
-import { ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolSubline'
+import { ToolHeaderLine, ToolIndentedLine, ToolSubline, ToolUiBlocks } from '../../presenters/ToolUiPrimitives'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { BashToolPresenter } from '../bash/presenter'
 import { WriteToolPresenter } from '../write/presenter'
@@ -13,7 +12,6 @@ import { EditToolPresenter } from '../edit/presenter'
 import { NotebookEditToolPresenter } from '../notebookEdit/presenter'
 import { AskUserQuestionToolPresenter } from '../askUserQuestion/presenter'
 import { isToolBlocksPresenter } from '../../presenters/types'
-import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 export const TaskToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()

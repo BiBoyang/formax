@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] `HRL-SU-01`：清理 `task/exitPlanMode` presenter 组的 `Service -> UI` 直接依赖。
 - [ ] `HRL-SU-02`：清理 `edit/write/skill/webFetch/webSearch` presenter 组的 `Service -> UI` 直接依赖。
 - [ ] `HRL-CR-01`：清理 `Config -> Repo`（`src/env/config.ts` + `src/core/config/show.ts` + `src/core/config/migrate.ts`）。
 - [ ] `HRL-RS-01`：清理 `sessionSave` 相关 `Repo -> Service` 与 `Repo -> UI` 违规点。
