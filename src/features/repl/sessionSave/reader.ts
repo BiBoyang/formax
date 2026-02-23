@@ -2,8 +2,6 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import readline from 'node:readline'
 import path from 'node:path'
-import type { ChatHistory } from '../../../chat/engine'
-import type { Msg } from '../../../components/tool/ToolMessage'
 import { formatToolResult } from '../../../utils/toolFormatting'
 import {
   createPersistedToolEventAggregator,
@@ -11,6 +9,7 @@ import {
 } from './persistedToolEvents'
 import type { HistoryStateRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
 import { getArchivedSessionsRoot, getSessionsRoot } from './paths'
+import type { ChatHistory, Msg } from './types'
 
 export type SessionReplay = {
   meta: SessionMetaRecord

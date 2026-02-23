@@ -2,10 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { ChatHistory } from '../../../chat/engine'
 import { findLatestSessionFile, readSessionFile, readSessionSummary } from './reader'
 import type { SessionMetaRecord } from './records'
 import { getSessionFilePath, getSessionsRoot } from './paths'
+import type { ChatHistory } from './types'
 import { SessionWriter } from './writer'
 
 async function readLines(filePath: string): Promise<string[]> {

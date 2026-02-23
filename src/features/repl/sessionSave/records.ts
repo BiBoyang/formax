@@ -1,5 +1,4 @@
-import type { ChatHistory } from '../../../chat/engine'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { ChatHistory, Msg } from './types'
 
 export type SessionRecord =
   | SessionMetaRecord

@@ -2,12 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import type { ChatHistory } from '../../../chat/engine'
-import type { Msg } from '../../../components/tool/ToolMessage'
 import { stripEphemeralFromHistory } from './historyStrip'
 import type { HistoryStateRecord, SessionEventRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
 import { getSessionFilePath, getSessionsRoot } from './paths'
 import { truncateUtf8WithMarker } from './truncate'
+import type { ChatHistory, Msg } from './types'
 
 const DEFAULT_MAX_LINE_BYTES = 1024 * 1024
 const SAFE_SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/

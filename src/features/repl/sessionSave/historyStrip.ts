@@ -1,5 +1,5 @@
-import type { ChatHistory } from '../../../chat/engine'
 import type { PromptBlock } from '../../../prompts'
+import type { ChatHistory } from './types'
 
 function stripEphemeralBlocks(blocks: PromptBlock[]): PromptBlock[] {
   return blocks.filter((b) => (b as any)?.cache_control?.type !== 'ephemeral')
@@ -13,4 +13,3 @@ export function stripEphemeralFromHistory(history: ChatHistory): ChatHistory {
     return { ...msg, content: stripEphemeralBlocks(content) } as typeof msg
   })
 }
-
