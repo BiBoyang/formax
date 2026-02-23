@@ -2,7 +2,7 @@ import type {
   PermissionListKind,
   PermissionRuleEntry,
   WorkspaceDirectoryEntry,
-} from '../../adapters/permissions/permissionsStore.js'
+} from '../../features/commands/permissionsDialogService.js'
 import type { PermissionTab, SaveScope } from './constants.js'
 
 export type DialogState =

@@ -4,7 +4,7 @@ import type {
   PermissionListKind,
   PermissionRuleEntry,
   WorkspaceDirectoryEntry,
-} from '../../adapters/permissions/permissionsStore.js'
+} from '../../features/commands/permissionsDialogService.js'
 import type { PermissionTab } from './constants.js'
 
 export function formatScopeLabel(scope: 'projectLocal' | 'project' | 'user'): string {

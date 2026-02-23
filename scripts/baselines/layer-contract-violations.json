@@ -712,38 +712,6 @@
       "targetPath": "src/components/tool/toolUiBlocksTypes.ts",
       "targetLayer": "UI",
       "rule": "LAYER_ORDER"
-    },
-    {
-      "sourceFile": "src/ui/permissions/PermissionsDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/nodeFileStore.js",
-      "targetPath": "src/adapters/fs/nodeFileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/permissions/PermissionsDialog.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/permissions/permissionsStore.js",
-      "targetPath": "src/adapters/permissions/permissionsStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/permissions/reducer.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/permissions/permissionsStore.js",
-      "targetPath": "src/adapters/permissions/permissionsStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/ui/permissions/utils.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/permissions/permissionsStore.js",
-      "targetPath": "src/adapters/permissions/permissionsStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
     }
   ]
 }

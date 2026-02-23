@@ -1,15 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import {
-  deletePermissionRule,
-  deleteWorkspaceDirectory,
-  loadMergedPermissions,
-  persistPermissionRule,
-  persistWorkspaceDirectory,
+  createPermissionsDialogService,
   type LoadedPermissions,
   type PermissionListKind,
-} from '../../adapters/permissions/permissionsStore.js'
+} from '../../features/commands/permissionsDialogService.js'
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
@@ -26,8 +21,11 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
   useScopeActivation(SCOPE)
 
   const theme = useMemo(() => getTheme(), [])
-  const fileStore = useMemo(() => createNodeFileStore(), [])
   const originalWorkingDir = useMemo(() => process.cwd(), [])
+  const service = useMemo(
+    () => createPermissionsDialogService({ cwd: originalWorkingDir, env: process.env }),
+    [originalWorkingDir],
+  )
   const [reloadKey, setReloadKey] = useState(0)
 
   const [permissions, setPermissions] = useState<LoadedPermissions>(() => ({
@@ -41,14 +39,14 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
   useEffect(() => {
     let alive = true
     void (async () => {
-      const loaded = await loadMergedPermissions({ fileStore, cwd: originalWorkingDir, env: process.env })
+      const loaded = await service.load()
       if (!alive) return
       setPermissions(loaded)
     })()
     return () => {
       alive = false
     }
-  }, [fileStore, originalWorkingDir, reloadKey])
+  }, [reloadKey, service])
 
   const [state, dispatch] = useReducer(dialogReducer, undefined, initialDialogState)
 
@@ -63,60 +61,34 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
 
   const commitRule = useCallback(
     async (rule: string, kind: PermissionListKind, scope: SaveScope) => {
-      await persistPermissionRule({
-        fileStore,
-        cwd: originalWorkingDir,
-        scope,
-        kind,
-        rule,
-        env: process.env,
-      })
+      await service.persistRule({ scope, kind, rule })
       setReloadKey((n) => n + 1)
     },
-    [fileStore, originalWorkingDir],
+    [service],
   )
 
   const commitWorkspaceDir = useCallback(
     async (dir: string) => {
-      await persistWorkspaceDirectory({
-        fileStore,
-        cwd: originalWorkingDir,
-        scope: 'projectLocal',
-        dir,
-        env: process.env,
-      })
+      await service.persistWorkspaceDir({ scope: 'projectLocal', dir })
       setReloadKey((n) => n + 1)
     },
-    [fileStore, originalWorkingDir],
+    [service],
   )
 
   const deleteRule = useCallback(
     async (args: { rule: string; kind: PermissionListKind; scope: SaveScope }) => {
-      await deletePermissionRule({
-        fileStore,
-        cwd: originalWorkingDir,
-        scope: args.scope,
-        kind: args.kind,
-        rule: args.rule,
-        env: process.env,
-      })
+      await service.deleteRule({ scope: args.scope, kind: args.kind, rule: args.rule })
       setReloadKey((n) => n + 1)
     },
-    [fileStore, originalWorkingDir],
+    [service],
   )
 
   const deleteWorkspaceDir = useCallback(
     async (args: { dir: string; scope: SaveScope }) => {
-      await deleteWorkspaceDirectory({
-        fileStore,
-        cwd: originalWorkingDir,
-        scope: args.scope,
-        dir: args.dir,
-        env: process.env,
-      })
+      await service.deleteWorkspaceDir({ scope: args.scope, dir: args.dir })
       setReloadKey((n) => n + 1)
     },
-    [fileStore, originalWorkingDir],
+    [service],
   )
 
   const escapeBufferRef = useRef('')
