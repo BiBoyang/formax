@@ -12,6 +12,7 @@
 ## 并行参考（不作为主线推进）
 
 - `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（既有基座，后续与 app-server 交互会有交叉）
+- `plans/harness-refactor-loop/TODO-INDEX.md`：Harness 分层债务滚动清理（固定循环：实现 -> 定向测试 -> review -> 提交）
 - `plans/ui/ui-TODO-INDEX.md`：UI TODO 索引（串联 `plans/ui/` 下各 TODO）
 - `plans/ui/BACKLOG-command-subline-output.md`：Slash command 子行输出（扩展范围 / 后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 后置增强项（不作为执行清单）
