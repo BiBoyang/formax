@@ -10,6 +10,7 @@ import { getSessionFilePath, getSessionsRoot } from './paths'
 import { truncateUtf8WithMarker } from './truncate'
 
 const DEFAULT_MAX_LINE_BYTES = 1024 * 1024
+const SAFE_SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
 
 type SessionWriterOptions = {
   maxLineBytes?: number
@@ -17,6 +18,26 @@ type SessionWriterOptions = {
 
 function isoNow(now: Date = new Date()): string {
   return now.toISOString()
+}
+
+function parseRequestedSessionId(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error('Invalid sessionId: expected non-empty string')
+  if (!SAFE_SESSION_ID_RE.test(trimmed)) {
+    throw new Error('Invalid sessionId: expected letters, numbers, underscore, or dash')
+  }
+  return trimmed
+}
+
+function resolveSessionStartTime(value: string | Date | undefined): Date {
+  if (value === undefined) return new Date()
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) throw new Error('Invalid startedAt: expected valid Date')
+    return value
+  }
+  const parsed = Date.parse(value)
+  if (!Number.isFinite(parsed)) throw new Error('Invalid startedAt: expected ISO datetime string')
+  return new Date(parsed)
 }
 
 function bestEffortGitBranch(cwd: string): string | null {
@@ -307,10 +328,12 @@ export class SessionWriter {
     platform?: string
     homedir?: string
     model?: string
+    sessionId?: string
+    startedAt?: string | Date
     maxLineBytes?: number
   }): Promise<{ writer: SessionWriter; meta: SessionMetaRecord; filePath: string }> {
-    const now = new Date()
-    const sessionId = randomUUID()
+    const now = resolveSessionStartTime(args.startedAt)
+    const sessionId = args.sessionId === undefined ? randomUUID() : parseRequestedSessionId(args.sessionId)
     const sessionsRoot = getSessionsRoot({
       cwd: args.cwd,
       env: args.env,

@@ -1758,11 +1758,13 @@ describe('useReplController /clear', () => {
         </UserInputProvider>,
       )
       await waitFor(() => Boolean(controller))
-      const filesBefore = await waitForSessionFiles(1)
-      expect(filesBefore).toHaveLength(1)
+      const filesBefore = await listSessionFiles()
+      expect(filesBefore).toHaveLength(0)
 
       await controller.actions.send('hi')
       await waitFor(() => controller.state.isLoading === false)
+      const filesAfterFirstTurn = await waitForSessionFiles(1)
+      expect(filesAfterFirstTurn).toHaveLength(1)
       expect(historyLens[0]).toBe(0)
 
       await controller.actions.send('hi2')
@@ -1773,11 +1775,13 @@ describe('useReplController /clear', () => {
       await controller.actions.send('/clear')
       await waitFor(() => controller.state.transcriptSeq === seqBefore + 1 && controller.state.messages.length === 0)
       expect(controller.state.messages).toHaveLength(0)
-      const filesAfterClear = await waitForSessionFiles(2)
-      expect(filesAfterClear.length).toBeGreaterThanOrEqual(2)
+      const filesAfterClear = await listSessionFiles()
+      expect(filesAfterClear).toHaveLength(1)
 
       await controller.actions.send('hi3')
       await waitFor(() => controller.state.isLoading === false)
+      const filesAfterThirdTurn = await waitForSessionFiles(2)
+      expect(filesAfterThirdTurn.length).toBeGreaterThanOrEqual(2)
       expect(historyLens[2]).toBe(0)
       expect(runTurn).toHaveBeenCalledTimes(3)
     } finally {
@@ -1847,7 +1851,6 @@ describe('useReplController /clear', () => {
         </UserInputProvider>,
       )
       await waitFor(() => Boolean(controller))
-      await waitForSessionFiles(1)
       createNewSpy.mockClear()
 
       const seqBefore = controller.state.transcriptSeq
@@ -1859,8 +1862,8 @@ describe('useReplController /clear', () => {
 
       // Should only create a single new writer for the cleared session.
       expect(createNewSpy).toHaveBeenCalledTimes(1)
-      const filesAfter = await waitForSessionFiles(2)
-      expect(filesAfter.length).toBeGreaterThanOrEqual(2)
+      const filesAfter = await waitForSessionFiles(1)
+      expect(filesAfter.length).toBeGreaterThanOrEqual(1)
     } finally {
       createNewSpy.mockRestore()
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
@@ -1940,6 +1943,76 @@ describe('useReplController sessionSave resume', () => {
       expect(observedResume).toBe(true)
     } finally {
       process.chdir(prevCwd)
+      restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
+      await fsp.rm(cwdDir, { recursive: true, force: true })
+      await fsp.rm(configDir, { recursive: true, force: true })
+    }
+  })
+
+  it('creates a fresh session file after /clear in an initially resumed session', async () => {
+    const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-cwd-'))
+    const configDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-session-config-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevSessionSave = process.env.FORMAX_SESSION_SAVE
+    vi.stubEnv('FORMAX_CONFIG_DIR', configDir)
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+
+    try {
+      const { writer, filePath } = await SessionWriter.createNew({ cwd: cwdDir, env: process.env, maxLineBytes: 5000 })
+      await writer.appendStableMsg({
+        id: 'assistant-initial',
+        role: 'assistant',
+        content: 'resumed hello',
+        timestamp: new Date('2026-02-02T00:00:00.000Z'),
+      } as any)
+      await writer.appendHistorySnapshot([{ role: 'user', content: [{ type: 'text', text: 'initial' }] }] as any)
+      await writer.shutdown()
+
+      const replay = await readSessionFile(filePath)
+      const engine: ChatEngine = {
+        async runTurn({ history, user, onEvent }) {
+          onEvent({ type: 'complete' } as any)
+          return [...history, user]
+        },
+      }
+
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
+      const userInput = createUserInputManager()
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(
+        <UserInputProvider userInput={userInput}>
+          <Harness
+            engine={engine}
+            cwd={cwdDir}
+            cfg={cfg}
+            initialSession={{ filePath, messages: replay.messages as any, history: replay.history as any }}
+            onController={(c) => (controller = c)}
+          />
+        </UserInputProvider>,
+      )
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('/clear')
+      await waitFor(() => controller.state.messages.length === 0 && controller.state.isLoading === false)
+
+      await controller.actions.send('after clear')
+      await waitFor(() => controller.state.isLoading === false)
+
+      const files = await waitForSessionFiles(configDir, 2)
+      const freshFilePath = files.find((candidate) => candidate !== filePath)
+      expect(freshFilePath).toBeTruthy()
+
+      const oldReplay = await readSessionFile(filePath)
+      expect(
+        oldReplay.messages.some((message) => message.role === 'user' && String(message.content) === 'after clear'),
+      ).toBe(false)
+
+      const freshReplay = await readSessionFile(String(freshFilePath))
+      expect(
+        freshReplay.messages.some((message) => message.role === 'user' && String(message.content) === 'after clear'),
+      ).toBe(true)
+    } finally {
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
       restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
       await fsp.rm(cwdDir, { recursive: true, force: true })

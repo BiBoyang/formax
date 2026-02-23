@@ -16,16 +16,53 @@ async function createStore() {
   }
 }
 
+async function ensureThreadSessionFile(args: {
+  cwd: string
+  env: NodeJS.ProcessEnv
+  threadId: string
+  archived?: boolean
+}): Promise<string> {
+  const existing = await findSessionFileBySessionId({
+    cwd: args.cwd,
+    env: args.env,
+    sessionId: args.threadId,
+    ...(args.archived ? { archived: true } : {}),
+  })
+  if (existing) return existing
+
+  const { writer, filePath } = await SessionWriter.createNew({
+    cwd: args.cwd,
+    env: args.env,
+    sessionId: args.threadId,
+  })
+  await writer.shutdown()
+  return filePath
+}
+
 describe('ThreadStore', () => {
-  it('supports start/resume/read using sessionSave', async () => {
+  it('supports provisional start/resume/read and persisted sessionSave', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
     expect(thread.id).toBeTypeOf('string')
     expect(thread.cwd).toBe(cwd)
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const beforePersistPath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
+    expect(beforePersistPath).toBeNull()
+
+    const resumedBeforePersist = await store.resumeThread(thread.id)
+    expect(resumedBeforePersist.thread.id).toBe(thread.id)
+    expect(resumedBeforePersist.staleInputs).toEqual([])
+
+    const readBeforePersist = await store.readThread(thread.id)
+    expect(readBeforePersist.thread.id).toBe(thread.id)
+    expect(readBeforePersist.transcriptPreview).toEqual([])
+
+    const messagesBeforePersist = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(messagesBeforePersist.data).toEqual([])
+    expect(messagesBeforePersist.nextCursor).toBeNull()
+
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'u1',
       role: 'user',
@@ -85,13 +122,26 @@ describe('ThreadStore', () => {
     expect(row?.label).toBe('Renamed Thread')
   })
 
+  it('preserves provisional createdAt/label when materializing thread file', async () => {
+    const { store } = await createStore()
+    const started = await store.startThread({})
+    await store.renameThread({ threadId: started.id, label: 'Renamed Before First Turn' })
+
+    const filePath = await store.ensureThreadFile({ threadId: started.id, cwd: started.cwd })
+    expect(filePath).toBeTruthy()
+
+    const listed = await store.listThreads({ limit: 20 })
+    const row = listed.data.find((thread) => thread.id === started.id)
+    expect(row?.label).toBe('Renamed Before First Turn')
+    expect(row?.createdAt).toBe(started.createdAt)
+  })
+
   it('supports pagination in thread/messages', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendHistorySnapshot([
       { role: 'user', content: [{ type: 'text', text: 'u1' }] },
       { role: 'assistant', content: [{ type: 'text', text: 'a1' }] },
@@ -115,9 +165,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendHistorySnapshot([
       { role: 'user', content: [{ type: 'text', text: 'u1' }] },
       { role: 'assistant', content: [{ type: 'text', text: 'a1' }] },
@@ -144,9 +193,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'u1',
       role: 'user',
@@ -197,9 +245,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'u1',
       role: 'user',
@@ -244,9 +291,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     const staleTimestamp = new Date('2026-02-08T00:00:00.000Z')
 
     await writer.appendStableMsg({
@@ -299,9 +345,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'u1',
       role: 'user',
@@ -371,9 +416,8 @@ describe('ThreadStore', () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'tool-edit-1',
       role: 'tool',
@@ -427,9 +471,8 @@ describe('ThreadStore', () => {
     const demoFilePath = path.join(cwd, 'demo.txt')
     await fs.writeFile(demoFilePath, ['first line', 'patched line', 'last line'].join('\n'), 'utf8')
 
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendStableMsg({
       id: 'u1',
       role: 'user',
@@ -509,9 +552,8 @@ describe('ThreadStore', () => {
   it('returns staleInputs on resume when unresolved app input events exist', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
-    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: thread.id })
-    expect(filePath).toBeTruthy()
-    const writer = await SessionWriter.openExisting({ filePath: filePath! })
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
     await writer.appendEvent('app_input_requested', {
       inputId: 'turn-1:ask-1:ask_user_question',
       threadId: thread.id,
@@ -530,10 +572,62 @@ describe('ThreadStore', () => {
     expect(resumed.staleInputs[0]?.reason).toBe('server_restart')
   })
 
+  it('archives provisional threads durably so they can be listed and restored', async () => {
+    const { cwd, env, store } = await createStore()
+    const started = await store.startThread({})
+
+    const activeBeforeArchive = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activeBeforeArchive).toBeNull()
+
+    const archivedOut = await store.archiveThread(started.id)
+    expect(archivedOut.thread.id).toBe(started.id)
+    expect(archivedOut.thread.archivedAt).toBeTypeOf('string')
+
+    const archivedPath = await findSessionFileBySessionId({
+      cwd,
+      env,
+      sessionId: started.id,
+      archived: true,
+    })
+    expect(archivedPath).toBeTruthy()
+
+    const archivedList = await store.listThreads({ limit: 20, archived: true })
+    expect(archivedList.data.some((thread) => thread.id === started.id)).toBe(true)
+
+    const unarchivedOut = await store.unarchiveThread(started.id)
+    expect(unarchivedOut.thread.id).toBe(started.id)
+    expect(unarchivedOut.thread.archivedAt).toBeNull()
+
+    const activeAgain = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activeAgain).toBeTruthy()
+  })
+
+  it('does not re-materialize archived threads as active sessions', async () => {
+    const { cwd, env, store } = await createStore()
+    const started = await store.startThread({})
+    await ensureThreadSessionFile({ cwd, env, threadId: started.id })
+    await store.archiveThread(started.id)
+
+    await expect(store.ensureThreadFile({ threadId: started.id, cwd })).rejects.toThrow(
+      `Thread not found: ${started.id}`,
+    )
+
+    const activePath = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
+    expect(activePath).toBeNull()
+    const archivedPath = await findSessionFileBySessionId({
+      cwd,
+      env,
+      sessionId: started.id,
+      archived: true,
+    })
+    expect(archivedPath).toBeTruthy()
+  })
+
   it('moves threads between active and archived storage', async () => {
     const { cwd, env, store } = await createStore()
     const started = await store.startThread({})
 
+    await ensureThreadSessionFile({ cwd, env, threadId: started.id })
     const activePath = await findSessionFileBySessionId({ cwd, env, sessionId: started.id })
     expect(activePath).toBeTruthy()
 

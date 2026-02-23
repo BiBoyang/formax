@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
@@ -37,6 +38,25 @@ async function createThreadFixture() {
   }
 }
 
+async function listThreadFilesById(args: { sessionsRoot: string; threadId: string }): Promise<string[]> {
+  const out: string[] = []
+  const walk = async (dir: string) => {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        await walk(fullPath)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (!entry.name.endsWith(`-${args.threadId}.jsonl`)) continue
+      out.push(fullPath)
+    }
+  }
+  await walk(args.sessionsRoot)
+  return out
+}
+
 async function readAppToolEvents(filePath: string): Promise<Array<Record<string, unknown>>> {
   const raw = await fs.readFile(filePath, 'utf8')
   return raw
@@ -59,6 +79,166 @@ async function readAppToolEvents(filePath: string): Promise<Array<Record<string,
 }
 
 describe('TurnRunner', () => {
+  it('creates a session file lazily when starting a turn for a provisional thread id', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-lazy-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-lazy-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadId = randomUUID()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId,
+      input: { text: 'lazy create' },
+    })
+
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    const filePath = await findSessionFileBySessionId({ cwd, env, sessionId: threadId })
+    expect(filePath).toBeTruthy()
+  })
+
+  it('rejects unsafe thread ids when lazily creating a session file', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-unsafe-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-unsafe-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd,
+      env,
+      emitNotification() {},
+    })
+
+    await expect(
+      runner.startTurn({
+        threadId: '../unsafe-thread-id',
+        input: { text: 'should fail' },
+      }),
+    ).rejects.toThrow('Invalid sessionId')
+  })
+
+  it('reuses an existing thread file from request cwd when runner cwd differs', async () => {
+    const requestCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-request-cwd-'))
+    const runnerCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-runner-cwd-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: '.formax-relative' }
+    const threadId = randomUUID()
+    const notifications: Notification[] = []
+    const sessionsRoot = path.join(requestCwd, '.formax-relative', 'sessions')
+    const seeded = await SessionWriter.createNew({ cwd: requestCwd, env, sessionId: threadId })
+    await seeded.writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'seed history' }] },
+    ] as any)
+    await seeded.writer.shutdown()
+    const beforeFiles = await listThreadFilesById({ sessionsRoot, threadId })
+    expect(beforeFiles).toHaveLength(1)
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: runnerCwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId,
+      cwd: requestCwd,
+      input: { text: 'follow up' },
+    })
+
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    const afterFiles = await listThreadFilesById({ sessionsRoot, threadId })
+    expect(afterFiles).toHaveLength(1)
+    expect(afterFiles[0]).toBe(beforeFiles[0])
+  })
+
+  it('reuses an existing thread file after request cwd changes with relative config dir', async () => {
+    const runnerCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-reuse-runner-cwd-'))
+    const requestCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-reuse-request-cwd-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: '.formax-relative' }
+    const threadId = randomUUID()
+    const notifications: Notification[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'complete' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: runnerCwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId,
+      input: { text: 'first turn' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    notifications.length = 0
+    await runner.startTurn({
+      threadId,
+      cwd: requestCwd,
+      input: { text: 'second turn' },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const runnerFiles = await listThreadFilesById({
+      sessionsRoot: path.join(runnerCwd, '.formax-relative', 'sessions'),
+      threadId,
+    })
+    const requestFiles = await listThreadFilesById({
+      sessionsRoot: path.join(requestCwd, '.formax-relative', 'sessions'),
+      threadId,
+    })
+    expect(runnerFiles).toHaveLength(1)
+    expect(requestFiles).toHaveLength(0)
+  })
+
   it('runs a turn, emits events, and persists history', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

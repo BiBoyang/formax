@@ -338,3 +338,7 @@ turn 通知到 canonical 的最小映射保证：
 | envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 错误码常量 | `src/app-server/jsonrpc.ts` | `src/app-server/jsonrpc.test.ts` |
 | `PAYLOAD_TOO_LARGE`（request/event） | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts` | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts` |
+
+## 11. 行为对齐学习记录
+
+- 2026-02-23：`thread/start` 与 REPL 初次进入不再立即创建 session 文件，改为 provisional thread/session（仅内存）并在首个有效 turn 写入时 materialize 到磁盘。该策略避免产生大量“0 消息 session”，并保证 TUI 与 Web 的空会话可见性与持久化时机一致。

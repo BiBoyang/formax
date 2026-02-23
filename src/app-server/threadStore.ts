@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import {
   readSessionFile,
   readSessionPreview,
@@ -82,6 +82,14 @@ export type ThreadArchiveResult = {
   thread: ThreadSummary
 }
 
+type ProvisionalThread = {
+  id: string
+  cwd: string
+  createdAt: string
+  updatedAt: string
+  label: string | null
+}
+
 function toThreadSummary(
   summary: SessionSummary,
   archived: boolean,
@@ -106,6 +114,33 @@ function toThread(summary: SessionSummary): Thread {
     cwd: summary.meta.cwd,
     createdAt: summary.meta.startedAt,
     updatedAt: summary.updatedAt.toISOString(),
+  }
+}
+
+function toThreadSummaryFromProvisional(
+  thread: ProvisionalThread,
+  archived: boolean,
+  options?: { archivedAt?: string | null },
+): ThreadSummary {
+  const archivedAt = archived ? options?.archivedAt ?? null : null
+  return {
+    id: thread.id,
+    cwd: thread.cwd,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    messageCount: 0,
+    lastUserPrompt: null,
+    label: thread.label,
+    archivedAt,
+  }
+}
+
+function toThreadFromProvisional(thread: ProvisionalThread): Thread {
+  return {
+    id: thread.id,
+    cwd: thread.cwd,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
   }
 }
 
@@ -388,6 +423,7 @@ export class ThreadStore {
   private readonly platform?: string
   private readonly homedir?: string
   private readonly archiveStore: ThreadArchiveStore
+  private readonly provisionalThreads = new Map<string, ProvisionalThread>()
 
   constructor(args: ThreadStoreOptions = {}) {
     this.cwd = args.cwd ? path.resolve(args.cwd) : process.cwd()
@@ -399,21 +435,57 @@ export class ThreadStore {
 
   async startThread(params: ThreadStartParams): Promise<Thread> {
     const cwd = params.cwd ? path.resolve(params.cwd) : this.cwd
-    const { writer, meta, filePath } = await SessionWriter.createNew({
+    const now = new Date().toISOString()
+    const thread: ProvisionalThread = {
+      id: randomUUID(),
       cwd,
-      env: this.env,
-      platform: this.platform,
-      homedir: this.homedir,
-    })
-    await writer.shutdown()
-
-    const stat = await fs.stat(filePath).catch(() => null)
-    return {
-      id: meta.sessionId,
-      cwd: meta.cwd,
-      createdAt: meta.startedAt,
-      updatedAt: stat?.mtime.toISOString() ?? meta.startedAt,
+      createdAt: now,
+      updatedAt: now,
+      label: null,
     }
+    this.provisionalThreads.set(thread.id, thread)
+    return toThreadFromProvisional(thread)
+  }
+
+  async ensureThreadFile(params: { threadId: string; cwd?: string }): Promise<string> {
+    const provisional = this.provisionalThreads.get(params.threadId)
+    const requestCwd = params.cwd ? path.resolve(params.cwd) : this.cwd
+    const candidateCwds = Array.from(new Set([provisional?.cwd, requestCwd, this.cwd].filter((value): value is string => Boolean(value))))
+
+    for (const cwd of candidateCwds) {
+      const existing = await this.archiveStore.locateThreadFile({
+        cwd,
+        sessionId: params.threadId,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+      })
+      if (!existing) continue
+      this.provisionalThreads.delete(params.threadId)
+      return existing
+    }
+
+    if (provisional) {
+      const { writer, filePath } = await SessionWriter.createNew({
+        cwd: provisional.cwd,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+        sessionId: provisional.id,
+        startedAt: provisional.createdAt,
+      })
+      try {
+        if (provisional.label) {
+          await writer.appendEvent('session_rename', { label: provisional.label })
+        }
+      } finally {
+        await writer.shutdown()
+      }
+      this.provisionalThreads.delete(params.threadId)
+      return filePath
+    }
+
+    throw new Error(`Thread not found: ${params.threadId}`)
   }
 
   async resumeThread(threadId: string): Promise<ThreadResumeResult> {
@@ -424,7 +496,15 @@ export class ThreadStore {
       platform: this.platform,
       homedir: this.homedir,
     })
-    if (!filePath) throw new Error(`Thread not found: ${threadId}`)
+    if (!filePath) {
+      const provisional = this.provisionalThreads.get(threadId)
+      if (!provisional) throw new Error(`Thread not found: ${threadId}`)
+      return {
+        thread: toThreadFromProvisional(provisional),
+        staleInputs: [],
+      }
+    }
+    this.provisionalThreads.delete(threadId)
 
     const [summary, staleInputs] = await Promise.all([
       readSessionSummary(filePath),
@@ -451,9 +531,28 @@ export class ThreadStore {
       limit: needed,
       archived,
     })
+    const persistedRows = all.map((summary) => toThreadSummary(summary, archived))
+    const persistedIds = new Set(persistedRows.map((thread) => thread.id))
+    for (const id of persistedIds) this.provisionalThreads.delete(id)
 
-    const page = all.slice(offset, offset + limit).map((summary) => toThreadSummary(summary, archived))
-    const nextCursor = offset + limit < all.length ? String(offset + limit) : null
+    const provisionalRows =
+      archived
+        ? []
+        : Array.from(this.provisionalThreads.values())
+            .filter((thread) => !persistedIds.has(thread.id))
+            .map((thread) => toThreadSummaryFromProvisional(thread, false))
+
+    const combined = [...persistedRows, ...provisionalRows].sort((a, b) => {
+      const aMs = Date.parse(a.updatedAt)
+      const bMs = Date.parse(b.updatedAt)
+      if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) {
+        return bMs - aMs
+      }
+      return b.id.localeCompare(a.id)
+    })
+
+    const page = combined.slice(offset, offset + limit)
+    const nextCursor = offset + limit < combined.length ? String(offset + limit) : null
     return { data: page, nextCursor }
   }
 
@@ -465,7 +564,15 @@ export class ThreadStore {
       platform: this.platform,
       homedir: this.homedir,
     })
-    if (!filePath) throw new Error(`Thread not found: ${threadId}`)
+    if (!filePath) {
+      const provisional = this.provisionalThreads.get(threadId)
+      if (!provisional) throw new Error(`Thread not found: ${threadId}`)
+      return {
+        thread: toThreadFromProvisional(provisional),
+        transcriptPreview: [],
+      }
+    }
+    this.provisionalThreads.delete(threadId)
 
     const [summary, transcriptPreview] = await Promise.all([
       readSessionSummary(filePath),
@@ -486,7 +593,15 @@ export class ThreadStore {
       platform: this.platform,
       homedir: this.homedir,
     })
-    if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
+    if (!filePath) {
+      if (!this.provisionalThreads.has(params.threadId)) throw new Error(`Thread not found: ${params.threadId}`)
+      if (params.cursor !== undefined) parseCursorOffset(params.cursor)
+      return {
+        data: [],
+        nextCursor: null,
+      }
+    }
+    this.provisionalThreads.delete(params.threadId)
 
     const replay = await readSessionFile(filePath)
     const toolUseInputById = extractToolUseInputById(
@@ -611,7 +726,15 @@ export class ThreadStore {
       platform: this.platform,
       homedir: this.homedir,
     })
-    if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
+    if (!filePath) {
+      const provisional = this.provisionalThreads.get(params.threadId)
+      if (!provisional) throw new Error(`Thread not found: ${params.threadId}`)
+      provisional.label = params.label
+      provisional.updatedAt = new Date().toISOString()
+      this.provisionalThreads.set(params.threadId, provisional)
+      return { thread: toThreadSummaryFromProvisional(provisional, false) }
+    }
+    this.provisionalThreads.delete(params.threadId)
 
     const writer = await SessionWriter.openExisting({ filePath })
     try {
@@ -625,6 +748,42 @@ export class ThreadStore {
   }
 
   async archiveThread(threadId: string): Promise<ThreadArchiveResult> {
+    const persistedFilePath = await this.archiveStore.locateThreadFile({
+      cwd: this.cwd,
+      sessionId: threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    if (persistedFilePath) {
+      this.provisionalThreads.delete(threadId)
+      const archivedAt = new Date().toISOString()
+      await this.archiveStore.archiveThread({
+        cwd: this.cwd,
+        sessionId: threadId,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+      })
+      const summary = await this.readThreadSummary(threadId, true, { archivedAt })
+      return { thread: summary }
+    }
+
+    const provisional = this.provisionalThreads.get(threadId)
+    if (provisional) {
+      const archivedAt = new Date().toISOString()
+      await this.ensureThreadFile({ threadId, cwd: provisional.cwd })
+      await this.archiveStore.archiveThread({
+        cwd: provisional.cwd,
+        sessionId: threadId,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+      })
+      const summary = await this.readThreadSummary(threadId, true, { archivedAt, cwd: provisional.cwd })
+      return { thread: summary }
+    }
+
     const archivedAt = new Date().toISOString()
     await this.archiveStore.archiveThread({
       cwd: this.cwd,
@@ -652,10 +811,11 @@ export class ThreadStore {
   private async readThreadSummary(
     threadId: string,
     archived: boolean,
-    options?: { archivedAt?: string | null },
+    options?: { archivedAt?: string | null; cwd?: string },
   ): Promise<ThreadSummary> {
+    const lookupCwd = options?.cwd ? path.resolve(options.cwd) : this.cwd
     const filePath = await this.archiveStore.locateThreadFile({
-      cwd: this.cwd,
+      cwd: lookupCwd,
       sessionId: threadId,
       archived,
       env: this.env,

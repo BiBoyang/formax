@@ -23,7 +23,7 @@ export async function runAppServer(args?: {
   platform?: string
   homedir?: string
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'ensureThreadFile'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   maxRequestBytes?: number
   maxEventBytes?: number
@@ -87,6 +87,10 @@ export async function runAppServer(args?: {
         emitNotification: server.createTurnNotificationEmitter(),
         defaultInputTtlMs,
         maxPendingInputsPerThread,
+        ensureThreadFilePath:
+          typeof threadStore.ensureThreadFile === 'function'
+            ? ({ threadId, cwd: threadCwd }) => threadStore.ensureThreadFile!({ threadId, cwd: threadCwd })
+            : undefined,
       })
       return lazyTurnRunner
     },

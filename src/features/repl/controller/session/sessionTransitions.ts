@@ -91,15 +91,19 @@ export async function runNewSessionTransition(args: {
   beginNewSession: () => void
   sessionSaveEnabled: boolean
   sessionWriterRef: { current: SessionWriterLike | null }
+  sessionWriterInitPromiseRef: { current: Promise<void> | null }
   lastPersistedSigByMsgIdRef: { current: Map<string, string> }
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
-  startNewSessionWriter: () => Promise<void>
-  sessionWriterInitPromiseRef: { current: Promise<void> | null }
 }): Promise<void> {
   args.beginNewSession()
   if (args.sessionSaveEnabled) {
+    const inflightInit = args.sessionWriterInitPromiseRef.current
+    if (inflightInit) {
+      await inflightInit.catch(() => undefined)
+    }
+    args.sessionWriterInitPromiseRef.current = null
     const oldWriter = args.sessionWriterRef.current
     args.sessionWriterRef.current = null
     args.lastPersistedSigByMsgIdRef.current = new Map()
@@ -112,16 +116,6 @@ export async function runNewSessionTransition(args: {
   }
   args.resetSessionState()
   await args.replaceTranscript([])
-
-  if (args.sessionSaveEnabled) {
-    // Coordinate writer initialization with ensureSessionWriter() so a fast
-    // subsequent send() can't create a second, orphaned session writer.
-    const promise = args.startNewSessionWriter().finally(() => {
-      if (args.sessionWriterInitPromiseRef.current === promise) args.sessionWriterInitPromiseRef.current = null
-    })
-    args.sessionWriterInitPromiseRef.current = promise
-    void promise
-  }
 }
 
 export async function runResumeSessionTransition(args: {

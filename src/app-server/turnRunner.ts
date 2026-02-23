@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
@@ -53,6 +54,7 @@ export type TurnRunnerOptions = {
   emitNotification: TurnRunnerNotificationEmitter
   defaultInputTtlMs?: number
   maxPendingInputsPerThread?: number
+  ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
 }
 
 type RunningTurn = {
@@ -227,6 +229,8 @@ export class TurnRunner {
   private readonly emitNotification: TurnRunnerNotificationEmitter
   private readonly defaultInputTtlMs: number
   private readonly maxPendingInputsPerThread: number
+  private readonly ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
+  private readonly threadFilePathById = new Map<string, string>()
   private readonly runningByThreadId = new Map<string, RunningTurn>()
   private readonly autoTitleAttemptedThreadIds = new Set<string>()
   private readonly autoTitleCheckedTopicPromptKeys = new Set<string>()
@@ -249,14 +253,15 @@ export class TurnRunner {
       args.maxPendingInputsPerThread,
       DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
     )
+    this.ensureThreadFilePath = args.ensureThreadFilePath
   }
 
   async startTurn(params: TurnStartRuntimeParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
     const existing = this.runningByThreadId.get(params.threadId)
     if (existing) throw new Error(`Turn already running for thread: ${params.threadId}`)
 
-    const filePath = await this.resolveThreadFilePath(params.threadId)
-    if (!filePath) throw new Error(`Thread not found: ${params.threadId}`)
+    const cwd = params.cwd ? path.resolve(params.cwd) : this.cwd
+    const filePath = await this.resolveOrCreateThreadFilePath({ threadId: params.threadId, cwd })
 
     const initialMode = normalizeReplMode(params.mode, 'normal')
     const turnInput = buildTurnInput({
@@ -274,7 +279,7 @@ export class TurnRunner {
       seq: 0,
       threadId: params.threadId,
       filePath,
-      cwd: params.cwd ? path.resolve(params.cwd) : this.cwd,
+      cwd,
       inputText: params.input.text,
       modelInputText: turnInput.modelUserText,
       modelUserContent: [...turnInput.semanticBlocks, ...turnInput.userBlocks],
@@ -745,14 +750,52 @@ export class TurnRunner {
     })
   }
 
-  private async resolveThreadFilePath(threadId: string): Promise<string | null> {
+  private async resolveThreadFilePath(args: { threadId: string; cwd: string }): Promise<string | null> {
     return findSessionFileBySessionId({
-      cwd: this.cwd,
-      sessionId: threadId,
+      cwd: args.cwd,
+      sessionId: args.threadId,
       env: this.env,
       platform: this.platform,
       homedir: this.homedir,
     })
+  }
+
+  private async resolveOrCreateThreadFilePath(args: { threadId: string; cwd: string }): Promise<string> {
+    if (this.ensureThreadFilePath) {
+      const filePath = await this.ensureThreadFilePath(args)
+      this.threadFilePathById.set(args.threadId, filePath)
+      return filePath
+    }
+
+    const knownPath = this.threadFilePathById.get(args.threadId)
+    if (knownPath) {
+      const exists = await fs
+        .access(knownPath)
+        .then(() => true)
+        .catch(() => false)
+      if (exists) return knownPath
+      this.threadFilePathById.delete(args.threadId)
+    }
+
+    const candidateCwds = Array.from(new Set([args.cwd, this.cwd]))
+    for (const cwd of candidateCwds) {
+      const existing = await this.resolveThreadFilePath({ threadId: args.threadId, cwd })
+      if (!existing) continue
+      this.threadFilePathById.set(args.threadId, existing)
+      return existing
+    }
+
+    const created = await SessionWriter.createNew({
+      cwd: args.cwd,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+      model: this.model,
+      sessionId: args.threadId,
+    })
+    await created.writer.shutdown()
+    this.threadFilePathById.set(args.threadId, created.filePath)
+    return created.filePath
   }
 
   private appendAppEvent(running: RunningTurn, name: string, data: Record<string, unknown>): void {

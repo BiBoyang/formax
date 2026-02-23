@@ -147,6 +147,7 @@ describe('runNewSessionTransition', () => {
       },
       sessionSaveEnabled: false,
       sessionWriterRef: { current: null },
+      sessionWriterInitPromiseRef: { current: null },
       lastPersistedSigByMsgIdRef: { current: new Map() },
       lastPersistedMsgByIdRef: { current: new Map() },
       resetSessionState: () => {
@@ -157,8 +158,6 @@ describe('runNewSessionTransition', () => {
         await replaceGate
         order.push('replace:end')
       },
-      startNewSessionWriter: async () => undefined,
-      sessionWriterInitPromiseRef: { current: null },
     }).then(() => {
       order.push('transition:done')
     })

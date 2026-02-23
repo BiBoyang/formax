@@ -60,6 +60,7 @@ import {
 import { createSendTurnContext } from './controller/send/sendTypes'
 import { runLocalBashTurn } from './controller/send/bashMode'
 import { runReplModelSendFlow } from './controller/send/sendOrchestration'
+import { maybeHandleClearCommand } from './controller/send/send'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import {
   createInitialTranscriptProjectionState,
@@ -358,6 +359,7 @@ export function useReplController(deps: {
   const sessionTransitionPendingCountRef = useRef(0)
   const sessionWriterRef = useRef<SessionWriter | null>(null)
   const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
+  const initialSessionFilePathRef = useRef<string | undefined>(deps.initialSession?.filePath)
   const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
   const lastPersistedMsgByIdRef = useRef<Map<string, Msg>>(new Map())
   const previousMessagesRef = useRef<Msg[]>(messages)
@@ -388,14 +390,18 @@ export function useReplController(deps: {
   }, [deps.cfg.llm.model, runtimeCwd, runtimeEnv, sessionSaveEnabled])
 
   const openInitialSessionWriter = useCallback(async (): Promise<void> => {
+    const initialSessionFilePath = initialSessionFilePathRef.current
     await openInitialSessionWriterInternal({
       sessionSaveEnabled,
-      initialSession: deps.initialSession,
+      initialSession: {
+        ...(initialSessionFilePath ? { filePath: initialSessionFilePath } : {}),
+        ...(deps.initialSession?.messages ? { messages: deps.initialSession.messages } : {}),
+      },
       historyRef,
       refs: sessionWriterRefs,
       startNewWriter: startNewSessionWriter,
     })
-  }, [deps.initialSession?.filePath, deps.initialSession?.messages, sessionSaveEnabled, startNewSessionWriter])
+  }, [deps.initialSession?.messages, sessionSaveEnabled, startNewSessionWriter])
 
   const shutdownSessionWriter = useCallback(async (): Promise<void> => {
     await shutdownSessionWriterInternal(sessionWriterRefs)
@@ -407,6 +413,10 @@ export function useReplController(deps: {
       void shutdownSessionWriter()
     }
   }, [sessionSaveEnabled, shutdownSessionWriter])
+
+  useEffect(() => {
+    initialSessionFilePathRef.current = deps.initialSession?.filePath
+  }, [deps.initialSession?.filePath])
 
   const ensureSessionWriter = useCallback(async (): Promise<void> => {
     await ensureSessionWriterInternal({
@@ -648,11 +658,9 @@ export function useReplController(deps: {
 
   useEffect(() => {
     if (!sessionSaveEnabled) return
+    if (!deps.initialSession?.filePath) return
     void ensureSessionWriter()
-    return () => {
-      void shutdownSessionWriter()
-    }
-  }, [ensureSessionWriter, sessionSaveEnabled, shutdownSessionWriter])
+  }, [deps.initialSession?.filePath, ensureSessionWriter, sessionSaveEnabled])
 
   useEffect(() => {
     if (!sessionSaveEnabled) {
@@ -839,20 +847,20 @@ export function useReplController(deps: {
   }, [])
 
   const runNewSession = useCallback(async (): Promise<void> => {
+    initialSessionFilePathRef.current = undefined
     await queueSessionTransition(async () => {
       await runNewSessionTransition({
         beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
         sessionSaveEnabled,
         sessionWriterRef,
+        sessionWriterInitPromiseRef,
         lastPersistedSigByMsgIdRef,
         lastPersistedMsgByIdRef,
         resetSessionState,
         replaceTranscript,
-        startNewSessionWriter,
-        sessionWriterInitPromiseRef,
       })
     })
-  }, [deps.engine, queueSessionTransition, replaceTranscript, resetSessionState, sessionSaveEnabled, startNewSessionWriter])
+  }, [deps.engine, queueSessionTransition, replaceTranscript, resetSessionState, sessionSaveEnabled])
 
   const newSession = useCallback(() => {
     void runNewSession()
@@ -869,6 +877,7 @@ export function useReplController(deps: {
       if (isLoading) return
 
       closeResumeDialog()
+      initialSessionFilePathRef.current = filePath
       try {
         await queueSessionTransition(async () => {
           abort()
@@ -921,6 +930,14 @@ export function useReplController(deps: {
       // Thinking/streaming state is per-turn; clear buffers so stale thinking
       // from previous turns can't leak into the next status line/panel.
       resetStreamingBuffers()
+
+      const didHandleClear = await maybeHandleClearCommand({
+        text,
+        isLoading,
+        setMessages,
+        newSession: runNewSession,
+      })
+      if (didHandleClear) return
 
       await ensureSessionWriter()
 
