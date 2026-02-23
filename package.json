@@ -19,6 +19,7 @@
     "perf:transcript": "tsx ./src/entrypoints/perf-transcript.tsx",
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
+    "check:plan-traceability": "node ./scripts/check-plan-traceability.mjs",
     "check:layer-contracts": "node ./scripts/check-layer-contracts.mjs",
     "check:golden-principles": "node ./scripts/check-golden-principles.mjs",
     "check:presenter-parity": "node ./scripts/check-duplicate-presenters-parity.mjs",

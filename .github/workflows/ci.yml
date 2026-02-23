@@ -87,9 +87,12 @@ jobs:
               - '**/*.tsx'
               - '**/*.js'
               - '**/*.mjs'
+            harness_governance:
+              - 'plans/harness-refactor-loop/**'
+              - 'docs/harness/**'
 
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true'
         with:
           node-version: '20'
 
@@ -123,6 +126,10 @@ jobs:
         continue-on-error: true
         run: bun run check:presenter-parity
 
+      - name: Harness plan traceability
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true'
+        run: node ./scripts/check-plan-traceability.mjs
+
       - name: Skip (no code changes)
-        if: steps.changes.outputs.code != 'true'
-        run: echo "No code changes; skipping harness checks."
+        if: steps.changes.outputs.code != 'true' && steps.changes.outputs.harness_governance != 'true'
+        run: echo "No code or harness-governance changes; skipping harness checks."

@@ -3,10 +3,11 @@
 ## 本地提交前顺序
 
 1. `bun run check:partial-stage`
-2. `bun run check:layer-contracts`
-3. `bun run check:golden-principles`
-4. `bun run test:repl-semantic-gate`
-5. `bun run type-check`
+2. `bun run check:plan-traceability`
+3. `bun run check:layer-contracts`
+4. `bun run check:golden-principles`
+5. `bun run test:repl-semantic-gate`
+6. `bun run type-check`
 
 与暂存文件相关的定向测试可用：`bun run test:changed`。
 非阻断漂移观察：`bun run check:presenter-parity`（默认告警，`--strict` 才阻断）。
@@ -24,6 +25,7 @@
 - `bun run check:layer-contracts`
 - `bun run check:golden-principles`
 - `bun run check:presenter-parity`（告警步骤，`continue-on-error: true`）
+- `node ./scripts/check-plan-traceability.mjs`（当 `code` 或 `harness_governance` 变更时）
 
 ## 失败分类与修复路径
 
@@ -94,6 +96,22 @@
 2. 若差异是有意的，补齐两侧测试并在 `plans/app-server/` 留下原因说明。
 3. 说明完成后更新 baseline：`node ./scripts/check-duplicate-presenters-parity.mjs --write-baseline`。
 4. 若需要阻断式验证，执行 `node ./scripts/check-duplicate-presenters-parity.mjs --strict`。
+
+### 6. `check:plan-traceability` 失败
+
+触发信号：
+- 输出包含 `[plan-traceability] check failed`。
+
+常见违规类型：
+- `TODO-INDEX` 未声明唯一来源 `TASK-SOURCE.md`。
+- 待办缺少 `source=` 或 `acceptance=` 元信息。
+- `source_id` 不存在于 `TASK-SOURCE.md`。
+
+修复路径：
+1. 先补齐 `plans/harness-refactor-loop/TASK-SOURCE.md` 的来源条目。
+2. 再修复 `plans/harness-refactor-loop/TODO-INDEX.md` 的任务行格式：
+   `- [ ] \`TASK-ID\` | source=\`SOURCE-ID\` | acceptance=\`command\``
+3. 重新执行 `bun run check:plan-traceability`。
 
 ## Baseline 更新约束
 

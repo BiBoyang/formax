@@ -9,6 +9,10 @@
 - 进行中：Harness 分层债务清理（`Service -> UI` 优先）
 - 当前待办：以 `plans/harness-refactor-loop/TODO-INDEX.md` 为准
 
+## 任务来源（唯一）
+
+- `plans/harness-refactor-loop/TASK-SOURCE.md`
+
 ## 范围约束（严格）
 
 - 不做产品化 UI 改版，不改文案和交互语义。
@@ -19,6 +23,7 @@
 ## 当前任务清单（唯一来源）
 
 - 见 `plans/harness-refactor-loop/TODO-INDEX.md`
+- 派生来源必须回指 `plans/harness-refactor-loop/TASK-SOURCE.md`
 
 ## 执行循环（固定）
 
@@ -28,4 +33,5 @@
   - `bun run type-check`
   - `bun run check:layer-contracts`
   - `bun run check:golden-principles`
+  - `bun run check:plan-traceability`
   - `bun run test -- <targeted files>`
