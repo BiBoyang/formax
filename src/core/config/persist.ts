@@ -1,4 +1,4 @@
-import type { FileStore } from '../../adapters/fs/fileStore.js'
+import type { FileStore } from './fileStore.js'
 import type { FormaxConfigV1, FormaxConfigV1Patch } from './schema.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema.js'
 

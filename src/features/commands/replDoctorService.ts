@@ -5,6 +5,7 @@ import { configShow } from '../../core/config/show'
 import { runDoctor } from '../../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../../core/diagnostics/format'
 import type { RuntimeConfig } from '../../env/config'
+import { getConfigPaths } from '../../env/configPaths'
 
 export async function runReplDoctor(args: {
   version: string
@@ -15,9 +16,11 @@ export async function runReplDoctor(args: {
   const cwd = args.cwd ?? process.cwd()
   const env = args.env ?? process.env
   const store = createNodeFileStore()
+  const paths = getConfigPaths({ cwd, env, platform: process.platform })
 
   const shown = await configShow({
     fileStore: store,
+    paths,
     cwd,
     env,
     platform: process.platform,

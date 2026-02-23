@@ -26,7 +26,7 @@ describe('configMigrate', () => {
       await store.writeTextAtomic(paths.legacyAuthPath, legacyAuth)
       await store.writeTextAtomic(paths.legacyRulesPath, legacyRules)
 
-      const res = await configMigrate({ fileStore: store, cwd, homedir, platform: 'darwin', env })
+      const res = await configMigrate({ fileStore: store, paths, cwd, homedir, platform: 'darwin', env })
       expect(res.warnings).toEqual([])
       expect(res.actions.map((a) => a.status)).toEqual(['copied', 'copied', 'copied'])
 
@@ -55,7 +55,7 @@ describe('configMigrate', () => {
       await store.writeTextAtomic(paths.legacyConfigPath, legacyConfig)
       await store.writeTextAtomic(paths.globalConfigPath, globalConfig)
 
-      const res = await configMigrate({ fileStore: store, cwd, homedir, platform: 'darwin', env })
+      const res = await configMigrate({ fileStore: store, paths, cwd, homedir, platform: 'darwin', env })
       const configAction = res.actions.find((a) => a.label === 'config')
       expect(configAction?.status).toBe('skipped')
       expect(await store.readText(paths.globalConfigPath)).toBe(globalConfig)
@@ -73,7 +73,8 @@ describe('configMigrate', () => {
       const legacyDir = path.join(homedir, 'Library', 'Application Support', 'formax')
 
       const env = { FORMAX_CONFIG_DIR: legacyDir } as any
-      const res = await configMigrate({ fileStore: store, cwd, homedir, platform: 'darwin', env })
+      const paths = getConfigPaths({ cwd, homedir, platform: 'darwin', env })
+      const res = await configMigrate({ fileStore: store, paths, cwd, homedir, platform: 'darwin', env })
       expect(res.actions).toEqual([])
       expect(res.warnings).toEqual([])
     } finally {

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { configShow } from '../config/show.js'
 import { loadRuntimeConfig } from '../../env/config.js'
+import { getConfigPaths } from '../../env/configPaths.js'
 import { loadPolicyRules } from '../policy/store.js'
 import { createStatusSnapshot } from './status.js'
 import { createDebugBundle } from './debugBundle.js'
@@ -33,9 +34,10 @@ describe('createDebugBundle', () => {
         FORMAX_PLAN_DIR: path.join(dir, 'plans'),
         FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
       } as any
+      const paths = getConfigPaths({ cwd: projectDir, env, platform: 'linux', homedir: dir })
 
       const [shown, runtime, policy] = await Promise.all([
-        configShow({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
+        configShow({ fileStore: store, paths, cwd: projectDir, env, platform: 'linux', homedir: dir }),
         loadRuntimeConfig(env, projectDir, { fileStore: store, platform: 'linux', homedir: dir }),
         loadPolicyRules({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
       ])
@@ -109,9 +111,10 @@ describe('createDebugBundle', () => {
         FORMAX_PLAN_DIR: path.join(dir, 'plans'),
         FORMAX_BASE_URL: 'https://api.anthropic.com/v1',
       } as any
+      const paths = getConfigPaths({ cwd: projectDir, env, platform: 'linux', homedir: dir })
 
       const [shown, runtime, policy] = await Promise.all([
-        configShow({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
+        configShow({ fileStore: store, paths, cwd: projectDir, env, platform: 'linux', homedir: dir }),
         loadRuntimeConfig(env, projectDir, { fileStore: store, platform: 'linux', homedir: dir }),
         loadPolicyRules({ fileStore: store, cwd: projectDir, env, platform: 'linux', homedir: dir }),
       ])

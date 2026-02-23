@@ -1,6 +1,6 @@
-import type { FileStore } from '../../adapters/fs/fileStore.js'
-import type { ConfigPaths, Platform } from '../../adapters/fs/configPaths.js'
-import { loadConfigFiles } from '../../adapters/fs/configFiles.js'
+import type { FileStore } from './fileStore.js'
+import type { ConfigPaths, Platform } from './paths.js'
+import { loadConfigFiles } from './configFiles.js'
 import type { ConfigSource } from './resolve.js'
 import { resolveRuntimeConfig } from './resolve.js'
 import type { FormaxConfigV1, ProviderId } from './schema.js'
@@ -35,6 +35,7 @@ function redactAuth(args: { provider: ProviderId; authRef: string; source: Confi
 
 export async function configShow(args: {
   fileStore: FileStore
+  paths: ConfigPaths
   cwd?: string
   env?: NodeJS.ProcessEnv
   platform?: Platform

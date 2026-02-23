@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { resolveRuntimeConfig } from '../core/config/resolve.js'
-import type { FileStore } from '../adapters/fs/fileStore.js'
-import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
-import { loadConfigFiles } from '../adapters/fs/configFiles.js'
-import { getConfigPaths } from '../adapters/fs/configPaths.js'
+import type { FileStore } from '../core/config/fileStore.js'
+import { createNodeFileStore } from './nodeFileStore.js'
+import { loadConfigFiles } from './configFiles.js'
+import { getConfigPaths } from './configPaths.js'
 import { resolveActiveModel } from './modelTier.js'
 import type { ModelTier, ProviderId } from '../core/config/schema.js'
 

@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
+import { getConfigPaths } from '../../env/configPaths'
 import { configShow } from './show.js'
 
 describe('configShow', () => {
@@ -23,8 +24,14 @@ describe('configShow', () => {
         },
       })
       await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { promptProfile: 'lite' } })
+      const paths = getConfigPaths({ cwd: projectDir, env: { FORMAX_CONFIG_DIR: globalConfigDir } as any })
 
-      const res = await configShow({ fileStore: store, cwd: projectDir, env: { FORMAX_CONFIG_DIR: globalConfigDir } as any })
+      const res = await configShow({
+        fileStore: store,
+        paths,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+      })
       expect(res.auth?.provider).toBe('anthropic')
       expect(res.auth?.source).toBe('global')
       expect(res.auth?.authRef).toBe('default')
@@ -46,9 +53,14 @@ describe('configShow', () => {
       const apiKey = 'sk-env-xyz'
       await fs.mkdir(globalConfigDir, { recursive: true })
       await fs.mkdir(projectDir, { recursive: true })
+      const paths = getConfigPaths({
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: apiKey } as any,
+      })
 
       const res = await configShow({
         fileStore: store,
+        paths,
         cwd: projectDir,
         env: { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: apiKey } as any,
       })

@@ -1,6 +1,5 @@
-import type { FileMode, FileStore } from '../../adapters/fs/fileStore.js'
-import type { ConfigPaths, Platform } from '../../adapters/fs/configPaths.js'
-import { getConfigPaths } from '../../adapters/fs/configPaths.js'
+import type { FileMode, FileStore } from './fileStore.js'
+import type { ConfigPaths, Platform } from './paths.js'
 
 const AUTH_FILE_MODE: FileMode = 0o600
 
@@ -66,12 +65,13 @@ async function migrateFile(args: {
 
 export async function configMigrate(args: {
   fileStore: FileStore
+  paths: ConfigPaths
   cwd?: string
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
 }): Promise<ConfigMigrateResult> {
-  const paths = getConfigPaths(args)
+  const paths = args.paths
   const warnings: string[] = []
 
   if (paths.legacyConfigDir === paths.globalConfigDir) {
@@ -105,4 +105,3 @@ export async function configMigrate(args: {
 
   return { paths, actions, warnings }
 }
-

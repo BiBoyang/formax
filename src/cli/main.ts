@@ -3,7 +3,6 @@ import path from 'node:path'
 import type { FileStore } from '../adapters/fs/fileStore.js'
 import { checkWritableDir } from '../adapters/fs/checkWritableDir.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
-import { getConfigPaths } from '../adapters/fs/configPaths.js'
 import { testSetupConnection } from '../adapters/setup/connectionTest.js'
 import { authDelete, authList, authSet } from '../core/auth/index.js'
 import type { ProviderId } from '../core/config/schema.js'
@@ -22,6 +21,7 @@ import { loadPolicyRules, savePolicyRules } from '../core/policy/store.js'
 import type { PolicyAction } from '../core/policy/types.js'
 import type { ConnectionTestResult } from '../core/setup/types.js'
 import { loadRuntimeConfig } from '../env/config.js'
+import { getConfigPaths } from '../env/configPaths.js'
 import { parseCliArgs } from './args.js'
 import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
@@ -302,6 +302,7 @@ export async function dispatchCli(
   const platform = opts.platform ?? process.platform
   const homedir = opts.homedir ?? os.homedir()
   const store = ensureFileStore({ fileStore: opts.fileStore })
+  const configPaths = getConfigPaths({ cwd, env, platform, homedir })
 
   const parsed = parseCliArgs(argv)
   const args = parsed.positionals
@@ -399,7 +400,7 @@ export async function dispatchCli(
   if (args[0] === 'status') {
     const version = String((pkg as any)?.version || 'unknown')
     const [shown, runtime, roots] = await Promise.all([
-      configShow({ fileStore: store, cwd, env, platform, homedir }),
+      configShow({ fileStore: store, paths: configPaths, cwd, env, platform, homedir }),
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
       detectWorkspaceRoots({ fileStore: store, cwd }),
     ])
@@ -447,7 +448,7 @@ export async function dispatchCli(
     const wantsBundleTar = flags.bundleTar
 
     const [shown, runtime, roots] = await Promise.all([
-      configShow({ fileStore: store, cwd, env, platform, homedir }),
+      configShow({ fileStore: store, paths: configPaths, cwd, env, platform, homedir }),
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
       detectWorkspaceRoots({ fileStore: store, cwd }),
     ])
@@ -732,7 +733,7 @@ export async function dispatchCli(
   }
 
   if (args[0] === 'config' && args[1] === 'show') {
-    const res = await configShow({ fileStore: store, cwd, env, platform, homedir })
+    const res = await configShow({ fileStore: store, paths: configPaths, cwd, env, platform, homedir })
     if (flags.json) {
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('config show', res, res.warnings), stderr: '' }
     }
@@ -740,7 +741,7 @@ export async function dispatchCli(
   }
 
   if (args[0] === 'config' && args[1] === 'migrate') {
-    const res = await configMigrate({ fileStore: store, cwd, env, platform, homedir })
+    const res = await configMigrate({ fileStore: store, paths: configPaths, cwd, env, platform, homedir })
     if (flags.json) {
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('config migrate', res, res.warnings), stderr: '' }
     }
@@ -758,8 +759,7 @@ export async function dispatchCli(
   }
 
   if (args[0] === 'auth' && args[1] === 'list') {
-    const paths = getConfigPaths({ cwd, env, platform, homedir })
-    const res = await authList({ fileStore: store, authPath: paths.globalAuthPath })
+    const res = await authList({ fileStore: store, authPath: configPaths.globalAuthPath })
     if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth list', res, res.warnings), stderr: '' }
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatAuthListHuman(res), stderr: '' }
   }
@@ -769,8 +769,7 @@ export async function dispatchCli(
       const provider = normalizeProvider(args[2])
       const authRef = args[3]
       const apiKey = args[4]
-      const paths = getConfigPaths({ cwd, env, platform, homedir })
-      const res = await authSet({ fileStore: store, authPath: paths.globalAuthPath, provider, authRef, apiKey })
+      const res = await authSet({ fileStore: store, authPath: configPaths.globalAuthPath, provider, authRef, apiKey })
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth set', res, res.warnings), stderr: '' }
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: `Saved ${res.provider}:${res.authRef} to ${res.authPath}\n`, stderr: '' }
     } catch (err) {
@@ -784,8 +783,7 @@ export async function dispatchCli(
     try {
       const provider = normalizeProvider(args[2])
       const authRef = args[3]
-      const paths = getConfigPaths({ cwd, env, platform, homedir })
-      const res = await authDelete({ fileStore: store, authPath: paths.globalAuthPath, provider, authRef })
+      const res = await authDelete({ fileStore: store, authPath: configPaths.globalAuthPath, provider, authRef })
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth delete', res, res.warnings), stderr: '' }
       return {
         kind: 'handled',
