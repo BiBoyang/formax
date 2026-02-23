@@ -3,7 +3,7 @@ import { Box, Text } from 'ink'
 import { createToolBlocksPresenter } from './types'
 import type { Msg } from '../../shared/toolMessageTypes'
 import type { ToolBlocksOutput } from '../../shared/toolMessageTypes'
-import { ToolIndentedLine, ToolSubline } from '../../components/tool/ToolSubline'
+import { ToolIndentedLine, ToolSubline } from './ToolUiPrimitives'
 import { getTheme } from '../../utils/theme'
 
 function parseCommand(input: unknown): string {

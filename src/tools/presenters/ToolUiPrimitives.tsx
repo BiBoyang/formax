@@ -122,6 +122,28 @@ export function ToolIndentedLine({
   )
 }
 
+export function ToolIndented({
+  tone = 'default',
+  children,
+}: {
+  tone?: 'default' | 'muted' | 'error'
+  children: React.ReactNode
+}): React.ReactNode {
+  const theme = getTheme()
+  const color =
+    tone === 'error' ? theme.error : tone === 'muted' ? theme.secondaryText : undefined
+  const cleanedChildren = stripWhitespaceTextNodes(children)
+
+  return (
+    <Box paddingLeft={TOOL_SUBLINE_LEFT_PAD}>
+      <Text color={color}>
+        {TOOL_SUBLINE_INDENT}
+        {cleanedChildren}
+      </Text>
+    </Box>
+  )
+}
+
 export function ToolUiBlocks({
   blocks,
   headerSuffix,

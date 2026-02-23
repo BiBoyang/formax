@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react'
 import path from 'node:path'
-import { ToolMessage } from '../../../components/tool/ToolMessage'
 import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
@@ -33,5 +32,5 @@ export const NotebookEditToolPresenter: ToolPresenterComponent = ({ message }: {
     )
   }
 
-  return <ToolMessage message={message} />
+  return <FallbackToolPresenter message={message} />
 }
