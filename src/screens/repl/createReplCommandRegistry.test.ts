@@ -12,31 +12,9 @@ vi.mock('../../core/diagnostics/status', () => {
   return { createStatusSnapshot: (args: any) => createStatusSnapshotMock(args) }
 })
 
-const configShowMock = vi.fn(async (_args: any) => {
-  return {
-    config: { llm: { provider: 'anthropic' } },
-    paths: { projectRoot: '/tmp/repo' },
-    files: { local: null },
-    warnings: [],
-  }
-})
-vi.mock('../../core/config/show', () => {
-  return { configShow: (arg: any) => configShowMock(arg) }
-})
-
-const runDoctorMock = vi.fn(async (_args: any) => {
-  return { version: 'v', cwd: '/tmp/repo', checks: [], warnings: [] }
-})
-vi.mock('../../core/diagnostics/doctor', () => {
-  return { runDoctor: (arg: any) => runDoctorMock(arg) }
-})
-
-vi.mock('../../core/diagnostics/format', () => {
-  return { formatDoctorHuman: () => 'doctor-report' }
-})
-
-vi.mock('../../adapters/fs/nodeFileStore', () => {
-  return { createNodeFileStore: () => ({}) }
+const runReplDoctorMock = vi.fn(async (_args: any) => 'doctor-report\n')
+vi.mock('../../features/commands/replDoctorService', () => {
+  return { runReplDoctor: (args: any) => runReplDoctorMock(args) }
 })
 
 import { createReplCommandRegistry } from './createReplCommandRegistry'
@@ -115,7 +93,6 @@ describe('createReplCommandRegistry', () => {
 
     const out = await registry.doctor.run()
     expect(out).toBe('doctor-report\n')
-    expect(configShowMock).toHaveBeenCalledTimes(1)
-    expect(runDoctorMock).toHaveBeenCalledTimes(1)
+    expect(runReplDoctorMock).toHaveBeenCalledTimes(1)
   })
 })

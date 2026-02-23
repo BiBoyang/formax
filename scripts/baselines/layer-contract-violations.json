@@ -202,54 +202,6 @@
       "rule": "LAYER_ORDER"
     },
     {
-      "sourceFile": "src/screens/REPL.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../adapters/fs/configPaths",
-      "targetPath": "src/adapters/fs/configPaths.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/screens/REPL.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../adapters/fs/nodeFileStore",
-      "targetPath": "src/adapters/fs/nodeFileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/screens/REPL.tsx",
-      "sourceLayer": "UI",
-      "specifier": "../adapters/fs/workspaceRoots",
-      "targetPath": "src/adapters/fs/workspaceRoots.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/screens/repl/createReplCommandRegistry.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/checkWritableDir",
-      "targetPath": "src/adapters/fs/checkWritableDir.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/screens/repl/createReplCommandRegistry.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/fs/nodeFileStore",
-      "targetPath": "src/adapters/fs/nodeFileStore.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
-      "sourceFile": "src/screens/repl/createReplCommandRegistry.ts",
-      "sourceLayer": "UI",
-      "specifier": "../../adapters/setup/connectionTest",
-      "targetPath": "src/adapters/setup/connectionTest.ts",
-      "targetLayer": "Repo",
-      "rule": "UI_MUST_NOT_IMPORT_REPO"
-    },
-    {
       "sourceFile": "src/streaming/types.ts",
       "sourceLayer": "Types",
       "specifier": "../tools/types",

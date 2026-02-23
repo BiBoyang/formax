@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import path from 'node:path'
 import { Box, Text } from 'ink'
 import type { ChatEngine, ChatHistory } from '../chat/engine'
 import { loadRuntimeConfig, type RuntimeConfig } from '../env/config'
@@ -21,15 +20,17 @@ import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
 import { getTheme } from '../utils/theme'
-import { createNodeFileStore } from '../adapters/fs/nodeFileStore'
-import { detectWorkspaceRoots } from '../adapters/fs/workspaceRoots'
+import {
+  loadWorkspaceRoots,
+  persistDefaultModelTier,
+  resolveUserAgentsDir,
+} from '../features/commands/replEnvironmentService'
 import { AgentsDialog } from '../ui/agents/AgentsDialog'
 import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
 import { HooksDialog } from '../ui/hooks/HooksDialog'
 import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
 import { ModelDialog } from '../ui/model/ModelDialog'
 import { ResumeDialog } from '../ui/resume/ResumeDialog'
-import { getConfigPaths } from '../adapters/fs/configPaths'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
@@ -47,7 +48,6 @@ import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/ui/ui'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared/shared'
 import { parseModelTier, resolveModelForTier, type ModelTier } from '../env/modelTier'
-import { updateConfigPatchFile } from '../core/config/persist'
 
 type Props = {
   onExit?: () => void
@@ -141,11 +141,7 @@ export function REPL({
     () => planSession.getPlanPath() ?? planSession.startNewPlan(),
     [planSession],
   )
-  const userAgentsDir = useMemo(() => {
-    const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
-    const globalConfigDir = path.resolve(process.cwd(), configPaths.globalConfigDir)
-    return path.join(globalConfigDir, 'agents')
-  }, [])
+  const userAgentsDir = useMemo(() => resolveUserAgentsDir({ cwd: process.cwd(), env: process.env }), [])
 
   const modelByTier = useMemo(
     () => ({
@@ -180,14 +176,7 @@ export function REPL({
 
   const applyDefaultModelTier = useCallback(
     async (nextTier: ModelTier) => {
-      const store = createNodeFileStore()
-      const paths = getConfigPaths({ cwd: process.cwd(), env: process.env })
-      await updateConfigPatchFile({
-        fileStore: store,
-        filePath: paths.globalConfigPath,
-        nextPatch: { llm: { defaultTier: nextTier } },
-        label: 'llm.defaultTier',
-      })
+      await persistDefaultModelTier({ nextTier, cwd: process.cwd(), env: process.env })
       const nextCfg = await reloadCfg()
       return {
         effectiveTier: parseModelTier(nextCfg.llm.defaultTier) ?? 'sonnet',
@@ -206,8 +195,7 @@ export function REPL({
 
   useEffect(() => {
     let cancelled = false
-    const store = createNodeFileStore()
-    detectWorkspaceRoots({ fileStore: store, cwd: process.cwd() }).then((res) => {
+    loadWorkspaceRoots({ cwd: process.cwd() }).then((res) => {
       if (cancelled) return
       setWorkspaceRoots(res.workspaceRoots)
       setWorkspaceRootWarnings(res.warnings)
