@@ -9,8 +9,8 @@
 
 ## 当前待办
 
-- [ ] `HRL-CLEAN-02` | source=`HRS-06-REPO-KNOWLEDGE` | acceptance=`bun run check:presenter-parity && bun run test -- src/tools/presenters/ConfirmMenu.test.tsx src/components/ui/ConfirmMenu.test.tsx`
-  说明：评估 `ConfirmMenu` 双实现分叉是否保留；若保留则补架构说明与测试矩阵，若不保留则收敛实现并清理基线。
+- [ ] `HRL-KNOW-01` | source=`HRS-06-REPO-KNOWLEDGE` | acceptance=`test -f plans/app-server/HARNESS-CONFIRMMENU-DECISION-2026-02-23.md && bun run check:plan-traceability`
+  说明：新增 `ConfirmMenu` 分叉决策记录（保留或收敛的理由、测试矩阵、baseline 策略）到 `plans/app-server/`，确保后续改动可追溯。
 
 ## 再生规则（当“当前待办”为空时）
 

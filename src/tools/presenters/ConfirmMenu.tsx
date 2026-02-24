@@ -3,8 +3,9 @@ import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
-import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
+import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences'
 import {
+  getInputToken,
   getKeyName,
   getVerticalArrowKeyDelta,
   isPrintableToken,
@@ -144,11 +145,10 @@ export function ConfirmMenu({
     (input, key) => {
       if (!isActive) return
       if (submittedRef.current) return
-      const seq = (key as unknown as { sequence?: string } | undefined)?.sequence
       const rawInput = typeof input === 'string' ? input : ''
-      const rawSeq = typeof seq === 'string' ? seq : ''
-      const token = (rawInput.length > 0 ? rawInput : rawSeq) || ''
+      const token = getInputToken({ input, key })
       const tokenInfo = getTokenInfo({ token, key })
+      const printableChunk = rawInput.length > 0 ? rawInput : tokenInfo.token
 
       if (tokenInfo.isEscape) escapeBufferRef.current = ''
 
@@ -187,18 +187,30 @@ export function ConfirmMenu({
       }
 
       if (isTyping) {
+        let bufferedHorizontalDelta = 0
+        let bufferedDeletes = 0
+        if (tokenInfo.token && !tokenInfo.isLeftArrowKey && !tokenInfo.isRightArrowKey && !tokenInfo.isDeleteKey) {
+          const res = consumeBufferedHorizontal({ buffer: escapeBufferRef.current, chunk: tokenInfo.token })
+          escapeBufferRef.current = res.nextBuffer
+          if (res.pending && res.delta === 0 && res.deletes === 0) return
+          bufferedHorizontalDelta = res.delta
+          bufferedDeletes = res.deletes
+        }
+
         if (tokenInfo.isReturnKey) {
           submitDraftIfFeedbackRow()
           return
         }
 
-        if (tokenInfo.isLeftArrowKey) {
-          setTypingCursorImmediate((c) => c - 1)
+        if (tokenInfo.isLeftArrowKey || bufferedHorizontalDelta < 0) {
+          const move = tokenInfo.isLeftArrowKey ? 1 : Math.abs(bufferedHorizontalDelta)
+          setTypingCursorImmediate((c) => c - move)
           return
         }
 
-        if (tokenInfo.isRightArrowKey) {
-          setTypingCursorImmediate((c) => c + 1)
+        if (tokenInfo.isRightArrowKey || bufferedHorizontalDelta > 0) {
+          const move = tokenInfo.isRightArrowKey ? 1 : bufferedHorizontalDelta
+          setTypingCursorImmediate((c) => c + move)
           return
         }
 
@@ -207,13 +219,14 @@ export function ConfirmMenu({
           return
         }
 
-        if (tokenInfo.isDeleteKey) {
-          deleteForward()
+        if (tokenInfo.isDeleteKey || bufferedDeletes > 0) {
+          const deletes = tokenInfo.isDeleteKey ? Math.max(1, bufferedDeletes) : bufferedDeletes
+          for (let i = 0; i < deletes; i += 1) deleteForward()
           return
         }
 
         if (tokenInfo.printable) {
-          appendDraft(tokenInfo.token)
+          appendDraft(printableChunk)
         }
         return
       }
@@ -231,7 +244,7 @@ export function ConfirmMenu({
       if (feedbackIndex === currentCursor && tokenInfo.printable) {
         setTypingImmediate(true)
         syncTypingCursorToTail()
-        appendDraft(tokenInfo.token)
+        appendDraft(printableChunk)
         return
       }
 
@@ -351,7 +364,7 @@ function getTokenInfo(args: { token: string; key: any }): {
     isLeftArrowKey: Boolean(args.key?.leftArrow) || keyName === 'left' || token === '\u001B[D',
     isRightArrowKey: Boolean(args.key?.rightArrow) || keyName === 'right' || token === '\u001B[C',
     isBackspaceKey: Boolean(args.key?.backspace) || token === '\u0008' || token === '\u007F',
-    isDeleteKey: keyName === 'delete' || token === '\u001B[3~',
+    isDeleteKey: Boolean(args.key?.delete) || keyName === 'delete' || token === '\u001B[3~',
   }
 }
 

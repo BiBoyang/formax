@@ -1,10 +1,9 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { InlineTextEditorRow } from './InlineTextEditorRow.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
-import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences'
+import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences'
 import {
   getInputToken,
   getKeyName,
@@ -52,11 +51,13 @@ export function ConfirmMenu({
   const [cursor, setCursor] = useState(initialCursor)
   const [typing, setTyping] = useState(false)
   const [typingValue, setTypingValue] = useState('')
+  const [typingCursor, setTypingCursor] = useState(0)
   const [isActive, setIsActive] = useState(true)
   const submittedRef = useRef(false)
   const cursorRef = useRef(initialCursor)
   const typingRef = useRef(false)
   const typingValueRef = useRef('')
+  const typingCursorRef = useRef(0)
   const escapeBufferRef = useRef('')
 
   const feedbackIndex = options.findIndex((o) => o.kind === 'feedback')
@@ -80,6 +81,19 @@ export function ConfirmMenu({
     setTypingValue(v)
   }, [])
 
+  const setTypingCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
+    const currentMax = typingValueRef.current.length
+    const v = clamp(typeof next === 'function' ? next(typingCursorRef.current) : next, 0, currentMax)
+    typingCursorRef.current = v
+    setTypingCursor(v)
+  }, [])
+
+  const syncTypingCursorToTail = useCallback(() => {
+    const tail = typingValueRef.current.length
+    typingCursorRef.current = tail
+    setTypingCursor(tail)
+  }, [])
+
   const submit = useCallback(
     (decision: ConfirmMenuDecision) => {
       if (submittedRef.current) return
@@ -93,10 +107,32 @@ export function ConfirmMenu({
   const appendDraft = useCallback(
     (chunk: string) => {
       if (!chunk) return
-      setTypingValueImmediate((v) => v + chunk)
+      const current = typingValueRef.current
+      const cursorPos = clamp(typingCursorRef.current, 0, current.length)
+      const nextValue = `${current.slice(0, cursorPos)}${chunk}${current.slice(cursorPos)}`
+      setTypingValueImmediate(nextValue)
+      setTypingCursorImmediate(cursorPos + chunk.length)
     },
-    [setTypingValueImmediate],
+    [setTypingCursorImmediate, setTypingValueImmediate],
   )
+
+  const deleteBackward = useCallback(() => {
+    const current = typingValueRef.current
+    const cursorPos = clamp(typingCursorRef.current, 0, current.length)
+    if (cursorPos <= 0) return
+    const nextValue = `${current.slice(0, cursorPos - 1)}${current.slice(cursorPos)}`
+    setTypingValueImmediate(nextValue)
+    setTypingCursorImmediate(cursorPos - 1)
+  }, [setTypingCursorImmediate, setTypingValueImmediate])
+
+  const deleteForward = useCallback(() => {
+    const current = typingValueRef.current
+    const cursorPos = clamp(typingCursorRef.current, 0, current.length)
+    if (cursorPos >= current.length) return
+    const nextValue = `${current.slice(0, cursorPos)}${current.slice(cursorPos + 1)}`
+    setTypingValueImmediate(nextValue)
+    setTypingCursorImmediate(cursorPos)
+  }, [setTypingCursorImmediate, setTypingValueImmediate])
 
   const submitDraftIfFeedbackRow = useCallback(() => {
     const opt = options[cursorRef.current]
@@ -109,15 +145,15 @@ export function ConfirmMenu({
     (input, key) => {
       if (!isActive) return
       if (submittedRef.current) return
+      const rawInput = typeof input === 'string' ? input : ''
       const token = getInputToken({ input, key })
       const tokenInfo = getTokenInfo({ token, key })
+      const printableChunk = rawInput.length > 0 ? rawInput : tokenInfo.token
 
       if (tokenInfo.isEscape) escapeBufferRef.current = ''
 
       const isTyping = typingRef.current
 
-      // Some terminals (and ink-testing-library) may split arrow sequences across multiple `useInput` calls.
-      // Buffer ESC chunks so Up/Down always work reliably.
       let bufferedDelta = 0
       if (!isTyping && !tokenInfo.isUpArrowKey && !tokenInfo.isDownArrowKey && tokenInfo.token) {
         const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
@@ -132,9 +168,6 @@ export function ConfirmMenu({
       const patchedKey = key as any
       const currentCursor = cursorRef.current
 
-      // `ink-testing-library` and some terminals provide Shift+Tab as a raw escape sequence
-      // (either "\u001B[Z" or "\u001BOZ") instead of `key.shift + key.tab`.
-      // Support both so scope cycling is reliable and testable.
       if (isShiftTabToken({ token, key: patchedKey }) && onShiftTab) {
         if (isTyping) setTypingImmediate(false)
         onShiftTab()
@@ -142,10 +175,6 @@ export function ConfirmMenu({
         return
       }
 
-      // Important: handle `key.escape` only when it's a real Escape keypress. In some
-      // environments/tests, arrow escape sequences can arrive split across callbacks and
-      // the first chunk (`\u001B`) may set `key.escape`. In that case, `token` is non-empty
-      // and we must not treat it as cancel.
       if (patchedKey.escape && !token) {
         submit({ kind: 'cancel' })
         return
@@ -158,25 +187,64 @@ export function ConfirmMenu({
       }
 
       if (isTyping) {
-        handleTypingTransitionGuard({
-          tokenInfo,
-          submitDraftIfFeedbackRow,
-          appendDraft,
-        })
+        let bufferedHorizontalDelta = 0
+        let bufferedDeletes = 0
+        if (tokenInfo.token && !tokenInfo.isLeftArrowKey && !tokenInfo.isRightArrowKey && !tokenInfo.isDeleteKey) {
+          const res = consumeBufferedHorizontal({ buffer: escapeBufferRef.current, chunk: tokenInfo.token })
+          escapeBufferRef.current = res.nextBuffer
+          if (res.pending && res.delta === 0 && res.deletes === 0) return
+          bufferedHorizontalDelta = res.delta
+          bufferedDeletes = res.deletes
+        }
+
+        if (tokenInfo.isReturnKey) {
+          submitDraftIfFeedbackRow()
+          return
+        }
+
+        if (tokenInfo.isLeftArrowKey || bufferedHorizontalDelta < 0) {
+          const move = tokenInfo.isLeftArrowKey ? 1 : Math.abs(bufferedHorizontalDelta)
+          setTypingCursorImmediate((c) => c - move)
+          return
+        }
+
+        if (tokenInfo.isRightArrowKey || bufferedHorizontalDelta > 0) {
+          const move = tokenInfo.isRightArrowKey ? 1 : bufferedHorizontalDelta
+          setTypingCursorImmediate((c) => c + move)
+          return
+        }
+
+        if (tokenInfo.isBackspaceKey) {
+          deleteBackward()
+          return
+        }
+
+        if (tokenInfo.isDeleteKey || bufferedDeletes > 0) {
+          const deletes = tokenInfo.isDeleteKey ? Math.max(1, bufferedDeletes) : bufferedDeletes
+          for (let i = 0; i < deletes; i += 1) deleteForward()
+          return
+        }
+
+        if (tokenInfo.printable) {
+          appendDraft(printableChunk)
+        }
         return
       }
 
       if (tokenInfo.isReturnKey) {
         const opt = options[currentCursor]
         if (!opt) return
-        if (opt.kind === 'feedback') setTypingImmediate(true)
-        else submit({ kind: 'choice', key: opt.key })
+        if (opt.kind === 'feedback') {
+          setTypingImmediate(true)
+          syncTypingCursorToTail()
+        } else submit({ kind: 'choice', key: opt.key })
         return
       }
 
       if (feedbackIndex === currentCursor && tokenInfo.printable) {
         setTypingImmediate(true)
-        appendDraft(tokenInfo.token)
+        syncTypingCursorToTail()
+        appendDraft(printableChunk)
         return
       }
 
@@ -234,21 +302,23 @@ export function ConfirmMenu({
           }
 
           const labelPrefix = opt.label ? `${idx + 1}. ${opt.label} ` : `${idx + 1}. `
+          const hasValue = Boolean((typingValue || '').trim())
+          const showPlaceholder = !typing && !hasValue
+          const cursorPos = clamp(typingCursor, 0, typingValue.length)
+          const valueWithCursor = `${typingValue.slice(0, cursorPos)}▏${typingValue.slice(cursorPos)}`
+
           return (
-            <InlineTextEditorRow
-              key={opt.key}
-              prefix={prefix}
-              labelPrefix={labelPrefix}
-              placeholder={opt.placeholder}
-              value={typingValue}
-              typing={typing}
-              active={active}
-              color={color}
-              placeholderColor={theme.secondaryText}
-              onChange={(next) => setTypingValueImmediate(next)}
-              onSubmit={() => submit({ kind: 'feedback', key: opt.key, feedback: typingValueRef.current.trim() })}
-              scope={scope}
-            />
+            <Box key={opt.key}>
+              <Text color={prefixColor}>{prefix}</Text>
+              <Text color={color}>{labelPrefix}</Text>
+              {showPlaceholder ? (
+                <Text color={theme.secondaryText}>{opt.placeholder}</Text>
+              ) : typing && active ? (
+                <Text color={color}>{valueWithCursor}</Text>
+              ) : (
+                <Text color={color}>{typingValue || ''}</Text>
+              )}
+            </Box>
           )
         })}
       </Box>
@@ -272,6 +342,10 @@ function getTokenInfo(args: { token: string; key: any }): {
   isReturnKey: boolean
   isUpArrowKey: boolean
   isDownArrowKey: boolean
+  isLeftArrowKey: boolean
+  isRightArrowKey: boolean
+  isBackspaceKey: boolean
+  isDeleteKey: boolean
 } {
   const keyName = getKeyName(args.key)
   const keyDelta = getVerticalArrowKeyDelta(args.key)
@@ -287,6 +361,10 @@ function getTokenInfo(args: { token: string; key: any }): {
     isReturnKey: isReturnKeyToken({ token, key: args.key }),
     isUpArrowKey: keyDelta < 0,
     isDownArrowKey: keyDelta > 0,
+    isLeftArrowKey: Boolean(args.key?.leftArrow) || keyName === 'left' || token === '\u001B[D',
+    isRightArrowKey: Boolean(args.key?.rightArrow) || keyName === 'right' || token === '\u001B[C',
+    isBackspaceKey: Boolean(args.key?.backspace) || token === '\u0008' || token === '\u007F',
+    isDeleteKey: Boolean(args.key?.delete) || keyName === 'delete' || token === '\u001B[3~',
   }
 }
 
@@ -297,24 +375,4 @@ function getDigitIndex(token: string, optionsLength: number): number | null {
   const idx = n - 1
   if (idx < 0 || idx >= optionsLength) return null
   return idx
-}
-
-function handleTypingTransitionGuard(args: {
-  tokenInfo: { token: string; printable: boolean; isReturnKey: boolean }
-  submitDraftIfFeedbackRow: () => void
-  appendDraft: (chunk: string) => void
-}): void {
-  // Transition guard: `setTyping(true)` happens immediately, but the underlying `TextInput`
-  // may not have mounted/registered yet (React batching). If the user types very quickly,
-  // we can receive printable input here before `TextInput` is ready. Append in that case so
-  // keystrokes aren't dropped; once `TextInput` is mounted it will consume these events and
-  // this handler won't run.
-  if (args.tokenInfo.isReturnKey) {
-    args.submitDraftIfFeedbackRow()
-    return
-  }
-
-  if (args.tokenInfo.printable) {
-    args.appendDraft(args.tokenInfo.token)
-  }
 }

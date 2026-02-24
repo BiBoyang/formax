@@ -1,12 +1,4 @@
 {
   "version": 1,
-  "violations": [
-    {
-      "rule": "SOURCE_DRIFT",
-      "name": "ConfirmMenu",
-      "servicePath": "src/tools/presenters/ConfirmMenu.tsx",
-      "uiPath": "src/components/ui/ConfirmMenu.tsx",
-      "line": 4
-    }
-  ]
+  "violations": []
 }
