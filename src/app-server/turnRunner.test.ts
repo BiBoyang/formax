@@ -306,6 +306,20 @@ describe('TurnRunner', () => {
     expect(replay.history.at(-1)?.role).toBe('assistant')
     expect(replay.messages.some((m) => m.role === 'user' && m.content === 'say hello')).toBe(true)
     expect(replay.messages.some((m) => m.role === 'assistant' && m.content.includes('hello'))).toBe(true)
+    const rawLines = (await fs.readFile(filePath!, 'utf8'))
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const appTurnStartedRecord = rawLines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>
+        } catch {
+          return null
+        }
+      })
+      .find((record) => record?.type === 'event' && record?.name === 'app_turn_started')
+    expect((appTurnStartedRecord?.data as { cwd?: unknown } | undefined)?.cwd).toBe(fixture.cwd)
 
     expect(notifications.some((n) => n.method === 'turn/started')).toBe(true)
     expect(notifications.some((n) => n.method === 'turn/event')).toBe(true)

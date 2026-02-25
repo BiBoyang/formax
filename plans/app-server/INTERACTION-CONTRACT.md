@@ -11,6 +11,11 @@
 - UI 行为：`plans/app-server/UI-SPEC.md`
 - 接口参考：`plans/app-server/API-REFERENCE.md`
 
+## 学习记录（2026-02-25）
+
+- 线程分组 `cwd` 不能只依赖 `session_meta.cwd`（首次创建目录），对 app-server turn 流应优先采用最新 `app_turn_started.cwd`，否则会把持续使用中的线程长期归到历史临时目录（例如 `resume-same-*`）下。
+- 覆盖摘要 `cwd` 时必须同步维护 `cwdReal`（realpath），否则 `/resume` 等同项目过滤会在符号链接/别名路径下出现误过滤。
+
 ## 1. 传输与握手合同
 
 1. 传输协议固定为 `stdio + JSONL + JSON-RPC 2.0`。

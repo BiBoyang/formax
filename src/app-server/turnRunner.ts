@@ -396,6 +396,7 @@ export class TurnRunner {
         traceId: running.traceId,
         threadId: running.threadId,
         turnId: running.turnId,
+        cwd: running.cwd,
       })
       const replay = await readSessionFile(running.filePath)
       const history = replay.history

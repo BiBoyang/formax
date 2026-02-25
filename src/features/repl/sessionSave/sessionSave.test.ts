@@ -645,6 +645,44 @@ describe('sessionSave (jsonl)', () => {
     expect(summary.lastUserPrompt).toBe('你好')
   })
 
+  it('readSessionSummary prefers latest app_turn_started cwd over initial session_meta cwd', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-cwd-'))
+    const latestTurnCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-summary-cwd-target-'))
+    const latestTurnCwdReal = await fs.realpath(latestTurnCwd).catch(() => latestTurnCwd)
+    const filePath = path.join(tmp, 'session.jsonl')
+    const lines = [
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 's-summary-cwd',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: '/var/folders/demo/T/resume-same-abc123',
+        cwdReal: '/private/var/folders/demo/T/resume-same-abc123',
+        provider: 'anthropic',
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:01.000Z',
+        name: 'app_turn_started',
+        data: { threadId: 's-summary-cwd', turnId: 'turn-1', cwd: '/Users/david/Desktop' },
+      }),
+      JSON.stringify({
+        type: 'event',
+        v: 1,
+        ts: '2026-02-02T00:00:02.000Z',
+        name: 'app_turn_started',
+        data: { threadId: 's-summary-cwd', turnId: 'turn-2', cwd: latestTurnCwd },
+      }),
+    ]
+    await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+
+    const summary = await readSessionSummary(filePath)
+    expect(summary.meta.cwd).toBe(latestTurnCwd)
+    expect(summary.meta.cwdReal).toBe(latestTurnCwdReal)
+  })
+
   it('writer enforces maxLineBytes by truncating ui_msg content (still valid json)', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-session-config-'))

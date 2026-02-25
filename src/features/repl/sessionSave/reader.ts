@@ -490,13 +490,15 @@ async function readTailSummaryData(filePath: string): Promise<{
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  latestTurnCwd: string | null
 }> {
   const tail = await readTailText(filePath, 256 * 1024).catch(() => '')
-  if (!tail) return { messageCount: null, lastUserPrompt: null, label: null }
+  if (!tail) return { messageCount: null, lastUserPrompt: null, label: null, latestTurnCwd: null }
 
   let messageCount: number | null = null
   let titleSeedPrompt: string | null = null
   let label: string | null = null
+  let latestTurnCwd: string | null = null
 
   const lines = tail.split('\n').map((l) => l.trimEnd()).filter(Boolean)
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -515,9 +517,16 @@ async function readTailSummaryData(filePath: string): Promise<{
 
     if (name === 'session_rename' && !label) {
       label = coerceString((data as any).label)
-      if (messageCount !== null && titleSeedPrompt && label) break
+      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
       continue
     }
+
+    if (name === 'app_turn_started' && !latestTurnCwd) {
+      latestTurnCwd = coerceString((data as any).cwd)
+      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
+      continue
+    }
+
     if (name === 'ui_stats') {
       if (messageCount === null) messageCount = coerceNumber((data as any).uiMsgCount)
       if (!titleSeedPrompt) {
@@ -525,11 +534,11 @@ async function readTailSummaryData(filePath: string): Promise<{
           coerceString((data as any).firstUserPrompt) ??
           coerceString((data as any).lastUserPrompt)
       }
-      if (messageCount !== null && titleSeedPrompt && label) break
+      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
     }
   }
 
-  return { messageCount, lastUserPrompt: titleSeedPrompt, label }
+  return { messageCount, lastUserPrompt: titleSeedPrompt, label, latestTurnCwd }
 }
 
 export async function readSessionSummary(filePath: string): Promise<SessionSummary> {
@@ -538,10 +547,22 @@ export async function readSessionSummary(filePath: string): Promise<SessionSumma
     fsp.stat(filePath),
     readTailSummaryData(filePath),
   ])
+  const summaryMeta =
+    tail.latestTurnCwd && tail.latestTurnCwd !== meta.cwd
+      ? await (async () => {
+          const { cwdReal: _ignoredCwdReal, ...rest } = meta
+          const latestTurnCwdReal = await fsp.realpath(tail.latestTurnCwd!).catch(() => null)
+          return {
+            ...rest,
+            cwd: tail.latestTurnCwd!,
+            ...(latestTurnCwdReal ? { cwdReal: latestTurnCwdReal } : {}),
+          }
+        })()
+      : meta
 
   return {
     filePath,
-    meta,
+    meta: summaryMeta,
     updatedAt: stat.mtime,
     messageCount: tail.messageCount,
     lastUserPrompt: tail.lastUserPrompt,
