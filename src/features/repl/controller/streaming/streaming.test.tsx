@@ -766,13 +766,21 @@ describe('useReplStreaming', () => {
     handleEvent!({ type: 'tool_input', id: 'legacy-tool', input: { command: 'pwd' } })
     handleEvent!({ type: 'tool_end', id: 'legacy-tool', result: { tool_use_id: 'legacy-tool', content: 'ok' } })
     handleEvent!({ type: 'complete' })
-    await tick()
-    await tick()
+    await waitForCondition(
+      () =>
+        messagesRef.current.some((message) => message.ui?.kind === 'thinking_block') &&
+        messagesRef.current.some((message) => message.role === 'assistant' && String(message.content).includes('done')) &&
+        messagesRef.current.some(
+          (message) =>
+            message.role === 'tool' &&
+            message.toolInfo?.toolUseId === 'legacy-tool' &&
+            message.toolInfo?.status === 'completed',
+        ),
+      'legacy fallback transcript rows',
+    )
 
     expect(messagesRef.current.some((message) => message.ui?.kind === 'thinking_block')).toBe(true)
-    expect(messagesRef.current.some((message) => message.role === 'assistant' && String(message.content).includes('done'))).toBe(
-      true,
-    )
+    expect(messagesRef.current.some((message) => message.role === 'assistant' && String(message.content).includes('done'))).toBe(true)
     expect(
       messagesRef.current.some(
         (message) =>

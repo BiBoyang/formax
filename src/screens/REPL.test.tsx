@@ -62,6 +62,7 @@ describe('REPL', () => {
     text: string
   }): Promise<void> {
     const { stdin, lastFrame, text } = args
+    await clearPromptInput(stdin)
     stdin.write(text)
     await tick()
     stdin.write('\r')

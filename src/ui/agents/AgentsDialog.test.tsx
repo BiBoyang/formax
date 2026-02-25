@@ -126,7 +126,7 @@ describe('AgentsDialog', () => {
     await waitForText(lastFrame, 'Agent', 5000)
     expect(lastFrame()).toContain('design-planner')
 
-    await pressEscUntilText(lastFrame, stdin, 'Agents')
+    await pressEscUntilText(lastFrame, stdin, 'Create new agent')
 
     expect(onExit).not.toHaveBeenCalled()
     unmount()

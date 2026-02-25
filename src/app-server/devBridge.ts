@@ -687,6 +687,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
   })
 
   wsServer.on('connection', (socket, request: IncomingMessage) => {
+    const remoteAddress = request.socket?.remoteAddress ?? null
     const authorization = authorizeBridgeConnection({
       requestUrl: request.url,
       originHeader: request.headers.origin,
@@ -699,7 +700,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
         event: 'connection_rejected',
         details: {
           reason: authorization.reason,
-          remoteAddress: request.socket.remoteAddress ?? null,
+          remoteAddress,
           origin: request.headers.origin ?? null,
         },
       })
@@ -715,7 +716,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
       ts: new Date().toISOString(),
       event: 'connection_open',
       details: {
-        remoteAddress: request.socket.remoteAddress ?? null,
+        remoteAddress,
         origin: request.headers.origin ?? null,
       },
     })
@@ -727,7 +728,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
         ts: new Date().toISOString(),
         event: 'connection_close',
         details: {
-          remoteAddress: request.socket.remoteAddress ?? null,
+          remoteAddress,
         },
       })
     })
@@ -752,7 +753,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
               ts: new Date().toISOString(),
               event: 'message_rejected_rate_limit',
               details: {
-                remoteAddress: request.socket.remoteAddress ?? null,
+                remoteAddress,
                 count: decision.state.count,
                 windowMs: rateLimit.windowMs,
                 maxMessages: rateLimit.maxMessages,
@@ -793,7 +794,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
             event: 'bridge_rpc',
             details: {
               method: parsed.method,
-              remoteAddress: request.socket.remoteAddress ?? null,
+              remoteAddress,
             },
           })
           const baseCwd = options.cwd ?? process.cwd()
@@ -825,7 +826,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
                 event: 'bridge_rpc_error',
                 details: {
                   method: parsed.method,
-                  remoteAddress: request.socket.remoteAddress ?? null,
+                  remoteAddress,
                   message: String(error instanceof Error ? error.message : error),
                 },
               })

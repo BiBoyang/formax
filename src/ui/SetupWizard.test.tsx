@@ -33,6 +33,23 @@ async function waitForCondition(check: () => boolean, label: string, timeoutMs =
   throw new Error(`Timed out waiting for condition: ${label}`)
 }
 
+async function waitForActiveChoice(
+  lastFrame: () => string | undefined,
+  rowText: string,
+  timeoutMs = 10000,
+): Promise<void> {
+  await waitForCondition(
+    () => {
+      const frame = lastFrame() || ''
+      return frame
+        .split('\n')
+        .some((line) => line.includes('❯') && line.includes(rowText))
+    },
+    `active choice: ${rowText}`,
+    timeoutMs,
+  )
+}
+
 const PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic-compatible' },
   { id: 'openai', label: 'OpenAI-compatible' },
@@ -237,19 +254,19 @@ describe('SetupWizard', () => {
     stdin.write('\r')
     await waitForText(lastFrame, 'Choose model setup mode')
 
-    stdin.write('\u001B[B')
-    await waitForText(lastFrame, '❯ Advanced')
+    stdin.write('2')
+    await waitForActiveChoice(lastFrame, 'Advanced')
     stdin.write('\r')
     await waitForText(lastFrame, 'Select model for haiku')
 
     stdin.write('\r')
     await waitForText(lastFrame, 'Select model for sonnet')
     stdin.write('2')
-    await tick()
+    await waitForActiveChoice(lastFrame, 'm2')
     stdin.write('\r')
     await waitForText(lastFrame, 'Select model for opus')
     stdin.write('3')
-    await tick()
+    await waitForActiveChoice(lastFrame, 'm3')
     stdin.write('\r')
     await waitForText(lastFrame, 'Review your settings')
 
