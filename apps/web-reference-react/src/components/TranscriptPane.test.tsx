@@ -351,11 +351,16 @@ describe('TranscriptPane', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Jump to bottom' })).toBeInTheDocument()
     })
+    const jumpButton = screen.getByRole('button', { name: 'Jump to bottom' })
+    const jumpWrapper = jumpButton.parentElement
+    expect(jumpWrapper?.className).toContain('absolute')
+    expect(jumpWrapper?.className).toContain('left-1/2')
+    expect(jumpWrapper?.className).toContain('-top-12')
     await waitFor(() => {
       expect(viewport.style.overflowAnchor).toBe('none')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Jump to bottom' }))
+    fireEvent.click(jumpButton)
     expect(scrollTopValue).toBe(1000)
     await waitFor(() => {
       expect(viewport.style.overflowAnchor).toBe('auto')

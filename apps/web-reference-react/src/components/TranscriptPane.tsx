@@ -638,15 +638,15 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
       {!composerLocked ? (
         <div data-testid="composer" className="composer p-4 pb-8">
-          <div className="max-w-3xl mx-auto flex flex-col gap-3">
+          <div className="max-w-3xl mx-auto relative">
             {showJumpToBottom ? (
-              <div className="flex justify-end px-2">
+              <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
                 <Button
                   type="button"
                   aria-label="Jump to bottom"
                   size="icon"
                   variant="outline"
-                  className="h-9 w-9 rounded-full shadow-sm"
+                  className="pointer-events-auto h-9 w-9 rounded-full border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
                   onClick={() => scrollToBottom('smooth')}
                 >
                   <ArrowDown className="h-4 w-4" />
