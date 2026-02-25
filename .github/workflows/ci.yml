@@ -31,7 +31,7 @@ jobs:
           node-version: '20'
 
       - uses: oven-sh/setup-bun@v2
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'
         with:
           bun-version: latest
 
@@ -49,15 +49,15 @@ jobs:
 
       - name: Install web-reference-react deps
         if: steps.changes.outputs.web_reference == 'true'
-        run: npm ci --prefix apps/web-reference-react
+        run: bun install --cwd apps/web-reference-react --frozen-lockfile
 
       - name: Web reference typecheck
         if: steps.changes.outputs.web_reference == 'true'
-        run: npm --prefix apps/web-reference-react run type-check
+        run: bun run --cwd apps/web-reference-react type-check
 
       - name: Web reference tests
         if: steps.changes.outputs.web_reference == 'true'
-        run: npm --prefix apps/web-reference-react run test
+        run: bun run --cwd apps/web-reference-react test
 
       - name: Upload coverage to Codecov
         if: steps.changes.outputs.code == 'true'
