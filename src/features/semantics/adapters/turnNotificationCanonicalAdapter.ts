@@ -22,6 +22,7 @@ export type TurnNotificationCanonicalContext = {
 }
 
 const TURN_NOTIFICATION_CANONICAL_METHODS = new Set([
+  'turn/started',
   'turn/event',
   'turn/completed',
   'turn/failed',
@@ -126,8 +127,24 @@ function resolveTurnIdFromEnvelope(
     }
     return null
   }
+  if (method === 'turn/started') {
+    const turn = params?.turn
+    if (turn && typeof turn === 'object') {
+      const turnId = (turn as Record<string, unknown>).id
+      if (typeof turnId === 'string' && turnId.trim()) return turnId
+    }
+    return null
+  }
   if (typeof params?.turnId === 'string' && params.turnId.trim()) return params.turnId
   return null
+}
+
+function resolveTurnStartedInputText(params: Record<string, unknown> | undefined): string | null {
+  const input = params?.input
+  if (!input || typeof input !== 'object') return null
+  const text = (input as Record<string, unknown>).text
+  if (typeof text !== 'string' || !text.trim()) return null
+  return text
 }
 
 function toEventId(args: {
@@ -246,6 +263,21 @@ export function toCanonicalEventsFromTurnNotification(
   if (!turnId) return []
   const threadId = resolveThreadId(params, ctx.fallbackThreadId)
   const source = resolveSource(params, ctx.source)
+
+  if (notification.method === 'turn/started') {
+    const replaySeq = resolveReplaySeq(params, ctx.nextReplaySeq)
+    if (replaySeq == null) return []
+    const text = resolveTurnStartedInputText(params)
+    if (!text) return []
+    return [
+      {
+        ...toEnvelope({ params, threadId, turnId, kind: 'user_message', replaySeq, source, now: ctx.now }),
+        kind: 'user_message',
+        turnId,
+        text,
+      },
+    ]
+  }
 
   if (notification.method === 'turn/event') {
     const replaySeq = resolveReplaySeq(params, ctx.nextReplaySeq)

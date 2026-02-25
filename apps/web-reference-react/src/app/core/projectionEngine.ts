@@ -16,7 +16,7 @@ type ProjectionEngineState = {
 function isProjectionManagedTurnItem(item: TranscriptItem, turnId: string): boolean {
   if (item.turnId !== turnId) return false
   if (item.kind === 'thinking' || item.kind === 'turn_footer' || item.kind === 'tool_call') return true
-  return item.kind === 'message' && item.role === 'assistant'
+  return item.kind === 'message' && (item.role === 'assistant' || item.role === 'user')
 }
 
 export function toTranscriptItemFromProjectionSegment(args: {
@@ -163,7 +163,6 @@ export function applyCanonicalProjectionEvent(args: {
   const nextProjection = reduceTranscriptProjection(currentProjection, event)
   const existingItemById = new Map(state.logs.map((item) => [item.id, item]))
   const projectedItems = selectTurnSegments(nextProjection.segments, event.turnId)
-    .filter((segment) => segment.kind !== 'user')
     .map((segment) => toTranscriptItemFromProjectionSegment({ segment, existingItemById }))
     .filter((segment): segment is TranscriptItem => Boolean(segment))
   const logs = mergeTurnProjectionLogs({

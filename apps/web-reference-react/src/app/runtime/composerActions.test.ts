@@ -73,12 +73,35 @@ describe('composerActions', () => {
       mode: 'normal',
       cwd: '/repo',
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'push_message', role: 'user', text: 'hello' })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'push_message', role: 'user', text: 'hello' })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-2' })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_user_message_turn', turnId: 'turn-2' })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'bind_last_user_message_turn', turnId: 'turn-2' })
     expect(ctx.setInputText).toHaveBeenCalledWith('')
     expect(ctx.setIsSendingTurn).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsSendingTurn).toHaveBeenLastCalledWith(false)
+  })
+
+  it('restores input text when turn request fails', async () => {
+    let inputValue = 'hello'
+    const setInputText = vi.fn((next: string | ((prev: string) => string)) => {
+      inputValue = typeof next === 'function' ? next(inputValue) : next
+    })
+    const ctx = createBaseContext({
+      setInputText,
+      request: vi.fn(async () => {
+        throw new Error('network down')
+      }),
+    })
+
+    const actions = createComposerActions(ctx)
+    await expect(actions.startTurn()).rejects.toThrow('network down')
+
+    expect(inputValue).toBe('hello')
+    expect(setInputText).toHaveBeenCalledWith('')
+    const restoreCall = setInputText.mock.calls.find(
+      (call) => typeof call[0] === 'function',
+    )
+    expect(restoreCall).toBeDefined()
   })
 
   it('submits pending input by id via getter lookup', async () => {

@@ -1600,7 +1600,13 @@ describe('App thread history integration', () => {
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/compact' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
-    expect(await screen.findByText('/compact')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) => entry.method === 'command/dispatch' && (entry.params as any)?.command === '/compact',
+        ),
+      ).toBe(true)
+    })
     expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
     expect(
       rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/compact'),
@@ -1700,11 +1706,14 @@ describe('App thread history integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('assistant-before-tool')).toBeInTheDocument()
-      expect(screen.getByText('Write snake-game.html')).toBeInTheDocument()
+      expect(screen.getByText('Write')).toBeInTheDocument()
+      expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
     })
 
     const centerText = screen.getByTestId('center-pane').textContent ?? ''
-    expect(centerText.indexOf('assistant-before-tool')).toBeLessThan(centerText.indexOf('Write snake-game.html'))
+    const snakePathIndex = centerText.indexOf('snake-game.html')
+    expect(snakePathIndex).toBeGreaterThanOrEqual(0)
+    expect(centerText.indexOf('assistant-before-tool')).toBeLessThan(snakePathIndex)
   })
 
   it('keeps assistant segments split when tool rows are interleaved in the same turn', async () => {
@@ -1764,13 +1773,16 @@ describe('App thread history integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('assistant-before')).toBeInTheDocument()
-      expect(screen.getByText('Write snake-game.html')).toBeInTheDocument()
+      expect(screen.getByText('Write')).toBeInTheDocument()
+      expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
       expect(screen.getByText('assistant-after')).toBeInTheDocument()
     })
 
     const centerText = screen.getByTestId('center-pane').textContent ?? ''
-    expect(centerText.indexOf('assistant-before')).toBeLessThan(centerText.indexOf('Write snake-game.html'))
-    expect(centerText.indexOf('Write snake-game.html')).toBeLessThan(centerText.indexOf('assistant-after'))
+    const snakePathIndex = centerText.indexOf('snake-game.html')
+    expect(snakePathIndex).toBeGreaterThanOrEqual(0)
+    expect(centerText.indexOf('assistant-before')).toBeLessThan(snakePathIndex)
+    expect(snakePathIndex).toBeLessThan(centerText.indexOf('assistant-after'))
   })
 
   it('deduplicates repeated eventId notifications', async () => {
@@ -3013,7 +3025,6 @@ describe('App thread history integration', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('question:submitted')).toBeInTheDocument()
     expect(screen.getByTestId('composer')).toBeInTheDocument()
   })
 

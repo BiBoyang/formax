@@ -3,6 +3,35 @@ import { toCanonicalEventsFromTurnNotification } from './turnNotificationCanonic
 import { createInitialTranscriptProjectionState, reduceTranscriptProjection } from '../projection/transcriptProjection'
 
 describe('turnNotificationCanonicalAdapter', () => {
+  it('maps turn/started input text into canonical user message', () => {
+    const events = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/started',
+        params: {
+          threadId: 'thread-1',
+          turn: { id: 'turn-1', threadId: 'thread-1', status: 'running', mode: 'normal' },
+          input: { text: 'hello from turn started' },
+          replaySeq: 5,
+          eventId: 'evt-5',
+          ts: '2026-02-25T00:00:00.000Z',
+          source: 'system',
+        },
+      },
+      { fallbackThreadId: 'thread-fallback', requireEnvelope: true },
+    )
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: 'user_message',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        replaySeq: 5,
+        text: 'hello from turn started',
+        source: 'system',
+      }),
+    ])
+  })
+
   it('maps turn/event tool sequence into canonical tool events', () => {
     const events = [
       ...toCanonicalEventsFromTurnNotification(

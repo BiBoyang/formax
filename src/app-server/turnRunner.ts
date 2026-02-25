@@ -311,6 +311,9 @@ export class TurnRunner {
         status: 'running',
         mode: running.replMode,
       },
+      input: {
+        text: running.inputText,
+      },
     })
 
     void this.runTurnInBackground(running).catch((err) => {

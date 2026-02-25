@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { resolveCommandRouting } from '../../semantics'
 import { isWebSupportedCommand } from '../core/commandSupport'
 import { parseInputSubmitResponse, parseTurnStartLikeResponse } from '../core/rpcContracts'
@@ -8,7 +8,7 @@ import type { AppAction } from '../../store'
 
 export type ComposerActionsContext = {
   inputText: string
-  setInputText: (value: string) => void
+  setInputText: Dispatch<SetStateAction<string>>
   isSendingTurn: boolean
   isInterruptingTurn: boolean
   isSubmittingInput: boolean
@@ -67,7 +67,6 @@ export function createComposerActions(ctx: ComposerActionsContext) {
 
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     const requestCwd = ctx.resolveRequestCwd(ctx.activeThreadId)
-    ctx.dispatch({ type: 'push_message', role: 'user', text })
     ctx.setInputText('')
     if (shouldDispatchCommand) {
       ctx.log(`Command queued: ${text}`, 'info')
@@ -91,17 +90,20 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       const parsedTurnResult = parseTurnStartLikeResponse(result)
       const localStdout = parsedTurnResult.localStdout
       if (localStdout) {
+        ctx.dispatch({ type: 'push_message', role: 'user', text })
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
       const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
         ctx.dispatch({ type: 'set_active_turn', turnId })
-        ctx.dispatch({ type: 'bind_last_user_message_turn', turnId })
         if (shouldDispatchCommand) {
           ctx.commandByTurnRef.current.set(turnId, text)
         }
       }
+    } catch (error) {
+      ctx.setInputText((current) => (current.trim() ? current : text))
+      throw error
     } finally {
       ctx.setIsSendingTurn(false)
     }
