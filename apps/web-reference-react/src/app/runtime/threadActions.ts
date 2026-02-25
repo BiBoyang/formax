@@ -64,17 +64,20 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     clearArchiveOp: ctx.clearArchiveOp,
   })
 
-  const startThread = async () => {
+  const startThreadWithCwd = async (cwdOverride?: string | null) => {
     const previousThreadId = ctx.state.activeThreadId
     const previousLogs = ctx.state.logs
+    const previousSelectedCwd = ctx.selectedCwd
+    const requestedCwd = typeof cwdOverride === 'string' && cwdOverride.trim() ? cwdOverride.trim() : null
     ctx.setIsThreadActionBusy(true)
     try {
-      const result = await ctx.request('thread/start', ctx.selectedCwd ? { cwd: ctx.selectedCwd } : {})
+      const result = await ctx.request('thread/start', requestedCwd ? { cwd: requestedCwd } : {})
       const thread = parseThreadStartResponse(result)
       if (!thread) return
+      const effectiveCwd = thread.cwd ?? requestedCwd ?? null
 
-      if (thread.cwd) {
-        ctx.setSelectedCwd(thread.cwd)
+      if (effectiveCwd) {
+        ctx.setSelectedCwd(effectiveCwd)
       }
       ctx.setMode(ctx.runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
       ctx.activeThreadIdRef.current = thread.id
@@ -89,6 +92,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       if (!replayLoaded) {
         ctx.activeThreadIdRef.current = previousThreadId
         ctx.dispatch({ type: 'set_active_thread', threadId: previousThreadId })
+        ctx.setSelectedCwd(previousSelectedCwd)
         ctx.dispatch({
           type: 'replace_logs',
           logs: selectThreadTranscriptLogs({
@@ -102,11 +106,19 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       }
       await ctx.resumeThreadInputs(thread.id)
       await ctx.refreshThreads()
-      await ctx.refreshWorkspaceDiff(thread.cwd ?? ctx.selectedCwd ?? null)
+      await ctx.refreshWorkspaceDiff(effectiveCwd ?? ctx.selectedCwd ?? null)
       ctx.log(`Thread created: ${thread.id}`)
     } finally {
       ctx.setIsThreadActionBusy(false)
     }
+  }
+
+  const startThread = async () => startThreadWithCwd(ctx.selectedCwd)
+
+  const startThreadInCwd = async (cwd: string) => {
+    const nextCwd = cwd.trim()
+    if (!nextCwd) return
+    await startThreadWithCwd(nextCwd)
   }
 
   const selectThread = transactions.selectThread
@@ -153,6 +165,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
 
   return {
     startThread,
+    startThreadInCwd,
     selectThread,
     selectCwd,
     renameThread,

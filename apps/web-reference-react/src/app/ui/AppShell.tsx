@@ -24,6 +24,7 @@ export type AppShellProps = {
   onRenameThread: (threadId: string, label: string) => void
   onArchiveThread: (threadId: string) => void
   onStartThread: () => void
+  onStartThreadInCwd: (cwd: string) => void
   isThreadActionBusy: boolean
   isSidebarOpen: boolean
   setIsSidebarOpen: (next: boolean) => void
@@ -151,6 +152,7 @@ export function AppShell(props: AppShellProps) {
               onRenameThread={props.onRenameThread}
               onArchiveThread={props.onArchiveThread}
               onStartThread={props.onStartThread}
+              onStartThreadInCwd={props.onStartThreadInCwd}
               isBusy={props.isThreadActionBusy}
             />
           </div>

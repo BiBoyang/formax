@@ -388,7 +388,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setSelectedCwd,
   })
 
-  const { startThread, selectThread, selectCwd, renameThread, archiveThread, loadEarlierHistory } = useMemo(
+  const { startThread, startThreadInCwd, selectThread, selectCwd, renameThread, archiveThread, loadEarlierHistory } = useMemo(
     () =>
       createThreadActions({
         selectedCwd,
@@ -608,6 +608,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onRenameThread: (threadId, label) => void renameThread(threadId, label),
     onArchiveThread: (threadId) => void archiveThread(threadId),
     onStartThread: () => void startThread().catch(() => undefined),
+    onStartThreadInCwd: (cwd) => void startThreadInCwd(cwd).catch(() => undefined),
     isThreadActionBusy,
     isSidebarOpen,
     setIsSidebarOpen,

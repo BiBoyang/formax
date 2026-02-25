@@ -65,11 +65,39 @@ describe('threadActions', () => {
     expect(ctx.setIsThreadActionBusy).toHaveBeenLastCalledWith(false)
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'new-thread' })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'prev-thread' })
+    expect(ctx.setSelectedCwd).toHaveBeenNthCalledWith(1, '/repo-new')
+    expect(ctx.setSelectedCwd).toHaveBeenNthCalledWith(2, '/repo')
     expect(ctx.log).toHaveBeenCalledWith(
       'Failed to hydrate new thread transcript. Restored previous thread.',
       'warn',
     )
     expect(ctx.resumeThreadInputs).not.toHaveBeenCalled()
+  })
+
+  it('starts a thread in an explicit cwd from folder action', async () => {
+    const request = vi.fn().mockResolvedValue({ thread: { id: 'new-thread' } })
+    const ctx = createBaseContext({
+      request,
+      selectedCwd: '/repo',
+    })
+    const actions = createThreadActions(ctx)
+
+    await actions.startThreadInCwd('  /repo-child  ')
+
+    expect(request).toHaveBeenCalledWith('thread/start', { cwd: '/repo-child' })
+    expect(ctx.setSelectedCwd).toHaveBeenCalledWith('/repo-child')
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-child')
+    expect(ctx.log).toHaveBeenCalledWith('Thread created: new-thread')
+  })
+
+  it('ignores empty cwd for folder start action', async () => {
+    const request = vi.fn().mockResolvedValue({ thread: { id: 'new-thread', cwd: '/repo' } })
+    const ctx = createBaseContext({ request })
+    const actions = createThreadActions(ctx)
+
+    await actions.startThreadInCwd('   ')
+
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('resets active thread when cwd has no matching thread', () => {

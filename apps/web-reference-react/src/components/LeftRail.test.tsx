@@ -40,18 +40,20 @@ describe('LeftRail', () => {
         activeThreadId={threads[0].id}
         onSelectThread={onSelectThread}
         onStartThread={onStartThread}
+        onStartThreadInCwd={() => undefined}
       />,
     )
 
     expect(screen.getByText('connected')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /new thread/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
     expect(onStartThread).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: /hello/i }))
     expect(onSelectThread).toHaveBeenCalledWith('thread-11111111')
 
-    expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /repo-b/i }))
+    const repoBFolder = screen.getByTitle('/repo-b')
+    expect(repoBFolder).toBeInTheDocument()
+    fireEvent.click(repoBFolder)
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 
@@ -76,6 +78,7 @@ describe('LeftRail', () => {
           onRenameThread={onRenameThread}
           onArchiveThread={onArchiveThread}
           onStartThread={() => undefined}
+          onStartThreadInCwd={() => undefined}
         />,
       )
 
@@ -120,5 +123,96 @@ describe('LeftRail', () => {
         Reflect.deleteProperty(navigator, 'clipboard')
       }
     }
+  })
+
+  it('starts a new thread in the selected folder from folder quick action', () => {
+    const onStartThread = vi.fn()
+    const onStartThreadInCwd = vi.fn()
+
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={onStartThread}
+        onStartThreadInCwd={onStartThreadInCwd}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start new thread in repo' }))
+    expect(onStartThreadInCwd).toHaveBeenCalledWith('/repo')
+    expect(onStartThread).not.toHaveBeenCalled()
+  })
+
+  it('disables folder quick action while thread actions are busy', () => {
+    const onStartThreadInCwd = vi.fn()
+
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={onStartThreadInCwd}
+        isBusy
+      />,
+    )
+
+    const quickActionButton = screen.getByRole('button', { name: 'Start new thread in repo' })
+    expect(quickActionButton).toBeDisabled()
+    fireEvent.click(quickActionButton)
+    expect(onStartThreadInCwd).not.toHaveBeenCalled()
+  })
+
+  it('marks a folder as removed from folder actions menu', async () => {
+    const onSelectCwd = vi.fn()
+
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={onSelectCwd}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
+
+    await waitFor(() => {
+      expect(screen.queryByTitle('/repo')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
+    expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
+  })
+
+  it('does not remove the selected folder when it is the only visible group', async () => {
+    const onSelectCwd = vi.fn()
+
+    render(
+      <LeftRail
+        threads={[threads[0]]}
+        selectedCwd="/repo"
+        onSelectCwd={onSelectCwd}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
+    const removeItem = await screen.findByRole('menuitem', { name: 'Remove session folder' })
+    fireEvent.click(removeItem, { detail: 1, button: 0 })
+
+    expect(screen.getByTitle('/repo')).toBeInTheDocument()
+    expect(onSelectCwd).not.toHaveBeenCalled()
   })
 })
