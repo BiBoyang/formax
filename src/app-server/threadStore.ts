@@ -19,6 +19,10 @@ import type {
 } from './protocol.js'
 import { readPersistedToolMessagesFromSession, readStaleInputsFromSession } from './store/sessionEventReader.js'
 import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
+import {
+  FileThreadGroupVisibilityStore,
+  type ThreadGroupVisibilityStore,
+} from './store/threadGroupVisibilityStore.js'
 
 export type ThreadStoreOptions = {
   cwd?: string
@@ -26,11 +30,13 @@ export type ThreadStoreOptions = {
   platform?: string
   homedir?: string
   archiveStore?: ThreadArchiveStore
+  groupVisibilityStore?: ThreadGroupVisibilityStore
 }
 
 export type ThreadListResult = {
   data: ThreadSummary[]
   nextCursor: string | null
+  hiddenGroupCwds?: string[]
 }
 
 export type ThreadReadResult = {
@@ -80,6 +86,10 @@ export type ThreadRenameResult = {
 
 export type ThreadArchiveResult = {
   thread: ThreadSummary
+}
+
+export type ThreadGroupHideResult = {
+  hiddenGroupCwds: string[]
 }
 
 type ProvisionalThread = {
@@ -423,6 +433,7 @@ export class ThreadStore {
   private readonly platform?: string
   private readonly homedir?: string
   private readonly archiveStore: ThreadArchiveStore
+  private readonly groupVisibilityStore: ThreadGroupVisibilityStore
   private readonly provisionalThreads = new Map<string, ProvisionalThread>()
 
   constructor(args: ThreadStoreOptions = {}) {
@@ -431,6 +442,7 @@ export class ThreadStore {
     this.platform = args.platform
     this.homedir = args.homedir
     this.archiveStore = args.archiveStore ?? new FileThreadArchiveStore()
+    this.groupVisibilityStore = args.groupVisibilityStore ?? new FileThreadGroupVisibilityStore()
   }
 
   async startThread(params: ThreadStartParams): Promise<Thread> {
@@ -522,15 +534,23 @@ export class ThreadStore {
     const limit = params.limit
     const needed = Math.min(800, offset + limit + 1)
 
-    const all = await this.archiveStore.listThreads({
-      cwd: this.cwd,
-      env: this.env,
-      platform: this.platform,
-      homedir: this.homedir,
-      includeAllProjects: true,
-      limit: needed,
-      archived,
-    })
+    const [all, hiddenGroupCwds] = await Promise.all([
+      this.archiveStore.listThreads({
+        cwd: this.cwd,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+        includeAllProjects: true,
+        limit: needed,
+        archived,
+      }),
+      this.groupVisibilityStore.listHiddenGroups({
+        cwd: this.cwd,
+        env: this.env,
+        platform: this.platform,
+        homedir: this.homedir,
+      }),
+    ])
     const persistedRows = all.map((summary) => toThreadSummary(summary, archived))
     const persistedIds = new Set(persistedRows.map((thread) => thread.id))
     for (const id of persistedIds) this.provisionalThreads.delete(id)
@@ -553,7 +573,18 @@ export class ThreadStore {
 
     const page = combined.slice(offset, offset + limit)
     const nextCursor = offset + limit < combined.length ? String(offset + limit) : null
-    return { data: page, nextCursor }
+    return { data: page, nextCursor, hiddenGroupCwds }
+  }
+
+  async hideThreadGroup(cwd: string): Promise<ThreadGroupHideResult> {
+    const hiddenGroupCwds = await this.groupVisibilityStore.markGroupHidden({
+      cwd: this.cwd,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+      groupCwd: path.resolve(cwd),
+    })
+    return { hiddenGroupCwds }
   }
 
   async readThread(threadId: string): Promise<ThreadReadResult> {

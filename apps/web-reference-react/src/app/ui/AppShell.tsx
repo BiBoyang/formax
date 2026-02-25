@@ -25,6 +25,8 @@ export type AppShellProps = {
   onArchiveThread: (threadId: string) => void
   onStartThread: () => void
   onStartThreadInCwd: (cwd: string) => void
+  hiddenGroupCwds: string[]
+  onHideThreadGroup: (cwd: string) => void
   isThreadActionBusy: boolean
   isSidebarOpen: boolean
   setIsSidebarOpen: (next: boolean) => void
@@ -153,6 +155,8 @@ export function AppShell(props: AppShellProps) {
               onArchiveThread={props.onArchiveThread}
               onStartThread={props.onStartThread}
               onStartThreadInCwd={props.onStartThreadInCwd}
+              hiddenGroupCwds={props.hiddenGroupCwds}
+              onHideThreadGroup={props.onHideThreadGroup}
               isBusy={props.isThreadActionBusy}
             />
           </div>

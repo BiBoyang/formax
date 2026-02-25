@@ -14,6 +14,7 @@ import {
   parseInitializeParams,
   parseThreadArchiveParams,
   parseThreadByIdParams,
+  parseThreadGroupHideParams,
   parseThreadListParams,
   parseThreadMessagesParams,
   parseThreadRenameParams,
@@ -70,7 +71,7 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -90,7 +91,7 @@ export class AppServer {
     ThreadStore,
     'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
   > &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -258,6 +259,24 @@ export class AppServer {
       try {
         const params = parseThreadRenameParams(req.params)
         const result = await this.threadStore.renameThread(params)
+        return [makeSuccessResponse(req.id, result)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/group/hide') {
+      if (!this.threadStore.hideThreadGroup) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseThreadGroupHideParams(req.params)
+        const result = await this.threadStore.hideThreadGroup(params.cwd)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]

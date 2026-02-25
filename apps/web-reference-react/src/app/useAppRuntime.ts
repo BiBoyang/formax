@@ -7,7 +7,7 @@ import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
-import { parseThreadReplayResponse } from './core/rpcContracts'
+import { parseThreadGroupHideResponse, parseThreadReplayResponse } from './core/rpcContracts'
 import {
   type ThreadTranscriptSource,
 } from './core/replayMachine'
@@ -93,6 +93,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
+  const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
   const [threadCache, setThreadCache] = useState<ThreadCacheState>(INITIAL_THREAD_CACHE_STATE)
   const logsByThreadId = threadCache.logsByThreadId
   const historyCursorByThreadId = threadCache.historyCursorByThreadId
@@ -266,6 +267,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
         setLogsByThreadId,
+        setHiddenGroupCwds,
         resolveDiffCwd: () => {
           if (selectedCwdRef.current) return selectedCwdRef.current
           const activeThreadId = activeThreadIdRef.current
@@ -274,6 +276,16 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         },
       }),
     [log, request],
+  )
+
+  const hideThreadGroup = useCallback(
+    async (cwd: string) => {
+      const nextCwd = cwd.trim()
+      if (!nextCwd) return
+      const result = await request('thread/group/hide', { cwd: nextCwd })
+      setHiddenGroupCwds(parseThreadGroupHideResponse(result))
+    },
+    [request],
   )
 
   const handleThreadArchivedNotification = useMemo(
@@ -609,6 +621,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onArchiveThread: (threadId) => void archiveThread(threadId),
     onStartThread: () => void startThread().catch(() => undefined),
     onStartThreadInCwd: (cwd) => void startThreadInCwd(cwd).catch(() => undefined),
+    hiddenGroupCwds,
+    onHideThreadGroup: (cwd) => void hideThreadGroup(cwd).catch(() => undefined),
     isThreadActionBusy,
     isSidebarOpen,
     setIsSidebarOpen,

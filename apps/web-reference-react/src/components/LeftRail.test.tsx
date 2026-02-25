@@ -41,6 +41,8 @@ describe('LeftRail', () => {
         onSelectThread={onSelectThread}
         onStartThread={onStartThread}
         onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
       />,
     )
 
@@ -79,6 +81,8 @@ describe('LeftRail', () => {
           onArchiveThread={onArchiveThread}
           onStartThread={() => undefined}
           onStartThreadInCwd={() => undefined}
+          hiddenGroupCwds={[]}
+          onHideThreadGroup={() => undefined}
         />,
       )
 
@@ -138,6 +142,8 @@ describe('LeftRail', () => {
         onSelectThread={() => undefined}
         onStartThread={onStartThread}
         onStartThreadInCwd={onStartThreadInCwd}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
       />,
     )
 
@@ -158,6 +164,8 @@ describe('LeftRail', () => {
         onSelectThread={() => undefined}
         onStartThread={() => undefined}
         onStartThreadInCwd={onStartThreadInCwd}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
         isBusy
       />,
     )
@@ -170,6 +178,7 @@ describe('LeftRail', () => {
 
   it('marks a folder as removed from folder actions menu', async () => {
     const onSelectCwd = vi.fn()
+    const onHideThreadGroup = vi.fn()
 
     render(
       <LeftRail
@@ -180,21 +189,21 @@ describe('LeftRail', () => {
         onSelectThread={() => undefined}
         onStartThread={() => undefined}
         onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={onHideThreadGroup}
       />,
     )
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
 
-    await waitFor(() => {
-      expect(screen.queryByTitle('/repo')).not.toBeInTheDocument()
-    })
-    expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
+    expect(onHideThreadGroup).toHaveBeenCalledWith('/repo')
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 
   it('does not remove the selected folder when it is the only visible group', async () => {
     const onSelectCwd = vi.fn()
+    const onHideThreadGroup = vi.fn()
 
     render(
       <LeftRail
@@ -205,14 +214,37 @@ describe('LeftRail', () => {
         onSelectThread={() => undefined}
         onStartThread={() => undefined}
         onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={onHideThreadGroup}
       />,
     )
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
     const removeItem = await screen.findByRole('menuitem', { name: 'Remove session folder' })
+    expect(removeItem).toHaveAttribute('data-disabled')
     fireEvent.click(removeItem, { detail: 1, button: 0 })
 
     expect(screen.getByTitle('/repo')).toBeInTheDocument()
     expect(onSelectCwd).not.toHaveBeenCalled()
+    expect(onHideThreadGroup).not.toHaveBeenCalled()
+  })
+
+  it('hides groups from props-controlled hidden list', () => {
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={['/repo']}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByTitle('/repo')).not.toBeInTheDocument()
+    expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
   })
 })

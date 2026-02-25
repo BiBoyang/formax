@@ -347,3 +347,4 @@ turn 通知到 canonical 的最小映射保证：
 ## 11. 行为对齐学习记录
 
 - 2026-02-23：`thread/start` 与 REPL 初次进入不再立即创建 session 文件，改为 provisional thread/session（仅内存）并在首个有效 turn 写入时 materialize 到磁盘。该策略避免产生大量“0 消息 session”，并保证 TUI 与 Web 的空会话可见性与持久化时机一致。
+- 2026-02-25：Web 侧“Remove session folder”改为服务端共享标记：`thread/group/hide` 写入 `FORMAX_CONFIG_DIR` 下的本地持久化文件，`thread/list` 返回 `hiddenGroupCwds` 供客户端过滤。该方案不绑定账号，但可在同一 app-server 的多客户端之间共享 folder 隐藏状态。

@@ -38,6 +38,8 @@ export type LeftRailProps = {
   onArchiveThread?: (threadId: string) => Promise<void> | void
   onStartThread: () => void
   onStartThreadInCwd: (cwd: string) => void
+  hiddenGroupCwds: string[]
+  onHideThreadGroup: (cwd: string) => void
   isBusy?: boolean
 }
 
@@ -93,19 +95,21 @@ export function LeftRail(props: LeftRailProps) {
     onArchiveThread,
     onStartThread,
     onStartThreadInCwd,
+    hiddenGroupCwds,
+    onHideThreadGroup,
     isBusy = false,
   } = props
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
+  const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
   const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
   const activeThreadCwd = activeThread?.cwd ?? null
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>({})
-  const [removedGroupCwds, setRemovedGroupCwds] = useState<Set<string>>(new Set())
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const visibleGroupedThreads = useMemo(
-    () => groupedThreads.filter((group) => !removedGroupCwds.has(group.cwd)),
-    [groupedThreads, removedGroupCwds],
+    () => groupedThreads.filter((group) => !hiddenGroupCwdSet.has(group.cwd)),
+    [groupedThreads, hiddenGroupCwdSet],
   )
 
   useEffect(() => {
@@ -160,21 +164,15 @@ export function LeftRail(props: LeftRailProps) {
   }
 
   const markFolderRemoved = (cwd: string) => {
-    if (removedGroupCwds.has(cwd)) return
+    if (hiddenGroupCwdSet.has(cwd)) return
     const isCurrentGroup = selectedCwd === cwd || (!selectedCwd && activeThreadCwd === cwd)
-    const fallback = groupedThreads.find((group) => group.cwd !== cwd && !removedGroupCwds.has(group.cwd))?.cwd
+    const fallback = groupedThreads.find((group) => group.cwd !== cwd && !hiddenGroupCwdSet.has(group.cwd))?.cwd
     if (isCurrentGroup && !fallback) return
-
-    setRemovedGroupCwds((previous) => {
-      if (previous.has(cwd)) return previous
-      const next = new Set(previous)
-      next.add(cwd)
-      return next
-    })
 
     if (isCurrentGroup && fallback) {
       onSelectCwd(fallback)
     }
+    onHideThreadGroup(cwd)
   }
 
   const submitRename = async () => {

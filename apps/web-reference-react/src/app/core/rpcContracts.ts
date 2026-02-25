@@ -39,6 +39,18 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const deduped = new Set<string>()
+  for (const row of value) {
+    if (typeof row !== 'string') continue
+    const trimmed = row.trim()
+    if (!trimmed) continue
+    deduped.add(trimmed)
+  }
+  return Array.from(deduped).sort((a, b) => a.localeCompare(b))
+}
+
 export function parseThreadStartResponse(value: unknown): RpcStartedThread | null {
   const thread = asRecord(asRecord(value).thread)
   const id = typeof thread.id === 'string' && thread.id.trim() ? thread.id : ''
@@ -71,6 +83,16 @@ export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult
 
 export function parseThreadListResponse(value: unknown): ThreadSummary[] {
   return asThreadSummaries(value)
+}
+
+export function parseHiddenThreadGroupCwdsFromThreadList(value: unknown): string[] {
+  const root = asRecord(value)
+  return parseStringList(root.hiddenGroupCwds)
+}
+
+export function parseThreadGroupHideResponse(value: unknown): string[] {
+  const root = asRecord(value)
+  return parseStringList(root.hiddenGroupCwds)
 }
 
 export function parseThreadMessagesResponse(value: unknown): RpcThreadMessagesResult {

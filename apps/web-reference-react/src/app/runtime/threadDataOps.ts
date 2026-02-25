@@ -1,6 +1,7 @@
 import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
 import type { DiffFilePatchPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
 import {
+  parseHiddenThreadGroupCwdsFromThreadList,
   parseResolvedInputsResponse,
   parseThreadListResponse,
   parseThreadMessagesResponse,
@@ -43,6 +44,7 @@ export type ThreadDataOpsContext = {
   setLogsByThreadId: (
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
   ) => void
+  setHiddenGroupCwds?: (next: string[]) => void
   resolveDiffCwd: () => string | null
 }
 
@@ -109,6 +111,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const refreshThreads = async () => {
     const result = await ctx.request('thread/list', { limit: 50 })
     ctx.dispatch({ type: 'set_threads', threads: parseThreadListResponse(result) })
+    ctx.setHiddenGroupCwds?.(parseHiddenThreadGroupCwdsFromThreadList(result))
   }
 
   const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {

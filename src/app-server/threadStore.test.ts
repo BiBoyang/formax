@@ -109,6 +109,23 @@ describe('ThreadStore', () => {
     )
   })
 
+  it('persists hidden thread group markers across store instances', async () => {
+    const { cwd, env, store } = await createStore()
+    const hiddenCwd = path.join(cwd, 'project-alpha')
+
+    const firstHide = await store.hideThreadGroup(hiddenCwd)
+    await store.hideThreadGroup(hiddenCwd)
+
+    expect(firstHide.hiddenGroupCwds).toContain(path.resolve(hiddenCwd))
+    const listed = await store.listThreads({ limit: 20 })
+    expect(listed.hiddenGroupCwds).toContain(path.resolve(hiddenCwd))
+
+    const reopenedStore = new ThreadStore({ cwd, env })
+    const reopenedListed = await reopenedStore.listThreads({ limit: 20 })
+    expect(reopenedListed.hiddenGroupCwds).toContain(path.resolve(hiddenCwd))
+    expect(reopenedListed.hiddenGroupCwds?.filter((entry) => entry === path.resolve(hiddenCwd))).toHaveLength(1)
+  })
+
   it('persists session_rename through thread/rename', async () => {
     const { store } = await createStore()
     const started = await store.startThread({})

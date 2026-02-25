@@ -1285,8 +1285,8 @@ describe('App thread history integration', () => {
     render(<App />)
     await screen.findByRole('button', { name: /Alpha Session/i })
 
-    fireEvent.click(screen.getByRole('button', { name: /repo-beta/ }))
-    fireEvent.click(screen.getByRole('button', { name: /New thread/i }))
+    fireEvent.click(screen.getByTitle('/repo-beta'))
+    fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
 
     await waitFor(() => {
       expect(
@@ -1294,6 +1294,138 @@ describe('App thread history integration', () => {
           (entry) => entry.method === 'thread/start' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
         ),
       ).toBe(true)
+    })
+  })
+
+  it('hides folders provided by thread/list hiddenGroupCwds', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:40.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+          hiddenGroupCwds: ['/repo-beta'],
+        }
+      }
+      if (method === 'thread/messages') {
+        return { data: [], nextCursor: null }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-alpha' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+
+    expect(screen.getByTitle('/repo-alpha')).toBeInTheDocument()
+    expect(screen.queryByTitle('/repo-beta')).not.toBeInTheDocument()
+  })
+
+  it('persists folder hide marker through thread/group/hide rpc', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:40.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+          hiddenGroupCwds: [],
+        }
+      }
+      if (method === 'thread/group/hide') {
+        return {
+          hiddenGroupCwds: [(params as { cwd?: string } | undefined)?.cwd ?? ''],
+        }
+      }
+      if (method === 'thread/messages') {
+        return { data: [], nextCursor: null }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-alpha' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+    expect(screen.getByTitle('/repo-beta')).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo-beta' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'thread/group/hide' &&
+            (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
+        ),
+      ).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTitle('/repo-beta')).not.toBeInTheDocument()
     })
   })
 

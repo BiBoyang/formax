@@ -57,6 +57,10 @@ export type ThreadRenameParams = {
   label: string
 }
 
+export type ThreadGroupHideParams = {
+  cwd: string
+}
+
 export type ThreadListParams = {
   limit: number
   cursor?: string
@@ -174,6 +178,12 @@ export function parseThreadRenameParams(params: unknown): ThreadRenameParams {
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   const label = parseRequiredNonEmptyString(params.label, 'params.label')
   return { threadId, label }
+}
+
+export function parseThreadGroupHideParams(params: unknown): ThreadGroupHideParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  const cwd = parseRequiredNonEmptyString(params.cwd, 'params.cwd')
+  return { cwd }
 }
 
 export function parseThreadListParams(params: unknown): ThreadListParams {
