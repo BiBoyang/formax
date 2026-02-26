@@ -7,15 +7,25 @@
 - 分层依赖与允许边：`docs/harness/contracts/layer-contract.md`
 - 不变量与所有权规则：`docs/harness/contracts/invariants.md`
 - Golden Principles 护栏：`docs/harness/contracts/golden-principles.md`
+- 项目语义唯一事实源（跨端 semantics）：`docs/harness/contracts/semantics-contract.md`
 - 交互输入语义唯一事实源（approval / ask）：`docs/harness/contracts/interactive-input-contract.md`
 
 ## 操作手册（Runbooks）
 
 - 本地与 CI 失败修复路径：`docs/harness/runbooks/runbook.md`
 
+## 前端（Frontend）
+
+- 前端改动治理与回归门禁：`docs/harness/FRONTEND.md`
+
 ## 盘点（Inventories）
 
 - TUI 交互输入形态盘点（informative）：`docs/harness/inventories/interactive-input-inventory.md`
+
+## 陷阱库（Pitfalls）
+
+- 深度排障记录索引：`docs/harness/pitfalls/index.md`
+- 长期 pitfall 摘要日志：`pitfalls.md`
 
 ## 当前检查项
 

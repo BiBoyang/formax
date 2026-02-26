@@ -2,6 +2,8 @@
 
 以下是不变量与所有权规则，且应可被执行验证。
 
+语义治理唯一事实源见：`docs/harness/contracts/semantics-contract.md`。
+
 ## Single-Writer（REPL 语义）
 
 - Canonical semantics 与 projection 拥有 transcript 真值。

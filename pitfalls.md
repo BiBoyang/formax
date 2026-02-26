@@ -198,7 +198,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - close turns through canonical footer semantics
   - reset/remount transcript surface when static correction is non-append
   - keep `tool_end` terminal authority when footer is corrected later
-- **Links**: `docs/pitfalls/repl-transcript-surface-handoff-pitfall.md`, `docs/pitfalls/repl-transcript-static-rootcause.md`
+- **Links**: `docs/harness/pitfalls/repl-transcript-surface-handoff-pitfall.md`, `docs/harness/pitfalls/repl-transcript-static-rootcause.md`
 - **Keywords**: semantic handoff, tool duplicate, flicker, order inversion, surfaceOwner, turn_footer, tool_end
 
 ## `/v1/messages` “负载上限”伪错误：先分离 signature 与 header 路由问题
@@ -212,5 +212,5 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - 先修复 signature 透传；
   - 主请求单独做 header 二分，auto-title 单独统计；
   - 使用稳定主请求 header profile（见下方链接）。
-- **Links**: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`
+- **Links**: `docs/harness/pitfalls/anthropic-fake-overload-and-header-routing.md`
 - **Keywords**: anthropic, signature_delta, thinking.signature, header routing, auto-title, new_api_error, fake overload

@@ -293,7 +293,7 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Prefer reset over clear-only on Static transitions**: for return/toggle paths touching `Static`, use clear+remount transaction semantics; clear-only flows can leave stale appended rows.
 - **Surface reset workflow skill required on clear/reset changes**: for `/resume`, `/clear`, `onClearTerminal`, `transcriptSeq`, or `Static` remount paths, apply `formax-surface-reset-workflow` before implementation, and keep `/resume`/`/clear` on shared `replaceTranscript` transaction path.
 - **Resume selection must use shared surface reset transaction**: `/resume` Enter path should go through `resetTranscriptSurface` queue; avoid ad-hoc clear/remount sequencing and avoid duplicate terminal clear paths (`replInstance.clear` + ANSI).
-- **Anthropic `/v1/messages` fake-overload triage**: separate main turns from auto-title (`tools=0` + `thinking=false`) before A/B, and debug `thinking.signature` propagation separately from header profile routing. Details: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`.
+- **Anthropic `/v1/messages` fake-overload triage**: separate main turns from auto-title (`tools=0` + `thinking=false`) before A/B, and debug `thinking.signature` propagation separately from header profile routing. Details: `docs/harness/pitfalls/anthropic-fake-overload-and-header-routing.md`.
 
 ## Module Documentation
 

@@ -85,6 +85,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
+- Semantics governance contract (SoT): `docs/harness/contracts/semantics-contract.md`
 - Shared semantics source of truth:
   - Canonical event envelope/types: `src/features/semantics/core/canonicalEvents.ts`
   - Transcript projection reducer (segment model): `src/features/semantics/projection/transcriptProjection.ts`
@@ -244,8 +245,11 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Harness Governance (Contracts / Invariants)
 - Harness source-of-truth docs index: `docs/harness/index.md`
+- Project semantics contract (TUI/app-server/Web): `docs/harness/contracts/semantics-contract.md`
 - Interactive input semantic contract (approval + ask): `docs/harness/contracts/interactive-input-contract.md`
 - Interactive input form inventory (informative): `docs/harness/inventories/interactive-input-inventory.md`
+- Frontend governance (harness view): `docs/harness/FRONTEND.md`
+- Pitfalls deep-dive index: `docs/harness/pitfalls/index.md`
 - Layer contract config + baseline:
   - `scripts/layer-contract.config.json`
   - `scripts/check-layer-contracts.mjs`
