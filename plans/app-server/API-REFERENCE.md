@@ -4,7 +4,7 @@
 
 优先级说明：
 
-- 若与产品/合同文档冲突，以 `PRODUCT-SPEC.md` 与 `INTERACTION-CONTRACT.md` 为准。
+- 若与产品/合同文档冲突，以 `PRODUCT-SPEC.md`、`INTERACTION-CONTRACT.md` 与 `docs/harness/contracts/interactive-input-contract.md` 为准。
 - 本文档主要用于“对接与实现参考”，不作为协议决策源。
 
 - 传输：`stdio` + `JSONL`（每行一个 JSON）
@@ -180,6 +180,8 @@ type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 ```
 
 ## 4.3 Input（approval / ask_user_question）
+
+`approval` / `ask_user_question` 的行为语义（如 decision/scope、多选编码）以 `docs/harness/contracts/interactive-input-contract.md` 为准；本节仅定义字段结构与类型。
 
 ### kind
 

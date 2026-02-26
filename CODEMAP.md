@@ -243,7 +243,9 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Sub-agents (registry/runner/allowlist): `src/subagents/README.md`
 
 ## Harness Governance (Contracts / Invariants)
-- Harness source-of-truth docs: `docs/harness/README.md`
+- Harness source-of-truth docs index: `docs/harness/index.md`
+- Interactive input semantic contract (approval + ask): `docs/harness/contracts/interactive-input-contract.md`
+- Interactive input form inventory (informative): `docs/harness/inventories/interactive-input-inventory.md`
 - Layer contract config + baseline:
   - `scripts/layer-contract.config.json`
   - `scripts/check-layer-contracts.mjs`

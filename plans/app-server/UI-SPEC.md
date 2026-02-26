@@ -97,6 +97,8 @@ Transcript 类型要求（必须可区分）：
 
 ## 3.4 Input 工作流
 
+本节为 UI 摘要；交互输入语义的唯一事实源为：`docs/harness/contracts/interactive-input-contract.md`。
+
 1. input 入口位于中栏输入区锚定审批面板（dock/popup 形态），不是右栏。
 2. 表单提交必须带 `submissionId`（客户端生成）。
 3. `turn/input/submit` 返回状态要可见：
@@ -108,7 +110,7 @@ Transcript 类型要求（必须可区分）：
    - `canceled`
 4. ask_user_question 与 approval 为双形态：
    - ask_user_question：支持 `1 of N` 分页，`Dismiss/ESC`，最后一页 `Submit`。
-   - approval：仅审批选项 + `Submit`，无分页、无 dismiss。
+   - approval：允许 renderer 差异化（单步或多步），但提交语义必须与 `interactive-input-contract` 保持一致。
 5. ask 的 `1 of N` 表示单个 input 的 questions 分页，不是 pending 队列分页。
 6. 对 `INPUT_EXPIRED` 错误要展示“该输入已失效，需重新发起流程”。
 

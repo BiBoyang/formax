@@ -85,7 +85,8 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 
 ## Documentation Hygiene
 - Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
-- Harness governance source of truth: `docs/harness/README.md` (layer contracts, invariants, runbook, golden principles).
+- Harness governance source of truth index: `docs/harness/index.md` (layer contracts, invariants, runbook, golden principles).
+- Interactive input semantics source of truth (`approval` / `ask_user_question`): `docs/harness/contracts/interactive-input-contract.md`; when behavior changes, update this file first, then keep `plans/app-server/{INTERACTION-CONTRACT,API-REFERENCE,UI-SPEC}.md` as summary + links.
 - **CODEMAP update triggers**: If you (a) add a new entrypoint/wiring point, (b) extract a cross-cutting helper used by multiple subsystems (e.g. audit/logging), or (c) move/rename user-facing UI/tool files, update `CODEMAP.md` in the same commit so future debugging follows the new “go-to” path.
 - When you ship a behavior-alignment change, add/update a short learning note in the active planning docs under `plans/app-server/` so mapping decisions remain traceable.
 - For complex subsystems that have a local deep-dive README, keep it in sync when you change boundaries, control-flow, invariants, or extension points:

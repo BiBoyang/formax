@@ -10,6 +10,7 @@
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
 - UI 行为：`plans/app-server/UI-SPEC.md`
 - 接口参考：`plans/app-server/API-REFERENCE.md`
+- 交互输入唯一事实源：`docs/harness/contracts/interactive-input-contract.md`
 
 ## 学习记录（2026-02-25）
 
@@ -199,6 +200,8 @@ turn 通知到 canonical 的最小映射保证：
 - `previousMode` / `mode` 仅允许：`normal | acceptEdits | plan`
 
 ## 3.4 turn/inputRequested
+
+交互输入（`approval` / `ask_user_question`）语义细节以 `docs/harness/contracts/interactive-input-contract.md` 为准。
 
 - 载荷：`{ threadId, turnId, input }`
 - `input.kind` 仅允许：
