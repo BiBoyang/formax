@@ -8,10 +8,10 @@
 
 配套文档：
 
-- 协议与状态机：`plans/app-server/INTERACTION-CONTRACT.md`
-- UI 行为规范：`plans/app-server/UI-SPEC.md`
+- 协议与状态机：`docs/harness/contracts/app-server-interaction-contract.md`
+- UI 行为规范：`docs/harness/frontend/app-server-ui-spec.md`
 - 执行清单：`plans/app-server/TODO-INDEX.md`
-- 当前接口参考：`plans/app-server/API-REFERENCE.md`
+- 当前接口参考：`docs/harness/references/app-server-api-reference.md`
 
 ## 2. 背景与问题
 
@@ -112,7 +112,7 @@
 
 ## 8. 成功指标（开发阶段）
 
-- 协议变更必须同步更新 `INTERACTION-CONTRACT.md` 与 `API-REFERENCE.md`。
+- 协议变更必须同步更新 `docs/harness/contracts/app-server-interaction-contract.md` 与 `docs/harness/references/app-server-api-reference.md`。
 - reference client 端到端冒烟路径（thread + turn + input）在每次关键变更后可重复演示。
 - 新增功能 PR 必须附“受影响状态机路径”说明。
 

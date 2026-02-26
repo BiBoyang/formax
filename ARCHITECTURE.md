@@ -48,8 +48,8 @@ Formax 是一个“同一语义、三种入口”的代理系统：
 ### 2.4 Governance Docs（治理文档）
 
 1. 顶层导航：`AGENTS.md`, `CODEMAP.md`, `ARCHITECTURE.md`
-2. 合同事实源：`docs/harness/contracts/*`
-3. 摘要规范：`plans/app-server/*`
+2. 合同/规范事实源：`docs/harness/{contracts,references,frontend}/*`
+3. 过程计划与交接：`plans/app-server/{PRODUCT-SPEC.md,TODO-INDEX.md,HANDOFF.md}`
 
 职责：定义可维护的“先改哪层、后改哪层”的工程秩序。
 
@@ -102,8 +102,9 @@ policy/preflight 的解释与 remember 生效由执行层拥有，renderer 不�
 ### 3.3 文档边界
 
 1. 合同（Normative）在 `docs/harness/contracts/*`
-2. `plans/app-server/*` 是摘要与对接文档，不是最终事实源
-3. 同一能力不能存在两份同级权威说明
+2. 接口摘要与 UI 规范在 `docs/harness/{references,frontend}/*`，不覆盖合同真值
+3. `plans/app-server/*` 主要承载过程计划、交接与滚动 TODO
+4. 同一能力不能存在两份同级权威说明
 
 ## 4. Architectural Invariants
 
@@ -126,7 +127,7 @@ policy/preflight 的解释与 remember 生效由执行层拥有，renderer 不�
 1. 先更新事实源合同（`docs/harness/contracts/*.md`）
 2. 再改 semantics 与 adapter/runtime
 3. 再改 TUI/Web renderer
-4. 最后更新 `plans/app-server/*` 摘要与测试
+4. 最后更新 `docs/harness/{references,frontend,learnings}/*` 与相关测试（必要时同步 `plans/app-server/*` 过程文档）
 
 ## 7. References
 

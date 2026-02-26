@@ -18,7 +18,7 @@
 
 - 新成员按以下顺序阅读即可描述闭环：
   1. `plans/app-server/PRODUCT-SPEC.md`
-  2. `plans/app-server/INTERACTION-CONTRACT.md`
-  3. `plans/app-server/UI-SPEC.md`
-  4. `plans/app-server/API-REFERENCE.md`
+  2. `docs/harness/contracts/app-server-interaction-contract.md`
+  3. `docs/harness/frontend/app-server-ui-spec.md`
+  4. `docs/harness/references/app-server-api-reference.md`
 - 本次检查未发现字段命名冲突。

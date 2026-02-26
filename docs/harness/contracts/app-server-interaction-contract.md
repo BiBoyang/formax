@@ -8,14 +8,10 @@
 相关文档：
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
-- UI 行为：`plans/app-server/UI-SPEC.md`
-- 接口参考：`plans/app-server/API-REFERENCE.md`
+- UI 行为：`docs/harness/frontend/app-server-ui-spec.md`
+- 接口参考：`docs/harness/references/app-server-api-reference.md`
 - 交互输入唯一事实源：`docs/harness/contracts/interactive-input-contract.md`
-
-## 学习记录（2026-02-25）
-
-- 线程分组 `cwd` 不能只依赖 `session_meta.cwd`（首次创建目录），对 app-server turn 流应优先采用最新 `app_turn_started.cwd`，否则会把持续使用中的线程长期归到历史临时目录（例如 `resume-same-*`）下。
-- 覆盖摘要 `cwd` 时必须同步维护 `cwdReal`（realpath），否则 `/resume` 等同项目过滤会在符号链接/别名路径下出现误过滤。
+- 学习记录（非规范）：`docs/harness/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
 
 ## 1. 传输与握手合同
 
@@ -131,7 +127,7 @@
    - 破坏性变更：修改既有语义、必填字段、排序主键或终局判定规则。
 2. 若为破坏性变更：先升级 `schemaVersion`，并在 adapter 中增加双版本兼容分支。
 3. 同步更新：
-   - `plans/app-server/API-REFERENCE.md`
+   - `docs/harness/references/app-server-api-reference.md`
    - `src/features/semantics/core/canonicalEvents.ts`
    - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
 4. 增加跨入口 contract fixture（stream / notification / replay-like）回归测试。
@@ -346,8 +342,3 @@ turn 通知到 canonical 的最小映射保证：
 | envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 错误码常量 | `src/app-server/jsonrpc.ts` | `src/app-server/jsonrpc.test.ts` |
 | `PAYLOAD_TOO_LARGE`（request/event） | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts` | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts` |
-
-## 11. 行为对齐学习记录
-
-- 2026-02-23：`thread/start` 与 REPL 初次进入不再立即创建 session 文件，改为 provisional thread/session（仅内存）并在首个有效 turn 写入时 materialize 到磁盘。该策略避免产生大量“0 消息 session”，并保证 TUI 与 Web 的空会话可见性与持久化时机一致。
-- 2026-02-25：Web 侧“Remove session folder”改为服务端共享标记：`thread/group/hide` 写入 `FORMAX_CONFIG_DIR` 下的本地持久化文件，`thread/list` 返回 `hiddenGroupCwds` 供客户端过滤。该方案不绑定账号，但可在同一 app-server 的多客户端之间共享 folder 隐藏状态。

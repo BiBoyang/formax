@@ -17,10 +17,10 @@
 - 非语义层的实现细节优化
 
 相关文档（信息性镜像）：
-- `plans/app-server/INTERACTION-CONTRACT.md`
-- `plans/app-server/UI-SPEC.md`
-- `plans/app-server/API-REFERENCE.md`
-- `plans/app-server/SEMANTICS-ARCHITECTURE-BLUEPRINT.md`
+- `docs/harness/contracts/app-server-interaction-contract.md`
+- `docs/harness/frontend/app-server-ui-spec.md`
+- `docs/harness/references/app-server-api-reference.md`
+- `docs/harness/design/semantics-architecture-blueprint.md`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -70,8 +70,8 @@ Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection
 当变更语义行为（event mapping / projection / runtime state）时：
 1. 先更新本文件。
 2. 再更新 `src/features/semantics/*` 与对应 adapter。
-3. 同步更新 `INTERACTION-CONTRACT` / `UI-SPEC` / `API-REFERENCE` 的摘要描述（只做链接与摘要，不复制完整语义）。
-4. 在 `plans/app-server/` 记录学习条目或变更决策。
+3. 同步更新 `docs/harness/contracts/app-server-interaction-contract.md`、`docs/harness/frontend/app-server-ui-spec.md`、`docs/harness/references/app-server-api-reference.md` 的摘要描述（只做链接与摘要，不复制完整语义）。
+4. 在 `docs/harness/learnings/` 记录学习条目或变更决策（必要时再关联 `plans/app-server/` 执行文档）。
 
 ## 5. 一致性测试映射
 

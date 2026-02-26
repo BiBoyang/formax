@@ -8,7 +8,7 @@
 相关文档：
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
-- 协议合同：`plans/app-server/INTERACTION-CONTRACT.md`
+- 协议合同：`docs/harness/contracts/app-server-interaction-contract.md`
 - 执行清单：`plans/app-server/TODO-INDEX.md`
 
 ## 1. UI 目标

@@ -8,9 +8,9 @@
 发生冲突时，按以下优先级处理：
 
 1. `plans/app-server/PRODUCT-SPEC.md`（产品边界与发布门槛）
-2. `plans/app-server/INTERACTION-CONTRACT.md`（协议与状态机合同）
-3. `plans/app-server/UI-SPEC.md`（UI 功能行为规范）
-4. `plans/app-server/API-REFERENCE.md`（实现参考与示例）
+2. `docs/harness/contracts/app-server-interaction-contract.md`（协议与状态机合同）
+3. `docs/harness/frontend/app-server-ui-spec.md`（UI 功能行为规范）
+4. `docs/harness/references/app-server-api-reference.md`（实现参考与示例）
 5. 本文件 `plans/_archive/app-server/DESIGN.md`
 
 ## 1. 背景与目标

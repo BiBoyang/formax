@@ -91,7 +91,7 @@
 
 ### R3. 高频 streaming 下性能回退
 - 策略：changed-signal、dirty-id、批处理/节流；先做测量后调参。
-- 基线：`bun run check:semantic-streaming-perf`（见 `plans/app-server/PERF-BASELINE.md`）。
+- 基线：`bun run check:semantic-streaming-perf`（见 `docs/harness/baselines/semantic-streaming-perf.md`）。
 
 ### R4. 恢复路径与实时路径分叉
 - 策略：统一 replay-first 恢复流程；history 仅作为 fallback。
@@ -120,9 +120,9 @@
 ## 9. 与现有文档关系
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
-- 交互合同：`plans/app-server/INTERACTION-CONTRACT.md`
-- 接口手册：`plans/app-server/API-REFERENCE.md`
-- UI 规范：`plans/app-server/UI-SPEC.md`
+- 交互合同：`docs/harness/contracts/app-server-interaction-contract.md`
+- 接口手册：`docs/harness/references/app-server-api-reference.md`
+- UI 规范：`docs/harness/frontend/app-server-ui-spec.md`
 - 当前执行清单：`plans/app-server/TODO-INDEX.md`
 - 架构路线图（归档）：`plans/_archive/app-server/ARCHITECTURE-ROADMAP.md`
 

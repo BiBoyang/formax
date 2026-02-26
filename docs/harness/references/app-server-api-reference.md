@@ -4,8 +4,8 @@
 
 优先级说明：
 
-- 若与产品/合同文档冲突，以 `PRODUCT-SPEC.md`、`INTERACTION-CONTRACT.md` 与 `docs/harness/contracts/interactive-input-contract.md` 为准。
-- 本文档主要用于“对接与实现参考”，不作为协议决策源。
+- 若与产品/合同文档冲突，以 `plans/app-server/PRODUCT-SPEC.md`、`docs/harness/contracts/semantics-contract.md`、`docs/harness/contracts/app-server-interaction-contract.md` 与 `docs/harness/contracts/interactive-input-contract.md` 为准。
+- 本文档主要用于“字段结构 + 示例 + 对接实现参考”，不作为协议决策源。
 
 - 传输：`stdio` + `JSONL`（每行一个 JSON）
 - 协议：`JSON-RPC 2.0`
@@ -22,7 +22,7 @@
 
 前端开发时建议按以下顺序阅读，先定协议边界，再看实现细节：
 
-1. `plans/app-server/API-REFERENCE.md`
+1. `docs/harness/references/app-server-api-reference.md`
 2. `src/app-server/protocol.ts`
 3. `src/app-server/protocol/input.ts`
 4. `src/app-server/server.ts`
@@ -281,9 +281,9 @@ AskUserQuestion payload：
   - app-server 路径：envelope 必须由 server 侧完整产出；客户端不应补造后参与语义投影。
   - local TUI 路径：可由 runtime 本地产出 envelope，但必须与本节字段契约保持等价。
 
-版本治理规则（实施顺序）：
+版本治理规则（镜像说明，规范以 interaction contract 为准）：
 
-1. 先在 `INTERACTION-CONTRACT.md` 标注变更类型（兼容扩展 / 破坏性变更）。
+1. 先在 `docs/harness/contracts/app-server-interaction-contract.md` 标注变更类型（兼容扩展 / 破坏性变更）。
 2. 破坏性变更必须先升级 `schemaVersion`，再落 adapter 双版本兼容。
 3. 同步更新本节、`canonicalEvents.ts` 类型定义与 notification adapter。
 4. 必须补齐 cross-path contract fixture 回归（stream / notification / replay-like）。
