@@ -28,7 +28,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Serve command parsing/help text: `src/serve/command.ts`
 - Web command parsing/help text: `src/web/command.ts`
 - Shared web/bridge network + security helpers (host/port/url/origin/token): `src/network/runtime.ts`
-- Web reference React client (isolated app): `apps/web-reference-react/*`
+- Web reference React client (isolated app): `apps/web-reference-react/*` (see "Web Reference React Client")
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
 - Shared persisted tool-event reconstruction (used by app-server + REPL resume): `src/features/repl/sessionSave/persistedToolEvents.ts`
 - Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`
@@ -101,6 +101,20 @@ This file is a “where to change what” index for quickly navigating the codeb
   - Tool event normalizer: `apps/web-reference-react/src/toolEventNormalizer.ts`
   - Event cursor (eventId dedupe + replaySeq-first ordering): `apps/web-reference-react/src/turnEventCursor.ts`
   - Reducer integration points: `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/App.tsx`
+
+## Web Reference React Client
+- App package root (isolated deps/scripts): `apps/web-reference-react/package.json`
+- Vite entry + mount: `apps/web-reference-react/src/main.tsx`
+- App composition root: `apps/web-reference-react/src/App.tsx`
+- RPC client transport: `apps/web-reference-react/src/rpcClient.ts`
+- Runtime orchestration (initialize/notifications/replay/thread actions): `apps/web-reference-react/src/app/runtime/*`
+- Core state machines/contracts/selectors: `apps/web-reference-react/src/app/core/*`
+- App runtime hook boundary: `apps/web-reference-react/src/app/useAppRuntime.ts`
+- UI shell/layout: `apps/web-reference-react/src/app/ui/AppShell.tsx`
+- Transcript + tool rendering: `apps/web-reference-react/src/components/TranscriptPane.tsx`, `apps/web-reference-react/src/components/tool/*`
+- Pending-input/approval UI: `apps/web-reference-react/src/components/InputApprovalDock.tsx`, `apps/web-reference-react/src/components/approval/*`
+- Web parity adapters + reducers: `apps/web-reference-react/src/toolEventNormalizer.ts`, `apps/web-reference-react/src/turnEventCursor.ts`, `apps/web-reference-react/src/store.ts`
+- E2E protocol/UI specs + rpc mock: `apps/web-reference-react/e2e/*.spec.js`, `apps/web-reference-react/e2e/helpers/mockRpc.js`
 
 ## Permissions / Approvals (Claude Code-style)
 - Permissions store (read/merge/write settings): `src/adapters/permissions/permissionsStore.ts`
