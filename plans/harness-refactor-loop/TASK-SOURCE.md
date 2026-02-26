@@ -8,12 +8,12 @@
 
 ## Source Items（可派生条目）
 
-- `HRS-01-DOCS-SOT`: 建立并维护 Harness 单一事实源文档（`docs/harness/*`），只写可执行规则、验收命令、失败处理。
+- `HRS-01-DOCS-SOT`: 建立并维护 Harness 单一事实源文档（`docs/*`），只写可执行规则、验收命令、失败处理。
 - `HRS-02-LAYER-CONTRACT`: 落实 `Types -> Config -> Repo -> Service -> Runtime -> UI` 合同，维护映射、检查脚本与 baseline，仅阻断新增违规。
 - `HRS-03-CI-GATE`: 维护 `harness-checks` 门禁链路与节奏（软门禁 -> 硬门禁），保证验证项与 runbook 同步。
 - `HRS-04-TRACE-REPLAY`: 推进 trace 上下文连通与 realtime/replay 一致性契约测试。
 - `HRS-05-SINGLE-WRITER`: 维护 single-writer 护栏，禁止语义关键路径新增旁路 transcript 直接写入。
-- `HRS-06-REPO-KNOWLEDGE`: 让 repo 成为知识系统：AGENTS 仅做索引、规则下沉 docs/harness、变更沉淀到 `plans/app-server/` 并保持可追溯。
+- `HRS-06-REPO-KNOWLEDGE`: 让 repo 成为知识系统：AGENTS 仅做索引、规则下沉 `docs/`、变更沉淀到 `plans/app-server/` 并保持可追溯。
 - `HRS-07-ACCEPTANCE`: 维护验收场景与两级验证（PR 级 + 全量兜底）的一致性。
 - `HRS-08-COMPAT`: 维持公共接口与用户行为兼容，不做破坏性 CLI/API 变更。
 

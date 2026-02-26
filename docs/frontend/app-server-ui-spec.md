@@ -8,7 +8,7 @@
 相关文档：
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
-- 协议合同：`docs/harness/contracts/app-server-interaction-contract.md`
+- 协议合同：`docs/contracts/app-server-interaction-contract.md`
 - 执行清单：`plans/app-server/TODO-INDEX.md`
 
 ## 1. UI 目标
@@ -97,7 +97,7 @@ Transcript 类型要求（必须可区分）：
 
 ## 3.4 Input 工作流
 
-本节为 UI 摘要；交互输入语义的唯一事实源为：`docs/harness/contracts/interactive-input-contract.md`。
+本节为 UI 摘要；交互输入语义的唯一事实源为：`docs/contracts/interactive-input-contract.md`。
 
 1. input 入口位于中栏输入区锚定审批面板（dock/popup 形态），不是右栏。
 2. 表单提交必须带 `submissionId`（客户端生成）。

@@ -3,7 +3,7 @@
 更新时间：2026-02-26
 
 本文件是信息性盘点（informative inventory），用于统计当前形态。  
-`approval` / `ask_user_question` 的规范性唯一事实源已固定为：`docs/harness/contracts/interactive-input-contract.md`。
+`approval` / `ask_user_question` 的规范性唯一事实源已固定为：`docs/contracts/interactive-input-contract.md`。
 
 范围约束：
 - 本轮只统计 `approval` 与 `ask_user_question` 两类输入形态。
@@ -24,8 +24,8 @@
 2. `ask_user_question`
 
 参考：
-- `docs/harness/contracts/app-server-interaction-contract.md`
-- `docs/harness/references/app-server-api-reference.md`
+- `docs/contracts/app-server-interaction-contract.md`
+- `docs/references/app-server-api-reference.md`
 
 ### B. TUI 渲染口径：6 类
 
@@ -67,5 +67,5 @@
 ## 维护建议（当前）
 
 1. 本文件保持“盘点与映射”定位，不承载规范条款。
-2. 在 `docs/harness/frontend/app-server-ui-spec.md` 仅保留摘要并链接本文件，避免双写漂移。
+2. 在 `docs/frontend/app-server-ui-spec.md` 仅保留摘要并链接本文件，避免双写漂移。
 3. 为每个形态增加“对应测试文件”索引，形成规范 -> 测试的可追溯映射。

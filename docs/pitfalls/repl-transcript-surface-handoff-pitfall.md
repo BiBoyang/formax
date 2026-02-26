@@ -58,4 +58,4 @@ Rewriting previously rendered static rows without controlled remount/reset can c
 - `src/screens/repl/surfaceSmoke.test.tsx`
 
 ## Related Notes
-- `docs/harness/pitfalls/repl-transcript-static-rootcause.md`
+- `docs/pitfalls/repl-transcript-static-rootcause.md`

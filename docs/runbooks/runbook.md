@@ -51,7 +51,7 @@
 
 修复路径：
 1. 优先修复导入方向（移动调用入口或提取到左侧层）。
-2. 若违规属于有意设计，先补充架构说明（`plans/app-server/`）与规则文档（`docs/harness/contracts/layer-contract.md`）。
+2. 若违规属于有意设计，先补充架构说明（`plans/app-server/`）与规则文档（`docs/contracts/layer-contract.md`）。
 3. 仅在说明完成后更新 baseline：`node ./scripts/check-layer-contracts.mjs --write-baseline`。
 4. 再次执行 `bun run check:layer-contracts`。
 

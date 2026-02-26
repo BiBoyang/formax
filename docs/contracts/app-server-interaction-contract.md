@@ -8,10 +8,10 @@
 相关文档：
 
 - 产品边界：`plans/app-server/PRODUCT-SPEC.md`
-- UI 行为：`docs/harness/frontend/app-server-ui-spec.md`
-- 接口参考：`docs/harness/references/app-server-api-reference.md`
-- 交互输入唯一事实源：`docs/harness/contracts/interactive-input-contract.md`
-- 学习记录（非规范）：`docs/harness/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
+- UI 行为：`docs/frontend/app-server-ui-spec.md`
+- 接口参考：`docs/references/app-server-api-reference.md`
+- 交互输入唯一事实源：`docs/contracts/interactive-input-contract.md`
+- 学习记录（非规范）：`docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
 
 ## 1. 传输与握手合同
 
@@ -127,7 +127,7 @@
    - 破坏性变更：修改既有语义、必填字段、排序主键或终局判定规则。
 2. 若为破坏性变更：先升级 `schemaVersion`，并在 adapter 中增加双版本兼容分支。
 3. 同步更新：
-   - `docs/harness/references/app-server-api-reference.md`
+   - `docs/references/app-server-api-reference.md`
    - `src/features/semantics/core/canonicalEvents.ts`
    - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
 4. 增加跨入口 contract fixture（stream / notification / replay-like）回归测试。
@@ -197,7 +197,7 @@ turn 通知到 canonical 的最小映射保证：
 
 ## 3.4 turn/inputRequested
 
-交互输入（`approval` / `ask_user_question`）语义细节以 `docs/harness/contracts/interactive-input-contract.md` 为准。
+交互输入（`approval` / `ask_user_question`）语义细节以 `docs/contracts/interactive-input-contract.md` 为准。
 
 - 载荷：`{ threadId, turnId, input }`
 - `input.kind` 仅允许：

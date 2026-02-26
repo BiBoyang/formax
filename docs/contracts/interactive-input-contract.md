@@ -16,10 +16,10 @@
 - 与交互输入无关的 slash command 行为
 
 相关文档（信息性镜像）：
-- `docs/harness/contracts/app-server-interaction-contract.md`
-- `docs/harness/references/app-server-api-reference.md`
-- `docs/harness/frontend/app-server-ui-spec.md`
-- `docs/harness/inventories/interactive-input-inventory.md`
+- `docs/contracts/app-server-interaction-contract.md`
+- `docs/references/app-server-api-reference.md`
+- `docs/frontend/app-server-ui-spec.md`
+- `docs/inventories/interactive-input-inventory.md`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -167,7 +167,7 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 当变更 `approval` 或 `ask_user_question` 行为时：
 1. 先更新本文件。
 2. 在同一变更中更新实现与测试。
-3. 将 `docs/harness/contracts/app-server-interaction-contract.md`、`docs/harness/references/app-server-api-reference.md`、`docs/harness/frontend/app-server-ui-spec.md` 保持为摘要 + 链接，不重复完整语义。
-4. 对行为对齐变更，在 `docs/harness/learnings/` 下补充一条简短学习记录（必要时再关联 `plans/app-server/`）。
+3. 将 `docs/contracts/app-server-interaction-contract.md`、`docs/references/app-server-api-reference.md`、`docs/frontend/app-server-ui-spec.md` 保持为摘要 + 链接，不重复完整语义。
+4. 对行为对齐变更，在 `docs/learnings/` 下补充一条简短学习记录（必要时再关联 `plans/app-server/`）。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

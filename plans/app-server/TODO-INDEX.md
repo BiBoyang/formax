@@ -3,7 +3,7 @@
 更新时间：2026-02-18
 任务来源（唯一）：
 - `plans/_archive/app-server/ARCHITECTURE-ROADMAP.md`
-- `docs/harness/design/semantics-architecture-blueprint.md`
+- `docs/design/semantics-architecture-blueprint.md`
 
 > 本清单只保留未完成任务。历史完成记录以 Git commit 为准。
 

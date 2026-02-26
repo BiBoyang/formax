@@ -17,5 +17,5 @@
 
 ## 相关文档
 
-- `docs/harness/contracts/app-server-interaction-contract.md`
+- `docs/contracts/app-server-interaction-contract.md`
 - `plans/app-server/HANDOFF.md`

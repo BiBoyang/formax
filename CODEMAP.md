@@ -85,7 +85,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
-- Semantics governance contract (SoT): `docs/harness/contracts/semantics-contract.md`
+- Semantics governance contract (SoT): `docs/contracts/semantics-contract.md`
 - Shared semantics source of truth:
   - Canonical event envelope/types: `src/features/semantics/core/canonicalEvents.ts`
   - Transcript projection reducer (segment model): `src/features/semantics/projection/transcriptProjection.ts`
@@ -243,20 +243,21 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Streaming (SSE parsing + tool execution): `src/streaming/README.md`
 - Sub-agents (registry/runner/allowlist): `src/subagents/README.md`
 
-## Harness Governance (Contracts / Invariants)
-- Harness source-of-truth docs index: `docs/harness/index.md`
-- Project semantics contract (TUI/app-server/Web): `docs/harness/contracts/semantics-contract.md`
-- Interactive input semantic contract (approval + ask): `docs/harness/contracts/interactive-input-contract.md`
-- App-server interaction contract: `docs/harness/contracts/app-server-interaction-contract.md`
-- App-server API reference: `docs/harness/references/app-server-api-reference.md`
-- App-server Web UI spec: `docs/harness/frontend/app-server-ui-spec.md`
-- Interactive input form inventory (informative): `docs/harness/inventories/interactive-input-inventory.md`
-- Frontend governance (harness view): `docs/harness/FRONTEND.md`
-- App-server manual runbook: `docs/harness/runbooks/app-server-manual-runbook.md`
-- Semantic streaming perf baseline: `docs/harness/baselines/semantic-streaming-perf.md`
-- REPL single-writer audit: `docs/harness/audits/repl-single-writer-audit.md`
-- Semantics blueprint + learnings: `docs/harness/design/semantics-architecture-blueprint.md`, `docs/harness/learnings/*`
-- Pitfalls deep-dive index: `docs/harness/pitfalls/index.md`
+## Docs Governance (Contracts / Invariants)
+- Docs source-of-truth index: `docs/index.md`
+- Project semantics contract (TUI/app-server/Web): `docs/contracts/semantics-contract.md`
+- Interactive input semantic contract (approval + ask): `docs/contracts/interactive-input-contract.md`
+- Runtime environment-variable source of truth: `docs/environment-variables.md`
+- App-server interaction contract: `docs/contracts/app-server-interaction-contract.md`
+- App-server API reference: `docs/references/app-server-api-reference.md`
+- App-server Web UI spec: `docs/frontend/app-server-ui-spec.md`
+- Interactive input form inventory (informative): `docs/inventories/interactive-input-inventory.md`
+- Frontend governance index: `docs/FRONTEND.md`
+- App-server manual runbook: `docs/runbooks/app-server-manual-runbook.md`
+- Semantic streaming perf baseline: `docs/baselines/semantic-streaming-perf.md`
+- REPL single-writer audit: `docs/audits/repl-single-writer-audit.md`
+- Semantics blueprint + learnings: `docs/design/semantics-architecture-blueprint.md`, `docs/learnings/*`
+- Pitfalls deep-dive index: `docs/pitfalls/index.md`
 - Layer contract config + baseline:
   - `scripts/layer-contract.config.json`
   - `scripts/check-layer-contracts.mjs`

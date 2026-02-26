@@ -7,7 +7,7 @@
 - `plans/app-server/TODO-INDEX.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
   - 当前状态：滚动执行清单（旧 `TODO.md` 已归档/删除，避免噪音）。
   - 关联实现：`apps/web-reference-react/`（React reference client）
-  - 验收记录模板：`docs/harness/runbooks/app-server-manual-runbook.md`
+  - 验收记录模板：`docs/runbooks/app-server-manual-runbook.md`
 
 ## 并行参考（不作为主线推进）
 

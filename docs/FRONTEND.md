@@ -1,4 +1,4 @@
-# FRONTEND（Harness 索引）
+# FRONTEND（Docs 索引）
 
 最后更新：2026-02-27
 
@@ -7,11 +7,11 @@
 
 ## 1. 阅读顺序（由高到低）
 
-1. 项目语义合同（SoT）：`docs/harness/contracts/semantics-contract.md`
-2. 交互输入合同（SoT）：`docs/harness/contracts/interactive-input-contract.md`
-3. app-server 行为合同：`docs/harness/contracts/app-server-interaction-contract.md`
-4. app-server UI 行为规范（前端具体实现摘要）：`docs/harness/frontend/app-server-ui-spec.md`
-5. app-server API 参考（字段与示例）：`docs/harness/references/app-server-api-reference.md`
+1. 项目语义合同（SoT）：`docs/contracts/semantics-contract.md`
+2. 交互输入合同（SoT）：`docs/contracts/interactive-input-contract.md`
+3. app-server 行为合同：`docs/contracts/app-server-interaction-contract.md`
+4. app-server UI 行为规范（前端具体实现摘要）：`docs/frontend/app-server-ui-spec.md`
+5. app-server API 参考（字段与示例）：`docs/references/app-server-api-reference.md`
 
 ## 2. 责任边界
 
@@ -34,6 +34,6 @@
 ## 5. 文档更新顺序
 
 当前端行为变更涉及语义或交互输入时：
-1. 先更新 `docs/harness/contracts/*.md`（事实源）。
+1. 先更新 `docs/contracts/*.md`（事实源）。
 2. 再更新实现与测试。
-3. 最后更新 `docs/harness/{frontend,references}/*.md` 摘要（必要时再同步 `plans/app-server/*` 过程文档）。
+3. 最后更新 `docs/{frontend,references}/*.md` 摘要（必要时再同步 `plans/app-server/*` 过程文档）。

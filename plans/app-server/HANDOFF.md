@@ -35,8 +35,8 @@ bun run check:semantic-streaming-perf
 
 ## 相关文档入口
 
-- 架构蓝图：`docs/harness/design/semantics-architecture-blueprint.md`
-- 协议约束：`docs/harness/contracts/app-server-interaction-contract.md`
-- API 语义：`docs/harness/references/app-server-api-reference.md`
-- 单写入审计：`docs/harness/audits/repl-single-writer-audit.md`
-- 性能基线：`docs/harness/baselines/semantic-streaming-perf.md`
+- 架构蓝图：`docs/design/semantics-architecture-blueprint.md`
+- 协议约束：`docs/contracts/app-server-interaction-contract.md`
+- API 语义：`docs/references/app-server-api-reference.md`
+- 单写入审计：`docs/audits/repl-single-writer-audit.md`
+- 性能基线：`docs/baselines/semantic-streaming-perf.md`
