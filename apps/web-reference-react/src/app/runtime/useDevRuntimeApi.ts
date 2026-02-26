@@ -1,13 +1,24 @@
 import { useEffect, type Dispatch } from 'react'
 import type { AppAction } from '../../store'
 
+type DevInputBaseOverrides = {
+  inputId?: string
+  threadId?: string
+  turnId?: string
+  toolUseId?: string
+}
+
+type DevApprovalOverrides = DevInputBaseOverrides & {
+  toolName?: string
+  action?: unknown
+  effectiveDecision?: unknown
+  suggestions?: string[]
+  workspaceRequest?: { dir: string } | null
+}
+
 type DevApiWindow = Window & {
-  __formaxDevAskUserQuestion?: (overrides?: {
-    inputId?: string
-    threadId?: string
-    turnId?: string
-    toolUseId?: string
-  }) => string
+  __formaxDevAskUserQuestion?: (overrides?: DevInputBaseOverrides) => string
+  __formaxDevApprovalInput?: (overrides?: DevApprovalOverrides) => string
   __formaxDevClearPendingInputs?: () => void
 }
 
@@ -88,12 +99,46 @@ export function useDevRuntimeApi(args: UseDevRuntimeApiArgs): void {
       return inputId
     }
 
+    devWindow.__formaxDevApprovalInput = (overrides) => {
+      const now = Date.now()
+      const inputId = overrides?.inputId ?? `dev-approval-${now}`
+      const threadId = overrides?.threadId ?? activeThreadId ?? 'dev-thread'
+      const turnId = overrides?.turnId ?? activeTurnId ?? `dev-turn-${now}`
+      const toolUseId = overrides?.toolUseId ?? `dev-tool-approval-${now}`
+      const createdAt = new Date(now).toISOString()
+      const expiresAt = new Date(now + 10 * 60 * 1000).toISOString()
+
+      dispatch({
+        type: 'input_requested',
+        input: {
+          inputId,
+          threadId,
+          turnId,
+          toolUseId,
+          kind: 'approval',
+          status: 'pending',
+          createdAt,
+          expiresAt,
+          payload: {
+            toolName: overrides?.toolName ?? 'Bash',
+            action: overrides?.action ?? { kind: 'bash.exec', command: 'npm run test' },
+            effectiveDecision: overrides?.effectiveDecision ?? { decision: 'ask' },
+            ...(Array.isArray(overrides?.suggestions) ? { suggestions: overrides.suggestions } : {}),
+            ...(overrides?.workspaceRequest !== undefined ? { workspaceRequest: overrides.workspaceRequest } : {}),
+          },
+        },
+      })
+      dispatch({ type: 'set_selected_input', inputId })
+      return inputId
+    }
+
     devWindow.__formaxDevClearPendingInputs = () => {
       dispatch({ type: 'clear_pending_inputs' })
     }
 
     return () => {
       delete devWindow.__formaxDevAskUserQuestion
+      delete devWindow.__formaxDevApprovalInput
       delete devWindow.__formaxDevClearPendingInputs
     }
   }, [activeThreadId, activeTurnId, dispatch, enabled])

@@ -3028,7 +3028,49 @@ describe('App thread history integration', () => {
     expect(screen.getByTestId('composer')).toBeInTheDocument()
   })
 
-  it('renders approval dock without pager and submits through turn/input/submit', async () => {
+  it('keeps approval dock non-modal and hides it after switching to a session without pending input', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-switch:1',
+          traceId: 'trace-approval-switch',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-switch',
+          input: {
+            inputId: 'input-approval-switch-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-switch',
+            toolUseId: 'approval-tool-switch-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Bash',
+              action: { kind: 'bash.exec', command: 'echo hello' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+
+    expect(await screen.findByText('beta reply')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+    })
+  })
+
+  it('submits bash remember approval directly without scope step', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -3106,8 +3148,10 @@ describe('App thread history integration', () => {
     expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
     expect(screen.getByText('approval:pending')).toBeInTheDocument()
     expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Approval step')).toHaveTextContent('1 of 1')
 
-    fireEvent.click(screen.getByRole('button', { name: /3\. No/i }))
+    fireEvent.click(screen.getByRole('button', { name: /2\. Approve and remember/i }))
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
 
     await waitFor(() => {
@@ -3118,7 +3162,109 @@ describe('App thread history integration', () => {
             (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.inputId ===
               'input-approval-1' &&
             (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.answers?.decision ===
-              'reject',
+              'approve_remember' &&
+            !Object.prototype.hasOwnProperty.call(
+              (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.answers ?? {},
+              'scope',
+            ),
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('submits scope in second step when approval remember requires policy scope', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return { accepted: true, status: 'accepted' }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-scope:1',
+          traceId: 'trace-approval-scope',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-scope',
+          input: {
+            inputId: 'input-approval-scope-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-scope',
+            toolUseId: 'approval-tool-scope-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Read',
+              action: { kind: 'fs.read', path: '/tmp/outside.txt' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /2\. Approve and remember/i }))
+    expect(screen.getByLabelText('Approval step')).toHaveTextContent('1 of 2')
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.getByLabelText('Approval step')).toHaveTextContent('2 of 2')
+
+    fireEvent.click(screen.getByRole('button', { name: /2\. Project/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/input/submit' &&
+            (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.inputId ===
+              'input-approval-scope-1' &&
+            (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.answers?.decision ===
+              'approve_remember' &&
+            (entry.params as { inputId?: string; answers?: Record<string, string> } | undefined)?.answers?.scope ===
+              'project',
         ),
       ).toBe(true)
     })

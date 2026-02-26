@@ -21,6 +21,62 @@ type AskQuestionPagerPanelProps = {
   onSubmit: (answers: Record<string, string>) => void
 }
 
+function parseMultiSelectValue(rawValue: string): string[] {
+  const values: string[] = []
+  let current = ''
+  let escaped = false
+
+  for (const char of rawValue) {
+    if (escaped) {
+      current += char
+      escaped = false
+      continue
+    }
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+    if (char === ',') {
+      const normalized = current.trim()
+      if (normalized.length > 0) values.push(normalized)
+      current = ''
+      continue
+    }
+    current += char
+  }
+
+  if (escaped) current += '\\'
+  const normalized = current.trim()
+  if (normalized.length > 0) values.push(normalized)
+  return values
+}
+
+function toMultiSelectValue(labels: string[]): string {
+  return labels
+    .map((label) => label.replace(/\\/g, '\\\\').replace(/,/g, '\\,'))
+    .join(', ')
+}
+
+function buildAskSubmitAnswers(
+  questions: PresentationAskQuestion[],
+  draftValues: Record<string, string>,
+): Record<string, string> {
+  const answers = buildAskAnswersFromDraft(questions, draftValues)
+  questions.forEach((question, index) => {
+    if (!question.multiSelect) return
+    const fieldId = fieldIdForAskQuestion(question, index)
+    answers[fieldId] = parseMultiSelectValue(answers[fieldId] ?? '').join(', ')
+  })
+  return answers
+}
+
+function hasQuestionAnswer(question: PresentationAskQuestion, rawValue: string): boolean {
+  if (question.multiSelect && question.options.length > 0) {
+    return parseMultiSelectValue(rawValue).length > 0
+  }
+  return rawValue.trim().length > 0
+}
+
 export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   const {
     inputId,
@@ -39,10 +95,15 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   const current = questions[clampedPageIndex]
   const currentFieldId = current ? fieldIdForAskQuestion(current, clampedPageIndex) : ''
   const currentValue = currentFieldId ? (draftValues[currentFieldId] ?? '') : ''
-  const canMoveForward = currentValue.trim().length > 0
+  const currentMultiValues = useMemo(() => parseMultiSelectValue(currentValue), [currentValue])
+  const canMoveForward = current ? hasQuestionAnswer(current, currentValue) : false
   const isLastPage = clampedPageIndex >= totalPages - 1
   const canSubmitAll = useMemo(
-    () => questions.every((question, index) => (draftValues[fieldIdForAskQuestion(question, index)] ?? '').trim().length > 0),
+    () =>
+      questions.every((question, index) => {
+        const fieldId = fieldIdForAskQuestion(question, index)
+        return hasQuestionAnswer(question, draftValues[fieldId] ?? '')
+      }),
     [draftValues, questions],
   )
 
@@ -61,11 +122,11 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   if (!current) {
     return (
       <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
-        <h3 className="text-xl font-semibold tracking-tight text-foreground">No questions available</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <h3 className="px-3 py-2 text-[15px] font-semibold tracking-tight text-foreground">No questions available</h3>
+        <p className="px-3 text-sm text-muted-foreground">
           This request does not include any valid questions. You can dismiss it and continue in composer.
         </p>
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3 px-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
               Dismiss
@@ -76,6 +137,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
       </ApprovalPanelSurface>
     )
   }
+
   const options = Array.isArray(current.options) ? current.options : []
   const title = current.question?.trim() || current.header?.trim() || 'Question'
 
@@ -83,7 +145,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
     <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
       <div className="flex items-start justify-between gap-2 px-3">
         <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{title}</h3>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
           <button
             type="button"
             aria-label="Previous question"
@@ -106,20 +168,36 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         </div>
       </div>
 
-      <div className="mt-1 space-y-0.5">
+      <div className="mt-1 space-y-1">
         {options.length > 0 ? (
-          options.map((option, optionIndex) => {
-            const selected = currentValue === option.label
-            return (
-              <ApprovalOptionButton
-                key={`${currentFieldId}-${option.label}`}
-                onClick={() => onDraftChange(currentFieldId, option.label)}
-                selected={selected}
-                primaryText={`${optionIndex + 1}. ${option.label}`}
-                secondaryText={option.description}
-              />
-            )
-          })
+          <>
+            {current.multiSelect ? (
+              <div className="px-1 text-xs text-muted-foreground">Select one or more options.</div>
+            ) : null}
+            {options.map((option, optionIndex) => {
+              const selected = current.multiSelect
+                ? currentMultiValues.includes(option.label)
+                : currentValue === option.label
+              return (
+                <ApprovalOptionButton
+                  key={`${currentFieldId}-${option.label}`}
+                  onClick={() => {
+                    if (current.multiSelect) {
+                      const nextValues = currentMultiValues.includes(option.label)
+                        ? currentMultiValues.filter((value) => value !== option.label)
+                        : [...currentMultiValues, option.label]
+                      onDraftChange(currentFieldId, toMultiSelectValue(nextValues))
+                      return
+                    }
+                    onDraftChange(currentFieldId, option.label)
+                  }}
+                  selected={selected}
+                  primaryText={`${optionIndex + 1}. ${option.label}`}
+                  secondaryText={option.description}
+                />
+              )
+            })}
+          </>
         ) : (
           <Input
             aria-label="Question answer"
@@ -131,7 +209,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         )}
       </div>
 
-      <div className="mt-1.5 flex items-center justify-between gap-2">
+      <div className="mt-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Button type="button" variant="ghost" size="sm" className="h-8 px-3 text-sm" onClick={onDismiss}>
             Dismiss
@@ -142,13 +220,13 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
           type="button"
           onClick={() => {
             if (isLastPage) {
-              onSubmit(buildAskAnswersFromDraft(questions, draftValues))
+              onSubmit(buildAskSubmitAnswers(questions, draftValues))
               return
             }
             onPageChange(clampedPageIndex + 1)
           }}
           disabled={isSubmitting || (isLastPage ? !canSubmitAll : !canMoveForward)}
-          className="h-8 rounded-full px-6 text-sm font-medium"
+          className="h-8 rounded-full px-5 text-sm font-medium"
         >
           {isSubmitting ? 'Submitting...' : isLastPage ? 'Submit' : 'Continue'}
         </Button>

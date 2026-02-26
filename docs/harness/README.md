@@ -24,6 +24,7 @@
 - 不变量与所有权规则：`docs/harness/invariants.md`
 - 失败排障与命令顺序：`docs/harness/runbook.md`
 - Golden Principles 护栏：`docs/harness/golden-principles.md`
+- TUI 交互输入盘点（approval / ask）：`docs/harness/interactive-input-inventory.md`
 
 ## 执行模型
 

@@ -40,12 +40,11 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
   } = props
 
   if (!input) return null
-  const kindLabel = input.kind === 'approval' ? 'approval' : 'ask_user_question'
   const isAskInput = input.kind === 'ask_user_question'
 
   return (
     <div data-testid="input-approval-dock-host" className="absolute inset-x-0 bottom-4 px-4 pointer-events-none">
-      <div className="mx-auto max-w-3xl pointer-events-auto">
+      <div className="mx-auto max-w-[42rem] pointer-events-auto">
         {submitStatus ? (
           <div className="mb-3 rounded-xl border bg-background/95 px-3 py-2 text-xs text-muted-foreground">
             <span className={submitStatus.kind === 'error' ? 'text-red-600' : 'text-emerald-700'}>
@@ -87,8 +86,6 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
             onSubmit={(answers) => onSubmitInput(input.inputId, answers)}
           />
         )}
-
-        <div className="mt-2 px-1 text-[11px] text-muted-foreground/80">{`Pending ${kindLabel}: ${input.toolUseId}`}</div>
       </div>
     </div>
   )
