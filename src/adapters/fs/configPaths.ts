@@ -21,8 +21,7 @@ export type ConfigPaths = {
 }
 
 function expandLeadingTilde(inputPath: string, homedir: string): string {
-  const raw = String(inputPath || '').trim()
-  if (!raw) return raw
+  const raw = String(inputPath).trim()
   if (raw === '~') return homedir
   if (raw.startsWith('~/') || raw.startsWith('~\\')) return path.join(homedir, raw.slice(2))
   return raw

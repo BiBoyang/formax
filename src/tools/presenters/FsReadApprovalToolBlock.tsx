@@ -20,7 +20,6 @@ export function FsReadApprovalToolBlock({
       title={title}
       directoryPath={directoryPath}
       onDecision={(d) => {
-        if (!userInput) return
         if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
         else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
         else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
@@ -29,4 +28,3 @@ export function FsReadApprovalToolBlock({
     />
   )
 }
-

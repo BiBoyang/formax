@@ -34,5 +34,27 @@ describe('getConnectionTestHint', () => {
     })
     expect(network?.lines.join(' ')).toContain('DNS')
   })
-})
 
+  it('falls back when baseUrl is empty and returns null for unsupported error codes', () => {
+    const timeout = getConnectionTestHint({
+      provider: 'anthropic',
+      baseUrl: '   ',
+      error: { ok: false, code: ErrorCode.Timeout, message: 'timeout' },
+    })
+    expect(timeout?.lines[0]).toBe('Verify the base URL is reachable.')
+
+    const network = getConnectionTestHint({
+      provider: 'anthropic',
+      baseUrl: '',
+      error: { ok: false, code: ErrorCode.NetworkError, message: 'network' },
+    })
+    expect(network?.lines[0]).toBe('Verify the base URL is correct and reachable.')
+
+    const unknown = getConnectionTestHint({
+      provider: 'anthropic',
+      baseUrl: '',
+      error: { ok: false, code: ErrorCode.Unknown, message: 'unknown' },
+    })
+    expect(unknown).toBeNull()
+  })
+})

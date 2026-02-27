@@ -41,6 +41,7 @@
     "test:watch": "vitest",
     "test:changed": "node ./scripts/test-changed.mjs",
     "test:coverage": "vitest run --coverage --testTimeout 30000",
+    "test:coverage:backlog": "vitest run --coverage --testTimeout 30000 && node ./scripts/write-coverage-backlog.mjs",
     "test:coverage:watch": "vitest --coverage --testTimeout 30000",
     "test:coverage:gate": "vitest run --coverage --testTimeout 30000 && node ./scripts/check-coverage-thresholds.mjs",
     "check:partial-stage": "node ./scripts/check-partial-stage.mjs",

@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
+import os from 'node:os'
 import { getConfigPaths } from './configPaths'
 
 describe('getConfigPaths', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('supports macOS global config dir', () => {
     const homedir = '/Users/alice'
     const paths = getConfigPaths({ cwd: '/repo', homedir, platform: 'darwin', env: {} as any })
@@ -59,5 +64,78 @@ describe('getConfigPaths', () => {
       env: { FORMAX_CONFIG_DIR: 'undefined' } as any,
     })
     expect(paths.globalConfigDir).toBe('/home/alice/.formax')
+  })
+
+  it('treats literal "null" FORMAX_CONFIG_DIR as unset', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: { FORMAX_CONFIG_DIR: 'null' } as any,
+    })
+    expect(paths.globalConfigDir).toBe('/home/alice/.formax')
+  })
+
+  it('expands home directory when FORMAX_CONFIG_DIR is "~"', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: { FORMAX_CONFIG_DIR: '~' } as any,
+    })
+    expect(paths.globalConfigDir).toBe('/home/alice')
+  })
+
+  it('expands windows-style leading tilde path', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: { FORMAX_CONFIG_DIR: '~\\.formax' } as any,
+    })
+    expect(paths.globalConfigDir).toBe(path.join('/home/alice', '.formax'))
+  })
+
+  it('supports Windows legacy dir using APPDATA', () => {
+    const paths = getConfigPaths({
+      cwd: 'C:\\repo',
+      homedir: 'C:\\Users\\alice',
+      platform: 'win32',
+      env: { APPDATA: 'C:\\Users\\alice\\AppData\\Roaming' } as any,
+    })
+    expect(paths.legacyConfigDir).toBe(path.join('C:\\Users\\alice\\AppData\\Roaming', 'formax'))
+  })
+
+  it('supports Windows legacy dir fallback without APPDATA', () => {
+    const paths = getConfigPaths({
+      cwd: 'C:\\repo',
+      homedir: 'C:\\Users\\alice',
+      platform: 'win32',
+      env: {} as any,
+    })
+    expect(paths.legacyConfigDir).toBe(path.join('C:\\Users\\alice', 'AppData', 'Roaming', 'formax'))
+  })
+
+  it('falls back to ~/.config when XDG_CONFIG_HOME is unset', () => {
+    const paths = getConfigPaths({
+      cwd: '/repo',
+      homedir: '/home/alice',
+      platform: 'linux',
+      env: {} as any,
+    })
+    expect(paths.legacyConfigDir).toBe('/home/alice/.config/formax')
+  })
+
+  it('uses process defaults when args values are undefined', () => {
+    vi.spyOn(process, 'cwd').mockReturnValue('/repo-default')
+    vi.spyOn(os, 'homedir').mockReturnValue('/home/default')
+    const paths = getConfigPaths({
+      cwd: undefined,
+      env: undefined,
+      platform: undefined,
+      homedir: undefined,
+    } as any)
+    expect(paths.projectConfigDir).toBe('/repo-default/.formax')
+    expect(paths.globalConfigDir).toBe('/home/default/.formax')
   })
 })

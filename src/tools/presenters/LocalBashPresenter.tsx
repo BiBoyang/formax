@@ -13,7 +13,8 @@ function parseCommand(input: unknown): string {
 }
 
 function toLines(text: string): string[] {
-  const normalized = String(text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const normalized = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  if (!normalized) return []
   // Keep empty lines; CC renders them too.
   return normalized.split('\n')
 }

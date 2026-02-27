@@ -47,6 +47,26 @@ describe('KillShellToolPresenter', () => {
     expect(frame).not.toContain('⎿')
   })
 
+  it('uses unknown header params when shell_id is missing', () => {
+    const message: Msg = {
+      id: 'tool-unknown-shell',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'KillShell',
+        status: 'running',
+        input: {},
+      },
+    }
+
+    const { lastFrame } = renderPresenter(message)
+    const frame = lastFrame()
+
+    expect(frame).toContain('KillShell')
+    expect(frame).toContain('(unknown)')
+  })
+
   it('renders "Killed" when ok=true', () => {
     const message: Msg = {
       id: 'tool-1',
@@ -153,5 +173,23 @@ describe('KillShellToolPresenter', () => {
     expect(frame).toContain('⎿')
     expect(frame).toContain('Error: Unknown')
     expect(frame).not.toContain('Killed')
+  })
+
+  it('falls back to "Failed" when neither content nor parsed status is available', () => {
+    const message: Msg = {
+      id: 'tool-failed-fallback',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'KillShell',
+        status: 'error',
+        input: { shell_id: 's1' },
+        result: '',
+      },
+    }
+
+    const { lastFrame } = renderPresenter(message)
+    expect(lastFrame()).toContain('Failed')
   })
 })

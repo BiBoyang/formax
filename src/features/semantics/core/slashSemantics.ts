@@ -11,7 +11,7 @@ function parseCommandName(rawText: string): string | null {
   const trimmed = rawText.trim()
   if (!trimmed.startsWith('/')) return null
   const [head] = trimmed.split(/\s+/, 1)
-  return head ? head.toLowerCase() : null
+  return head.toLowerCase()
 }
 
 export function resolveSlashSemantics(rawText: string): SlashResolution {

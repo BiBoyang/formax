@@ -60,4 +60,22 @@ describe('createLlmClients', () => {
       }),
     ).toThrow('Missing llm.model in runtime config')
   })
+
+  it('throws when runtime config model is missing entirely', () => {
+    expect(() =>
+      createLlmClients({
+        cfg: {
+          llm: {
+            provider: 'anthropic',
+            apiKey: 'k',
+            baseUrl: 'https://api.anthropic.com/v1',
+            model: undefined,
+            timeoutMs: 1000,
+            thinkingMode: false,
+          },
+        } as any,
+        env: {} as any,
+      }),
+    ).toThrow('Missing llm.model in runtime config')
+  })
 })

@@ -1,0 +1,264 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { state } = vi.hoisted(() => ({
+  state: {
+    transport: {
+      lines: [] as string[],
+      sent: [] as unknown[],
+      send: async (message: unknown) => {
+        state.transport.sent.push(message)
+      },
+    },
+    appServerOptions: null as any,
+    handleMessage: (async () => []) as (message: unknown, options: any) => Promise<unknown[]>,
+    createRuntimeSpy: vi.fn(async () => ({
+      engine: {},
+      tools: {},
+      allowedSubagents: [],
+      cfg: {
+        llm: { model: 'claude-3-5-sonnet', thinkingMode: true },
+        ui: { promptProfile: 'default' },
+      },
+      userInputManager: {},
+    })),
+    turnRunnerCtorArgs: [] as any[],
+  },
+}))
+
+vi.mock('./transport/stdio.js', () => {
+  class StdioPayloadTooLargeError extends Error {
+    maxBytes: number
+    actualBytes: number
+
+    constructor(maxBytes: number, actualBytes: number) {
+      super('PAYLOAD_TOO_LARGE')
+      this.maxBytes = maxBytes
+      this.actualBytes = actualBytes
+    }
+  }
+
+  return {
+    createStdioJsonlTransport: () => ({
+      send: (message: unknown) => state.transport.send(message),
+      listen: async (onLine: (line: string) => Promise<void>) => {
+        for (const line of state.transport.lines) {
+          await onLine(line)
+        }
+      },
+    }),
+    StdioPayloadTooLargeError,
+  }
+})
+
+vi.mock('./server.js', () => ({
+  AppServer: class {
+    options: any
+
+    constructor(options: any) {
+      this.options = options
+      state.appServerOptions = options
+    }
+
+    createTurnNotificationEmitter() {
+      return () => {}
+    }
+
+    async handleMessage(message: unknown) {
+      return state.handleMessage(message, this.options)
+    }
+  },
+}))
+
+vi.mock('../runtime/createRuntime.js', () => ({
+  createRuntime: (...args: unknown[]) => state.createRuntimeSpy(...args),
+}))
+
+vi.mock('./turnRunner.js', () => ({
+  DEFAULT_INPUT_TTL_MS: 60_000,
+  DEFAULT_MAX_PENDING_INPUTS_PER_THREAD: 5,
+  TurnRunner: class {
+    constructor(args: unknown) {
+      state.turnRunnerCtorArgs.push(args)
+    }
+
+    async startTurn() {
+      return { turn: { id: 'turn-1' } }
+    }
+
+    async interruptTurn() {
+      return { ok: true }
+    }
+
+    async submitInput() {
+      return { ok: true }
+    }
+  },
+}))
+
+import { runAppServer } from './index.js'
+import { JSON_RPC_ERRORS } from './jsonrpc.js'
+import { StdioPayloadTooLargeError } from './transport/stdio.js'
+
+describe('runAppServer (coverage branches)', () => {
+  beforeEach(() => {
+    state.transport.lines = []
+    state.transport.sent = []
+    state.transport.send = async (message: unknown) => {
+      state.transport.sent.push(message)
+    }
+    state.appServerOptions = null
+    state.handleMessage = async () => []
+    state.createRuntimeSpy.mockClear()
+    state.turnRunnerCtorArgs = []
+  })
+
+  it('rethrows non-payload transport errors from safeSend', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0",']
+    state.transport.send = async () => {
+      throw new Error('send failed')
+    }
+
+    await expect(runAppServer({ cwd: '/tmp/repo', env: {} })).rejects.toThrow('send failed')
+  })
+
+  it('uses process defaults when args are omitted', async () => {
+    state.transport.lines = []
+    await runAppServer()
+    expect(state.appServerOptions).not.toBeNull()
+  })
+
+  it('builds lazy turn runner, forwards limits, and emits notifications', async () => {
+    state.transport.lines = [
+      '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}',
+      '{"jsonrpc":"2.0","id":2,"method":"turn/start","params":{"threadId":"thread-1","input":"hello"}}',
+    ]
+    state.transport.send = async (message: unknown) => {
+      if ((message as any)?.method === 'turn/started') throw new Error('notification send failed')
+      state.transport.sent.push(message)
+    }
+    state.handleMessage = async (message, options) => {
+      const m = message as any
+      if (m.kind !== 'request') return []
+      if (m.request?.method === 'initialize') {
+        options.emitNotification({ jsonrpc: '2.0', method: 'turn/started', params: { threadId: 'thread-1' } })
+        return [{ jsonrpc: '2.0', id: m.request.id, result: { ok: true } }]
+      }
+      if (m.request?.method === 'turn/start') {
+        await options.resolveTurnRunner()
+        await options.resolveTurnRunner()
+        return [{ jsonrpc: '2.0', id: m.request.id, result: { turn: { id: 'turn-1' } } }]
+      }
+      return []
+    }
+
+    const ensureThreadFile = vi.fn(async ({ threadId }: { threadId: string; cwd: string }) => `/tmp/${threadId}.json`)
+    const threadStore = {
+      startThread: async () => ({ thread: { id: 'thread-1' } }),
+      resumeThread: async () => ({ thread: { id: 'thread-1' } }),
+      listThreads: async () => ({ threads: [] }),
+      readThread: async () => ({ thread: null }),
+      listThreadMessages: async () => ({ messages: [] }),
+      ensureThreadFile,
+    }
+
+    await runAppServer({
+      cwd: '/tmp/repo',
+      env: {},
+      threadStore,
+      maxRequestBytes: 200.9,
+      maxEventBytes: 200.4,
+      maxPendingInputsPerThread: 0,
+      defaultInputTtlMs: -4,
+    })
+
+    expect(state.createRuntimeSpy).toHaveBeenCalledTimes(1)
+    expect(state.turnRunnerCtorArgs).toHaveLength(1)
+    const ensureThreadFilePath = state.turnRunnerCtorArgs[0]?.ensureThreadFilePath as
+      | ((args: { threadId: string; cwd: string }) => Promise<string>)
+      | undefined
+    expect(typeof ensureThreadFilePath).toBe('function')
+    const ensuredPath = await ensureThreadFilePath!({ threadId: 'thread-1', cwd: '/tmp/repo' })
+    expect(ensuredPath).toBe('/tmp/thread-1.json')
+    expect(ensureThreadFile).toHaveBeenCalledTimes(1)
+    expect(state.appServerOptions?.limits).toMatchObject({
+      maxRequestBytes: 200,
+      maxEventBytes: 200,
+      maxPendingInputsPerThread: 5,
+      defaultInputTtlMs: 60_000,
+      maxInFlightTurnsPerThread: 1,
+    })
+    expect(state.transport.sent.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('converts oversized outbound events into PAYLOAD_TOO_LARGE response events', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":9,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}']
+    let sendCount = 0
+    state.transport.send = async (message: unknown) => {
+      sendCount += 1
+      if (sendCount === 1) {
+        throw new StdioPayloadTooLargeError(64, 128)
+      }
+      state.transport.sent.push(message)
+    }
+    state.handleMessage = async (message) => {
+      const m = message as any
+      if (m.kind !== 'request') return []
+      return [{ jsonrpc: '2.0', id: m.request?.id ?? null, result: { huge: 'x'.repeat(200) } }]
+    }
+
+    await runAppServer({ cwd: '/tmp/repo', env: {} })
+
+    expect(state.transport.sent).toHaveLength(1)
+    const out = state.transport.sent[0] as any
+    expect(out?.error?.code).toBe(JSON_RPC_ERRORS.PAYLOAD_TOO_LARGE)
+    expect(out?.error?.message).toBe('PAYLOAD_TOO_LARGE')
+    expect(out?.error?.data?.direction).toBe('event')
+  })
+
+  it('handles missing ensureThreadFile and payload-too-large responses without ids', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":7,"method":"turn/start","params":{"threadId":"thread-1","input":"hi"}}']
+    let sendCount = 0
+    state.transport.send = async (message: unknown) => {
+      sendCount += 1
+      if (sendCount === 1) throw new StdioPayloadTooLargeError(32, 96)
+      state.transport.sent.push(message)
+    }
+    state.handleMessage = async (message, options) => {
+      const m = message as any
+      if (m.kind === 'request' && m.request?.method === 'turn/start') {
+        await options.resolveTurnRunner()
+      }
+      return [{ jsonrpc: '2.0', result: { ok: true } }]
+    }
+
+    const threadStore = {
+      startThread: async () => ({ thread: { id: 'thread-1' } }),
+      resumeThread: async () => ({ thread: { id: 'thread-1' } }),
+      listThreads: async () => ({ threads: [] }),
+      readThread: async () => ({ thread: null }),
+      listThreadMessages: async () => ({ messages: [] }),
+    }
+
+    await runAppServer({ cwd: '/tmp/repo', env: {}, threadStore })
+
+    const ctorArgs = state.turnRunnerCtorArgs[0] as any
+    expect(ctorArgs.ensureThreadFilePath).toBeUndefined()
+    const out = state.transport.sent[0] as any
+    expect(out?.id).toBeNull()
+    expect(out?.error?.code).toBe(JSON_RPC_ERRORS.PAYLOAD_TOO_LARGE)
+  })
+
+  it('rethrows non-payload transport errors while streaming responses', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":3,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}']
+    state.transport.send = async () => {
+      throw new Error('event send failed')
+    }
+    state.handleMessage = async (message) => {
+      const m = message as any
+      if (m.kind !== 'request') return []
+      return [{ jsonrpc: '2.0', id: m.request?.id ?? null, result: { ok: true } }]
+    }
+
+    await expect(runAppServer({ cwd: '/tmp/repo', env: {} })).rejects.toThrow('event send failed')
+  })
+})

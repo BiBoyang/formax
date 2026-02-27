@@ -29,6 +29,89 @@ describe('jsonrpc helpers', () => {
     expect(missingVersion.kind).toBe('invalid')
   })
 
+  it('rejects non-object payloads and invalid method/id combinations', () => {
+    const nonObject = classifyRpcMessage('not-an-object')
+    expect(nonObject).toEqual({
+      kind: 'invalid',
+      id: null,
+      message: 'Invalid Request: expected object',
+    })
+
+    const emptyMethodWithInvalidId = classifyRpcMessage({ jsonrpc: '2.0', id: Number.NaN, method: '   ' })
+    expect(emptyMethodWithInvalidId).toEqual({
+      kind: 'invalid',
+      id: null,
+      message: 'Invalid Request: method must be a non-empty string',
+    })
+
+    const invalidId = classifyRpcMessage({ jsonrpc: '2.0', id: Number.POSITIVE_INFINITY, method: 'initialize' })
+    expect(invalidId).toEqual({
+      kind: 'invalid',
+      id: null,
+      message: 'Invalid Request: id must be string|number|null',
+    })
+
+    const invalidVersionWithInvalidId = classifyRpcMessage({
+      jsonrpc: '1.0',
+      id: Number.POSITIVE_INFINITY,
+      method: 'initialize',
+    })
+    expect(invalidVersionWithInvalidId).toEqual({
+      kind: 'invalid',
+      id: null,
+      message: 'Invalid Request: jsonrpc must be "2.0"',
+    })
+
+    const emptyMethodWithValidId = classifyRpcMessage({ jsonrpc: '2.0', id: 'req-1', method: '' })
+    expect(emptyMethodWithValidId).toEqual({
+      kind: 'invalid',
+      id: 'req-1',
+      message: 'Invalid Request: method must be a non-empty string',
+    })
+  })
+
+  it('preserves params for request/notification and accepts string/null ids', () => {
+    const stringIdRequest = classifyRpcMessage({
+      jsonrpc: '2.0',
+      id: 'req-1',
+      method: 'initialize',
+      params: { clientInfo: { name: 'web' } },
+    })
+    expect(stringIdRequest).toEqual({
+      kind: 'request',
+      request: {
+        jsonrpc: '2.0',
+        id: 'req-1',
+        method: 'initialize',
+        params: { clientInfo: { name: 'web' } },
+      },
+    })
+
+    const nullIdRequest = classifyRpcMessage({ jsonrpc: '2.0', id: null, method: 'initialize' })
+    expect(nullIdRequest).toEqual({
+      kind: 'request',
+      request: {
+        jsonrpc: '2.0',
+        id: null,
+        method: 'initialize',
+      },
+    })
+
+    const notificationWithParams = classifyRpcMessage({
+      jsonrpc: '2.0',
+      method: 'initialized',
+      params: { ready: true },
+    })
+    expect(notificationWithParams).toEqual({
+      kind: 'notification',
+      notification: {
+        jsonrpc: '2.0',
+        method: 'initialized',
+        params: { ready: true },
+      },
+    })
+  })
+
   it('creates success and error response envelopes', () => {
     const ok = makeSuccessResponse(1, { hello: 'world' })
     expect(ok).toEqual({

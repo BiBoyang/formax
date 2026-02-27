@@ -1,10 +1,27 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from './nodeFileStore'
 
 describe('NodeFileStore', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('supports exists for both present and missing files', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-filestore-exists-'))
+    try {
+      const store = createNodeFileStore()
+      const filePath = path.join(dir, 'exists.txt')
+      await fs.writeFile(filePath, 'ok\n', 'utf8')
+      expect(await store.exists(filePath)).toBe(true)
+      expect(await store.exists(path.join(dir, 'missing.txt'))).toBe(false)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('writes text atomically (creates parent directories)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-filestore-'))
     try {
@@ -31,6 +48,19 @@ describe('NodeFileStore', () => {
     }
   })
 
+  it('writes JSON without pretty formatting and trailing newline when disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-filestore-json-compact-'))
+    try {
+      const store = createNodeFileStore()
+      const filePath = path.join(dir, 'config.json')
+      await store.writeJsonAtomic(filePath, { a: 1, b: 'x' }, { pretty: false, trailingNewline: false })
+      const txt = await store.readText(filePath)
+      expect(txt).toBe('{"a":1,"b":"x"}')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('best-effort applies file mode', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-filestore-mode-'))
     try {
@@ -46,5 +76,17 @@ describe('NodeFileStore', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('ignores chmod errors as best-effort behavior', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-filestore-chmod-fail-'))
+    try {
+      const store = createNodeFileStore()
+      const filePath = path.join(dir, 'auth.json')
+      vi.spyOn(fs, 'chmod').mockRejectedValueOnce(new Error('chmod blocked'))
+      await expect(store.writeTextAtomic(filePath, 'x\n', { mode: 0o600 })).resolves.toBeUndefined()
+      await expect(store.readText(filePath)).resolves.toBe('x\n')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

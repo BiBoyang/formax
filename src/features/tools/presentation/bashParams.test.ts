@@ -38,4 +38,18 @@ describe('bashParams presentation model', () => {
       paramsTextWithoutCommand: undefined,
     })
   })
+
+  it('handles paramsText without command and preserves raw fallback when parsing yields no params', () => {
+    const noCommand = buildBashParamsFromParamsText('cwd="/repo", timeout=1000')
+    expect(noCommand.hasCommandParam).toBe(false)
+    expect(noCommand.command).toBeNull()
+    expect(noCommand.paramsText).toBe('cwd="/repo", timeout=1000')
+    expect(noCommand.paramsTextWithoutCommand).toBe('cwd="/repo", timeout=1000')
+
+    const unparsable = buildBashParamsFromParamsText('not-a-pair')
+    expect(unparsable.hasCommandParam).toBe(false)
+    expect(unparsable.command).toBeNull()
+    expect(unparsable.paramsText).toBe('not-a-pair')
+    expect(unparsable.paramsTextWithoutCommand).toBeUndefined()
+  })
 })

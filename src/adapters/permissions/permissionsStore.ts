@@ -45,12 +45,12 @@ export type LoadedPermissions = {
 }
 
 export function getProjectSettingsLocalPath(cwd: string): string {
-  const projectRoot = resolveFormaxProjectRoot(cwd || process.cwd())
+  const projectRoot = resolveFormaxProjectRoot(cwd)
   return path.join(projectRoot, '.formax', 'settings.local.json')
 }
 
 export function getProjectSettingsPath(cwd: string): string {
-  const projectRoot = resolveFormaxProjectRoot(cwd || process.cwd())
+  const projectRoot = resolveFormaxProjectRoot(cwd)
   return path.join(projectRoot, '.formax', 'settings.json')
 }
 
@@ -64,16 +64,6 @@ export function getUserSettingsPath(args: {
   return path.join(paths.globalConfigDir, 'settings.json')
 }
 
-function parseAllowListJson(raw: string): string[] {
-  const text = String(raw || '').trim()
-  if (!text) return []
-
-  const parsed = JSON.parse(text) as any
-  const allow = parsed?.permissions?.allow
-  if (!Array.isArray(allow)) return []
-  return allow.map((v) => String(v)).filter((v) => v.trim().length > 0)
-}
-
 function parsePermissionList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return raw.map((v) => String(v)).map((v) => v.trim()).filter(Boolean)
@@ -85,7 +75,7 @@ function parseWorkspaceAdditionalDirectories(raw: unknown): string[] {
 }
 
 function tryParseSettingsJson(raw: string): Record<string, unknown> | null {
-  const text = String(raw || '').trim()
+  const text = String(raw).trim()
   if (!text) return null
   try {
     const parsed = JSON.parse(text) as unknown
@@ -158,7 +148,6 @@ function dedupeByPriority<T>(entries: T[], getKey: (t: T) => string): T[] {
   const out: T[] = []
   for (const e of entries) {
     const key = getKey(e).trim()
-    if (!key) continue
     if (seen.has(key)) continue
     seen.add(key)
     out.push(e)
@@ -173,7 +162,7 @@ export async function loadMergedPermissions(args: {
   platform?: Platform
   homedir?: string
 }): Promise<LoadedPermissions> {
-  const cwd = args.cwd || process.cwd()
+  const cwd = args.cwd
   const projectRoot = resolveFormaxProjectRoot(cwd)
   const filePaths = {
     projectLocal: getProjectSettingsLocalPath(cwd),
@@ -262,11 +251,6 @@ function readListFromPermissions(permissions: Record<string, unknown>, kind: Per
   return parsePermissionList((permissions as any)[kind])
 }
 
-function readWorkspaceDirsFromPermissions(permissions: Record<string, unknown>): string[] {
-  const workspace = (permissions as any).workspace
-  return parseWorkspaceAdditionalDirectories(workspace)
-}
-
 function writePermissionsSettings(args: {
   existingSettings: Record<string, unknown> | null
   permissions: Record<string, unknown>
@@ -300,9 +284,9 @@ export async function persistPermissionRule(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const cwd = args.cwd || process.cwd()
+  const cwd = args.cwd
   const filePath = getSettingsPathForScope({ scope: args.scope, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
-  const rule = String(args.rule || '').trim()
+  const rule = String(args.rule).trim()
   if (!rule) return
 
   const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
@@ -328,9 +312,9 @@ export async function deletePermissionRule(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const cwd = args.cwd || process.cwd()
+  const cwd = args.cwd
   const filePath = getSettingsPathForScope({ scope: args.scope, cwd, env: args.env, platform: args.platform, homedir: args.homedir })
-  const rule = String(args.rule || '').trim()
+  const rule = String(args.rule).trim()
   if (!rule) return
 
   const existingSettings = await loadSettingsRecord({ fileStore: args.fileStore, filePath })
@@ -354,9 +338,9 @@ export async function persistWorkspaceDirectory(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const dir = String(args.dir || '').trim()
+  const dir = String(args.dir).trim()
   if (!dir) return
-  const projectRoot = resolveFormaxProjectRoot(args.cwd || process.cwd())
+  const projectRoot = resolveFormaxProjectRoot(args.cwd)
   addWorkspaceSessionDirectory(projectRoot, dir)
 }
 
@@ -369,9 +353,9 @@ export async function deleteWorkspaceDirectory(args: {
   platform?: Platform
   homedir?: string
 }): Promise<void> {
-  const dir = String(args.dir || '').trim()
+  const dir = String(args.dir).trim()
   if (!dir) return
-  const projectRoot = resolveFormaxProjectRoot(args.cwd || process.cwd())
+  const projectRoot = resolveFormaxProjectRoot(args.cwd)
   deleteWorkspaceSessionDirectory(projectRoot, dir)
 }
 

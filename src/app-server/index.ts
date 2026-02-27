@@ -65,7 +65,7 @@ export async function runAppServer(args?: {
   const server = new AppServer({
     info: {
       name: 'formax',
-      version: String((pkg as any)?.version || 'unknown'),
+      version: String((pkg as any).version),
     },
     threadStore,
     turnRunner: lazyTurnRunner ?? undefined,

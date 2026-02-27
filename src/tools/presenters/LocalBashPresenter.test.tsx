@@ -12,6 +12,19 @@ function renderMessage(message: Msg): string {
 }
 
 describe('LocalBashPresenter', () => {
+  it('returns no blocks when toolInfo is missing', () => {
+    const out = LocalBashPresenter({
+      message: {
+        id: 'tool-0',
+        role: 'tool',
+        content: '',
+        timestamp: new Date(),
+      },
+    } as any)
+
+    expect(out.blocks).toEqual([])
+  })
+
   it('truncates to 3 lines in primary view and shows expand hint', () => {
     const frame = renderMessage({
       id: 'tool-1',
@@ -53,5 +66,76 @@ describe('LocalBashPresenter', () => {
     expect(frame).toContain('! ls')
     expect(frame).toContain('4')
     expect(frame).not.toContain('… +')
+  })
+
+  it('renders running state without subline output', () => {
+    const frame = renderMessage({
+      id: 'tool-running',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'LocalBash',
+        input: { command: 'sleep 1' },
+        status: 'running',
+        result: 'still running',
+      },
+    })
+
+    expect(frame).toContain('! sleep 1')
+    expect(frame).not.toContain('⎿')
+  })
+
+  it('handles missing command and non-string result by showing no output placeholder', () => {
+    const frame = renderMessage({
+      id: 'tool-empty',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'LocalBash',
+        input: null as any,
+        status: 'completed',
+        result: { ok: true } as any,
+      },
+    })
+
+    expect(frame).toContain('!')
+    expect(frame).toContain('(no output)')
+  })
+
+  it('marks no-output placeholder as an error when status is error', () => {
+    const frame = renderMessage({
+      id: 'tool-empty-error',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'LocalBash',
+        input: {},
+        status: 'error',
+        result: null as any,
+      },
+    })
+
+    expect(frame).toContain('(no output)')
+  })
+
+  it('renders error status output lines', () => {
+    const frame = renderMessage({
+      id: 'tool-error',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'LocalBash',
+        input: { command: 'bad' },
+        status: 'error',
+        result: 'Error line 1\nError line 2',
+      },
+    })
+
+    expect(frame).toContain('Error line 1')
+    expect(frame).toContain('Error line 2')
   })
 })

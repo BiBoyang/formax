@@ -64,5 +64,32 @@ describe('permissions explain', () => {
     expect(expl.matchedRule?.rule).toBe('WebFetch')
     expect(expl.suggestions).toEqual([])
   })
-})
 
+  it('handles blank tool identifiers and still returns a none explanation', () => {
+    const permissions = mkPermissions({})
+    const expl = explainPermissionDecision({ permissions, toolName: '   ', toolSpec: '   ' })
+    expect(expl.decision).toBe('none')
+    expect(expl.reason).toContain('No matching permission rule for')
+  })
+
+  it('defensively handles undefined toolName input', () => {
+    const permissions = mkPermissions({})
+    const expl = explainPermissionDecision({ permissions, toolName: undefined as any, toolSpec: 'x' })
+    expect(expl.decision).toBe('none')
+    expect(expl.toolName).toBe('')
+  })
+
+  it('omits reason/suggestions block when those fields are empty', () => {
+    const lines = formatPermissionExplainLines({
+      toolName: 'Bash',
+      toolSpec: 'ls',
+      decision: 'allow',
+      matchedRule: mkRule('Bash(ls:*)', 'project'),
+      reason: '',
+      suggestions: [],
+    })
+    expect(lines).toContain('PermissionDecision: allow')
+    expect(lines.join('\n')).not.toContain('PermissionReason:')
+    expect(lines.join('\n')).not.toContain('PermissionSuggestions:')
+  })
+})

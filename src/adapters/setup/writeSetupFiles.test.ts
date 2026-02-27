@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -6,6 +6,10 @@ import { createNodeFileStore } from '../fs/nodeFileStore.js'
 import { writeSetupFiles } from './writeSetupFiles.js'
 
 describe('writeSetupFiles', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('writes config/auth and creates logs dir', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-'))
     try {
@@ -117,4 +121,189 @@ describe('writeSetupFiles', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('warns when existing config cannot be parsed as JSON', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-parse-warn-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(path.join(globalConfigDir, 'config.json'), '{broken', 'utf8')
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      expect(res.warnings.join('\n')).toContain('Failed to parse config JSON')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('warns when existing config exists but cannot be read', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-read-warn-'))
+    try {
+      const baseStore = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const configPath = path.join(globalConfigDir, 'config.json')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(configPath, '{"version":1}', 'utf8')
+
+      const store = {
+        exists: async (filePath: string) => {
+          if (filePath === configPath) return true
+          return baseStore.exists(filePath)
+        },
+        readText: async (filePath: string) => {
+          if (filePath === configPath) throw new Error('read blocked')
+          return baseStore.readText(filePath)
+        },
+        writeTextAtomic: baseStore.writeTextAtomic,
+        writeJsonAtomic: baseStore.writeJsonAtomic,
+      }
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      expect(res.warnings.join('\n')).toContain(`Failed to read config at ${configPath}`)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('warns when existing config shape is invalid for patch schema', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-invalid-existing-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({ llm: { provider: 'anthropic', extra: true } }),
+        'utf8',
+      )
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      expect(res.warnings.join('\n')).toContain('Existing config is invalid and was ignored')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects when setup input provider is invalid', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-invalid-provider-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await expect(
+        writeSetupFiles({
+          fileStore: store,
+          cwd,
+          env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+          platform: 'linux',
+          homedir: '/home/alice',
+          provider: 'invalid-provider' as any,
+          baseUrl: 'https://api.anthropic.com/v1',
+          apiKey: 'sk-test',
+          model: 'm',
+        }),
+      ).rejects.toBeTruthy()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses process defaults when cwd/env/platform/authRef are omitted', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-defaults-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await fs.mkdir(cwd, { recursive: true })
+      vi.spyOn(process, 'cwd').mockReturnValue(cwd)
+      process.env.FORMAX_CONFIG_DIR = globalConfigDir
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+        contextWindowTokens: 0,
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.authRef).toBe('default')
+      expect(config.llm.contextWindowTokens).toBeUndefined()
+      expect(configPathWithin(config.paths.logsDir, globalConfigDir)).toBe(true)
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back authRef to default when provided authRef is blank', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-authref-blank-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+        authRef: '   ',
+      })
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.authRef).toBe('default')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
 })
+
+function configPathWithin(target: string, parent: string): boolean {
+  return path.resolve(target).startsWith(path.resolve(parent))
+}

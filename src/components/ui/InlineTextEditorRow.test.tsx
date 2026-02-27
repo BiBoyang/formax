@@ -52,6 +52,13 @@ describe('InlineTextEditorRow', () => {
     expect(lastFrame()).toContain('Type here')
   })
 
+  it('shows plain value when not typing but value exists', async () => {
+    const { lastFrame } = render(<Harness typing={false} active={false} initialValue="Saved value" />)
+    await tick()
+    expect(lastFrame()).toContain('Saved value')
+    expect(lastFrame()).not.toContain('Type here')
+  })
+
   it('edits text when typing + active (including middle backspace)', async () => {
     const { stdin, lastFrame } = render(<Harness typing={true} active={true} initialValue="" />)
     const frameText = () => (lastFrame() ?? '').replaceAll('▏', '')

@@ -45,7 +45,7 @@ function mergeConfigPatches(
   warnings: string[],
 ): Record<string, unknown> {
   const baseParsed = FormaxConfigV1PatchSchema.safeParse(base ?? {})
-  const nextParsed = FormaxConfigV1PatchSchema.safeParse(next ?? {})
+  const nextParsed = FormaxConfigV1PatchSchema.safeParse(next)
   if (!baseParsed.success && base) warnings.push('Existing config is invalid and was ignored')
   if (!nextParsed.success && next) warnings.push('New config is invalid and was ignored')
 
@@ -107,11 +107,8 @@ export async function writeSetupFiles(args: {
     paths: { logsDir },
   }
   const merged = mergeConfigPatches(existing, nextPatch, warnings)
-  const validated = FormaxConfigV1Schema.safeParse(merged)
-  if (!validated.success) {
-    throw new Error('Failed to write config: invalid config data')
-  }
-  await args.fileStore.writeJsonAtomic(configPath, validated.data)
+  const validated = FormaxConfigV1Schema.parse(merged)
+  await args.fileStore.writeJsonAtomic(configPath, validated)
 
   const authRes = await authSet({
     fileStore: args.fileStore,

@@ -72,4 +72,19 @@ describe('createStatusSnapshot', () => {
     expect(snapshot.workspaceRoots).toEqual(['/repo'])
     expect(snapshot.policySummary).toBeNull()
   })
+
+  it('normalizes workspace roots and trims blank entries', () => {
+    const snapshot = createStatusSnapshot({
+      version: '0.0.0',
+      cwd: '/repo',
+      workspaceRoots: ['/repo', ' /repo ', '', undefined as any, '/work'],
+      runtime: {
+        llm: { provider: 'anthropic', baseUrl: 'u', model: 'm', timeoutMs: 1, apiKey: '' },
+        paths: { logsDir: '/repo/logs', subagentsDir: '/repo/.agent/subagents', planDir: '/repo/plans' },
+        ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+      },
+    })
+
+    expect(snapshot.workspaceRoots).toEqual(['/repo', '/work'])
+  })
 })

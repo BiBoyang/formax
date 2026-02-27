@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { resolveFormaxProjectRoot } from './projectRoot'
 
 describe('resolveFormaxProjectRoot', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('prefers nearest .formax ancestor', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-project-root-'))
     try {
@@ -60,6 +64,18 @@ describe('resolveFormaxProjectRoot', () => {
       await fsp.mkdir(nested, { recursive: true })
 
       expect(resolveFormaxProjectRoot(nested)).toBe(path.resolve(nested))
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses process.cwd when input cwd is empty', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-project-root-process-cwd-'))
+    try {
+      const nested = path.join(dir, 'x', 'y')
+      await fsp.mkdir(nested, { recursive: true })
+      vi.spyOn(process, 'cwd').mockReturnValue(nested)
+      expect(resolveFormaxProjectRoot('')).toBe(path.resolve(nested))
     } finally {
       await fsp.rm(dir, { recursive: true, force: true })
     }

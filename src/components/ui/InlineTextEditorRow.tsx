@@ -48,9 +48,8 @@ export function InlineTextEditorRow({
           scope={scope}
         />
       ) : (
-        <Text color={color}>{value || ''}</Text>
+        <Text color={color}>{value}</Text>
       )}
     </Box>
   )
 }
-

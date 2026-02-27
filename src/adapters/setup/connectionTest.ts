@@ -12,8 +12,7 @@ function toPositiveInt(value: unknown): number | undefined {
 }
 
 function inferContextWindowTokens(model: string): number {
-  const m = String(model || '').trim().toLowerCase()
-  if (!m) return 32768
+  const m = String(model).trim().toLowerCase()
   if (m.startsWith('claude-')) return 200000
   if (m.startsWith('gpt-4o') || m.startsWith('gpt-4.1') || m.startsWith('gpt-4-turbo')) return 128000
   if (m === 'gpt-4' || m.startsWith('gpt-4-')) return 8192

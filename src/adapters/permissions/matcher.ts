@@ -43,10 +43,10 @@ function findMatch(args: {
 }
 
 function matchesRule(args: { kind: PermissionListKind; rule: string; toolName: string; toolSpec: string }): boolean {
-  const rule = String(args.rule || '').trim()
+  const rule = String(args.rule).trim()
   if (!rule) return false
 
-  const toolName = String(args.toolName || '').trim()
+  const toolName = String(args.toolName).trim()
   if (!toolName) return false
 
   if (rule === toolName) return true
@@ -54,7 +54,7 @@ function matchesRule(args: { kind: PermissionListKind; rule: string; toolName: s
   const m = /^([A-Za-z0-9_:-]+)\((.*)\)$/.exec(rule)
   if (!m) return false
 
-  const ruleTool = String(m[1] || '').trim()
+  const ruleTool = String(m[1]).trim()
   const ruleSpec = String(m[2] || '').trim()
 
   if (ruleTool !== toolName) return false
@@ -97,7 +97,7 @@ function matchesBashRule(args: { kind: PermissionListKind; ruleSpec: string; com
 }
 
 function globToRegExp(pattern: string): RegExp {
-  const raw = String(pattern || '')
+  const raw = String(pattern)
   const parts = raw.split('*').map(escapeRegExp)
   return new RegExp(`^${parts.join('.*')}$`)
 }

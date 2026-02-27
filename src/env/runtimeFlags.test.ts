@@ -19,6 +19,11 @@ describe('createRuntimeFlags', () => {
     expect(flags.userShellPath).toBe('/bin/bash')
   })
 
+  it('treats blank shell strings as null', () => {
+    const flags = createRuntimeFlags({ SHELL: '   ' })
+    expect(flags.userShellPath).toBe(null)
+  })
+
   it('parses session save flags with default enabled', () => {
     expect(createRuntimeFlags({}).sessionSaveEnabled).toBe(true)
     expect(createRuntimeFlags({ FORMAX_SESSION_SAVE: '0' }).sessionSaveEnabled).toBe(false)

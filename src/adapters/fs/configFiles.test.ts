@@ -88,5 +88,27 @@ describe('loadConfigFiles', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('warns and ignores read failures', async () => {
+    const fileStore = {
+      async exists(filePath: string) {
+        return filePath === '/global/config.json'
+      },
+      async readText() {
+        throw new Error('read failed')
+      },
+    } as any
+
+    const res = await loadConfigFiles({
+      fileStore,
+      cwd: '/repo',
+      env: { FORMAX_CONFIG_DIR: '/global' } as any,
+      platform: 'linux',
+      homedir: '/home/alice',
+    })
+
+    expect(res.globalConfig).toBeNull()
+    expect(res.warnings.length).toBe(1)
+    expect(res.warnings[0]).toContain('Failed to read global config')
+  })
+})

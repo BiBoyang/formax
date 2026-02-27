@@ -70,4 +70,27 @@ describe('detectWorkspaceRoots', () => {
     expect(res.workspaceRoots).toEqual([path.resolve(cwd)])
     expect(res.warnings.join('\n')).toContain('boom')
   })
+
+  it('uses empty cwd input as process working directory via path.resolve fallback', async () => {
+    const store = {
+      exists: async () => false,
+    } as any
+    const res = await detectWorkspaceRoots({ fileStore: store, cwd: '' })
+    expect(res.gitRoot).toBeNull()
+    expect(res.workspaceRoots).toEqual([path.resolve('')])
+    expect(res.warnings).toEqual([])
+  })
+
+  it('records non-Error thrown values as warning text', async () => {
+    const cwd = '/tmp/formax-workspace-roots-nonerror'
+    const store = {
+      exists: async () => {
+        throw 'fail-text'
+      },
+    } as any
+    const res = await detectWorkspaceRoots({ fileStore: store, cwd })
+    expect(res.gitRoot).toBeNull()
+    expect(res.workspaceRoots).toEqual([path.resolve(cwd)])
+    expect(res.warnings.join('\n')).toContain('fail-text')
+  })
 })

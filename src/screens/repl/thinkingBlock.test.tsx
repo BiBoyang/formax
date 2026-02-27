@@ -23,5 +23,12 @@ describe('thinkingBlock', () => {
     expect(out).toContain('line 1')
     expect(out).toContain('line 3')
   })
-})
 
+  it('renderThinkingBlock: handles missing content by rendering header only', () => {
+    const theme = getTheme()
+    const ui = render(<>{renderThinkingBlock({ content: undefined as any, theme })}</>)
+    const out = ui.lastFrame()
+    expect(out).toContain('∴ Thinking…')
+    expect(out).not.toContain('undefined')
+  })
+})

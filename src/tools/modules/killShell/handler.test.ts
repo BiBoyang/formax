@@ -3,6 +3,13 @@ import { TaskManager } from '../../runtime/taskManager'
 import { createKillShellToolHandler } from './handler'
 
 describe('KillShellToolHandler', () => {
+  it('reports canHandle only for KillShell', () => {
+    const taskManager = new TaskManager()
+    const handler = createKillShellToolHandler(taskManager)
+    expect(handler.canHandle('KillShell')).toBe(true)
+    expect(handler.canHandle('Read')).toBe(false)
+  })
+
   it('returns error when shell_id is missing', async () => {
     const taskManager = new TaskManager()
     const handler = createKillShellToolHandler(taskManager)
@@ -151,5 +158,37 @@ describe('KillShellToolHandler', () => {
     const waited = await taskManager.wait(taskId, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('error')
     expect(waited.snapshot.result?.content).toContain('Killed')
+  })
+
+  it('stringifies non-Error exceptions thrown during execution', async () => {
+    const fakeTaskManager = {
+      get() {
+        throw 'boom'
+      },
+      cancel() {
+        return false
+      },
+    } as any
+
+    const handler = createKillShellToolHandler(fakeTaskManager)
+    const res = await handler.execute(
+      { id: '1', name: 'KillShell', input: { shell_id: 's1' } } as any,
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Error: boom')
+  })
+
+  it('treats missing input as an empty object for strict parsing', async () => {
+    const taskManager = new TaskManager()
+    const handler = createKillShellToolHandler(taskManager)
+    const res = await handler.execute(
+      { id: '1', name: 'KillShell' } as any,
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Missing required field shell_id')
   })
 })

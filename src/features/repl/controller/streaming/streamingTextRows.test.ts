@@ -47,4 +47,34 @@ describe('streamingTextRows', () => {
     expect(next[0]?.ui?.kind).toBe('thinking_block')
     expect(next[0]?.content).toBe('step-1 step-2')
   })
+
+  it('leaves rows unchanged when ids do not match', () => {
+    const assistant = createAssistantStreamingMessage({
+      assistantId: 'assistant-1',
+      text: 'hello',
+    })
+    const afterAppend = appendAssistantDeltaToMessages({
+      previous: [assistant],
+      assistantId: 'assistant-2',
+      text: ' world',
+    })
+    expect(afterAppend[0]).toBe(assistant)
+
+    const afterFinalize = finalizeAssistantStreamInMessages({
+      previous: [assistant],
+      assistantId: 'assistant-2',
+    })
+    expect(afterFinalize[0]).toBe(assistant)
+
+    const thinking = createThinkingBlockMessage({
+      thinkingId: 'thinking-1',
+      text: 'step-1',
+    })
+    const afterThinkingUpdate = updateThinkingBlockContent({
+      previous: [thinking],
+      thinkingId: 'thinking-2',
+      text: 'ignored',
+    })
+    expect(afterThinkingUpdate[0]).toBe(thinking)
+  })
 })
