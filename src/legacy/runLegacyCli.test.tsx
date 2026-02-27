@@ -5,6 +5,7 @@ const clearTerminal = vi.fn(async () => {})
 const createRuntime = vi.fn()
 const resolveInitialSession = vi.fn()
 const renderReplApp = vi.fn()
+const resetInkStaticOutputForStdout = vi.fn(async () => {})
 
 vi.mock('../utils/terminal.js', () => ({
   clearTerminal,
@@ -20,6 +21,10 @@ vi.mock('./bootstrap/session.js', () => ({
 
 vi.mock('./bootstrap/renderReplApp.js', () => ({
   renderReplApp,
+}))
+
+vi.mock('../utils/inkStreams.js', () => ({
+  resetInkStaticOutputForStdout,
 }))
 
 function createCfg(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
@@ -168,5 +173,34 @@ describe('runLegacyCli', () => {
     expect(stderrWrite).toHaveBeenCalledWith('Error: Setup canceled\n')
     expect(processExit).toHaveBeenCalledWith(1)
     expect(renderReplApp).not.toHaveBeenCalled()
+  })
+
+  it('normalizes non-Error failures and exits', async () => {
+    createRuntime.mockRejectedValueOnce('hard stop')
+
+    const { runLegacyCli } = await import('./runLegacyCli.js')
+    await runLegacyCli()
+
+    expect(stderrWrite).toHaveBeenCalledWith('Error: hard stop\n')
+    expect(processExit).toHaveBeenCalledWith(1)
+  })
+
+  it('wires setup and render callbacks', async () => {
+    const { runLegacyCli } = await import('./runLegacyCli.js')
+    await runLegacyCli()
+
+    const runtimeArgs = createRuntime.mock.calls[0]?.[0]
+    expect(runtimeArgs).toBeDefined()
+    await runtimeArgs.onAfterSetupCompleted()
+
+    const renderArgs = renderReplApp.mock.calls[0]?.[0]
+    expect(renderArgs).toBeDefined()
+    await renderArgs.onClearTerminal()
+    renderArgs.onExit()
+
+    expect(resetInkStaticOutputForStdout).toHaveBeenCalledWith(process.stdout)
+    // initial clear + after setup + explicit onClearTerminal
+    expect(clearTerminal).toHaveBeenCalledTimes(3)
+    expect(processExit).toHaveBeenCalledWith(0)
   })
 })

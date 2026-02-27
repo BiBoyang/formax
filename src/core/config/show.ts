@@ -51,9 +51,11 @@ export async function configShow(args: {
   })
 
   const warnings = [...disk.warnings, ...resolved.warnings]
-  const auth = resolved.auth
-    ? redactAuth({ provider: resolved.auth.provider, authRef: resolved.config.llm.authRef, source: resolved.auth.source })
-    : null
+  const auth = redactAuth(
+    resolved.auth
+      ? { provider: resolved.auth.provider, authRef: resolved.config.llm.authRef, source: resolved.auth.source }
+      : null,
+  )
 
   return {
     paths: disk.paths,

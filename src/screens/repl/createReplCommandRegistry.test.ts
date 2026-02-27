@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import pkg from '../../../package.json'
 
 const createSlashCommandRegistryMock = vi.fn((args: any) => args)
 vi.mock('../../features/commands/registry', () => {
@@ -94,5 +95,82 @@ describe('createReplCommandRegistry', () => {
     const out = await registry.doctor.run()
     expect(out).toBe('doctor-report\n')
     expect(runReplDoctorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes promptProfile/modelTier accessors and fallback tier', async () => {
+    const setPromptProfile = vi.fn()
+    const setDefaultModelTier = vi.fn(async () => 'haiku')
+    const registry: any = createReplCommandRegistry({
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          baseUrl: 'http://localhost',
+          model: 'm',
+          timeoutMs: 123,
+          apiKey: 'k',
+        },
+        paths: { projectRoot: '/tmp/repo' },
+        ui: { assistantTextMode: 'default' },
+      } as any,
+      planSession: {} as any,
+      promptProfile: 'compact',
+      setPromptProfile,
+      setDefaultModelTier,
+      workspaceRoots: ['/tmp/repo'],
+      workspaceRootWarnings: [],
+    })
+
+    expect(registry.promptProfile.get()).toBe('compact')
+    registry.promptProfile.set('full')
+    expect(setPromptProfile).toHaveBeenCalledWith('full')
+
+    // Fallback when cfg.llm.defaultTier is unset.
+    expect(registry.modelTier.get()).toBe('sonnet')
+    await registry.modelTier.set('haiku')
+    expect(setDefaultModelTier).toHaveBeenCalledWith('haiku')
+  })
+
+  it('uses unknown version fallback when package version is unavailable', async () => {
+    const prevVersion = (pkg as any).version
+    ;(pkg as any).version = ''
+    try {
+      const registry: any = createReplCommandRegistry({
+        cfg: {
+          llm: {
+            provider: 'anthropic',
+            baseUrl: 'http://localhost',
+            model: 'm',
+            timeoutMs: 123,
+            apiKey: 'k',
+            defaultTier: 'opus',
+          },
+          paths: { projectRoot: '/tmp/repo' },
+          ui: { assistantTextMode: 'default' },
+        } as any,
+        planSession: {} as any,
+        promptProfile: 'full',
+        setPromptProfile: () => {},
+        setDefaultModelTier: async () => 'sonnet',
+        workspaceRoots: ['/tmp/repo'],
+        workspaceRootWarnings: [],
+      })
+
+      registry.status.get()
+      await registry.doctor.run()
+
+      expect(createStatusSnapshotMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          version: 'unknown',
+        }),
+      )
+      expect(runReplDoctorMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          version: 'unknown',
+        }),
+      )
+      expect(registry.modelTier.get()).toBe('opus')
+    } finally {
+      ;(pkg as any).version = prevVersion
+    }
   })
 })

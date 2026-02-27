@@ -2,14 +2,7 @@ import type { Theme } from '../../utils/theme.js'
 
 export type AgentListItem = { name: string; description: string }
 
-export type AgentsDialogTheme = ReturnType<typeof getTheme>
-
-// Import getTheme for the type, but we'll use it in the component
-// This avoids circular dependency issues
-function getTheme(): Theme {
-  // Placeholder - actual implementation in utils/theme
-  return {} as Theme
-}
+export type AgentsDialogTheme = Theme
 
 export type AgentsDialogGenerateDraft = {
   name: string
