@@ -241,4 +241,71 @@ describe('EditToolPresenter', () => {
     expect(frame).toContain('  23 ')
     expect(frame).toContain('beta')
   })
+
+  it('falls back to tool id and path input in running state', () => {
+    const userInput = createUserInputManager()
+    void userInput.requestAnswers({ toolUseId: 'plain-running-id', questions: [] })
+
+    const message: Msg = {
+      id: 'plain-running-id',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Edit',
+        status: 'running',
+        input: { path: 'alt.ts', old_string: 'a', new_string: 'b' },
+      },
+    }
+
+    const { lastFrame } = render(
+      <UserInputProvider userInput={userInput}>
+        <ToolUiBlocks blocks={(EditToolPresenter as any)({ message }).blocks} />
+      </UserInputProvider>,
+    )
+    const frame = lastFrame()
+    expect(frame).toContain('alt.ts')
+    expect(frame).toContain('Do you want to make this edit to')
+  })
+
+  it('renders error subline and uses edited-path fallback when content is empty', () => {
+    const message: Msg = {
+      id: 'tool-edit-error',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Edit',
+        status: 'error',
+        input: {
+          path: 'fallback.ts',
+          old_string: 'old',
+          new_string: 123 as any,
+        },
+      },
+    }
+
+    const frame = renderBlocksPresenter(EditToolPresenter, message).lastFrame()
+    expect(frame).toContain('Edited fallback.ts')
+    expect(frame).not.toContain('@@')
+  })
+
+  it('uses generic Edited fallback when no path/content are available', () => {
+    const message: Msg = {
+      id: 'tool-edit-generic',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Edit',
+        status: 'completed',
+        input: {
+          old_string: 1 as any,
+          new_string: 2 as any,
+        } as any,
+      },
+    }
+    const frame = renderBlocksPresenter(EditToolPresenter, message).lastFrame()
+    expect(frame).toContain('Edited')
+  })
 })
