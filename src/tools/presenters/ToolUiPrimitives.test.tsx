@@ -1,5 +1,5 @@
 import React from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Box, Text } from 'ink'
 import { render } from 'ink-testing-library'
 import {
@@ -95,5 +95,59 @@ describe('ToolUiPrimitives', () => {
     expect(frame).toContain('L1')
     expect(frame).toContain('L2')
     expect(frame).toContain('N')
+  })
+
+  it('covers pulsing timers and remaining tone/whitespace branches', async () => {
+    const intervalCallbacks: Array<() => void> = []
+    const setIntervalSpy = vi
+      .spyOn(globalThis, 'setInterval')
+      .mockImplementation(((fn: TimerHandler) => {
+        intervalCallbacks.push(fn as () => void)
+        return 1 as unknown as ReturnType<typeof setInterval>
+      }) as typeof setInterval)
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => {})
+
+    try {
+      const pulse = render(<ToolHeaderLine status="running" label="Pulse" pulse />)
+      expect(pulse.lastFrame()).toContain('⏺')
+      expect(intervalCallbacks).toHaveLength(1)
+      intervalCallbacks[0]()
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(pulse.lastFrame()).toContain('◌')
+
+      pulse.unmount()
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(1)
+
+      const emptyChildren = render(
+        <ToolSubline status="completed">
+          {'   '}
+          {'\n'}
+        </ToolSubline>,
+      )
+      expect(emptyChildren.lastFrame()).toContain('⎿')
+
+      const multiChildren = render(
+        <ToolSubline status="completed">
+          <Text>A</Text>
+          <Text>B</Text>
+        </ToolSubline>,
+      )
+      const multiFrame = multiChildren.lastFrame() || ''
+      expect(multiFrame).toContain('A')
+      expect(multiFrame).toContain('B')
+
+      const errorLine = render(<ToolIndentedLine tone="error" text="E" />)
+      expect(errorLine.lastFrame()).toContain('E')
+
+      const defaultIndented = render(
+        <ToolIndented>
+          <Text>DEF</Text>
+        </ToolIndented>,
+      )
+      expect(defaultIndented.lastFrame()).toContain('DEF')
+    } finally {
+      setIntervalSpy.mockRestore()
+      clearIntervalSpy.mockRestore()
+    }
   })
 })
