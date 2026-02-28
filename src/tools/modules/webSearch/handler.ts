@@ -113,7 +113,7 @@ function extractSnippetNear(html: string, anchorIndex: number): string | undefin
 }
 
 function normalizeResultUrl(href: string): string {
-  const raw = (href || '').trim()
+  const raw = href.trim()
   if (!raw) return ''
 
   let normalized = raw

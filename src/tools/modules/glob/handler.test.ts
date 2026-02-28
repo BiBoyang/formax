@@ -10,6 +10,28 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('createGlobToolHandler', () => {
+  it('returns error when pattern is missing (including missing input fallback)', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+
+    const missingInput = await handler.execute(
+      { id: '0a', name: 'Glob' } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+    expect(missingInput.is_error).toBe(true)
+    expect(missingInput.content).toContain('Missing pattern')
+
+    const missingPattern = await handler.execute(
+      { id: '0b', name: 'Glob', input: {} } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+    expect(missingPattern.is_error).toBe(true)
+    expect(missingPattern.content).toContain('Missing pattern')
+  })
+
   it('matches tool name with canHandle', () => {
     const handler = createGlobToolHandler()
     expect(handler.canHandle('Glob')).toBe(true)
@@ -163,6 +185,67 @@ describe('createGlobToolHandler', () => {
     expect(result.content).toBe('/repo/a.ts\n/repo/z.ts')
   })
 
+  it('accepts absolute search path and uses process.cwd fallback when ctx.cwd is missing', async () => {
+    const abs = '/abs/repo'
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async (_command, _args, opts) => ({
+        exitCode: 0,
+        stdout: 'x.ts\n',
+        stderr: '',
+      }),
+      statPath: async (filePath: string) => ({
+        isDirectory: () => filePath === abs || filePath === path.resolve(abs, 'x.ts'),
+        mtimeMs: 1,
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '6b', name: 'Glob', input: { pattern: '**/*.ts', path: abs } } as any,
+      { cwd: '' as any, agentDepth: 0 },
+    )
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe(path.resolve(abs, 'x.ts'))
+  })
+
+  it('uses cwd when input.path is omitted', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 0, stdout: 'f.ts\n', stderr: '' }),
+      statPath: async (filePath: string) => ({
+        isDirectory: () => filePath === '/repo',
+        mtimeMs: 1,
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '6c', name: 'Glob', input: { pattern: '**/*.ts' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/f.ts')
+  })
+
+  it('resolves relative input.path against cwd', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async (_command, _args, opts) => ({ exitCode: 0, stdout: 'g.ts\n', stderr: '' }),
+      statPath: async (filePath: string) => ({
+        isDirectory: () => filePath === path.resolve('/repo', 'rel'),
+        mtimeMs: 1,
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '6d', name: 'Glob', input: { pattern: '**/*.ts', path: 'rel' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe(path.resolve('/repo', 'rel', 'g.ts'))
+  })
+
   it('returns error for unexpected exit code and compacts stderr', async () => {
     const handler = createGlobToolHandler({
       resolveExecutable: async () => '/mock/rg',
@@ -197,6 +280,34 @@ describe('createGlobToolHandler', () => {
 
     expect(result.is_error).toBeUndefined()
     expect(result.content).toBe('/repo/b.ts\n/repo/a.ts')
+  })
+
+  it('returns unknown error for bad exit code with undefined stderr/stdout and non-Error throws', async () => {
+    const unknownErrHandler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 3, stdout: undefined as any, stderr: undefined as any }),
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+    const unknown = await unknownErrHandler.execute(
+      { id: '8b', name: 'Glob', input: { pattern: '**/*' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+    expect(unknown.is_error).toBe(true)
+    expect(unknown.content).toContain('unknown error')
+
+    const thrownHandler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => {
+        throw 'boom'
+      },
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+    const thrown = await thrownHandler.execute(
+      { id: '8c', name: 'Glob', input: { pattern: '**/*' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+    expect(thrown.is_error).toBe(true)
+    expect(thrown.content).toContain('Error: boom')
   })
 
   it('uses default spawn runner path (close event) when executable script succeeds', async () => {

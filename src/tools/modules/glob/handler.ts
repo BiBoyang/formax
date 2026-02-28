@@ -83,7 +83,7 @@ export function createGlobToolHandler(overrides: Partial<GlobHandlerDeps> = {}):
         })
 
         const sorted = withTimes.map((entry) => entry.filePath)
-        const content = sorted.length ? sorted.join('\n') : 'No files found'
+        const content = sorted.join('\n')
         return { tool_use_id: call.id, content }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)

@@ -119,6 +119,16 @@ describe('WebSearchToolHandler', () => {
     expect(result.content).toContain('Error:')
   })
 
+  it('returns an error when input is missing entirely', async () => {
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch' } as any,
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('Missing query')
+  })
+
   it('returns an error for unexpected input keys', async () => {
     const result = await WebSearchToolHandler.execute(
       { id: '1', name: 'WebSearch', input: { query: 'test', extra: true } as any },
@@ -157,6 +167,20 @@ describe('WebSearchToolHandler', () => {
     expect(result.is_error).toBe(true)
     expect(result.content).toContain('Error:')
     expect(result.content).toContain('network down')
+  })
+
+  it('stringifies non-Error throws in execute catch', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw 'boom'
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch', input: { query: 'test' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('Error: boom')
   })
 
   it('decodes HTML entities and keeps unknown named entities intact', async () => {
@@ -217,6 +241,30 @@ describe('WebSearchToolHandler', () => {
     expect(result.content).toContain('Found 3 results')
   })
 
+  it('skips results with empty href/title and empty snippets', async () => {
+    const html = [
+      '<a class="result__a" href="   ">EmptyHref</a>',
+      '<div class="result__snippet">ignored</div>',
+      '<a class="result__a" href="https://example.com/ok"><b>  </b></a>',
+      '<div class="result__snippet"><b></b></div>',
+      '<a class="result__a" href="https://example.com/good">Good</a>',
+      '<div class="result__snippet"><b></b></div>',
+    ].join('\n')
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch', input: { query: 'test' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('Found 1 results')
+    expect(result.content).toContain('https://example.com/good')
+  })
+
   it('keeps malformed href as-is when URL normalization fails', async () => {
     const html = '<a class="result__a" href=":bad-url">Bad URL</a>'
 
@@ -252,5 +300,78 @@ describe('WebSearchToolHandler', () => {
 
     expect(result.is_error).toBeUndefined()
     expect(result.content).toContain('Bad &#x110000; Entity')
+  })
+
+  it('normalizes protocol-relative and relative hrefs from DuckDuckGo HTML', async () => {
+    const html = [
+      '<a class="result__a" href="//example.net/p">ProtoRel</a>',
+      '<div class="result__snippet">S1</div>',
+      '<a class="result__a" href="/relative/path">Relative</a>',
+      '<div class="result__snippet">S2</div>',
+    ].join('\n')
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch', input: { query: 'test' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('https://example.net/p')
+    expect(result.content).toContain('https://duckduckgo.com/relative/path')
+  })
+
+  it('keeps duckduckgo redirect URL when uddg param is missing', async () => {
+    const html = [
+      '<a class="result__a" href="https://duckduckgo.com/l/?x=1">DDG Link</a>',
+      '<div class="result__snippet">S</div>',
+    ].join('\n')
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch', input: { query: 'test' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('https://duckduckgo.com/l/?x=1')
+  })
+
+  it('normalizes dirty allowed/blocked domain arrays and handles huge numeric entities', async () => {
+    const huge = `&#${'9'.repeat(400)};`
+    const html = [
+      `<a class="result__a" href="https://allowed.example.com">A ${huge}</a>`,
+      '<div class="result__snippet">S</div>',
+      '<a class="result__a" href="https://blocked.com">B</a>',
+      '<div class="result__snippet">S2</div>',
+    ].join('\n')
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      {
+        id: '1',
+        name: 'WebSearch',
+        input: {
+          query: 'test',
+          allowed_domains: [' allowed.example.com ', null as any, ''],
+          blocked_domains: [' blocked.com ', undefined as any],
+        },
+      },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('https://allowed.example.com/')
+    expect(result.content).toContain(huge)
+    expect(result.content).not.toContain('https://blocked.com')
   })
 })

@@ -46,11 +46,10 @@ export function createUserInputManager(): UserInputManager {
     }
 
     if (bufferedAnswers.size <= MAX_BUFFERED) return
-    let toDelete = bufferedAnswers.size - MAX_BUFFERED
-    for (const id of bufferedAnswers.keys()) {
+    const toDelete = bufferedAnswers.size - MAX_BUFFERED
+    const idsToDelete = Array.from(bufferedAnswers.keys()).slice(0, toDelete)
+    for (const id of idsToDelete) {
       bufferedAnswers.delete(id)
-      toDelete -= 1
-      if (toDelete <= 0) break
     }
   }
 

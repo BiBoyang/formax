@@ -183,7 +183,7 @@ function abortPromise(signal: AbortSignal): { promise: Promise<'abort'>; cancel:
     return { promise: Promise.resolve('abort'), cancel: () => {} }
   }
 
-  let onAbort: () => void = () => {}
+  let onAbort!: () => void
   const promise = new Promise<'abort'>((resolve) => {
     onAbort = () => resolve('abort')
     signal.addEventListener('abort', onAbort, { once: true })
