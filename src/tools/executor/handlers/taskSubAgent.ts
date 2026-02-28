@@ -75,7 +75,7 @@ export function createTaskSubAgentToolHandler(deps: {
         }
       }
 
-      const currentCfg = await loadRuntimeConfig(process.env, ctx.cwd || process.cwd())
+      const currentCfg = await loadRuntimeConfig(process.env, ctx.cwd ?? process.cwd())
       const agentModelTier = parseModelTier(agent.model)
       const selectedModelTier =
         explicitModelTier ??
@@ -222,7 +222,7 @@ export function createTaskSubAgentToolHandler(deps: {
           resume: typeof resume === 'string' && resume.trim() ? resume.trim() : undefined,
           agentId: opts?.agentId,
           replMode: subMode,
-          interactive: opts?.emitUi ?? true,
+          interactive: opts?.emitUi !== false,
           signal,
           onEvent: onSubEvent,
         })
@@ -250,7 +250,7 @@ export function createTaskSubAgentToolHandler(deps: {
           status: result.success ? 'completed' : 'error',
           summary: limited || (result.success ? '(no output)' : ''),
           ...(response.trim() ? { response: response.trim() } : {}),
-          ...(transcriptLines.length > 0 ? { transcript: transcriptLines } : {}),
+          transcript: transcriptLines,
           ...(result.artifacts && result.artifacts.length > 0 ? { artifacts: result.artifacts } : {}),
           ...(!result.success && result.error ? { error: result.error } : {}),
           ...(toolUses ? { tool_uses: toolUses } : {}),
@@ -583,4 +583,26 @@ function formatDuration(ms: number): string {
   const m = Math.floor(s / 60)
   const r = s % 60
   return r === 0 ? `${m}m` : `${m}m ${r}s`
+}
+
+export const taskSubAgentTestExports = {
+  parseExplicitModelTier,
+  formatNestedHeader,
+  renderNestedLines,
+  trimEntries,
+  addUsage,
+  compactInputForHeader,
+  compactInputForNestedUi,
+  basename,
+  toSingleLine,
+  truncateLine,
+  createThrottledUpdater,
+  renderTaskTranscriptLines,
+  renderNestedToolResultLines,
+  renderDoneLine,
+  splitLines,
+  truncateTextByChars,
+  sumTokens,
+  formatTokenCount,
+  formatDuration,
 }

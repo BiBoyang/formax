@@ -28,10 +28,16 @@ describe('TaskSubAgentToolHandler', () => {
     }
 
     const handler = createTaskSubAgentToolHandler({ registry, runner, taskManager: new TaskManager() })
+    expect(handler.canHandle('Task')).toBe(true)
+    expect(handler.canHandle('Bash')).toBe(false)
     const call: ToolCall = { id: '1', name: 'Task', input: {} }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
     expect(result.content).toContain('Missing required fields')
+
+    const noInputCall: ToolCall = { id: '2', name: 'Task', input: undefined as any }
+    const noInputResult = await handler.execute(noInputCall, { cwd: process.cwd(), agentDepth: 0 })
+    expect(noInputResult.is_error).toBe(true)
   })
 
   it('returns error when sub-agent is not found', async () => {
@@ -98,6 +104,42 @@ describe('TaskSubAgentToolHandler', () => {
     expect(parsed.transcript.join('\n')).toContain('Response:')
     expect(parsed.transcript.join('\n')).toContain('Done (')
     expect(parsed.agent_id).toBe('agent-1')
+  })
+
+  it('works when execution context cwd is omitted', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+    const runner: SubAgentRunner = {
+      async run() {
+        return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+      },
+    }
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Code review', subagent_type: 'code-reviewer', prompt: 'review' },
+    }
+    const result = await handler.execute(call, { agentDepth: 0 } as any)
+    expect(result.is_error).toBeFalsy()
   })
 
   it('truncates long summaries to 500 characters', async () => {
@@ -227,6 +269,45 @@ describe('TaskSubAgentToolHandler', () => {
     expect(parsed.status).toBe('error')
     expect(parsed.error).toBe('boom')
     expect(parsed.agent_id).toBe('agent-1')
+  })
+
+  it('uses default error text when runner fails without explicit message', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+    const runner: SubAgentRunner = {
+      async run() {
+        return { agentId: 'agent-1', response: '', summary: '', success: false, error: '' }
+      },
+    }
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
+    }
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    expect(result.is_error).toBe(true)
+    const parsed = JSON.parse(result.content)
+    expect(parsed.status).toBe('error')
+    expect(parsed.summary).toBe('')
   })
 
   it('validates model when provided', async () => {
@@ -495,6 +576,8 @@ describe('TaskSubAgentToolHandler', () => {
     expect(parsed.agent_id).toBe('resume-agent-123')
     expect(typeof parsed.task_id).toBe('string')
     expect(agentIds).toEqual([undefined])
+    const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
+    expect(waited.snapshot.status).toBe('completed')
   })
 
   it('emits nested tool updates to ctx.onEvent', async () => {
@@ -554,6 +637,53 @@ describe('TaskSubAgentToolHandler', () => {
     expect(last.nestedTools.some((t: any) => t.name === 'Bash')).toBe(true)
   })
 
+  it('handles ignored/missing nested events without crashing', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+    const runner: SubAgentRunner = {
+      async run(args) {
+        args.onEvent?.(undefined as any)
+        args.onEvent?.({ type: 'tool_start', id: 't1', name: 'Bash' } as any)
+        args.onEvent?.({ type: 'tool_input', id: 'missing', input: { x: 1 } } as any)
+        args.onEvent?.({ type: 'tool_input', id: 't1', input: 1 as any } as any)
+        args.onEvent?.({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1' } } as any)
+        args.onEvent?.({ type: 'tool_end', id: 'missing', result: { tool_use_id: 'missing', content: '' } } as any)
+        args.onEvent?.({ type: 'usage', usage: {} })
+        return { agentId: 'agent-1', response: '', summary: '', success: true }
+      },
+    }
+
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
+    }
+
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    expect(result.is_error).toBeFalsy()
+    const parsed = JSON.parse(result.content)
+    expect(parsed.status).toBe('completed')
+  })
+
   it('supports run_in_background and stores result', async () => {
     const agent = {
       name: 'code-reviewer',
@@ -602,6 +732,85 @@ describe('TaskSubAgentToolHandler', () => {
     const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('completed')
     expect(waited.snapshot.result?.content).toBe('background')
+  })
+
+  it('handles background mode updates without emitting foreground UI events', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+
+    const runner: SubAgentRunner = {
+      async run(args) {
+        args.onEvent?.({ type: 'usage', usage: { input_tokens: 1 } })
+        args.onEvent?.({ type: 'tool_start', id: 't1', name: 'Bash' })
+        args.onEvent?.({ type: 'tool_input', id: 't1', input: 1 as any })
+        args.onEvent?.({ type: 'tool_end', id: 't1', result: { tool_use_id: 't1', content: '' } })
+        return { agentId: 'agent-1', response: '', summary: '', success: true }
+      },
+    }
+
+    const taskManager = new TaskManager()
+    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner, taskManager })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
+    }
+
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    const parsed = JSON.parse(result.content)
+    const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
+    expect(waited.snapshot.status).toBe('completed')
+    expect(typeof waited.snapshot.result?.content).toBe('string')
+  })
+
+  it('marks background task result as error when runner fails', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+    const runner: SubAgentRunner = {
+      async run() {
+        return { agentId: 'agent-1', response: '', summary: '', success: false, error: 'boom' }
+      },
+    }
+    const taskManager = new TaskManager()
+    const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner, taskManager })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
+    }
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    const parsed = JSON.parse(result.content)
+    const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
+    expect(waited.snapshot.result?.is_error).toBe(true)
   })
 
   it('bounds search-like transcript output and summarizes hidden tool uses', async () => {
