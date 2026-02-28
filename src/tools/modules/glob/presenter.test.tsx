@@ -91,4 +91,72 @@ describe('GlobToolPresenter', () => {
     expect(frame).not.toContain('     b')
     expect(frame).not.toContain('     more')
   })
+
+  it('renders unknown header when tool info is missing', () => {
+    const message: Msg = {
+      id: 'tool-unknown',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+    }
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
+    expect(stripAnsi(view.lastFrame() ?? '')).toContain('Unknown tool')
+  })
+
+  it('falls back to cwd and id when running path/toolUseId are missing', () => {
+    const message: Msg = {
+      id: 'plain-id',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Glob',
+        status: 'running',
+        input: {},
+        result: '',
+      },
+    }
+    const blocks = GlobToolPresenter({ message }).blocks as any[]
+    expect(blocks[1].kind).toBe('custom')
+    expect(blocks[1].node.props.toolUseId).toBe('plain-id')
+    expect(blocks[1].node.props.directoryPath).toBe(process.cwd())
+  })
+
+  it('renders compact error details for error results', () => {
+    const message: Msg = {
+      id: 'tool-error',
+      role: 'tool',
+      content: 'Error: denied',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Glob',
+        status: 'error',
+        input: { pattern: '*.ts', path: '/tmp' },
+        result: '',
+        middleLines: ['Path: /tmp'],
+        expandInfo: 'Path (absolute): /tmp',
+      },
+    }
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
+    const frame = stripAnsi(view.lastFrame() ?? '')
+    expect(frame).toContain('Error: denied')
+    expect(frame).toContain('Path: /tmp')
+  })
+
+  it('handles runtime-missing summary safely', () => {
+    const message: Msg = {
+      id: 'tool-no-summary',
+      role: 'tool',
+      content: undefined as any,
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Glob',
+        status: 'completed',
+        input: { pattern: '*.ts', path: 'src' },
+        result: '',
+      },
+    }
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
+    expect(stripAnsi(view.lastFrame() ?? '')).toContain('Search')
+  })
 })

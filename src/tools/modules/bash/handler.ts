@@ -132,7 +132,7 @@ async function runForeground(args: {
                   : typeof signal === 'string' && signal
                     ? `Exit signal ${signal}`
                     : msg
-          resolve({ content: content ? `Error: ${headline}\n${content}` : `Error: ${headline}`, isError: true })
+          resolve({ content: `Error: ${headline}\n${content}`, isError: true })
         } else {
           resolve({ content, isError: false })
         }
@@ -221,13 +221,13 @@ async function runBackground(args: {
       )
 
       if (signal.aborted) {
-        finish({ content: output ? `Killed\n${output}` : 'Killed', is_error: true })
+        finish({ content: `Killed\n${output}`, is_error: true })
         return
       }
 
       if (timedOut) {
         finish({
-          content: output ? `Timed out after ${args.timeoutMs}ms\n${output}` : `Timed out after ${args.timeoutMs}ms`,
+          content: `Timed out after ${args.timeoutMs}ms\n${output}`,
           is_error: true,
         })
         return
@@ -235,24 +235,24 @@ async function runBackground(args: {
 
       if (exitSignal) {
         finish({
-          content: output ? `Exit signal ${exitSignal}\n${output}` : `Exit signal ${exitSignal}`,
+          content: `Exit signal ${exitSignal}\n${output}`,
           is_error: true,
         })
         return
       }
 
       if (typeof code === 'number' && code !== 0) {
-        finish({ content: output ? `Exit code ${code}\n${output}` : `Exit code ${code}`, is_error: true })
+        finish({ content: `Exit code ${code}\n${output}`, is_error: true })
         return
       }
 
-      finish({ content: output || '(no output)' })
+      finish({ content: output })
     })
   })
 }
 
 function truncateCommand(cmd: string, max: number): string {
-  const s = (cmd || '').trim()
+  const s = cmd.trim()
   return s.length > max ? s.slice(0, max) + '…' : s
 }
 
@@ -327,13 +327,11 @@ function killProcessTree(child: ReturnType<typeof spawn>): void {
   const pid = child.pid
   if (!pid) return
 
-  if (process.platform !== 'win32') {
-    try {
-      process.kill(-pid, 'SIGTERM')
-      return
-    } catch {
-      // fall through
-    }
+  try {
+    process.kill(-pid, 'SIGTERM')
+    return
+  } catch {
+    // fall through
   }
 
   try {

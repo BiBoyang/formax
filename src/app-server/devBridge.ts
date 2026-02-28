@@ -31,6 +31,11 @@ export type AppServerDevBridgeOptions = {
   maxEventBytes?: number
   maxPendingInputsPerThread?: number
   defaultInputTtlMs?: number
+  rpcOverrides?: {
+    readDiff?: (cwd: string, params: BridgeReadDiffParams | undefined) => Promise<BridgeReadDiffResult>
+    readDiffSummary?: (cwd: string, params: BridgeReadDiffSummaryParams | undefined) => Promise<BridgeReadDiffSummaryResult>
+    readDiffFilePatch?: (cwd: string, params: BridgeReadDiffFilePatchParams | undefined) => Promise<BridgeReadDiffFilePatchResult>
+  }
 }
 
 export type AppServerDevBridgeHandle = {
@@ -168,9 +173,16 @@ function createBridgeAuditWriter(auditLogFile: string | undefined): {
   }
 }
 
-async function runGit(cwd: string, args: string[]): Promise<{ ok: true; stdout: string } | { ok: false; error: string }> {
+async function runGit(
+  cwd: string,
+  args: string[],
+  deps?: {
+    execFileFn?: typeof execFile
+  },
+): Promise<{ ok: true; stdout: string } | { ok: false; error: string }> {
+  const execFileFn = deps?.execFileFn ?? execFile
   return new Promise((resolve) => {
-    execFile(
+    execFileFn(
       'git',
       ['-C', cwd, ...args],
       { maxBuffer: 4 * 1024 * 1024 },
@@ -191,9 +203,9 @@ function parsePatchFiles(diffText: string): BridgeDiffFile[] {
   const files: BridgeDiffFile[] = []
   for (const chunk of chunks) {
     const lines = chunk.split('\n')
-    const first = lines[0] ?? ''
+    const first = lines[0]
     const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(first.trim())
-    const path = match ? (match[2] || match[1]) : 'unknown'
+    const path = match ? match[2] : 'unknown'
     let additions = 0
     let deletions = 0
     for (const line of lines) {
@@ -224,7 +236,7 @@ function parseRenamePairs(nameStatusText: string): GitRenamePair[] {
     if (!line) continue
     const parts = line.split('\t')
     if (parts.length < 3) continue
-    const status = parts[0] ?? ''
+    const status = parts[0]
     if (!status.startsWith('R')) continue
     const oldPath = parts[1]?.trim()
     const newPath = parts[2]?.trim()
@@ -327,12 +339,19 @@ function countContentLines(text: string): number {
   return lines.length
 }
 
-async function buildUntrackedDiffFile(cwd: string, filePath: string): Promise<BridgeDiffFile> {
+async function buildUntrackedDiffFile(
+  cwd: string,
+  filePath: string,
+  deps?: {
+    readlinkFn?: typeof readlink
+  },
+): Promise<BridgeDiffFile> {
   const absPath = path.resolve(cwd, filePath)
+  const readlinkFn = deps?.readlinkFn ?? readlink
   try {
     const stats = await lstat(absPath)
     if (stats.isSymbolicLink()) {
-      const linkTarget = await readlink(absPath).catch(() => null)
+      const linkTarget = await readlinkFn(absPath).catch(() => null)
       const linkLine = linkTarget ? `+${linkTarget}` : '+(unavailable)'
       return {
         path: filePath,
@@ -405,14 +424,23 @@ async function buildUntrackedDiffFile(cwd: string, filePath: string): Promise<Br
   }
 }
 
-async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | undefined): Promise<BridgeReadDiffResult> {
+async function readWorkspaceDiff(
+  cwd: string,
+  params: BridgeReadDiffParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+    buildUntrackedDiffFileFn?: typeof buildUntrackedDiffFile
+  },
+): Promise<BridgeReadDiffResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const buildUntrackedDiffFileFn = deps?.buildUntrackedDiffFileFn ?? buildUntrackedDiffFile
   const maxBytes = normalizeMaxBytes(params?.maxBytes)
   const generatedAt = new Date().toISOString()
 
   const [diffFromHead, fallbackDiff, untracked] = await Promise.all([
-    runGit(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames']),
-    runGit(cwd, ['diff', '--no-color', '--patch', '--find-renames']),
-    runGit(cwd, ['ls-files', '--others', '--exclude-standard']),
+    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames']),
+    runGitFn(cwd, ['diff', '--no-color', '--patch', '--find-renames']),
+    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard']),
   ])
 
   if (!diffFromHead.ok && !fallbackDiff.ok && !untracked.ok) {
@@ -429,7 +457,7 @@ async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | und
           path: 'git-diff-error',
           additions: 0,
           deletions: 0,
-          patch: `git diff unavailable in ${cwd}\n${firstError ?? 'unknown error'}`,
+          patch: `git diff unavailable in ${cwd}\n${String(firstError)}`,
         },
       ],
     }
@@ -469,7 +497,7 @@ async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | und
         truncated = true
         break
       }
-      const file = await buildUntrackedDiffFile(cwd, filePath)
+      const file = await buildUntrackedDiffFileFn(cwd, filePath)
       const appended = appendDiffFileWithinBudget(files, file, usedBytes, maxBytes)
       usedBytes = appended.used
       if (appended.truncated) {
@@ -491,16 +519,20 @@ async function readWorkspaceDiff(cwd: string, params: BridgeReadDiffParams | und
 async function readWorkspaceDiffSummary(
   cwd: string,
   params: BridgeReadDiffSummaryParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+  },
 ): Promise<BridgeReadDiffSummaryResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
   const maxFiles = normalizeMaxFiles(params?.maxFiles)
   const generatedAt = new Date().toISOString()
 
   const [diffFromHeadNumstat, fallbackDiffNumstat, diffFromHeadNameStatus, fallbackDiffNameStatus, untracked] = await Promise.all([
-    runGit(cwd, ['diff', 'HEAD', '--no-color', '--numstat', '--find-renames']),
-    runGit(cwd, ['diff', '--no-color', '--numstat', '--find-renames']),
-    runGit(cwd, ['diff', 'HEAD', '--name-status', '--find-renames']),
-    runGit(cwd, ['diff', '--name-status', '--find-renames']),
-    runGit(cwd, ['ls-files', '--others', '--exclude-standard']),
+    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--numstat', '--find-renames']),
+    runGitFn(cwd, ['diff', '--no-color', '--numstat', '--find-renames']),
+    runGitFn(cwd, ['diff', 'HEAD', '--name-status', '--find-renames']),
+    runGitFn(cwd, ['diff', '--name-status', '--find-renames']),
+    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard']),
   ])
 
   if (!diffFromHeadNumstat.ok && !fallbackDiffNumstat.ok && !untracked.ok) {
@@ -574,7 +606,13 @@ function clipDiffFileWithinBudget(file: BridgeDiffFile, maxBytes: number): { fil
 async function readWorkspaceDiffFilePatch(
   cwd: string,
   params: BridgeReadDiffFilePatchParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+    buildUntrackedDiffFileFn?: typeof buildUntrackedDiffFile
+  },
 ): Promise<BridgeReadDiffFilePatchResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const buildUntrackedDiffFileFn = deps?.buildUntrackedDiffFileFn ?? buildUntrackedDiffFile
   const generatedAt = new Date().toISOString()
   const requestedPath = typeof params?.path === 'string' ? params.path.trim() : ''
   const maxBytes = normalizeMaxBytes(params?.maxBytes, 256 * 1024)
@@ -590,9 +628,9 @@ async function readWorkspaceDiffFilePatch(
   }
 
   const [diffFromHead, fallbackDiff, untracked] = await Promise.all([
-    runGit(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
-    runGit(cwd, ['diff', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
-    runGit(cwd, ['ls-files', '--others', '--exclude-standard', '--', requestedPath]),
+    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
+    runGitFn(cwd, ['diff', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
+    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard', '--', requestedPath]),
   ])
 
   const trackedPatch =
@@ -615,7 +653,7 @@ async function readWorkspaceDiffFilePatch(
           .filter((line) => line.length > 0)
       : []
     if (untrackedPaths.includes(requestedPath)) {
-      file = await buildUntrackedDiffFile(cwd, requestedPath)
+      file = await buildUntrackedDiffFileFn(cwd, requestedPath)
     }
   }
 
@@ -802,10 +840,16 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
           const diffCwd = resolveDiffCwd(baseCwd, rawParams.cwd)
           const rpcPromise =
             parsed.method === 'bridge/readDiff'
-              ? readWorkspaceDiff(diffCwd, (parsed.params ?? {}) as BridgeReadDiffParams)
+              ? (options.rpcOverrides?.readDiff ?? readWorkspaceDiff)(diffCwd, (parsed.params ?? {}) as BridgeReadDiffParams)
               : parsed.method === 'bridge/readDiffSummary'
-                ? readWorkspaceDiffSummary(diffCwd, (parsed.params ?? {}) as BridgeReadDiffSummaryParams)
-                : readWorkspaceDiffFilePatch(diffCwd, (parsed.params ?? {}) as BridgeReadDiffFilePatchParams)
+                ? (options.rpcOverrides?.readDiffSummary ?? readWorkspaceDiffSummary)(
+                    diffCwd,
+                    (parsed.params ?? {}) as BridgeReadDiffSummaryParams,
+                  )
+                : (options.rpcOverrides?.readDiffFilePatch ?? readWorkspaceDiffFilePatch)(
+                    diffCwd,
+                    (parsed.params ?? {}) as BridgeReadDiffFilePatchParams,
+                  )
 
           void rpcPromise
             .then((result) => {
@@ -904,4 +948,28 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
       await audit.flush()
     },
   }
+}
+
+export const __devBridgeTestHooks = {
+  normalizeMaxBytes,
+  normalizeMaxFiles,
+  resolveDiffCwd,
+  writeJsonlLine,
+  broadcastLine,
+  createBridgeAuditWriter,
+  runGit,
+  parsePatchFiles,
+  parseRenamePairs,
+  parseNumstatFiles,
+  normalizeNumstatPath,
+  mergeSummaryFiles,
+  estimateDiffFileBaseBytes,
+  appendDiffFileWithinBudget,
+  countContentLines,
+  buildUntrackedDiffFile,
+  readWorkspaceDiff,
+  readWorkspaceDiffSummary,
+  findPatchByRequestedPath,
+  clipDiffFileWithinBudget,
+  readWorkspaceDiffFilePatch,
 }

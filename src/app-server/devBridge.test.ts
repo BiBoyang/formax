@@ -82,6 +82,10 @@ vi.mock('node:http', () => ({
   createServer: createServerMock,
 }))
 
+vi.mock('node:https', () => ({
+  createServer: createServerMock,
+}))
+
 vi.mock('ws', () => {
   const WebSocket = { OPEN: 1 }
 
@@ -113,6 +117,7 @@ type MockSocket = {
   close: ReturnType<typeof vi.fn>
   on: (event: string, handler: (...args: any[]) => void) => void
   emitMessage: (raw: string | Buffer) => void
+  emitError: (error: Error) => void
 }
 
 function createMockSocket(): MockSocket {
@@ -132,6 +137,7 @@ function createMockSocket(): MockSocket {
     close: vi.fn(() => emit('close')),
     on,
     emitMessage: (raw) => emit('message', raw),
+    emitError: (error) => emit('error', error),
   }
 }
 
@@ -161,6 +167,8 @@ describe('startAppServerDevBridge', () => {
 
     const runArgs = readRunAppServerArgs()
     expect(runArgs).toBeTruthy()
+    runArgs.output.write('\n')
+    expect(socket.send).toHaveBeenCalledTimes(0)
     runArgs.output.write('{"jsonrpc":"2.0","id":99,"result":{"ok":true}}\n')
     expect(socket.send).toHaveBeenCalledWith('{"jsonrpc":"2.0","id":99,"result":{"ok":true}}')
 
@@ -170,6 +178,21 @@ describe('startAppServerDevBridge', () => {
     expect(socket.close).toHaveBeenCalledTimes(1)
     expect(wsServerCloseMock).toHaveBeenCalledTimes(1)
     expect(httpCloseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses default host/port when options are omitted', async () => {
+    const bridge = await startAppServerDevBridge()
+    expect(bridge.url).toBe('ws://127.0.0.1:3777')
+    await bridge.close()
+  })
+
+  it('ignores socket error events', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+    expect(() => socket.emitError(new Error('socket boom'))).not.toThrow()
+    await bridge.close()
   })
 
   it('handles bridge/readDiff locally without forwarding to app-server input', async () => {
@@ -188,6 +211,37 @@ describe('startAppServerDevBridge', () => {
     expect(payload.result).toBeTruthy()
     expect(Array.isArray(payload.result.files)).toBe(true)
 
+    await bridge.close()
+  })
+
+  it('forwards non-JSON lines to app-server input', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('not-json-line\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(readInputBuffer()).toBe('not-json-line\n')
+    await bridge.close()
+  })
+
+  it('enforces per-connection message rate limits', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      rateLimit: { windowMs: 60_000, maxMessages: 1 },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":2}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(socket.close).toHaveBeenCalledWith(1008, 'Rate limit exceeded')
     await bridge.close()
   })
 
@@ -213,6 +267,61 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('includes non-Error rpc failures in JSON-RPC error payload', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      cwd: process.cwd(),
+      rpcOverrides: {
+        readDiff: async () => {
+          throw 'rpc string failure'
+        },
+      },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":53,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+    const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(payload.error?.code).toBe(-32603)
+    expect(String(payload.error?.message ?? '')).toContain('rpc string failure')
+
+    await bridge.close()
+  })
+
+  it('skips bridge RPC success response when socket closes before promise resolves', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":62,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.readyState = 0
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(socket.send).toHaveBeenCalledTimes(0)
+    await bridge.close()
+  })
+
+  it('skips bridge RPC error response when socket closes during send failure handling', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    socket.send.mockImplementationOnce(() => {
+      socket.readyState = 0
+      throw new Error('send boom closed')
+    })
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":63,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+
+    expect(socket.send).toHaveBeenCalledTimes(1)
+    await bridge.close()
+  })
+
   it('handles bridge/readDiffSummary locally without forwarding to app-server input', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
     const onConnection = getConnectionHandler()
@@ -229,6 +338,68 @@ describe('startAppServerDevBridge', () => {
     expect(Array.isArray(payload.result.files)).toBe(true)
     expect(payload.result.files.every((file: any) => typeof file.patch === 'undefined')).toBe(true)
 
+    await bridge.close()
+  })
+
+  it('handles websocket Buffer messages', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+    socket.emitMessage(Buffer.from('{"jsonrpc":"2.0","id":9}\n', 'utf8'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(readInputBuffer()).toContain('"id":9')
+    await bridge.close()
+  })
+
+  it('handles bridge RPC calls without params using process cwd fallback', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":109,"method":"bridge/readDiff"}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+    const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(payload.id).toBe(109)
+    expect(payload.result).toBeTruthy()
+    await bridge.close()
+  })
+
+  it('uses summary and file-patch rpc overrides when provided', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      rpcOverrides: {
+        readDiffSummary: async () => ({
+          cwd: '/tmp',
+          generatedAt: new Date().toISOString(),
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'x.ts', additions: 1, deletions: 0 }],
+        }),
+        readDiffFilePatch: async () => ({
+          cwd: '/tmp',
+          generatedAt: new Date().toISOString(),
+          path: 'x.ts',
+          found: true,
+          truncated: false,
+          file: { path: 'x.ts', additions: 1, deletions: 0, patch: 'p' },
+        }),
+      },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":300,"method":"bridge/readDiffSummary"}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":301,"method":"bridge/readDiffFilePatch"}\n')
+    await waitFor(() => socket.send.mock.calls.length >= 2)
+
+    const first = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    const second = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+    expect(first.id).toBe(300)
+    expect(second.id).toBe(301)
     await bridge.close()
   })
 
@@ -328,6 +499,37 @@ describe('startAppServerDevBridge', () => {
     }
   })
 
+  it('returns found=false when bridge/readDiffFilePatch path does not exist in diff', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-single-patch-miss-'))
+    try {
+      runGit(repoDir, ['init'])
+      runGit(repoDir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(repoDir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(repoDir, 'tracked.txt'), 'one\ntwo\n', 'utf8')
+      runGit(repoDir, ['add', 'tracked.txt'])
+      runGit(repoDir, ['commit', '-m', 'init'])
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage(
+        '{"jsonrpc":"2.0","id":245,"method":"bridge/readDiffFilePatch","params":{"path":"missing.txt","maxBytes":4096}}\n',
+      )
+      await waitFor(() => socket.send.mock.calls.length > 0)
+
+      const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      expect(payload.id).toBe(245)
+      expect(payload.result?.found).toBe(false)
+      expect(payload.result?.file).toBeNull()
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
   it('normalizes renamed summary paths so single-file patch lookup succeeds', async () => {
     const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-rename-'))
     try {
@@ -419,6 +621,41 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('rejects websocket connection without origin and records null origin metadata', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      security: { authToken: 'secret-token' },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+
+    onConnection?.(socket, { url: '/?token=wrong-token', headers: {} as any })
+    expect(socket.close).toHaveBeenCalledWith(1008, 'Unauthorized')
+
+    await bridge.close()
+  })
+
+  it('accepts auth token from authorization header', async () => {
+    const bridge = await startAppServerDevBridge({
+      host: '127.0.0.1',
+      port: 3777,
+      security: { authToken: 'secret-token' },
+    })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+
+    onConnection?.(socket, {
+      url: '/',
+      headers: { origin: 'http://localhost:3781', authorization: 'Bearer secret-token' } as any,
+    })
+    socket.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(readInputBuffer()).toContain('"id":1')
+    await bridge.close()
+  })
+
   it('rejects websocket connection when origin is not allowed', async () => {
     const bridge = await startAppServerDevBridge({
       host: '127.0.0.1',
@@ -463,6 +700,35 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('handles missing origin header in connection metadata', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: {} as any })
+    socket.emitMessage('{"jsonrpc":"2.0","id":7}\n')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(readInputBuffer()).toContain('"id":7')
+    await bridge.close()
+  })
+
+  it('creates https server when tls options are provided', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-tls-'))
+    try {
+      const certFile = path.join(dir, 'cert.pem')
+      const keyFile = path.join(dir, 'key.pem')
+      await writeFile(certFile, 'CERT', 'utf8')
+      await writeFile(keyFile, 'KEY', 'utf8')
+
+      const bridge = await startAppServerDevBridge({
+        tls: { certFile, keyFile },
+      })
+      expect(wsCtorMock).toHaveBeenCalled()
+      await bridge.close()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects when httpServer.listen throws synchronously', async () => {
     httpListenMock.mockImplementationOnce(() => {
       throw new Error('listen boom')
@@ -471,6 +737,13 @@ describe('startAppServerDevBridge', () => {
     await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow('listen boom')
     expect(runAppServerMock).not.toHaveBeenCalled()
     expect(httpOffMock).toHaveBeenCalled()
+  })
+
+  it('wraps non-Error throws from httpServer.listen', async () => {
+    httpListenMock.mockImplementationOnce(() => {
+      throw 'listen raw'
+    })
+    await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow('listen raw')
   })
 
   it('rejects when httpServer emits error while listening', async () => {
@@ -491,6 +764,17 @@ describe('startAppServerDevBridge', () => {
     await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow(
       'Failed to resolve app-server dev bridge address',
     )
+  })
+
+  it('close is idempotent and handles rejected app-server loop', async () => {
+    runAppServerMock.mockImplementationOnce(async () => {
+      throw new Error('loop boom')
+    })
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
+    await bridge.close()
+    await bridge.close()
+    expect(wsServerCloseMock).toHaveBeenCalledTimes(1)
+    expect(httpCloseMock).toHaveBeenCalledTimes(1)
   })
 })
 async function waitFor(condition: () => boolean, timeoutMs = 1200): Promise<void> {

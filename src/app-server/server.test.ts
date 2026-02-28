@@ -2403,4 +2403,133 @@ describe('AppServer', () => {
     expect(resolvedIndex).toBeGreaterThanOrEqual(0)
     expect(failedIndex).toBeGreaterThan(resolvedIndex)
   })
+
+  it('emits thread/archived notification defaults when opId and archivedAt are missing', async () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return { id: 't-1', cwd: '/tmp', createdAt: '', updatedAt: '' } as any
+        },
+        async readThread() {
+          return { thread: { id: 't-1', cwd: '/tmp', createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+        async listThreads() { return { data: [], nextCursor: null } as any },
+        async resumeThread() { return { thread: { id: 't-1', cwd: '/tmp', createdAt: '', updatedAt: '' }, staleInputs: [] } as any },
+        async listThreadMessages() { return { data: [], nextCursor: null } as any },
+        async archiveThread(threadId: string) {
+          return { thread: { id: threadId, cwd: '/tmp', createdAt: '', updatedAt: '' } } as any
+        },
+      } as any,
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/archive', { threadId: 't-1' }))
+    expect((out[0] as any).result.thread.id).toBe('t-1')
+    const archived = notifications.find((n) => n.method === 'thread/archived')
+    expect((archived?.params as any)?.opId).toBeNull()
+    expect(typeof (archived?.params as any)?.archivedAt).toBe('string')
+  })
+
+  it('routes /todos with arguments via local command dispatch', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return { thread: { id: 't-1', cwd: process.cwd(), createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+      } as any,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/todos now' }))
+    expect((out[0] as any).result.local.stdout).toBeTypeOf('string')
+  })
+
+  it('passes cwd through command/dispatch and submitInput ignores missing stale toolUseId mapping', async () => {
+    const startTurn = vi.fn(async () => ({ turn: { id: 'turn-1', status: 'running' } }))
+    const submitInput = vi.fn(async () => ({}))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return { thread: { id: 't-1', cwd: process.cwd(), createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+      } as any,
+      resolveTurnRunner: async () =>
+        ({
+          startTurn,
+          interruptTurn: async () => ({}),
+          submitInput,
+        }) as any,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(
+      request(2, 'command/dispatch', { threadId: 't-1', command: '/compact keep summary', cwd: process.cwd() }),
+    )
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({ cwd: process.cwd() }))
+
+    await server.handleMessage(
+      request(3, 'turn/input/submit', {
+        threadId: 't-1',
+        turnId: 'turn-1',
+        inputId: 'in-1',
+        toolUseId: 'missing-tool',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect(submitInput).toHaveBeenCalled()
+  })
+
+  it('maps non-Error exceptions to INTERNAL_ERROR via toRpcError', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          throw 'boom'
+        },
+      } as any,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/start', {}))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((out[0] as any).error.message).toBe('Internal error')
+  })
+
+  it('emits notifications with undefined/primitive params when no threadId can be extracted', () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+    })
+    const emit = server.createTurnNotificationEmitter()
+    emit('custom/no-params')
+    emit('custom/primitive', 'x')
+    emit('custom/object', { ok: true })
+    expect(notifications[0]).toEqual({ jsonrpc: '2.0', method: 'custom/no-params' })
+    expect(notifications[1]).toEqual({ jsonrpc: '2.0', method: 'custom/primitive' })
+    expect(notifications[2]).toEqual({ jsonrpc: '2.0', method: 'custom/object', params: { ok: true } })
+  })
+
+  it('does not regress replay trimmed boundary when previous threshold is already newer', () => {
+    const notifications: Array<{ jsonrpc: '2.0'; method: string; params?: unknown }> = []
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      emitNotification(message) {
+        notifications.push(message)
+      },
+      maxReplayEventsPerThread: 1,
+    })
+    ;(server as any).replayTrimmedBeforeByThreadId.set('thread-trim', 100)
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/started', { threadId: 'thread-trim' })
+    emit('turn/started', { threadId: 'thread-trim' })
+    const trimmedBefore = (server as any).replayTrimmedBeforeByThreadId.get('thread-trim')
+    expect(trimmedBefore).toBe(100)
+    expect(notifications.length).toBeGreaterThan(0)
+  })
 })

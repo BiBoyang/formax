@@ -164,11 +164,10 @@ export class AppServer {
       try {
         parseInitializeParams(req.params)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Invalid params'
         return [
           makeErrorResponse(req.id, {
             code: JSON_RPC_ERRORS.INVALID_PARAMS,
-            message,
+            message: 'Invalid params',
           }),
         ]
       }
@@ -520,10 +519,8 @@ export class AppServer {
 
     const replaySeq = this.replaySeq + 1
     this.replaySeq = replaySeq
-    const wrapped: Record<string, unknown> = {
-      ...(paramsObj ?? {}),
-      replaySeq,
-    }
+    const wrapped: Record<string, unknown> = { replaySeq }
+    Object.assign(wrapped, paramsObj)
 
     const currentEntries = this.replayByThreadId.get(threadId) ?? []
     currentEntries.push({
@@ -534,11 +531,9 @@ export class AppServer {
     if (currentEntries.length > this.maxReplayEventsPerThread) {
       const trimCount = currentEntries.length - this.maxReplayEventsPerThread
       const trimmed = currentEntries.splice(0, trimCount)
-      const trimmedBefore = trimmed[trimmed.length - 1]?.replaySeq
+      const trimmedBefore = trimmed[trimmed.length - 1]!.replaySeq
       const previousTrimmed = this.replayTrimmedBeforeByThreadId.get(threadId) ?? 0
-      if ((trimmedBefore ?? 0) > previousTrimmed) {
-        this.replayTrimmedBeforeByThreadId.set(threadId, trimmedBefore as number)
-      }
+      this.replayTrimmedBeforeByThreadId.set(threadId, Math.max(previousTrimmed, trimmedBefore))
     }
     this.replayByThreadId.set(threadId, currentEntries)
 
@@ -662,7 +657,7 @@ export class AppServer {
       data: page.map((entry) => ({
         replaySeq: entry.replaySeq,
         method: entry.method,
-        ...(entry.params ? { params: entry.params } : {}),
+        params: entry.params,
       })),
       nextCursor,
       latestCursor,

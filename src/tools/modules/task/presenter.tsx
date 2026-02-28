@@ -98,7 +98,7 @@ function truncate(s: string, max: number): string {
 }
 
 function normalizeInlineText(s: string): string {
-  return (s || '').replace(/\s+/g, ' ').trim()
+  return String(s).replace(/\s+/g, ' ').trim()
 }
 
 function getTaskDisplayName(subagentType: unknown): string {

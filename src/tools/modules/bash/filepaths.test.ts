@@ -201,4 +201,95 @@ describe('extractFilepathsFromCommandOutput', () => {
     expect(out.isDisplayingContents).toBe(true)
     expect(out.filepaths).toEqual(['src/real.ts'])
   })
+
+  it('returns empty when command and output are both empty', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: '',
+      output: '',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('detects patch output via +++/--- markers without diff header', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'echo patched',
+      output: ['--- a/src/old.ts', '+++ b/src/new.ts', '+line'].join('\n'),
+    })
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/old.ts', 'src/new.ts'])
+  })
+
+  it('detects patch output via @@ hunk marker only', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'echo hunk',
+      output: ['@@ -1 +1 @@', '-old', '+new'].join('\n'),
+    })
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual([])
+    expect(out.confidence).toBe(0.6)
+  })
+
+  it('ignores malformed diff header with fewer than two paths', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git diff',
+      output: ['diff --git a/src/only.ts', '@@ -1 +1 @@', '-a', '+b'].join('\n'),
+    })
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('ignores attached head/tail numeric flags like -n5', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'head -n5 src/main.ts',
+      output: 'preview',
+    })
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/main.ts'])
+  })
+
+  it('does not treat cat with no real file args as displaying contents', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'cat - --',
+      output: 'stdin only',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('handles git command without subcommand', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git',
+      output: 'usage',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('treats git show with non-patch summary flags as non-content', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git show --name-only',
+      output: 'src/a.ts\n',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('does not treat unrelated git subcommands as content views', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git status',
+      output: 'On branch main',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('falls back safely when output is undefined at runtime', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git diff',
+      output: undefined as unknown as string,
+    })
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual([])
+  })
 })

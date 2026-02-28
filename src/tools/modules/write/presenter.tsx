@@ -45,7 +45,7 @@ function WriteToolBlock({ message }: { message: Msg }): React.ReactNode {
   const headerSuffix = showSurfaceSuffix && surface
     ? toolUseId
       ? `${surface}#${String(toolUseId).slice(-4)}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
-      : `${surface}${messageIdTail ? `@${messageIdTail}` : ''}${messageId ? `:${messageId}` : ''}`
+      : `${surface}`
     : null
   const filePathRaw = String((input as any).file_path || (input as any).path || '')
   const fileName = path.basename(filePathRaw || 'file')

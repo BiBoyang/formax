@@ -4,8 +4,6 @@
 3. 如果 todo 没有做完，不要停止
 
 
-- [ ] src/app-server/devBridge.ts
-- [ ] src/app-server/server.ts
 - [ ] src/app-server/threadStore.ts
 - [ ] src/app-server/turnRunner.ts
 - [ ] src/chat/context/prune.ts
@@ -47,7 +45,6 @@
 - [ ] src/network/runtime.ts
 - [ ] src/prompts/system.ts
 - [ ] src/screens/perf/TranscriptPerfScreen.tsx
-- [x] src/screens/REPL.tsx
 - [ ] src/screens/repl/compactProjection.ts
 - [ ] src/screens/repl/format.ts
 - [ ] src/screens/repl/hotkeys.ts
@@ -62,8 +59,6 @@
 - [ ] src/streaming/openai/StreamClient.ts
 - [ ] src/tools/executor/handlers/taskSubAgent.ts
 - [ ] src/tools/executor/policyPreflight.ts
-- [ ] src/tools/modules/bash/filepaths.ts
-- [ ] src/tools/modules/bash/handler.ts
 - [ ] src/tools/modules/bash/policy.ts
 - [ ] src/tools/modules/bash/presenter.tsx
 - [ ] src/tools/modules/edit/handler.ts
@@ -72,9 +67,6 @@
 - [ ] src/tools/modules/glob/presenter.tsx
 - [ ] src/tools/modules/grep/presenter.tsx
 - [ ] src/tools/modules/grep/ripgrepBinary.ts
-- [ ] src/tools/modules/read/presenter.tsx
-- [ ] src/tools/modules/task/presenter.tsx
-- [ ] src/tools/modules/write/presenter.tsx
 - [ ] src/tools/presenters/AskUserQuestionToolBlock.tsx
 - [ ] src/tools/presenters/PatchPreview.tsx
 - [ ] src/tools/presenters/ToolUiPrimitives.tsx
