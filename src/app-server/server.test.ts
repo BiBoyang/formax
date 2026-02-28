@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
+import * as commandRegistryModule from '../features/commands/registry.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { classifyRpcMessage, JSON_RPC_ERRORS } from './jsonrpc.js'
 import type { Thread } from './protocol.js'
@@ -34,6 +35,13 @@ async function waitForNotification(
 }
 
 describe('AppServer', () => {
+  it('maps invalid rpc envelopes to INVALID_REQUEST', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    const out = await server.handleMessage(classifyRpcMessage({ jsonrpc: '2.0', method: 1 as any }))
+    expect(out).toHaveLength(1)
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INVALID_REQUEST)
+  })
+
   it('returns NOT_INITIALIZED for requests before initialize', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     const out = await server.handleMessage(request(1, 'thread/start'))
@@ -78,6 +86,13 @@ describe('AppServer', () => {
     const out = await server.handleMessage(classifyRpcMessage({ jsonrpc: '2.0', method: 'initialized' }))
     expect(out).toEqual([])
     expect(server.getState().initializedNotified).toBe(true)
+  })
+
+  it('ignores initialized notification before initialize', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    const out = await server.handleMessage(classifyRpcMessage({ jsonrpc: '2.0', method: 'initialized' }))
+    expect(out).toEqual([])
+    expect(server.getState().initializedNotified).toBe(false)
   })
 
   it('routes thread methods to threadStore after initialize', async () => {
@@ -194,6 +209,42 @@ describe('AppServer', () => {
     const unarchiveOut = await server.handleMessage(request(10, 'thread/unarchive', { threadId: 't-1' }))
     expect((unarchiveOut[0] as any).result.thread.id).toBe('t-1')
     expect((unarchiveOut[0] as any).result.thread.archivedAt).toBeNull()
+  })
+
+  it('maps thread store errors on start/resume/read to rpc errors', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          throw new Error('start failed')
+        },
+        async resumeThread() {
+          throw new Error('resume failed')
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          throw new Error('read failed')
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const startOut = await server.handleMessage(request(2, 'thread/start'))
+    expect((startOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((startOut[0] as any).error.message).toContain('start failed')
+
+    const resumeOut = await server.handleMessage(request(3, 'thread/resume', { threadId: 't-1' }))
+    expect((resumeOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((resumeOut[0] as any).error.message).toContain('resume failed')
+
+    const readOut = await server.handleMessage(request(4, 'thread/read', { threadId: 't-1' }))
+    expect((readOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((readOut[0] as any).error.message).toContain('read failed')
   })
 
   it('validates thread/group/hide params', async () => {
@@ -324,6 +375,150 @@ describe('AppServer', () => {
     const unarchiveOut = await server.handleMessage(request(3, 'thread/unarchive', { threadId: 't-1' }))
     expect((unarchiveOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
     expect((unarchiveOut[0] as any).error.message).toBe('Method not found: thread/unarchive')
+  })
+
+  it('maps archive threadStore errors to rpc errors', async () => {
+    const baseThread: Thread = {
+      id: 't-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread(threadId) {
+          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
+        },
+        async listThreads() {
+          return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
+        },
+        async readThread() {
+          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+        },
+        async listThreadMessages() {
+          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+        },
+        async archiveThread() {
+          throw new Error('archive failed')
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'thread/archive', { threadId: 't-1' }))
+    expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((out[0] as any).error.message).toContain('archive failed')
+  })
+
+  it('maps turn/interrupt and turn/input/submit runner errors to rpc errors', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        async startTurn() {
+          return { turnId: 'turn-1', acceptedAt: new Date().toISOString() }
+        },
+        async interruptTurn() {
+          throw new Error('interrupt failed')
+        },
+        async submitInput() {
+          throw new Error('submit failed')
+        },
+      } as any,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const interruptOut = await server.handleMessage(request(2, 'turn/interrupt', { threadId: 't-1', turnId: 'x' }))
+    expect((interruptOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((interruptOut[0] as any).error.message).toContain('interrupt failed')
+
+    const submitOut = await server.handleMessage(
+      request(3, 'turn/input/submit', {
+        threadId: 't-1',
+        turnId: 'turn-1',
+        inputId: 'ask-1',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect((submitOut[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+    expect((submitOut[0] as any).error.message).toContain('submit failed')
+  })
+
+  it('consumes pending exit-plan reminder after command/dispatch turn start success', async () => {
+    const startTurn = vi.fn(async () => ({ turnId: 'turn-1', acceptedAt: new Date().toISOString() }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      turnRunner: {
+        startTurn,
+        async interruptTurn() {
+          return { accepted: true, interrupted: false }
+        },
+        async submitInput() {
+          return { accepted: true }
+        },
+      } as any,
+      threadStore: {
+        async startThread() {
+          return {
+            id: 't-1',
+            cwd: '/tmp/workspace',
+            createdAt: '2026-02-08T00:00:00.000Z',
+            updatedAt: '2026-02-08T00:00:01.000Z',
+          }
+        },
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/tmp/workspace',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:01.000Z',
+            },
+            staleInputs: [],
+          }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 't-1',
+              cwd: '/tmp/workspace',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:01.000Z',
+            },
+            transcriptPreview: [],
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    ;(server as any).pendingExitPlanReminderByThreadId.set('t-1', true)
+    await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/compact keep summary' }))
+
+    const call = startTurn.mock.calls[0]?.[0] ?? {}
+    expect(call.includeExitPlanReminder).toBe(true)
+    expect((server as any).pendingExitPlanReminderByThreadId.get('t-1')).toBeUndefined()
+  })
+
+  it('clears pending reminder when modeChanged keeps thread in plan mode', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    ;(server as any).pendingExitPlanReminderByThreadId.set('t-1', true)
+    ;(server as any).captureReplayAndRuntimeState('turn/modeChanged', {
+      threadId: 't-1',
+      mode: 'plan',
+      ts: new Date().toISOString(),
+    })
+
+    expect((server as any).pendingExitPlanReminderByThreadId.get('t-1')).toBeUndefined()
   })
 
   it('maps missing thread/unarchive target to INVALID_PARAMS', async () => {
@@ -950,6 +1145,121 @@ describe('AppServer', () => {
     }
   })
 
+  it('returns INTERNAL_ERROR when /todos local dispatch does not return local effect', async () => {
+    const dispatch = vi.fn(() => null)
+    const list = vi.fn(() => [])
+    const suggest = vi.fn(() => [])
+    const spy = vi
+      .spyOn(commandRegistryModule, 'createSlashCommandRegistry')
+      .mockReturnValue({ dispatch, list, suggest } as any)
+    try {
+      const server = new AppServer({
+        info: { name: 'formax', version: 'test' },
+        threadStore: {
+          async startThread() {
+            return {
+              id: 't-1',
+              cwd: '/tmp/workspace',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:01.000Z',
+            }
+          },
+          async resumeThread(threadId) {
+            return {
+              thread: {
+                id: threadId,
+                cwd: '/tmp/workspace',
+                createdAt: '2026-02-08T00:00:00.000Z',
+                updatedAt: '2026-02-08T00:00:01.000Z',
+              },
+              staleInputs: [],
+            }
+          },
+          async listThreads() {
+            return { data: [], nextCursor: null }
+          },
+          async readThread() {
+            return {
+              thread: {
+                id: 't-1',
+                cwd: '/tmp/workspace',
+                createdAt: '2026-02-08T00:00:00.000Z',
+                updatedAt: '2026-02-08T00:00:01.000Z',
+              },
+              transcriptPreview: [],
+            }
+          },
+          async listThreadMessages() {
+            return { data: [], nextCursor: null }
+          },
+        },
+      })
+      await server.handleMessage(request(1, 'initialize'))
+      const out = await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/todos' }))
+      expect((out[0] as any).error.code).toBe(JSON_RPC_ERRORS.INTERNAL_ERROR)
+      expect((out[0] as any).error.message).toContain('Failed to dispatch local command')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('handles local /todos stdout even when value is missing', async () => {
+    const dispatch = vi.fn(() => ({ kind: 'local', stdout: undefined }))
+    const list = vi.fn(() => [])
+    const suggest = vi.fn(() => [])
+    const spy = vi
+      .spyOn(commandRegistryModule, 'createSlashCommandRegistry')
+      .mockReturnValue({ dispatch, list, suggest } as any)
+    try {
+      const server = new AppServer({
+        info: { name: 'formax', version: 'test' },
+        threadStore: {
+          async startThread() {
+            return {
+              id: 't-1',
+              cwd: '/tmp/workspace',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:01.000Z',
+            }
+          },
+          async resumeThread(threadId) {
+            return {
+              thread: {
+                id: threadId,
+                cwd: '/tmp/workspace',
+                createdAt: '2026-02-08T00:00:00.000Z',
+                updatedAt: '2026-02-08T00:00:01.000Z',
+              },
+              staleInputs: [],
+            }
+          },
+          async listThreads() {
+            return { data: [], nextCursor: null }
+          },
+          async readThread() {
+            return {
+              thread: {
+                id: 't-1',
+                cwd: '/tmp/workspace',
+                createdAt: '2026-02-08T00:00:00.000Z',
+                updatedAt: '2026-02-08T00:00:01.000Z',
+              },
+              transcriptPreview: [],
+            }
+          },
+          async listThreadMessages() {
+            return { data: [], nextCursor: null }
+          },
+        },
+      })
+      await server.handleMessage(request(1, 'initialize'))
+      const out = await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/todos' }))
+      expect((out[0] as any).result.local.stdout).toBe('')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('validates command/dispatch params', async () => {
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -1223,6 +1533,20 @@ describe('AppServer', () => {
       .map((entry) => (entry.params as any)?.replaySeq)
       .filter((value) => typeof value === 'number')
     expect(notificationReplaySeqs.length).toBe(5)
+  })
+
+  it('returns empty replay page when after cursor is beyond latest cursor', async () => {
+    const server = new AppServer({ info: { name: 'formax', version: 'test' } })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', { threadId: 'thread-gap' })
+
+    const replayOut = await server.handleMessage(
+      request(2, 'thread/replay', { threadId: 'thread-gap', after: 9999, limit: 10 }),
+    )
+    expect((replayOut[0] as any).result.data).toEqual([])
+    expect((replayOut[0] as any).result.nextCursor).toBe((replayOut[0] as any).result.latestCursor)
   })
 
   it('includes pending input details in replay state snapshot', async () => {

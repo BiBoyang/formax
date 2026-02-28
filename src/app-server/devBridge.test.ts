@@ -191,6 +191,28 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('responds with JSON-RPC error when local bridge RPC send fails', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    socket.send
+      .mockImplementationOnce(() => {
+        throw new Error('send boom')
+      })
+      .mockImplementation(() => undefined)
+
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+    socket.emitMessage('{"jsonrpc":"2.0","id":52,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    await waitFor(() => socket.send.mock.calls.length > 1)
+
+    const errorPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+    expect(errorPayload.id).toBe(52)
+    expect(errorPayload.error?.code).toBe(-32603)
+    expect(String(errorPayload.error?.message || '')).toContain('send boom')
+
+    await bridge.close()
+  })
+
   it('handles bridge/readDiffSummary locally without forwarding to app-server input', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
     const onConnection = getConnectionHandler()
@@ -449,6 +471,26 @@ describe('startAppServerDevBridge', () => {
     await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow('listen boom')
     expect(runAppServerMock).not.toHaveBeenCalled()
     expect(httpOffMock).toHaveBeenCalled()
+  })
+
+  it('rejects when httpServer emits error while listening', async () => {
+    httpOnceMock.mockImplementationOnce((event: string, handler: (err: Error) => void) => {
+      if (event === 'error') {
+        setTimeout(() => handler(new Error('listen async boom')), 0)
+      }
+    })
+    httpListenMock.mockImplementationOnce(() => undefined)
+
+    await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow('listen async boom')
+    expect(runAppServerMock).not.toHaveBeenCalled()
+    expect(httpOffMock).toHaveBeenCalled()
+  })
+
+  it('rejects when server address is unavailable after listen', async () => {
+    httpAddressMock.mockReturnValueOnce(null as any)
+    await expect(startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })).rejects.toThrow(
+      'Failed to resolve app-server dev bridge address',
+    )
   })
 })
 async function waitFor(condition: () => boolean, timeoutMs = 1200): Promise<void> {

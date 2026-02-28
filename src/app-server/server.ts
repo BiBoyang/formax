@@ -376,14 +376,7 @@ export class AppServer {
             ? `${commandRouting.commandName} ${commandRouting.commandArgs}`
             : commandRouting.commandName
           const effect = slashRegistry.dispatch(normalizedDispatchCommand)
-          if (!effect || effect.kind !== 'local') {
-            return [
-              makeErrorResponse(req.id, {
-                code: JSON_RPC_ERRORS.INTERNAL_ERROR,
-                message: `Failed to dispatch local command: ${params.command}`,
-              }),
-            ]
-          }
+          if (!effect || effect.kind !== 'local') throw new Error(`Failed to dispatch local command: ${params.command}`)
           return [
             makeSuccessResponse(req.id, {
               command: params.command,
@@ -542,11 +535,9 @@ export class AppServer {
       const trimCount = currentEntries.length - this.maxReplayEventsPerThread
       const trimmed = currentEntries.splice(0, trimCount)
       const trimmedBefore = trimmed[trimmed.length - 1]?.replaySeq
-      if (typeof trimmedBefore === 'number') {
-        const previousTrimmed = this.replayTrimmedBeforeByThreadId.get(threadId) ?? 0
-        if (trimmedBefore > previousTrimmed) {
-          this.replayTrimmedBeforeByThreadId.set(threadId, trimmedBefore)
-        }
+      const previousTrimmed = this.replayTrimmedBeforeByThreadId.get(threadId) ?? 0
+      if ((trimmedBefore ?? 0) > previousTrimmed) {
+        this.replayTrimmedBeforeByThreadId.set(threadId, trimmedBefore as number)
       }
     }
     this.replayByThreadId.set(threadId, currentEntries)
