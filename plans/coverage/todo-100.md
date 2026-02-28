@@ -47,7 +47,7 @@
 - [ ] src/network/runtime.ts
 - [ ] src/prompts/system.ts
 - [ ] src/screens/perf/TranscriptPerfScreen.tsx
-- [ ] src/screens/REPL.tsx
+- [x] src/screens/REPL.tsx
 - [ ] src/screens/repl/compactProjection.ts
 - [ ] src/screens/repl/format.ts
 - [ ] src/screens/repl/hotkeys.ts

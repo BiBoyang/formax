@@ -9,6 +9,11 @@ afterEach(() => {
 })
 
 describe('WebSearchToolHandler', () => {
+  it('matches tool name with canHandle', () => {
+    expect(WebSearchToolHandler.canHandle('WebSearch')).toBe(true)
+    expect(WebSearchToolHandler.canHandle('Other')).toBe(false)
+  })
+
   it('parses DuckDuckGo HTML results', async () => {
     const html = [
       '<a class="result__a" href="https://example.com">Example &amp; One</a>',
@@ -210,5 +215,42 @@ describe('WebSearchToolHandler', () => {
 
     expect(result.is_error).toBeUndefined()
     expect(result.content).toContain('Found 3 results')
+  })
+
+  it('keeps malformed href as-is when URL normalization fails', async () => {
+    const html = '<a class="result__a" href=":bad-url">Bad URL</a>'
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      {
+        id: '1',
+        name: 'WebSearch',
+        input: { query: 'test', allowed_domains: 'not-an-array' as any },
+      },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('Found 1 results')
+    expect(result.content).toContain(':bad-url')
+  })
+
+  it('keeps invalid numeric HTML entities unchanged when code point is out of range', async () => {
+    const html = '<a class="result__a" href="https://example.com">Bad &#x110000; Entity</a>'
+
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as any
+
+    const result = await WebSearchToolHandler.execute(
+      { id: '1', name: 'WebSearch', input: { query: 'test' } },
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toContain('Bad &#x110000; Entity')
   })
 })

@@ -10,6 +10,12 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('createGlobToolHandler', () => {
+  it('matches tool name with canHandle', () => {
+    const handler = createGlobToolHandler()
+    expect(handler.canHandle('Glob')).toBe(true)
+    expect(handler.canHandle('Other')).toBe(false)
+  })
+
   it('maps args to rg and returns mtime-sorted absolute paths', async () => {
     const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-glob-rg-'))
     try {
@@ -132,5 +138,109 @@ describe('createGlobToolHandler', () => {
 
     expect(result.is_error).toBeUndefined()
     expect(result.content).toBe('/repo/src/b.ts\n/repo/src/a.ts')
+  })
+
+  it('uses lexical tie-break for same mtime and keeps absolute stdout paths', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({
+        exitCode: 0,
+        stdout: '/repo/z.ts\n/repo/a.ts\n',
+        stderr: '',
+      }),
+      statPath: async (filePath: string) => ({
+        isDirectory: () => filePath === '/repo',
+        mtimeMs: Number.NaN,
+      }),
+    })
+
+    const result = await handler.execute(
+      { id: '6', name: 'Glob', input: { pattern: '**/*.ts', path: '/repo' } } as any,
+      { cwd: '/unused', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/a.ts\n/repo/z.ts')
+  })
+
+  it('returns error for unexpected exit code and compacts stderr', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 3, stdout: '', stderr: '  one \n two  ' }),
+      statPath: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
+    })
+
+    const result = await handler.execute(
+      { id: '7', name: 'Glob', input: { pattern: '**/*' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBe(true)
+    expect(result.content).toContain('ripgrep failed (3): one two')
+  })
+
+  it('falls back to mtime=0 when stat for a matched file fails', async () => {
+    const handler = createGlobToolHandler({
+      resolveExecutable: async () => '/mock/rg',
+      runCommand: async () => ({ exitCode: 0, stdout: 'a.ts\nb.ts\n', stderr: '' }),
+      statPath: async (filePath: string) => {
+        if (filePath === '/repo') return { isDirectory: () => true, mtimeMs: 0 }
+        if (filePath.endsWith('a.ts')) throw new Error('missing')
+        return { isDirectory: () => false, mtimeMs: 10 }
+      },
+    })
+
+    const result = await handler.execute(
+      { id: '8', name: 'Glob', input: { pattern: '**/*.ts' } } as any,
+      { cwd: '/repo', agentDepth: 0 },
+    )
+
+    expect(result.is_error).toBeUndefined()
+    expect(result.content).toBe('/repo/b.ts\n/repo/a.ts')
+  })
+
+  it('uses default spawn runner path (close event) when executable script succeeds', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-glob-spawn-'))
+    try {
+      const script = path.join(tmpDir, 'fake-rg.sh')
+      await writeFileEnsuringDir(
+        script,
+        ['#!/bin/sh', 'echo "src/ok.ts"', 'echo "warn" 1>&2', 'exit 0'].join('\n'),
+      )
+      await fsp.chmod(script, 0o755)
+
+      const handler = createGlobToolHandler({
+        resolveExecutable: async () => script,
+      })
+
+      const result = await handler.execute(
+        { id: '9', name: 'Glob', input: { pattern: '**/*.ts', path: tmpDir } } as any,
+        { cwd: tmpDir, agentDepth: 0 },
+      )
+
+      expect(result.is_error).toBeUndefined()
+      expect(result.content).toContain(path.join(tmpDir, 'src/ok.ts'))
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses default spawn runner error event when executable is missing', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-glob-spawn-missing-'))
+    try {
+      const handler = createGlobToolHandler({
+        resolveExecutable: async () => path.join(tmpDir, 'does-not-exist-rg'),
+      })
+
+      const result = await handler.execute(
+        { id: '10', name: 'Glob', input: { pattern: '**/*', path: tmpDir } } as any,
+        { cwd: tmpDir, agentDepth: 0 },
+      )
+
+      expect(result.is_error).toBe(true)
+      expect(result.content).toContain('ripgrep failed (-1):')
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
   })
 })

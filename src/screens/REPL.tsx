@@ -355,7 +355,7 @@ export function REPL({
   const recallQueuedMessage = useCallback(() => {
     const queue = queuedDuringLoadingRef.current
     if (queue.length === 0) return
-    const recalled = queue[queue.length - 1] ?? ''
+    const recalled = queue[queue.length - 1] as string
     const nextQueue = queue.slice(0, -1)
     queuedDuringLoadingRef.current = nextQueue
     setQueuedDuringLoading(nextQueue)
@@ -368,7 +368,6 @@ export function REPL({
     const wasLoading = wasLoadingRef.current
     wasLoadingRef.current = state.isLoading
     if (!wasLoading || state.isLoading) return
-    if (isAutoFlushingQueueRef.current) return
     const queueSnapshot = queuedDuringLoadingRef.current
     if (queueSnapshot.length === 0) return
 
@@ -514,7 +513,7 @@ export function REPL({
           )
         }
         if (msg.ui?.kind === 'compact_banner') {
-          const label = String(msg.content || '').trim()
+          const label = String(msg.content).trim()
           const totalCols = Math.max(process.stdout.columns || 80, 40)
           const inner = ` ${label} `
           const sideTotal = Math.max(0, totalCols - inner.length)
@@ -536,9 +535,6 @@ export function REPL({
             return null
           }
           return renderThinkingBlock({ content: msg.content, theme })
-        }
-        if (msg.ui?.kind === 'compact_boundary') {
-          return null
         }
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
@@ -670,13 +666,13 @@ export function REPL({
             )}
 
             {expandedViewActive && lastExploreGroup?.tasks?.length ? (
-              <ExploreAgentsPanel tasks={lastExploreGroup?.tasks ?? null} />
+              <ExploreAgentsPanel tasks={lastExploreGroup.tasks} />
             ) : null}
 
             {expandedViewActive && expandedTranscriptTask?.toolInfo?.transcriptLines?.length ? (
               <DetailedTranscriptPanel
-                title={expandedTranscriptTask ? formatTaskPanelTitle(expandedTranscriptTask) : null}
-                lines={expandedTranscriptTask?.toolInfo?.transcriptLines ?? null}
+                title={formatTaskPanelTitle(expandedTranscriptTask)}
+                lines={expandedTranscriptTask.toolInfo.transcriptLines}
               />
             ) : null}
 
