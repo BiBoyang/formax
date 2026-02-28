@@ -103,7 +103,7 @@ function formatPlanSnippet(contents: string): string {
   const rendered = slice
     .map((line, i) => formatCatNArrowLine(start + i + 1, line))
     .join('\n')
-  return rendered ? `\n${rendered}` : '\n(no content)'
+  return `\n${rendered}`
 }
 
 function formatCatNArrowLine(lineNo: number, content: string): string {

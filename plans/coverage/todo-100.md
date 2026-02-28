@@ -60,7 +60,6 @@
 - [ ] src/tools/executor/handlers/taskSubAgent.ts
 - [ ] src/tools/executor/policyPreflight.ts
 - [ ] src/tools/modules/bash/policy.ts
-- [ ] src/tools/modules/edit/handler.ts
 - [ ] src/tools/modules/exitPlanMode/presenter.tsx
 - [ ] src/tools/modules/grep/ripgrepBinary.ts
 - [ ] src/tools/presenters/AskUserQuestionToolBlock.tsx
