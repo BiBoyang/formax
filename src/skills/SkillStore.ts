@@ -183,7 +183,6 @@ function dirToSkillName(baseDir: string, filePath: string): string | null {
   const rel = path.relative(baseDir, skillDir)
   if (!rel || rel.startsWith('..')) return null
   const parts = rel.split(/[\\/]/g).filter(Boolean)
-  if (parts.length === 0) return null
   if (parts.some((p) => !isSafeSegment(p))) return null
   return parts.join(':')
 }
@@ -204,4 +203,15 @@ function isSafeSegment(seg: string): boolean {
 
 function normalizeSkillName(name: string): string {
   return String(name ?? '').trim()
+}
+
+export const __testOnlySkillStore = {
+  getSkillStoreCacheTtlMs,
+  walkSkillFiles,
+  buildMeta,
+  readTextPrefixUtf8,
+  dirToSkillName,
+  isSafeSkillName,
+  isSafeSegment,
+  normalizeSkillName,
 }
