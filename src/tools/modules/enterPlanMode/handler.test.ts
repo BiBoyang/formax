@@ -213,6 +213,21 @@ describe('EnterPlanMode handler', () => {
     expect(res.content).toContain('declined')
   })
 
+  it('declines when text contains enter without plan keyword', async () => {
+    const userInput = {
+      requestAnswers: vi.fn(async () => ({ note: 'enter soon' })),
+      submitAnswers: vi.fn(),
+    } as any
+    const handler = createEnterPlanModeToolHandler(userInput)
+    const ctx = createCtx()
+
+    const res = await handler.execute({ id: 't-enter-no-plan', name: 'EnterPlanMode', input: {} } as any, ctx)
+
+    expect(ctx.setReplMode).not.toHaveBeenCalled()
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('declined')
+  })
+
   it('returns an error when requestAnswers throws', async () => {
     const userInput = {
       requestAnswers: vi.fn(async () => {

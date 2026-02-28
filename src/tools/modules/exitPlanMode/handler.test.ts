@@ -15,6 +15,12 @@ function createStubUserInput(overrides: {
 }
 
 describe('ExitPlanMode tool handler', () => {
+  it('matches only ExitPlanMode tool name', async () => {
+    const handler = createExitPlanModeToolHandler(createStubUserInput() as any)
+    expect(handler.canHandle('ExitPlanMode')).toBe(true)
+    expect(handler.canHandle('EnterPlanMode')).toBe(false)
+  })
+
   it('rejects interactive use from sub-agents', async () => {
     const handler = createExitPlanModeToolHandler(createStubUserInput() as any)
 
@@ -25,6 +31,22 @@ describe('ExitPlanMode tool handler', () => {
 
     expect(res.is_error).toBe(true)
     expect(res.content).toContain('cannot be used in this context')
+  })
+
+  it('treats missing agentDepth as 0', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({ choice: 'cancel' }),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-depth-missing', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', replMode: 'plan', agentDepth: undefined as any },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('Exit plan mode cancelled')
   })
 
   it('returns a no-op message when not in plan mode', async () => {
@@ -143,6 +165,23 @@ describe('ExitPlanMode tool handler', () => {
     expect(res.content).toContain('User feedback: Please add more tests.')
   })
 
+  it('stays in plan mode for feedback choice without feedback text', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({ choice: 'feedback' }),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-feedback-empty', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('Stay in plan mode')
+    expect(res.content).not.toContain('User feedback:')
+  })
+
   it('treats free-text web answers as feedback instead of canceling', async () => {
     const handler = createExitPlanModeToolHandler(
       createStubUserInput({
@@ -210,5 +249,90 @@ describe('ExitPlanMode tool handler', () => {
 
     expect(res.is_error).toBe(true)
     expect(res.content).toContain('Error: boom')
+  })
+
+  it('returns an error result when prompting throws non-Error', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => {
+          throw 'boom'
+        },
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-err-non-error', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Error: boom')
+  })
+
+  it('cancels when only non-keyword feedback is provided', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({ feedback: 'just notes without trigger words' }),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-cancel', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('Exit plan mode cancelled. Stay in plan mode.')
+  })
+
+  it('cancels when answers are empty', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({}),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-empty-answers', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('Exit plan mode cancelled. Stay in plan mode.')
+  })
+
+  it('cancels when merged text includes cancel', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({ note: 'cancel please' }),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-cancel-merged', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('Exit plan mode cancelled. Stay in plan mode.')
+  })
+
+  it('uses feedback field when choice is feedback option label', async () => {
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers: async () => ({
+          choice: 'Type here to tell Claude what to change',
+          feedback: 'Please add rollback steps.',
+        }),
+      }) as any,
+    )
+
+    const res = await handler.execute(
+      { id: 't-feedback-label', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan' },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(res.content).toContain('User feedback: Please add rollback steps.')
   })
 })

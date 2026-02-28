@@ -13,6 +13,12 @@ describe('BashToolHandler', () => {
     return `"${process.execPath}" -e ${JSON.stringify(js)}`
   }
 
+  it('matches only Bash tool name', () => {
+    const { handler } = create()
+    expect(handler.canHandle('Bash')).toBe(true)
+    expect(handler.canHandle('Read')).toBe(false)
+  })
+
   it('runs commands in the background and stores output', async () => {
     const { taskManager, handler } = create()
 
@@ -134,6 +140,17 @@ describe('BashToolHandler', () => {
     expect(exitCode.is_error).toBe(true)
     expect(exitCode.content).toContain('Error: Exit code 2')
     expect(exitCode.content).toContain('(no output)')
+
+    const longOutput = await handler.execute(
+      {
+        id: '1',
+        name: 'Bash',
+        input: { command: nodeCommand("process.stdout.write('a'.repeat(40000))") },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+    expect(longOutput.is_error).not.toBe(true)
+    expect(longOutput.content.length).toBeLessThanOrEqual(30000)
   })
 
   it('still executes when dangerouslyDisableSandbox is requested', async () => {
@@ -187,5 +204,34 @@ describe('BashToolHandler', () => {
     const cancelWaited = await taskManager.wait(cancelTaskId, { timeoutMs: 5000 })
     expect(cancelWaited.snapshot.status).toBe('error')
     expect(cancelWaited.snapshot.result?.content).toContain('Killed')
+
+    const exitSignalResult = await handler.execute(
+      {
+        id: '1',
+        name: 'Bash',
+        input: { command: nodeCommand("process.kill(process.pid, 'SIGTERM')"), run_in_background: true },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+    const exitSignalTaskId = JSON.parse(exitSignalResult.content).task_id as string
+    const exitSignalWaited = await taskManager.wait(exitSignalTaskId, { timeoutMs: 5000 })
+    expect(exitSignalWaited.snapshot.status).toBe('error')
+    expect(exitSignalWaited.snapshot.result?.content).toContain('Exit signal SIGTERM')
+
+    const throttledUpdateResult = await handler.execute(
+      {
+        id: '1',
+        name: 'Bash',
+        input: {
+          command: nodeCommand("process.stdout.write('tick'); setTimeout(()=>process.exit(0), 220)"),
+          run_in_background: true,
+        },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+    const throttledTaskId = JSON.parse(throttledUpdateResult.content).task_id as string
+    const throttledWaited = await taskManager.wait(throttledTaskId, { timeoutMs: 5000 })
+    expect(throttledWaited.snapshot.status).toBe('completed')
+    expect(throttledWaited.snapshot.result?.content).toContain('tick')
   })
 })

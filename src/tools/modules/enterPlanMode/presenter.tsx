@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Box, Text, useStdout } from 'ink'
+import React, { useRef, useState } from 'react'
+import { Box, Text } from 'ink'
 import type { ToolPresenterComponent } from '../../presenters/types'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
@@ -7,7 +7,7 @@ import { getTheme } from '../../../utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
-import { resolveInteractivePromptModel } from '../../../features/tools/presentation/interactivePrompts'
+import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -65,39 +65,21 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
 
 function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
   const theme = getTheme()
-  const model = resolveInteractivePromptModel({ toolName: 'EnterPlanMode', input: {} })
-  const question =
-    model?.kind === 'enter_plan_mode'
-      ? model.question
-      : 'Claude wants to enter plan mode before implementing. Continue?'
-  const yesLabel =
-    model?.kind === 'enter_plan_mode'
-      ? (model.options.find((option) => option.choice === 'enter')?.label ?? 'Yes, enter plan mode')
-      : 'Yes, enter plan mode'
-  const noLabel =
-    model?.kind === 'enter_plan_mode'
-      ? (model.options.find((option) => option.choice === 'skip')?.label ?? 'No, start implementing now')
-      : 'No, start implementing now'
+  const question = ENTER_PLAN_MODE_PROMPT.question
+  const yesLabel = ENTER_PLAN_MODE_PROMPT.options[0]!.label
+  const noLabel = ENTER_PLAN_MODE_PROMPT.options[1]!.label
 
   const scope = 'prompt:enterPlanMode'
   useScopeActivation(scope)
-  const { stdout } = useStdout()
-  const separator = useMemo(() => {
-    const width = Math.max(20, stdout?.columns ?? 80)
-    return '─'.repeat(width)
-  }, [stdout?.columns])
+  const separator = '─'.repeat(80)
   const [cursor, setCursor] = useState(0)
   const submittedRef = useRef(false)
 
-  const submit = useCallback(
-    (choice: 'enter' | 'skip') => {
-      if (submittedRef.current) return
-      submittedRef.current = true
-      if (choice === 'enter') onEnter()
-      else onSkip()
-    },
-    [onEnter, onSkip],
-  )
+  const submit = (choice: 'enter' | 'skip') => {
+    submittedRef.current = true
+    if (choice === 'enter') onEnter()
+    else onSkip()
+  }
 
   useScopedInput(
     scope,

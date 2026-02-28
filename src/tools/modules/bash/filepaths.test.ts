@@ -27,6 +27,15 @@ describe('extractFilepathsFromCommandOutput', () => {
     expect(out.filepaths).toEqual([])
   })
 
+  it('treats git log without patch flags as non-content', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git log --oneline',
+      output: 'abc123 feat: add thing\n',
+    })
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
   it('extracts paths from git diff patches', () => {
     const out = extractFilepathsFromCommandOutput({
       command: 'git diff',
@@ -68,5 +77,24 @@ describe('extractFilepathsFromCommandOutput', () => {
     expect(out.isDisplayingContents).toBe(true)
     expect(out.filepaths).toEqual(['old.txt', 'new.txt'])
   })
-})
 
+  it('parses quoted paths and command separators (&&, ||, ;)', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: `cat "docs/with space.md" && cat src/a.ts || cat src/b.ts; cat src/c.ts`,
+      output: 'content\n',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['docs/with space.md', 'src/a.ts', 'src/b.ts', 'src/c.ts'])
+  })
+
+  it('parses escaped whitespace in path tokens', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'cat docs/with\\ space.md',
+      output: 'content\n',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['docs/with space.md'])
+  })
+})

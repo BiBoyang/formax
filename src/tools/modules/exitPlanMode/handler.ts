@@ -120,7 +120,7 @@ function resolveExitPlanChoice(answers: Record<string, string>): {
 
   // Web ask panel may return free-text directly in `choice`.
   if (rawChoice) {
-    const fallbackFeedback = normalizedOptionLabels.has(direct) ? directFeedback : rawChoice
+    const fallbackFeedback = rawChoice
     return { choice: 'feedback', feedback: fallbackFeedback }
   }
 

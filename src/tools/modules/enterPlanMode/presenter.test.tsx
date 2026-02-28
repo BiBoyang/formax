@@ -53,6 +53,24 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('EnterPlanModeToolPresenter', () => {
+  it('falls back when toolInfo is missing', async () => {
+    const message: Msg = {
+      id: 'tool-missing',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <EnterPlanModeToolPresenter message={message} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('Unknown tool')
+  })
+
   it('shows Preparing… when running without userInput', async () => {
     const message = createRunningMessage()
     const { lastFrame } = render(
@@ -88,6 +106,27 @@ describe('EnterPlanModeToolPresenter', () => {
     expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'enter' })
   })
 
+  it('uses raw message id when no tool- prefix is present', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message = createRunningMessage()
+    message.id = 'raw-id'
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledWith('raw-id', { choice: 'enter' })
+  })
+
   it('submits skip on Escape', async () => {
     const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
     const userInput = createUserInput(submitAnswers)
@@ -103,6 +142,74 @@ describe('EnterPlanModeToolPresenter', () => {
 
     await tick()
     stdin.write('\u001B')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledTimes(1)
+    expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'skip' })
+  })
+
+  it('moves cursor with arrows and submits skip on Enter', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message = createRunningMessage()
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\u001B[B')
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledTimes(1)
+    expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'skip' })
+  })
+
+  it('handles upArrow and keeps cursor at first option', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message = createRunningMessage()
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\u001B[A')
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'enter' })
+  })
+
+  it('selects option 2 and submits skip on Enter', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message = createRunningMessage()
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('2')
+    await tick()
+    stdin.write('\r')
     await tick()
 
     expect(submitAnswers).toHaveBeenCalledTimes(1)
@@ -129,6 +236,29 @@ describe('EnterPlanModeToolPresenter', () => {
 
     expect(submitAnswers).toHaveBeenCalledTimes(1)
     expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'enter' })
+  })
+
+  it('ignores additional key input after submission', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message = createRunningMessage()
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\r')
+    await tick()
+    stdin.write('2')
+    stdin.write('\u001B')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledTimes(1)
   })
 
   it('returns null when aborted', async () => {
@@ -167,5 +297,23 @@ describe('EnterPlanModeToolPresenter', () => {
     await tick()
     expect(lastFrame()).toContain('Plan mode skipped')
   })
-})
 
+  it('renders skipped summary when result is non-string', async () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'EnterPlanMode', status: 'completed', input: {}, result: { ok: true } as any },
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <EnterPlanModeToolPresenter message={message} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('Plan mode skipped')
+  })
+})
