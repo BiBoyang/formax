@@ -143,6 +143,25 @@ describe('GlobToolPresenter', () => {
     expect(frame).toContain('Path: /tmp')
   })
 
+  it('renders error summary without detail lines when compact detail is absent', () => {
+    const message: Msg = {
+      id: 'tool-error-no-detail',
+      role: 'tool',
+      content: 'Error: blocked',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Glob',
+        status: 'error',
+        input: { pattern: '*.ts', path: '/tmp' },
+        result: '',
+      },
+    }
+    const view = render(<ToolUiBlocks blocks={GlobToolPresenter({ message }).blocks} />)
+    const frame = stripAnsi(view.lastFrame() ?? '')
+    expect(frame).toContain('Error: blocked')
+    expect(frame).not.toContain('Path:')
+  })
+
   it('handles runtime-missing summary safely', () => {
     const message: Msg = {
       id: 'tool-no-summary',
