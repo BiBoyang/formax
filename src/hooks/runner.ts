@@ -8,7 +8,7 @@ const MAX_OUTPUT_CHARS = 30000
 const TRUNCATION_SUFFIX = '\n…(truncated)'
 
 function appendLimited(prev: string, nextChunk: string): { next: string; truncated: boolean } {
-  const combined = (prev || '') + (nextChunk || '')
+  const combined = prev + nextChunk
   if (combined.length <= MAX_OUTPUT_CHARS) return { next: combined, truncated: false }
   return { next: combined.slice(combined.length - MAX_OUTPUT_CHARS), truncated: true }
 }
@@ -20,7 +20,7 @@ function finalizeOutput(text: string, truncated: boolean): string {
 }
 
 function tryParseJson(text: string): unknown | null {
-  const trimmed = String(text || '').trim()
+  const trimmed = String(text).trim()
   if (!trimmed) return null
   try {
     return JSON.parse(trimmed) as unknown
