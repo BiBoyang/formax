@@ -4,6 +4,7 @@ import {
   buildHttpUrl,
   buildLocalUiAllowedOrigins,
   buildWsUrl,
+  createBridgeAuthToken,
   decodeRequestPathname,
   displayHostForLogs,
   evaluateBridgeRateLimit,
@@ -25,6 +26,7 @@ describe('network runtime helpers', () => {
   })
 
   it('formats IPv6 hosts for URL usage', () => {
+    expect(formatHostForUrl('   ')).toBe('')
     expect(formatHostForUrl('127.0.0.1')).toBe('127.0.0.1')
     expect(formatHostForUrl('::1')).toBe('[::1]')
     expect(formatHostForUrl('[::1]')).toBe('[::1]')
@@ -36,10 +38,12 @@ describe('network runtime helpers', () => {
   it('normalizes log hosts for wildcard listeners', () => {
     expect(displayHostForLogs('0.0.0.0')).toBe('127.0.0.1')
     expect(displayHostForLogs('::')).toBe('[::1]')
+    expect(displayHostForLogs(' example.com ')).toBe('example.com')
   })
 
   it('decodes request pathname and rejects malformed urls', () => {
     expect(decodeRequestPathname('/foo%20bar')).toEqual({ ok: true, pathname: '/foo bar' })
+    expect(decodeRequestPathname(undefined)).toEqual({ ok: true, pathname: '/' })
     const malformed = decodeRequestPathname('/%E0%A4%A')
     expect(malformed.ok).toBe(false)
     if (malformed.ok === true) return
@@ -86,6 +90,95 @@ describe('network runtime helpers', () => {
     ).toEqual({ ok: true })
   })
 
+  it('authorizes with non-bearer authorization header and handles malformed request urls', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/',
+        originHeader: 'http://localhost:3781',
+        authorizationHeader: 'secret',
+        security: { authToken: 'secret', allowedOrigins: ['http://localhost:3781'] },
+      }),
+    ).toEqual({ ok: true })
+
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: 'http://%',
+        originHeader: undefined,
+        authorizationHeader: undefined,
+        security: { authToken: 'secret' },
+      }),
+    ).toEqual({ ok: false, reason: 'Unauthorized' })
+  })
+
+  it('ignores invalid allowed origins entries', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/?token=secret',
+        originHeader: undefined,
+        authorizationHeader: undefined,
+        security: { authToken: 'secret', allowedOrigins: [':::'] },
+      }),
+    ).toEqual({ ok: true })
+  })
+
+  it('handles missing auth token config and whitespace auth header', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/',
+        originHeader: 'http://localhost:3781',
+        authorizationHeader: '   ',
+        security: { allowedOrigins: ['http://localhost:3781'] },
+      }),
+    ).toEqual({ ok: true })
+  })
+
+  it('allows requests when security options are omitted', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/',
+        originHeader: undefined,
+        authorizationHeader: undefined,
+        security: undefined,
+      }),
+    ).toEqual({ ok: true })
+  })
+
+  it('rejects when token is missing/blank in query and authorization header', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: undefined,
+        originHeader: undefined,
+        authorizationHeader: 'Bearer   ',
+        security: { authToken: 'secret' },
+      }),
+    ).toEqual({ ok: false, reason: 'Unauthorized' })
+
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/?token=%20%20',
+        originHeader: undefined,
+        authorizationHeader: '   ',
+        security: { authToken: 'secret' },
+      }),
+    ).toEqual({ ok: false, reason: 'Unauthorized' })
+  })
+
+  it('rejects when allowed origins require a valid origin header', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/',
+        originHeader: undefined,
+        authorizationHeader: undefined,
+        security: { allowedOrigins: ['http://localhost:3781'] },
+      }),
+    ).toEqual({ ok: false, reason: 'Forbidden origin' })
+  })
+
+  it('creates random bridge auth tokens', () => {
+    const token = createBridgeAuthToken()
+    expect(token).toMatch(/^[a-f0-9]{48}$/)
+  })
+
   it('enforces bridge rate limit in fixed windows', () => {
     const options = { windowMs: 1000, maxMessages: 2 }
     let state = null
@@ -109,5 +202,24 @@ describe('network runtime helpers', () => {
     expect(origins).toContain('http://127.0.0.1:3781')
     expect(origins).toContain('http://localhost:3781')
     expect(origins).toContain('http://[::1]:3781')
+  })
+
+  it('skips wildcard/invalid custom hosts when building local UI allowed origins', () => {
+    const wildcardOrigins = buildLocalUiAllowedOrigins('0.0.0.0', 3781)
+    expect(wildcardOrigins).not.toContain('http://0.0.0.0:3781')
+
+    const invalidOrigins = buildLocalUiAllowedOrigins(':::', 3781)
+    expect(invalidOrigins).toContain('http://localhost:3781')
+  })
+
+  it('rejects origin headers that parse but have no host component', () => {
+    expect(
+      authorizeBridgeConnection({
+        requestUrl: '/?token=secret',
+        originHeader: 'mailto:test@example.com',
+        authorizationHeader: undefined,
+        security: { authToken: 'secret', allowedOrigins: ['http://localhost:3781'] },
+      }),
+    ).toEqual({ ok: false, reason: 'Forbidden origin' })
   })
 })

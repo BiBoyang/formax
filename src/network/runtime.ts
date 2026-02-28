@@ -57,7 +57,7 @@ export function buildWsUrl(host: string, port: number, secure = false): string {
 export function decodeRequestPathname(rawUrl: string | undefined): DecodedPathnameResult {
   try {
     const requestUrl = new URL(rawUrl ?? '/', 'http://localhost')
-    return { ok: true, pathname: decodeURIComponent(requestUrl.pathname || '/') }
+    return { ok: true, pathname: decodeURIComponent(requestUrl.pathname) }
   } catch {
     return { ok: false, statusCode: 400, message: 'Bad Request' }
   }
@@ -104,7 +104,7 @@ function readTokenFromAuthorizationHeader(header: string | undefined): string | 
   const bearer = /^Bearer\s+(.+)$/i.exec(trimmed)
   if (bearer?.[1]) {
     const token = bearer[1].trim()
-    return token || null
+    return token
   }
   return trimmed
 }
