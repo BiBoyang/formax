@@ -97,4 +97,62 @@ describe('extractFilepathsFromCommandOutput', () => {
     expect(out.isDisplayingContents).toBe(true)
     expect(out.filepaths).toEqual(['docs/with space.md'])
   })
+
+  it('treats git blame as displaying contents', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git blame src/main.ts',
+      output: 'abc123 (user 2025-01-01 1) const x = 1',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual([])
+    expect(out.confidence).toBe(0.6)
+  })
+
+  it('does not treat sed output as content view by default', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: "sed -n '1,5p' src/main.ts",
+      output: 'line1\nline2\n',
+    })
+
+    expect(out.isDisplayingContents).toBe(false)
+    expect(out.filepaths).toEqual([])
+  })
+
+  it('extracts file paths from head/tail commands and ignores option values', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'head -n 5 src/a.ts --lines 3 src/b.ts -- -c 2 src/c.ts > out.txt',
+      output: 'preview',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts', 'out.txt'])
+  })
+
+  it('handles /dev/null paths in patch output', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git diff',
+      output: [
+        'diff --git a/src/old.ts b/src/old.ts',
+        '--- a/src/old.ts',
+        '+++ /dev/null',
+        'diff --git a/src/new.ts b/src/new.ts',
+        '--- /dev/null',
+        '+++ b/src/new.ts',
+      ].join('\n'),
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/old.ts', 'src/new.ts'])
+  })
+
+  it('normalizes quoted tokens and skips redirect-like tokens', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: `cat "src/a.ts" 'src/b.ts' 2> err.log 2>&1 &> all.log >& out.log 3<4`,
+      output: 'content',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/a.ts', 'src/b.ts', 'err.log', 'all.log', 'out.log'])
+  })
 })

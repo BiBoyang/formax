@@ -61,6 +61,47 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('ExitPlanModeToolPresenter', () => {
+  it('renders fallback presenter when toolInfo is missing', async () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: 'fallback-content',
+      timestamp: new Date(),
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <ExitPlanModeToolPresenter message={message} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame().toLowerCase()).toContain('unknown tool')
+  })
+
+  it('renders preparing state when running without userInput manager', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('Preparing')
+    } finally {
+      cleanup()
+    }
+  })
+
   it('submits auto when pressing 1 then Enter', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\nStep 2\n')
     try {
@@ -234,6 +275,43 @@ describe('ExitPlanModeToolPresenter', () => {
 
       expect(submitAnswers).toHaveBeenCalledTimes(1)
       expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'fix this' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('pressing Enter on row 3 enters typing mode before submission', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('\r')
+      await tick()
+      expect(submitAnswers).toHaveBeenCalledTimes(0)
+
+      stdin.write('needs tweak')
+      await tick()
+      stdin.write('\r')
+      await tick()
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'needs tweak' })
     } finally {
       cleanup()
     }
@@ -568,5 +646,80 @@ describe('ExitPlanModeToolPresenter', () => {
     expect(frame).toContain('ExitPlanMode error')
     expect(frame).toContain('Boom')
     expect(frame).not.toContain('Second line')
+  })
+
+  it('shows unknown plan path and truncates approved long plan output', async () => {
+    const longPlan = Array.from({ length: 43 }, (_, i) => `task-${i + 1}`).join('\n')
+    const planSession: PlanSessionManager = {
+      getPlanPath: () => null,
+      startNewPlan: () => '',
+    }
+
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'ExitPlanMode',
+        status: 'completed',
+        input: {},
+        result: 'User has approved your plan',
+      },
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <PlanProvider planSession={planSession}>
+          <ExitPlanModeToolPresenter message={message} />
+        </PlanProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('(unknown plan file)')
+    expect(lastFrame()).toContain('(empty plan)')
+    expect(lastFrame()).not.toContain('mode:')
+
+    const fileState = createTempPlanFile(longPlan)
+    try {
+      const longPlanSession: PlanSessionManager = {
+        getPlanPath: () => fileState.filePath,
+        startNewPlan: () => fileState.filePath,
+      }
+      const longRender = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={longPlanSession}>
+            <ExitPlanModeToolPresenter message={message} />
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+      await tick()
+      expect(longRender.lastFrame()).toContain('… (3 more lines)')
+    } finally {
+      fileState.cleanup()
+    }
+  })
+
+  it('handles unreadable plan file in running state', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+    const planSession: PlanSessionManager = {
+      getPlanPath: () => '/path/that/does/not/exist/plan.md',
+      startNewPlan: () => '/path/that/does/not/exist/plan.md',
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <PlanProvider planSession={planSession}>
+          <UserInputProvider userInput={userInput}>
+            <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+          </UserInputProvider>
+        </PlanProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('(empty plan)')
   })
 })

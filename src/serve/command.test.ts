@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { DEFAULT_SERVE_HOST, DEFAULT_SERVE_PORT, parseServeCommandArgs } from './command.js'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  DEFAULT_SERVE_HOST,
+  DEFAULT_SERVE_PORT,
+  formatServeCommandHelp,
+  parseServeCommandArgs,
+} from './command.js'
+import * as runtime from '../network/runtime.js'
 
 describe('parseServeCommandArgs', () => {
   it('returns defaults for empty args', () => {
@@ -110,5 +116,95 @@ describe('parseServeCommandArgs', () => {
     expect(windowOnly.ok).toBe(false)
     if (windowOnly.ok === true) return
     expect(windowOnly.message).toContain('--rate-limit-window-ms and --rate-limit-max-messages')
+  })
+
+  it('returns help sentinel for --help and -h', () => {
+    const long = parseServeCommandArgs(['--help'])
+    expect(long).toEqual({ ok: false, message: '__HELP__' })
+
+    const short = parseServeCommandArgs(['-h'])
+    expect(short).toEqual({ ok: false, message: '__HELP__' })
+  })
+
+  it('returns errors for missing option values and unknown args', () => {
+    const missingHost = parseServeCommandArgs(['--host'])
+    expect(missingHost.ok).toBe(false)
+
+    const missingPort = parseServeCommandArgs(['--port'])
+    expect(missingPort.ok).toBe(false)
+
+    const missingToken = parseServeCommandArgs(['--token'])
+    expect(missingToken.ok).toBe(false)
+
+    const missingOrigin = parseServeCommandArgs(['--allow-origin'])
+    expect(missingOrigin.ok).toBe(false)
+
+    const missingTlsCert = parseServeCommandArgs(['--tls-cert'])
+    expect(missingTlsCert.ok).toBe(false)
+
+    const missingTlsKey = parseServeCommandArgs(['--tls-key'])
+    expect(missingTlsKey.ok).toBe(false)
+
+    const missingWindow = parseServeCommandArgs(['--rate-limit-window-ms'])
+    expect(missingWindow.ok).toBe(false)
+
+    const missingMax = parseServeCommandArgs(['--rate-limit-max-messages'])
+    expect(missingMax.ok).toBe(false)
+
+    const missingAudit = parseServeCommandArgs(['--audit-log'])
+    expect(missingAudit.ok).toBe(false)
+
+    const unknown = parseServeCommandArgs(['--wat'])
+    expect(unknown.ok).toBe(false)
+    if (!unknown.ok) expect(unknown.message).toContain('Unknown argument')
+  })
+
+  it('validates origin protocol and non-empty token/tls/audit strings', () => {
+    const ftpOrigin = parseServeCommandArgs(['--allow-origin', 'ftp://example.com'])
+    expect(ftpOrigin.ok).toBe(false)
+
+    const blankOrigin = parseServeCommandArgs(['--allow-origin', '   '])
+    expect(blankOrigin.ok).toBe(false)
+
+    const emptyToken = parseServeCommandArgs(['--token', '   '])
+    expect(emptyToken.ok).toBe(false)
+
+    const emptyCert = parseServeCommandArgs(['--tls-cert', '   '])
+    expect(emptyCert.ok).toBe(false)
+
+    const emptyKey = parseServeCommandArgs(['--tls-key', '   '])
+    expect(emptyKey.ok).toBe(false)
+
+    const emptyAudit = parseServeCommandArgs(['--audit-log', '   '])
+    expect(emptyAudit.ok).toBe(false)
+  })
+
+  it('validates rate-limit bounds and wildcard :: host token requirement', () => {
+    const lowWindow = parseServeCommandArgs(['--rate-limit-window-ms', '99'])
+    expect(lowWindow.ok).toBe(false)
+
+    const highMessages = parseServeCommandArgs(['--rate-limit-max-messages', '100001'])
+    expect(highMessages.ok).toBe(false)
+
+    const remoteNoToken = parseServeCommandArgs(['--host', '::'])
+    expect(remoteNoToken.ok).toBe(false)
+  })
+
+  it('stringifies non-Error throw values from parser', () => {
+    const spy = vi.spyOn(runtime, 'parseTcpPort').mockImplementation(() => {
+      throw 'boom'
+    })
+    const parsed = parseServeCommandArgs(['--port', '3333'])
+    expect(parsed).toEqual({ ok: false, message: 'boom' })
+    spy.mockRestore()
+  })
+})
+
+describe('formatServeCommandHelp', () => {
+  it('returns serve help text', () => {
+    const text = formatServeCommandHelp()
+    expect(text).toContain('Formax Serve')
+    expect(text).toContain('Usage:')
+    expect(text).toContain('--allow-origin')
   })
 })

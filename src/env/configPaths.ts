@@ -11,9 +11,14 @@ function expandLeadingTilde(inputPath: string, homedir: string): string {
 }
 
 function getDefaultGlobalConfigDir(env: NodeJS.ProcessEnv, homedir: string): string {
-  const rawOverride = String(env.FORMAX_CONFIG_DIR || '').trim()
-  if (rawOverride && rawOverride !== 'undefined' && rawOverride !== 'null') {
-    return expandLeadingTilde(rawOverride, homedir)
+  const rawOverride = String(env.FORMAX_CONFIG_DIR || '')
+  const expandedOverride = expandLeadingTilde(rawOverride, homedir)
+  if (
+    expandedOverride &&
+    expandedOverride !== 'undefined' &&
+    expandedOverride !== 'null'
+  ) {
+    return expandedOverride
   }
   return path.join(homedir, '.formax')
 }
