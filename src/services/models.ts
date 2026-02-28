@@ -65,7 +65,7 @@ export async function fetchAnthropicModels(
   try {
     const anthropic = new Anthropic({
       apiKey: apiKey,
-      baseURL: apiBase || 'https://api.anthropic.com',
+      baseURL: apiBase,
     })
 
     // Anthropic doesn't have a models.list() endpoint, so we return common models
@@ -354,11 +354,6 @@ export async function fetchCustomModels(
       throw new Error(
         'API returned unexpected response format. Expected an array of models or an object with a "data" or "models" array.',
       )
-    }
-
-    // Ensure we have an array and validate it contains model objects
-    if (!Array.isArray(models)) {
-      throw new Error('API response format error: models data is not an array.')
     }
 
     return models

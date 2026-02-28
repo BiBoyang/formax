@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAnthropicModels, fetchCustomModels, fetchOpenAIModels } from './models'
+import { fetchAnthropicModels, fetchCustomModels, fetchOpenAIModels, getDefaultModels } from './models'
 
 const { anthropicMessagesCreate, openaiModelsList } = vi.hoisted(() => ({
   anthropicMessagesCreate: vi.fn(),
@@ -92,6 +92,21 @@ describe('fetchCustomModels', () => {
 })
 
 describe('fetchAnthropicModels', () => {
+  it('uses default anthropic base URL when baseURL is omitted', async () => {
+    globalThis.fetch = vi.fn(async (url: any) => {
+      expect(String(url)).toBe('https://api.anthropic.com/v1/models')
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 'default-base-model' }],
+        }),
+        { status: 200 },
+      )
+    }) as any
+
+    const models = await fetchAnthropicModels('k')
+    expect(models[0]?.model).toBe('default-base-model')
+  })
+
   it('requests /v1/models and parses {data:[...]} shape', async () => {
     globalThis.fetch = vi.fn(async (url: any) => {
       expect(String(url)).toBe('https://example.com/v1/models')
@@ -177,6 +192,22 @@ describe('fetchAnthropicModels', () => {
     expect(anthropicMessagesCreate).toHaveBeenCalledTimes(1)
   })
 
+  it('falls back when /v1/models responds with non-OK status', async () => {
+    globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as any
+    anthropicMessagesCreate.mockResolvedValueOnce({} as any)
+    const models = await fetchAnthropicModels('k', 'https://example.com')
+    expect(models.length).toBeGreaterThan(0)
+    expect(models.every((m) => m.provider === 'anthropic')).toBe(true)
+  })
+
+  it('falls back when /v1/models returns an OK response with no models array', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ nope: true }), { status: 200 })) as any
+    anthropicMessagesCreate.mockResolvedValueOnce({} as any)
+    const models = await fetchAnthropicModels('k', 'https://example.com')
+    expect(models.length).toBeGreaterThan(0)
+    expect(models[0]?.provider).toBe('anthropic')
+  })
+
   it('maps SDK 401/authentication errors to an invalid-key message', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     globalThis.fetch = vi.fn(async () => {
@@ -231,6 +262,12 @@ describe('fetchAnthropicModels', () => {
 
     await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Failed to fetch Anthropic models/)
   })
+
+  it('falls back to "unknown" model id when anthropic model fields are absent', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ data: [{}] }), { status: 200 })) as any
+    const models = await fetchAnthropicModels('k', 'https://example.com')
+    expect(models[0]?.model).toBe('unknown')
+  })
 })
 
 describe('fetchOpenAIModels', () => {
@@ -279,6 +316,22 @@ describe('fetchOpenAIModels', () => {
     expect(models.some((m) => m.model === 'gpt-4o')).toBe(true)
   })
 
+  it('uses fallback metadata values for unknown chat-like model ids', async () => {
+    openaiModelsList.mockResolvedValueOnce({ data: [{ id: 'gpt-experimental' }] })
+    const models = await fetchOpenAIModels('k')
+    expect(models).toEqual([
+      {
+        model: 'gpt-experimental',
+        provider: 'openai',
+        max_tokens: 8192,
+        contextWindowTokens: undefined,
+        supports_reasoning_effort: false,
+        supports_vision: false,
+        supports_function_calling: true,
+      },
+    ])
+  })
+
   it('maps SDK errors to user-friendly messages', async () => {
     openaiModelsList.mockRejectedValueOnce(new Error('401 authentication'))
     await expect(fetchOpenAIModels('k')).rejects.toThrow(/Invalid API key/i)
@@ -291,5 +344,40 @@ describe('fetchOpenAIModels', () => {
 
     openaiModelsList.mockRejectedValueOnce(new Error('boom'))
     await expect(fetchOpenAIModels('k')).rejects.toThrow(/API error: boom/)
+  })
+
+  it('uses a generic error when the SDK throws a non-Error value', async () => {
+    openaiModelsList.mockRejectedValueOnce('boom' as any)
+    await expect(fetchOpenAIModels('k')).rejects.toThrow(/Failed to fetch OpenAI models/)
+  })
+})
+
+describe('getDefaultModels', () => {
+  it('returns default anthropic models', () => {
+    const models = getDefaultModels('anthropic')
+    expect(models.length).toBe(3)
+    expect(models[0]?.provider).toBe('anthropic')
+    expect(models.some((m) => m.model.includes('claude'))).toBe(true)
+  })
+
+  it('returns default openai models', () => {
+    const models = getDefaultModels('openai')
+    expect(models.length).toBe(4)
+    expect(models[0]?.provider).toBe('openai')
+    expect(models.some((m) => m.model === 'gpt-4o')).toBe(true)
+  })
+
+  it('returns an empty array for unknown provider', () => {
+    expect(getDefaultModels('unknown')).toEqual([])
+  })
+})
+
+describe('fetchCustomModels additional error branch', () => {
+  it('includes unknown-error fallback text for non-Error thrown values', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async () => {
+      throw 123
+    }) as any
+    await expect(fetchCustomModels('https://example.com', 'k')).rejects.toThrow(/Unknown error/)
   })
 })

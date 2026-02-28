@@ -51,7 +51,6 @@
 - [ ] src/screens/repl/panels.tsx
 - [ ] src/screens/repl/transcript.tsx
 - [ ] src/screens/repl/useSurfaceTransitionManager.ts
-- [ ] src/services/models.ts
 - [ ] src/skills/SkillStore.ts
 - [ ] src/streaming/anthropic/sseParser.ts
 - [ ] src/streaming/anthropic/StreamClient.ts
