@@ -40,5 +40,5 @@ export function groupHookEntriesByMatcher(entries: HookRuleEntry[]): Array<{ mat
     list.push(e)
   }
 
-  return order.map((matcher) => ({ matcher, entries: map.get(matcher) ?? [] }))
+  return order.map((matcher) => ({ matcher, entries: map.get(matcher) as HookRuleEntry[] }))
 }

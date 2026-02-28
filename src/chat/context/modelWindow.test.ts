@@ -16,6 +16,9 @@ describe('modelWindow', () => {
   it('returns null when unknown', () => {
     expect(getKnownContextWindowTokens({ provider: 'openai', model: 'o1' })).toBe(null)
     expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'unknown-model' })).toBe(null)
+    expect(getKnownContextWindowTokens({ provider: 'gemini', model: 'gemini-1.5-pro' })).toBe(null)
+    expect(getKnownContextWindowTokens({ provider: 'unknown', model: 'something' })).toBe(null)
+    expect(getKnownContextWindowTokens({ provider: 'openai', model: '   ' })).toBe(null)
+    expect(getKnownContextWindowTokens({ provider: 'openai', model: undefined as any })).toBe(null)
   })
 })
-

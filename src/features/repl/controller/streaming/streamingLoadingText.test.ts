@@ -28,5 +28,11 @@ describe('streamingLoadingText', () => {
         input: { path: '/tmp/demo' },
       }),
     ).toBeNull()
+    expect(
+      resolveLoadingTextForToolInput({
+        toolName: 'Write',
+        input: {},
+      }),
+    ).toBeNull()
   })
 })

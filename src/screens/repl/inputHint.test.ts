@@ -20,6 +20,17 @@ const statusSpec: SlashCommandSpec = {
 }
 
 describe('resolveSlashCommandInputHint', () => {
+  it('builds command map case-insensitively and keeps the first duplicate', () => {
+    const dupeCompactSpec: SlashCommandSpec = {
+      ...compactSpec,
+      id: 'builtin:/compact-dupe',
+      command: '/COMPACT',
+      argHint: '<dupe>',
+    }
+    const map = createSlashCommandSpecMap([compactSpec, dupeCompactSpec])
+    expect(map.get('/compact')?.id).toBe(compactSpec.id)
+  })
+
   it('shows compact hint with a leading separator when no space typed yet', () => {
     const map = createSlashCommandSpecMap([compactSpec, statusSpec])
     expect(resolveSlashCommandInputHint({ input: '/compact', slashSpecByCommand: map })).toBe(
@@ -45,5 +56,11 @@ describe('resolveSlashCommandInputHint', () => {
   it('does not show hint for commands without argHint', () => {
     const map = createSlashCommandSpecMap([compactSpec, statusSpec])
     expect(resolveSlashCommandInputHint({ input: '/status', slashSpecByCommand: map })).toBe(null)
+  })
+
+  it('returns null for non-command or missing input', () => {
+    const map = createSlashCommandSpecMap([compactSpec, statusSpec])
+    expect(resolveSlashCommandInputHint({ input: 'hello', slashSpecByCommand: map })).toBe(null)
+    expect(resolveSlashCommandInputHint({ input: undefined as any, slashSpecByCommand: map })).toBe(null)
   })
 })

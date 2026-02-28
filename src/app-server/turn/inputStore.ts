@@ -87,14 +87,6 @@ function isPending(record: InputRecord): record is PendingInputRecord {
   return record.status === 'pending'
 }
 
-function hasSameSubmissionIds(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false
-  for (const value of a) {
-    if (!b.has(value)) return false
-  }
-  return true
-}
-
 function toInputState(record: InputRecord): InputState {
   if (record.status === 'pending') {
     return {
@@ -195,13 +187,6 @@ export class TurnInputStore {
       submissionId: args.submissionId,
     })
 
-    if (transition.nextState.status === 'pending') {
-      return {
-        accepted: transition.accepted,
-        status: transition.submitStatus,
-      }
-    }
-
     const resolved: ResolvedInputRecord = {
       inputId: record.inputId,
       threadId: record.threadId,
@@ -214,7 +199,7 @@ export class TurnInputStore {
       resolvedAt: transition.nextState.resolvedAt,
       ...(transition.nextState.reason ? { reason: transition.nextState.reason } : {}),
       ...(transition.nextState.answersHash ? { answersHash: transition.nextState.answersHash } : {}),
-      submissionIds: new Set(transition.nextState.submissionIds ?? []),
+      submissionIds: new Set(transition.nextState.submissionIds),
     }
     const stateChanged = isPending(record)
       ? true
@@ -223,7 +208,7 @@ export class TurnInputStore {
           record.resolvedAt === resolved.resolvedAt &&
           record.answersHash === resolved.answersHash &&
           record.reason === resolved.reason &&
-          hasSameSubmissionIds(record.submissionIds, resolved.submissionIds)
+          record.submissionIds.size === resolved.submissionIds.size
         )
     if (stateChanged) this.byInputId.set(record.inputId, resolved)
 
@@ -250,7 +235,7 @@ export class TurnInputStore {
       if (record.status === 'pending') return inputId
     }
 
-    return ids[ids.length - 1] ?? null
+    return ids[ids.length - 1]
   }
 
   resolveAllPending(args: { status: Exclude<InputResolvedStatus, 'submitted'>; reason?: string }): InputResolvedPayload[] {
@@ -283,9 +268,6 @@ export class TurnInputStore {
       resolvedAt,
       reason,
     })
-    if (resolvedState.status === 'pending') {
-      throw new Error('Expected resolved state for pending input')
-    }
     const resolved: ResolvedInputRecord = {
       inputId: record.inputId,
       threadId: record.threadId,
@@ -296,7 +278,7 @@ export class TurnInputStore {
       createdAt: resolvedState.createdAt,
       expiresAt: resolvedState.expiresAt,
       resolvedAt: resolvedState.resolvedAt,
-      submissionIds: new Set(resolvedState.submissionIds ?? []),
+      submissionIds: new Set(resolvedState.submissionIds),
       ...(resolvedState.reason ? { reason: resolvedState.reason } : {}),
     }
     this.byInputId.set(record.inputId, resolved)

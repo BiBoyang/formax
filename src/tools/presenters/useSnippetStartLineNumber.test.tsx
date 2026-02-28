@@ -54,6 +54,14 @@ describe('useSnippetStartLineNumber', () => {
     await waitForFrame(lastFrame, '5')
   })
 
+  it('resolves relative file paths from cwd', async () => {
+    const filePath = path.join(dir, 'relative.txt')
+    await fs.writeFile(filePath, 'alpha\nbeta\nneedle\n', 'utf8')
+    const relPath = path.relative(process.cwd(), filePath)
+    const { lastFrame } = render(<Probe filePath={relPath} snippet="needle" />)
+    await waitForFrame(lastFrame, '3')
+  })
+
   it('keeps default line when path is not a file, file is too large, or read fails', async () => {
     const dirPath = path.join(dir, 'not-file')
     await fs.mkdir(dirPath)
@@ -68,5 +76,19 @@ describe('useSnippetStartLineNumber', () => {
     const missingPath = path.join(dir, 'missing.txt')
     const viewMissing = render(<Probe filePath={missingPath} snippet="needle" />)
     await waitForFrame(viewMissing.lastFrame, '1')
+  })
+
+  it('runs cleanup on unmount', async () => {
+    const filePath = path.join(dir, 'cleanup.txt')
+    await fs.writeFile(filePath, 'line\nneedle\n', 'utf8')
+    const view = render(<Probe filePath={filePath} snippet="needle" />)
+    expect(() => view.unmount()).not.toThrow()
+  })
+
+  it('falls back to line 1 when snippet is not found in an existing file', async () => {
+    const filePath = path.join(dir, 'no-hit.txt')
+    await fs.writeFile(filePath, 'line-1\nline-2\n', 'utf8')
+    const view = render(<Probe filePath={filePath} snippet="needle" />)
+    await waitForFrame(view.lastFrame, '1')
   })
 })

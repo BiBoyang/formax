@@ -60,4 +60,15 @@ describe('context budget', () => {
     })
     expect(stats.percentRemaining).toBe(100)
   })
+
+  it('uses default effective percent and default used tokens', () => {
+    const stats = computeContextStats({
+      config: {
+        contextWindowTokens: 100_000,
+      },
+      usedTokens: undefined,
+    })
+    expect(stats.effectiveLimitTokens).toBe(95_000)
+    expect(stats.usedTokens).toBe(0)
+  })
 })

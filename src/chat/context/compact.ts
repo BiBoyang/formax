@@ -35,7 +35,7 @@ export function selectTailForCompaction(messages: PromptMessage[], keepLastTurns
   const userTurnIndices = findLastNonToolUserIndices(messages)
   if (userTurnIndices.length === 0) return []
 
-  const startUserIndex = userTurnIndices[Math.max(0, userTurnIndices.length - keep)] ?? 0
+  const startUserIndex = userTurnIndices[Math.max(0, userTurnIndices.length - keep)] as number
   return messages.slice(startUserIndex)
 }
 

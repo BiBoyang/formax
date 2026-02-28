@@ -32,6 +32,10 @@ describe('ui/hooks/utils', () => {
     it('treats empty string as empty label', () => {
       expect(formatMatcherLabel('   ')).toBe('')
     })
+
+    it('treats missing matcher as empty label', () => {
+      expect(formatMatcherLabel(undefined as any)).toBe('')
+    })
   })
 
   describe('formatSourceLabel', () => {
@@ -52,6 +56,7 @@ describe('ui/hooks/utils', () => {
         { source: 'user', matcher: 'Bash(ls:*)', command: 'a', timeoutMs: null },
         { source: 'user', matcher: '*', command: 'b', timeoutMs: null },
         { source: 'project', matcher: 'Bash(ls:*)', command: 'c', timeoutMs: null },
+        { source: 'project', matcher: undefined, command: 'x', timeoutMs: null },
         { source: 'projectLocal', matcher: '', command: 'd', timeoutMs: null },
       ] as const
 
@@ -59,8 +64,7 @@ describe('ui/hooks/utils', () => {
       expect(groups.map((g) => g.matcher)).toEqual(['Bash(ls:*)', '*', ''])
       expect(groups[0]?.entries.map((e) => e.command)).toEqual(['a', 'c'])
       expect(groups[1]?.entries.map((e) => e.command)).toEqual(['b'])
-      expect(groups[2]?.entries.map((e) => e.command)).toEqual(['d'])
+      expect(groups[2]?.entries.map((e) => e.command)).toEqual(['x', 'd'])
     })
   })
 })
-

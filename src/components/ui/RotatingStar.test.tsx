@@ -26,4 +26,9 @@ describe('RotatingStar', () => {
     const frame = lastFrame()
     expect(frame).toMatch(/[·✢✳✶✻✽]/)
   })
+
+  it('cleans up interval on unmount', () => {
+    const { unmount } = render(<RotatingStar intervalMs={100} />)
+    expect(() => unmount()).not.toThrow()
+  })
 })

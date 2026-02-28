@@ -8,6 +8,7 @@ describe('hookMatcherMatchesToolName', () => {
 
   it('treats blank matcher as non-match (invalid)', () => {
     expect(hookMatcherMatchesToolName({ matcher: '', toolName: 'Bash' })).toBe(false)
+    expect(hookMatcherMatchesToolName({ matcher: null, toolName: 'Bash' })).toBe(false)
     expect(hookMatcherMatchesToolName({ matcher: undefined, toolName: 'Write' })).toBe(false)
   })
 
@@ -19,6 +20,7 @@ describe('hookMatcherMatchesToolName', () => {
   it('treats non-simple matchers as regex (invalid regex -> non-match)', () => {
     expect(hookMatcherMatchesToolName({ matcher: 'Edit|Write', toolName: 'Write' })).toBe(true)
     expect(hookMatcherMatchesToolName({ matcher: 'Edit|Write', toolName: 'Read' })).toBe(false)
+    expect(hookMatcherMatchesToolName({ matcher: 'Edit|Write', toolName: undefined as any })).toBe(false)
     expect(hookMatcherMatchesToolName({ matcher: '([', toolName: 'Bash' })).toBe(false)
   })
 })

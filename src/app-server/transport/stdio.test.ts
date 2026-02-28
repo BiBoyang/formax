@@ -38,4 +38,36 @@ describe('stdio transport', () => {
 
     await expect(transport.send({ data: 'this is too long' })).rejects.toBeInstanceOf(StdioPayloadTooLargeError)
   })
+
+  it('falls back when maxEventBytes is invalid and propagates output write errors', async () => {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const transport = createStdioJsonlTransport({
+      input,
+      output,
+      maxEventBytes: 0,
+    })
+
+    await expect(transport.send({ ok: true })).resolves.toBeUndefined()
+
+    const failingOutput = {
+      write: (_payload: string, cb?: (err?: Error | null) => void) => {
+        cb?.(new Error('write failed'))
+        return true
+      },
+    } as unknown as NodeJS.WritableStream
+
+    const failingTransport = createStdioJsonlTransport({
+      input: new PassThrough(),
+      output: failingOutput,
+      maxEventBytes: Number.NaN,
+    })
+    await expect(failingTransport.send({ ok: true })).rejects.toThrow('write failed')
+  })
+
+  it('creates transport with default stdio streams when args are omitted', () => {
+    const transport = createStdioJsonlTransport()
+    expect(typeof transport.listen).toBe('function')
+    expect(typeof transport.send).toBe('function')
+  })
 })

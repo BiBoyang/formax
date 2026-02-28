@@ -20,6 +20,9 @@ describe('TurnInputStore', () => {
     })
     expect(store.resolveInputIdFromToolUseId('ask-1')).toBe(requested.inputId)
     expect(store.resolveInputIdFromToolUseId('missing')).toBeNull()
+    expect(store.hasInput(requested.inputId)).toBe(true)
+    expect(store.hasInput('missing')).toBe(false)
+    expect(store.submitInput({ inputId: 'missing', answers: {} })).toEqual({ accepted: false, status: 'not_pending' })
 
     const first = store.submitInput({
       inputId: requested.inputId,
@@ -93,6 +96,13 @@ describe('TurnInputStore', () => {
       answers: { decision: 'approve' },
     })
     expect(canceled).toEqual({ accepted: false, status: 'canceled' })
+    expect(store.resolveInputIdFromToolUseId('approval-1')).toBe(requested.inputId)
+  })
+
+  it('returns latest tracked input id when tool-use mapping contains stale records', () => {
+    const store = new TurnInputStore({ threadId: 'thread-1', turnId: 'turn-1' })
+    ;(store as any).inputIdByToolUseId.set('ghost-tool', ['ghost-input'])
+    expect(store.resolveInputIdFromToolUseId('ghost-tool')).toBe('ghost-input')
   })
 
   it('suffixes input ids on collisions', () => {
@@ -126,5 +136,57 @@ describe('TurnInputStore', () => {
         payload: { questions: [] },
       }),
     ).toThrow('Pending input limit exceeded')
+  })
+
+  it('falls back to default limits and resolves pending inputs without reason', () => {
+    const store = new TurnInputStore({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      defaultInputTtlMs: 0,
+      maxPendingInputs: 0,
+    })
+    store.createPendingInput({
+      toolUseId: 'ask-1',
+      kind: 'ask_user_question',
+      payload: { questions: [] },
+    })
+    store.createPendingInput({
+      toolUseId: 'ask-2',
+      kind: 'ask_user_question',
+      payload: { questions: [] },
+    })
+
+    const resolved = store.resolveAllPending({ status: 'canceled' })
+    expect(resolved).toHaveLength(2)
+    expect(resolved[0]?.reason).toBeUndefined()
+  })
+
+  it('does not count resolved records as pending when enforcing limits', () => {
+    const store = new TurnInputStore({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      maxPendingInputs: 1,
+    })
+    const first = store.createPendingInput({
+      toolUseId: 'ask-1',
+      kind: 'ask_user_question',
+      payload: { questions: [] },
+    })
+    store.submitInput({
+      inputId: first.inputId,
+      answers: { q: 'a' },
+      submissionId: 'sub-1',
+    })
+
+    const skipped = store.resolveAllPending({ status: 'canceled', reason: 'none' })
+    expect(skipped).toEqual([])
+
+    expect(() =>
+      store.createPendingInput({
+        toolUseId: 'ask-2',
+        kind: 'ask_user_question',
+        payload: { questions: [] },
+      }),
+    ).not.toThrow()
   })
 })

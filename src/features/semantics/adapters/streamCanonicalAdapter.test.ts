@@ -156,4 +156,37 @@ describe('streamCanonicalAdapter', () => {
       isError: false,
     })
   })
+
+  it('returns empty when required context ids are blank', () => {
+    const ev = { type: 'assistant_delta', text: 'hi' } as const
+    expect(
+      toCanonicalEventsFromStreamEvent(ev as any, {
+        threadId: '  ',
+        turnId: 'turn-1',
+        nextReplaySeq: () => 1,
+      }),
+    ).toEqual([])
+    expect(
+      toCanonicalEventsFromStreamEvent(ev as any, {
+        threadId: 'thread-1',
+        turnId: '',
+        nextReplaySeq: () => 1,
+      }),
+    ).toEqual([])
+  })
+
+  it('coerces non-string thinking deltas via String()', () => {
+    const events = toCanonicalEventsFromStreamEvent(
+      { type: 'thinking_delta', thinking: null } as any,
+      {
+        threadId: 'tui-live',
+        turnId: 'turn-thinking',
+        nextReplaySeq: () => 1,
+      },
+    )
+    expect(events[0]).toMatchObject({
+      kind: 'thinking_delta',
+      textDelta: 'null',
+    })
+  })
 })

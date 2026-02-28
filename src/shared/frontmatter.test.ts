@@ -33,6 +33,26 @@ describe('parseMarkdownFrontmatter', () => {
     expect(parsed?.attributes.description).toBe('hi')
     expect(parsed?.body.trim()).toBe('hello')
   })
+
+  it('returns null for malformed frontmatter blocks', () => {
+    expect(parseMarkdownFrontmatter('---\nkey: value\nno-end')).toBeNull()
+    expect(parseMarkdownFrontmatter(undefined as any)).toBeNull()
+  })
+
+  it('ignores invalid header lines and keeps valid quoted values', () => {
+    const raw = [
+      '---',
+      'no-colon-line',
+      ': empty-key',
+      "title: 'Single quoted title'",
+      '---',
+      '',
+      'content',
+    ].join('\n')
+    const parsed = parseMarkdownFrontmatter(raw)
+    expect(parsed?.attributes).toEqual({ title: 'Single quoted title' })
+    expect(parsed?.body).toBe('content')
+  })
 })
 
 describe('extractFirstMeaningfulLine', () => {
@@ -44,5 +64,10 @@ describe('extractFirstMeaningfulLine', () => {
     expect(extractFirstMeaningfulLine('\n- Item one\n- Item two')).toBe('Item one')
     expect(extractFirstMeaningfulLine('\n* Item one\n* Item two')).toBe('Item one')
   })
-})
 
+  it('returns empty string for empty markdown and truncates long lines', () => {
+    expect(extractFirstMeaningfulLine(' \n\t \n')).toBe('')
+    expect(extractFirstMeaningfulLine(undefined as any)).toBe('')
+    expect(extractFirstMeaningfulLine(`# ${'x'.repeat(120)}`)).toBe('x'.repeat(80))
+  })
+})

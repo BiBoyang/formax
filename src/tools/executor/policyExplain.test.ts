@@ -44,4 +44,25 @@ describe('formatPolicyExplainLines', () => {
       'PolicyDecision: allow',
     ])
   })
+
+  it('omits matched rule reason when rule has no reason', () => {
+    const lines = formatPolicyExplainLines({
+      effectiveDecision: 'ask',
+      explained: {
+        decision: 'ask',
+        matchedRule: {
+          ruleId: 'rule-2',
+          scope: 'global',
+          decision: 'ask',
+        },
+      } as any,
+    })
+
+    expect(lines).toEqual([
+      'EffectiveDecision: ask',
+      'PolicyDecision: ask',
+      'MatchedRule: rule-2 (global)',
+      'MatchedRuleDecision: ask',
+    ])
+  })
 })

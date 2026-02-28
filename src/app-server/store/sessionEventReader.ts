@@ -70,7 +70,7 @@ export async function readStaleInputsFromSession(args: { filePath: string; now?:
   })
 
   for await (const line of rl) {
-    const trimmed = String(line ?? '').trimEnd()
+    const trimmed = String(line).trimEnd()
     if (!trimmed) continue
     let parsed: unknown
     try {
@@ -110,7 +110,7 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
   })
 
   for await (const line of rl) {
-    const trimmed = String(line ?? '').trimEnd()
+    const trimmed = String(line).trimEnd()
     if (!trimmed) continue
     let parsed: unknown
     try {

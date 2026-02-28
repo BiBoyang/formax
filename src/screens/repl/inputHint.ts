@@ -19,7 +19,6 @@ export function resolveSlashCommandInputHint(args: {
   const firstWhitespaceIndex = raw.search(/\s/)
   const commandToken = firstWhitespaceIndex >= 0 ? raw.slice(0, firstWhitespaceIndex) : raw
   const trailing = firstWhitespaceIndex >= 0 ? raw.slice(firstWhitespaceIndex) : ''
-  if (!commandToken) return null
   if (trailing.trim().length > 0) return null
 
   const spec = args.slashSpecByCommand.get(commandToken.toLowerCase())

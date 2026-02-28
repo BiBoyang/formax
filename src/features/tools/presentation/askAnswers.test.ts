@@ -7,6 +7,10 @@ describe('ask answers helpers', () => {
       Q1: 'Yes',
       Q2: 'No',
     })
+    expect(parseAskAnswers('{"answers":{"Q3":null,"Q4":123}}')).toEqual({
+      Q3: '',
+      Q4: '123',
+    })
   })
 
   it('returns null for invalid payloads', () => {
@@ -20,5 +24,12 @@ describe('ask answers helpers', () => {
       answerCount: 1,
       lines: ['Q1: A'],
     })
+  })
+
+  it('returns null for non-JSON-like or empty answer lines', () => {
+    expect(parseAskAnswerLines([])).toBeNull()
+    expect(parseAskAnswerLines('oops' as any)).toBeNull()
+    expect(parseAskAnswerLines(['hello'])).toBeNull()
+    expect(parseAskAnswerLines(['{"notAnswers":{}}'])).toBeNull()
   })
 })

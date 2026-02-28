@@ -45,7 +45,7 @@ export function createStdioJsonlTransport(args?: {
 
     try {
       for await (const line of rl) {
-        const trimmed = String(line ?? '').trim()
+        const trimmed = String(line).trim()
         if (!trimmed) continue
         await onLine(trimmed)
       }

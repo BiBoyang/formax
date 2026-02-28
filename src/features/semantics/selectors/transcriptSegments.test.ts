@@ -35,6 +35,27 @@ describe('transcriptSegments selectors', () => {
     expect(selectTailSegmentsForTurn(segments, 'turn-2').map((item) => item.id)).toEqual(['s5', 's6'])
   })
 
+  it('selectTailSegmentsForTurn tolerates sparse segment arrays', () => {
+    const sparse = [] as TranscriptSegment[]
+    sparse[1] = segment('s1', 'turn-1')
+    sparse[2] = segment('s2', 'turn-2')
+    sparse[3] = segment('s3', 'turn-2')
+    expect(selectTailSegmentsForTurn(sparse, 'turn-2').map((item) => item.id)).toEqual(['s2', 's3'])
+  })
+
+  it('skips missing trailing entries while scanning backward', () => {
+    const sparse = [] as TranscriptSegment[]
+    sparse[1] = segment('s1', 'turn-1')
+    sparse[2] = segment('s2', 'turn-2')
+    sparse.length = 4 // keep index 3 as an intentional hole
+    expect(selectTailSegmentsForTurn(sparse, 'turn-2').map((item) => item.id)).toEqual(['s2'])
+  })
+
+  it('returns empty when target turn does not exist', () => {
+    const segments = [segment('s1', 'turn-1'), segment('s2', 'turn-3')]
+    expect(selectTailSegmentsForTurn(segments, 'turn-2')).toEqual([])
+  })
+
   it('selectProjectionSnapshot clones projection fields into a stable snapshot shape', () => {
     const base = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
     const event: CanonicalEvent = {
@@ -58,5 +79,10 @@ describe('transcriptSegments selectors', () => {
       openThinkingSegmentIdByTurn: {},
     })
     expect(snapshot?.segments).not.toBe(projection.segments)
+  })
+
+  it('selectProjectionSnapshot returns null for missing projection', () => {
+    expect(selectProjectionSnapshot(null)).toBeNull()
+    expect(selectProjectionSnapshot(undefined)).toBeNull()
   })
 })

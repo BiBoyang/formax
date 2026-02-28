@@ -7,7 +7,7 @@ export function truncateByCharBudget(
 
   let used = 0
   for (const line of lines) {
-    const text = String(line ?? '')
+    const text = String(line)
     const cost = text.length + 1 // include newline separator
     if (used + cost > budget) return { kept, truncated: true }
     kept.push(text)
@@ -16,4 +16,3 @@ export function truncateByCharBudget(
 
   return { kept, truncated: false }
 }
-

@@ -1,5 +1,5 @@
-function isBlankMatcher(raw: string | null | undefined): boolean {
-  const s = String(raw ?? '').trim()
+function isBlankMatcher(raw: string): boolean {
+  const s = raw.trim()
   return s === '*'
 }
 

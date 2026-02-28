@@ -46,6 +46,18 @@ describe('isPromptMode', () => {
         userInput: null,
       }),
     ).toBe(true)
+    expect(
+      isPromptMode({
+        state: makeState({ configDialogOpen: true }),
+        userInput: null,
+      }),
+    ).toBe(true)
+    expect(
+      isPromptMode({
+        state: makeState({ resumeDialogOpen: true }),
+        userInput: null,
+      }),
+    ).toBe(true)
   })
 
   it('returns false when userInput is unavailable and no overlay is open', () => {
@@ -100,6 +112,40 @@ describe('isPromptMode', () => {
           ],
         }),
         userInput: makeUserInput(['pending123']),
+      }),
+    ).toBe(true)
+  })
+
+  it('prefers explicit toolUseId when present', () => {
+    expect(
+      isPromptMode({
+        state: makeState({
+          transientMessages: [
+            {
+              id: 'tool-ignored',
+              role: 'tool',
+              toolInfo: { name: 'Grep', status: 'running', toolUseId: 'explicit-1' },
+            },
+          ],
+        }),
+        userInput: makeUserInput(['explicit-1']),
+      }),
+    ).toBe(true)
+  })
+
+  it('uses raw message id when it does not have tool- prefix', () => {
+    expect(
+      isPromptMode({
+        state: makeState({
+          transientMessages: [
+            {
+              id: 'plain-id',
+              role: 'tool',
+              toolInfo: { name: 'Grep', status: 'running' },
+            },
+          ],
+        }),
+        userInput: makeUserInput(['plain-id']),
       }),
     ).toBe(true)
   })

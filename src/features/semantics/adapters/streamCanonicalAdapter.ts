@@ -40,7 +40,7 @@ export function toCanonicalEventsFromStreamEvent(ev: StreamEvent, ctx: StreamCan
     nextReplaySeq: () => ctx.nextReplaySeq(),
     envelopeFor: ({ kind, replaySeq }) => createEnvelope(ctx, kind, replaySeq),
     inferFailureStatus: inferCanonicalFailureStatus,
-    resolveThinkingDeltaText: (event) => String(event.thinking ?? ''),
+    resolveThinkingDeltaText: (event) => String(event.thinking),
     alwaysIncludeToolEndIsError: true,
   })
 }

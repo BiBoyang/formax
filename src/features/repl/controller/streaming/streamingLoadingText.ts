@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 function truncateLabel(text: string, max: number): string {
-  const s = (text || '').trim()
+  const s = text.trim()
   return s.length > max ? s.slice(0, max) + '…' : s
 }
 

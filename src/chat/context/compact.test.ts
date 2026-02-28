@@ -48,6 +48,19 @@ describe('selectTailForCompaction', () => {
     expect(selectTailForCompaction(history, 0)).toEqual([])
     expect(selectTailForCompaction(history, -1)).toEqual([])
   })
+
+  it('returns empty when no non-tool user turns exist and tolerates sparse arrays', () => {
+    const sparse = [] as PromptMessage[]
+    sparse[1] = txt('assistant', 'a1')
+    sparse[2] = toolResult('t1')
+    expect(selectTailForCompaction(sparse, 2)).toEqual([])
+  })
+
+  it('handles non-finite keep and keep values larger than user turn count', () => {
+    const history: PromptMessage[] = [txt('user', 'u1'), txt('assistant', 'a1'), txt('user', 'u2')]
+    expect(selectTailForCompaction(history, Number.POSITIVE_INFINITY)).toEqual([])
+    expect(selectTailForCompaction(history, 99)).toEqual(history)
+  })
 })
 
 describe('rebuildHistoryAfterCompaction', () => {
@@ -72,6 +85,12 @@ describe('compaction summary helpers', () => {
     expect(text.endsWith('</system-reminder>')).toBe(true)
   })
 
+  it('normalizes falsy summary input to an empty body', () => {
+    const text = buildCompactionSummaryUserText('' as any)
+    expect(text).toContain('The conversation is summarized below:')
+    expect(text).toContain('\n\n</system-reminder>')
+  })
+
   it('detects compact summary user messages', () => {
     const msg: PromptMessage = {
       role: 'user',
@@ -79,5 +98,30 @@ describe('compaction summary helpers', () => {
     }
     expect(isCompactionSummaryUserMessage(msg)).toBe(true)
     expect(isCompactionSummaryUserMessage(txt('user', 'normal user text'))).toBe(false)
+    expect(
+      isCompactionSummaryUserMessage({
+        role: 'user',
+        content: [{ type: 'tool_use', id: 'x', name: 'Read', input: {} }] as any,
+      }),
+    ).toBe(false)
+    expect(isCompactionSummaryUserMessage(txt('assistant', 'not user'))).toBe(false)
+    expect(
+      isCompactionSummaryUserMessage({
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] as any,
+      }),
+    ).toBe(false)
+    expect(
+      isCompactionSummaryUserMessage({
+        role: 'user',
+        content: null as any,
+      }),
+    ).toBe(false)
+    expect(
+      isCompactionSummaryUserMessage({
+        role: 'user',
+        content: [{ type: 'text', text: '<system-reminder>   </system-reminder>' }] as any,
+      }),
+    ).toBe(false)
   })
 })
