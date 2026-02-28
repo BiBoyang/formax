@@ -43,7 +43,6 @@
 - [ ] src/hooks/settingsStore.ts
 - [ ] src/hooks/store.ts
 - [ ] src/screens/perf/TranscriptPerfScreen.tsx
-- [ ] src/screens/repl/messageItems.ts
 - [ ] src/screens/repl/panels.tsx
 - [ ] src/screens/repl/transcript.tsx
 - [ ] src/screens/repl/useSurfaceTransitionManager.ts
