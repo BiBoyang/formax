@@ -80,7 +80,7 @@ export async function parseAnthropicSSEStream(
 
       // Split on newlines; SSE events are separated by blank lines
       const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+      buffer = lines.pop() as string
 
       for (const rawLine of lines) {
         const line = rawLine.trim()
@@ -244,9 +244,8 @@ function handleSSEEvent(
 
       if (delta?.type === 'text_delta') {
         const text = delta.text ?? ''
-        if (contentBlocks[index]) {
-          contentBlocks[index].text = (contentBlocks[index].text || '') + text
-        }
+        const block = contentBlocks[index]!
+        block.text = (block.text || '') + text
         if (text) {
           callbacks.onTextDelta(text, index)
         }
@@ -256,17 +255,15 @@ function handleSSEEvent(
         inputJSONBuffers.set(index, currentBuffer + partialJson)
       } else if (delta?.type === 'thinking_delta') {
         const thinking = delta.thinking ?? ''
-        if (contentBlocks[index]) {
-          contentBlocks[index].thinking = (contentBlocks[index].thinking || '') + thinking
-        }
+        const block = contentBlocks[index]!
+        block.thinking = (block.thinking || '') + thinking
         if (thinking) {
           callbacks.onThinkingDelta(thinking, index)
         }
       } else if (delta?.type === 'signature_delta') {
         const signature = delta.signature ?? ''
-        if (contentBlocks[index]) {
-          contentBlocks[index].signature = (contentBlocks[index].signature || '') + signature
-        }
+        const block = contentBlocks[index]!
+        block.signature = (block.signature || '') + signature
       }
       break
     }
@@ -346,11 +343,7 @@ function getApiErrorStatus(event: any): number | null {
 }
 
 function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
+  return JSON.stringify(value)
 }
 
 function extractTokenUsage(raw: unknown): TokenUsage | null {

@@ -38,6 +38,5 @@
 - [ ] src/features/semantics/runtime/inputStateMachine.ts
 - [ ] src/features/semantics/runtime/threadRuntimeState.ts
 - [ ] src/screens/repl/transcript.tsx
-- [ ] src/streaming/anthropic/sseParser.ts
 - [ ] src/streaming/anthropic/StreamClient.ts
 - [ ] src/streaming/openai/StreamClient.ts

@@ -502,5 +502,280 @@ describe('SSE Streaming Parser', () => {
 
       await expect(parseAnthropicSSEStream(stream, callbacks)).rejects.toThrow(/API Error/i)
     })
+
+    it('ignores empty/[DONE] payload lines without affecting completion', async () => {
+      const callbacks = createMockCallbacks()
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(['data: [DONE]', 'data:   '].join('\n\n') + '\n\n'))
+          controller.close()
+        },
+      })
+
+      const result = await parseAnthropicSSEStream(stream, callbacks)
+      expect(result.stopReason).toBeNull()
+      expect(result.contentBlocks).toEqual([])
+    })
+
+    it('ignores non-object JSON events', async () => {
+      const callbacks = createMockCallbacks()
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(['data: 1', `data: ${JSON.stringify({ type: 'message_stop' })}`].join('\n\n') + '\n\n'))
+          controller.close()
+        },
+      })
+
+      const result = await parseAnthropicSSEStream(stream, callbacks)
+      expect(result.contentBlocks).toEqual([])
+    })
+
+    it('throws typed error using top-level status when present', async () => {
+      const callbacks = createMockCallbacks()
+      const stream = createMockSSEStream([
+        {
+          type: 'error',
+          status: 503,
+          error: { message: 'upstream unavailable' },
+        },
+      ])
+
+      await expect(parseAnthropicSSEStream(stream, callbacks)).rejects.toThrow(/API Error: 503/i)
+    })
+
+    it('ignores non-object usage payloads', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1', usage: 'invalid' } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: 'invalid' },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.usage).toBeUndefined()
+    })
+
+    it('rethrows FatalSSEError from trailing-buffer handler', async () => {
+      const callbacks = createMockCallbacks()
+      const encoder = new TextEncoder()
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: 'error', error: { status: 429, message: 'rate limit' } })}`,
+            ),
+          )
+          controller.close()
+        },
+      })
+
+      await expect(parseAnthropicSSEStream(stream, callbacks)).rejects.toThrow(/API Error: 429/i)
+    })
+
+    it('reports non-fatal handler errors during normal line processing', async () => {
+      const callbacks = createMockCallbacks()
+      callbacks.onTextDelta = () => {
+        throw new Error('normal-line-failure')
+      }
+      callbacks.onError = (error) => {
+        callbacks.errors.push(error)
+      }
+
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'boom' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_stop' },
+      ]
+
+      const out = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(out.contentBlocks[0]?.text).toBe('boom')
+      expect(callbacks.errors.some((e) => String(e.message).includes('SSE event handler error'))).toBe(true)
+    })
+
+    it('accumulates signature_delta into thinking block signature', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: 'h', signature: 's0' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: '_s1' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.contentBlocks[0]?.signature).toBe('s0_s1')
+    })
+
+    it('creates thinking block when signature_delta arrives before block start', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.contentBlocks[0]?.type).toBe('thinking')
+      expect(result.contentBlocks[0]?.signature).toBe('sig')
+    })
+
+    it('extracts and merges cache token usage with max semantics', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_1',
+            usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 2, cache_creation_input_tokens: 3 },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { input_tokens: 2, output_tokens: 1, cache_read_input_tokens: 4, cache_creation_input_tokens: 2 },
+        },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.usage).toEqual({
+        input_tokens: 2,
+        output_tokens: 1,
+        cache_read_input_tokens: 4,
+        cache_creation_input_tokens: 3,
+      })
+    })
+
+    it('captures usage from trailing unflushed data buffer', async () => {
+      const callbacks = createMockCallbacks()
+      const encoder = new TextEncoder()
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: 'message_delta',
+                delta: { stop_reason: 'end_turn' },
+                usage: { input_tokens: 9, output_tokens: 8 },
+              })}`,
+            ),
+          )
+          controller.close()
+        },
+      })
+
+      const result = await parseAnthropicSSEStream(stream, callbacks)
+      expect(result.stopReason).toBe('end_turn')
+      expect(result.usage).toEqual({ input_tokens: 9, output_tokens: 8 })
+    })
+
+    it('handles empty deltas and tool_stop without json payload', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '' } },
+        { type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } },
+        { type: 'content_block_delta', index: 1, delta: { type: 'thinking_delta', thinking: '' } },
+        { type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: 't1', name: 'Bash' } },
+        { type: 'content_block_stop', index: 2 },
+        { type: 'message_delta', delta: {} },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(callbacks.textDeltas).toEqual([])
+      expect(callbacks.thinkingDeltas).toEqual([])
+      expect(callbacks.toolCompletes[0].toolUse.input).toEqual({})
+      expect(result.stopReason).toBeNull()
+    })
+
+    it('returns no usage when usage object has no numeric fields', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1', usage: { input_tokens: 'x' } } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 'y' } },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.usage).toBeUndefined()
+    })
+
+    it('merges partial usage deltas when only output tokens are provided', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1', usage: { input_tokens: 1 } } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.usage).toEqual({ input_tokens: 1, output_tokens: 3 })
+    })
+
+    it('handles deltas with missing text/json/thinking/signature fields', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta' } },
+        { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta' } },
+        { type: 'content_block_delta', index: 2, delta: { type: 'thinking_delta' } },
+        { type: 'content_block_delta', index: 3, delta: { type: 'signature_delta' } },
+        { type: 'content_block_stop', index: 1 },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.contentBlocks[0]?.text).toBe('')
+      expect(result.contentBlocks[2]?.thinking).toBe('')
+      expect(result.contentBlocks[3]?.signature).toBe('')
+      expect(callbacks.textDeltas).toEqual([])
+      expect(callbacks.thinkingDeltas).toEqual([])
+    })
+
+    it('covers trailing [DONE], empty thinking start, and unknown delta types', async () => {
+      const callbacks = createMockCallbacks()
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              [
+                `data: ${JSON.stringify({ type: 'message_start', message: { id: 'msg_1' } })}`,
+                `data: ${JSON.stringify({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })}`,
+                `data: ${JSON.stringify({ type: 'content_block_delta', index: 1, delta: { type: 'unknown_delta' } })}`,
+                `data: ${JSON.stringify({ type: 'message_stop' })}`,
+                'data: [DONE]',
+              ].join('\n\n'),
+            ),
+          )
+          controller.close()
+        },
+      })
+
+      const result = await parseAnthropicSSEStream(stream, callbacks)
+      expect(result.stopReason).toBeNull()
+      expect(callbacks.thinkingDeltas).toEqual([])
+    })
+
+    it('ignores unsupported content_block_start types', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        { type: 'message_start', message: { id: 'msg_1' } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'unsupported' } },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.contentBlocks[0]).toBeUndefined()
+    })
   })
 })
