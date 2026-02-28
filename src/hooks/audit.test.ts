@@ -4,6 +4,25 @@ import { appendHookRunAuditEvents } from './audit.js'
 import type { HookRun } from './types.js'
 
 describe('appendHookRunAuditEvents', () => {
+  it('returns early when audit is missing or runs are empty', () => {
+    const auditEvents: AuditEventV1[] = []
+    appendHookRunAuditEvents({
+      audit: null,
+      tool: { name: 'Bash', toolUseId: 't0' },
+      agentDepth: 0,
+      eventName: 'PreToolUse',
+      runs: [],
+    })
+    appendHookRunAuditEvents({
+      audit: { append: async (e) => void auditEvents.push(e) } as any,
+      tool: { name: 'Bash', toolUseId: 't0' },
+      agentDepth: 0,
+      eventName: 'PreToolUse',
+      runs: [],
+    })
+    expect(auditEvents).toHaveLength(0)
+  })
+
   it('records status/parsedJson and gates stdoutPreview behind FORMAX_HOOKS_DEBUG', () => {
     const auditEvents: AuditEventV1[] = []
     const run: HookRun = {
@@ -59,6 +78,16 @@ describe('appendHookRunAuditEvents', () => {
         timedOut: false,
         parsedJson: null,
       },
+      {
+        command: 'echo fail',
+        exitCode: 1,
+        signal: null,
+        stdout: '',
+        stderr: 'failed',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
     ]
 
     appendHookRunAuditEvents({
@@ -70,13 +99,80 @@ describe('appendHookRunAuditEvents', () => {
       runs,
     })
 
-    expect(auditEvents).toHaveLength(2)
+    expect(auditEvents).toHaveLength(3)
     expect((auditEvents[0] as any).hook.status).toBe('blocked')
     expect((auditEvents[0] as any).hook.stderrPreview).toBe('blocked')
     expect((auditEvents[0] as any).hook.stdoutPreview).toBeUndefined()
 
     expect((auditEvents[1] as any).hook.status).toBe('aborted')
     expect((auditEvents[1] as any).hook.stdoutPreview).toBeUndefined()
+    expect((auditEvents[2] as any).hook.status).toBe('failed')
+  })
+
+  it('supports trace and optional hook fields, and trims preview by limit', () => {
+    const auditEvents: AuditEventV1[] = []
+    const run: HookRun = {
+      source: 'project',
+      matcher: '*',
+      timeoutMs: null,
+      command: 'echo long',
+      exitCode: 1,
+      signal: null,
+      stdout: '123456',
+      stderr: 'abcdef',
+      stdoutTruncated: true,
+      stderrTruncated: false,
+      durationMs: 5,
+      timedOut: false,
+      parsedJson: null,
+    }
+
+    appendHookRunAuditEvents({
+      audit: { append: async (e) => void auditEvents.push(e) } as any,
+      tool: { name: 'Read', toolUseId: 't3' },
+      agentDepth: 2,
+      eventName: 'PostToolUse',
+      runs: [run],
+      trace: { turnId: 'turn-1' } as any,
+      hooksDebugEnabled: true,
+      previewLimit: 3,
+    })
+
+    const ev = auditEvents[0] as any
+    expect(ev.trace.turnId).toBe('turn-1')
+    expect(ev.hook.source).toBe('project')
+    expect(ev.hook.matcher).toBe('*')
+    expect(ev.hook.timeoutMs).toBeNull()
+    expect(ev.hook.stdoutPreview).toBe('456')
+    expect(ev.hook.stderrPreview).toBe('def')
+    expect(ev.hook.stdoutTruncated).toBe(true)
+    expect(ev.hook.stderrTruncated).toBe(false)
+  })
+
+  it('does not mark null-exit run as aborted when stderr is empty/undefined', () => {
+    const auditEvents: AuditEventV1[] = []
+    const run: HookRun = {
+      command: 'echo maybe-abort',
+      exitCode: null,
+      signal: null,
+      stdout: '',
+      stderr: undefined as unknown as string,
+      durationMs: 1,
+      timedOut: false,
+      parsedJson: null,
+    }
+
+    appendHookRunAuditEvents({
+      audit: { append: async (e) => void auditEvents.push(e) } as any,
+      hooksDebugEnabled: true,
+      tool: { name: 'Write', toolUseId: 't4' },
+      agentDepth: 0,
+      eventName: 'PermissionRequest',
+      runs: [run],
+    })
+
+    expect((auditEvents[0] as any).hook.status).toBe('failed')
+    expect((auditEvents[0] as any).hook.stdoutPreview).toBeUndefined()
+    expect((auditEvents[0] as any).hook.stderrPreview).toBeUndefined()
   })
 })
-
