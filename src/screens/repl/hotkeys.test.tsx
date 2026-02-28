@@ -4,7 +4,7 @@ import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../components/tool/ToolMessage'
 import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext.js'
-import { useReplHotkeys } from './hotkeys.js'
+import { handleCtrlCKeypress, useReplHotkeys } from './hotkeys.js'
 
 function tick(): Promise<void> {
   // Coverage/instrumentation runs can delay Ink's input dispatch; give it a tiny bit of breathing room.
@@ -28,6 +28,56 @@ describe('useReplHotkeys', () => {
       abort: vi.fn(),
       resetTranscriptSurface: vi.fn(),
     }
+  })
+
+  it('handles ctrl+c arm/exit behavior via helper', () => {
+    const setCtrlCArmedUntilMs = vi.fn()
+    const setInput = vi.fn()
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const onExit = vi.fn()
+
+    const armed = handleCtrlCKeypress({
+      onExit,
+      ctrlCArmedUntilMs: null,
+      setCtrlCArmedUntilMs,
+      setInput,
+      setSlashIndex,
+      setSlashSelectionTouched,
+      nowMs: 100,
+      windowMs: 50,
+    })
+    expect(armed).toBe('armed')
+    expect(setInput).toHaveBeenCalledWith('')
+    expect(setSlashIndex).toHaveBeenCalledWith(0)
+    expect(setSlashSelectionTouched).toHaveBeenCalledWith(false)
+    expect(setCtrlCArmedUntilMs).toHaveBeenCalledWith(150)
+
+    const exited = handleCtrlCKeypress({
+      onExit,
+      ctrlCArmedUntilMs: 200,
+      setCtrlCArmedUntilMs,
+      setInput,
+      setSlashIndex,
+      setSlashSelectionTouched,
+      nowMs: 150,
+    })
+    expect(exited).toBe('exit')
+    expect(onExit).toHaveBeenCalledTimes(1)
+  })
+
+  it('exits via process.exit when ctrl+c is armed and no onExit is provided', () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as any)
+    const result = handleCtrlCKeypress({
+      ctrlCArmedUntilMs: 200,
+      setCtrlCArmedUntilMs: () => {},
+      setInput: () => {},
+      setSlashIndex: () => {},
+      setSlashSelectionTouched: () => {},
+      nowMs: 150,
+    })
+    expect(result).toBe('exit')
+    expect(exitSpy).toHaveBeenCalledWith(0)
   })
 
   it('enters one-shot bash mode when ! is pressed on an empty prompt', async () => {
@@ -212,6 +262,56 @@ describe('useReplHotkeys', () => {
     expect(setBashModeActive).toHaveBeenCalledWith(false)
   })
 
+  it('does not exit one-shot bash mode on non-delete keys', async () => {
+    const setBashModeActive = vi.fn()
+    const setInput = vi.fn()
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        input: '',
+        setInput,
+        bashModeActive: true,
+        setBashModeActive,
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('x')
+    await tick()
+    expect(setInput).not.toHaveBeenCalled()
+    expect(setBashModeActive).not.toHaveBeenCalled()
+  })
+
   it('toggles Expanded Transcript on ctrl+o', async () => {
     const setExpandedTranscriptOpen = vi.fn()
     const setExpandedTranscriptHideHistory = vi.fn()
@@ -263,6 +363,56 @@ describe('useReplHotkeys', () => {
     await waitForCalls(setExpandedTranscriptOpen, 1)
 
     expect(setExpandedTranscriptOpen).toHaveBeenCalledWith(true)
+  })
+
+  it('uses onToggleExpandedTranscript when provided', async () => {
+    const onToggleExpandedTranscript = vi.fn()
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        onToggleExpandedTranscript,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          modelDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        input: '',
+        setInput: () => {},
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u000f')
+    await waitForCalls(onToggleExpandedTranscript, 1)
+    expect(onToggleExpandedTranscript).toHaveBeenCalledTimes(1)
   })
 
   it('toggles Expanded Transcript history folding on ctrl+e', async () => {
@@ -410,6 +560,65 @@ describe('useReplHotkeys', () => {
     expect(setExpandedTranscriptOpen).not.toHaveBeenCalled()
   })
 
+  it('blocks ctrl+o when model/config overlay is open', async () => {
+    const setExpandedTranscriptOpen = vi.fn()
+    const makeHarness = (modelDialogOpen: boolean, configDialogOpen: boolean) => () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen,
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          modelDialogOpen,
+          configDialogOpen,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched: () => {},
+        setSlashIndex: () => {},
+        input: '',
+        setInput: () => {},
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        {React.createElement(makeHarness(true, false))}
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u000f')
+    await tick()
+    expect(setExpandedTranscriptOpen).not.toHaveBeenCalled()
+
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        {React.createElement(makeHarness(false, true))}
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u000f')
+    await tick()
+    expect(setExpandedTranscriptOpen).not.toHaveBeenCalled()
+  })
+
   it('ignores ctrl+o when promptMode is active', async () => {
     const setExpandedTranscriptOpen = vi.fn()
     const setExpandedTranscriptHideHistory = vi.fn()
@@ -522,6 +731,11 @@ describe('useReplHotkeys', () => {
     expect(setMode).toHaveBeenCalledTimes(1)
     expect(ensurePlanPath).toHaveBeenCalledTimes(1)
     expect(mode).toBe('plan')
+
+    ui.stdin.write('\u001B[Z') // Shift+Tab again
+    await tick()
+    expect(setMode).toHaveBeenCalledTimes(2)
+    expect(ensurePlanPath).toHaveBeenCalledTimes(1)
   })
 
   it('aborts on Escape unless an overlay is open', async () => {
@@ -649,7 +863,7 @@ describe('useReplHotkeys', () => {
   })
 
   it('consumes slash suggestion navigation keys before lower-priority handlers', async () => {
-    const setSlashIndex = vi.fn()
+    const setSlashIndex = vi.fn((next: any) => (typeof next === 'function' ? next(0) : next))
     const setSlashSelectionTouched = vi.fn()
     const lowerPriority = vi.fn()
     const setExpandedTranscriptHideHistory = vi.fn()
@@ -775,7 +989,7 @@ describe('useReplHotkeys', () => {
   })
 
   it('does not recall queued message when not loading and keeps slash upArrow behavior', async () => {
-    const setSlashIndex = vi.fn()
+    const setSlashIndex = vi.fn((next: any) => (typeof next === 'function' ? next(1) : next))
     const setSlashSelectionTouched = vi.fn()
     const onRecallQueuedMessage = vi.fn()
     const setExpandedTranscriptHideHistory = vi.fn()
@@ -831,5 +1045,177 @@ describe('useReplHotkeys', () => {
     expect(onRecallQueuedMessage).not.toHaveBeenCalled()
     expect(setSlashSelectionTouched).toHaveBeenCalledWith(true)
     expect(setSlashIndex).toHaveBeenCalled()
+  })
+
+  it('accepts selected slash command on tab and consumes tab even without selected command', async () => {
+    const setInput = vi.fn()
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const Harness = ({ selected }: { selected: { command?: string } | null }) => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [{ command: '/status' }],
+        selectedSlash: selected,
+        setSlashSelectionTouched,
+        setSlashIndex,
+        input: '/',
+        setInput,
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness selected={{ command: '/status' }} />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\t')
+    await tick()
+    expect(setInput).toHaveBeenCalledWith('/status')
+    expect(setSlashIndex).toHaveBeenCalledWith(0)
+
+    setInput.mockClear()
+    setSlashIndex.mockClear()
+    ui.rerender(
+      <InputScopeProvider initialScope="repl">
+        <Harness selected={null} />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\t')
+    await tick()
+    expect(setInput).not.toHaveBeenCalled()
+  })
+
+  it('returns false for unhandled selector keys when suggestions exist', async () => {
+    const setInput = vi.fn()
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [{ command: '/status' }],
+        selectedSlash: { command: '/status' },
+        setSlashSelectionTouched,
+        setSlashIndex,
+        input: '/',
+        setInput,
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs: () => {},
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('x')
+    await tick()
+    expect(setInput).not.toHaveBeenCalled()
+    expect(setSlashSelectionTouched).not.toHaveBeenCalled()
+    expect(setSlashIndex).not.toHaveBeenCalled()
+  })
+
+  it('handles ctrl+c through the hook input handler', async () => {
+    const setCtrlCArmedUntilMs = vi.fn()
+    const setInput = vi.fn()
+    const setSlashIndex = vi.fn()
+    const setSlashSelectionTouched = vi.fn()
+
+    const Harness = () => {
+      useReplHotkeys({
+        actions,
+        ensurePlanPath: () => {},
+        setMode: () => {},
+        isPromptMode: false,
+        userInput: null,
+        toolRegistry: undefined,
+        allMessages: [] as Msg[],
+        expandedTranscriptOpen: false,
+        setExpandedTranscriptOpen: () => {},
+        expandedTranscriptHideHistory: false,
+        setExpandedTranscriptHideHistory: () => {},
+        state: {
+          agentsDialogOpen: false,
+          permissionsDialogOpen: false,
+          hooksDialogOpen: false,
+          configDialogOpen: false,
+          isLoading: false,
+          thinkingText: '',
+          transientMessages: [] as Msg[],
+        },
+        slashSuggestions: [],
+        selectedSlash: null,
+        setSlashSelectionTouched,
+        setSlashIndex,
+        input: '',
+        setInput,
+        bashModeActive: false,
+        setBashModeActive: () => {},
+        ctrlCArmedUntilMs: null,
+        setCtrlCArmedUntilMs,
+      })
+      return <Text>ok</Text>
+    }
+
+    const ui = render(
+      <InputScopeProvider initialScope="repl">
+        <Harness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    ui.stdin.write('\u0003')
+    await tick()
+    expect(setInput).toHaveBeenCalledWith('')
+    expect(setSlashIndex).toHaveBeenCalledWith(0)
+    expect(setSlashSelectionTouched).toHaveBeenCalledWith(false)
+    expect(setCtrlCArmedUntilMs).toHaveBeenCalled()
   })
 })
