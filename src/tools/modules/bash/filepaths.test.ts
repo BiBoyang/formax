@@ -155,4 +155,50 @@ describe('extractFilepathsFromCommandOutput', () => {
     expect(out.isDisplayingContents).toBe(true)
     expect(out.filepaths).toEqual(['src/a.ts', 'src/b.ts', 'err.log', 'all.log', 'out.log'])
   })
+
+  it('handles separator-only segments and env-assignment-only commands', () => {
+    const sepOnly = extractFilepathsFromCommandOutput({
+      command: 'cat a.ts || || ; cat b.ts',
+      output: 'content',
+    })
+    expect(sepOnly.isDisplayingContents).toBe(true)
+    expect(sepOnly.filepaths).toEqual(['a.ts', 'b.ts'])
+
+    const envOnly = extractFilepathsFromCommandOutput({
+      command: 'FOO=1 BAR=2',
+      output: 'noop',
+    })
+    expect(envOnly.isDisplayingContents).toBe(false)
+    expect(envOnly.filepaths).toEqual([])
+  })
+
+  it('drops empty patch paths after normalization', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'git diff',
+      output: ['+++ ', '--- ""', 'diff --git a/src/a.ts b/src/a.ts'].join('\n'),
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/a.ts'])
+  })
+
+  it('handles env-assignment-only command when output already looks like a patch', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'FOO=1 BAR=2',
+      output: ['diff --git a/src/a.ts b/src/a.ts', '@@ -1 +1 @@', '-a', '+b'].join('\n'),
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/a.ts'])
+  })
+
+  it('ignores stdin/options sentinels for cat/bat and keeps real file args', () => {
+    const out = extractFilepathsFromCommandOutput({
+      command: 'cat - -- -n src/real.ts',
+      output: 'content',
+    })
+
+    expect(out.isDisplayingContents).toBe(true)
+    expect(out.filepaths).toEqual(['src/real.ts'])
+  })
 })

@@ -175,7 +175,6 @@ function extractCatLikePathsFromCommand(tokens: string[]): string[] {
 function extractCatBatFileArgs(rest: string[]): string[] {
   const out: string[] = []
   for (const tok of rest) {
-    if (!tok) continue
     if (tok === '-' || tok === '--') continue
     if (tok.startsWith('-')) continue
     if (isRedirectToken(tok)) continue
@@ -188,7 +187,6 @@ function extractHeadTailFileArgs(rest: string[]): string[] {
   const out: string[] = []
   for (let i = 0; i < rest.length; i++) {
     const tok = rest[i]
-    if (!tok) continue
 
     if (tok === '-n' || tok === '--lines' || tok === '-c' || tok === '--bytes') {
       i++
@@ -258,7 +256,6 @@ function normalizePathToken(token: string): string {
 }
 
 function isRedirectToken(token: string): boolean {
-  if (!token) return false
   if (token === '>' || token === '>>' || token === '<' || token === '<<') return true
   if (/^\d?>/.test(token) || /^\d?<\d?$/.test(token)) return true
   if (token === '2>&1' || token === '&>' || token === '>&') return true
@@ -266,7 +263,7 @@ function isRedirectToken(token: string): boolean {
 }
 
 function shellSplit(input: string): string[] {
-  const s = input || ''
+  const s = input
   const tokens: string[] = []
   let current = ''
   let quote: '"' | "'" | null = null

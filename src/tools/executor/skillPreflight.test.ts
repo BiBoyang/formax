@@ -8,6 +8,13 @@ import { buildSkillPermissionKey, getProjectSettingsLocalPath } from '../../adap
 import { createSkillPreflight } from './skillPreflight.js'
 
 describe('createSkillPreflight', () => {
+  it('returns null for non-Skill calls', async () => {
+    const store = createNodeFileStore()
+    const preflight = createSkillPreflight({ fileStore: store, userInput: null })
+    const res = await preflight({ id: 'noop', name: 'Read', input: {} } as any, { agentDepth: 0 })
+    expect(res).toBeNull()
+  })
+
   it('returns error for sub-agents (no prompting)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-subagent-'))
     try {
@@ -281,6 +288,62 @@ describe('createSkillPreflight', () => {
     }
   })
 
+  it('returns generic rejection when feedback decision has empty feedback text', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-feedback-empty-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const userInput: UserInputManager = {
+        requestAnswers: async () => ({ decision: 'feedback', feedback: '   ' }),
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const res = await preflight(
+        { id: 't-feedback-empty', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toBe('Tool use rejected by user.')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns generic rejection when approval answer has no decision', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-no-decision-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const userInput: UserInputManager = {
+        requestAnswers: async () => ({}),
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const res = await preflight(
+        { id: 't-no-decision', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toBe('Tool use rejected by user.')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('returns parse errors for invalid Skill input', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-parse-error-'))
     try {
@@ -296,6 +359,39 @@ describe('createSkillPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('unknown field')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns missing-skill error for empty or non-string skill input', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-missing-skill-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput: null })
+      const emptyResult = await preflight(
+        { id: 't-empty', name: 'Skill', input: { skill: '   ' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(emptyResult?.is_error).toBe(true)
+      expect(emptyResult?.content).toContain('Missing skill')
+
+      const nonStringResult = await preflight(
+        { id: 't-non-string', name: 'Skill', input: { skill: 123 } as any },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(nonStringResult?.is_error).toBe(true)
+      expect(nonStringResult?.content).toContain('Missing skill')
+
+      const missingInputResult = await preflight(
+        { id: 't-missing-input', name: 'Skill' } as any,
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(missingInputResult?.is_error).toBe(true)
+      expect(missingInputResult?.content).toContain('Missing skill')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -389,6 +485,37 @@ describe('createSkillPreflight', () => {
     }
   })
 
+  it('returns error when requestAnswers throws Error', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-request-error-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const userInput: UserInputManager = {
+        requestAnswers: async () => {
+          throw new Error('kaput')
+        },
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const res = await preflight(
+        { id: 't-request-error', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Error: kaput')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('returns save error when approve_remember persistence fails', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-save-fail-'))
     try {
@@ -420,6 +547,69 @@ describe('createSkillPreflight', () => {
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Failed to save settings.local.json: disk failed')
     } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns save error when approve_remember persistence throws non-Error', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-save-fail-non-error-'))
+    try {
+      const baseStore = createNodeFileStore()
+      const store = {
+        ...baseStore,
+        async writeJsonAtomic() {
+          throw 'disk down'
+        },
+      }
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const userInput: UserInputManager = {
+        requestAnswers: async () => ({ decision: 'approve_remember' }),
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store as any, userInput })
+      const res = await preflight(
+        { id: 't-save-fail-non-error', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Failed to save settings.local.json: disk down')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to process.cwd() when ctx.cwd is missing', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-cwd-fallback-'))
+    const previousCwd = process.cwd()
+    try {
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+      process.chdir(projectDir)
+
+      const store = createNodeFileStore()
+      const key = buildSkillPermissionKey('frontend-design')
+      const filePath = getProjectSettingsLocalPath(projectDir)
+      await store.writeJsonAtomic(filePath, {
+        version: 1,
+        permissions: { allow: [key], ask: [], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput: null })
+      const res = await preflight(
+        { id: 't-cwd-fallback', name: 'Skill', input: { skill: 'frontend-design' } },
+        { agentDepth: 0 },
+      )
+      expect(res).toBeNull()
+    } finally {
+      process.chdir(previousCwd)
       await fs.rm(dir, { recursive: true, force: true })
     }
   })

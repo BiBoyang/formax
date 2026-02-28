@@ -16,8 +16,8 @@ function normalizeUrlForPolicy(rawUrl: string): string | null {
   }
 }
 
-function resolveCwdPath(cwd: string, rawPath: unknown): string | null {
-  const raw = typeof rawPath === 'string' ? rawPath.trim() : ''
+function resolveCwdPath(cwd: string, rawPath: string): string | null {
+  const raw = rawPath.trim()
   if (!raw) return null
   return normalizePathForCompare(raw, cwd)
 }
@@ -80,15 +80,13 @@ export function toolCallToPolicyAction(call: ToolCall, ctx: ExecutionContext): P
 
     case 'Glob': {
       const rootRaw = obj && typeof obj.path === 'string' ? obj.path : ''
-      const root = resolveCwdPath(cwd, rootRaw || cwd)
-      if (!root) return null
+      const root = resolveCwdPath(cwd, rootRaw || cwd) ?? normalizePathForCompare(cwd, cwd)
       return { kind: 'fs.read', path: root }
     }
 
     case 'Grep': {
       const searchPathRaw = obj && typeof obj.path === 'string' ? obj.path : ''
-      const searchPath = resolveCwdPath(cwd, searchPathRaw || cwd)
-      if (!searchPath) return null
+      const searchPath = resolveCwdPath(cwd, searchPathRaw || cwd) ?? normalizePathForCompare(cwd, cwd)
       return { kind: 'fs.read', path: searchPath }
     }
 

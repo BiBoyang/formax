@@ -66,8 +66,8 @@ export function createNotebookEditToolHandler(): ToolHandler {
             throw new Error('cell_type is required for edit_mode=insert (code|markdown)')
           }
           const insertAt = cellId ? findCellIndexById(cells, String(cellId)) + 1 : 0
-          const idx = Math.max(0, Math.min(Number.isFinite(insertAt) ? insertAt : 0, cells.length))
-          cells.splice(idx, 0, createNewCell({ cellType, source: String(newSource ?? '') }))
+          const idx = Math.max(0, Math.min(insertAt, cells.length))
+          cells.splice(idx, 0, createNewCell({ cellType, source: String(newSource) }))
           await fsp.writeFile(notebookPath, JSON.stringify(notebook, null, 2) + '\n', 'utf8')
           return { tool_use_id: call.id, content: `Inserted cell in ${notebookPath}` }
         }
@@ -90,7 +90,7 @@ export function createNotebookEditToolHandler(): ToolHandler {
         if (cellType === 'code' || cellType === 'markdown') {
           cell.cell_type = cellType
         }
-        cell.source = toNotebookSource(String(newSource ?? ''))
+        cell.source = toNotebookSource(String(newSource))
         if (cell.cell_type === 'code') {
           cell.outputs = Array.isArray(cell.outputs) ? cell.outputs : []
           if (!('execution_count' in cell)) cell.execution_count = null

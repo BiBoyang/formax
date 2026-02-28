@@ -233,5 +233,22 @@ describe('BashToolHandler', () => {
     const throttledWaited = await taskManager.wait(throttledTaskId, { timeoutMs: 5000 })
     expect(throttledWaited.snapshot.status).toBe('completed')
     expect(throttledWaited.snapshot.result?.content).toContain('tick')
+
+    const stderrOnlyResult = await handler.execute(
+      {
+        id: '1',
+        name: 'Bash',
+        input: {
+          command: nodeCommand("process.stderr.write('only-stderr')"),
+          run_in_background: true,
+        },
+      } as any,
+      { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
+    )
+    const stderrTaskId = JSON.parse(stderrOnlyResult.content).task_id as string
+    const stderrWaited = await taskManager.wait(stderrTaskId, { timeoutMs: 5000 })
+    expect(stderrWaited.snapshot.status).toBe('completed')
+    expect(stderrWaited.snapshot.result?.content).toContain('stderr:')
+    expect(stderrWaited.snapshot.result?.content).toContain('only-stderr')
   })
 })

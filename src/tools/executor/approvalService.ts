@@ -146,7 +146,7 @@ export function createApprovalService(args: {
       toolName: call.name,
       action: args2.action,
       effectiveDecision: args2.effectiveDecision,
-      ...(suggestions.length > 0 ? { suggestions } : {}),
+      suggestions,
       ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
     })
 

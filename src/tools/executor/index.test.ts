@@ -71,6 +71,17 @@ describe('createToolExecutor', () => {
     expect(res.is_error).toBe(true)
   })
 
+  it('returns not implemented when no handler can handle the tool', async () => {
+    const exec = createToolExecutor([])
+    const res = await exec(
+      { id: 't0e', name: 'UnknownTool', input: {} } as ToolCall,
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(String(res.content)).toBe('Error: Tool not implemented: UnknownTool')
+    expect(res.is_error).toBe(true)
+  })
+
   it('applies allowTools before hooks/preflight/handler', async () => {
     let preflightCalls = 0
     let handlerCalls = 0
@@ -114,6 +125,46 @@ describe('createToolExecutor', () => {
     expect(handlerCalls).toBe(0)
   })
 
+  it('uses default ctx values when partial context omits cwd and agentDepth', async () => {
+    let seenCwd = ''
+    let seenDepth = -1
+    const handler: ToolHandler = {
+      canHandle: () => true,
+      execute: async (_call, ctx): Promise<ToolResult> => {
+        seenCwd = ctx.cwd
+        seenDepth = ctx.agentDepth
+        return { tool_use_id: 't-default-ctx', content: 'ok' }
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec({ id: 't-default-ctx', name: 'Any', input: {} } as ToolCall, {} as any)
+
+    expect(res.is_error).toBeUndefined()
+    expect(seenCwd).toBe(process.cwd())
+    expect(seenDepth).toBe(0)
+  })
+
+  it('allows non-denied tools for sub-agents', async () => {
+    let executed = false
+    const handler: ToolHandler = {
+      canHandle: () => true,
+      execute: async (): Promise<ToolResult> => {
+        executed = true
+        return { tool_use_id: 't-subagent-allowed', content: 'ok' }
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 't-subagent-allowed', name: 'Any', input: {} } as ToolCall,
+      { cwd: process.cwd(), agentDepth: 1 },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(executed).toBe(true)
+  })
+
   it('runs preflight and short-circuits when it returns a result', async () => {
     let handlerExecuted = false
 
@@ -152,6 +203,36 @@ describe('createToolExecutor', () => {
 
     expect(res.content).toBe('handler')
     expect(res.is_error).toBeUndefined()
+  })
+
+  it('returns handler-thrown errors as tool errors', async () => {
+    const handler: ToolHandler = {
+      canHandle: (name) => name === 'Any',
+      execute: async (): Promise<ToolResult> => {
+        throw new Error('explode')
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec({ id: 't2e', name: 'Any', input: {} } as ToolCall, { cwd: process.cwd(), agentDepth: 0 })
+
+    expect(res.is_error).toBe(true)
+    expect(String(res.content)).toBe('explode')
+  })
+
+  it('stringifies non-Error throwables from handlers', async () => {
+    const handler: ToolHandler = {
+      canHandle: (name) => name === 'Any',
+      execute: async (): Promise<ToolResult> => {
+        throw 'boom'
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec({ id: 't2f', name: 'Any', input: {} } as ToolCall, { cwd: process.cwd(), agentDepth: 0 })
+
+    expect(res.is_error).toBe(true)
+    expect(String(res.content)).toBe('boom')
   })
 
   it('runs PreToolUse hooks before preflight', async () => {
@@ -219,5 +300,74 @@ describe('createToolExecutor', () => {
     expect(hookRuns).toHaveLength(1)
     expect(hookRuns[0].hook.eventName).toBe('PreToolUse')
     expect(hookRuns[0].hook.command).toBe('echo nope')
+  })
+
+  it('returns generic blocked-hook message when blocked stderr is empty and defaults toolInput', async () => {
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({
+        runs: [],
+        blocked: true,
+        blockedBy: {
+          command: 'echo nope',
+          exitCode: 1,
+          signal: null,
+          stdout: '',
+          stderr: '   ',
+          durationMs: 1,
+          timedOut: false,
+          parsedJson: null,
+        },
+      }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const handler: ToolHandler = {
+      canHandle: () => true,
+      execute: async () => ({ tool_use_id: 'x', content: 'nope' }),
+    }
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 't-block-no-stderr', name: 'Any' } as ToolCall,
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(String(res.content)).toBe('Error: Tool blocked by PreToolUse hook')
+  })
+
+  it('continues to handler when PreToolUse hook is not blocked', async () => {
+    let executed = false
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({
+        runs: [],
+        blocked: false,
+        blockedBy: null,
+      }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+    const handler: ToolHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        executed = true
+        return { tool_use_id: 't-hook-ok', content: 'ok' }
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 't-hook-ok', name: 'Any', input: {} } as ToolCall,
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(executed).toBe(true)
   })
 })

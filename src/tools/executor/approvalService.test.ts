@@ -6,6 +6,7 @@ import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import type { ToolCall } from '../types.js'
 import type { LoadedPolicyRules } from '../../core/policy/store.js'
+import * as permissionsStore from '../../adapters/permissions/permissionsStore.js'
 import { createApprovalService } from './approvalService.js'
 
 describe('ApprovalService', () => {
@@ -361,5 +362,346 @@ describe('ApprovalService', () => {
     if (res.ok !== false) throw new Error('Expected ok=false')
     expect(res.result.is_error).toBe(true)
     expect(res.result.content).toBe('Error: boom')
+  })
+
+  it('returns Error: <msg> when requestAnswers throws a non-Error value', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => {
+          throw 'boom-non-error'
+        },
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't1b', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(res.result.content).toBe('Error: boom-non-error')
+  })
+
+  it('treats missing decision as reject (decision defaults to empty string)', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({}),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-missing-decision', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.content).toBe('Tool use rejected by user.')
+  })
+
+  it('returns save settings.local.json error when bash remember persistence fails', async () => {
+    const failingStore = {
+      exists: async () => false,
+      readText: async () => '',
+      writeTextAtomic: async () => {},
+      writeJsonAtomic: async () => {
+        throw new Error('disk broken')
+      },
+    }
+    const approval = createApprovalService({
+      fileStore: failingStore as any,
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-bash-fail', name: 'Bash', input: { command: 'echo hi' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo hi' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('Failed to save settings.local.json: disk broken')
+  })
+
+  it('returns save settings.local.json error for non-Error bash persistence failures and cwd fallback', async () => {
+    const persistSpy = vi.spyOn(permissionsStore, 'persistProjectPermissionAllow').mockRejectedValue('disk string fail')
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-bash-fail-non-error', name: 'Bash', input: { command: 'echo hi' } } as any,
+      ctx: { cwd: '', agentDepth: 0, onEvent: () => {} } as any,
+      action: { kind: 'bash.exec', command: 'echo hi' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('Failed to save settings.local.json: disk string fail')
+    persistSpy.mockRestore()
+  })
+
+  it('writes audit result entries for feedback/cancel rejection paths', async () => {
+    const auditEntries: any[] = []
+    const audit: AuditLog = { append: async (e) => void auditEntries.push(e) }
+
+    const withDecision = (decision: any) =>
+      createApprovalService({
+        fileStore: createNodeFileStore(),
+        userInput: {
+          requestAnswers: async () => decision,
+        } as any,
+        audit,
+      })
+
+    const commonArgs = {
+      call: { id: 't-audit', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' } as any,
+      effectiveDecision: 'prompt' as const,
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    }
+
+    await withDecision({ decision: 'feedback', feedback: '' }).ensureApproved(commonArgs)
+    await withDecision({ decision: 'feedback', feedback: 'stop it' }).ensureApproved(commonArgs)
+    await withDecision({ decision: 'weird' }).ensureApproved(commonArgs)
+
+    const results = auditEntries.filter((e) => e.kind === 'approval.result')
+    expect(results.map((r) => r.outcome)).toEqual(['cancel', 'feedback', 'cancel'])
+  })
+
+  it('handles missing decision/scope defaults and emits approval_request without suggestions', async () => {
+    const onEvent = vi.fn()
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'weird-scope' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-defaults', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'allow',
+      explained: { decision: 'allow' } as any,
+      loaded: {} as any,
+    })
+    expect(res.ok).toBe(true)
+
+    const requestEvent = onEvent.mock.calls.find((call) => call[0]?.type === 'approval_request')?.[0]
+    expect(requestEvent).toBeTruthy()
+    expect(requestEvent.toolUseId).toBe('t-defaults')
+  })
+
+  it('approve decision succeeds without audit logger', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve' }),
+      } as any,
+    })
+    const res = await approval.ensureApproved({
+      call: { id: 't-approve-no-audit', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('approve_remember with workspaceRequest persists directory and supports fs.read fast-path', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-workspace-'))
+    const store = createNodeFileStore()
+    const auditEntries: any[] = []
+    const audit: AuditLog = { append: async (e) => void auditEntries.push(e) }
+
+    const approval = createApprovalService({
+      fileStore: store,
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+      audit,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-workspace', name: 'Read', input: { file_path: '/tmp/a.txt' } } as any,
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'fs.read', path: '/tmp/a.txt' } as any,
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+      workspaceRequest: { dir: '/outside/project' },
+    })
+
+    expect(res.ok).toBe(true)
+
+    const approvalResult = auditEntries.find((e) => e.kind === 'approval.result')
+    expect(approvalResult?.outcome).toBe('approve_remember')
+  })
+
+  it('returns error when workspace directory persistence fails', async () => {
+    const persistSpy = vi.spyOn(permissionsStore, 'persistWorkspaceDirectory').mockRejectedValue(new Error('workspace save failed'))
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-workspace-fail', name: 'Read', input: { file_path: '/tmp/a.txt' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'fs.read', path: '/tmp/a.txt' } as any,
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+      workspaceRequest: { dir: '/outside/project' },
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('Error: workspace save failed')
+    persistSpy.mockRestore()
+  })
+
+  it('returns error for non-Error workspace persistence failures and cwd fallback', async () => {
+    const persistSpy = vi.spyOn(permissionsStore, 'persistWorkspaceDirectory').mockRejectedValue('workspace string fail')
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-workspace-fail-2', name: 'Read', input: { file_path: '/tmp/a.txt' } } as any,
+      ctx: { cwd: '', agentDepth: 0, onEvent: () => {} } as any,
+      action: { kind: 'fs.read', path: '/tmp/a.txt' } as any,
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+      workspaceRequest: { dir: '/outside/project' },
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('Error: workspace string fail')
+    persistSpy.mockRestore()
+  })
+
+  it('returns policy save error text when persistence throws non-Error values', async () => {
+    const fileStore = {
+      exists: async () => false,
+      readText: async () => '',
+      writeTextAtomic: async () => {},
+      writeJsonAtomic: async () => {
+        throw 'raw-string-save-error'
+      },
+    }
+
+    const approval = createApprovalService({
+      fileStore: fileStore as any,
+      env: { ...process.env, FORMAX_CONFIG_DIR: '/tmp/does-not-matter' },
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-policy-non-error', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: { projectRules: { version: 1, rules: [] } } as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(res.result.content).toContain('Error: Failed to save policy rule: raw-string-save-error')
+  })
+
+  it('persists project-scoped allow even when loaded.projectRules is missing', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-missing-loaded-'))
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      env: { ...process.env, FORMAX_CONFIG_DIR: path.join(tmp, 'global') },
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-missing-loaded', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+    const projectRulesPath = path.join(tmp, '.formax', 'rules.json')
+    const projectFile = JSON.parse(await fs.readFile(projectRulesPath, 'utf8')) as any
+    expect(projectFile.rules).toHaveLength(1)
+  })
+
+  it('persists global-scoped allow even when loaded.globalRules is missing', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-missing-loaded-global-'))
+    const globalDir = path.join(tmp, 'global')
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      env: { ...process.env, FORMAX_CONFIG_DIR: globalDir },
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'global' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-missing-loaded-global', name: 'WebSearch', input: { query: 'x' } } as any,
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.search', query: 'hello' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+    const globalRulesPath = path.join(globalDir, 'rules.json')
+    const globalFile = JSON.parse(await fs.readFile(globalRulesPath, 'utf8')) as any
+    expect(globalFile.rules).toHaveLength(1)
   })
 })
