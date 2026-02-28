@@ -61,7 +61,6 @@
 - [ ] src/tools/executor/policyPreflight.ts
 - [ ] src/tools/modules/bash/policy.ts
 - [ ] src/tools/modules/exitPlanMode/presenter.tsx
-- [ ] src/tools/modules/grep/ripgrepBinary.ts
 - [ ] src/tools/presenters/AskUserQuestionToolBlock.tsx
 - [ ] src/tools/presenters/PatchPreview.tsx
 - [ ] src/tools/presenters/ToolUiPrimitives.tsx

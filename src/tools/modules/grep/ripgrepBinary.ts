@@ -266,7 +266,7 @@ function extractExpectedChecksum(checksumText: string, archiveFilename: string):
   for (const line of lines) {
     const m = /^([a-fA-F0-9]{64})\s+\*?(.+)$/.exec(line)
     if (!m) continue
-    const filename = (m[2] || '').trim()
+    const filename = m[2].trim()
     if (filename === archiveFilename || filename.endsWith(`/${archiveFilename}`)) {
       return m[1]
     }
@@ -295,8 +295,7 @@ async function isWorkingExecutable(
 async function findFileByBasename(rootDir: string, basename: string): Promise<string | null> {
   const stack = [rootDir]
   while (stack.length > 0) {
-    const current = stack.pop()
-    if (!current) continue
+    const current = stack.pop() as string
     const entries = await fsp.readdir(current, { withFileTypes: true })
     for (const entry of entries) {
       const fullPath = path.join(current, entry.name)
@@ -373,4 +372,13 @@ async function extractArchiveWithSystemTools(args: {
 
 function escapePowerShellLiteral(input: string): string {
   return input.replace(/'/g, "''")
+}
+
+export const ripgrepBinaryTestExports = {
+  extractExpectedChecksum,
+  isWorkingExecutable,
+  findFileByBasename,
+  runCommandWithSpawn,
+  extractArchiveWithSystemTools,
+  escapePowerShellLiteral,
 }
