@@ -179,5 +179,88 @@ describe('policy rules store', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('warns when rules file exists but cannot be read', async () => {
+    const fileStore = {
+      exists: async () => true,
+      readText: async () => {
+        throw new Error('read fail')
+      },
+      writeJsonAtomic: async () => {},
+      writeTextAtomic: async () => {},
+    } as any
+
+    const res = await loadPolicyRules({
+      fileStore,
+      cwd: '/tmp/repo',
+      env: { FORMAX_CONFIG_DIR: '/tmp/global' } as any,
+      platform: 'linux',
+      homedir: '/home/alice',
+    })
+
+    expect(res.globalRules).toBeNull()
+    expect(res.projectRules).toBeNull()
+    expect(res.warnings.some((w) => w.includes('Failed to read'))).toBe(true)
+  })
+
+  it('warns when rules JSON is schema-invalid', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-store-badschema-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 999,
+        rules: [{ nope: true }],
+      })
+
+      const res = await loadPolicyRules({
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+      })
+
+      expect(res.globalRules).toBeNull()
+      expect(res.warnings.some((w) => w.includes('Invalid rules schema'))).toBe(true)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('saves global-scoped rules to global rules path', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-store-global-save-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      const out = await savePolicyRules({
+        fileStore: store,
+        scope: 'global',
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        rules: [
+          {
+            ruleId: 'g1',
+            enabled: true,
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'project',
+            decision: 'allow',
+            reason: 'ok',
+            template: '',
+            match: { kind: 'fs.read', path: '/' },
+          },
+        ],
+      })
+
+      expect(out.filePath).toBe(path.join(globalConfigDir, 'rules.json'))
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

@@ -19,6 +19,10 @@ export type ConfigMigrateResult = {
   warnings: string[]
 }
 
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 async function migrateFile(args: {
   fileStore: FileStore
   label: ConfigMigrateAction['label']
@@ -43,7 +47,7 @@ async function migrateFile(args: {
       fromPath: args.fromPath,
       toPath: args.toPath,
       status: 'error',
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     }
   }
 
@@ -56,7 +60,7 @@ async function migrateFile(args: {
       fromPath: args.fromPath,
       toPath: args.toPath,
       status: 'error',
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     }
   }
 

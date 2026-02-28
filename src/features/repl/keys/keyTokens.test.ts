@@ -27,15 +27,22 @@ describe('keyTokens', () => {
     expect(isPrintableToken({ token: '\n', key: {} })).toBe(false)
   })
 
+  it('treats escape-prefixed tokens as non-printable and plain text as printable', () => {
+    expect(isPrintableToken({ token: '\u001b[A', key: {} })).toBe(false)
+    expect(isPrintableToken({ token: 'a', key: {} })).toBe(true)
+  })
+
   it('prefers key.sequence when resolving input token', () => {
     expect(getInputToken({ input: 'x', key: { sequence: '\u001B[A' } })).toBe('\u001B[A')
     expect(getInputToken({ input: 'x', key: {} })).toBe('x')
+    expect(getInputToken({ input: '', key: {} })).toBe('')
   })
 
   it('detects ctrl chord case-insensitively', () => {
     expect(isCtrlChord({ input: 'o', key: { ctrl: true }, chord: 'o' })).toBe(true)
     expect(isCtrlChord({ input: 'O', key: { ctrl: true }, chord: 'o' })).toBe(true)
     expect(isCtrlChord({ input: 'o', key: { ctrl: false }, chord: 'o' })).toBe(false)
+    expect(isCtrlChord({ input: '', key: { ctrl: true }, chord: 'o' })).toBe(false)
   })
 
   it('detects shift+tab from both key flags and raw sequences', () => {
@@ -50,8 +57,21 @@ describe('keyTokens', () => {
     expect(isDeleteOrBackspaceToken({ token: '\u001B[3~', key: {} })).toBe(true)
     expect(isDeleteOrBackspaceToken({ token: '', key: { name: 'backspace' } })).toBe(true)
     expect(isDeleteOrBackspaceToken({ token: '', key: { name: 'delete' } })).toBe(true)
+    expect(isDeleteOrBackspaceToken({ token: '', key: { backspace: true } })).toBe(true)
     expect(isDeleteOrBackspaceToken({ token: '', key: { delete: true } })).toBe(true)
     expect(isDeleteOrBackspaceToken({ token: 'x', key: {} })).toBe(false)
+  })
+
+  it('detects return via key flags and enter key name', () => {
+    expect(isReturnKeyToken({ token: '', key: { return: true } })).toBe(true)
+    expect(isReturnKeyToken({ token: '', key: { name: 'enter' } })).toBe(true)
+  })
+
+  it('treats control/meta/escape and empty tokens as non-printable', () => {
+    expect(isPrintableToken({ token: '', key: {} })).toBe(false)
+    expect(isPrintableToken({ token: 'x', key: { ctrl: true } })).toBe(false)
+    expect(isPrintableToken({ token: 'x', key: { meta: true } })).toBe(false)
+    expect(isPrintableToken({ token: 'x', key: { escape: true } })).toBe(false)
   })
 
   it('returns vertical arrow key delta from key flags/name', () => {

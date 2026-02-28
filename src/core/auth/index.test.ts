@@ -75,5 +75,101 @@ describe('core auth API', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
-})
 
+  it('returns warning when auth store exists but cannot be read', async () => {
+    const fileStore = {
+      exists: async () => true,
+      readText: async () => {
+        throw new Error('read failed')
+      },
+      writeJsonAtomic: async () => {},
+    } as any
+
+    const listed = await authList({ fileStore, authPath: '/tmp/auth.json' })
+    expect(listed.items).toEqual([])
+    expect(listed.warnings[0]).toContain('Failed to read auth store')
+  })
+
+  it('returns warning when auth store schema is invalid', async () => {
+    const fileStore = {
+      exists: async () => true,
+      readText: async () => JSON.stringify({ providers: { anthropic: { default: { bad: true } } } }),
+      writeJsonAtomic: async () => {},
+    } as any
+
+    const listed = await authList({ fileStore, authPath: '/tmp/auth.json' })
+    expect(listed.items).toEqual([])
+    expect(listed.warnings[0]).toContain('Auth store is invalid')
+  })
+
+  it('returns deleted=false when deleting from a missing auth store', async () => {
+    const fileStore = {
+      exists: async () => false,
+      readText: async () => '',
+      writeJsonAtomic: async () => {},
+    } as any
+
+    const out = await authDelete({
+      fileStore,
+      authPath: '/tmp/auth.json',
+      provider: 'anthropic',
+      authRef: 'default',
+    })
+    expect(out.deleted).toBe(false)
+  })
+
+  it('throws for empty authRef/apiKey in authSet', async () => {
+    const store = createNodeFileStore()
+    await expect(
+      authSet({
+        fileStore: store,
+        authPath: '/tmp/auth.json',
+        provider: 'anthropic',
+        authRef: '   ',
+        apiKey: 'sk',
+      }),
+    ).rejects.toThrow('authRef is required')
+    await expect(
+      authSet({
+        fileStore: store,
+        authPath: '/tmp/auth.json',
+        provider: 'anthropic',
+        authRef: 'default',
+        apiKey: '   ',
+      }),
+    ).rejects.toThrow('apiKey is required')
+  })
+
+  it('lists across providers in stable sorted order', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-auth-sorted-'))
+    try {
+      const store = createNodeFileStore()
+      const authPath = path.join(dir, 'auth.json')
+      await authSet({ fileStore: store, authPath, provider: 'openai', authRef: 'z', apiKey: 'sk-z' })
+      await authSet({ fileStore: store, authPath, provider: 'anthropic', authRef: 'a', apiKey: 'sk-a' })
+
+      const listed = await authList({ fileStore: store, authPath })
+      expect(listed.items).toEqual([
+        { provider: 'anthropic', authRef: 'a' },
+        { provider: 'openai', authRef: 'z' },
+      ])
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('removes provider bucket when deleting its last authRef', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-auth-delete-last-'))
+    try {
+      const store = createNodeFileStore()
+      const authPath = path.join(dir, 'auth.json')
+      await authSet({ fileStore: store, authPath, provider: 'anthropic', authRef: 'only', apiKey: 'sk-1' })
+      const del = await authDelete({ fileStore: store, authPath, provider: 'anthropic', authRef: 'only' })
+      expect(del.deleted).toBe(true)
+      const listed = await authList({ fileStore: store, authPath })
+      expect(listed.items).toEqual([])
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

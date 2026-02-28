@@ -21,8 +21,8 @@ export function selectToolPresentation(
 ): ToolPresentation {
   const summary = String(segment.summary ?? '')
   const lines = summary.split(/\r?\n/)
-  const firstLine = String(lines[0] ?? '')
-  const remainingSummaryLines = lines.slice(1).map((line) => String(line ?? '')).filter((line) => line.length > 0)
+  const firstLine = lines[0] as string
+  const remainingSummaryLines = lines.slice(1).filter((line) => line.length > 0)
   const normalizedErrorFirstLine = stripErrorPrefix(firstLine)
   const taskSummaryLine =
     segment.toolName !== 'Task'

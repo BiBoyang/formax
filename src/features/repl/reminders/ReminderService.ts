@@ -122,11 +122,6 @@ export class ReminderService {
     let okToSend = false
 
     this.store.update((prev) => {
-      if (prev.reminderCount >= this.config.maxRemindersPerSession) {
-        okToSend = false
-        return prev
-      }
-
       const last = findLatestReminder(prev.remindersSentAt, args.prefix)
       if (last && now - last.at < cooldownMs) {
         okToSend = false

@@ -109,8 +109,6 @@ function parseJsonObjectParams(paramsText: string): ToolParamDisplay[] | null {
 
   try {
     const parsed = JSON.parse(trimmed) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-
     return Object.entries(parsed as Record<string, unknown>).map(([label, value]) => {
       if (shouldRedact(label)) {
         return { label, value: REDACTED_VALUE, valueType: 'string' as const }
@@ -153,7 +151,6 @@ export function parseToolParamsText(paramsText: string | undefined): ToolParamDi
     if (eqIndex <= 0) continue
     const label = pair.slice(0, eqIndex).trim()
     const rawValue = pair.slice(eqIndex + 1)
-    if (!label) continue
     const normalized = normalizeRawValue(rawValue)
     parsed.push({
       label,
@@ -258,9 +255,7 @@ export function stringifyToolParams(params: ToolParamDisplay[], maxLength = DEFA
   const text = params
     .map((param) => `${param.label}=${renderValue(param)}`)
     .join(', ')
-  const compact = text.trim()
-  if (!compact) return undefined
-  return truncate(compact, maxLength)
+  return truncate(text.trim(), maxLength)
 }
 
 export function parseJsonArrayLength(value: string): number | null {

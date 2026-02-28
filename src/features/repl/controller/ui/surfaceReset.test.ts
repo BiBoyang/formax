@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
-import { queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './surfaceReset'
+import { enqueueSurfaceOperation, queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './surfaceReset'
 
 describe('queueTranscriptSurfaceReset', () => {
   it('serializes reset operations on a shared queue', async () => {
@@ -105,6 +105,35 @@ describe('queueTranscriptSurfaceReset', () => {
 
     expect(clearCallCount).toBe(2)
     expect(seq).toBe(2)
+  })
+
+  it('uses default macrotask waiter when no custom waiter is provided', async () => {
+    let seq = 0
+    const surfaceOpQueueRef = { current: Promise.resolve() }
+    const onClearTerminal = async (): Promise<void> => {}
+    const setTranscriptSeq = (updater: number | ((prev: number) => number)): void => {
+      seq = typeof updater === 'function' ? updater(seq) : updater
+    }
+
+    await queueTranscriptSurfaceReset({
+      surfaceOpQueueRef,
+      onClearTerminal,
+      setTranscriptSeq,
+    })
+
+    expect(seq).toBe(1)
+  })
+
+  it('runs operation even when previous queue promise is rejected', async () => {
+    const surfaceOpQueueRef = { current: Promise.reject(new Error('previous failed')) }
+    const op = async () => {}
+
+    await expect(
+      enqueueSurfaceOperation({
+        surfaceOpQueueRef,
+        op,
+      }),
+    ).resolves.toBeUndefined()
   })
 
   it('replaces messages inside the same serialized reset transaction', async () => {

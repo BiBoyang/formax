@@ -74,4 +74,61 @@ describe('ask questions helpers', () => {
       Theme: 'dark',
     })
   })
+
+  it('handles non-object payloads and non-array questions safely', () => {
+    expect(normalizeAskQuestions(null)).toEqual([])
+    expect(normalizeAskQuestions({ questions: 'nope' })).toEqual([])
+  })
+
+  it('normalizes edge fields and option descriptions', () => {
+    const questions = normalizeAskQuestions({
+      questions: [
+        {
+          question: 1,
+          header: '   ',
+          fieldId: '   ',
+          options: [{ label: 'A', description: 1 }, { description: 'missing label' }],
+          multiSelect: 'yes',
+        },
+      ],
+    })
+
+    expect(questions).toEqual([
+      {
+        question: '',
+        header: '',
+        fieldId: undefined,
+        options: [{ label: 'A', description: '' }],
+        multiSelect: true,
+      },
+    ])
+  })
+
+  it('handles non-array options and non-record option rows', () => {
+    const withNonArrayOptions = normalizeAskQuestions({
+      questions: [{ question: 'Q', header: 'H', options: 'bad' }],
+    })
+    const withNonRecordOption = normalizeAskQuestions({
+      questions: [{ question: 'Q', header: 'H', options: [1, { label: 'L', description: 'D' }] }],
+    })
+
+    expect(withNonArrayOptions[0]?.options).toEqual([])
+    expect(withNonRecordOption[0]?.options).toEqual([{ label: 'L', description: 'D' }])
+  })
+
+  it('trims fallback keys and defaults missing draft values to empty strings', () => {
+    const questions: PresentationAskQuestion[] = [
+      { question: '  Q  ', header: '  H  ', fieldId: '   ', options: [], multiSelect: false },
+    ]
+    expect(fieldIdForAskQuestion(questions[0], 0)).toBe('H')
+    expect(buildAskAnswersFromDraft(questions, {})).toEqual({ H: '' })
+  })
+
+  it('falls back to generated question key when header/question are non-strings', () => {
+    const key = fieldIdForAskQuestion(
+      { fieldId: undefined, header: 1 as any, question: 2 as any, options: [], multiSelect: false },
+      2,
+    )
+    expect(key).toBe('question_3')
+  })
 })

@@ -122,4 +122,31 @@ describe('WriteApprovalToolBlock', () => {
     })
     expect(submitAnswers).toHaveBeenNthCalledWith(4, 'w2', { decision: 'cancel' })
   })
+
+  it('handles empty/non-string content and keeps even code fences unchanged', () => {
+    mocks.userInput = {
+      isPending: () => true,
+      submitAnswers: vi.fn(),
+    }
+
+    render(
+      <WriteApprovalToolBlock
+        toolUseId="w3"
+        fileName="empty.txt"
+        content={null as any}
+      />,
+    )
+    expect(mocks.markdownProps[0]?.markdown).toBe('')
+
+    const evenFenceContent = ['```ts', 'const x = 1', '```'].join('\n')
+    render(
+      <WriteApprovalToolBlock
+        toolUseId="w4"
+        fileName="even-fence.txt"
+        content={evenFenceContent}
+      />,
+    )
+    const lastMarkdown = mocks.markdownProps[mocks.markdownProps.length - 1]?.markdown ?? ''
+    expect(lastMarkdown).toBe(evenFenceContent)
+  })
 })

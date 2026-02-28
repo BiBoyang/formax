@@ -48,4 +48,20 @@ describe('commandRouting', () => {
   it('recognizes exact slash commands with leading spaces', () => {
     expect(isExactSlashCommand('   /clear', '/clear')).toBe(true)
   })
+
+  it('handles non-slash and missing input safely', () => {
+    const out = resolveCommandRouting(undefined as any)
+    expect(out.rawText).toBe('')
+    expect(out.commandName).toBeNull()
+    expect(out.commandArgs).toBeNull()
+    expect(out.isSlashCommand).toBe(false)
+    expect(out.isSlashCommandAfterTrim).toBe(false)
+    expect(out.shouldUseCommandDispatch).toBe(false)
+  })
+
+  it('returns false when exact command matching preconditions are not met', () => {
+    expect(isExactSlashCommand('hello', '/clear')).toBe(false)
+    expect(isExactSlashCommand('/clear', 'clear')).toBe(false)
+    expect(isExactSlashCommand('/clear', '')).toBe(false)
+  })
 })

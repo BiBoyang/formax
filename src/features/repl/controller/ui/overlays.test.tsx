@@ -99,8 +99,10 @@ type HarnessApi = {
   closeAgentsDialog: (args: { createdAgents: string[] }) => void
   closePermissionsDialog: () => void
   closeHooksDialog: () => void
+  closeConfigDialog: (exit: { kind: 'dismissed' } | { kind: 'changed'; message: string }) => void
   closeModelDialog: (exit: { kind: 'dismissed' } | { kind: 'changed'; message: string }) => void
   closeResumeDialog: (exit?: { kind: 'dismissed' }) => void
+  generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<any>
   saveAgentFromDialog: (args: any) => Promise<any>
 }
 
@@ -137,8 +139,10 @@ function Harness(props: {
     closeAgentsDialog: overlayApi.closeAgentsDialog,
     closePermissionsDialog: overlayApi.closePermissionsDialog,
     closeHooksDialog: overlayApi.closeHooksDialog,
+    closeConfigDialog: overlayApi.closeConfigDialog,
     closeModelDialog: overlayApi.closeModelDialog,
     closeResumeDialog: overlayApi.closeResumeDialog,
+    generateAgentDraft: overlayApi.generateAgentDraft,
     saveAgentFromDialog: overlayApi.saveAgentFromDialog,
   }
 
@@ -316,6 +320,48 @@ describe('useReplOverlays', () => {
     await waitForText(app.lastFrame, 'Model selection dismissed')
   })
 
+  it('closeConfigDialog appends changed/dismissed messages', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        initialOverlay={{ kind: 'status' }}
+        initialMessages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: '/config',
+            timestamp: new Date(),
+          },
+        ]}
+      />,
+    )
+    await waitForApiRef(apiRef)
+    await tick()
+
+    apiRef.current?.closeConfigDialog({ kind: 'changed', message: 'Updated config' })
+    await waitForText(app.lastFrame, 'Updated config')
+
+    apiRef.current?.openOverlay({ kind: 'status' })
+    await waitForText(app.lastFrame, 'overlay=status')
+    apiRef.current?.closeConfigDialog({ kind: 'dismissed' })
+    await waitForText(app.lastFrame, 'Status dialog dismissed')
+  })
+
+  it('generateAgentDraft proxies to wizard generator', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    render(<Harness apiRef={apiRef} />)
+    await waitForApiRef(apiRef)
+    await tick()
+
+    const draft = await apiRef.current!.generateAgentDraft('build me an agent')
+    expect(draft).toEqual({
+      name: 'draft-agent',
+      description: 'draft-desc',
+      systemPrompt: 'draft-system',
+    })
+  })
+
   it('saveAgentFromDialog triggers reloadSubagents success and openInEditor message', async () => {
     const apiRef = { current: null as HarnessApi | null }
     const reloadSubagents = vi.fn(async () => [{ name: 'x', description: 'X' }])
@@ -340,6 +386,29 @@ describe('useReplOverlays', () => {
     await waitForText(app.lastFrame, 'Saved agent: my-agent (/tmp/my-agent.md)')
   })
 
+  it('saveAgentFromDialog works when reloadSubagents is not provided', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const app = render(<Harness apiRef={apiRef} />)
+    await waitForApiRef(apiRef)
+    await tick()
+
+    const res = await apiRef.current!.saveAgentFromDialog({
+      scope: 'project',
+      name: 'n1',
+      description: 'd1',
+      systemPrompt: 's1',
+      tools: ['Read'],
+      model: 'inherit',
+      color: 'automatic',
+      openInEditor: false,
+    })
+
+    expect(res).toEqual({ name: 'my-agent', filePath: '/tmp/my-agent.md' })
+    const frame = app.lastFrame() || ''
+    expect(frame).toContain('allowed=')
+    expect(frame).not.toContain('reload failed')
+  })
+
   it('saveAgentFromDialog handles reloadSubagents error and still returns', async () => {
     const apiRef = { current: null as HarnessApi | null }
     const reloadSubagents = vi.fn(async () => {
@@ -362,6 +431,29 @@ describe('useReplOverlays', () => {
 
     expect(res).toEqual({ name: 'my-agent', filePath: '/tmp/my-agent.md' })
     await waitForText(app.lastFrame, 'reload failed: boom')
+  })
+
+  it('saveAgentFromDialog handles non-Error reload failure values', async () => {
+    const apiRef = { current: null as HarnessApi | null }
+    const reloadSubagents = vi.fn(async () => {
+      throw 'string-failure'
+    })
+    const app = render(<Harness apiRef={apiRef} reloadSubagents={reloadSubagents} />)
+    await waitForApiRef(apiRef)
+    await tick()
+
+    await apiRef.current!.saveAgentFromDialog({
+      scope: 'project',
+      name: 'n3',
+      description: 'd3',
+      systemPrompt: 's3',
+      tools: ['Read'],
+      model: 'inherit',
+      color: 'automatic',
+      openInEditor: false,
+    })
+
+    await waitForText(app.lastFrame, 'reload failed: string-failure')
   })
 
   it('unsubscribes overlay manager subscription on unmount', async () => {

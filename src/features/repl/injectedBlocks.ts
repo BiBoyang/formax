@@ -29,10 +29,10 @@ export type ClaudeMdInjectionMeta = {
 }
 
 function truncateWithMarker(input: string, maxChars: number): string {
-  if (maxChars <= 0) return ''
-  if (input.length <= maxChars) return input
-  if (maxChars <= TRUNCATED_MARKER.length) return TRUNCATED_MARKER.slice(0, maxChars)
-  return input.slice(0, maxChars - TRUNCATED_MARKER.length) + TRUNCATED_MARKER
+  const limit = Math.max(0, maxChars)
+  if (input.length <= limit) return input
+  if (limit <= TRUNCATED_MARKER.length) return TRUNCATED_MARKER.slice(0, limit)
+  return input.slice(0, limit - TRUNCATED_MARKER.length) + TRUNCATED_MARKER
 }
 
 function sha256Hex(input: string): string {
@@ -243,7 +243,7 @@ export function buildBashModeInjectedBlocks(args: {
 function escapeTagText(text: string): string {
   // These injected blocks use XML-ish wrapper tags. Escape to avoid accidental tag breaks
   // when command output contains sequences like `</bash-stdout>`.
-  return String(text ?? '')
+  return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

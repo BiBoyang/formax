@@ -104,4 +104,15 @@ describe('createAllowRuleFromAction', () => {
     expect(rule.template).toBe('tmpl')
     expect(rule.match).toEqual({ kind: 'fs.write', path: '/x/y/z.txt' })
   })
+
+  it('derives fs.write shortId from basename when ruleId is not provided', () => {
+    const createdAt = '2026-01-27T00:00:00.000Z'
+    const rule = createAllowRuleFromAction({
+      scope: 'project',
+      createdAt,
+      action: { kind: 'fs.write', path: '/tmp/file.txt' },
+    })
+    expect(rule.ruleId).toBe('remember-fs-write-file-txt-2026-01-27t00-00-00-000z')
+    expect(rule.match).toEqual({ kind: 'fs.write', path: '/tmp/file.txt' })
+  })
 })

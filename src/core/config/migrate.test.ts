@@ -81,4 +81,76 @@ describe('configMigrate', () => {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('records warning when reading legacy file fails', async () => {
+    const fileStore = {
+      exists: async (p: string) => p.includes('/legacy/'),
+      readText: async () => {
+        throw new Error('read failed')
+      },
+      writeTextAtomic: async () => {},
+    } as any
+    const paths = {
+      legacyConfigDir: '/legacy',
+      globalConfigDir: '/global',
+      legacyConfigPath: '/legacy/config.json',
+      globalConfigPath: '/global/config.json',
+      legacyAuthPath: '/legacy/auth.json',
+      globalAuthPath: '/global/auth.json',
+      legacyRulesPath: '/legacy/rules.json',
+      globalRulesPath: '/global/rules.json',
+    } as any
+
+    const res = await configMigrate({ fileStore, paths })
+    expect(res.actions.find((a) => a.label === 'config')?.status).toBe('error')
+    expect(res.warnings.some((w) => w.includes('Failed to read legacy config'))).toBe(true)
+  })
+
+  it('records warning when writing migrated file fails', async () => {
+    const fileStore = {
+      exists: async (p: string) => p.includes('/legacy/'),
+      readText: async () => 'ok',
+      writeTextAtomic: async () => {
+        throw 'write failed'
+      },
+    } as any
+    const paths = {
+      legacyConfigDir: '/legacy',
+      globalConfigDir: '/global',
+      legacyConfigPath: '/legacy/config.json',
+      globalConfigPath: '/global/config.json',
+      legacyAuthPath: '/legacy/auth.json',
+      globalAuthPath: '/global/auth.json',
+      legacyRulesPath: '/legacy/rules.json',
+      globalRulesPath: '/global/rules.json',
+    } as any
+
+    const res = await configMigrate({ fileStore, paths })
+    expect(res.actions.find((a) => a.label === 'config')?.status).toBe('error')
+    expect(res.actions.find((a) => a.label === 'config')?.error).toBe('write failed')
+    expect(res.warnings.some((w) => w.includes('Failed to write config'))).toBe(true)
+  })
+
+  it('captures non-Error throw values in migrate action error field', async () => {
+    const fileStore = {
+      exists: async (p: string) => p.includes('/legacy/'),
+      readText: async () => {
+        throw 'raw read failure'
+      },
+      writeTextAtomic: async () => {},
+    } as any
+    const paths = {
+      legacyConfigDir: '/legacy',
+      globalConfigDir: '/global',
+      legacyConfigPath: '/legacy/config.json',
+      globalConfigPath: '/global/config.json',
+      legacyAuthPath: '/legacy/auth.json',
+      globalAuthPath: '/global/auth.json',
+      legacyRulesPath: '/legacy/rules.json',
+      globalRulesPath: '/global/rules.json',
+    } as any
+
+    const res = await configMigrate({ fileStore, paths })
+    expect(res.actions.find((a) => a.label === 'config')?.error).toBe('raw read failure')
+  })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../components/tool/ToolMessage'
+import * as sessionTitle from '../../../sessionTitle'
 import { collectUiStatsForTurnCompletion, runSessionTurnCompletionSideEffects } from './sessionTurnCompletion'
 
 function createMsg(overrides: Partial<Msg>): Msg {
@@ -54,9 +55,50 @@ describe('collectUiStatsForTurnCompletion', () => {
       lastUserPrompt: 'last',
     })
   })
+
+  it('returns null prompts when no non-empty user prompt exists', () => {
+    const stats = collectUiStatsForTurnCompletion([
+      createMsg({ id: 'a1', role: 'assistant', content: 'hello' }),
+      createMsg({ id: 'u-empty', role: 'user', content: '   ' }),
+    ])
+
+    expect(stats).toEqual({
+      uiMsgCount: 2,
+      firstUserPrompt: null,
+      lastUserPrompt: null,
+    })
+  })
+
+  it('handles nullish user content when deriving prompts', () => {
+    const stats = collectUiStatsForTurnCompletion([
+      createMsg({ id: 'u-null', role: 'user', content: undefined as unknown as string }),
+    ])
+    expect(stats.firstUserPrompt).toBeNull()
+    expect(stats.lastUserPrompt).toBeNull()
+  })
 })
 
 describe('runSessionTurnCompletionSideEffects', () => {
+  it('no-ops when writer is missing', () => {
+    const autoGenerateSessionTitle = vi.fn(async () => null)
+
+    runSessionTurnCompletionSideEffects({
+      writer: null,
+      wasLoading: true,
+      isLoading: false,
+      history: [] as ChatHistory,
+      messages: [createMsg({ role: 'user', content: 'hello' })],
+      engine: createEngine(),
+      cwd: '/repo',
+      attemptedSessionIds: new Set(),
+      checkedTopicPromptKeys: new Set(),
+      model: 'claude-3-5-sonnet-latest',
+      autoGenerateSessionTitle,
+    })
+
+    expect(autoGenerateSessionTitle).not.toHaveBeenCalled()
+  })
+
   it('no-ops when turn did not transition from loading to idle', () => {
     const writer = createWriter()
     const autoGenerateSessionTitle = vi.fn(async () => null)
@@ -65,6 +107,29 @@ describe('runSessionTurnCompletionSideEffects', () => {
       writer,
       wasLoading: false,
       isLoading: false,
+      history: [] as ChatHistory,
+      messages: [createMsg({ role: 'user', content: 'hello' })],
+      engine: createEngine(),
+      cwd: '/repo',
+      attemptedSessionIds: new Set(),
+      checkedTopicPromptKeys: new Set(),
+      model: 'claude-3-5-sonnet-latest',
+      autoGenerateSessionTitle,
+    })
+
+    expect(writer.appendHistorySnapshot).not.toHaveBeenCalled()
+    expect(writer.appendEvent).not.toHaveBeenCalled()
+    expect(autoGenerateSessionTitle).not.toHaveBeenCalled()
+  })
+
+  it('no-ops when turn is still loading', () => {
+    const writer = createWriter()
+    const autoGenerateSessionTitle = vi.fn(async () => null)
+
+    runSessionTurnCompletionSideEffects({
+      writer,
+      wasLoading: true,
+      isLoading: true,
       history: [] as ChatHistory,
       messages: [createMsg({ role: 'user', content: 'hello' })],
       engine: createEngine(),
@@ -152,5 +217,35 @@ describe('runSessionTurnCompletionSideEffects', () => {
     expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
     expect(writer.appendEvent).toHaveBeenCalledTimes(1)
     expect(autoGenerateSessionTitle).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses default assistant extractor and auto-title generator when overrides are omitted', () => {
+    const writer = createWriter()
+    const history = [] as ChatHistory
+    const extractSpy = vi.spyOn(sessionTitle, 'extractLastAssistantTextFromHistory').mockReturnValue('default-text')
+    const autoSpy = vi.spyOn(sessionTitle, 'maybeAutoGenerateSessionTitle').mockResolvedValue(null)
+
+    runSessionTurnCompletionSideEffects({
+      writer,
+      wasLoading: true,
+      isLoading: false,
+      history,
+      messages: [createMsg({ id: 'u1', role: 'user', content: '' })],
+      engine: createEngine(),
+      cwd: '/repo',
+      attemptedSessionIds: new Set(),
+      checkedTopicPromptKeys: new Set(),
+      model: 'claude-3-5-sonnet-latest',
+    })
+
+    expect(extractSpy).toHaveBeenCalledWith(history)
+    expect(autoSpy).toHaveBeenCalledTimes(1)
+    expect(autoSpy.mock.calls[0]?.[0]).toMatchObject({
+      userText: null,
+      topicUserText: null,
+      assistantText: 'default-text',
+    })
+    extractSpy.mockRestore()
+    autoSpy.mockRestore()
   })
 })

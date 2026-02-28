@@ -21,5 +21,12 @@ describe('mapUnknownError', () => {
     expect(res.code).toBe(ErrorCode.Unknown)
     expect(res.message).toContain('what')
   })
-})
 
+  it('falls back to String(err) when JSON serialization throws', () => {
+    const circular: any = {}
+    circular.self = circular
+    const res = mapUnknownError(circular)
+    expect(res.code).toBe(ErrorCode.Unknown)
+    expect(res.message).toBe('[object Object]')
+  })
+})

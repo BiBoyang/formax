@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { render } from 'ink-testing-library'
-import { InputScopeProvider, useInputScope, useScopeActivation, useScopedInput } from './inputScopeContext'
+import { InputScopeProvider, useInputScope, useScopeActivation, useScopedInput, useScopedRoutedInput } from './inputScopeContext'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -185,6 +185,39 @@ describe('InputScopeProvider', () => {
     stdin.write('a')
     await tick()
     expect(onRepl).toHaveBeenCalledWith('a')
+  })
+
+  it('provides noop registerHandler without InputScopeProvider', () => {
+    let registerCleanup: (() => void) | null = null
+
+    function NoProviderRegisterHarness(): React.ReactNode {
+      const { hasRouter, registerHandler } = useInputScope()
+      expect(hasRouter).toBe(false)
+      registerCleanup = registerHandler({
+        scope: 'repl',
+        handler: () => true,
+      })
+      return null
+    }
+
+    render(<NoProviderRegisterHarness />)
+    expect(registerCleanup).toBeTypeOf('function')
+    expect(() => registerCleanup?.()).not.toThrow()
+  })
+
+  it('provides noop scope controls without InputScopeProvider', () => {
+    function NoProviderControlsHarness(): React.ReactNode {
+      const { push, pop, suspendGroup, resumeGroup, activeScope, stack } = useInputScope()
+      expect(activeScope).toBe('repl')
+      expect(stack).toEqual(['repl'])
+      expect(() => push('overlay:test')).not.toThrow()
+      expect(() => pop('overlay:test')).not.toThrow()
+      expect(() => suspendGroup('g')).not.toThrow()
+      expect(() => resumeGroup('g')).not.toThrow()
+      return null
+    }
+
+    render(<NoProviderControlsHarness />)
   })
 
   it('routes input only to the active scope (router)', async () => {
@@ -375,6 +408,120 @@ describe('InputScopeProvider', () => {
     stdin.write('w')
     await tick()
     expect(calls).toEqual(['A:x', 'B:x', 'B:y', 'B:z', 'A:w', 'B:w'])
+
+    // Resuming a never-suspended group is a no-op.
+    resume?.('never-suspended')
+    suspend?.('   ')
+    resume?.('   ')
+  })
+
+  it('allows unregister to be called multiple times safely', async () => {
+    let unregister: (() => void) | null = null
+
+    function UnregisterHarness(): React.ReactNode {
+      const { registerHandler } = useInputScope()
+      React.useEffect(() => {
+        unregister = registerHandler({
+          scope: 'repl',
+          handler: () => true,
+        })
+      }, [registerHandler])
+      return null
+    }
+
+    render(
+      <InputScopeProvider initialScope="repl">
+        <UnregisterHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    expect(unregister).toBeTypeOf('function')
+    expect(() => unregister?.()).not.toThrow()
+    expect(() => unregister?.()).not.toThrow()
+  })
+
+  it('keeps remaining handlers when one handler unregisters', async () => {
+    let unregisterA: (() => void) | null = null
+    let unregisterB: (() => void) | null = null
+
+    function MultiRegisterHarness(): React.ReactNode {
+      const { registerHandler } = useInputScope()
+      React.useEffect(() => {
+        unregisterA = registerHandler({
+          scope: 'repl',
+          handler: () => true,
+        })
+        unregisterB = registerHandler({
+          scope: 'repl',
+          handler: () => false,
+        })
+      }, [registerHandler])
+      return null
+    }
+
+    render(
+      <InputScopeProvider initialScope="repl">
+        <MultiRegisterHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    expect(unregisterA).toBeTypeOf('function')
+    expect(unregisterB).toBeTypeOf('function')
+    expect(() => unregisterA?.()).not.toThrow()
+    expect(() => unregisterB?.()).not.toThrow()
+  })
+
+  it('covers single-handler fast path with consume, suspend, and throw safety', async () => {
+    const calls: string[] = []
+    let suspend: ((group: string) => void) | null = null
+    let resume: ((group: string) => void) | null = null
+
+    function SingleHandlerHarness(): React.ReactNode {
+      const { registerHandler, suspendGroup, resumeGroup } = useInputScope()
+      suspend = suspendGroup
+      resume = resumeGroup
+
+      React.useEffect(() => {
+        return registerHandler({
+          scope: 'repl',
+          group: 'single',
+          handler: (input) => {
+            if (input === 'x') return true
+            if (input === 'e') throw new Error('ignore in router')
+            if (input) calls.push(input)
+          },
+        })
+      }, [registerHandler])
+
+      return null
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <SingleHandlerHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    stdin.write('x')
+    await tick()
+    expect(calls).toEqual([])
+
+    suspend?.('single')
+    stdin.write('a')
+    await tick()
+    expect(calls).toEqual([])
+
+    resume?.('single')
+    stdin.write('b')
+    await tick()
+    expect(calls).toEqual(['b'])
+
+    stdin.write('e')
+    await tick()
+    expect(calls).toEqual(['b'])
   })
 
   it('removes non-top scopes when they unmount', async () => {
@@ -578,5 +725,128 @@ describe('InputScopeProvider', () => {
     await tick()
     expect(replEvents).toEqual(expect.arrayContaining(['down']))
     expect(overlayEvents).toHaveLength(overlayCountBeforeReplNav)
+  })
+
+  it('does not register routed handler when enabled is false', async () => {
+    const onRepl = vi.fn()
+
+    function DisabledHarness(): React.ReactNode {
+      useScopedRoutedInput(
+        'repl',
+        (input) => {
+          if (input) onRepl(input)
+        },
+        { enabled: false, group: 'disabled', priority: 1 },
+      )
+      return null
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <DisabledHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    stdin.write('a')
+    await tick()
+    expect(onRepl).not.toHaveBeenCalled()
+  })
+
+  it('ignores scoped routed input without provider when active scope mismatches', async () => {
+    const onOverlay = vi.fn()
+
+    function NoProviderOverlayHarness(): React.ReactNode {
+      useScopedRoutedInput('overlay:test', (input) => {
+        if (input) onOverlay(input)
+      })
+      return null
+    }
+
+    const { stdin } = render(<NoProviderOverlayHarness />)
+    await tick()
+    stdin.write('z')
+    await tick()
+    expect(onOverlay).not.toHaveBeenCalled()
+  })
+
+  it('short-circuits scoped routed input callback when disabled without provider', async () => {
+    const onRepl = vi.fn()
+
+    function NoProviderDisabledHarness(): React.ReactNode {
+      useScopedRoutedInput(
+        'repl',
+        (input) => {
+          if (input) onRepl(input)
+        },
+        { enabled: false },
+      )
+      return null
+    }
+
+    const { stdin } = render(<NoProviderDisabledHarness />)
+    await tick()
+    stdin.write('z')
+    await tick()
+    expect(onRepl).not.toHaveBeenCalled()
+  })
+
+  it('supports direct pop semantics for top and unknown scopes', async () => {
+    const scopes: string[] = []
+    let pushRef: ((scope: 'repl' | `overlay:${string}` | `wizard:${string}` | `prompt:${string}`) => void) | null = null
+    let popRef: ((scope?: 'repl' | `overlay:${string}` | `wizard:${string}` | `prompt:${string}`) => void) | null = null
+
+    function DirectPopHarness(): React.ReactNode {
+      const { activeScope, push, pop } = useInputScope()
+      pushRef = push
+      popRef = pop
+      React.useEffect(() => {
+        scopes.push(activeScope)
+      }, [activeScope])
+      return null
+    }
+
+    render(
+      <InputScopeProvider initialScope="repl">
+        <DirectPopHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+
+    pushRef?.('overlay:one')
+    await waitFor(() => scopes.at(-1) === 'overlay:one')
+
+    popRef?.('overlay:missing')
+    await waitFor(() => scopes.at(-1) === 'overlay:one')
+
+    popRef?.()
+    await waitFor(() => scopes.at(-1) === 'repl')
+  })
+
+  it('updates handler version when unregistering an existing handler immediately', async () => {
+    const calls: string[] = []
+
+    function ImmediateUnregisterHarness(): React.ReactNode {
+      const { registerHandler } = useInputScope()
+      React.useEffect(() => {
+        const unregister = registerHandler({
+          scope: 'repl',
+          handler: (input) => {
+            if (input) calls.push(input)
+          },
+        })
+        unregister()
+      }, [registerHandler])
+      return null
+    }
+
+    const { stdin } = render(
+      <InputScopeProvider initialScope="repl">
+        <ImmediateUnregisterHarness />
+      </InputScopeProvider>,
+    )
+    await tick()
+    stdin.write('k')
+    await tick()
+    expect(calls).toEqual([])
   })
 })

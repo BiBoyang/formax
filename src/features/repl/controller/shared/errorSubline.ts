@@ -10,8 +10,7 @@ function truncateErrorSubline(text: string): string {
 }
 
 function simplifyErrorDetail(detail: string): string {
-  const normalized = String(detail || '').replace(/\s+/g, ' ').trim()
-  if (!normalized) return normalized
+  const normalized = String(detail).replace(/\s+/g, ' ').trim()
   if (/^<!doctype html\b/i.test(normalized) || /^<html[\s>]/i.test(normalized)) {
     return 'HTML error response body'
   }
@@ -31,7 +30,7 @@ export function formatErrorSubline(rawMessage: string): string {
   if (apiWithStatusMatch) return finalize(`${apiWithStatusMatch[1]} ${simplifyErrorDetail(apiWithStatusMatch[2])}`)
 
   const apiWithoutStatusMatch = /^API Error:\s*(.+)$/i.exec(message)
-  if (apiWithoutStatusMatch) return finalize(`API Error: ${simplifyErrorDetail(apiWithoutStatusMatch[1]) || 'Unknown error'}`)
+  if (apiWithoutStatusMatch) return finalize(`API Error: ${simplifyErrorDetail(apiWithoutStatusMatch[1])}`)
 
   return finalize(message.startsWith('Error: ') ? message : `Error: ${message}`)
 }
@@ -62,4 +61,3 @@ export function shouldSuppressGlobalError(args: { messages: Msg[]; currentError:
   const expected = formatErrorSubline(currentError)
   return latestAssistant.content.trim() === expected.trim()
 }
-

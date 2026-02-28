@@ -93,4 +93,91 @@ describe('toPersistedAppToolEventData', () => {
       patchStartLineNumber: 12,
     })
   })
+
+  it('uses explicit start summary and trims tool name/summary text', () => {
+    const payload = toPersistedAppToolEventData(
+      canonicalToolEvent('start', {
+        toolName: '  Bash  ',
+        summary: '  Running custom summary  ',
+      }),
+    )
+
+    expect(payload).toEqual({
+      threadId: 'tui-live',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      phase: 'start',
+      toolName: 'Bash',
+      status: 'running',
+      summary: 'Running custom summary',
+    })
+  })
+
+  it('uses default start summary when toolName and summary are missing', () => {
+    const payload = toPersistedAppToolEventData(canonicalToolEvent('start', {}))
+    expect(payload).toMatchObject({
+      phase: 'start',
+      status: 'running',
+      summary: 'Tool running',
+    })
+    expect(payload).not.toHaveProperty('toolName')
+  })
+
+  it('filters invalid update payload fields', () => {
+    const payload = toPersistedAppToolEventData(
+      canonicalToolEvent('update', {
+        input: 'not-an-object' as any,
+        paramsText: '   ',
+        line: 42 as any,
+      }),
+    )
+
+    expect(payload).toEqual({
+      threadId: 'tui-live',
+      turnId: 'turn-1',
+      toolUseId: 'tool-1',
+      phase: 'update',
+    })
+  })
+
+  it('falls back end summary/status and validates patch line + line splitting limits', () => {
+    const longResult = Array.from({ length: 120 }, (_, i) => `line ${i + 1}   `).join('\n')
+    const completed = toPersistedAppToolEventData(
+      canonicalToolEvent('end', {
+        result: '',
+        isError: false,
+        patchStartLineNumber: 0,
+      }),
+    )
+    const errored = toPersistedAppToolEventData(
+      canonicalToolEvent('end', {
+        result: '',
+        isError: true,
+        patchStartLineNumber: Number.POSITIVE_INFINITY,
+      }),
+    )
+    const limitedLines = toPersistedAppToolEventData(
+      canonicalToolEvent('end', {
+        result: longResult,
+        isError: false,
+      }),
+    )
+
+    expect(completed).toMatchObject({
+      phase: 'end',
+      status: 'completed',
+      summary: 'Tool completed',
+    })
+    expect(completed).not.toHaveProperty('patchStartLineNumber')
+
+    expect(errored).toMatchObject({
+      phase: 'end',
+      status: 'error',
+      summary: 'Tool failed',
+    })
+    expect(errored).not.toHaveProperty('patchStartLineNumber')
+
+    expect(limitedLines.lines?.length).toBe(80)
+    expect(limitedLines.lines?.[0]).toBe('line 1')
+  })
 })

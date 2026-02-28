@@ -67,15 +67,6 @@ export function consumeBufferedArrow(params: { buffer: string; chunk: string }):
       return { nextBuffer: nextBuf, delta, pending: true }
     }
 
-    // Partial (prefix) sequence at the end of the chunk.
-    if (
-      nextBuf === '\u001B' ||
-      (nextBuf.startsWith('\u001B[') && nextBuf.length < 3) ||
-      (nextBuf.startsWith('\u001BO') && nextBuf.length < 3)
-    ) {
-      return { nextBuffer: nextBuf, delta, pending: true }
-    }
-
     // Unknown/unsupported escape sequence. Clear the buffer so other input isn't blocked.
     return { nextBuffer: '', delta, pending: false }
   }
@@ -127,15 +118,6 @@ export function consumeBufferedHorizontal(params: { buffer: string; chunk: strin
       nextBuf === '\u001BO' ||
       nextBuf === '\u001B[3' ||
       nextBuf === '\u001B[3~'.slice(0, nextBuf.length)
-    ) {
-      return { nextBuffer: nextBuf, delta, deletes, pending: true }
-    }
-
-    if (
-      nextBuf === '\u001B' ||
-      (nextBuf.startsWith('\u001B[') && nextBuf.length < 3) ||
-      (nextBuf.startsWith('\u001BO') && nextBuf.length < 3) ||
-      (nextBuf.startsWith('\u001B[3') && nextBuf.length < 4)
     ) {
       return { nextBuffer: nextBuf, delta, deletes, pending: true }
     }

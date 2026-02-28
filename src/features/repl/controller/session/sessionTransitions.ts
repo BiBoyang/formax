@@ -23,23 +23,21 @@ function trimTrailingResumeCommandRows(messages: Msg[]): Msg[] {
     //   user "/resume"
     //   assistant command_subline "Resume cancelled"
     // Strip this trailing pair when replaying a restored session.
-    if (
-      tail.role === 'assistant' &&
-      tail.ui?.kind === 'command_subline' &&
-      String(tail.content ?? '').trim().toLowerCase() === 'resume cancelled'
-    ) {
-      const prev = end > 1 ? messages[end - 2] : null
-      if (prev?.role === 'user' && String(prev.content ?? '').trim().toLowerCase() === '/resume') {
+    if (tail.role === 'assistant' && tail.ui?.kind === 'command_subline') {
+      const isResumeCancelled = String(tail.content ?? '').trim().toLowerCase() === 'resume cancelled'
+      if (isResumeCancelled) {
+        const prev = messages[end - 2]
+        const hasResumeUserBefore =
+          prev?.role === 'user' && String(prev.content ?? '').trim().toLowerCase() === '/resume'
+        if (!hasResumeUserBefore) break
         end -= 2
         continue
       }
-      break
     }
-    if (tail.role === 'user' && String(tail.content ?? '').trim().toLowerCase() === '/resume') {
-      end -= 1
-      continue
-    }
-    break
+    const isResumeUser = tail.role === 'user' && String(tail.content ?? '').trim().toLowerCase() === '/resume'
+    if (!isResumeUser) break
+    end -= 1
+    continue
   }
   if (end === messages.length) return messages
   return messages.slice(0, end)

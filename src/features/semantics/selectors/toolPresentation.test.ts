@@ -116,4 +116,30 @@ describe('selectToolPresentation', () => {
 
     expect(started.taskCompletion).toEqual({ kind: 'started', taskId: 'task_789' })
   })
+
+  it('handles missing summary/result values with safe defaults', () => {
+    const selected = selectToolPresentation({
+      summary: undefined as any,
+      detailLines: [],
+      toolName: 'Task',
+      status: 'completed',
+      result: undefined,
+    })
+    expect(selected.summary).toBe('')
+    expect(selected.firstLine).toBe('')
+    expect(selected.remainingSummaryLines).toEqual([])
+    expect(selected.taskCompletion).toEqual({ kind: 'done' })
+  })
+
+  it('falls back to generic Error label when task error summary has no message', () => {
+    const selected = selectToolPresentation({
+      summary: 'Error: ',
+      detailLines: [],
+      toolName: 'Task',
+      status: 'error',
+      result: undefined,
+    })
+    expect(selected.normalizedErrorFirstLine).toBe('')
+    expect(selected.taskSummaryLine).toBe('Error')
+  })
 })

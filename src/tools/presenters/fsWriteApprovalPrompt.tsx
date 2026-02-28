@@ -23,8 +23,7 @@ export function FsWriteApprovalPrompt({
   const handleDecision = (d: ConfirmMenuDecision): void => {
     if (d.kind === 'cancel') onDecision({ kind: 'cancel' })
     else if (d.kind === 'feedback') onDecision({ kind: 'feedback', feedback: d.feedback })
-    else if (d.key === 'approve') onDecision({ kind: 'approve' })
-    else if (d.key === 'approve_remember') onDecision({ kind: 'approve_remember' })
+    else onDecision(d.key === 'approve_remember' ? { kind: 'approve_remember' } : { kind: 'approve' })
   }
 
   return (

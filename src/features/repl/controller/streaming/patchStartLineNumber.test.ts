@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { vi } from 'vitest'
+import * as snippetStartLine from '../../../../tools/presenters/snippetStartLine'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 
 describe('computeEditPatchStartLineNumber', () => {
@@ -23,6 +25,28 @@ describe('computeEditPatchStartLineNumber', () => {
       })
 
       expect(lineNo).toBe(22)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('resolves relative file paths from cwd', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const relPath = 'demo.txt'
+      const filePath = path.join(tmpDir, relPath)
+      await fsp.writeFile(filePath, ['line 1', 'alpha', 'line 3'].join('\n'), 'utf8')
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: relPath,
+          old_string: 'alpha',
+          new_string: 'alpha',
+        },
+      })
+
+      expect(lineNo).toBe(2)
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }
@@ -172,6 +196,258 @@ describe('computeEditPatchStartLineNumber', () => {
       })
 
       expect(lineNo).toBeNull()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null when file cannot be read', () => {
+    const lineNo = computeEditPatchStartLineNumber({
+      cwd: '/tmp',
+      input: {
+        file_path: '/tmp/formax-this-file-does-not-exist.txt',
+        old_string: 'alpha',
+        new_string: 'alpha',
+      },
+    })
+
+    expect(lineNo).toBeNull()
+  })
+
+  it('returns null when no file path is provided', () => {
+    const lineNo = computeEditPatchStartLineNumber({
+      cwd: '/tmp',
+      input: {
+        old_string: 'alpha',
+        new_string: 'alpha',
+      },
+    })
+    expect(lineNo).toBeNull()
+  })
+
+  it('returns null when input is nullish', () => {
+    const lineNo = computeEditPatchStartLineNumber({
+      cwd: '/tmp',
+      input: null,
+    })
+    expect(lineNo).toBeNull()
+  })
+
+  it('returns null when both snippets are empty after normalization', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, 'alpha\n', 'utf8')
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: '   ',
+          new_string: '   ',
+        },
+      })
+      expect(lineNo).toBeNull()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null for non-file paths and oversized files', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const dirPath = path.join(tmpDir, 'dir')
+      await fsp.mkdir(dirPath)
+      const dirResult = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: dirPath,
+          old_string: 'alpha',
+          new_string: 'alpha',
+        },
+      })
+      expect(dirResult).toBeNull()
+
+      const largeFile = path.join(tmpDir, 'large.txt')
+      await fsp.writeFile(largeFile, 'x'.repeat(600 * 1024), 'utf8')
+      const largeResult = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: largeFile,
+          old_string: 'alpha',
+          new_string: 'alpha',
+        },
+      })
+      expect(largeResult).toBeNull()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to first new snippet line when full new snippet does not match', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['line 1', 'alpha', 'line 3'].join('\n'), 'utf8')
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      findSpy.mockReturnValueOnce(null).mockReturnValueOnce(2)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: '',
+          new_string: 'alpha\nbeta',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+      findSpy.mockRestore()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null when first new snippet line is too short for containing-line fallback', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['   ', 'abc', 'line 3'].join('\n'), 'utf8')
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      findSpy.mockReturnValue(null)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: '',
+          new_string: 'abc',
+        },
+      })
+
+      expect(lineNo).toBeNull()
+      findSpy.mockRestore()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to containing old snippet line when old snippet does not match exactly', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(
+        filePath,
+        ['line 1', 'alpha beta gamma delta', 'line 3'].join('\n'),
+        'utf8',
+      )
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      findSpy.mockReturnValue(null)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'beta gamma delta',
+          new_string: '',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+      findSpy.mockRestore()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to first old snippet line when full old snippet does not match', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['line 1', 'target old line', 'line 3'].join('\n'), 'utf8')
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      // old full snippet -> null, old first line -> 2
+      findSpy.mockReturnValueOnce(null).mockReturnValueOnce(2)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'target old line\nmissing',
+          new_string: '',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+      findSpy.mockRestore()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns oldStart directly when old snippet matches in full', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['line 1', 'exact old snippet', 'line 3'].join('\n'), 'utf8')
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: 'exact old snippet',
+          new_string: '',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('checks containing-line fallback across blank file lines', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['   ', 'alpha beta gamma delta epsilon', ''].join('\n'), 'utf8')
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      findSpy.mockReturnValue(null)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: '',
+          new_string: 'beta gamma delta epsilon zeta',
+        },
+      })
+
+      expect(lineNo).toBeNull()
+      findSpy.mockRestore()
+    } finally {
+      await fsp.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses containing-line fallback when snippet finder cannot match', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-edit-'))
+    try {
+      const filePath = path.join(tmpDir, 'demo.txt')
+      await fsp.writeFile(filePath, ['   ', 'prefix beta gamma delta epsilon suffix'].join('\n'), 'utf8')
+      const findSpy = vi.spyOn(snippetStartLine, 'findSnippetStartLineNumber')
+      findSpy.mockReturnValue(null)
+
+      const lineNo = computeEditPatchStartLineNumber({
+        cwd: tmpDir,
+        input: {
+          file_path: filePath,
+          old_string: '',
+          new_string: 'beta gamma delta epsilon',
+        },
+      })
+
+      expect(lineNo).toBe(2)
+      findSpy.mockRestore()
     } finally {
       await fsp.rm(tmpDir, { recursive: true, force: true })
     }

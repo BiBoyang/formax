@@ -13,6 +13,8 @@ describe('presentation labels', () => {
     expect(formatQuestionCountLabel(2)).toBe('2 questions')
     expect(formatItemCountLabel(1)).toBe('1 item')
     expect(formatItemCountLabel(3)).toBe('3 items')
+    expect(formatQuestionCountLabel(Number.NaN)).toBe('0 questions')
+    expect(formatItemCountLabel(-3)).toBe('0 items')
   })
 
   it('summarizes ask-user-question status consistently', () => {
@@ -47,6 +49,22 @@ describe('presentation labels', () => {
         answerCount: null,
       }),
     ).toBe('Error')
+
+    expect(
+      summarizeAskUserQuestionStatus({
+        status: 'completed',
+        fallbackSummary: 'custom completed summary',
+        answerCount: null,
+      }),
+    ).toBe('custom completed summary')
+
+    expect(
+      summarizeAskUserQuestionStatus({
+        status: 'completed',
+        fallbackSummary: '   ',
+        answerCount: null,
+      }),
+    ).toBe('Answered')
   })
 
   it('summarizes todowrite status consistently', () => {
@@ -63,6 +81,13 @@ describe('presentation labels', () => {
         fallbackSummary: '',
       }),
     ).toBe('Waiting for confirmation')
+    expect(
+      summarizePlanModeStatus({
+        kind: 'exit',
+        status: 'running',
+        fallbackSummary: '',
+      }),
+    ).toBe('Waiting for implementation decision')
 
     expect(
       summarizePlanModeStatus({
@@ -87,5 +112,27 @@ describe('presentation labels', () => {
         fallbackSummary: 'User has approved your plan. You can now start coding.',
       }),
     ).toBe('Plan approved. You can start coding.')
+
+    expect(
+      summarizePlanModeStatus({
+        kind: 'exit',
+        status: 'completed',
+        fallbackSummary: 'Exited plan mode.',
+      }),
+    ).toBe('Exited plan mode.')
+    expect(
+      summarizePlanModeStatus({
+        kind: 'exit',
+        status: 'error',
+        fallbackSummary: '   ',
+      }),
+    ).toBe('Failed')
+    expect(
+      summarizePlanModeStatus({
+        kind: 'exit',
+        status: 'completed',
+        fallbackSummary: '   ',
+      }),
+    ).toBe('Completed')
   })
 })

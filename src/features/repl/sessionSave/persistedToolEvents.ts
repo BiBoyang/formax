@@ -60,7 +60,6 @@ function parsePatchStartLineNumber(value: unknown): number | undefined {
 
 function appendUniqueLine(lines: string[], line: string): void {
   const normalized = line.trim()
-  if (!normalized) return
   if (lines[lines.length - 1] === normalized) return
   lines.push(normalized)
 }
@@ -92,7 +91,7 @@ export function createPersistedToolEventAggregator(): PersistedToolEventAggregat
       if (phase === 'start' || !activeAnonymousKeyByBucket.has(bucketKey)) {
         activeAnonymousKeyByBucket.set(bucketKey, `anon:${bucketKey}:${sequence}`)
       }
-      key = activeAnonymousKeyByBucket.get(bucketKey) ?? `anon:${bucketKey}:${sequence}`
+      key = activeAnonymousKeyByBucket.get(bucketKey)!
     }
 
     const ts = parseTimestampMs(args.ts)
@@ -141,11 +140,6 @@ export function createPersistedToolEventAggregator(): PersistedToolEventAggregat
 
   const finalize = (): PersistedToolMessage[] => {
     const out = Array.from(byKey.values())
-    for (const message of out) {
-      if (!message.summary) {
-        message.summary = message.detailLines[0] ?? `${message.toolName} completed`
-      }
-    }
     out.sort((a, b) => {
       if (a.occurredAtMs !== b.occurredAtMs) return a.occurredAtMs - b.occurredAtMs
       return a.sequence - b.sequence
@@ -155,4 +149,3 @@ export function createPersistedToolEventAggregator(): PersistedToolEventAggregat
 
   return { ingest, finalize }
 }
-

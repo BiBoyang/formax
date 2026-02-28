@@ -154,7 +154,6 @@ function suggestionsForDefaultDecision(decision: PolicyDecision, action: PolicyA
     if (kind === 'net.fetch' || kind === 'net.search') {
       return ['Network access is denied by default. Add an allow rule if this is expected.']
     }
-    return ['This action is denied by default. Add an allow rule if this is expected.']
   }
 
   // prompt

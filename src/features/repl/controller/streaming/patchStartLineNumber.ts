@@ -14,19 +14,16 @@ function resolveAbsPath(cwd: string, rawPath: string): string {
 function findContainingLineStartLineNumber(args: { fileText: string; snippetLine: string }): number | null {
   const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim()
   const needle = normalize(args.snippetLine)
-  if (!needle) return null
   if (needle.length < 8) return null
   const fileLines = args.fileText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  for (let index = 0; index < fileLines.length; index += 1) {
-    const haystack = normalize(fileLines[index] ?? '')
-    if (!haystack) continue
+  const matchIndex = fileLines.findIndex((line) => {
+    const haystack = normalize(line)
+    if (!haystack) return false
     // Only allow "file line contains snippet line". Reversing this check can
     // anchor on unrelated short/generic lines (e.g. "const").
-    if (haystack.includes(needle)) {
-      return index + 1
-    }
-  }
-  return null
+    return haystack.includes(needle)
+  })
+  return matchIndex === -1 ? null : matchIndex + 1
 }
 
 export function computeEditPatchStartLineNumber(args: {
@@ -60,13 +57,11 @@ export function computeEditPatchStartLineNumber(args: {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .split('\n')
-        .find((l) => l.trim().length > 0)
-      if (firstNewLine) {
-        const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstNewLine })
-        if (lineStart !== null) return lineStart
-        const containingLineStart = findContainingLineStartLineNumber({ fileText, snippetLine: firstNewLine })
-        if (containingLineStart !== null) return containingLineStart
-      }
+        .find((l) => l.trim().length > 0)!
+      const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstNewLine })
+      if (lineStart !== null) return lineStart
+      const containingLineStart = findContainingLineStartLineNumber({ fileText, snippetLine: firstNewLine })
+      if (containingLineStart !== null) return containingLineStart
     }
 
     const oldStart = oldSnippet.trim() ? findSnippetStartLineNumber({ fileText, snippet: oldSnippet }) : null
@@ -77,13 +72,11 @@ export function computeEditPatchStartLineNumber(args: {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .split('\n')
-        .find((l) => l.trim().length > 0)
-      if (firstOldLine) {
-        const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstOldLine })
-        if (lineStart !== null) return lineStart
-        const containingLineStart = findContainingLineStartLineNumber({ fileText, snippetLine: firstOldLine })
-        if (containingLineStart !== null) return containingLineStart
-      }
+        .find((l) => l.trim().length > 0)!
+      const lineStart = findSnippetStartLineNumber({ fileText, snippet: firstOldLine })
+      if (lineStart !== null) return lineStart
+      const containingLineStart = findContainingLineStartLineNumber({ fileText, snippetLine: firstOldLine })
+      if (containingLineStart !== null) return containingLineStart
     }
 
     return null

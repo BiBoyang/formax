@@ -60,6 +60,19 @@ describe('BashApprovalPrompt', () => {
     expect(ruleLines).toHaveLength(1)
   })
 
+  it('shows (empty) when command text is empty', async () => {
+    const onDecision = vi.fn()
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Bash command" command="" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+    await tick()
+    expect(lastFrame()).toContain('(empty)')
+  })
+
   it('esc cancels', async () => {
     const onDecision = vi.fn()
 
@@ -78,6 +91,24 @@ describe('BashApprovalPrompt', () => {
 
     expect(onDecision).toHaveBeenCalledTimes(1)
     expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
+  })
+
+  it('enter on default option approves', async () => {
+    const onDecision = vi.fn()
+
+    const { stdin } = render(
+      <InputScopeProvider>
+        <ReplUiProvider abort={() => {}}>
+          <BashApprovalPrompt title="Approve?" command="pwd" cwd="/tmp" onDecision={onDecision} />
+        </ReplUiProvider>
+      </InputScopeProvider>,
+    )
+
+    for (let i = 0; i < 3; i++) await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve' })
   })
 
   it('allows providing feedback by typing on option 3', async () => {

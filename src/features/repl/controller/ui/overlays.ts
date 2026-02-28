@@ -48,7 +48,6 @@ export function useReplOverlays(args: {
 
   const appendCommandSublines = useCallback(
     (lines: string[]) => {
-      if (lines.length === 0) return
       const now = Date.now()
       const timestamp = new Date()
       setMessages((prev) => [

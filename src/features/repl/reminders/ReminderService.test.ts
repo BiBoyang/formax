@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { ReminderService } from './ReminderService'
+import { InMemoryReminderStateStore } from './ReminderStateStore'
 import { resolveTodosPath } from '../../../tools/runtime/todosFile'
 
 function restoreEnv(
@@ -155,6 +156,349 @@ describe('ReminderService', () => {
       const first = service.generateInjectedBlocks({ cwd: dir, now: 0 })
       expect(first).toHaveLength(1)
       expect((first[0] as any).text).toContain('todo list is currently empty')
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('stops emitting non-empty todo reminders after hitting session cap', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService({
+        config: {
+          maxRemindersPerSession: 1,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+          todoUnusedWithListAfterReminders: 99,
+        },
+      })
+
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 2 })
+      const second = service.generateInjectedBlocks({ cwd: dir, now: 3 })
+
+      expect(first).toHaveLength(1)
+      expect(second).toHaveLength(0)
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('suppresses repeated short reminders during cooldown', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedCooldownMs: 10_000,
+          todoUnusedWithListCooldownMs: 10_000,
+          todoUnusedWithListAfterReminders: 99,
+        },
+      })
+
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 2 })
+      const second = service.generateInjectedBlocks({ cwd: dir, now: 3 })
+
+      expect(first).toHaveLength(1)
+      expect(second).toHaveLength(0)
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns no non-empty reminders when session cap is zero and list-body cannot be built', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: '', status: 'pending', activeForm: '' }] }, null, 2),
+        'utf8',
+      )
+
+      const capped = new ReminderService({
+        config: {
+          maxRemindersPerSession: 0,
+          todoUnusedAfterToolUses: 1,
+        },
+      })
+      capped.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      expect(capped.generateInjectedBlocks({ cwd: dir, now: 2 })).toHaveLength(0)
+
+      const listOnly = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedWithListAfterReminders: 0,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+        },
+      })
+      listOnly.recordToolResult({ toolName: 'Task', ok: true, now: 3 })
+      expect(listOnly.generateInjectedBlocks({ cwd: dir, now: 4 })).toHaveLength(0)
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('dedupes same-text reminders and tracks latest reminder across multiple list reminders', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'a', status: 'pending', activeForm: 'a' }] }, null, 2),
+        'utf8',
+      )
+
+      const shortOnly = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedWithListAfterReminders: 99,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+        },
+      })
+      shortOnly.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      expect(shortOnly.generateInjectedBlocks({ cwd: dir, now: 2 })).toHaveLength(1)
+      expect(shortOnly.generateInjectedBlocks({ cwd: dir, now: 3 })).toHaveLength(0)
+
+      const listOnly = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedWithListAfterReminders: 0,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+        },
+      })
+      listOnly.recordToolResult({ toolName: 'Task', ok: true, now: 10 })
+      expect(listOnly.generateInjectedBlocks({ cwd: dir, now: 11 })).toHaveLength(1)
+
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'b', status: 'pending', activeForm: 'b' }] }, null, 2),
+        'utf8',
+      )
+      expect(listOnly.generateInjectedBlocks({ cwd: dir, now: 12 })).toHaveLength(1)
+
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'c', status: 'pending', activeForm: 'c' }] }, null, 2),
+        'utf8',
+      )
+      expect(listOnly.generateInjectedBlocks({ cwd: dir, now: 13 })).toHaveLength(1)
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns no reminder when todos file is malformed', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(todosPath, '{bad-json', 'utf8')
+
+      const service = new ReminderService()
+      const blocks = service.generateInjectedBlocks({ cwd: dir })
+      expect(blocks).toEqual([])
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not reset reminder state when TodoWrite fails', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+          todoUnusedWithListAfterReminders: 99,
+        },
+      })
+
+      // Use default now for one call to cover Date.now() branch.
+      service.recordToolResult({ toolName: 'Task', ok: true })
+      const first = service.generateInjectedBlocks({ cwd: dir, now: 2 })
+      expect(first).toHaveLength(1)
+
+      service.recordToolResult({ toolName: 'TodoWrite', ok: false, now: 3 })
+      const second = service.generateInjectedBlocks({ cwd: dir, now: 4 })
+      expect(second).toHaveLength(0)
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps unrelated reminder keys when clearing TodoWrite reminder prefixes', () => {
+    const store = new InMemoryReminderStateStore({
+      remindersSentAt: {
+        todo_unused_short_1: 1,
+        todo_unused_list_1: 2,
+        custom_other_1: 3,
+      },
+      remindersSentText: {
+        todo_unused_short_1: 'a',
+        todo_unused_list_1: 'b',
+        custom_other_1: 'c',
+      },
+    })
+    const service = new ReminderService({ store })
+    service.recordToolResult({ toolName: 'TodoWrite', ok: true, now: 4 })
+
+    const state = store.get()
+    expect(state.remindersSentAt).toEqual({ custom_other_1: 3 })
+    expect(state.remindersSentText).toEqual({ custom_other_1: 'c' })
+  })
+
+  it('handles equal-timestamp reminder history when selecting latest prefix entry', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'one', status: 'pending', activeForm: 'one' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService({
+        config: {
+          maxRemindersPerSession: 10,
+          todoUnusedAfterToolUses: 1,
+          todoUnusedWithListAfterReminders: 0,
+          todoUnusedCooldownMs: 0,
+          todoUnusedWithListCooldownMs: 0,
+        },
+      })
+
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      expect(service.generateInjectedBlocks({ cwd: dir, now: 10 })).toHaveLength(1)
+
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'two', status: 'pending', activeForm: 'two' }] }, null, 2),
+        'utf8',
+      )
+      expect(service.generateInjectedBlocks({ cwd: dir, now: 10 })).toHaveLength(1)
+
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'three', status: 'pending', activeForm: 'three' }] }, null, 2),
+        'utf8',
+      )
+      expect(service.generateInjectedBlocks({ cwd: dir, now: 11 })).toHaveLength(1)
     } finally {
       restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
       restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)

@@ -65,4 +65,10 @@ describe('threadArchiveSemantics', () => {
     expect(formatArchiveNotice({ id: 't1', label: 'Task Alpha' })).toBe('Archived "Task Alpha"')
     expect(formatArchiveNotice({ id: 't2', label: ' ', lastUserPrompt: 'Prompt B' })).toBe('Archived "Prompt B"')
   })
+
+  it('falls back to generic thread display name when thread payload is missing', () => {
+    expect(resolveArchiveThreadDisplayName(null)).toBe('thread')
+    expect(resolveArchiveThreadDisplayName(undefined)).toBe('thread')
+    expect(formatArchiveNotice(null)).toBe('Archived "thread"')
+  })
 })

@@ -107,7 +107,7 @@ export function InputScopeProvider({
       const next = cur.filter((h) => h.id !== record.id)
       if (next.length === 0) handlersRef.current.delete(record.scope)
       else handlersRef.current.set(record.scope, next)
-      handlersVersionRef.current.set(record.scope, (handlersVersionRef.current.get(record.scope) ?? 0) + 1)
+      handlersVersionRef.current.set(record.scope, handlersVersionRef.current.get(record.scope)! + 1)
       orderedHandlersCacheRef.current.delete(record.scope)
     }
   }, [])
@@ -129,7 +129,7 @@ export function InputScopeProvider({
   }, [])
 
   const value = useMemo<InputScopeController>(() => {
-    const activeScope = stack[stack.length - 1] ?? initialRef.current
+    const activeScope = stack[stack.length - 1]!
     return { activeScope, stack, push, pop, suspendGroup, resumeGroup, hasRouter: true, registerHandler }
   }, [pop, push, registerHandler, resumeGroup, stack, suspendGroup])
 
@@ -156,7 +156,7 @@ export function InputScopeProvider({
         return
       }
 
-      const version = handlersVersionRef.current.get(activeScope) ?? 0
+      const version = handlersVersionRef.current.get(activeScope)
       const cached = orderedHandlersCacheRef.current.get(activeScope)
       const ordered =
         cached && cached.version === version

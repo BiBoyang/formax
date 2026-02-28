@@ -309,4 +309,41 @@ describe('threadRuntimeState (shared)', () => {
 
     expect(Object.keys(state.pendingInputs)).toEqual(['input-2'])
   })
+
+  it('falls back terminal status defaults and ignores unknown methods', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/started',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/completed',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        turn: { id: 'turn-1', threadId: 'thread-1', status: 'weird' },
+      },
+    })
+    expect(state.lastTurnStatus).toBe('completed')
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/failed',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        turn: { id: 'turn-2', threadId: 'thread-1', status: 'weird' },
+      },
+    })
+    expect(state.lastTurnStatus).toBe('failed')
+
+    const next = reduceThreadRuntimeState(state, {
+      method: 'turn/unknown' as any,
+      replaySeq: 4,
+      params: { threadId: 'thread-1' },
+    })
+    expect(next).not.toBe(state)
+    expect(next.lastTurnStatus).toBe('failed')
+  })
 })

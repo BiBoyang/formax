@@ -62,6 +62,58 @@ describe('sessionProcessHandlers', () => {
     cleanup()
   })
 
+  it('still forwards signal when flush fails', async () => {
+    const proc = new FakeProcess()
+    const flush = vi.fn(async () => {
+      throw new Error('flush failed')
+    })
+
+    const cleanup = registerSessionWriterProcessHandlers({
+      sessionSaveEnabled: true,
+      isVitest: false,
+      getWriter: () => ({ flush }),
+      processRef: proc as any,
+    })
+
+    proc.emit('SIGTERM')
+    await tick(0)
+
+    expect(flush).toHaveBeenCalledTimes(1)
+    expect(proc.kill).toHaveBeenCalledWith(4242, 'SIGTERM')
+
+    cleanup()
+  })
+
+  it('can register using default process/logError wiring', () => {
+    const cleanup = registerSessionWriterProcessHandlers({
+      sessionSaveEnabled: true,
+      isVitest: false,
+      getWriter: () => null,
+    })
+
+    cleanup()
+  })
+
+  it('uses default console.error logger when logError is omitted', async () => {
+    const proc = new FakeProcess()
+    const flush = vi.fn(async () => {})
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const cleanup = registerSessionWriterProcessHandlers({
+      sessionSaveEnabled: true,
+      isVitest: false,
+      getWriter: () => ({ flush }),
+      processRef: proc as any,
+    })
+
+    proc.emit('uncaughtException', new Error('boom'))
+    await tick(0)
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error))
+    consoleErrorSpy.mockRestore()
+    cleanup()
+  })
+
   it('removes all registered handlers on cleanup', () => {
     const proc = new FakeProcess()
     const cleanup = registerSessionWriterProcessHandlers({
@@ -84,5 +136,52 @@ describe('sessionProcessHandlers', () => {
     expect(proc.listenerCount('beforeExit')).toBe(0)
     expect(proc.listenerCount('uncaughtException')).toBe(0)
     expect(proc.listenerCount('unhandledRejection')).toBe(0)
+  })
+
+  it('flushes on beforeExit', async () => {
+    const proc = new FakeProcess()
+    const flush = vi.fn(async () => {})
+    const cleanup = registerSessionWriterProcessHandlers({
+      sessionSaveEnabled: true,
+      isVitest: false,
+      getWriter: () => ({ flush }),
+      processRef: proc as any,
+    })
+
+    proc.emit('beforeExit')
+    await tick(0)
+    expect(flush).toHaveBeenCalledTimes(1)
+
+    cleanup()
+  })
+
+  it('flushes, logs and exits on uncaughtException and unhandledRejection', async () => {
+    const proc = new FakeProcess()
+    const flush = vi.fn(async () => {})
+    const logError = vi.fn()
+    const cleanup = registerSessionWriterProcessHandlers({
+      sessionSaveEnabled: true,
+      isVitest: false,
+      getWriter: () => ({ flush }),
+      processRef: proc as any,
+      logError,
+    })
+
+    proc.emit('uncaughtException', new Error('boom'))
+    await tick(0)
+
+    expect(flush).toHaveBeenCalledTimes(1)
+    expect(logError).toHaveBeenCalledWith(expect.any(Error))
+    expect(proc.exitCode).toBe(1)
+    expect(proc.exit).toHaveBeenCalledTimes(1)
+
+    proc.emit('unhandledRejection', 'reason')
+    await tick(0)
+
+    expect(flush).toHaveBeenCalledTimes(2)
+    expect(logError).toHaveBeenCalledWith('reason')
+    expect(proc.exit).toHaveBeenCalledTimes(2)
+
+    cleanup()
   })
 })

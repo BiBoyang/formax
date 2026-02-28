@@ -68,13 +68,13 @@ async function loadAuthStore(args: {
 }
 
 function normalizeAuthRef(raw: string): string {
-  const trimmed = String(raw || '').trim()
+  const trimmed = String(raw).trim()
   if (!trimmed) throw new Error('authRef is required')
   return trimmed
 }
 
 function normalizeApiKey(raw: string): string {
-  const trimmed = String(raw || '').trim()
+  const trimmed = String(raw).trim()
   if (!trimmed) throw new Error('apiKey is required')
   return trimmed
 }
@@ -85,7 +85,6 @@ export async function authList(args: { fileStore: FileStore; authPath: string })
 
   for (const provider of Object.keys(loaded.store.providers) as ProviderId[]) {
     const entries = loaded.store.providers[provider]
-    if (!entries) continue
     for (const authRef of Object.keys(entries)) {
       items.push({ provider, authRef })
     }
@@ -139,7 +138,7 @@ export async function authDelete(args: {
   }
 
   const providers = { ...store.providers } as any
-  const providerEntries = { ...(providers[args.provider] || {}) }
+  const providerEntries = { ...providers[args.provider] }
   delete providerEntries[authRef]
   if (Object.keys(providerEntries).length === 0) delete providers[args.provider]
   else providers[args.provider] = providerEntries
@@ -149,4 +148,3 @@ export async function authDelete(args: {
 
   return { authPath: args.authPath, provider: args.provider, authRef, deleted: true, warnings: loaded.warnings }
 }
-

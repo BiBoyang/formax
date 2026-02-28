@@ -18,10 +18,9 @@ export const SearchToolPresenter = createToolBlocksPresenter(
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
-  const showParams = Boolean(params && params.trim().length > 0)
 
   const blocks: ToolBlocksOutput['blocks'] = [
-    { kind: 'header', status, label: toolName, params: showParams ? params : null },
+    { kind: 'header', status, label: toolName, params },
   ]
 
   if (status !== 'running') {

@@ -53,6 +53,14 @@ describe('consumeBufferedArrow', () => {
       pending: false,
     })
   })
+
+  it('keeps buffer when chunk is empty', () => {
+    expect(consumeBufferedArrow({ buffer: '\u001B[', chunk: '' })).toEqual({
+      nextBuffer: '\u001B[',
+      delta: 0,
+      pending: false,
+    })
+  })
 })
 
 describe('consumeBufferedHorizontal', () => {
@@ -94,6 +102,39 @@ describe('consumeBufferedHorizontal', () => {
       nextBuffer: '',
       delta: -1,
       deletes: 0,
+      pending: false,
+    })
+  })
+
+  it('clears buffer on unknown horizontal escape sequence and handles empty chunk', () => {
+    expect(consumeBufferedHorizontal({ buffer: '', chunk: '\u001B[Z' })).toEqual({
+      nextBuffer: '',
+      delta: 0,
+      deletes: 0,
+      pending: false,
+    })
+    expect(consumeBufferedHorizontal({ buffer: '\u001B[', chunk: '' })).toEqual({
+      nextBuffer: '\u001B[',
+      delta: 0,
+      deletes: 0,
+      pending: false,
+    })
+  })
+
+  it('clears state for non-escape horizontal input', () => {
+    expect(consumeBufferedHorizontal({ buffer: '', chunk: 'x' })).toEqual({
+      nextBuffer: '',
+      delta: 0,
+      deletes: 0,
+      pending: false,
+    })
+  })
+
+  it('consumes multiple horizontal sequences in a single chunk', () => {
+    expect(consumeBufferedHorizontal({ buffer: '', chunk: '\u001B[D\u001B[C\u001B[3~' })).toEqual({
+      nextBuffer: '',
+      delta: 0,
+      deletes: 1,
       pending: false,
     })
   })

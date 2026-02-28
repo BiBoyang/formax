@@ -81,4 +81,35 @@ describe('SearchToolPresenter', () => {
     expect(frame).toContain('⎿')
     expect(frame).toContain('Error: failed to search')
   })
+
+  it('renders non-pattern summary text and handles empty summary safely', () => {
+    const plainSummaryMessage: Msg = {
+      id: 'tool-plain',
+      role: 'tool',
+      content: 'Search completed with warnings',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Search',
+        status: 'completed',
+        input: { pattern: 'foo', path: 'src' },
+      },
+    }
+    const emptySummaryMessage: Msg = {
+      id: 'tool-empty',
+      role: 'tool',
+      content: undefined as any,
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Search',
+        status: 'completed',
+        input: { pattern: 'foo', path: 'src' },
+      },
+    }
+
+    const plainFrame = render(<ToolUiBlocks blocks={SearchToolPresenter({ message: plainSummaryMessage }).blocks} />).lastFrame()
+    expect(plainFrame).toContain('Search completed with warnings')
+
+    const emptyFrame = render(<ToolUiBlocks blocks={SearchToolPresenter({ message: emptySummaryMessage }).blocks} />).lastFrame()
+    expect(emptyFrame).toContain('Search')
+  })
 })

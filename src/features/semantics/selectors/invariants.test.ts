@@ -133,6 +133,68 @@ describe('selectTerminalTurnInvariantIssues', () => {
 
     expect(selectTerminalTurnInvariantIssues({ projection, runtimeState })).toEqual([])
   })
+
+  it('returns empty for null projection and filters non-terminal/non-pending rows', () => {
+    expect(selectTerminalTurnInvariantIssues({ projection: null, runtimeState: createRuntimeState() })).toEqual([])
+
+    const noFooterProjection = createProjection([
+      {
+        id: 'tool-open',
+        kind: 'tool',
+        turnId: 'turn-open',
+        toolUseId: 'tool-open',
+        toolName: 'Read',
+        status: 'running',
+        summary: 'still running',
+        detailLines: [],
+      },
+    ])
+    expect(selectTerminalTurnInvariantIssues({ projection: noFooterProjection, runtimeState: createRuntimeState() })).toEqual([])
+
+    const terminalProjection = createProjection([
+      {
+        id: 'footer-terminal',
+        kind: 'turn_footer',
+        turnId: 'turn-terminal',
+        status: 'completed',
+      },
+      {
+        id: 'tool-non-terminal',
+        kind: 'tool',
+        turnId: 'turn-other',
+        toolUseId: 'tool-other',
+        toolName: 'Read',
+        status: 'running',
+        summary: 'running elsewhere',
+        detailLines: [],
+      },
+    ])
+    const runtimeState = createRuntimeState([
+      {
+        inputId: 'resolved-input',
+        threadId: 'thread-1',
+        turnId: 'turn-terminal',
+        toolUseId: 'tool-x',
+        kind: 'approval',
+        status: 'resolved',
+        createdAt: '2026-02-17T00:00:01.000Z',
+        expiresAt: '2026-02-17T00:05:01.000Z',
+        payload: {},
+      },
+      {
+        inputId: 'pending-other-turn',
+        threadId: 'thread-1',
+        turnId: 'turn-other',
+        toolUseId: 'tool-y',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-02-17T00:00:02.000Z',
+        expiresAt: '2026-02-17T00:05:02.000Z',
+        payload: {},
+      },
+    ])
+    expect(selectTerminalTurnInvariantIssues({ projection: terminalProjection, runtimeState })).toEqual([])
+  })
 })
 
 describe('summarizeInvariantIssues', () => {

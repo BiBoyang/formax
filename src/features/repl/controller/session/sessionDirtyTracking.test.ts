@@ -76,4 +76,68 @@ describe('sessionDirtyTracking', () => {
     expect(Array.from(dirtyMessageIdsRef.current).sort()).toEqual(['b', 'c'])
     expect(messageByIdRef.current.get('b')).toBe(b2)
   })
+
+  it('is a no-op when previous and next are the same array reference', () => {
+    const a = createMsg({ id: 'a' })
+    const same = [a]
+    const messageByIdRef = { current: buildMessageByIdMap([a]) }
+    const dirtyMessageIdsRef = { current: new Set<string>() }
+    markDirtyMessageIdsFromTransition({
+      previous: same,
+      next: same,
+      messageByIdRef,
+      dirtyMessageIdsRef,
+    })
+    expect(dirtyMessageIdsRef.current.size).toBe(0)
+    expect(messageByIdRef.current.get('a')).toBe(a)
+  })
+
+  it('is a no-op when arrays are equal by identity at each position and lengths match', () => {
+    const a = createMsg({ id: 'a' })
+    const b = createMsg({ id: 'b' })
+    const messageByIdRef = { current: buildMessageByIdMap([a, b]) }
+    const dirtyMessageIdsRef = { current: new Set<string>() }
+    markDirtyMessageIdsFromTransition({
+      previous: [a, b],
+      next: [a, b],
+      messageByIdRef,
+      dirtyMessageIdsRef,
+    })
+    expect(dirtyMessageIdsRef.current.size).toBe(0)
+  })
+
+  it('tolerates sparse arrays while scanning suffixes', () => {
+    const a = createMsg({ id: 'a' })
+    const b = createMsg({ id: 'b' })
+    const previous = [a, b] as Msg[]
+    const next = [a] as Msg[]
+    next.length = 2 // keep index 1 empty
+    const messageByIdRef = { current: buildMessageByIdMap([a, b]) }
+    const dirtyMessageIdsRef = { current: new Set<string>() }
+    markDirtyMessageIdsFromTransition({
+      previous,
+      next,
+      messageByIdRef,
+      dirtyMessageIdsRef,
+    })
+    expect(dirtyMessageIdsRef.current.has('b')).toBe(true)
+  })
+
+  it('skips empty entries in previous suffix when removing ids', () => {
+    const a = createMsg({ id: 'a' })
+    const c = createMsg({ id: 'c' })
+    const previous = [a] as Msg[]
+    previous.length = 3
+    previous[2] = c
+    const next = [a, createMsg({ id: 'b' })]
+    const messageByIdRef = { current: buildMessageByIdMap([a, c]) }
+    const dirtyMessageIdsRef = { current: new Set<string>() }
+    markDirtyMessageIdsFromTransition({
+      previous,
+      next,
+      messageByIdRef,
+      dirtyMessageIdsRef,
+    })
+    expect(dirtyMessageIdsRef.current.has('c')).toBe(true)
+  })
 })

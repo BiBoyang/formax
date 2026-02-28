@@ -29,7 +29,6 @@ export const SkillToolPresenter: ToolPresenterComponent = ({ message }: { messag
           title={`Use skill ${skillName || 'Skill'}?`}
           rememberLabel={`Yes, and don't ask again for ${skillName || 'this skill'} in this repo`}
           onDecision={(d) => {
-            if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
             else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
             else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })

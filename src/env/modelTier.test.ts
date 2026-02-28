@@ -52,4 +52,14 @@ describe('modelTier', () => {
     expect(out.defaultTier).toBe('opus')
     expect(out.model).toBe('mapped-opus')
   })
+
+  it('falls back to built-in defaults when no env or config override exists', () => {
+    expect(resolveModelForTier({ tier: 'haiku', env: {} })).toBe('claude-3-5-haiku-latest')
+    expect(resolveModelForTier({ tier: 'sonnet', env: {} })).toBe('claude-sonnet-4-5-20250929')
+    expect(resolveModelForTier({ tier: 'opus', env: {} })).toBe('claude-3-opus-latest')
+  })
+
+  it('uses process.env when env argument is omitted', () => {
+    expect(resolveModelForTier({ tier: 'haiku' })).toBeTypeOf('string')
+  })
 })

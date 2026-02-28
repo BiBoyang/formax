@@ -1,17 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
 
 const mocks = vi.hoisted(() => ({
-  onDecisionFromMenu: null as null | ((decision: any) => void),
+  menuProps: null as null | { onDecision: (d: any) => void },
 }))
 
 vi.mock('./ConfirmMenu', () => ({
   ConfirmMenu: (props: any) => {
-    mocks.onDecisionFromMenu = props.onDecision
-    return <Text>mock-menu</Text>
+    mocks.menuProps = props
+    return <Text>menu</Text>
   },
 }))
 
@@ -19,14 +18,34 @@ vi.mock('./ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-describe('FsWriteApprovalPrompt decision mapping', () => {
-  it('maps approve menu decisions', () => {
+import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
+
+describe('FsWriteApprovalPrompt mapping', () => {
+  beforeEach(() => {
+    mocks.menuProps = null
+  })
+
+  it('maps all menu decisions to fs-write approval decisions', () => {
     const onDecision = vi.fn()
-    render(<FsWriteApprovalPrompt title="Approve write" onDecision={onDecision} />)
-    if (!mocks.onDecisionFromMenu) throw new Error('Expected ConfirmMenu onDecision')
+    const { lastFrame } = render(<FsWriteApprovalPrompt title="Approve write?" onDecision={onDecision} />)
+    expect(lastFrame()).toContain('Approve write?')
+    if (!mocks.menuProps) throw new Error('Expected ConfirmMenu props')
 
-    mocks.onDecisionFromMenu({ kind: 'choice', key: 'approve' })
+    mocks.menuProps.onDecision({ kind: 'cancel' })
+    mocks.menuProps.onDecision({ kind: 'feedback', feedback: 'change this' })
+    mocks.menuProps.onDecision({ kind: 'choice', key: 'approve' })
+    mocks.menuProps.onDecision({ kind: 'choice', key: 'approve_remember' })
 
-    expect(onDecision).toHaveBeenCalledWith({ kind: 'approve' })
+    expect(onDecision).toHaveBeenNthCalledWith(1, { kind: 'cancel' })
+    expect(onDecision).toHaveBeenNthCalledWith(2, { kind: 'feedback', feedback: 'change this' })
+    expect(onDecision).toHaveBeenNthCalledWith(3, { kind: 'approve' })
+    expect(onDecision).toHaveBeenNthCalledWith(4, { kind: 'approve_remember' })
+  })
+
+  it('does not render header in inline variant', () => {
+    const { lastFrame } = render(<FsWriteApprovalPrompt title="Approve write?" variant="inline" onDecision={() => {}} />)
+    expect(lastFrame()).not.toContain('Approve write?')
+    expect(lastFrame()).toContain('menu')
   })
 })
+

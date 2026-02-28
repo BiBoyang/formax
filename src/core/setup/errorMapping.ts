@@ -17,7 +17,7 @@ function asMessage(err: unknown): string {
 }
 
 function messageToErrorCode(message: string): ErrorCodeValue {
-  const m = (message || '').toLowerCase()
+  const m = message.toLowerCase()
 
   if (
     m.includes('401') ||
@@ -56,4 +56,3 @@ export function mapUnknownError(err: unknown): MappedError {
   const code = messageToErrorCode(message)
   return { code, message }
 }
-

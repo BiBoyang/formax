@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import { applyAbortToMessages } from './abortTranscript'
 
@@ -51,5 +51,21 @@ describe('applyAbortToMessages', () => {
 
     const declined = next.filter((message) => message.role === 'assistant' && /declined/i.test(message.content))
     expect(declined).toHaveLength(0)
+  })
+
+  it('uses Date.now by default and falls back unnamed tracked tools to "Tool"', () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(3000)
+    try {
+      const next = applyAbortToMessages({
+        messages: [],
+        trackedRunningTools: [['x-1', '']],
+        hadInFlightRequest: false,
+      })
+      const tool = next.find((message) => message.role === 'tool' && message.toolInfo?.toolUseId === 'x-1')
+      expect(tool?.toolInfo?.name).toBe('Tool')
+      expect(tool?.timestamp.getTime()).toBe(3000)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 })

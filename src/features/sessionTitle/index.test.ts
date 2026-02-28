@@ -177,4 +177,70 @@ describe('maybeAutoGenerateSessionTitle', () => {
     expect(generated).toBe('Model Aware Title')
     expect(seenModel).toBe('glm-4.7')
   })
+
+  it('rolls back attempted session id when title generation returns null', async () => {
+    const fixture = await createSessionFixture()
+    const attempted = new Set<string>()
+
+    const generated = await maybeAutoGenerateSessionTitle({
+      filePath: fixture.filePath,
+      cwd: fixture.cwd,
+      attemptedSessionIds: attempted,
+      userText: 'title please',
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+    })
+
+    expect(generated).toBeNull()
+    expect(attempted.has(fixture.sessionId)).toBe(false)
+  })
+
+  it('rolls back attempted session id when title generation throws', async () => {
+    const fixture = await createSessionFixture()
+    const attempted = new Set<string>()
+
+    await expect(
+      maybeAutoGenerateSessionTitle({
+        filePath: fixture.filePath,
+        cwd: fixture.cwd,
+        attemptedSessionIds: attempted,
+        userText: 'title please',
+        engine: {
+          async runTurn() {
+            throw new Error('boom')
+          },
+        },
+      }),
+    ).rejects.toThrow('boom')
+
+    expect(attempted.has(fixture.sessionId)).toBe(false)
+  })
+
+  it('removes checked topic key when topic detection throws', async () => {
+    const fixture = await createSessionFixture()
+    const writer = await SessionWriter.openExisting({ filePath: fixture.filePath })
+    await writer.appendEvent('session_rename', { label: 'Manual Name' })
+    await writer.shutdown()
+
+    const checkedTopicPromptKeys = new Set<string>()
+    await expect(
+      maybeAutoGenerateSessionTitle({
+        filePath: fixture.filePath,
+        cwd: fixture.cwd,
+        attemptedSessionIds: new Set<string>(),
+        checkedTopicPromptKeys,
+        userText: 'new topic?',
+        engine: {
+          async runTurn() {
+            throw new Error('topic fail')
+          },
+        },
+      }),
+    ).rejects.toThrow('topic fail')
+
+    expect(checkedTopicPromptKeys.size).toBe(0)
+  })
 })

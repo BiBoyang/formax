@@ -137,4 +137,61 @@ describe('policy engine', () => {
     expect(r2.decision).toBe('allow')
     expect(r2.matchedRule).toBeUndefined()
   })
+
+  it('prefers later rule on exact tie (stable override)', () => {
+    const rules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'first',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'fs.read', path: '/repo/src/' },
+      }),
+      makeRule({
+        ruleId: 'second',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'fs.read', path: '/repo/src/' },
+      }),
+    ]
+    const out = explainPolicy({ action: { kind: 'fs.read', path: '/repo/src/index.ts' }, rules })
+    expect(out.matchedRule?.ruleId).toBe('second')
+  })
+
+  it('matches net.fetch/net.search/tool.install rules', () => {
+    const rules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'allow-fetch',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'net.fetch', urlPrefix: 'https://example.com' },
+      }),
+      makeRule({
+        ruleId: 'prompt-search',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'prompt',
+        match: { kind: 'net.search', queryPrefix: 'build tools' },
+      }),
+      makeRule({
+        ruleId: 'deny-install',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'deny',
+        match: { kind: 'tool.install', tool: 'ripgrep' },
+      }),
+    ]
+
+    expect(explainPolicy({ action: { kind: 'net.fetch', url: 'https://example.com/docs' }, rules }).matchedRule?.ruleId).toBe(
+      'allow-fetch',
+    )
+    expect(explainPolicy({ action: { kind: 'net.search', query: 'build tools rust' }, rules }).matchedRule?.ruleId).toBe(
+      'prompt-search',
+    )
+    expect(explainPolicy({ action: { kind: 'tool.install', tool: 'ripgrep' }, rules }).matchedRule?.ruleId).toBe(
+      'deny-install',
+    )
+  })
 })

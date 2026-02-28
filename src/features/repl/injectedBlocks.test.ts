@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { vi } from 'vitest'
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { buildClaudeMdInjectedBlocks, buildLocalCommandInjectedBlocks, getClaudeMdInjectionMeta } from './injectedBlocks'
+import {
+  buildBashModeInjectedBlocks,
+  buildClaudeMdInjectedBlocks,
+  buildLocalCommandInjectedBlocks,
+  getClaudeMdInjectionMeta,
+} from './injectedBlocks'
 
 describe('repl injected blocks', () => {
   it('injects CLAUDE.md context when present', async () => {
@@ -113,5 +120,132 @@ describe('repl injected blocks', () => {
     expect((blocks[0] as any).text).toContain('Caveat:')
     expect((blocks[1] as any).text).toContain('<command-name>/todos</command-name>')
     expect((blocks[2] as any).text).toContain('<local-command-stdout>hi</local-command-stdout>')
+  })
+
+  it('handles CLAUDE.md read failures gracefully', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      const statSpy = vi.spyOn(fs, 'statSync').mockReturnValue({ size: 1, mtimeMs: 1 } as any)
+      const readSpy = vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+        throw new Error('read fail')
+      })
+
+      const blocks = buildClaudeMdInjectedBlocks({ cwd: dir, env: {} as any, homedir: dir })
+      const meta = getClaudeMdInjectionMeta({ cwd: dir, env: {} as any, homedir: dir })
+
+      expect(blocks).toEqual([])
+      expect(meta.global).toBeNull()
+      expect(meta.project).toBeNull()
+
+      readSpy.mockRestore()
+      statSpy.mockRestore()
+      existsSpy.mockRestore()
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('builds escaped bash-mode injected blocks and truncates long output', () => {
+    const longStdout = `<tag>${'x'.repeat(31_000)}</tag>`
+    const blocks = buildBashModeInjectedBlocks({
+      input: '  echo <ok> & done  ',
+      stdout: longStdout,
+      stderr: '</stderr> & fail',
+    })
+
+    expect(blocks).toHaveLength(2)
+    const text = String((blocks[1] as any).text || '')
+    expect(text).toContain('<bash-input>echo &lt;ok&gt; &amp; done</bash-input>')
+    expect(text).toContain('<bash-stdout>')
+    expect(text).toContain('&lt;tag&gt;')
+    expect(text).toContain('(Truncated)')
+    expect(text).toContain('<bash-stderr>&lt;/stderr&gt; &amp; fail</bash-stderr>')
+  })
+
+  it('injects only global CLAUDE.md when project file is missing', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      await fsp.writeFile(path.join(globalDir, 'CLAUDE.md'), '# GLOBAL ONLY\n', 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('# GLOBAL ONLY')
+      expect(text).not.toContain('project instructions, checked into the codebase')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses full cap for project and leaves no global content when project exceeds cap', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      await fsp.writeFile(path.join(globalDir, 'CLAUDE.md'), 'GLOBAL_SHOULD_NOT_APPEAR', 'utf8')
+      await fsp.writeFile(path.join(dir, 'CLAUDE.md'), 'P'.repeat(210_000), 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('project instructions, checked into the codebase')
+      expect(text).not.toContain('GLOBAL_SHOULD_NOT_APPEAR')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('slices truncated marker when remaining global budget is tiny', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      await fsp.writeFile(path.join(globalDir, 'CLAUDE.md'), 'GLOBAL1234567890', 'utf8')
+      await fsp.writeFile(path.join(dir, 'CLAUDE.md'), 'P'.repeat(199_996), 'utf8')
+
+      const meta = getClaudeMdInjectionMeta({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+      expect(meta.global?.includedChars).toBe(4)
+      expect(meta.global?.truncated).toBe(true)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles undefined bash-mode fields by coercing to empty strings', () => {
+    const blocks = buildBashModeInjectedBlocks({
+      input: undefined as any,
+      stdout: undefined as any,
+      stderr: undefined as any,
+    })
+    expect(blocks).toHaveLength(2)
+    const text = String((blocks[1] as any).text || '')
+    expect(text).toContain('<bash-input></bash-input>')
+    expect(text).toContain('<bash-stdout></bash-stdout>')
+    expect(text).toContain('<bash-stderr></bash-stderr>')
+  })
+
+  it('uses process defaults for env/platform/homedir arguments when omitted', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const blocks = buildClaudeMdInjectedBlocks({ cwd: dir })
+      expect(blocks).toEqual([])
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
   })
 })
