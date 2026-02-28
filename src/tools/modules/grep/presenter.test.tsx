@@ -122,4 +122,76 @@ describe('GrepToolPresenter', () => {
     expect(frame).not.toContain('Try "foo"')
     expect(frame).not.toContain('Hint:')
   })
+
+  it('renders error summary without extra lines when compact detail is absent', () => {
+    const message: Msg = {
+      id: 'plain-error-id',
+      role: 'tool',
+      content: 'Error: blocked',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Grep',
+        status: 'error',
+        input: { pattern: 'x', path: 'src' },
+        result: '',
+      },
+    }
+    const view = render(<ToolUiBlocks blocks={GrepToolPresenter({ message }).blocks} />)
+    const frame = stripAnsi(view.lastFrame() ?? '')
+    expect(frame).toContain('Error: blocked')
+    expect(frame).not.toContain('Permission denied')
+  })
+
+  it('falls back to cwd and explicit toolUseId for running prompts when path is missing', () => {
+    const message: Msg = {
+      id: 'plain-id-xyz',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        toolUseId: 'grep-tu-1',
+        name: 'Grep',
+        status: 'running',
+        input: { pattern: 'x' },
+        result: '',
+      },
+    }
+    const blocks = GrepToolPresenter({ message }).blocks as any[]
+    expect(blocks[1].kind).toBe('custom')
+    expect(blocks[1].node.props.toolUseId).toBe('grep-tu-1')
+    expect(blocks[1].node.props.directoryPath).toBe(process.cwd())
+  })
+
+  it('renders non-matching completed summary and handles runtime-missing content', () => {
+    const nonMatch: Msg = {
+      id: 'tool-non-match',
+      role: 'tool',
+      content: 'Search complete',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Grep',
+        status: 'completed',
+        input: { pattern: 'x', path: 'src' },
+        result: '',
+      },
+    }
+    const missing = {
+      id: 'tool-missing-summary',
+      role: 'tool',
+      content: undefined,
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Grep',
+        status: 'completed',
+        input: { pattern: 'x', path: 'src' },
+        result: '',
+      },
+    } as Msg
+
+    const nonMatchFrame = stripAnsi(render(<ToolUiBlocks blocks={GrepToolPresenter({ message: nonMatch }).blocks} />).lastFrame() ?? '')
+    const missingFrame = stripAnsi(render(<ToolUiBlocks blocks={GrepToolPresenter({ message: missing }).blocks} />).lastFrame() ?? '')
+
+    expect(nonMatchFrame).toContain('Search complete')
+    expect(missingFrame).toContain('Search')
+  })
 })
