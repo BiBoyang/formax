@@ -108,6 +108,14 @@ function BackspaceAtStartWrapper({
   )
 }
 
+function StaticRenderWrapper(props: React.ComponentProps<typeof TextInput>): React.ReactNode {
+  return (
+    <ReplUiProvider abort={() => {}}>
+      <TextInput {...props} />
+    </ReplUiProvider>
+  )
+}
+
 function ScopedConsumeWrapper({ onList }: { onList: (s: string) => void }): React.ReactNode {
   const [value, setValue] = useState('')
 
@@ -446,5 +454,77 @@ describe('TextInput', () => {
   it('treats macOS Backspace reported as delete as backspace', () => {
     expect(classifyDeletionKey({ keyName: 'delete', raw: '', key: { delete: true } })).toBe('backspace')
     expect(classifyDeletionKey({ keyName: 'delete', raw: '\u001B[3~', key: { delete: true } })).toBe('backspace')
+  })
+
+  it('renders placeholder cursor variants and masked values', async () => {
+    const blockPlaceholder = render(
+      <StaticRenderWrapper value="" onChange={() => {}} placeholder="Type..." focus cursorStyle="block" />,
+    )
+    expect(blockPlaceholder.lastFrame()).toContain('Type...')
+
+    const barPlaceholder = render(
+      <StaticRenderWrapper value="" onChange={() => {}} placeholder="Type..." focus cursorStyle="bar" cursorChar="|" />,
+    )
+    expect(barPlaceholder.lastFrame()).toContain('|')
+
+    const masked = render(
+      <StaticRenderWrapper value="secret" onChange={() => {}} mask="*" focus cursorStyle="bar" cursorChar="▏" />,
+    )
+    await tick()
+    expect(masked.lastFrame()).toContain('******')
+  })
+
+  it('renders block mode focused at end with nbsp cursor cell', () => {
+    const ui = render(<StaticRenderWrapper value="abc" onChange={() => {}} focus cursorStyle="block" />)
+    expect(ui.lastFrame()).toContain('abc')
+  })
+
+  it('renders block mode unfocused with cursor in middle and at end', async () => {
+    const ui = render(<Wrapper />)
+    await tick()
+    ui.stdin.write('a')
+    await tick()
+    ui.stdin.write('b')
+    await tick()
+    ui.stdin.write('c')
+    await tick()
+    ui.stdin.write('\u001B[D')
+    await tick()
+
+    ui.rerender(
+      <ReplUiProvider abort={() => {}}>
+        <TextInput value="abc" onChange={() => {}} focus={false} cursorStyle="block" />
+      </ReplUiProvider>,
+    )
+    expect(ui.lastFrame()).toContain('abc')
+
+    const end = render(<StaticRenderWrapper value="abc" onChange={() => {}} focus={false} cursorStyle="block" />)
+    expect(end.lastFrame()).toContain('abc')
+  })
+
+  it('shows suffix hint only when focused and cursor at end', async () => {
+    const ui = render(
+      <ReplUiProvider abort={() => {}}>
+        <TextInput value="abc" onChange={() => {}} suffixHint="hint" cursorStyle="bar" cursorChar="▏" />
+      </ReplUiProvider>,
+    )
+    await tick()
+    expect(ui.lastFrame()).toContain('hint')
+
+    ui.stdin.write('\u001B[D')
+    await tick()
+    expect(ui.lastFrame()).not.toContain('hint')
+  })
+
+  it('renders block suffix hint at end and hides bar cursor when unfocused', () => {
+    const block = render(
+      <StaticRenderWrapper value="abc" onChange={() => {}} suffixHint="tail" focus cursorStyle="block" />,
+    )
+    expect(block.lastFrame()).toContain('tail')
+
+    const barUnfocused = render(
+      <StaticRenderWrapper value="abc" onChange={() => {}} focus={false} cursorStyle="bar" cursorChar="▏" />,
+    )
+    expect((barUnfocused.lastFrame() ?? '').includes('▏')).toBe(false)
   })
 })

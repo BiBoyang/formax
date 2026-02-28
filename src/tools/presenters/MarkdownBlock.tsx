@@ -46,36 +46,36 @@ export function MarkdownBlock({ markdown }: { markdown: string }): React.ReactNo
   )
 }
 
-function parseMarkdown(raw: string): Block[] {
-  const lines = String(raw || '').replace(/\r\n/g, '\n').split('\n')
+export function parseMarkdown(raw: string): Block[] {
+  const lines = String(raw).replace(/\r\n/g, '\n').split('\n')
   const blocks: Block[] = []
   let i = 0
 
   while (i < lines.length) {
-    const line = lines[i] ?? ''
+    const line = lines[i]
 
     if (line.trim().length === 0) {
-      while (i < lines.length && (lines[i] ?? '').trim().length === 0) i += 1
+      while (i < lines.length && lines[i].trim().length === 0) i += 1
       blocks.push({ kind: 'blank' })
       continue
     }
 
-    if ((line.trimStart() || '').startsWith('```')) {
+    if (line.trimStart().startsWith('```')) {
       i += 1
       const codeLines: string[] = []
-      while (i < lines.length && !String(lines[i] ?? '').trimStart().startsWith('```')) {
-        codeLines.push(String(lines[i] ?? ''))
+      while (i < lines.length && !String(lines[i]).trimStart().startsWith('```')) {
+        codeLines.push(String(lines[i]))
         i += 1
       }
-      if (i < lines.length && String(lines[i] ?? '').trimStart().startsWith('```')) i += 1
+      if (i < lines.length && String(lines[i]).trimStart().startsWith('```')) i += 1
       blocks.push({ kind: 'code', lines: codeLines })
       continue
     }
 
     if (line.startsWith('- ')) {
       const items: string[] = []
-      while (i < lines.length && String(lines[i] ?? '').startsWith('- ')) {
-        items.push(String(lines[i] ?? '').slice(2))
+      while (i < lines.length && String(lines[i]).startsWith('- ')) {
+        items.push(String(lines[i]).slice(2))
         i += 1
       }
       blocks.push({ kind: 'list', items })
@@ -84,7 +84,7 @@ function parseMarkdown(raw: string): Block[] {
 
     const paraLines: string[] = []
     while (i < lines.length) {
-      const cur = String(lines[i] ?? '')
+      const cur = String(lines[i])
       if (cur.trim().length === 0) break
       if (cur.trimStart().startsWith('```')) break
       if (cur.startsWith('- ')) break
@@ -99,9 +99,9 @@ function parseMarkdown(raw: string): Block[] {
   return blocks
 }
 
-function renderInline(text: string, theme: ReturnType<typeof getTheme>): React.ReactNode {
+export function renderInline(text: string, theme: ReturnType<typeof getTheme>): React.ReactNode {
   const parts: Array<{ kind: 'text' | 'code'; value: string }> = []
-  const s = String(text ?? '')
+  const s = String(text)
   let i = 0
 
   while (i < s.length) {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { ToolMessage, Msg, ToolInfo } from './ToolMessage'
+import { ToolMessage, Msg, ToolInfo, shouldShowSurfaceSuffix, toSurfaceSuffix } from './ToolMessage'
 
 // Helper to create a valid Msg object
 function createMsg(overrides: Partial<Msg> = {}): Msg {
@@ -69,6 +69,50 @@ const msgWithToolInfoArb = fc.record({
  * dot colors, and ⎿ prefix for results.
  */
 describe('ToolMessage', () => {
+  describe('surface suffix helpers', () => {
+    it('shouldShowSurfaceSuffix respects env flag values', () => {
+      const prev = process.env.FORMAX_HOOKS_DEBUG
+      process.env.FORMAX_HOOKS_DEBUG = '1'
+      expect(shouldShowSurfaceSuffix()).toBe(true)
+      process.env.FORMAX_HOOKS_DEBUG = 'true'
+      expect(shouldShowSurfaceSuffix()).toBe(true)
+      process.env.FORMAX_HOOKS_DEBUG = 'yes'
+      expect(shouldShowSurfaceSuffix()).toBe(true)
+      process.env.FORMAX_HOOKS_DEBUG = 'false'
+      expect(shouldShowSurfaceSuffix()).toBe(false)
+      process.env.FORMAX_HOOKS_DEBUG = prev
+    })
+
+    it('toSurfaceSuffix handles unknown, no-id, and toolUseId paths', () => {
+      const prev = process.env.FORMAX_HOOKS_DEBUG
+      process.env.FORMAX_HOOKS_DEBUG = 'true'
+      try {
+        expect(toSurfaceSuffix(createMsg({ id: 'id-1234', surfaceHint: 'unknown' as any }))).toBeNull()
+        expect(toSurfaceSuffix(createMsg({ id: '', surfaceHint: 'transient', toolInfo: createToolInfo({ toolUseId: '' }) }))).toBe('trans')
+        expect(
+          toSurfaceSuffix(
+            createMsg({
+              id: 'id-1234',
+              surfaceOwner: 'static',
+              toolInfo: createToolInfo({ toolUseId: 'tool-5678' }),
+            }),
+          ),
+        ).toBe('static#5678@1234:id-1234')
+        expect(
+          toSurfaceSuffix(
+            createMsg({
+              id: '',
+              surfaceOwner: 'static',
+              toolInfo: createToolInfo({ toolUseId: 'tool-5678' }),
+            }),
+          ),
+        ).toBe('static#5678')
+      } finally {
+        process.env.FORMAX_HOOKS_DEBUG = prev
+      }
+    })
+  })
+
   describe('Property 1: Visual Consistency Across All Tool States', () => {
     // Property test: Component always renders without crashing
     it('should render without crashing for any valid tool message', () => {
@@ -259,6 +303,48 @@ describe('ToolMessage', () => {
       expect(lastFrame()).toContain('Search')
       expect(lastFrame()).toContain('**/*.ts')
       expect(lastFrame()).toContain('Found 5 files')
+    })
+
+    it('renders transient surface suffix in hooks debug mode without toolUseId', () => {
+      const prev = process.env.FORMAX_HOOKS_DEBUG
+      process.env.FORMAX_HOOKS_DEBUG = 'true'
+      try {
+        const msg = createMsg({
+          id: 'msg-1234',
+          surfaceHint: 'transient',
+          toolInfo: createToolInfo({
+            name: 'Read',
+            input: { file_path: 'src/index.ts' },
+            status: 'completed',
+            toolUseId: '',
+          }),
+        })
+        const { lastFrame } = render(<ToolMessage message={msg} />)
+        expect(lastFrame()).toContain('trans@1234:msg-1234')
+      } finally {
+        process.env.FORMAX_HOOKS_DEBUG = prev
+      }
+    })
+
+    it('renders static surface suffix in hooks debug mode with toolUseId', () => {
+      const prev = process.env.FORMAX_HOOKS_DEBUG
+      process.env.FORMAX_HOOKS_DEBUG = '1'
+      try {
+        const msg = createMsg({
+          id: 'msg-1234',
+          surfaceOwner: 'static',
+          toolInfo: createToolInfo({
+            name: 'Read',
+            input: { file_path: 'src/index.ts' },
+            status: 'completed',
+            toolUseId: 'tool-5678',
+          }),
+        })
+        const { lastFrame } = render(<ToolMessage message={msg} />)
+        expect(lastFrame()).toContain('static#5678@1234:msg-1234')
+      } finally {
+        process.env.FORMAX_HOOKS_DEBUG = prev
+      }
     })
   })
 })

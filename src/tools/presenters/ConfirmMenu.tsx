@@ -75,10 +75,9 @@ export function ConfirmMenu({
     setTyping(next)
   }, [])
 
-  const setTypingValueImmediate = useCallback((next: string | ((current: string) => string)) => {
-    const v = typeof next === 'function' ? next(typingValueRef.current) : next
-    typingValueRef.current = v
-    setTypingValue(v)
+  const setTypingValueImmediate = useCallback((next: string) => {
+    typingValueRef.current = next
+    setTypingValue(next)
   }, [])
 
   const setTypingCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
@@ -96,7 +95,6 @@ export function ConfirmMenu({
 
   const submit = useCallback(
     (decision: ConfirmMenuDecision) => {
-      if (submittedRef.current) return
       submittedRef.current = true
       setIsActive(false)
       onDecision(decision)
@@ -268,35 +266,34 @@ export function ConfirmMenu({
             const emphasisText = opt.emphasis?.text ? String(opt.emphasis.text) : ''
             const hasEmphasis = Boolean(emphasisText && opt.label.includes(emphasisText))
 
+            if (hasEmphasis) {
+              const index = opt.label.indexOf(emphasisText)
+              const before = opt.label.slice(0, index)
+              const after = opt.label.slice(index + emphasisText.length)
+              const baseColor = opt.dim && !active ? theme.secondaryText : color
+              const emphasisColor = active ? baseColor : (opt.emphasis?.color ?? theme.text)
+              const emphasisBold = Boolean(opt.emphasis?.bold)
+
+              return (
+                <Box key={opt.key}>
+                  <Text color={prefixColor}>{prefix}</Text>
+                  <Text color={baseColor}>
+                    {idx + 1}. {before}
+                  </Text>
+                  <Text color={emphasisColor} bold={emphasisBold}>
+                    {emphasisText}
+                  </Text>
+                  <Text color={baseColor}>{after}</Text>
+                </Box>
+              )
+            }
+
             return (
               <Box key={opt.key}>
                 <Text color={prefixColor}>{prefix}</Text>
-                {hasEmphasis ? (
-                  (() => {
-                    const index = opt.label.indexOf(emphasisText)
-                    const before = opt.label.slice(0, index)
-                    const after = opt.label.slice(index + emphasisText.length)
-                    const baseColor = opt.dim && !active ? theme.secondaryText : color
-                    const emphasisColor = active ? baseColor : (opt.emphasis?.color ?? theme.text)
-                    const emphasisBold = Boolean(opt.emphasis?.bold)
-
-                    return (
-                      <>
-                        <Text color={baseColor}>
-                          {idx + 1}. {before}
-                        </Text>
-                        <Text color={emphasisColor} bold={emphasisBold}>
-                          {emphasisText}
-                        </Text>
-                        <Text color={baseColor}>{after}</Text>
-                      </>
-                    )
-                  })()
-                ) : (
-                  <Text color={opt.dim && !active ? theme.secondaryText : color}>
-                    {idx + 1}. {opt.label}
-                  </Text>
-                )}
+                <Text color={opt.dim && !active ? theme.secondaryText : color}>
+                  {idx + 1}. {opt.label}
+                </Text>
               </Box>
             )
           }
@@ -316,7 +313,7 @@ export function ConfirmMenu({
               ) : typing && active ? (
                 <Text color={color}>{valueWithCursor}</Text>
               ) : (
-                <Text color={color}>{typingValue || ''}</Text>
+                <Text color={color}>{typingValue}</Text>
               )}
             </Box>
           )

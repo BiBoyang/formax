@@ -74,6 +74,8 @@ function resolveEnterPlanChoice(answers: Record<string, string>): 'enter' | 'ski
   if (!merged) return null
 
   if (merged.includes('yes') || (merged.includes('enter') && merged.includes('plan'))) return 'enter'
-  if (merged.includes('no') || merged.includes('skip') || merged.includes('start implementing')) return 'skip'
+  for (const token of ['no', 'skip', 'start implementing']) {
+    if (merged.includes(token)) return 'skip'
+  }
   return null
 }

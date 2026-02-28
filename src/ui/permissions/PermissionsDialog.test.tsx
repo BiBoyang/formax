@@ -63,6 +63,27 @@ async function waitForJsonContains(
   throw new Error(`Timed out waiting for JSON predicate to be true: ${filePath}`)
 }
 
+async function waitForRuleInAnySettings(
+  filePaths: string[],
+  rule: string,
+  timeoutMs = 15000,
+): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    for (const fp of filePaths) {
+      try {
+        const raw = await readFile(fp, 'utf8')
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed?.permissions?.allow) && parsed.permissions.allow.includes(rule)) return
+      } catch {
+        // ignore missing/invalid files until timeout
+      }
+    }
+    await tick()
+  }
+  throw new Error(`Timed out waiting for rule "${rule}" in any settings file:\n${filePaths.join('\n')}`)
+}
+
 function isActiveRow(frame: string, rowText: string): boolean {
   return frame
     .split('\n')
@@ -410,6 +431,9 @@ describe('PermissionsDialog', () => {
 
       // Enter Add Rule view
       await pressEnterUntilText(lastFrame, stdin, 'Enter permission rule')
+      stdin.write('\u001B[A')
+      await tick()
+      await waitForText(lastFrame, 'Enter permission rule')
 
       // Type: abc, move cursor left once, insert X -> abXc
       await typeText(stdin, 'abc')
@@ -492,6 +516,9 @@ describe('PermissionsDialog', () => {
 
       // Enter Add Directory view
       await pressEnterUntilText(lastFrame, stdin, 'Add directory to workspace')
+      stdin.write('\u001B[A')
+      await tick()
+      await waitForText(lastFrame, 'Add directory to workspace')
 
       // Type: abc, move cursor left once, insert X -> abXc
       await typeText(stdin, 'abc')
@@ -580,6 +607,145 @@ describe('PermissionsDialog', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 15000)
+
+  it('allows canceling delete confirmation and keeps the rule', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-delete-cancel-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: ['KeepMe'],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'KeepMe')
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Delete allowed tool?')
+
+      // non-handled key in confirm view should no-op (covers confirm trailing return)
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Delete allowed tool?')
+
+      // Move to "No" and confirm cancel.
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'KeepMe')
+      const persisted = JSON.parse(await readFile(settingsPath, 'utf8'))
+      expect(persisted.permissions.allow).toContain('KeepMe')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('moves save-scope cursor with arrows before saving a rule', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-save-scope-arrows-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+
+    const settingsPath = path.join(projectConfigDir, 'settings.local.json')
+    await writeFile(
+      settingsPath,
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Add a new rule')
+      await pressEnterUntilText(lastFrame, stdin, 'Enter permission rule')
+      await typeText(stdin, 'ArrowScoped')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Where should this rule be saved?')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Where should this rule be saved?')
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      stdin.write('\n')
+      await waitForNoText(lastFrame, 'Where should this rule be saved?')
+
+      await waitForRuleInAnySettings(
+        [
+          path.join(projectConfigDir, 'settings.local.json'),
+          path.join(projectConfigDir, 'settings.json'),
+          path.join(globalConfigDir, 'settings.json'),
+        ],
+        'ArrowScoped',
+      )
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
 
   it('shows the original working directory in the workspace tab', async () => {
     const originalCwd = process.cwd()
@@ -796,6 +962,146 @@ describe('PermissionsDialog', () => {
       expect(listWorkspaceSessionDirectories(effectiveProjectRoot)).toHaveLength(0)
     } finally {
       resetWorkspaceSessionForTests()
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
+
+  it('handles unmount before async load completes', async () => {
+    const onExit = vi.fn()
+    const { unmount } = render(
+      <InputScopeProvider>
+        <PermissionsDialog onExit={onExit} />
+      </InputScopeProvider>,
+    )
+    unmount()
+    await tick()
+    expect(onExit).toHaveBeenCalledTimes(0)
+  })
+
+  it('handles Esc on sub-view vs list and ignores non-handled list keys', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-esc-paths-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Add a new rule')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Add a new rule')
+      expect(onExit).toHaveBeenCalledTimes(0)
+
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Enter permission rule')
+      stdin.write('\u001B')
+      await waitForNoText(lastFrame, 'Enter permission rule')
+      expect(onExit).toHaveBeenCalledTimes(0)
+
+      stdin.write('\u001B')
+      await tick()
+      expect(onExit).toHaveBeenCalledTimes(1)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
+
+  it('shows source label when deleting a workspace directory', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-permissions-delete-projectlocal-dir-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          permissions: {
+            allow: [],
+            ask: [],
+            deny: [],
+            workspace: { additionalDirectories: [] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const localDir = path.join(projectRoot, 'local-delete-target')
+      await mkdir(localDir, { recursive: true })
+
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <PermissionsDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Add a new rule')
+      await pressTabUntilText(lastFrame, stdin, 'Add directory')
+      await pressEnterUntilText(lastFrame, stdin, 'Add directory to workspace')
+      await typeText(stdin, localDir)
+      stdin.write('\r')
+      await waitForNoText(lastFrame, 'Add directory to workspace')
+      await waitForText(lastFrame, path.basename(localDir))
+
+      // Row 0 is "Add directory", row 1 is the newly added directory.
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Delete workspace directory?')
+      await waitForText(lastFrame, 'From session')
+      stdin.write('\u001B')
+      await waitForNoText(lastFrame, 'Delete workspace directory?')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    } finally {
       process.chdir(originalCwd)
       if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir

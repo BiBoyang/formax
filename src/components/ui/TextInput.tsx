@@ -237,8 +237,6 @@ export default function TextInput({
         cursorOffsetRef.current = nextCursorOffset
         setCursorOffset(nextCursorOffset)
       }
-      // Allow higher-level UIs (e.g. "! bash mode") to exit when Backspace is pressed on an empty input.
-      if (currentValue.length === 0 && onBackspaceAtStart) onBackspaceAtStart()
       return true
     }
 
@@ -289,7 +287,6 @@ export default function TextInput({
       // Pasted multiline content may come as CRLF/CR chunks. Keep only LF in the model
       // to avoid carriage-return rendering artifacts in terminal UIs.
       const insertText = multiline ? raw.replace(/\r\n?/g, '\n') : raw.replace(/\r/g, '')
-      if (!insertText) return true
       if (reservedChars?.includes(insertText)) return false
       const newValue = currentValue.slice(0, currentCursorOffset) + insertText + currentValue.slice(currentCursorOffset)
       onChangeRef.current(newValue)
@@ -334,10 +331,8 @@ export default function TextInput({
               {beforeCursor}
               {focus ? (
                 <Text inverse>{displayValue[safeCursorOffset] ?? '\u00A0'}</Text>
-              ) : safeCursorOffset < displayValue.length ? (
-                displayValue[safeCursorOffset]
               ) : (
-                ''
+                displayValue[safeCursorOffset] ?? ''
               )}
               {safeCursorOffset + 1 <= displayValue.length ? displayValue.slice(safeCursorOffset + 1) : ''}
               {showSuffixHint ? <Text color={theme.secondaryText}>{suffixHint}</Text> : null}

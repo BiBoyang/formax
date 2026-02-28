@@ -54,6 +54,19 @@ export function filterEntries<T extends { key: string; label: string }>(entries:
   return entries.filter((e) => e.label.toLowerCase().includes(q))
 }
 
+export function formatWorkspaceSourceLabel(entry: WorkspaceDirectoryEntry): string {
+  return entry.filePath === '(session)' ? 'session' : formatScopeLabel(entry.scope)
+}
+
+export async function persistWorkspaceDirFromInput(
+  raw: string,
+  persist: (dir: string) => Promise<void>,
+): Promise<void> {
+  const dir = String(raw).trim()
+  if (!dir) return
+  await persist(dir)
+}
+
 export type PermissionsListItem =
   | { type: 'add'; key: string; label: string }
   | { type: 'rule'; key: string; label: string; kind: PermissionListKind; entry: PermissionRuleEntry }

@@ -8,11 +8,19 @@ import {
 import { getTheme } from '../../utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
-import { getInputToken, getVerticalArrowKeyDelta } from '../../features/repl/keys/keyTokens.js'
+import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import type { PermissionTab, SaveScope } from './constants.js'
 import { SAVE_SCOPE_OPTIONS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
-import { buildListItems, clamp, formatScopeLabel, nextTab, type PermissionsListItem } from './utils.js'
+import {
+  buildListItems,
+  clamp,
+  formatScopeLabel,
+  formatWorkspaceSourceLabel,
+  nextTab,
+  persistWorkspaceDirFromInput,
+  type PermissionsListItem,
+} from './utils.js'
 import { ConfirmDeleteView, DialogFrame, FooterHint, ListView, SaveScopeView, SearchRow, TabsBar, TextEntryView, WorkspaceRootsView } from './ui.js'
 
 const SCOPE = 'overlay:permissions' as const
@@ -105,6 +113,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
   useScopedInput(SCOPE, (input, key) => {
     const s = stateRef.current
     const token = getInputToken({ input, key })
+    const isEnter = isReturnKeyToken({ token, key })
 
     if (key.escape) {
       escapeBufferRef.current = ''
@@ -123,7 +132,6 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
@@ -148,23 +156,19 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
         return
       }
 
-      if (key.return || token === '\r') {
+      if (isEnter) {
         const cursor = listCursorRef.current
         const item = listItemsRef.current[cursor]
-        if (!item) return
         if (item.type === 'add') {
           dispatch({ type: 'OPEN_ADD' })
           return
-        }
-        if (item.type === 'rule') {
+        } else if (item.type === 'rule') {
           dispatch({ type: 'OPEN_DELETE_RULE', kind: item.kind, entry: item.entry })
           return
-        }
-        if (item.type === 'dir') {
+        } else {
           dispatch({ type: 'OPEN_DELETE_DIR', entry: item.entry })
           return
         }
-        return
       }
 
       return
@@ -173,15 +177,12 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
     if (s.view === 'confirmDeleteRule' || s.view === 'confirmDeleteDir') {
       const cursor = s.confirmCursor
       if (delta !== 0) {
-        const flips = Math.abs(delta) % 2
-        if (flips === 1) {
-          const next: 0 | 1 = cursor === 0 ? 1 : 0
-          dispatch({ type: 'MOVE_CONFIRM_CURSOR', next })
-        }
+        const next = (cursor ^ 1) as 0 | 1
+        dispatch({ type: 'MOVE_CONFIRM_CURSOR', next })
         return
       }
 
-      if (key.return || token === '\r') {
+      if (isEnter) {
         if (cursor === 1) {
           cancelToList()
           return
@@ -201,37 +202,22 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
       return
     }
 
-    if (s.view === 'addRule') {
-      if (key.return || token === '\r') {
-        dispatch({ type: 'SUBMIT_RULE' })
-      }
+    if (s.view === 'addRule') return
+
+    if (s.view === 'addDirectory') return
+
+    const max = Math.max(0, SAVE_SCOPE_OPTIONS.length - 1)
+    const cursor = clamp(s.saveScopeCursor, 0, max)
+
+    if (delta !== 0) {
+      dispatch({ type: 'MOVE_SAVE_SCOPE_CURSOR', next: clamp(cursor + delta, 0, max) })
       return
     }
 
-    if (s.view === 'addDirectory') {
-      if (key.return || token === '\r') {
-        const dir = s.dirInput.trim()
-        if (dir) void commitWorkspaceDir(dir)
-        dispatch({ type: 'SUBMIT_DIR' })
-      }
+    if (isEnter) {
+      void commitRule(s.rule, s.kind, SAVE_SCOPE_OPTIONS[cursor].scope)
+      cancelToList()
       return
-    }
-
-    if (s.view === 'saveRule') {
-      const max = Math.max(0, SAVE_SCOPE_OPTIONS.length - 1)
-      const cursor = clamp(s.saveScopeCursor, 0, max)
-
-      if (delta !== 0) {
-        dispatch({ type: 'MOVE_SAVE_SCOPE_CURSOR', next: clamp(cursor + delta, 0, max) })
-        return
-      }
-
-      if (key.return || token === '\r') {
-        const selected = SAVE_SCOPE_OPTIONS[cursor]?.scope ?? 'projectLocal'
-        void commitRule(s.rule, s.kind, selected)
-        cancelToList()
-        return
-      }
     }
   })
 
@@ -260,7 +246,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
 
     if (state.view === 'confirmDeleteDir') {
       const dir = state.entry.dir
-      const sourceLabel = state.entry.filePath === '(session)' ? 'session' : formatScopeLabel(state.entry.scope)
+      const sourceLabel = formatWorkspaceSourceLabel(state.entry)
       return (
         <ConfirmDeleteView
           theme={theme}
@@ -312,8 +298,7 @@ export function PermissionsDialog({ onExit }: { onExit: () => void }): React.Rea
           value={state.dirInput}
           onChange={(v) => dispatch({ type: 'SET_DIR_INPUT', value: v })}
           onSubmit={(raw) => {
-            const dir = raw.trim()
-            if (dir) void commitWorkspaceDir(dir)
+            void persistWorkspaceDirFromInput(raw, commitWorkspaceDir)
             dispatch({ type: 'SUBMIT_DIR' })
           }}
           scope={SCOPE}

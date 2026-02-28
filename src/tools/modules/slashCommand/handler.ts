@@ -65,7 +65,7 @@ export const SlashCommandToolHandler: ToolHandler = {
 }
 
 function parseCommand(raw: string): { command: string; args: string } | null {
-  const text = String(raw || '').trim()
+  const text = raw.trim()
   if (!text.startsWith('/')) return null
   if (text.includes('\n') || text.includes('\r')) return null
 
@@ -78,14 +78,10 @@ function parseCommand(raw: string): { command: string; args: string } | null {
 }
 
 function normalizeCommandId(raw: string): string {
-  const text = String(raw || '').trim()
-  if (!text) return text
-  if (text.startsWith('/')) return text
-  return '/' + text
+  return raw.trim()
 }
 
 function isSafeCommandId(id: string): boolean {
-  if (!id.startsWith('/')) return false
   if (id.includes('..')) return false
   if (id.slice(1).includes('/')) return false
   if (id.includes('\\')) return false

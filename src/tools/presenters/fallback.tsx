@@ -7,12 +7,12 @@ import { selectToolHeaderFromInput } from '../../features/tools/presentation/too
 import type { ToolPresenterComponent } from './types'
 import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from './ToolUiPrimitives'
 
-function shouldShowSurfaceSuffix(): boolean {
-  const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()
+export function shouldShowSurfaceSuffix(): boolean {
+  const raw = String(process.env.FORMAX_HOOKS_DEBUG).trim().toLowerCase()
   return raw === '1' || raw === 'true' || raw === 'yes'
 }
 
-function toSurfaceSuffix(message: Msg): string | null {
+export function toSurfaceSuffix(message: Msg): string | null {
   if (!shouldShowSurfaceSuffix()) return null
   const hint = message.surfaceHint ?? message.surfaceOwner
   const surface = hint === 'transient' ? 'trans' : hint === 'static' ? 'static' : null
@@ -58,7 +58,7 @@ export const FallbackToolPresenter: ToolPresenterComponent = ({ message }: { mes
       <ToolHeaderLine
         status={status}
         label={header.label}
-        params={showParams ? header.paramsText ?? null : null}
+        params={showParams ? header.paramsText : null}
         suffix={surfaceTag}
       />
 

@@ -210,7 +210,6 @@ export function parseFrontmatter(raw: string): Record<string, string> {
     const idx = line.indexOf(':')
     if (idx <= 0) continue
     const k = line.slice(0, idx).trim()
-    if (!k) continue
     let v = line.slice(idx + 1).trim()
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
       v = v.slice(1, -1)

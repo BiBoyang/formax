@@ -89,4 +89,119 @@ describe('TaskToolPresenter', () => {
     )
     expect(lastFrame()).toContain('Do you want to create b.js?')
   })
+
+  it('truncates long params text with ellipsis', () => {
+    const message: Msg = {
+      id: 'tool-long-params',
+      role: 'tool',
+      content: 'done',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'completed',
+        input: {
+          subagent_type: 'reviewer',
+          description:
+            'This is a very long description that should be truncated after sixty characters to keep the header compact',
+        },
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    expect(lastFrame()).toContain('…')
+  })
+
+  it('does not render nested prompt when no nested tool is pending', () => {
+    const userInput = createUserInputManager()
+
+    const message: Msg = {
+      id: 'tool-task-no-pending',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'Explore', description: 'Analyze repo' },
+        nestedTools: [
+          {
+            id: 'nested-no-pending',
+            name: 'Write',
+            status: 'running',
+            input: { file_path: '/tmp/c.js' },
+          },
+        ],
+      },
+    }
+
+    const { lastFrame } = render(
+      <UserInputProvider userInput={userInput}>
+        <TaskToolPresenter message={message} />
+      </UserInputProvider>,
+    )
+    expect(lastFrame()).not.toContain('Do you want to create c.js?')
+  })
+
+  it('renders fallback nested prompt for unknown nested tool', () => {
+    const userInput = createUserInputManager()
+    userInput.requestAnswers({
+      toolUseId: 'nested-unknown',
+      questions: [{ header: 'A', question: 'Q', options: [{ label: 'Y', description: '' }], multiSelect: false }],
+    })
+
+    const message: Msg = {
+      id: 'tool-task-unknown',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: {},
+        nestedTools: [{ id: 'nested-unknown', name: 'UnknownTool', status: 'running', input: {} }],
+      },
+    }
+
+    const { lastFrame } = render(
+      <UserInputProvider userInput={userInput}>
+        <TaskToolPresenter message={message} />
+      </UserInputProvider>,
+    )
+    expect(lastFrame()).toContain('Waiting for input: UnknownTool')
+  })
+
+  it('renders nested NotebookEdit prompt via component presenter path', () => {
+    const userInput = createUserInputManager()
+    userInput.requestAnswers({
+      toolUseId: 'nested-notebook',
+      questions: [{ header: 'A', question: 'Q', options: [{ label: 'Y', description: '' }], multiSelect: false }],
+    })
+
+    const message: Msg = {
+      id: 'tool-task-notebook',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: {},
+        nestedTools: [
+          {
+            id: 'nested-notebook',
+            name: 'NotebookEdit',
+            status: 'running',
+            input: { notebook_path: '/tmp/n.ipynb' },
+          },
+        ],
+      },
+    }
+
+    const { lastFrame } = render(
+      <UserInputProvider userInput={userInput}>
+        <TaskToolPresenter message={message} />
+      </UserInputProvider>,
+    )
+    expect(lastFrame()).toContain('NotebookEdit')
+  })
 })

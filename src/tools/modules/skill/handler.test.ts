@@ -10,6 +10,11 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('SkillToolHandler', () => {
+  it('matches only the Skill tool name', () => {
+    expect(SkillToolHandler.canHandle('Skill')).toBe(true)
+    expect(SkillToolHandler.canHandle('Read')).toBe(false)
+  })
+
   it('loads a skill from disk and returns its instructions', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-cwd-'))
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
@@ -109,5 +114,141 @@ describe('SkillToolHandler', () => {
 
     expect(res.is_error).toBe(true)
     expect(res.content).toContain('Missing skill')
+  })
+
+  it('rejects missing skill when input is omitted', async () => {
+    const res = await SkillToolHandler.execute(
+      { id: 'skill-3b', name: 'Skill' } as any,
+      { cwd: process.cwd(), agentDepth: 0 },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Missing skill')
+  })
+
+  it('uses process.cwd when ctx.cwd is missing', async () => {
+    const res = await SkillToolHandler.execute(
+      { id: 'skill-cwd-fallback', name: 'Skill', input: { skill: 'definitely-missing-skill' } } as any,
+      { agentDepth: 0 } as any,
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Unknown skill: definitely-missing-skill')
+  })
+
+  it('shows (none) when there are no available skills', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-none', name: 'Skill', input: { skill: 'nope' } } as any,
+        { cwd, agentDepth: 0 },
+      )
+
+      expect(res.is_error).toBe(true)
+      expect(res.content).toContain('Available skills: (none)')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('loads a plain markdown skill without frontmatter', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      const skillPath = path.join(cwd, '.formax', 'skills', 'plain', 'SKILL.md')
+      await writeFileEnsuringDir(skillPath, 'Just plain instructions')
+
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-plain', name: 'Skill', input: { skill: 'plain' } } as any,
+        { cwd, agentDepth: 0 },
+      )
+
+      expect(res.is_error).toBeUndefined()
+      expect(res.content).toBe('Launching skill: plain')
+      expect(res.extraTextBlocks?.[0]).toContain('Just plain instructions')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects empty skill body', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    try {
+      await writeFileEnsuringDir(
+        path.join(cwd, '.formax', 'skills', 'empty', 'SKILL.md'),
+        ['---', 'description: empty', '---', '', '   '].join('\n'),
+      )
+
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-empty', name: 'Skill', input: { skill: 'empty' } } as any,
+        { cwd, agentDepth: 0 },
+      )
+
+      expect(res.is_error).toBe(true)
+      expect(res.content).toContain('Empty skill file: empty')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses FORMAX_SKILL_BODY_CHAR_BUDGET when valid and marks truncated output', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-cwd-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevBudget = process.env.FORMAX_SKILL_BODY_CHAR_BUDGET
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.env.FORMAX_SKILL_BODY_CHAR_BUDGET = '10'
+    try {
+      await writeFileEnsuringDir(
+        path.join(cwd, '.formax', 'skills', 'tiny', 'SKILL.md'),
+        ['---', 'description: tiny budget', '---', '', '012345678901234567890123456789'].join('\n'),
+      )
+
+      const res = await SkillToolHandler.execute(
+        { id: 'skill-truncate', name: 'Skill', input: { skill: 'tiny' } } as any,
+        { cwd, agentDepth: 0 },
+      )
+
+      expect(res.is_error).toBeUndefined()
+      expect(res.content).toBe('Launching skill: tiny')
+      expect(res.extraTextBlocks?.[0]).toContain('… (truncated)')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      if (prevBudget === undefined) delete process.env.FORMAX_SKILL_BODY_CHAR_BUDGET
+      else process.env.FORMAX_SKILL_BODY_CHAR_BUDGET = prevBudget
+      await fsp.rm(cwd, { recursive: true, force: true })
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('converts non-Error throwables into error text', async () => {
+    const call = { id: 'skill-non-error', name: 'Skill' } as any
+    Object.defineProperty(call, 'input', {
+      get() {
+        throw 'boom'
+      },
+    })
+
+    const res = await SkillToolHandler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    expect(res.is_error).toBe(true)
+    expect(res.content).toContain('Error: boom')
   })
 })

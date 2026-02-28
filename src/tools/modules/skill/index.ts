@@ -51,7 +51,6 @@ function buildAvailableSkillsSection(cwd: string): string {
 function injectAvailableSkills(desc: string, skillsSection: string): string {
   if (!skillsSection.trim()) return desc
   const marker = '<available_skills>\n\n</available_skills>'
-  if (!desc.includes(marker)) return desc
   return desc.replace(marker, `<available_skills>\n${skillsSection}</available_skills>`)
 }
 

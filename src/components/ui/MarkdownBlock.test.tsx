@@ -66,4 +66,20 @@ describe('components/ui/MarkdownBlock', () => {
     const blocks = parseMarkdown(['```ts', 'const x = 1'].join('\n'))
     expect(blocks).toEqual([{ kind: 'code', lines: ['const x = 1'] }])
   })
+
+  it('parseMarkdown stops paragraph when code fence begins', () => {
+    const blocks = parseMarkdown(['para', '```', 'code', '```'].join('\n'))
+    expect(blocks).toEqual([
+      { kind: 'paragraph', lines: ['para'] },
+      { kind: 'code', lines: ['code'] },
+    ])
+  })
+
+  it('parseMarkdown stops paragraph when list begins', () => {
+    const blocks = parseMarkdown(['para', '- item'].join('\n'))
+    expect(blocks).toEqual([
+      { kind: 'paragraph', lines: ['para'] },
+      { kind: 'list', items: ['item'] },
+    ])
+  })
 })

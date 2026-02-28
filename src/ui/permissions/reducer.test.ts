@@ -29,6 +29,11 @@ describe('permissions/reducer', () => {
     })
   })
 
+  it('MOVE_LIST_CURSOR updates cursor on current view', () => {
+    const moved = dialogReducer(initialDialogState(), { type: 'MOVE_LIST_CURSOR', next: 4 })
+    expect(moved.cursor).toBe(4)
+  })
+
   it('TOGGLE_SEARCH toggles searching and clears query when closing', () => {
     const opened = dialogReducer(initialDialogState(), { type: 'TOGGLE_SEARCH' })
     expect(opened.searching).toBe(true)
@@ -79,5 +84,75 @@ describe('permissions/reducer', () => {
     expect(back.view).toBe('list')
     expect(back.tab).toBe('allow')
   })
-})
 
+  it('handles delete views, confirm cursor moves, and no-op guards', () => {
+    const ruleState = dialogReducer(initialDialogState(), {
+      type: 'OPEN_DELETE_RULE',
+      kind: 'allow',
+      entry: { rule: 'Read:*', scope: 'user', filePath: '/tmp/u' },
+    })
+    expect(ruleState.view).toBe('confirmDeleteRule')
+    const movedRule = dialogReducer(ruleState as any, { type: 'MOVE_CONFIRM_CURSOR', next: 1 })
+    expect((movedRule as any).confirmCursor).toBe(1)
+
+    const ws = dialogReducer(initialDialogState(), { type: 'SET_TAB', tab: 'workspace' })
+    const dirState = dialogReducer(ws, {
+      type: 'OPEN_DELETE_DIR',
+      entry: { dir: '/tmp/repo', scope: 'project', filePath: '/tmp/p' },
+    })
+    expect(dirState.view).toBe('confirmDeleteDir')
+    const movedDir = dialogReducer(dirState as any, { type: 'MOVE_CONFIRM_CURSOR', next: 1 })
+    expect((movedDir as any).confirmCursor).toBe(1)
+
+    const noOp = dialogReducer(initialDialogState(), { type: 'MOVE_CONFIRM_CURSOR', next: 1 })
+    expect(noOp).toEqual(initialDialogState())
+  })
+
+  it('covers save-scope/directory and invalid-view guards', () => {
+    const addRule = dialogReducer(initialDialogState(), { type: 'OPEN_ADD' })
+    expect(dialogReducer(initialDialogState(), { type: 'SUBMIT_RULE' })).toEqual(initialDialogState())
+    const setRuleNoop = dialogReducer(initialDialogState(), { type: 'SET_RULE_INPUT', value: 'x' })
+    expect(setRuleNoop).toEqual(initialDialogState())
+
+    const withRule = dialogReducer(addRule as any, { type: 'SET_RULE_INPUT', value: ' Read:* ' })
+    const saveRule = dialogReducer(withRule as any, { type: 'SUBMIT_RULE' })
+    expect(saveRule.view).toBe('saveRule')
+    expect((saveRule as any).rule).toBe('Read:*')
+    expect(dialogReducer(saveRule as any, { type: 'MOVE_SAVE_SCOPE_CURSOR', next: 2 })).toMatchObject({
+      view: 'saveRule',
+      saveScopeCursor: 2,
+    })
+    expect(dialogReducer(initialDialogState(), { type: 'MOVE_SAVE_SCOPE_CURSOR', next: 1 })).toEqual(
+      initialDialogState(),
+    )
+    expect(dialogReducer(saveRule as any, { type: 'CONFIRM_SAVE_SCOPE', scope: 'user' })).toEqual(saveRule)
+
+    const ws = dialogReducer(initialDialogState(), { type: 'SET_TAB', tab: 'workspace' })
+    const addDir = dialogReducer(ws, { type: 'OPEN_ADD' })
+    expect(dialogReducer(initialDialogState(), { type: 'SET_DIR_INPUT', value: '/tmp/a' })).toEqual(
+      initialDialogState(),
+    )
+    const dirWithValue = dialogReducer(addDir as any, { type: 'SET_DIR_INPUT', value: ' /tmp/a ' })
+    expect((dirWithValue as any).dirInput).toBe(' /tmp/a ')
+    expect(dialogReducer(addDir as any, { type: 'SUBMIT_DIR' }).view).toBe('addDirectory')
+    expect(dialogReducer(dirWithValue as any, { type: 'SUBMIT_DIR' }).view).toBe('list')
+    expect(dialogReducer(initialDialogState(), { type: 'SUBMIT_DIR' }).view).toBe('list')
+  })
+
+  it('OPEN_DELETE_RULE coerces workspace tab fallback to allow', () => {
+    const ws = dialogReducer(initialDialogState(), { type: 'SET_TAB', tab: 'workspace' })
+    const next = dialogReducer(ws, {
+      type: 'OPEN_DELETE_RULE',
+      kind: 'deny',
+      entry: { rule: 'Bash:*', scope: 'project', filePath: '/tmp/p' },
+    })
+    expect(next.view).toBe('confirmDeleteRule')
+    expect((next as any).tab).toBe('allow')
+  })
+
+  it('returns same state on unknown action', () => {
+    const state = initialDialogState()
+    // @ts-expect-error test unknown branch
+    expect(dialogReducer(state, { type: 'UNKNOWN_ACTION' })).toEqual(state)
+  })
+})

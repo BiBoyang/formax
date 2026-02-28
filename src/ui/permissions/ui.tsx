@@ -298,3 +298,7 @@ export function WorkspaceRootsView({
     </Box>
   )
 }
+
+export const __permissionsUiTestHooks = {
+  clamp,
+}

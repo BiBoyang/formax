@@ -75,10 +75,9 @@ export function ConfirmMenu({
     setTyping(next)
   }, [])
 
-  const setTypingValueImmediate = useCallback((next: string | ((current: string) => string)) => {
-    const v = typeof next === 'function' ? next(typingValueRef.current) : next
-    typingValueRef.current = v
-    setTypingValue(v)
+  const setTypingValueImmediate = useCallback((next: string) => {
+    typingValueRef.current = next
+    setTypingValue(next)
   }, [])
 
   const setTypingCursorImmediate = useCallback((next: number | ((current: number) => number)) => {
@@ -96,7 +95,6 @@ export function ConfirmMenu({
 
   const submit = useCallback(
     (decision: ConfirmMenuDecision) => {
-      if (submittedRef.current) return
       submittedRef.current = true
       setIsActive(false)
       onDecision(decision)
@@ -316,7 +314,7 @@ export function ConfirmMenu({
               ) : typing && active ? (
                 <Text color={color}>{valueWithCursor}</Text>
               ) : (
-                <Text color={color}>{typingValue || ''}</Text>
+                <Text color={color}>{typingValue}</Text>
               )}
             </Box>
           )

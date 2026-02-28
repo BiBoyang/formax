@@ -399,6 +399,18 @@ content`
     expect(result['invalid line without colon']).toBeUndefined()
   })
 
+  it('skips blank lines and empty keys', () => {
+    const input = `---
+
+: missing-key
+name: ok
+---
+content`
+    const result = parseFrontmatter(input)
+    expect(result.name).toBe('ok')
+    expect(result['']).toBeUndefined()
+  })
+
   it('trims whitespace from keys and values', () => {
     const input = `---
   name  :  test-agent  

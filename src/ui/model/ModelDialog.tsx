@@ -106,7 +106,6 @@ export function ModelDialog(args: {
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
@@ -128,8 +127,7 @@ export function ModelDialog(args: {
     }
 
     if (!isReturnKeyToken({ token, key })) return
-    const option = options[cursorRef.current]
-    if (!option) return
+    const option = options[cursorRef.current]!
     setSaving(true)
     setError(null)
     void args
@@ -186,4 +184,10 @@ export function ModelDialog(args: {
       </Box>
     </Box>
   )
+}
+
+export const __modelDialogTestHooks = {
+  clamp,
+  currentOptionId,
+  formatChangedMessage,
 }

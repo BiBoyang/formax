@@ -10,7 +10,7 @@ import { eventUsesMatcher, loadHooksBySource } from '../../hooks/store.js'
 import { deleteHookCommand, persistHookCommand } from '../../hooks/settingsStore.js'
 import { HOOK_EVENTS, isEnabledHookEventName, MATCHER_VALUES, SAVE_SCOPE_OPTIONS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
-import { clamp, formatSourceLabel, groupHookEntriesByMatcher } from './utils.js'
+import { clamp, formatSourceLabel } from './utils.js'
 import { AddHookView, AddMatcherView, ConfirmDeleteView, EventListView, HookListView, MatcherListView, SaveHookView } from './ui.js'
 
 const SCOPE = 'overlay:hooks' as const
@@ -72,15 +72,12 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
 
     const sources: HookSource[] = ['projectLocal', 'project', 'user']
     const rows = sources.flatMap((source) => {
-      const summaries: HookMatcherSummary[] = hooksBySource.matchersBySource?.[source]?.[view.event] ?? []
-      if (summaries.length > 0) return summaries.map((s) => ({ source, matcher: s.matcher, hooksCount: s.hooksCount }))
-
-      const entries = hooksBySource[source][view.event]
-      return groupHookEntriesByMatcher(entries).map((g) => ({
-        source,
-        matcher: g.matcher,
-        hooksCount: g.entries.length,
-      }))
+      const summaries: HookMatcherSummary[] = hooksBySource.matchersBySource[source][view.event]
+      const summaryRows: Array<{ source: HookSource; matcher: string; hooksCount: number }> = []
+      for (const s of summaries) {
+        summaryRows.push({ source, matcher: s.matcher, hooksCount: s.hooksCount })
+      }
+      return summaryRows
     })
     const items: MatcherListItem[] = [{ type: 'add' }, ...rows.map((r) => ({ type: 'matcher' as const, source: r.source, matcher: r.matcher }))]
     return { items, rows }
@@ -95,7 +92,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     const raw = eventUsesMatcher(view.event)
       ? hooksBySource[view.source][view.event]
       : sources.flatMap((source) => hooksBySource[source][view.event])
-    const entries = raw.filter((e) => String(e.matcher ?? '').trim() === String(view.matcher ?? '').trim())
+    const entries = raw.filter((e) => String(e.matcher).trim() === String(view.matcher).trim())
 
     const items: HookListItem[] = [{ type: 'add' }, ...entries.map((entry) => ({ type: 'hook' as const, entry }))]
     return { items, entries }
@@ -113,9 +110,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
   const back = useCallback(() => dispatch({ type: 'POP_VIEW' }), [])
 
   const handleInputScopeEscape = useCallback(
-    (_input: string, key: any) => {
-      if (key.escape) back()
-    },
+    () => back(),
     [back],
   )
 
@@ -138,34 +133,28 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
   const matcherCursorMax = Math.max(0, matcherListItems.items.length - 1)
   const hookCursorMax = Math.max(0, hookListItems.items.length - 1)
 
-  const cursorMaxForView = (s: DialogState): number => {
-    switch (s.view.kind) {
-      case 'eventList':
-        return eventCursorMax
-      case 'matcherList':
-        return matcherCursorMax
-      case 'hookList':
-        return hookCursorMax
-      case 'saveHook':
-        return Math.max(0, SAVE_SCOPE_OPTIONS.length - 1)
-      case 'confirmDeleteHook':
-        return 1
-      default:
-        return 0
-    }
-  }
+  const cursorMaxForView = (s: DialogState): number =>
+    ({
+      eventList: eventCursorMax,
+      matcherList: matcherCursorMax,
+      hookList: hookCursorMax,
+      saveHook: Math.max(0, SAVE_SCOPE_OPTIONS.length - 1),
+      confirmDeleteHook: 1,
+      addMatcher: 0,
+      addHook: 0,
+    })[s.view.kind]
 
   const moveCursor = useCallback(
     (delta: number) => {
       const s = stateRef.current
       const max = cursorMaxForView(s)
-      const currentCursor = 'cursor' in s.view ? (s.view as any).cursor : 0
+      const currentCursor = (s.view as { cursor: number }).cursor
       dispatch({ type: 'MOVE_CURSOR', cursor: clamp(currentCursor + delta, 0, max) })
     },
     [eventCursorMax, hookCursorMax, matcherCursorMax],
   )
 
-  const normalizeMatcher = (raw: string): string => String(raw ?? '').trim()
+  const normalizeMatcher = (raw: string): string => String(raw).trim()
 
   const openHookList = useCallback((event: HookEventName, source: HookSource, matcher: string) => {
     dispatch({
@@ -198,7 +187,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
   const openSaveHook = useCallback((event: HookEventName, matcher: string, command: string) => {
     dispatch({
       type: 'PUSH_VIEW',
-      view: { kind: 'saveHook', event, matcher: normalizeMatcher(matcher), command: String(command ?? '').trim(), cursor: 0 },
+      view: { kind: 'saveHook', event, matcher: normalizeMatcher(matcher), command: String(command).trim(), cursor: 0 },
     })
   }, [])
 
@@ -209,7 +198,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
         kind: 'confirmDeleteHook',
         event: args.event,
         matcher: normalizeMatcher(args.matcher),
-        command: String(args.command ?? '').trim(),
+        command: String(args.command).trim(),
         source: args.source,
         cursor: 0,
       },
@@ -246,22 +235,27 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
     const arrowDelta = keyDelta + bufferedDelta
-
-    if (s.view.kind === 'addMatcher' || s.view.kind === 'addHook') return
 
     if (arrowDelta !== 0) {
       moveCursor(arrowDelta)
       return
     }
 
-    if (s.view.kind === 'confirmDeleteHook') {
-      const view = s.view
-      if (isEnter) {
+    const interactiveKind = s.view.kind as
+      | 'confirmDeleteHook'
+      | 'saveHook'
+      | 'eventList'
+      | 'matcherList'
+      | 'hookList'
+
+    switch (interactiveKind) {
+      case 'confirmDeleteHook': {
+        if (!isEnter) return
+        const view = s.view
         if (view.cursor === 1) {
           back()
           return
@@ -279,15 +273,12 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
           dispatch({ type: 'POP_VIEW' })
           dispatch({ type: 'SET_BANNER', banner: `Deleted hook from ${formatSourceLabel(view.source)} settings.` })
         })()
+        return
       }
-      return
-    }
-
-    if (s.view.kind === 'saveHook') {
-      const view = s.view
-      if (isEnter) {
-        const scope = SAVE_SCOPE_OPTIONS[view.cursor]?.scope
-        if (!scope) return
+      case 'saveHook': {
+        if (!isEnter) return
+        const view = s.view
+        const scope = SAVE_SCOPE_OPTIONS[view.cursor].scope
 
         void (async () => {
           await persistHookCommand({
@@ -320,54 +311,46 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
             },
           })
         })()
-      }
-      return
-    }
-
-    if (!isEnter) return
-
-    if (s.view.kind === 'eventList') {
-      const cursor = clamp(s.view.cursor, 0, eventCursorMax)
-      const item = HOOK_EVENTS[cursor]
-      if (!item) return
-
-      if (!item.enabled) {
-        dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first five events are wired.' })
         return
       }
-
-      if (!isEnabledHookEventName(item.id)) return
-      openMatcherList(item.id)
-      return
-    }
-
-    if (s.view.kind === 'matcherList') {
-      const cursor = clamp(s.view.cursor, 0, matcherCursorMax)
-      const item = matcherItemsRef.current[cursor]
-      if (!item) return
-      if (item.type === 'add') {
-        openAddMatcher(s.view.event)
+      case 'eventList': {
+        if (!isEnter) return
+        const cursor = clamp(s.view.cursor, 0, eventCursorMax)
+        const item = HOOK_EVENTS[cursor]!
+        if (!item.enabled) {
+          dispatch({ type: 'SET_BANNER', banner: 'Not supported yet in Formax. Only the first five events are wired.' })
+          return
+        }
+        openMatcherList(item.id as HookEventName)
         return
       }
-      openHookList(s.view.event, item.source, item.matcher)
-      return
-    }
-
-    if (s.view.kind === 'hookList') {
-      const cursor = clamp(s.view.cursor, 0, hookCursorMax)
-      const item = hookItemsRef.current[cursor]
-      if (!item) return
-      if (item.type === 'add') {
-        openAddHook(s.view.event, s.view.matcher)
+      case 'matcherList': {
+        if (!isEnter) return
+        const cursor = clamp(s.view.cursor, 0, matcherCursorMax)
+        const item = matcherItemsRef.current[cursor]!
+        if (item.type === 'add') {
+          openAddMatcher(s.view.event)
+          return
+        }
+        openHookList(s.view.event, item.source, item.matcher)
         return
       }
-      confirmDeleteHook({
-        event: s.view.event,
-        matcher: s.view.matcher,
-        command: item.entry.command,
-        source: item.entry.source,
-      })
-      return
+      case 'hookList': {
+        if (!isEnter) return
+        const cursor = clamp(s.view.cursor, 0, hookCursorMax)
+        const item = hookItemsRef.current[cursor]!
+        if (item.type === 'add') {
+          openAddHook(s.view.event, s.view.matcher)
+          return
+        }
+        confirmDeleteHook({
+          event: s.view.event,
+          matcher: s.view.matcher,
+          command: item.entry.command,
+          source: item.entry.source,
+        })
+        return
+      }
     }
   },
   {
@@ -465,21 +448,17 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
       )
     }
 
-    if (view.kind === 'confirmDeleteHook') {
-      return (
-        <ConfirmDeleteView
-          theme={theme}
-          command={view.command}
-          eventName={view.event}
-          matcherName={view.matcher}
-          showMatcher={eventUsesMatcher(view.event)}
-          source={view.source}
-          cursor={view.cursor}
-        />
-      )
-    }
-
-    return null
+    return (
+      <ConfirmDeleteView
+        theme={theme}
+        command={view.command}
+        eventName={view.event}
+        matcherName={view.matcher}
+        showMatcher={eventUsesMatcher(view.event)}
+        source={view.source}
+        cursor={view.cursor}
+      />
+    )
   })()
 
   return content

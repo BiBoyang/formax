@@ -147,7 +147,6 @@ export function ConfigDialog(args: {
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 
@@ -182,43 +181,31 @@ export function ConfigDialog(args: {
         const rowItem = listRowsRef.current[listCursorRef.current]
         if (!rowItem) return
         const row = rowItem.row
-        if (!isConfigDialogSettingId(row.id)) return
+        const settingId = row.id as ConfigDialogSettingId
 
         if (row.kind === 'toggle') {
-          const current = Boolean(configState.values[row.id] ?? row.getValue(configState))
-          void persistSetting(row.id, !current)
+          const current = Boolean(configState.values[settingId] ?? row.getValue(configState))
+          void persistSetting(settingId, !current)
           return
-        }
-
-        if (row.kind === 'select') {
-          switch (row.id) {
-            case 'outputStyle':
-              dispatch({ type: 'OPEN_OUTPUT_STYLE_SELECT' })
-              return
-            default:
-              return
-          }
+        } else {
+          dispatch({ type: 'OPEN_OUTPUT_STYLE_SELECT' })
+          return
         }
       }
 
       return
     }
 
-    if (s.view === 'outputStyleSelect') {
-      const max = Math.max(0, OUTPUT_STYLE_OPTIONS.length - 1)
-      if (delta !== 0) {
-        dispatch({ type: 'MOVE_CURSOR', next: clamp(s.cursor + delta, 0, max) })
-        return
-      }
-
-      if (isReturnKeyToken({ token, key }) || token === ' ') {
-        const selected = OUTPUT_STYLE_OPTIONS[s.cursor]
-        if (!selected) return
-        void persistSetting('outputStyle', selected.id)
-        dispatch({ type: 'CLOSE_SUB_VIEW' })
-      }
-
+    const max = Math.max(0, OUTPUT_STYLE_OPTIONS.length - 1)
+    if (delta !== 0) {
+      dispatch({ type: 'MOVE_CURSOR', next: clamp(s.cursor + delta, 0, max) })
       return
+    }
+
+    if (isReturnKeyToken({ token, key }) || token === ' ') {
+      const selected = OUTPUT_STYLE_OPTIONS[s.cursor]
+      void persistSetting('outputStyle', selected.id)
+      dispatch({ type: 'CLOSE_SUB_VIEW' })
     }
   })
 
@@ -245,20 +232,11 @@ export function ConfigDialog(args: {
       )
     }
 
-    if (currentRows.length === 0) {
-      return (
-        <Box marginTop={1}>
-          <Text color={theme.secondaryText}>No settings available for this tab.</Text>
-        </Box>
-      )
-    }
-
     return <SettingsListView theme={theme} rows={currentRows} cursor={state.cursor} />
   })()
 
   const footerText = (() => {
     if (state.view === 'outputStyleSelect') return 'Enter to confirm · Esc to cancel'
-    if (state.view !== 'list') return 'Esc to cancel'
     if (state.tab === 'config') return 'Enter/Space to change · Esc to cancel'
     return 'Esc to cancel'
   })()
@@ -270,4 +248,11 @@ export function ConfigDialog(args: {
       <FooterHint theme={theme} text={footerText} />
     </ConfigDialogFrame>
   )
+}
+
+export const __configDialogTestHooks = {
+  nextTab,
+  clamp,
+  formatChangeMessage,
+  isConfigDialogSettingId,
 }

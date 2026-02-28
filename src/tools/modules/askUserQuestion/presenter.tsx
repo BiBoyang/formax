@@ -18,8 +18,8 @@ function buildAnswerLabelMap(questions: AskPromptQuestion[]): Map<string, string
   questions.forEach((question, index) => {
     const key = fieldIdForAskQuestion(question, index)
     const header = question.header.trim()
-    if (header) labels.set(header, header)
-    labels.set(key, header || key)
+    labels.set(key, header)
+    labels.set(header, header)
   })
   return labels
 }

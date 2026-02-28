@@ -138,4 +138,82 @@ describe('TaskOutputToolPresenter', () => {
     expect(frame).toContain('Running (timed out waiting)')
     expect(frame).toContain('still working')
   })
+
+  it('uses unknown task id fallback and error status for subline', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'TaskOutput',
+        status: 'error',
+        input: {},
+        result: JSON.stringify({ status: 'completed', output: 'x' }),
+      },
+    }
+
+    const { lastFrame } = renderPresenter(message)
+    const frame = lastFrame()
+    expect(frame).toContain('(unknown)')
+    expect(frame).toContain('x')
+  })
+
+  it('shows running text without timeout suffix when timed_out is false', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'TaskOutput',
+        status: 'completed',
+        input: { task_id: '' },
+        result: JSON.stringify({ status: 'running', output: '', timed_out: false }),
+      },
+    }
+
+    const { lastFrame } = renderPresenter(message)
+    expect(lastFrame()).toContain('Running')
+    expect(lastFrame()).not.toContain('timed out waiting')
+  })
+
+  it('falls back to completed/empty when parsed status/output types are invalid', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'TaskOutput',
+        status: 'completed',
+        input: { task_id: 0 as any },
+        result: JSON.stringify({ status: 'weird', output: 123 }),
+      },
+    }
+
+    const { lastFrame } = renderPresenter(message)
+    const frame = lastFrame()
+    expect(frame).toContain('(unknown)')
+    expect(frame).toContain('⎿')
+  })
+
+  it('handles non-string result values by treating output as empty', () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'TaskOutput',
+        status: 'completed',
+        input: { task_id: 't1' },
+        result: { any: 'object' } as any,
+      },
+    }
+
+    const frame = renderPresenter(message).lastFrame() ?? ''
+    expect(frame).toContain('(t1)')
+    expect(frame).toContain('(no output)')
+  })
 })

@@ -126,6 +126,223 @@ function ActiveScopeSpy({ onScope }: { onScope: (s: string) => void }): React.Re
 }
 
 describe('HooksDialog', () => {
+  it('exits dialog on Esc from event list and ignores non-enter keys on event list', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-esc-event-list-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(path.join(projectConfigDir, 'settings.local.json'), JSON.stringify({ version: 1, hooks: {} }, null, 2), 'utf8')
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Hooks')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Hooks')
+      expect(onExit).toHaveBeenCalledTimes(0)
+      stdin.write('\u001B')
+      await tick()
+      expect(onExit).toHaveBeenCalledTimes(1)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 20000)
+
+  it('shows unsupported-event banner and handles empty matcher/hook submissions', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-empty-submit-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify({ version: 1, hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [] }] } }, null, 2),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Hooks')
+      await moveCursorToItem(lastFrame, stdin, 'Notification')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Not supported yet in Formax')
+
+      await moveCursorToItem(lastFrame, stdin, 'PreToolUse')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      await moveCursorToItem(lastFrame, stdin, '+ Add new matcher')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new matcher for PreToolUse')
+      await typeText(stdin, '   ')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Matcher cannot be empty')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+
+      await moveCursorToItem(lastFrame, stdin, '[Local] Bash')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Add new hook')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
+
+  it('cancels hook deletion when selecting No in confirm dialog', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-delete-no-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo keep-me' }] }] },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Hooks')
+      await waitForText(lastFrame, 'PreToolUse')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      await moveCursorToItem(lastFrame, stdin, '[Local] Bash')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
+      await moveCursorToItem(lastFrame, stdin, 'echo keep-me')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Delete hook')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Delete hook')
+      stdin.write('\u001B[B')
+      await tick()
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Matcher: Bash')
+      await waitForText(lastFrame, 'echo keep-me')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
+
+  it('goes back on Esc from matcher list and can submit a non-empty matcher', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-matcher-submit-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify({ version: 1, hooks: { PreToolUse: [] } }, null, 2),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Hooks')
+      await waitForText(lastFrame, 'PreToolUse')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Hooks')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      stdin.write('\u001B')
+      await waitForText(lastFrame, 'Hooks')
+      expect(onExit).toHaveBeenCalledTimes(0)
+
+      await moveCursorToItem(lastFrame, stdin, 'PreToolUse')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      await moveCursorToItem(lastFrame, stdin, '+ Add new matcher')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new matcher for PreToolUse')
+      await typeText(stdin, 'Write')
+      await waitForText(lastFrame, 'Write')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new hook')
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
+
+  it('does not set state after unmount while hooks are loading', async () => {
+    const onExit = vi.fn()
+    const { unmount } = render(
+      <InputScopeProvider>
+        <HooksDialog onExit={onExit} />
+      </InputScopeProvider>,
+    )
+    unmount()
+    await tick()
+    expect(onExit).toHaveBeenCalledTimes(0)
+  })
+
   it('uses matcher screen for SessionStart and normalizes matcher selection', async () => {
     const originalCwd = process.cwd()
     const originalConfigDir = process.env.FORMAX_CONFIG_DIR
@@ -183,6 +400,9 @@ describe('HooksDialog', () => {
       await waitForText(lastFrame, 'echo sessionstart-new')
       stdin.write('\r')
       await waitForText(lastFrame, 'Save hook configuration')
+      stdin.write('x')
+      await tick()
+      await waitForText(lastFrame, 'Save hook configuration')
       stdin.write('\r')
 
       await waitForJsonContains(settingsPath, (parsed) => {
@@ -199,6 +419,58 @@ describe('HooksDialog', () => {
       else process.env.FORMAX_CONFIG_DIR = originalConfigDir
     }
   }, 20000)
+
+  it('opens add-matcher view and handles Esc via input-scope escape handler', async () => {
+    const originalCwd = process.cwd()
+    const originalConfigDir = process.env.FORMAX_CONFIG_DIR
+
+    const repoRoot = await mkdtemp(path.join(tmpdir(), 'formax-hooks-add-matcher-escape-'))
+    const projectRoot = path.join(repoRoot, 'repo')
+    const projectConfigDir = path.join(projectRoot, '.formax')
+    const globalConfigDir = path.join(repoRoot, 'global-formax')
+
+    await mkdir(projectConfigDir, { recursive: true })
+    await mkdir(globalConfigDir, { recursive: true })
+    await writeFile(
+      path.join(projectConfigDir, 'settings.local.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          hooks: { PreToolUse: [], PermissionRequest: [], PostToolUse: [] },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.chdir(projectRoot)
+
+    try {
+      const onExit = vi.fn()
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <HooksDialog onExit={onExit} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Hooks')
+      await waitForText(lastFrame, 'PreToolUse')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      await waitForText(lastFrame, 'Add new matcher')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Add new matcher for PreToolUse')
+      stdin.write('\u001B')
+      await waitForText(lastFrame, 'PreToolUse - Tool Matchers')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    } finally {
+      process.chdir(originalCwd)
+      if (originalConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = originalConfigDir
+    }
+  }, 30000)
 
   it('shows wildcard (*) matcher rules even when hooks are empty', async () => {
     const originalCwd = process.cwd()

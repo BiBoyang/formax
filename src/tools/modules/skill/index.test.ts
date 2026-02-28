@@ -10,6 +10,26 @@ async function writeFileEnsuringDir(filePath: string, content: string) {
 }
 
 describe('buildSkillToolSpecForCwd', () => {
+  it('keeps base description when no available skills are present', async () => {
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-empty-'))
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+
+    const project = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-project-empty-'))
+    try {
+      const spec = buildSkillToolSpecForCwd(project)
+      expect(spec.description).toContain('<available_skills>')
+      expect(spec.description).toContain('</available_skills>')
+      expect(spec.description).not.toContain('<skill>')
+      expect(spec.description).not.toContain('<truncated>true</truncated>')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      await fsp.rm(project, { recursive: true, force: true })
+    }
+  })
+
   it('injects available skills for the current repo and varies by cwd', async () => {
     const prevConfigDir = process.env.FORMAX_CONFIG_DIR
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-'))

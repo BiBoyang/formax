@@ -226,6 +226,39 @@ describe('ConfirmMenu', () => {
     expect(second.lastFrame() ?? '').toContain('node-footer')
   })
 
+  it('renders emphasis paths for both active and inactive dimmed choices', async () => {
+    const onDecision = vi.fn()
+    const { stdin, lastFrame } = render(
+      <InputScopeProvider initialScope="repl">
+        <ConfirmMenu
+          scope="prompt:test-c"
+          options={[
+            {
+              kind: 'choice',
+              key: 'first',
+              label: 'Use current settings',
+              dim: true,
+              emphasis: { text: 'current', color: 'yellow', bold: true },
+            },
+            {
+              kind: 'choice',
+              key: 'second',
+              label: 'Keep current mode',
+              dim: true,
+              emphasis: { text: 'current', bold: false },
+            },
+          ]}
+          onDecision={onDecision}
+        />
+      </InputScopeProvider>,
+    )
+    await tick()
+    expect(lastFrame() ?? '').toContain('Use current settings')
+    stdin.write('\u001B[B')
+    await tick()
+    expect(lastFrame() ?? '').toContain('Keep current mode')
+  })
+
   it('does nothing when return is pressed on an out-of-range initial cursor', async () => {
     const onDecision = vi.fn()
     const { stdin } = render(

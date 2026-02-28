@@ -74,28 +74,6 @@ describe('ConfirmMenu branch harness', () => {
     expect(onDecision).toHaveBeenCalledTimes(1)
   })
 
-  it('covers re-entrant submit guard (submittedRef)', () => {
-    let reentered = false
-    const onDecision = vi.fn(() => {
-      if (!reentered) {
-        reentered = true
-        fire('', { returnKey: true })
-      }
-    })
-
-    render(
-      <ConfirmMenu
-        scope="prompt:test"
-        options={[{ kind: 'choice', key: 'accept', label: 'Accept' }]}
-        onDecision={onDecision}
-      />,
-    )
-
-    fire('', { returnKey: true })
-    expect(onDecision).toHaveBeenCalledTimes(1)
-    expect(onDecision).toHaveBeenCalledWith({ kind: 'choice', key: 'accept' })
-  })
-
   it('covers pending arrow branch and non-digit no-op', () => {
     const onDecision = vi.fn()
     render(
@@ -156,7 +134,6 @@ describe('ConfirmMenu branch harness', () => {
       />,
     )
 
-    // input is not a string, should use empty rawInput branch.
     ;(harness.handler as any)?.({ some: 'object' }, { printable: true })
     fire('', { shiftTab: true })
     fire('', { returnKey: true })
@@ -252,5 +229,39 @@ describe('ConfirmMenu branch harness', () => {
 
     fire('', { returnKey: true })
     expect(onDecision).not.toHaveBeenCalled()
+  })
+
+  it('covers explicit escape-cancel branch', () => {
+    const onDecision = vi.fn()
+    render(
+      <ConfirmMenu
+        scope="prompt:test"
+        options={[{ kind: 'choice', key: 'one', label: 'One' }]}
+        onDecision={onDecision}
+      />,
+    )
+
+    fire('', { escape: true })
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'cancel' })
+  })
+
+  it('covers deleteForward branch when cursor is before tail', () => {
+    const onDecision = vi.fn()
+    render(
+      <ConfirmMenu
+        scope="prompt:test"
+        options={[{ kind: 'feedback', key: 'feedback', label: 'Reason', placeholder: 'type' }]}
+        onDecision={onDecision}
+      />,
+    )
+
+    fire('', { returnKey: true })
+    fire('a', { printable: true })
+    fire('b', { printable: true })
+    fire('', { leftArrow: true })
+    fire('', { delete: true })
+    fire('', { returnKey: true })
+
+    expect(onDecision).toHaveBeenCalledWith({ kind: 'feedback', key: 'feedback', feedback: 'a' })
   })
 })

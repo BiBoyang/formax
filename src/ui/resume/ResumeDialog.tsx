@@ -86,7 +86,7 @@ export function ResumeDialog(args: {
   useEffect(() => {
     const max = Math.max(0, filteredSessions.length - 1)
     const nextCursor = clamp(cursor, 0, max)
-    if (nextCursor !== cursor) dispatch({ type: 'SET_CURSOR', cursor: nextCursor })
+    dispatch({ type: 'SET_CURSOR', cursor: nextCursor })
   }, [cursor, filteredSessions.length])
 
   const selected = filteredSessions[cursor] ?? null
@@ -128,7 +128,7 @@ export function ResumeDialog(args: {
 
   const submitRename = useCallback(
     async (labelRaw: string) => {
-      const label = String(labelRaw ?? '').trim()
+      const label = String(labelRaw).trim()
       if (!selected || !label) {
         exitRenameMode()
         return
@@ -157,7 +157,6 @@ export function ResumeDialog(args: {
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
       bufferedDelta = res.delta
     }
 

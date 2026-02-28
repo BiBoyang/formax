@@ -212,3 +212,8 @@ export function UsageView({ theme }: { theme: Theme }): React.ReactNode {
     </Box>
   )
 }
+
+export const __configUiTestHooks = {
+  clamp,
+  terminalColumns,
+}

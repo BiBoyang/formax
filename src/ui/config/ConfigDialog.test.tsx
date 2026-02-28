@@ -6,7 +6,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext.js'
-import { ConfigDialog } from './ConfigDialog.js'
+import { __configDialogTestHooks, ConfigDialog } from './ConfigDialog.js'
 
 function tick(): Promise<void> {
   // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.
@@ -278,4 +278,296 @@ describe('ConfigDialog', () => {
     },
     20_000,
   )
+
+  it('cycles tabs with Tab', async () => {
+    const onExit = vi.fn()
+    await withTempConfigDirs(async ({ env, cwd }) => {
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Configure Formax preferences')
+      stdin.write('\t')
+      await waitForText(lastFrame, 'Usage')
+      stdin.write('\t')
+      await waitForText(lastFrame, 'Status')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    })
+  })
+
+  it('closes output-style sub-view on Esc without exiting overlay', async () => {
+    const onExit = vi.fn()
+    await withTempConfigDirs(async ({ env, cwd }) => {
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
+        </InputScopeProvider>,
+      )
+
+      await waitForText(lastFrame, 'Configure Formax preferences')
+      await moveCursorToRow(lastFrame, stdin, 'Output style')
+      stdin.write('\r')
+      await waitForText(lastFrame, 'Preferred output style')
+      stdin.write('\u001B')
+      await waitForNoText(lastFrame, 'Preferred output style')
+      expect(onExit).toHaveBeenCalledTimes(0)
+    })
+  })
+
+  it('shows load and persist errors from injected service', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('load fail'))
+        .mockResolvedValue({
+          values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+          sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+        }),
+      persist: vi.fn().mockRejectedValue(new Error('persist fail')),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+
+    await waitForText(lastFrame, 'Error: load fail')
+    // Trigger a persist attempt on Thinking mode row.
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Error: persist fail')
+  })
+
+  it('handles string-shaped load/persist errors', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi
+        .fn()
+        .mockRejectedValueOnce('load fail string')
+        .mockResolvedValue({
+          values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+          sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+        }),
+      persist: vi.fn().mockRejectedValue('persist fail string'),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+    await waitForText(lastFrame, 'Error: load fail string')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Error: persist fail string')
+  })
+
+  it('returns changed exit payload after successful update then Esc', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    stdin.write('\r') // toggle thinking mode true -> false
+    await tick()
+    stdin.write('\u001B')
+    await tick()
+    expect(onExit).toHaveBeenCalledWith({ kind: 'changed', message: 'Set thinking mode to false' })
+  })
+
+  it('ignores non-handled keys on list view', async () => {
+    const onExit = vi.fn()
+    await withTempConfigDirs(async ({ env, cwd }) => {
+      const { lastFrame, stdin } = render(
+        <InputScopeProvider>
+          <ConfigDialog onExit={onExit} env={env} cwd={cwd} />
+        </InputScopeProvider>,
+      )
+      await waitForText(lastFrame, 'Configure Formax preferences')
+      const before = lastFrame() || ''
+      stdin.write('x')
+      await tick()
+      expect(lastFrame() || '').toContain('Configure Formax preferences')
+      expect(onExit).toHaveBeenCalledTimes(0)
+      expect(before.length).toBeGreaterThan(0)
+    })
+  })
+
+  it('handles Enter on status tab (no rows) as a safe no-op', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    stdin.write('\t') // usage
+    await waitForText(lastFrame, 'Usage')
+    await waitForNoText(lastFrame, 'Configure Formax preferences')
+    stdin.write('\t') // status
+    await waitForText(lastFrame, 'Status')
+    await waitForNoText(lastFrame, 'Configure Formax preferences')
+    stdin.write('\r')
+    await tick()
+    await waitForText(lastFrame, 'Status')
+    expect(onExit).toHaveBeenCalledTimes(0)
+    expect(service.persist).toHaveBeenCalledTimes(0)
+  })
+
+  it('confirms output style selection with Space', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    await moveCursorToRow(lastFrame, stdin, 'Output style')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Preferred output style')
+    await moveCursorToRow(lastFrame, stdin, 'Explanatory')
+    stdin.write(' ')
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    expect(service.persist).toHaveBeenCalledWith({ id: 'outputStyle', value: 'explanatory' })
+    expect(onExit).toHaveBeenCalledTimes(0)
+  })
+
+  it('falls back to Default source label when snapshot omits a source', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+        sources: { thinkingMode: 'User', verboseOutput: 'Project' } as any,
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    await waitForText(lastFrame, 'Output style')
+    await waitForText(lastFrame, '(Default)')
+  })
+
+  it('ignores non-handled keys in output-style selection view', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true, verboseOutput: false },
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    await moveCursorToRow(lastFrame, stdin, 'Output style')
+    stdin.write('\r')
+    await waitForText(lastFrame, 'Preferred output style')
+    stdin.write('x')
+    await tick()
+    await waitForText(lastFrame, 'Preferred output style')
+    expect(service.persist).toHaveBeenCalledTimes(0)
+    expect(onExit).toHaveBeenCalledTimes(0)
+  })
+
+  it('uses row.getValue fallback when service snapshot omits stored value', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', verboseOutput: false } as any,
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    await waitForText(lastFrame, 'Thinking mode')
+    stdin.write('\r')
+    await tick()
+    expect(service.persist).toHaveBeenCalledWith({ id: 'thinkingMode', value: false })
+  })
+
+  it('uses row.getValue fallback for verboseOutput when value is omitted', async () => {
+    const onExit = vi.fn()
+    const service = {
+      load: vi.fn().mockResolvedValue({
+        values: { outputStyle: 'default', thinkingMode: true } as any,
+        sources: { outputStyle: 'Default', thinkingMode: 'Default', verboseOutput: 'Default' },
+      }),
+      persist: vi.fn().mockResolvedValue(undefined),
+    }
+    const { lastFrame, stdin } = render(
+      <InputScopeProvider>
+        <ConfigDialog onExit={onExit} service={service as any} />
+      </InputScopeProvider>,
+    )
+    await waitForText(lastFrame, 'Configure Formax preferences')
+    stdin.write('\u001B[B')
+    await tick()
+    stdin.write('\r')
+    await tick()
+    expect(service.persist).toHaveBeenCalledWith({ id: 'verboseOutput', value: true })
+  })
+
+  it('covers dialog helper hooks', () => {
+    expect(__configDialogTestHooks.nextTab('config', 1)).toBe('usage')
+    expect(__configDialogTestHooks.nextTab('config', -1)).toBe('status')
+    expect(__configDialogTestHooks.nextTab('unknown' as any, 1)).toBe('status')
+
+    expect(__configDialogTestHooks.clamp(Number.NaN, 1, 3)).toBe(1)
+    expect(__configDialogTestHooks.clamp(0, 1, 3)).toBe(1)
+    expect(__configDialogTestHooks.clamp(9, 1, 3)).toBe(3)
+
+    expect(__configDialogTestHooks.formatChangeMessage('outputStyle', 'learning')).toContain('Learning')
+    expect(__configDialogTestHooks.formatChangeMessage('outputStyle', 'unknown')).toContain('Default')
+    expect(__configDialogTestHooks.formatChangeMessage('thinkingMode', true)).toContain('true')
+    expect(__configDialogTestHooks.formatChangeMessage('verboseOutput', true)).toContain('true')
+
+    expect(__configDialogTestHooks.isConfigDialogSettingId('outputStyle')).toBe(true)
+    expect(__configDialogTestHooks.isConfigDialogSettingId('x')).toBe(false)
+  })
 })

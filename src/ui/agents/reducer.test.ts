@@ -65,6 +65,19 @@ describe('dialogReducer', () => {
     expect(next.selectedTools).toEqual([])
   })
 
+  it('RESET_TO_LIST falls back banner to null when omitted', () => {
+    const state = {
+      ...initialDialogState(),
+      view: { kind: 'create_scope' as const, cursor: 2 },
+      stack: [{ kind: 'list' as const, cursor: 0, banner: null }],
+      draft: { name: 'draft', description: 'd', systemPrompt: 's' },
+    }
+    const next = dialogReducer(state, { type: 'RESET_TO_LIST' })
+    expect(next.view).toEqual({ kind: 'list', cursor: 0, banner: null })
+    expect(next.stack).toEqual([])
+    expect(next.draft).toBeNull()
+  })
+
   it('handles MOVE_CURSOR for views with cursor', () => {
     const state = { ...initialDialogState(), view: { kind: 'list' as const, cursor: 0 } }
     const next = dialogReducer(state, { type: 'MOVE_CURSOR', cursor: 5 })
