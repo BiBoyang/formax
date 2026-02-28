@@ -6,8 +6,7 @@ export type TranscriptLifecycleDraft = {
   openThinkingSegmentIdByTurn: Record<string, string>
 }
 
-function findOpenSegmentIndexById(segments: TranscriptSegment[], id: string | undefined): number {
-  if (!id) return -1
+function findOpenSegmentIndexById(segments: TranscriptSegment[], id: string): number {
   return segments.findIndex((segment) => segment.id === id)
 }
 

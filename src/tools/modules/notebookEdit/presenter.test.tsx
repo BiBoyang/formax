@@ -109,5 +109,30 @@ describe('NotebookEditToolPresenter', () => {
     lastPromptProps.onDecision({ kind: 'approve' })
     expect(submitAnswers).toHaveBeenCalledWith('explicit', { decision: 'approve' })
   })
-})
 
+  it('uses raw message.id when it does not have tool- prefix', () => {
+    const isPending = vi.fn(() => true)
+    const submitAnswers = vi.fn()
+    userInput = { isPending, submitAnswers }
+
+    const message: Msg = {
+      id: 'plain-id',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'NotebookEdit',
+        status: 'running',
+        input: { notebook_path: '/tmp/nb.ipynb' },
+        result: '',
+      },
+    }
+
+    render(<NotebookEditToolPresenter message={message} />)
+    expect(isPending).toHaveBeenCalledWith('plain-id')
+
+    if (!lastPromptProps) throw new Error('Expected FsWriteApprovalPrompt to render')
+    lastPromptProps.onDecision({ kind: 'approve' })
+    expect(submitAnswers).toHaveBeenCalledWith('plain-id', { decision: 'approve' })
+  })
+})

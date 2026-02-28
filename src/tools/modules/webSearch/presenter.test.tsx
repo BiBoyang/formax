@@ -206,4 +206,74 @@ describe('WebSearchToolPresenter', () => {
     expect(lastFrame()).toContain('WebSearch')
     expect(lastFrame()).toContain('Error: Rate limited')
   })
+
+  it('derives toolUseId from tool- prefixed message id when missing in toolInfo', async () => {
+    const submitAnswers = vi.fn(() => true)
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({}),
+      submitAnswers,
+      reject: () => true,
+      rejectAllPending: () => 0,
+      isPending: (toolUseId) => toolUseId === 'derived',
+      clearBufferedAnswers: () => {},
+    }
+    const message: Msg = {
+      id: 'tool-derived',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'WebSearch', status: 'running', input: { query: 'derived query' } },
+    }
+
+    const { stdin, lastFrame } = renderWithProviders({ message, userInput })
+    await tick()
+    expect(lastFrame()).toContain('Do you want to search for "derived query"?')
+    stdin.write('\r')
+    await tick()
+    expect(submitAnswers).toHaveBeenCalledWith('derived', { decision: 'approve' })
+  })
+
+  it('uses raw id when toolUseId is missing and id has no tool- prefix', async () => {
+    const isPending = vi.fn((toolUseId: string) => toolUseId === 'plain-id')
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({}),
+      submitAnswers: vi.fn(() => true),
+      reject: () => true,
+      rejectAllPending: () => 0,
+      isPending,
+      clearBufferedAnswers: () => {},
+    }
+    const message: Msg = {
+      id: 'plain-id',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'WebSearch', status: 'running', input: { query: 'plain query' } },
+    }
+    const { lastFrame } = renderWithProviders({ message, userInput })
+    await tick()
+    expect(lastFrame()).toContain('Do you want to search for "plain query"?')
+    expect(isPending).toHaveBeenCalledWith('plain-id')
+  })
+
+  it('renders running approval prompt with default title when query is empty', async () => {
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({}),
+      submitAnswers: vi.fn(() => true),
+      reject: () => true,
+      rejectAllPending: () => 0,
+      isPending: (toolUseId) => toolUseId === 'ws-empty-params',
+      clearBufferedAnswers: () => {},
+    }
+    const message: Msg = {
+      id: 'tool-ws-empty-params',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'WebSearch', status: 'running', input: { query: '' }, toolUseId: 'ws-empty-params' },
+    }
+    const { lastFrame } = renderWithProviders({ message, userInput })
+    await tick()
+    expect(lastFrame()).toContain('Do you want to search the web?')
+  })
 })

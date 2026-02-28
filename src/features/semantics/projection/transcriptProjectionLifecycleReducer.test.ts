@@ -54,4 +54,32 @@ describe('transcriptProjectionLifecycleReducer', () => {
     expect(draft.openAssistantSegmentIdByTurn['turn-1']).toBeUndefined()
     expect(draft.openThinkingSegmentIdByTurn['turn-1']).toBeUndefined()
   })
+
+  it('is a no-op when turn has no open assistant/thinking segments', () => {
+    const draft = makeDraft()
+    closeAssistantSegment(draft, 'turn-x')
+    closeThinkingSegment(draft, 'turn-x')
+    expect(draft.openAssistantSegmentIdByTurn['turn-1']).toBe('assistant-1')
+    expect(draft.openThinkingSegmentIdByTurn['turn-1']).toBe('thinking-1')
+  })
+
+  it('clears dangling open thinking id even when segment is missing', () => {
+    const draft = makeDraft()
+    draft.openThinkingSegmentIdByTurn['turn-1'] = 'missing-id'
+    closeThinkingSegment(draft, 'turn-1')
+    expect(draft.openThinkingSegmentIdByTurn['turn-1']).toBeUndefined()
+  })
+
+  it('does not force-finalize non-running thinking segments', () => {
+    const draft = makeDraft()
+    draft.segments[0] = {
+      ...draft.segments[0],
+      status: 'finalized',
+    }
+    closeThinkingSegment(draft, 'turn-1')
+    expect(draft.segments[0]).toMatchObject({
+      kind: 'thinking',
+      status: 'finalized',
+    })
+  })
 })

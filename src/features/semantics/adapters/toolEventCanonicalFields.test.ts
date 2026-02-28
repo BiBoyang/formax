@@ -7,6 +7,9 @@ describe('toolEventCanonicalFields', () => {
     expect(readCanonicalToolUpdateLine({ middleLines: ['x', ' tail2 '] })).toBe('tail2')
     expect(readCanonicalToolUpdateLine({ toolUses: 3 })).toBe('tool uses 3')
     expect(readCanonicalToolUpdateLine({ transcriptLines: [], middleLines: [] })).toBeUndefined()
+    expect(readCanonicalToolUpdateLine({ transcriptLines: [null], middleLines: [' m '] })).toBe('m')
+    expect(readCanonicalToolUpdateLine({ middleLines: [null], toolUses: 2 })).toBe('tool uses 2')
+    expect(readCanonicalToolUpdateLine({ transcriptLines: ['   '], middleLines: ['   '] })).toBeUndefined()
   })
 
   it('resolves tool end summary with optional completed fallback', () => {
@@ -15,5 +18,6 @@ describe('toolEventCanonicalFields', () => {
     expect(readCanonicalToolEndSummary({ result: {} })).toBeUndefined()
     expect(readCanonicalToolEndSummary({ result: {} }, { includeCompletedFallback: true })).toBe('completed')
     expect(readCanonicalToolEndSummary({}, { includeCompletedFallback: true })).toBe('completed')
+    expect(readCanonicalToolEndSummary({ result: null })).toBeUndefined()
   })
 })

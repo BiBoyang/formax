@@ -15,7 +15,6 @@ export const WebSearchToolPresenter: ToolPresenterComponent = ({ message }: { me
 
   const { name, input, status } = message.toolInfo
   const { toolName, params } = formatToolCallParts(name, input, { preferRelativePaths: true })
-  const showParams = Boolean(params && params.trim().length > 0)
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
@@ -25,12 +24,11 @@ export const WebSearchToolPresenter: ToolPresenterComponent = ({ message }: { me
 
     return (
       <Box flexDirection="column" marginTop={1} marginBottom={0}>
-        <ToolHeaderLine status={status} label={toolName} params={showParams ? params : null} />
+        <ToolHeaderLine status={status} label={toolName} params={params} />
 
         <EditApprovalPrompt
           title={title}
           onDecision={(d) => {
-            if (!userInput) return
             if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
             else if (d.kind === 'approve_remember')
               userInput.submitAnswers(toolUseId, { decision: 'approve_remember', scope: d.scope })
