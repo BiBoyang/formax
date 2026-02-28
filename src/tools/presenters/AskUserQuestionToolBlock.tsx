@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { useUserInputManager } from '../runtime/userInputContext'
@@ -17,6 +17,16 @@ type QuestionState = {
   other: string
   typing: boolean
   typingValue: string
+}
+
+function createInitialQuestionState(): QuestionState {
+  return {
+    cursor: 0,
+    selected: [],
+    other: '',
+    typing: false,
+    typingValue: '',
+  }
 }
 
 export function AskUserQuestionToolBlock({
@@ -67,20 +77,21 @@ function InteractiveAsk({
   const [reviewCursor, setReviewCursor] = useState(0) // 0 submit / 1 cancel
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submittedRef = useRef(false)
-  const [state, setState] = useState<QuestionState[]>(() =>
-    questions.map(() => ({
-      cursor: 0,
-      selected: [],
-      other: '',
-      typing: false,
-      typingValue: '',
-    })),
-  )
+  const [state, setState] = useState<QuestionState[]>(() => questions.map(() => createInitialQuestionState()))
 
   const submitTab = questions.length
   const isSubmitTab = activeTab >= submitTab
   const currentQ = questions[activeTab]
   const currentS = state[activeTab]
+
+  useEffect(() => {
+    setState((prev) => {
+      if (prev.length === questions.length) return prev
+      if (prev.length > questions.length) return prev.slice(0, questions.length)
+      return [...prev, ...Array.from({ length: questions.length - prev.length }, () => createInitialQuestionState())]
+    })
+    setActiveTab((tab) => clamp(tab, 0, questions.length))
+  }, [questions.length])
 
   const answeredStrings = useMemo(() => questions.map((q, i) => formatAnswerForDisplay(q, state[i])), [questions, state])
   const answeredForSubmit = useMemo(() => questions.map((q, i) => formatAnswerForSubmit(q, state[i])), [questions, state])
@@ -182,8 +193,6 @@ function InteractiveAsk({
         }
         return
       }
-
-      if (!currentQ || !currentS) return
 
       // Up/down move cursor within question
       if (key.upArrow) {
@@ -319,9 +328,9 @@ function InteractiveAsk({
             cursor={reviewCursor}
             showUnansweredWarning={!allAnswered}
           />
-        ) : currentQ ? (
-          <QuestionPage q={currentQ} s={currentS} />
-        ) : null}
+        ) : (
+          <QuestionPage q={currentQ as AskQuestion} s={currentS} />
+        )}
       </Box>
 
       <Box marginTop={1}>
@@ -638,4 +647,22 @@ function formatAnswerForSubmit(q: AskQuestion, s: QuestionState | undefined): st
 
 function formatAnswerForDisplay(q: AskQuestion, s: QuestionState | undefined): string {
   return formatAnswerForSubmit(q, s)
+}
+
+export const __testOnlyAskUserQuestionToolBlock = {
+  InteractiveAsk,
+  QuestionPage,
+  ReviewPage,
+  OptionRow,
+  OtherRow,
+  toggleMultiOption,
+  selectSingleAndAdvance,
+  enterTyping,
+  enterTypingWithText,
+  commitTyping,
+  maxCursorForQuestion,
+  clamp,
+  truncate,
+  formatAnswerForSubmit,
+  formatAnswerForDisplay,
 }
