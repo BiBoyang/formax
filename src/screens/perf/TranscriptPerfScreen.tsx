@@ -143,8 +143,8 @@ function TranscriptPerfInner({ count = 500, onExit }: Props): React.ReactNode {
     setDraft('')
     if (!text) return
 
-    if (text.startsWith('/bash ')) {
-      const command = text.slice('/bash '.length).trim()
+    if (/^\/bash(?:\s|$)/.test(text)) {
+      const command = text.slice('/bash'.length).trim()
       insertTool({
         name: 'Bash',
         input: { command },
@@ -153,8 +153,8 @@ function TranscriptPerfInner({ count = 500, onExit }: Props): React.ReactNode {
       return
     }
 
-    if (text.startsWith('/read ')) {
-      const file_path = text.slice('/read '.length).trim()
+    if (/^\/read(?:\s|$)/.test(text)) {
+      const file_path = text.slice('/read'.length).trim()
       insertTool({
         name: 'Read',
         input: { file_path },

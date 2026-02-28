@@ -42,7 +42,6 @@
 - [ ] src/hooks/runtime.ts
 - [ ] src/hooks/settingsStore.ts
 - [ ] src/hooks/store.ts
-- [ ] src/screens/perf/TranscriptPerfScreen.tsx
 - [ ] src/screens/repl/transcript.tsx
 - [ ] src/streaming/anthropic/sseParser.ts
 - [ ] src/streaming/anthropic/StreamClient.ts

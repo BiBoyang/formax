@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 
@@ -88,12 +88,16 @@ async function submitInput(value: string): Promise<void> {
 }
 
 describe('TranscriptPerfScreen', () => {
-  beforeEach(() => {
+beforeEach(() => {
     mocks.routedHandler = null
     mocks.textInputProps = null
     mocks.replProps = null
-    mocks.clearTerminal.mockClear()
-  })
+  mocks.clearTerminal.mockClear()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
   it('handles routed ctrl shortcuts for streaming, reset, tool insert, and exit', async () => {
     const onExit = vi.fn()
@@ -103,6 +107,7 @@ describe('TranscriptPerfScreen', () => {
     expect(mocks.replProps?.transcriptSeq).toBe(0)
 
     await routed('s', { ctrl: true })
+    await tick(40)
     await routed('s', { ctrl: true }) // toggle back off to avoid interval churn in tests
 
     await routed('t', { ctrl: true })
@@ -120,6 +125,10 @@ describe('TranscriptPerfScreen', () => {
 
   it('handles text input commands for /bash, /read, /tool, and regular chat text', async () => {
     render(<TranscriptPerfScreen count={0} onExit={vi.fn()} />)
+
+    await submitInput('   ')
+    await tick()
+    expect(mocks.replProps?.staticMessages).toHaveLength(0)
 
     await submitInput('/bash echo hello')
     await waitFor(() => (mocks.replProps?.staticMessages.length ?? 0) >= 1)
@@ -141,5 +150,23 @@ describe('TranscriptPerfScreen', () => {
     expect(mocks.replProps?.staticMessages).toHaveLength(5)
     expect(mocks.replProps?.staticMessages[3]?.role).toBe('user')
     expect(mocks.replProps?.staticMessages[4]?.role).toBe('assistant')
+  })
+
+  it('covers process.exit hotkeys when no onExit handler is provided', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as any)
+    render(<TranscriptPerfScreen count={0} />)
+
+    await submitInput('/bash    ')
+    await submitInput('/read    ')
+    await waitFor(() => (mocks.replProps?.staticMessages.length ?? 0) >= 2)
+
+    await routed('R', { ctrl: true })
+    await waitFor(() => (mocks.replProps?.transcriptSeq ?? 0) >= 1)
+
+    await routed('x', { ctrl: false })
+
+    await routed('q', { ctrl: true })
+    await routed('c', { ctrl: true })
+    expect(exitSpy).toHaveBeenCalledWith(0)
   })
 })
