@@ -169,6 +169,17 @@ async function findFirstExternalSymlinkDirectory(args: {
   return await walk(args.rootDir)
 }
 
+export const __testOnlyPolicyPreflight = {
+  normalizeWorkspacePath,
+  tryRealpath,
+  isExistingDirectory,
+  canonicalizeForWorkspaceCheck,
+  isPathWithinRoot,
+  isPathWithinRoots,
+  createGrepSymlinkScanCacheKey,
+  findFirstExternalSymlinkDirectory,
+}
+
 export function createPolicyPreflight(args: {
   fileStore: FileStore
   approval?: ApprovalService
@@ -227,27 +238,23 @@ export function createPolicyPreflight(args: {
         trace: traceForCall,
       })
     }
-    let mergedPermissions: Awaited<ReturnType<typeof loadMergedPermissions>> | null = null
     const getMergedPermissions = async () => {
       // Important: permissions must take effect immediately after they are persisted
-      // (e.g. approve_remember writes into settings.local.json). We therefore avoid
-      // caching across tool calls; only memoize within the current preflight call.
-      if (!mergedPermissions) {
-        mergedPermissions = await loadMergedPermissions({
-          fileStore: args.fileStore,
-          cwd,
-          env,
-          platform: args.platform,
-          homedir: args.homedir,
-        })
-      }
-      return mergedPermissions
+      // (e.g. approve_remember writes into settings.local.json). We intentionally
+      // reload when requested instead of caching across calls.
+      return await loadMergedPermissions({
+        fileStore: args.fileStore,
+        cwd,
+        env,
+        platform: args.platform,
+        homedir: args.homedir,
+      })
     }
 
     // Plan mode: only allow editing the plan file itself (no approvals for non-plan paths).
     if (action.kind === 'fs.write' && replMode === 'plan') {
       const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
-      const isPlanFile = Boolean(planPath && isSameFilePath(action.path, planPath, cwd))
+      const isPlanFile = planPath ? isSameFilePath(action.path, planPath, cwd) : false
       if (!isPlanFile) {
         return {
           tool_use_id: call.id,
@@ -424,10 +431,9 @@ export function createPolicyPreflight(args: {
 
     // Bash: require approval for commands our classifier marks as confirm (unless an allow rule matched).
     if (call.name === 'Bash' && action.kind === 'bash.exec') {
-      const input = call.input
-      const obj = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : null
-      const command = obj && typeof obj.command === 'string' ? obj.command : ''
-      const dangerouslyDisableSandbox = Boolean(obj && (obj as any).dangerouslyDisableSandbox)
+      const input = call.input as Record<string, unknown>
+      const command = action.command
+      const dangerouslyDisableSandbox = Boolean((input as any).dangerouslyDisableSandbox)
 
       const decision = classifyBashCommand({ command, mode: replMode, agentDepth: ctx.agentDepth })
       if (decision.risk === 'deny') {
@@ -529,7 +535,7 @@ export function createPolicyPreflight(args: {
     if (ctx.hooks) {
       const permHook = await ctx.hooks.runPermissionRequest({
         toolName: call.name,
-        toolInput: call.input ?? {},
+        toolInput: call.input as Record<string, unknown>,
         cwd,
         signal: ctx.signal,
       })

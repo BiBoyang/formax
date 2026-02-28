@@ -570,6 +570,36 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('blocks Grep symlink escape paths in non-interactive contexts', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-grep-symlink-noninteractive-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+      await fs.symlink(outsideDir, path.join(projectDir, 'escape'), 'dir')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { path: projectDir, pattern: 'x' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('outside the workspace')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('caches Grep symlink scan results across repeated preflights', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-grep-scan-cache-'))
     const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue('/mock/rg')
@@ -692,6 +722,43 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('uses outside directory directly for fs.read workspace approval requests', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-read-outside-dir-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const outsideDir = path.join(dir, 'outside')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(outsideDir, { recursive: true })
+
+      let requestedDir: string | null = null
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async (args: any) => {
+            requestedDir = args.workspaceRequest?.dir ?? null
+            return { ok: true }
+          },
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Read', input: { file_path: outsideDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+      expect(res).toBeNull()
+      expect(requestedDir).toBe(await fs.realpath(outsideDir))
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('prompts for fs.write outside workspace roots and approve_remember adds a session workspace directory', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-workspace-approve-write-'))
     try {
@@ -797,6 +864,94 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('allows editing the plan file itself in plan mode', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-plan-mode-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      const planPath = path.join(projectDir, 'PLAN.md')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        {
+          id: 't1',
+          name: 'Write',
+          input: { file_path: planPath, content: 'hi' },
+        },
+        { cwd: projectDir, agentDepth: 0, replMode: 'plan', planPath },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null when tool call is not mapped to a policy action', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-no-action-'))
+    try {
+      const store = createNodeFileStore()
+      const preflight = createPolicyPreflight({ fileStore: store })
+      const res = await preflight({ id: 't1', name: 'UnknownTool', input: {} } as any, {
+        cwd: dir,
+        agentDepth: 0,
+      })
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to process.cwd() when execution context cwd is missing', async () => {
+    const store = createNodeFileStore()
+    const preflight = createPolicyPreflight({ fileStore: store })
+    const res = await preflight(
+      {
+        id: 't1',
+        name: 'Write',
+        input: { file_path: path.join(process.cwd(), 'tmp-policy-preflight.txt'), content: 'x' },
+      },
+      { agentDepth: 0 } as any,
+    )
+    expect(res?.is_error).toBe(true)
+  })
+
+  it('rejects plan-mode writes when plan path is unavailable', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-plan-mode-missing-path-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'x.md'), content: 'x' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'plan' },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Plan mode is active')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('denies disallowed Bash commands with a stable error code', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-empty-'))
     try {
@@ -821,6 +976,367 @@ describe('createPolicyPreflight', () => {
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Bash command denied')
     } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles ripgrep install prompts in sub-agents without approval UI', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-subagent-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 1 },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required')
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('requires interactive approval for ripgrep install prompts', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-interactive-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for tool.install')
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('requires approval service when ripgrep install prompts are active', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-approval-service-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for tool.install')
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns approval result payload for ripgrep install prompts', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-result-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => ({
+            ok: false,
+            result: { tool_use_id: 't1', content: 'Error: install declined', is_error: true },
+          }),
+        },
+        audit: { append: async () => {} },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('install declined')
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows Grep when ripgrep install action is explicitly allowed', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-allow-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res).toBeNull()
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns deny reason for ripgrep install policy denies', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-deny-reason-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            reason: 'rg install blocked',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Reason: rg install blocked')
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('supports successful ripgrep install prompt approvals', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-approve-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => ({ ok: true }),
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-read',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'fs.read', path: '/' },
+          },
+        ],
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+      expect(res).toBeNull()
+    } finally {
+      probeSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('continues after ripgrep install approval when prompt is accepted', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-rg-install-approve-continue-'))
+    const probeSpy = vi.spyOn(ripgrepBinary, 'probeRipgrepExecutable').mockResolvedValue(null)
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-rg-install',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'tool.install', tool: 'ripgrep' },
+          },
+          {
+            ruleId: 'allow-read',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'fs.read', path: projectDir },
+          },
+        ],
+      })
+
+      let approvals = 0
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => {
+            approvals++
+            return { ok: true }
+          },
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Grep', input: { pattern: 'x', path: projectDir } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+      expect(res).toBeNull()
+      expect(approvals).toBe(1)
+    } finally {
+      probeSpy.mockRestore()
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
@@ -1028,6 +1544,94 @@ describe('createPolicyPreflight', () => {
       expect(hookRuns[0].hook.parsedJson).toBe(false)
       expect(hookRuns[0].hook.stderrPreview).toBe('blocked by hook')
       expect(hookRuns[0].hook.stdoutPreview).toBeUndefined()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('continues to approval when permission hooks do not block', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-hook-pass-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      let approvals = 0
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => {
+            approvals++
+            return { ok: true }
+          },
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const hooks: HooksRuntime = {
+        runPreToolUse: async () => ({ runs: [], blocked: false }),
+        runPermissionRequest: async () => ({ runs: [], blocked: false }),
+        runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+      }
+
+      const res = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'x' } },
+        { cwd: projectDir, agentDepth: 0, hooks },
+      )
+      expect(res).toBeNull()
+      expect(approvals).toBe(1)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns hook block error without stderr details when stderr is empty', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-hook-no-stderr-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => ({ ok: true }),
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const hooks: HooksRuntime = {
+        runPreToolUse: async () => ({ runs: [], blocked: false }),
+        runPermissionRequest: async () => ({
+          runs: [{ command: 'echo', stderr: '   ' } as any],
+          blocked: true,
+          blockedBy: { command: 'echo', stderr: '   ' } as any,
+        }),
+        runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+        runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+      }
+
+      const res = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'x' } },
+        { cwd: projectDir, agentDepth: 0, hooks },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toBe('Error: Permission denied Write')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -1394,6 +1998,464 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Approval required')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies Bash when permissions deny the command', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-perm-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-mkdir',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'bash.exec', commandPrefix: 'mkdir' },
+          },
+        ],
+      })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: [],
+          deny: ['Bash(mkdir foo)'],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'mkdir foo' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
+      )
+
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Permission denied Bash')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts Bash when permissions ask overrides policy allow', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-perm-ask-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-mkdir',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'bash.exec', commandPrefix: 'mkdir' },
+          },
+        ],
+      })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: ['Bash(mkdir foo)'],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'mkdir foo' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Approval required for bash.exec')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps Bash decision unchanged when permissions ask but effective decision is already prompt', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-ask-noop-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: ['Bash(mkdir foo)'],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'mkdir foo' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Approval required for bash.exec')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts Bash from permissions ask when policy already allows and command is safe', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-safe-ask-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-echo',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'bash.exec', commandPrefix: 'echo' },
+          },
+        ],
+      })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: { allow: [], ask: ['Bash(echo hi)'], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'Bash', input: { command: 'echo hi' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal', interactive: false },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for bash.exec')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles Bash calls with invalid input payloads', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-bash-invalid-input-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const r1 = await preflight({ id: 't1', name: 'Bash', input: 'not-object' as any }, { cwd: projectDir, agentDepth: 0 })
+      expect(r1).toBeNull()
+
+      const r2 = await preflight(
+        { id: 't2', name: 'Bash', input: { command: 42 } as any },
+        { cwd: projectDir, agentDepth: 0, replMode: 'normal' },
+      )
+      expect(r2).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps WebFetch prompt when matched rule is prompt even if permissions allow', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-webfetch-prompt-rule-overrides-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-net',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'net.fetch', urlPrefix: 'https://example.com' },
+          },
+        ],
+      })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: { allow: ['WebFetch'], ask: [], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'WebFetch', input: { url: 'https://example.com/a', prompt: 'x' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for net.fetch')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts WebSearch from permissions ask when policy allows search', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-websearch-ask-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-search',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'net.search', queryPrefix: 'hello' },
+          },
+        ],
+      })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: { allow: [], ask: ['WebSearch'], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+      const res = await preflight(
+        { id: 't1', name: 'WebSearch', input: { query: 'hello world' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for net.search')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not change denied WebSearch decisions when permissions ask is configured', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-websearch-ask-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: { allow: [], ask: ['WebSearch'], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'WebSearch', input: { query: 'hello world' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Policy denied net.search')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts WebFetch when permissions ask overrides policy allow', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-webfetch-perm-ask-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'allow-net',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'allow',
+            match: { kind: 'net.fetch', urlPrefix: 'https://' },
+          },
+        ],
+      })
+
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: ['WebFetch'],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'WebFetch', input: { url: 'https://example.com', prompt: 'x' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Approval required for net.fetch')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns policy deny reasons for matched rules', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-deny-reason-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-net',
+            createdAt: '2026-01-01T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            reason: 'security policy',
+            match: { kind: 'net.fetch', urlPrefix: 'https://' },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'WebFetch', input: { url: 'https://example.com', prompt: 'x' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('Policy denied net.fetch')
+      expect(result?.content).toContain('Reason: security policy')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns approval result payload when approval rejects', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-approval-result-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: {
+          getSessionRules: () => [],
+          ensureApproved: async () => ({
+            ok: false,
+            result: { tool_use_id: 't1', content: 'Error: user declined', is_error: true },
+          }),
+        },
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const result = await preflight(
+        { id: 't1', name: 'Write', input: { file_path: path.join(projectDir, 'a.txt'), content: 'x' } },
+        { cwd: projectDir, agentDepth: 0, interactive: true },
+      )
+
+      expect(result?.is_error).toBe(true)
+      expect(result?.content).toContain('user declined')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
