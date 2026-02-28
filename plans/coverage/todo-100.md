@@ -43,7 +43,6 @@
 - [ ] src/hooks/settingsStore.ts
 - [ ] src/hooks/store.ts
 - [ ] src/network/runtime.ts
-- [ ] src/prompts/system.ts
 - [ ] src/screens/perf/TranscriptPerfScreen.tsx
 - [ ] src/screens/repl/compactProjection.ts
 - [ ] src/screens/repl/format.ts
