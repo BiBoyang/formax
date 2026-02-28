@@ -6,7 +6,7 @@ import type { HookEventName, HookSource } from './types.js'
 import { eventUsesMatcher } from './store.js'
 
 function tryParseJsonRecord(raw: string): Record<string, unknown> | null {
-  const text = String(raw || '').trim()
+  const text = String(raw).trim()
   if (!text) return null
   try {
     const parsed = JSON.parse(text) as unknown
@@ -112,8 +112,8 @@ export async function persistHookCommand(args: {
   const rules = getOrInitEventRules(hooksRoot, args.eventName)
 
   let ruleIndex = rules.findIndex((r) => {
-    if (!r || typeof r !== 'object' || Array.isArray(r)) return false
-    return getRuleMatcher(args.eventName, r) === matcher
+    if (getRuleMatcher(args.eventName, r) !== matcher) return false
+    return Boolean(r && typeof r === 'object' && !Array.isArray(r))
   })
 
   if (ruleIndex === -1) {
@@ -121,7 +121,7 @@ export async function persistHookCommand(args: {
     ruleIndex = rules.length - 1
   } else {
     const rule = rules[ruleIndex]
-    const rawHooks = rule && typeof rule === 'object' && !Array.isArray(rule) ? (rule as any).hooks : null
+    const rawHooks = (rule as any).hooks
     const nextHooks = Array.isArray(rawHooks) ? [...rawHooks] : []
     const exists = nextHooks.some((h) => {
       if (!h || typeof h !== 'object' || Array.isArray(h)) return false
