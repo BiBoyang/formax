@@ -151,8 +151,7 @@ function withEllipsis(text: string, enabled: boolean): string {
   return `${text}…`
 }
 
-function normalizeWords(words: readonly string[] | undefined): string[] {
-  if (!words) return []
+function normalizeWords(words: readonly string[]): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   for (const w of words) {
@@ -229,8 +228,7 @@ export function LoadingStatusLine({
     if (!cycleWords || wordList.length === 0) return 0
     const idxFromText = text ? wordList.indexOf(text) : -1
     if (idxFromText >= 0) return idxFromText
-    const next = pickNextRandomIndex(wordList.length, null, rng)
-    return next >= 0 ? next : 0
+    return pickNextRandomIndex(wordList.length, null, rng)
   })
 
   useEffect(() => {
@@ -247,16 +245,14 @@ export function LoadingStatusLine({
     }
 
     if (!hasInitializedWordCycle.current) {
-      const next = pickNextRandomIndex(wordList.length, null, rng)
-      setWordIndex(next >= 0 ? next : 0)
+      setWordIndex(pickNextRandomIndex(wordList.length, null, rng))
       hasInitializedWordCycle.current = true
       return
     }
 
     setWordIndex((prev) => {
       if (prev >= 0 && prev < wordList.length) return prev
-      const next = pickNextRandomIndex(wordList.length, null, rng)
-      return next >= 0 ? next : 0
+      return pickNextRandomIndex(wordList.length, null, rng)
     })
   }, [cycleWords, rng, text, wordList])
 

@@ -198,6 +198,14 @@ describe('formatToolCallParts', () => {
     )
   })
 
+  it('handles non-string path in relative-path formatting and undefined search pattern', () => {
+    const read = formatToolCallParts('Read', { file_path: 123 as any }, { preferRelativePaths: true, cwd: '/repo' })
+    expect(read.params).toBe('')
+
+    const search = formatToolCallParts('Search', {} as any)
+    expect(search.params).toBe('pattern: ""')
+  })
+
   // Property test: Unknown tools use JSON stringification
 	  it('should use JSON for unknown tools', () => {
 	    fc.assert(
@@ -227,6 +235,18 @@ describe('formatToolCallParts', () => {
       expect(result).toEqual({ toolName: 'Write', params: 'output.txt' })
     })
 
+    it('should format NotebookEdit with notebook_path', () => {
+      const result = formatToolCallParts('NotebookEdit', { notebook_path: 'nb/test.ipynb' })
+      expect(result).toEqual({ toolName: 'NotebookEdit', params: 'nb/test.ipynb' })
+    })
+
+    it('falls back to empty params for missing optional inputs', () => {
+      expect(formatToolCallParts('NotebookEdit', {} as any)).toEqual({ toolName: 'NotebookEdit', params: '' })
+      expect(formatToolCallParts('WebSearch', {} as any)).toEqual({ toolName: 'WebSearch', params: 'query: ""' })
+      expect(formatToolCallParts('WebFetch', {} as any)).toEqual({ toolName: 'WebFetch', params: '' })
+      expect(formatToolCallParts('SlashCommand', {} as any)).toEqual({ toolName: 'SlashCommand', params: '' })
+    })
+
     it('should format Bash tool with short command', () => {
       const result = formatToolCallParts('Bash', { command: 'ls -la' })
       expect(result).toEqual({ toolName: 'Bash', params: 'ls -la' })
@@ -243,6 +263,38 @@ describe('formatToolCallParts', () => {
 	      const result = formatToolCallParts('SlashCommand', { command: '/review-pr 123' })
 	      expect(result).toEqual({ toolName: 'SlashCommand', params: '/review-pr 123' })
 	    })
+
+    it('formats WebSearch/WebFetch/TodoWrite variants', () => {
+      const shortSearch = formatToolCallParts('WebSearch', { query: 'hello' })
+      expect(shortSearch.params).toBe('query: "hello"')
+      const longSearch = formatToolCallParts('WebSearch', { query: 'a'.repeat(55) })
+      expect(longSearch.params).toBe(`query: "${'a'.repeat(50)}..."`)
+
+      const shortFetch = formatToolCallParts('WebFetch', { url: 'https://example.com' })
+      expect(shortFetch.params).toBe('https://example.com')
+      const longFetch = formatToolCallParts('WebFetch', { url: 'https://example.com/' + 'a'.repeat(80) })
+      expect(longFetch.params.endsWith('...')).toBe(true)
+      expect(longFetch.params.length).toBe(63)
+
+      const todos = formatToolCallParts('TodoWrite', { todos: [{}, {}] })
+      expect(todos.params).toBe('2 items')
+      const noTodos = formatToolCallParts('TodoWrite', { todos: 'bad' })
+      expect(noTodos.params).toBe('0 items')
+
+      const searchWithOutputMode = formatToolCallParts('Search', {
+        pattern: 'todo',
+        path: 'src',
+        output_mode: 'content',
+      })
+      expect(searchWithOutputMode.params).toBe('pattern: "todo", path: "src", output_mode: "content"')
+    })
+
+    it('truncates SlashCommand over 60 chars', () => {
+      const cmd = '/x ' + 'a'.repeat(100)
+      const result = formatToolCallParts('SlashCommand', { command: cmd })
+      expect(result.params.endsWith('...')).toBe(true)
+      expect(result.params.length).toBe(63)
+    })
 
 	    it('should handle empty input gracefully', () => {
 	      const result = formatToolCallParts('Read', {})
@@ -364,6 +416,46 @@ describe('formatToolResult', () => {
     expect(output.summary).toBe('Done (1 tool uses · 10 tokens · 1s)')
   })
 
+  it('handles Task result states and parse fallback paths', () => {
+    const queuedNoId = formatToolResult('Task', JSON.stringify({ status: 'running' }), false)
+    expect(queuedNoId.summary).toBe('Task queued')
+
+    const queuedWithShortId = formatToolResult('Task', JSON.stringify({ status: 'running', task_id: 'abc123' }), false)
+    expect(queuedWithShortId.summary).toBe('Task queued (abc123)')
+
+    const queuedWithLongId = formatToolResult(
+      'Task',
+      JSON.stringify({ status: 'running', task_id: '123456789abcdef' }),
+      false,
+    )
+    expect(queuedWithLongId.summary).toBe('Task queued (12345678…)')
+
+    const taskErrField = formatToolResult('Task', JSON.stringify({ error: 'boom' }), false)
+    expect(taskErrField.summary).toBe('Error: boom')
+
+    const taskStatusErr = formatToolResult('Task', JSON.stringify({ status: 'error', summary: 'bad' }), false)
+    expect(taskStatusErr.summary).toBe('Error: bad')
+
+    const taskStatusErrNoSummary = formatToolResult('Task', JSON.stringify({ status: 'error' }), false)
+    expect(taskStatusErrNoSummary.summary).toBe('Error: Task failed')
+
+    const taskRunningBlankId = formatToolResult('Task', JSON.stringify({ status: 'running', task_id: '' }), false)
+    expect(taskRunningBlankId.summary).toBe('Task queued')
+
+    const taskPlain = formatToolResult('Task', JSON.stringify({}), false)
+    expect(taskPlain.summary).toBe('(no output)')
+
+    const taskNoOutput = formatToolResult('Task', '', false)
+    expect(taskNoOutput).toEqual({ summary: '(no output)', lines: 0 })
+    const taskNoOutputErr = formatToolResult('Task', '', true)
+    expect(taskNoOutputErr).toEqual({ summary: 'Error: (no output)', lines: 0 })
+
+    const plainOk = formatToolResult('Task', 'not-json', false)
+    expect(plainOk.summary).toBe('not-json')
+    const plainErr = formatToolResult('Task', 'not-json', true)
+    expect(plainErr.summary).toBe('Error: not-json')
+  })
+
   // Property test: Glob/Search shows file count
   it('should show file count for Glob tool', () => {
     fc.assert(
@@ -379,6 +471,89 @@ describe('formatToolResult', () => {
       ),
       { numRuns: 100 }
     )
+  })
+
+  it('handles explicit zero-result sentinel strings for Glob/Grep', () => {
+    expect(formatToolResult('Glob', 'No files found', false)).toEqual({ summary: 'Found 0 files', lines: 0 })
+    expect(formatToolResult('Grep', 'No matches found', false)).toEqual({ summary: 'Found 0 matches', lines: 0 })
+  })
+
+  it('classifies Grep outputs as line matches, count matches, files or zero matches', () => {
+    expect(formatToolResult('Grep', '', false)).toEqual({ summary: 'Found 0 matches', lines: 0 })
+
+    const content = ['a.ts:1:foo', 'b.ts:2:bar'].join('\n')
+    expect(formatToolResult('Grep', content, false)).toEqual({ summary: 'Found 2 lines', lines: 2 })
+
+    const count = ['a.ts:3', 'b.ts:4'].join('\n')
+    expect(formatToolResult('Grep', count, false)).toEqual({ summary: 'Found 7 matches', lines: 7 })
+
+    const files = ['a.ts', 'b.ts'].join('\n')
+    expect(formatToolResult('Grep', files, false)).toEqual({ summary: 'Found 2 files', lines: 2 })
+  })
+
+  it('handles WebSearch output layout for 1, 2-3, and 4+ lines', () => {
+    expect(formatToolResult('WebSearch', 'one', false)).toEqual({ summary: 'one', lines: 1 })
+    expect(formatToolResult('WebSearch', 'one\ntwo\nthree', false)).toEqual({
+      summary: 'one',
+      middleLines: ['two', 'three'],
+      lines: 3,
+    })
+    expect(formatToolResult('WebSearch', 'one\ntwo\nthree\nfour\nfive', false)).toEqual({
+      summary: 'one',
+      middleLines: ['two', 'three'],
+      expandInfo: '… +2 lines (ctrl+o to expand)',
+      lines: 5,
+    })
+  })
+
+  it('handles WebSearch with empty output line', () => {
+    expect(formatToolResult('WebSearch', '', false)).toEqual({ summary: '', lines: 1 })
+  })
+
+  it('handles error branches including tool rejection and filtered default detail lines', () => {
+    const rejected = formatToolResult(
+      'Bash',
+      'Tool use rejected by policy\n\n<system-reminder>\nignore\n</system-reminder>',
+      true,
+    )
+    expect(rejected.summary).toBe('Tool use rejected by policy')
+
+    const bashNoDetail = formatToolResult('Bash', 'Error: hello\nstderr:\nstdout:\n', true)
+    expect(bashNoDetail).toEqual({ summary: 'Error: hello' })
+
+    const bashNoOutput = formatToolResult('Bash', '', true)
+    expect(bashNoOutput).toEqual({ summary: 'Error: (no output)' })
+
+    const bashFallbackDetail = formatToolResult('Bash', 'Exit code 2\nstdout:\nactual detail', true)
+    expect(bashFallbackDetail).toEqual({ summary: 'Error: Exit code 2', middleLines: ['actual detail'] })
+
+    const bashStderrSkipsBlank = formatToolResult('Bash', 'Exit code 2\nstderr:\n \nproblem\nstdout:', true)
+    expect(bashStderrSkipsBlank).toEqual({ summary: 'Error: Exit code 2', middleLines: ['problem'] })
+
+    const defaultNoOutput = formatToolResult('Any', '', true)
+    expect(defaultNoOutput).toEqual({ summary: 'Error: (no output)' })
+
+    const defaultFiltered = formatToolResult('Any', 'boom\nErrorCode: E1\nWorkspace roots: /x', true)
+    expect(defaultFiltered).toEqual({ summary: 'Error: boom', middleLines: ['ErrorCode: E1'] })
+
+    const workspaceFiltered = formatToolResult('Any', 'boom\nWorkspace roots: /x\ndetail', true)
+    expect(workspaceFiltered).toEqual({ summary: 'Error: boom', middleLines: ['detail'] })
+
+    const alreadyPrefixed = formatToolResult('Any', 'Error: prefixed', true)
+    expect(alreadyPrefixed).toEqual({ summary: 'Error: prefixed' })
+  })
+
+  it('stripTrailingSystemReminderBlock keeps strings without full trailing block', () => {
+    const noClose = 'x\n\n<system-reminder>\nabc'
+    expect(formatToolResult('Write', noClose, false).summary).toBe(noClose.slice(0, 100))
+
+    const withTail = 'x\n\n<system-reminder>\nabc\n</system-reminder>\nTAIL'
+    expect(formatToolResult('Write', withTail, false).summary).toBe(withTail.slice(0, 100))
+  })
+
+  it('handles undefined raw result values via runtime casts', () => {
+    const out = formatToolResult('Write', undefined as any, false)
+    expect(out).toEqual({ summary: '' })
   })
 
   // Property test: Bash with single line has no middleLines

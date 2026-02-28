@@ -77,3 +77,7 @@ export function requireAbsolutePath(args: {
   const suggestion = path.resolve(args.cwd || process.cwd(), expanded)
   throw new Error(`${field} must be an absolute path. Received: ${raw}. Try: ${suggestion}`)
 }
+
+export const __pathsTestHooks = {
+  expandHome,
+}

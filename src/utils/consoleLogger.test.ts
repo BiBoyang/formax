@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WebSocket } from 'ws'
 import {
+  __consoleLoggerTestHooks,
   buildLogMessage,
   sendLogMessageToClients,
   stopConsoleLogger,
@@ -14,6 +15,8 @@ import {
 
 const {
   createServerMock,
+  getHttpHandler,
+  resetHttpHandler,
   httpCloseMock,
   httpListenMock,
   wssCloseMock,
@@ -24,15 +27,19 @@ const {
   resetConnectionHandler,
 } = vi.hoisted(() => {
   let connectionHandler: ((ws: any) => void) | null = null
+  let httpHandler: ((req: any, res: any) => void) | null = null
 
   const httpCloseMock = vi.fn()
   const httpListenMock = vi.fn((port: number, cb?: () => void) => {
     cb?.()
   })
-  const createServerMock = vi.fn((_handler: any) => ({
-    listen: httpListenMock,
-    close: httpCloseMock,
-  }))
+  const createServerMock = vi.fn((handler: any) => {
+    httpHandler = handler
+    return {
+      listen: httpListenMock,
+      close: httpCloseMock,
+    }
+  })
 
   const wssCloseMock = vi.fn()
   const wssCtorMock = vi.fn()
@@ -41,6 +48,13 @@ const {
 
   return {
     createServerMock,
+    getHttpHandler: () => httpHandler,
+    setHttpHandler: (next: (req: any, res: any) => void) => {
+      httpHandler = next
+    },
+    resetHttpHandler: () => {
+      httpHandler = null
+    },
     httpCloseMock,
     httpListenMock,
     wssCloseMock,
@@ -84,6 +98,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.clearAllTimers()
   stopConsoleLogger()
+  resetHttpHandler()
   resetConnectionHandler()
   vi.clearAllMocks()
   vi.restoreAllMocks()
@@ -196,5 +211,144 @@ describe('startConsoleLogger/stopConsoleLogger', () => {
     const callCountAfterStop = wsSendMock.mock.calls.length
     wsLog('after-stop')
     expect(wsSendMock.mock.calls.length).toBe(callCountAfterStop)
+  })
+
+  it('serves html on "/" and 404 on unknown routes', () => {
+    startConsoleLogger(3333)
+    const handler = getHttpHandler()
+    expect(typeof handler).toBe('function')
+
+    const okRes = { writeHead: vi.fn(), end: vi.fn() }
+    ;(handler as any)({ url: '/' }, okRes)
+    expect(okRes.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'text/html' })
+    expect(String(okRes.end.mock.calls[0]?.[0] ?? '')).toContain('<!DOCTYPE html>')
+
+    const missRes = { writeHead: vi.fn(), end: vi.fn() }
+    ;(handler as any)({ url: '/missing' }, missRes)
+    expect(missRes.writeHead).toHaveBeenCalledWith(404)
+    expect(missRes.end).toHaveBeenCalledWith('Not found')
+  })
+
+  it('ws helper functions send when logger is active', () => {
+    startConsoleLogger(3333)
+    const onConnection = getConnectionHandler()
+    const wsClient = { readyState: WebSocket.OPEN, send: wsSendMock, on: vi.fn(), close: vi.fn() }
+    ;(onConnection as any)(wsClient)
+
+    wsInfo('i')
+    wsWarn('w')
+    wsError('e')
+    wsDebug('d')
+
+    const payloads = wsSendMock.mock.calls
+      .map((c) => {
+        try {
+          return JSON.parse(c[0])
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+    const types = payloads.map((p: any) => p.type)
+    expect(types).toContain('info')
+    expect(types).toContain('warn')
+    expect(types).toContain('error')
+    expect(types).toContain('debug')
+  })
+
+  it('handles websocket send failure and close/error callbacks', () => {
+    const sendThrows = vi.fn(() => {
+      throw new Error('send failed')
+    })
+    const wsHandlers: Record<string, (...args: any[]) => void> = {}
+    const wsClient = {
+      readyState: WebSocket.OPEN,
+      send: sendThrows,
+      on: vi.fn((event: string, cb: (...args: any[]) => void) => {
+        wsHandlers[event] = cb
+      }),
+      close: vi.fn(),
+    }
+
+    startConsoleLogger(3333)
+    const onConnection = getConnectionHandler()
+    ;(onConnection as any)(wsClient)
+
+    expect(wsHandlers.close).toBeTypeOf('function')
+    expect(wsHandlers.error).toBeTypeOf('function')
+    expect(() => wsHandlers.error?.(new Error('ws err'))).not.toThrow()
+    expect(() => wsHandlers.close?.()).not.toThrow()
+  })
+
+  it('covers internal stop guards and ws readyState CLOSED branch', () => {
+    startConsoleLogger(3333)
+    const onConnection = getConnectionHandler()
+    const wsClient = { readyState: WebSocket.CLOSED, send: wsSendMock, on: vi.fn(), close: vi.fn() }
+    ;(onConnection as any)(wsClient)
+    expect(wsSendMock).not.toHaveBeenCalled()
+
+    const instance = __consoleLoggerTestHooks.getInstance() as any
+    instance.wss = null
+    instance.httpServer = null
+    expect(() => instance.stop()).not.toThrow()
+  })
+
+  it('emits startup browser-only logs after timer and handles signal callbacks', () => {
+    vi.useFakeTimers()
+    const signalHandlers: Record<string, () => void> = {}
+    const onSpy = vi.spyOn(process, 'on').mockImplementation(((event: string, cb: () => void) => {
+      signalHandlers[event] = cb
+      return process
+    }) as any)
+
+    startConsoleLogger(3333)
+    const onConnection = getConnectionHandler()
+    const wsClient = { readyState: WebSocket.OPEN, send: wsSendMock, on: vi.fn(), close: vi.fn() }
+    ;(onConnection as any)(wsClient)
+
+    vi.advanceTimersByTime(100)
+    const beforeSignal = wsSendMock.mock.calls.length
+    signalHandlers.SIGINT?.()
+    const afterSignal = wsSendMock.mock.calls.length
+    wsLog('after-sigint')
+    expect(afterSignal).toBeGreaterThanOrEqual(beforeSignal)
+    expect(wsSendMock.mock.calls.length).toBe(afterSignal)
+    signalHandlers.SIGINT?.()
+
+    startConsoleLogger(3333)
+    const onConnection2 = getConnectionHandler()
+    ;(onConnection2 as any)(wsClient)
+    vi.advanceTimersByTime(100)
+    const beforeSigterm = wsSendMock.mock.calls.length
+    signalHandlers.SIGTERM?.()
+    const afterSigterm = wsSendMock.mock.calls.length
+    wsInfo('after-sigterm')
+    expect(afterSigterm).toBeGreaterThanOrEqual(beforeSigterm)
+    expect(wsSendMock.mock.calls.length).toBe(afterSigterm)
+    signalHandlers.SIGTERM?.()
+    onSpy.mockRestore()
+  })
+
+  it('logToBrowser writes to console and browser clients', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    startConsoleLogger(3333)
+    const onConnection = getConnectionHandler()
+    const wsClient = { readyState: WebSocket.OPEN, send: wsSendMock, on: vi.fn(), close: vi.fn() }
+    ;(onConnection as any)(wsClient)
+
+    const instance = __consoleLoggerTestHooks.getInstance() as any
+    instance.logToBrowser('info', 'dual-target')
+
+    expect(infoSpy).toHaveBeenCalledWith('dual-target')
+    const payload = wsSendMock.mock.calls
+      .map((c) => {
+        try {
+          return JSON.parse(c[0])
+        } catch {
+          return null
+        }
+      })
+      .find((p: any) => p?.formatted === 'dual-target')
+    expect(payload?.type).toBe('info')
   })
 })

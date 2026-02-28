@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 
-function dimHexColor(hex: string, factor: number): string | null {
+export function dimHexColor(hex: string, factor: number): string | null {
   const raw = String(hex || '').trim()
   const match = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
   if (!match) return null

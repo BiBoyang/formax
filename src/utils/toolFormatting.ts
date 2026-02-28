@@ -146,7 +146,7 @@ function formatMaybeRelativePath(value: unknown, opts?: FormatToolCallPartsOptio
 function formatSearchParams(args: { pattern: unknown; path?: unknown; outputMode?: unknown }): string {
   const parts: string[] = []
 
-  const pattern = String(args.pattern ?? '')
+  const pattern = String(args.pattern)
   parts.push(`pattern: ${jsonQuote(pattern)}`)
 
   const path = typeof args.path === 'string' ? args.path.trim() : ''
@@ -263,8 +263,8 @@ export function formatToolResult(
       const looksLikeCount = nonEmpty.every((l) => /:\d+$/.test(l) && !/:\d+:/.test(l))
       if (looksLikeCount) {
         const total = nonEmpty.reduce((acc, line) => {
-          const m = /:(\d+)$/.exec(line.trim())
-          return acc + (m ? Number.parseInt(m[1]!, 10) : 0)
+          const m = /:(\d+)$/.exec(line.trim())!
+          return acc + Number.parseInt(m[1]!, 10)
         }, 0)
         return { summary: `Found ${total} matches`, lines: total }
       }
@@ -319,7 +319,7 @@ export function formatToolResult(
 }
 
 function splitToolResultLines(raw: string): string[] {
-  const s = String(raw ?? '')
+  const s = raw
   const lines = s.split(/\r?\n/)
   // If the output ends with a newline, `split()` produces a trailing empty
   // element that does not represent a real extra line. Remove exactly one.
@@ -342,7 +342,7 @@ function formatBashErrorResult(raw: string): ToolResultFormat {
   let detail: string | undefined
   if (stderrIndex >= 0) {
     for (let i = stderrIndex + 1; i < lines.length; i++) {
-      const line = lines[i] ?? ''
+      const line = lines[i] as string
       const trimmed = line.trim()
       if (!trimmed) continue
       if (trimmed.toLowerCase() === 'stdout:') break
@@ -354,7 +354,6 @@ function formatBashErrorResult(raw: string): ToolResultFormat {
   if (!detail) {
     for (const line of nonEmpty.slice(1)) {
       const trimmed = line.trim()
-      if (!trimmed) continue
       const lower = trimmed.toLowerCase()
       if (lower === 'stderr:' || lower === 'stdout:') continue
       detail = line
@@ -414,7 +413,7 @@ function formatTaskToolResult(raw: string, isError: boolean): ToolResultFormat {
 }
 
 function shortId(id: string): string {
-  const s = String(id || '').trim()
+  const s = id.trim()
   if (s.length <= 8) return s
   return s.slice(0, 8) + '…'
 }

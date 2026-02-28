@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { MarkdownBlock as ServiceMarkdownBlock } from '../../tools/presenters/MarkdownBlock'
-import { MarkdownBlock as UiMarkdownBlock } from './MarkdownBlock'
+import { MarkdownBlock as UiMarkdownBlock, parseMarkdown } from './MarkdownBlock'
 
 function renderFrame(node: React.ReactElement): string {
   const view = render(node)
@@ -32,11 +32,38 @@ describe('components/ui/MarkdownBlock', () => {
     expect(frame).not.toContain('```')
   })
 
+  it('treats unmatched inline backticks as plain text', () => {
+    const frame = renderFrame(<UiMarkdownBlock markdown={'prefix `unfinished'} />)
+    expect(frame).toContain('prefix `unfinished')
+  })
+
   it('matches service MarkdownBlock rendering baseline', () => {
     const md = ['Paragraph 1', '', '- item-1', '- item-2', '', '```txt', 'code line', '```', '', '`tail`'].join('\n')
     const uiFrame = renderFrame(<UiMarkdownBlock markdown={md} />)
     const serviceFrame = renderFrame(<ServiceMarkdownBlock markdown={md} />)
 
     expect(uiFrame).toBe(serviceFrame)
+  })
+
+  it('renders empty code lines as visible blank rows', () => {
+    const md = ['```', 'line-1', '', 'line-3', '```'].join('\n')
+    const frame = renderFrame(<UiMarkdownBlock markdown={md} />)
+    expect(frame).toContain('line-1')
+    expect(frame).toContain('line-3')
+  })
+
+  it('parseMarkdown normalizes mixed blocks and trims outer blanks', () => {
+    const blocks = parseMarkdown(['', '', 'Para', '', '- item', '```', 'code', '```', '', ''].join('\n'))
+    expect(blocks).toEqual([
+      { kind: 'paragraph', lines: ['Para'] },
+      { kind: 'blank' },
+      { kind: 'list', items: ['item'] },
+      { kind: 'code', lines: ['code'] },
+    ])
+  })
+
+  it('parseMarkdown handles unmatched code fence as code until end', () => {
+    const blocks = parseMarkdown(['```ts', 'const x = 1'].join('\n'))
+    expect(blocks).toEqual([{ kind: 'code', lines: ['const x = 1'] }])
   })
 })

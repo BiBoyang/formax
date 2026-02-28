@@ -551,3 +551,7 @@ export function stopConsoleLogger(): void {
     loggerInstance = null
   }
 }
+
+export const __consoleLoggerTestHooks = {
+  getInstance: (): unknown => loggerInstance,
+}

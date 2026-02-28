@@ -46,7 +46,7 @@ export function MarkdownBlock({ markdown }: { markdown: string }): React.ReactNo
   )
 }
 
-function parseMarkdown(raw: string): Block[] {
+export function parseMarkdown(raw: string): Block[] {
   const lines = String(raw || '').replace(/\r\n/g, '\n').split('\n')
   const blocks: Block[] = []
   let i = 0
@@ -99,7 +99,7 @@ function parseMarkdown(raw: string): Block[] {
   return blocks
 }
 
-function renderInline(text: string, theme: ReturnType<typeof getTheme>): React.ReactNode {
+export function renderInline(text: string, theme: ReturnType<typeof getTheme>): React.ReactNode {
   const parts: Array<{ kind: 'text' | 'code'; value: string }> = []
   const s = String(text ?? '')
   let i = 0
