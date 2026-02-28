@@ -166,7 +166,6 @@ function dedupeByCommand(entries: HookRuleEntry[]): HookRuleEntry[] {
 
   for (const e of entries) {
     const key = e.command.trim()
-    if (!key) continue
 
     const existing = byCommand.get(key)
     if (!existing) {

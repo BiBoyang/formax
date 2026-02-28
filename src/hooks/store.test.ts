@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { FileStore } from '../adapters/fs/fileStore.js'
 import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
 import { loadHooksBySource, loadMergedHooks } from './store.js'
 
@@ -264,5 +265,242 @@ describe('loadMergedHooks', () => {
     const bySource = await loadHooksBySource({ fileStore, cwd, homedir: home, platform: 'darwin' })
     const matchers = (bySource.matchersBySource.projectLocal.Stop ?? []).map((m) => m.matcher)
     expect(matchers).toEqual(['*'])
+  })
+
+  it('warns and normalizes non-wildcard matcher for matcher-less events', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        Stop: [
+          {
+            matcher: 'Bash',
+            hooks: [{ type: 'command', command: 'echo ok' }],
+          },
+        ],
+      },
+    })
+
+    const merged = await loadMergedHooks({ fileStore: createNodeFileStore(), cwd, homedir: home, platform: 'darwin' })
+    expect(merged.Stop.map((entry) => entry.matcher)).toEqual(['*'])
+    expect(merged.warnings.join('\n')).toContain('Ignoring matcher "Bash" for projectLocal Stop hook rule')
+  })
+
+  it('adds warning when settings json is invalid and treats hooks as empty', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    const mockFileStore: FileStore = {
+      async exists(filePath) {
+        return filePath.endsWith(path.join('.formax', 'settings.local.json'))
+      },
+      async readText() {
+        return '{'
+      },
+      async writeTextAtomic() {},
+      async writeJsonAtomic() {},
+    }
+
+    const bySource = await loadHooksBySource({ fileStore: mockFileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.projectLocal.PreToolUse).toEqual([])
+    expect(bySource.warnings.join('\n')).toContain('Invalid JSON in projectLocal settings')
+  })
+
+  it('adds warning when settings read fails with non-error value', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    const mockFileStore: FileStore = {
+      async exists(filePath) {
+        return filePath.endsWith(path.join('.formax', 'settings.local.json'))
+      },
+      async readText() {
+        throw 'boom'
+      },
+      async writeTextAtomic() {},
+      async writeJsonAtomic() {},
+    }
+
+    const bySource = await loadHooksBySource({ fileStore: mockFileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.projectLocal.PreToolUse).toEqual([])
+    expect(bySource.warnings.join('\n')).toContain('Failed to read projectLocal settings')
+    expect(bySource.warnings.join('\n')).toContain('boom')
+  })
+
+  it('counts duplicate matcher only once and handles non-array hooks in matcher summary', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        PreToolUse: [
+          { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo first' }] },
+          { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo second' }] },
+          { matcher: 'Read', hooks: { type: 'command', command: 'echo ignored-shape' } },
+        ],
+      },
+    })
+
+    const bySource = await loadHooksBySource({ fileStore: createNodeFileStore(), cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.matchersBySource.projectLocal.PreToolUse).toEqual([
+      { source: 'projectLocal', matcher: 'Bash', hooksCount: 1 },
+      { source: 'projectLocal', matcher: 'Read', hooksCount: 0 },
+    ])
+  })
+
+  it('uses default fileStore and falls back to process.cwd when cwd is empty', async () => {
+    const bySource = await loadHooksBySource({ cwd: '' })
+    expect(bySource.projectLocal.PreToolUse).toEqual(expect.any(Array))
+    expect(bySource.project.PreToolUse).toEqual(expect.any(Array))
+    expect(bySource.user.PreToolUse).toEqual(expect.any(Array))
+  })
+
+  it('adds warning when settings read fails with Error instance', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    const mockFileStore: FileStore = {
+      async exists(filePath) {
+        return filePath.endsWith(path.join('.formax', 'settings.local.json'))
+      },
+      async readText() {
+        throw new Error('read failed')
+      },
+      async writeTextAtomic() {},
+      async writeJsonAtomic() {},
+    }
+
+    const bySource = await loadHooksBySource({ fileStore: mockFileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.projectLocal.PreToolUse).toEqual([])
+    expect(bySource.warnings.join('\n')).toContain('Failed to read projectLocal settings')
+    expect(bySource.warnings.join('\n')).toContain('read failed')
+  })
+
+  it('treats empty settings file as invalid json record', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    const mockFileStore: FileStore = {
+      async exists(filePath) {
+        return filePath.endsWith(path.join('.formax', 'settings.local.json'))
+      },
+      async readText() {
+        return ''
+      },
+      async writeTextAtomic() {},
+      async writeJsonAtomic() {},
+    }
+
+    const bySource = await loadHooksBySource({ fileStore: mockFileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.warnings.join('\n')).toContain('Invalid JSON in projectLocal settings')
+  })
+
+  it('treats non-object json payload as invalid hooks settings', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    const mockFileStore: FileStore = {
+      async exists(filePath) {
+        return filePath.endsWith(path.join('.formax', 'settings.local.json'))
+      },
+      async readText() {
+        return '[]'
+      },
+      async writeTextAtomic() {},
+      async writeJsonAtomic() {},
+    }
+
+    const bySource = await loadHooksBySource({ fileStore: mockFileStore, cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.warnings.join('\n')).toContain('Invalid JSON in projectLocal settings')
+  })
+
+  it('ignores non-object hooks roots and malformed rule/hook entries', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-hooks-store-'))
+    const home = path.join(tmp, 'home')
+    const project = path.join(tmp, 'project')
+    const cwd = path.join(project, 'src')
+
+    await fs.mkdir(home, { recursive: true })
+    await fs.mkdir(path.join(project, '.git'), { recursive: true })
+    await fs.mkdir(path.join(project, '.formax'), { recursive: true })
+    await fs.mkdir(cwd, { recursive: true })
+
+    await writeJson(path.join(project, '.formax', 'settings.local.json'), {
+      hooks: {
+        PreToolUse: [
+          null,
+          [],
+          {
+            matcher: 'Bash',
+            hooks: [
+              null,
+              [],
+              { type: 'read', command: 'echo skip-type' },
+              { type: 'command', command: 123 },
+              { type: 'command', command: '   ' },
+              { type: 'command', command: 'echo ok' },
+            ],
+          },
+        ],
+      },
+    })
+    await writeJson(path.join(project, '.formax', 'settings.json'), {
+      hooks: [],
+    })
+
+    const bySource = await loadHooksBySource({ fileStore: createNodeFileStore(), cwd, homedir: home, platform: 'darwin' })
+    expect(bySource.projectLocal.PreToolUse.map((entry) => entry.command)).toEqual(['echo ok'])
+    expect(bySource.project.PreToolUse).toEqual([])
+    expect(bySource.matchersBySource.project.PreToolUse).toEqual([])
   })
 })
