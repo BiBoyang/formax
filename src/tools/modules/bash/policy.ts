@@ -12,9 +12,9 @@ export function classifyBashCommand(args: {
   mode?: 'normal' | 'acceptEdits' | 'plan'
   agentDepth?: number
 }): BashPolicyDecision {
-  const raw = String(args.command || '')
+  const raw = String(args.command)
   const normalized = raw.trim()
-  const agentDepth = Number.isFinite(args.agentDepth) ? Math.max(0, Math.floor(args.agentDepth ?? 0)) : 0
+  const agentDepth = Number.isFinite(args.agentDepth) ? Math.max(0, Math.floor(args.agentDepth as number)) : 0
   const mode = args.mode ?? 'normal'
 
   const effectiveMode: 'normal' | 'acceptEdits' | 'plan' = agentDepth > 0 ? 'plan' : mode
@@ -139,12 +139,10 @@ function unwrapShellWrapper(tokens: string[]): string | null {
 
   let sawCommandFlag = false
   for (let i = 1; i < tokens.length; i++) {
-    const t = tokens[i] || ''
-    const lower = t.toLowerCase()
+    const lower = tokens[i].toLowerCase()
 
     if (sawCommandFlag) {
-      const rest = tokens.slice(i).join(' ').trim()
-      return rest || null
+      return tokens.slice(i).join(' ').trim()
     }
 
     if (lower === '-c' || lower === '--command') {
@@ -161,18 +159,18 @@ function unwrapShellWrapper(tokens: string[]): string | null {
 }
 
 function hasUnquotedRedirection(command: string): boolean {
-  const text = command || ''
+  const text = command
   let quote: '"' | "'" | null = null
   let escape = false
 
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i] || ''
+    const ch = text[i]
     if (escape) {
       escape = false
       continue
     }
 
-    if (ch === '\\\\') {
+    if (ch === '\\') {
       escape = true
       continue
     }
@@ -206,11 +204,11 @@ function hasUnquotedRedirection(command: string): boolean {
 
 function hasTeeWrite(tokens: string[]): boolean {
   for (let i = 0; i < tokens.length; i++) {
-    const t = (tokens[i] || '').toLowerCase()
+    const t = tokens[i].toLowerCase()
     if (t !== 'tee') continue
     if (i === 0) return true
 
-    const prev = tokens[i - 1] || ''
+    const prev = tokens[i - 1]
     if (prev === '|' || prev.endsWith('|')) return true
   }
   return false
@@ -279,8 +277,8 @@ function isDestructiveRootRm(lower: string): boolean {
 }
 
 function inferPrefix(command: string): string {
-  const trimmed = (command || '').trim()
-  const first = trimmed.split(/\s+/, 1)[0] || ''
+  const trimmed = command.trim()
+  const first = trimmed.split(/\s+/, 1)[0]
   return first.toLowerCase()
 }
 
@@ -302,7 +300,7 @@ function shellWords(command: string): string[] {
       continue
     }
 
-    if (ch === '\\\\') {
+    if (ch === '\\') {
       escape = true
       continue
     }
