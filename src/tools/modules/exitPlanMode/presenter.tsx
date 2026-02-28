@@ -163,7 +163,6 @@ function ExitPlanModePrompt({
 
   const submit = useCallback(
     (kind: 'auto' | 'manual' | 'feedback' | 'cancel', feedback?: string) => {
-      if (submittedRef.current) return
       submittedRef.current = true
       if (kind === 'auto') onAuto()
       else if (kind === 'manual') onManual()
@@ -242,13 +241,7 @@ function ExitPlanModePrompt({
         }
         const isForwardDelete = bufferedDeletes > 0 || keyName === 'delete' || token === '\u001B[3~'
         if (isForwardDelete) {
-          const deleteCount = Math.max(1, bufferedDeletes)
-          setTypingState((state) => {
-            if (state.cursor >= state.value.length) return state
-            const nextValue =
-              state.value.slice(0, state.cursor) + state.value.slice(Math.min(state.value.length, state.cursor + deleteCount))
-            return { value: nextValue, cursor: state.cursor }
-          })
+          setTypingState((state) => applyForwardDelete(state, bufferedDeletes))
           return
         }
         const isBackspaceLike =
@@ -274,44 +267,43 @@ function ExitPlanModePrompt({
           })
           return
         }
-        return
-      }
+      } else {
+        // If we handled navigation, stop here so split escape-sequence chunks (like the final "A"/"B")
+        // don't accidentally enter typing mode or trigger numeric shortcuts.
+        if (verticalDelta !== 0) {
+          setCursorSafe((c) => Math.max(0, Math.min(2, c + verticalDelta)))
+          return
+        }
 
-      // If we handled navigation, stop here so split escape-sequence chunks (like the final "A"/"B")
-      // don't accidentally enter typing mode or trigger numeric shortcuts.
-      if (verticalDelta !== 0) {
-        setCursorSafe((c) => Math.max(0, Math.min(2, c + verticalDelta)))
-        return
-      }
+        if (key.escape) {
+          submit('cancel')
+          return
+        }
 
-      if (key.escape) {
-        submit('cancel')
-        return
-      }
-
-      // When the "custom message" row is selected, any character (including digits)
-      // should start editing instead of triggering numeric shortcuts.
-      if (cursorRef.current === 2 && isPrintableToken({ token, key })) {
-        setTyping(true)
-        setTypingState((state) => {
-          const cursorAtEnd = state.value.length
-          const nextValue = state.value + token
-          return { value: nextValue, cursor: cursorAtEnd + token.length }
-        })
-        return
-      }
-
-      if (input === '1') setCursorSafe(0)
-      if (input === '2') setCursorSafe(1)
-      if (input === '3') setCursorSafe(2)
-
-      if (key.return) {
-        const resolvedCursor = cursorRef.current
-        if (resolvedCursor === 0) submit('auto')
-        else if (resolvedCursor === 1) submit('manual')
-        else {
+        // When the "custom message" row is selected, any character (including digits)
+        // should start editing instead of triggering numeric shortcuts.
+        if (cursorRef.current === 2 && isPrintableToken({ token, key })) {
           setTyping(true)
-          setTypingState((state) => ({ ...state, cursor: state.value.length }))
+          setTypingState((state) => {
+            const cursorAtEnd = state.value.length
+            const nextValue = state.value + token
+            return { value: nextValue, cursor: cursorAtEnd + token.length }
+          })
+          return
+        }
+
+        if (input === '1') setCursorSafe(0)
+        if (input === '2') setCursorSafe(1)
+        if (input === '3') setCursorSafe(2)
+
+        if (key.return) {
+          const resolvedCursor = cursorRef.current
+          if (resolvedCursor === 0) submit('auto')
+          else if (resolvedCursor === 1) submit('manual')
+          else {
+            setTyping(true)
+            setTypingState((state) => ({ ...state, cursor: state.value.length }))
+          }
         }
       }
     },
@@ -362,7 +354,7 @@ function ExitPlanModePrompt({
           <Text>{cursor === 2 ? '❯ ' : '  '}</Text>
           <Text color={cursor === 2 ? theme.text : theme.secondaryText}>3. </Text>
           {typing ? (
-            <Text color={cursor === 2 ? theme.text : theme.secondaryText}>
+            <Text color={theme.text}>
               {typingBeforeCursor}
               ▏
               {typingAfterCursor}
@@ -411,4 +403,22 @@ function indentBlock(text: string, spaces: number, maxLines: number): string {
   const out = visible.map((line) => prefix + line).join('\n')
   if (rawLines.length <= visible.length) return out
   return out + `\n${prefix}… (${rawLines.length - visible.length} more lines)`
+}
+
+type TypingState = { value: string; cursor: number }
+
+function applyForwardDelete(state: TypingState, bufferedDeletes: number): TypingState {
+  const deleteCount = Math.max(1, bufferedDeletes)
+  const boundedCursor = Math.max(0, Math.min(state.value.length, state.cursor))
+  const deleteTo = Math.min(state.value.length, boundedCursor + deleteCount)
+  const nextValue = state.value.slice(0, boundedCursor) + state.value.slice(deleteTo)
+  if (nextValue === state.value && boundedCursor === state.cursor) return state
+  return { value: nextValue, cursor: boundedCursor }
+}
+
+export const __testOnlyExitPlanMode = {
+  ExitPlanModePrompt,
+  MenuRow,
+  indentBlock,
+  applyForwardDelete,
 }

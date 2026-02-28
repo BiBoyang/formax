@@ -57,5 +57,3 @@
 - [ ] src/streaming/anthropic/sseParser.ts
 - [ ] src/streaming/anthropic/StreamClient.ts
 - [ ] src/streaming/openai/StreamClient.ts
-- [ ] src/tools/modules/exitPlanMode/presenter.tsx
-- [ ] src/tools/presenters/AskUserQuestionToolBlock.tsx

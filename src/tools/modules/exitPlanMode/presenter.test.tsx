@@ -11,6 +11,8 @@ import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { PlanProvider } from '../../../features/repl/planContext'
 import type { PlanSessionManager } from '../../../features/repl/planSession'
 import { ExitPlanModeToolPresenter } from './presenter'
+import * as interactivePrompts from '../../../features/tools/presentation/interactivePrompts'
+import * as escapeSequences from '../../../features/repl/keys/escapeSequences.js'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -61,6 +63,38 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('ExitPlanModeToolPresenter', () => {
+  it('falls back to default prompt labels when no interactive model is resolved', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    const promptSpy = vi.spyOn(interactivePrompts, 'resolveInteractivePromptModel').mockReturnValue(null)
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('Would you like to exit plan mode and start implementation?')
+      expect(lastFrame()).toContain('Yes, and auto-accept edits')
+      expect(lastFrame()).toContain('Yes, and manually approve edits')
+      expect(lastFrame()).toContain('Type here to tell Claude what to change')
+    } finally {
+      promptSpy.mockRestore()
+      cleanup()
+    }
+  })
+
   it('renders fallback presenter when toolInfo is missing', async () => {
     const message: Msg = {
       id: 'tool-1',
@@ -721,5 +755,278 @@ describe('ExitPlanModeToolPresenter', () => {
 
     await tick()
     expect(lastFrame()).toContain('(empty plan)')
+  })
+
+  it('uses unprefixed tool id as-is when submitting answers', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message: Msg = {
+        ...createRunningExitPlanModeMessage(),
+        id: 'plain-id',
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={message} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('\r')
+      await tick()
+      expect(submitAnswers).toHaveBeenCalledWith('plain-id', { choice: 'auto' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('renders completed non-error state without first line when result/content are empty', async () => {
+    const message: Msg = {
+      id: 'tool-1',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'ExitPlanMode',
+        status: 'completed',
+        input: {},
+        result: 42 as unknown as string,
+      },
+    }
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <ExitPlanModeToolPresenter message={message} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    const frame = lastFrame()
+    expect(frame).toContain('ExitPlanMode')
+    expect(frame).not.toContain('Boom')
+  })
+
+  it('handles chunked escape sequences for arrow and delete while typing', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin, lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('abc')
+      await tick()
+
+      // Send Delete as split ESC sequence: ESC [ 3 ~
+      stdin.write('\u001B')
+      await tick()
+      stdin.write('[')
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('~')
+      await tick()
+
+      // Chunked Down arrow should exit typing and move cursor.
+      stdin.write('\u001B')
+      await tick()
+      stdin.write('[')
+      await tick()
+      stdin.write('B')
+      await tick()
+
+      expect(lastFrame()).toContain('❯ 3.')
+      stdin.write('\r')
+      await tick()
+      expect(submitAnswers).toHaveBeenCalledTimes(1)
+      const firstPayload = submitAnswers.mock.calls[0]?.[1] as Record<string, string>
+      expect(firstPayload.choice).toBe('feedback')
+      expect(typeof firstPayload.feedback).toBe('string')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('leaves typing mode on escape and does not submit', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin, lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('draft')
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('x')
+      await tick()
+      stdin.write('\u001B')
+      await tick()
+
+      expect(submitAnswers).toHaveBeenCalledTimes(0)
+      expect(lastFrame()).toContain('3. draft')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('keeps feedback unchanged when forward delete is pressed at end of input', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('ab')
+      await tick()
+      stdin.write('\u001B[3~')
+      await tick()
+      stdin.write('\r')
+      await tick()
+
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'a' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('keeps feedback unchanged when backspace is pressed at cursor start', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('ab')
+      await tick()
+      stdin.write('\u001B[D')
+      await tick()
+      stdin.write('\u001B[D')
+      await tick()
+      stdin.write('\x7f')
+      await tick()
+      stdin.write('\r')
+      await tick()
+
+      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'ab' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('ignores pending split escape chunks from buffer helpers', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    let horizSpy: ReturnType<typeof vi.spyOn> | null = null
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('3')
+      await tick()
+      stdin.write('x')
+      await tick()
+      horizSpy = vi.spyOn(escapeSequences, 'consumeBufferedHorizontal').mockReturnValue({
+        pending: true,
+        delta: 0,
+        deletes: 0,
+        nextBuffer: '\u001B[',
+      })
+      stdin.write('\u001B')
+      await tick()
+
+      expect(submitAnswers).toHaveBeenCalledTimes(0)
+    } finally {
+      horizSpy?.mockRestore()
+      cleanup()
+    }
   })
 })
