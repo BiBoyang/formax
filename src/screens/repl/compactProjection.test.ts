@@ -93,4 +93,35 @@ describe('projectCompactPrimaryTranscript', () => {
     const result = projectCompactPrimaryTranscript(allMessages)
     expect(result.primaryTranscriptMessages).toEqual([banner, latestCompact, subline])
   })
+
+  it('returns base transcript when compact banner is missing after boundary', () => {
+    const allMessages: Msg[] = [
+      createMessage({ id: 'u0', role: 'user', content: '/compact old' }),
+      createMessage({ id: 'skip1', role: 'assistant', content: '/compact but assistant' }),
+      createMessage({ id: 'skip2', role: 'user', content: { text: '/compact object-content' } as any }),
+      createMessage({ id: 'boundary', role: 'assistant', ui: { kind: 'compact_boundary' }, content: '' }),
+      createMessage({ id: 'subline', role: 'assistant', ui: { kind: 'command_subline' }, content: 'Compacted' }),
+    ]
+
+    const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.primaryTranscriptMessages.map((message) => message.id)).toEqual(['subline'])
+  })
+
+  it('returns base transcript when there is no compact command before boundary', () => {
+    const banner = createMessage({
+      id: 'banner',
+      role: 'assistant',
+      ui: { kind: 'compact_banner' },
+      content: 'Conversation compacted',
+    })
+    const allMessages: Msg[] = [
+      createMessage({ id: 'p1', role: 'assistant', content: 'hello' }),
+      createMessage({ id: 'u1', role: 'user', content: '/clear' }),
+      createMessage({ id: 'boundary', role: 'assistant', ui: { kind: 'compact_boundary' }, content: '' }),
+      banner,
+    ]
+
+    const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.primaryTranscriptMessages).toEqual([banner])
+  })
 })
