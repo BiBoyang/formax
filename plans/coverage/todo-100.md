@@ -60,7 +60,6 @@
 - [ ] src/tools/executor/handlers/taskSubAgent.ts
 - [ ] src/tools/executor/policyPreflight.ts
 - [ ] src/tools/modules/bash/policy.ts
-- [ ] src/tools/modules/bash/presenter.tsx
 - [ ] src/tools/modules/edit/handler.ts
 - [ ] src/tools/modules/edit/presenter.tsx
 - [ ] src/tools/modules/exitPlanMode/presenter.tsx

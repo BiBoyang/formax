@@ -191,4 +191,101 @@ describe('BashToolPresenter', () => {
     expect(frame).not.toContain('Unknown tool')
     expect(frame).toContain('Output line here')
   })
+
+  it('falls back to message id/cwd/empty command for running state when fields are invalid', () => {
+    const message: Msg = {
+      id: 'plain-id',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'running',
+        input: {},
+      },
+    }
+
+    const { lastFrame } = render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />)
+    expect(lastFrame()).toContain('Approve running this command?')
+    expect(lastBlockProps).not.toBeNull()
+    if (!lastBlockProps) throw new Error('Expected BashApprovalToolBlock to render')
+    expect(lastBlockProps.toolUseId).toBe('plain-id')
+    expect(lastBlockProps.cwd).toBe(process.cwd())
+    expect(lastBlockProps.command).toBe('')
+  })
+
+  it('renders expanded lines and handles runtime-missing summary safely', () => {
+    const message = {
+      id: 'tool-expand',
+      role: 'tool',
+      content: undefined,
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'echo hi' },
+        result: 'ok',
+        middleLines: ['m1'],
+        expandInfo: 'more details',
+      },
+    } as Msg
+
+    const frame = stripAnsi(render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />).lastFrame() ?? '')
+    expect(frame).toContain('m1')
+    expect(frame).toContain('more details')
+    expect(frame).toContain('Bash(')
+  })
+
+  it('treats invalid background payloads as normal output', () => {
+    const invalidTaskId: Msg = {
+      id: 'tool-bg-invalid-task',
+      role: 'tool',
+      content: 'normal output',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'echo x' },
+        result: JSON.stringify({ status: 'running', task_id: 123 }),
+      },
+    }
+    const notRunningStatus: Msg = {
+      id: 'tool-bg-not-running',
+      role: 'tool',
+      content: 'normal output 2',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'echo y' },
+        result: JSON.stringify({ status: 'completed', task_id: 'task-1' }),
+      },
+    }
+
+    const frame1 = stripAnsi(render(<ToolUiBlocks blocks={BashToolPresenter({ message: invalidTaskId }).blocks} />).lastFrame() ?? '')
+    const frame2 = stripAnsi(render(<ToolUiBlocks blocks={BashToolPresenter({ message: notRunningStatus }).blocks} />).lastFrame() ?? '')
+
+    expect(frame1).toContain('normal output')
+    expect(frame1).not.toContain('Started background task')
+    expect(frame2).toContain('normal output 2')
+    expect(frame2).not.toContain('Started background task')
+  })
+
+  it('shows file summary suffix when more than three files are detected', () => {
+    const message: Msg = {
+      id: 'tool-file-suffix',
+      role: 'tool',
+      content: 'ok',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Bash',
+        status: 'completed',
+        input: { command: 'cat a.txt b.txt c.txt d.txt' },
+        result: 'ok',
+      },
+    }
+
+    const frame = stripAnsi(render(<ToolUiBlocks blocks={BashToolPresenter({ message }).blocks} />).lastFrame() ?? '')
+    expect(frame).toContain('Files: a.txt, b.txt, c.txt (+1 more)')
+  })
 })

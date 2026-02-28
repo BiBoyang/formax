@@ -140,8 +140,6 @@ function parseBackgroundBashResult(raw: string): { task_id: string } | null {
 
 function formatFileSummary(filepaths: string[]): string {
   const unique = Array.from(new Set(filepaths.filter(Boolean)))
-  if (unique.length === 0) return ''
-
   const shown = unique.slice(0, 3)
   const rest = unique.length - shown.length
   const suffix = rest > 0 ? ` (+${rest} more)` : ''
