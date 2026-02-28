@@ -39,7 +39,6 @@
 - [ ] src/features/semantics/runtime/threadRuntimeState.ts
 - [ ] src/hooks/audit.ts
 - [ ] src/hooks/runner.ts
-- [ ] src/hooks/runtime.ts
 - [ ] src/hooks/settingsStore.ts
 - [ ] src/screens/repl/transcript.tsx
 - [ ] src/streaming/anthropic/sseParser.ts

@@ -460,4 +460,324 @@ describe('HooksRuntime', () => {
     expect(res.runs).toHaveLength(1)
     expect(res.runs[0].exitCode).toBe(2)
   })
+
+  it('returns empty result when SessionStart has no matching hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue({
+      PreToolUse: [],
+      PermissionRequest: [],
+      PostToolUse: [],
+      UserPromptSubmit: [],
+      SessionStart: [],
+      Stop: [],
+      warnings: [],
+    } satisfies MergedHooks)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', source: 'clear', cwd: '/tmp' })
+
+    expect(res).toEqual({ runs: [], additionalContext: [], blocked: false })
+  })
+
+  it('skips blank stdout injection for SessionStart success hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'SessionStart', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo empty',
+        exitCode: 0,
+        signal: null,
+        stdout: '   ',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual([])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('returns empty result when Stop has no hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue({
+      PreToolUse: [],
+      PermissionRequest: [],
+      PostToolUse: [],
+      UserPromptSubmit: [],
+      SessionStart: [],
+      Stop: [],
+      warnings: [],
+    } satisfies MergedHooks)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: true })
+
+    expect(res).toEqual({ runs: [], additionalContext: [], blocked: false })
+  })
+
+  it('skips blank stdout injection for Stop success hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo empty',
+        exitCode: 0,
+        signal: null,
+        stdout: '   ',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: false })
+
+    expect(res.additionalContext).toEqual([])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('returns empty runs for tool events when hooks are disabled by env', async () => {
+    const runtime = createHooksRuntime({
+      fileStore: {} as any,
+      env: { FORMAX_DISABLE_HOOKS: 'true' } as NodeJS.ProcessEnv,
+    })
+
+    const pre = await runtime.runPreToolUse({ toolName: 'Bash', toolInput: { command: 'echo hi' }, cwd: '/tmp' })
+    const perm = await runtime.runPermissionRequest({ toolName: 'Bash', toolInput: { command: 'echo hi' }, cwd: '/tmp' })
+
+    expect(pre).toEqual({ runs: [], blocked: false, blockedBy: undefined })
+    expect(perm).toEqual({ runs: [], blocked: false, blockedBy: undefined })
+  })
+
+  it('returns empty result for submit/session/stop events when hooks are disabled by env', async () => {
+    const runtime = createHooksRuntime({
+      fileStore: {} as any,
+      env: { FORMAX_DISABLE_HOOKS: 'yes' } as NodeJS.ProcessEnv,
+    })
+
+    const submit = await runtime.runUserPromptSubmit({ prompt: 'hi', cwd: '/tmp' })
+    const start = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+    const stop = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: true })
+
+    expect(submit).toEqual({ runs: [], additionalContext: [], blocked: false })
+    expect(start).toEqual({ runs: [], additionalContext: [], blocked: false })
+    expect(stop).toEqual({ runs: [], additionalContext: [], blocked: false })
+  })
+
+  it('returns empty runs when PreToolUse has no matching hook entries', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue({
+      PreToolUse: [{ source: 'projectLocal', matcher: 'Read', command: 'echo read-only', timeoutMs: null }],
+      PermissionRequest: [],
+      PostToolUse: [],
+      UserPromptSubmit: [],
+      SessionStart: [],
+      Stop: [],
+      warnings: [],
+    } satisfies MergedHooks)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runPreToolUse({ toolName: 'Bash', toolInput: { command: 'echo hi' }, cwd: '/tmp' })
+
+    expect(res).toEqual({ runs: [], blocked: false, blockedBy: undefined })
+  })
+
+  it('returns empty result when UserPromptSubmit has no hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue({
+      PreToolUse: [],
+      PermissionRequest: [],
+      PostToolUse: [],
+      UserPromptSubmit: [],
+      SessionStart: [],
+      Stop: [],
+      warnings: [],
+    } satisfies MergedHooks)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runUserPromptSubmit({ prompt: 'hello', cwd: '/tmp' })
+
+    expect(res).toEqual({ runs: [], additionalContext: [], blocked: false })
+  })
+
+  it('ignores malformed additionalContext payloads for UserPromptSubmit', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'UserPromptSubmit', matcher: '*' }))
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo invalid-1',
+        exitCode: 0,
+        signal: null,
+        stdout: '{}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: [] },
+      },
+      {
+        command: 'echo invalid-2',
+        exitCode: 0,
+        signal: null,
+        stdout: '{}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'wrong event' } },
+      },
+      {
+        command: 'echo invalid-3',
+        exitCode: 0,
+        signal: null,
+        stdout: '{}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 1 } },
+      },
+      {
+        command: 'echo invalid-4',
+        exitCode: 0,
+        signal: null,
+        stdout: '{}',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: '   ' } },
+      },
+      {
+        command: 'echo skip-exit',
+        exitCode: 1,
+        signal: null,
+        stdout: 'CTX_SHOULD_SKIP',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+      {
+        command: 'echo blank-stdout',
+        exitCode: 0,
+        signal: null,
+        stdout: '   ',
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runUserPromptSubmit({ prompt: 'hi', cwd: '/tmp' })
+
+    expect(res.additionalContext).toEqual([])
+    expect(res.blocked).toBe(false)
+  })
+
+  it('maps exitCode=2 PostToolUse hooks into blockingErrors', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithPostToolUseCommand())
+
+    const runs: HookRun[] = [
+      {
+        command: 'echo deny',
+        exitCode: 2,
+        signal: null,
+        stdout: '',
+        stderr: ' denied by policy \n',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      },
+    ]
+    ;(runCommandHooks as any).mockResolvedValue(runs)
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const toolResult: ToolResult = { tool_use_id: 't1', content: 'ok' }
+    const res = await runtime.runPostToolUse({
+      toolUseId: 't1',
+      toolName: 'Bash',
+      toolInput: { command: 'echo ok' },
+      toolResult,
+      cwd: '/tmp',
+    })
+
+    expect(res.blockingErrors).toEqual([{ command: 'echo deny', stderr: 'denied by policy' }])
+  })
+
+  it('uses process.cwd() fallback when event cwd is empty', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'PreToolUse', matcher: '*' }))
+    ;(runCommandHooks as any).mockResolvedValue([])
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    await runtime.runPreToolUse({ toolName: 'Bash', toolInput: { command: 'echo hi' }, cwd: '' })
+
+    const call = (runCommandHooks as any).mock.calls.at(-1)[0]
+    expect(call.env.CLAUDE_PROJECT_DIR).toBeTruthy()
+    expect(call.env.FORMAX_PROJECT_DIR).toBe(call.env.CLAUDE_PROJECT_DIR)
+  })
+
+  it('handles undefined stdout for UserPromptSubmit success hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'UserPromptSubmit', matcher: '*' }))
+    ;(runCommandHooks as any).mockResolvedValue([
+      {
+        command: 'echo no-stdout',
+        exitCode: 0,
+        signal: null,
+        stdout: undefined as unknown as string,
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      } satisfies HookRun,
+    ])
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runUserPromptSubmit({ prompt: 'hi', cwd: '/tmp' })
+    expect(res.additionalContext).toEqual([])
+  })
+
+  it('handles undefined stdout for SessionStart success hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'SessionStart', matcher: '*' }))
+    ;(runCommandHooks as any).mockResolvedValue([
+      {
+        command: 'echo no-stdout',
+        exitCode: 0,
+        signal: null,
+        stdout: undefined as unknown as string,
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      } satisfies HookRun,
+    ])
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runSessionStart({ sessionId: 's1', cwd: '/tmp' })
+    expect(res.additionalContext).toEqual([])
+  })
+
+  it('handles undefined stdout for Stop success hooks', async () => {
+    ;(loadMergedHooks as any).mockResolvedValue(mergedHooksWithCommand({ eventName: 'Stop', matcher: '*' }))
+    ;(runCommandHooks as any).mockResolvedValue([
+      {
+        command: 'echo no-stdout',
+        exitCode: 0,
+        signal: null,
+        stdout: undefined as unknown as string,
+        stderr: '',
+        durationMs: 1,
+        timedOut: false,
+        parsedJson: null,
+      } satisfies HookRun,
+    ])
+
+    const runtime = createHooksRuntime({ fileStore: {} as any })
+    const res = await runtime.runStop({ sessionId: 's1', cwd: '/tmp', stopHookActive: false })
+    expect(res.additionalContext).toEqual([])
+  })
 })
