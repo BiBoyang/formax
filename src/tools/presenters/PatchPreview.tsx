@@ -133,8 +133,11 @@ function diffLinesFallback(a: string[], b: string[]): DiffOp[] {
       }
       continue
     }
-    if (av !== null) ops.push({ kind: 'delete', line: av })
-    else if (bv !== null) ops.push({ kind: 'insert', line: bv })
+    if (av !== null) {
+      ops.push({ kind: 'delete', line: av })
+      continue
+    }
+    ops.push({ kind: 'insert', line: bv as string })
   }
   return ops
 }
@@ -278,4 +281,16 @@ export function PatchPreview({
       })}
     </Box>
   )
+}
+
+export const patchPreviewTestExports = {
+  tokenizeForIntralineDiff,
+  buildLcsMatrix,
+  diffTokens,
+  buildSegments,
+  intralineSegments,
+  diffLines,
+  diffLinesFallback,
+  formatLineNo,
+  normalizeLines,
 }
