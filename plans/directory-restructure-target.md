@@ -313,6 +313,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何运行时行为、工具逻辑或 UI 交互。
   - 不删除旧 shim 文件，仅做索引与脚本路径收敛。
 
+## 执行状态（Phase C - Slice 19）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/services/models.ts` 与 `src/services/modelContextCatalog.ts` 两个已无调用方的兼容 re-export shim。
+  - `scripts/layer-contract.config.json` 移除上述两个过渡 Repo 映射条目，仅保留 `src/core/models/*` canonical 映射。
+- 明确不做：
+  - 不改 `src/core/models/*` 的实现逻辑、错误映射或网络请求行为。
+  - 不改 `runtimeUiBridge` 等仍位于 `src/services/` 的模块职责。
+
 ## 目标结构
 
 ```

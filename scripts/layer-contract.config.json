@@ -24,8 +24,6 @@
       "src/skills/SkillStore.ts",
       "src/core/models/models.ts",
       "src/core/models/modelContextCatalog.ts",
-      "src/services/models.ts",
-      "src/services/modelContextCatalog.ts",
       "src/core/errors/codes.ts",
       "src/core/setup/errorMapping.ts",
       "src/core/setup/types.ts",
