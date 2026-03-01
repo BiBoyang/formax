@@ -4,17 +4,11 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { resolveTodosPath } from '../../runtime/todosFile'
+import { TODO_STATUSES, type TodoItem, type TodoStatus } from '../../../shared/todoContracts'
 
-export type TodoStatus = 'pending' | 'in_progress' | 'completed'
-
-export type TodoItem = {
-  content: string
-  status: TodoStatus
-  activeForm: string
-}
+export type { TodoItem, TodoStatus } from '../../../shared/todoContracts'
 
 const MAX_TODOS = 100
-const TODO_STATUSES: readonly TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 const RESULT_FOR_ASSISTANT =
   'Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable'

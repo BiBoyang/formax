@@ -93,6 +93,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不修改 fallback 的展示逻辑、surface suffix 规则和错误详情渲染规则。
 
+## 执行状态（Phase B - Slice 8）
+
+- 状态：进行中（todo 类型合同统一，不搬目录）。
+- 本轮已完成：
+  - 新增 `src/shared/todoContracts.ts`，统一 `TodoStatus` / `TodoItem` / `TODO_STATUSES`。
+  - `src/tools/modules/todoWrite/handler.ts` 与 `src/tools/runtime/todosFile.ts` 改为消费 shared todo 合同。
+  - 保留 `todoWrite/handler.ts` 与 `todosFile.ts` 的类型导出兼容入口，避免调用方改动。
+  - 新增 `src/shared/todoContracts.test.ts`。
+- 明确不做：
+  - 不修改 TodoWrite 业务校验、文件路径与写入行为。
+
 ## 目标结构
 
 ```

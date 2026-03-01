@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { getConfigPaths } from '../../adapters/fs/configPaths'
+import type { TodoItem, TodoStatus } from '../../shared/todoContracts'
 
 let cachedTodosSessionId: string | null = null
 
@@ -25,13 +26,8 @@ export function resolveTodosPath(cwd: string): string {
   return path.join(todosDir, `${sessionId}-agent-${sessionId}.json`)
 }
 
-export type TodoStatus = 'pending' | 'in_progress' | 'completed'
-
-export type StoredTodo = {
-  content: string
-  status: TodoStatus
-  activeForm: string
-}
+export type { TodoStatus } from '../../shared/todoContracts'
+export type StoredTodo = TodoItem
 
 export function readTodos(cwd: string): { exists: boolean; todos: StoredTodo[] | null } {
   const filePath = resolveTodosPath(cwd)
