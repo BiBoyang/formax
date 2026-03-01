@@ -9,6 +9,7 @@ import { getTheme } from '../theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
+import type { ConfigDialogExit } from '../../shared/replDialogContracts.js'
 import type { ConfigState, ConfigTab } from './constants.js'
 import { CONFIG_ROWS, INITIAL_CONFIG_STATE, OUTPUT_STYLE_OPTIONS, TABS } from './constants.js'
 import { dialogReducer, initialDialogState, type DialogState } from './reducer.js'
@@ -24,9 +25,7 @@ import {
 
 const SCOPE = 'overlay:config' as const
 
-export type ConfigDialogExit =
-  | { kind: 'dismissed' }
-  | { kind: 'changed'; message: string }
+export type { ConfigDialogExit } from '../../shared/replDialogContracts.js'
 
 function nextTab(current: ConfigTab, direction: number): ConfigTab {
   const idx = TABS.indexOf(current)

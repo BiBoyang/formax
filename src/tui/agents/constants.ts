@@ -1,27 +1,15 @@
 import type { Theme } from '../theme.js'
+import type {
+  AgentsDialogGenerateDraft,
+  AgentsDialogSaveArgs,
+  AgentsDialogSaveResult,
+} from '../../shared/replDialogContracts.js'
 
 export type AgentListItem = { name: string; description: string }
 
 export type AgentsDialogTheme = Theme
 
-export type AgentsDialogGenerateDraft = {
-  name: string
-  description: string
-  systemPrompt: string
-}
-
-export type AgentsDialogSaveArgs = {
-  scope: 'project' | 'user'
-  name: string
-  description: string
-  systemPrompt: string
-  tools: string
-  model: string
-  color: string
-  openInEditor: boolean
-}
-
-export type AgentsDialogSaveResult = { name: string; filePath: string }
+export type { AgentsDialogGenerateDraft, AgentsDialogSaveArgs, AgentsDialogSaveResult }
 
 export type AgentScope = 'user' | 'project' | 'builtin'
 

@@ -5,6 +5,7 @@ import { LoadingStatusLine } from '../../components/ui/LoadingStatusLine.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
+import type { ModelDialogExit } from '../../shared/replDialogContracts.js'
 import { getTheme } from '../theme.js'
 import type { ModelTier } from '../../config/modelTier.js'
 
@@ -23,9 +24,7 @@ export type ModelDialogApplyResult = {
   effectiveTier: ModelTier
 }
 
-export type ModelDialogExit =
-  | { kind: 'dismissed' }
-  | { kind: 'changed'; message: string }
+export type { ModelDialogExit } from '../../shared/replDialogContracts.js'
 
 function clamp(n: number, min: number, max: number): number {
   if (Number.isNaN(n)) return min

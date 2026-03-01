@@ -6,10 +6,10 @@ import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
   AgentsDialogSaveResult,
-} from '../../../../tui/agents/AgentsDialog.js'
-import type { ConfigDialogExit } from '../../../../tui/config/ConfigDialog.js'
-import type { ModelDialogExit } from '../../../../tui/model/ModelDialog.js'
-import type { ResumeDialogExit } from '../../../../tui/resume/ResumeDialog.js'
+  ConfigDialogExit,
+  ModelDialogExit,
+  ResumeDialogExit,
+} from '../../../../shared/replDialogContracts.js'
 import type { OverlaySpec } from '../../../commands/contracts'
 import { createOverlayManager } from '../../overlays/OverlayManager'
 import { makeMessageId } from '../shared/ids'

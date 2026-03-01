@@ -19,9 +19,6 @@ import {
 } from './ui.js'
 import {
   type AgentListItem,
-  type AgentsDialogGenerateDraft,
-  type AgentsDialogSaveArgs,
-  type AgentsDialogSaveResult,
   type AgentMeta,
   type DiskAgentInfo,
   BUILTIN_AGENT_NAMES,
@@ -33,6 +30,11 @@ import {
   NON_SELECTABLE_TOOLS,
   type View,
 } from './constants.js'
+import type {
+  AgentsDialogGenerateDraft,
+  AgentsDialogSaveArgs,
+  AgentsDialogSaveResult,
+} from '../../shared/replDialogContracts.js'
 import {
   normalizeAgentName,
   buildManualSystemPrompt,
@@ -45,7 +47,7 @@ import {
 import { dialogReducer, initialDialogState } from './reducer.js'
 
 // Re-export public types for backward compatibility
-export type { AgentsDialogGenerateDraft, AgentsDialogSaveArgs, AgentsDialogSaveResult }
+export type { AgentsDialogGenerateDraft, AgentsDialogSaveArgs, AgentsDialogSaveResult } from '../../shared/replDialogContracts.js'
 
 export function AgentsDialog({
   agents,
