@@ -65,7 +65,7 @@ Default config directory: `~/.formax/`
 
 ## Command Reference
 
-All commands below are implemented in [`src/cli/help.ts`](src/cli/help.ts) and dispatched in [`src/cli/main.ts`](src/cli/main.ts).
+All commands below are implemented in [`src/runtime/cli/help.ts`](src/runtime/cli/help.ts) and dispatched in [`src/runtime/cli/main.ts`](src/runtime/cli/main.ts).
 
 | Area | Commands |
 | --- | --- |

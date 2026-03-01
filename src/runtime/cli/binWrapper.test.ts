@@ -7,7 +7,7 @@ describe('bin/formax.js wrapper', () => {
   it('does not exit immediately after spawning dist CLI', () => {
     const __filename = fileURLToPath(import.meta.url)
     const __dirname = path.dirname(__filename)
-    const repoRoot = path.resolve(__dirname, '../..')
+    const repoRoot = path.resolve(__dirname, '../../..')
     const wrapperPath = path.join(repoRoot, 'bin', 'formax.js')
     const wrapper = fs.readFileSync(wrapperPath, 'utf8')
 

@@ -4,7 +4,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ## Entry Points
 - CLI entrypoint (main): `src/entrypoints/cli.tsx`
-- CLI arg parsing + dispatch: `src/cli/args.ts`, `src/cli/main.ts`
+- CLI arg parsing + dispatch: `src/runtime/cli/args.ts`, `src/runtime/cli/main.ts`
 - Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
   - Runtime assembly slices: `src/legacy/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`

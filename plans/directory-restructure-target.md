@@ -776,6 +776,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改测试断言与用例语义，仅调整测试文件归属与导入路径。
 
+## 执行状态（Phase C - Slice 63）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，shim 收口切片）。
+- 本轮已完成：
+  - 删除 `src/cli/{args,help,json,main,exitCodes}.ts` 兼容 shim，彻底收口到 `src/runtime/cli/*`。
+  - `src/cli/binWrapper.test.ts` 迁移到 `src/runtime/cli/binWrapper.test.ts`，并修正仓库根路径计算。
+  - `README.md`、`CODEMAP.md`、`CLAUDE.md` 的 CLI 事实路径更新为 `src/runtime/cli/*`。
+- 明确不做：
+  - 不改任何 CLI 行为、命令语义与输出格式，仅做路径收口与文档同步。
+
 ## 目标结构
 
 ```
