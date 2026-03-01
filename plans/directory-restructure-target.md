@@ -786,6 +786,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何 CLI 行为、命令语义与输出格式，仅做路径收口与文档同步。
 
+## 执行状态（Phase C - Slice 64）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，命令解析器收拢）。
+- 本轮已完成：
+  - `src/serve/command.{ts,test.ts}` 迁移到 `src/runtime/cli/serveCommand.{ts,test.ts}`。
+  - `src/web/command.{ts,test.ts}` 迁移到 `src/runtime/cli/webCommand.{ts,test.ts}`。
+  - `src/runtime/cli/main.ts` 改为直接导入 `./serveCommand` 与 `./webCommand`。
+  - `src/serve/command.ts` 与 `src/web/command.ts` 保留兼容 re-export shim。
+  - `CODEMAP.md` 的 serve/web command 事实路径同步到 `src/runtime/cli/*`。
+- 明确不做：
+  - 不改 `serve/web` 参数语义、默认值、help 文案与错误消息，仅迁移模块归属与导入路径。
+
 ## 目标结构
 
 ```

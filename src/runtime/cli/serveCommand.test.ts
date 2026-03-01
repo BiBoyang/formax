@@ -4,8 +4,8 @@ import {
   DEFAULT_SERVE_PORT,
   formatServeCommandHelp,
   parseServeCommandArgs,
-} from './command.js'
-import * as runtime from '../network/runtime.js'
+} from './serveCommand.js'
+import * as runtime from '../../network/runtime.js'
 
 describe('parseServeCommandArgs', () => {
   it('returns defaults for empty args', () => {

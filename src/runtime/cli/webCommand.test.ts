@@ -5,7 +5,7 @@ import {
   DEFAULT_WEB_UI_PORT,
   formatWebCommandHelp,
   parseWebCommandArgs,
-} from './command.js'
+} from './webCommand.js'
 
 describe('parseWebCommandArgs', () => {
   it('returns defaults for empty args', () => {

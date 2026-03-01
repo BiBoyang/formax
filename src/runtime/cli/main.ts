@@ -27,8 +27,8 @@ import { ExitCode } from './exitCodes.js'
 import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
-import { formatServeCommandHelp, parseServeCommandArgs, type ServeCommandOptions } from '../../serve/command.js'
-import { formatWebCommandHelp, parseWebCommandArgs } from '../../web/command.js'
+import { formatServeCommandHelp, parseServeCommandArgs, type ServeCommandOptions } from './serveCommand.js'
+import { formatWebCommandHelp, parseWebCommandArgs } from './webCommand.js'
 import pkg from '../../../package.json'
 
 export type CliDispatchResult =

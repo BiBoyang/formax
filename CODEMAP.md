@@ -25,8 +25,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Input lifecycle helpers: `src/app-server/turn/inputId.ts`, `src/app-server/turn/inputStore.ts`
 - Stdio JSONL transport: `src/app-server/transport/stdio.ts`
 - Dev bridge (WebSocket fan-in/fan-out to app-server loop): `src/app-server/devBridge.ts`
-- Serve command parsing/help text: `src/serve/command.ts`
-- Web command parsing/help text: `src/web/command.ts`
+- Serve command parsing/help text: `src/runtime/cli/serveCommand.ts`
+- Web command parsing/help text: `src/runtime/cli/webCommand.ts`
 - Shared web/bridge network + security helpers (host/port/url/origin/token): `src/network/runtime.ts`
 - Web reference React client (isolated app): `apps/web-reference-react/*` (see "Web Reference React Client")
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
