@@ -1,0 +1,319 @@
+# 目标目录结构（Target Directory Structure）
+
+> 设计原则：**域优先、层校验** — 按功能领域组织目录，通过 `layer-contract.config.json` 强制执行层依赖方向。不做扁平化 `src/[types|repo|service|...]` 大杂烩。
+
+## 层级模型
+
+```
+Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
+```
+
+## 执行状态（Phase A）
+
+- 状态：进行中（本轮只做合同与门禁，不进行目录搬迁）。
+- 本轮目标：
+  - 落地 `check:layer-coverage`（映射覆盖率 100%）。
+  - 落地 `check:shared-types`（shared types 共享门槛）。
+  - 将以上两项接入 `type-check` 与 runbook。
+- 明确不做：
+  - 不移动 `src/` 目录结构。
+  - 不改变业务行为或 UI 语义。
+
+## 目标结构
+
+```
+src/
+│
+│  ════════════════════ Types 层 ════════════════════
+│
+├── shared/                          # 跨层类型、纯工具、合同
+│   ├── frontmatter.ts
+│   ├── inputContracts.ts
+│   ├── toolContracts.ts
+│   ├── toolMessageTypes.ts
+│   ├── runtimeEventSource.ts
+│   ├── invokables/                  # ← 合并原 src/invokables
+│   │   ├── types.ts
+│   │   └── charBudget.ts
+│   └── utils/                       # ← 合并原 src/utils（纯函数）
+│       ├── paths.ts
+│       └── catN.ts
+│
+│  ════════════════════ Config 层 ════════════════════
+│
+├── config/                          # ← 合并原 src/env + src/core/config
+│   ├── config.ts                    #   (原 env/config.ts)
+│   ├── configFiles.ts               #   (原 env/configFiles.ts)
+│   ├── configPaths.ts               #   (原 env/configPaths.ts)
+│   ├── modelTier.ts                 #   (原 env/modelTier.ts)
+│   ├── nodeFileStore.ts             #   (原 env/nodeFileStore.ts)
+│   ├── runtimeFlags.ts              #   (原 env/runtimeFlags.ts)
+│   └── settings/                    #   (原 core/config)
+│       ├── engine.ts
+│       ├── schema.ts
+│       ├── store.ts
+│       └── types.ts
+│
+│  ════════════════════ Repo 层 ════════════════════
+│
+├── adapters/                        # 持久化与外部 IO（不变）
+│   ├── fs/
+│   ├── permissions/
+│   ├── audit/
+│   ├── diagnostics/
+│   └── setup/
+│
+│  ════════════════════ Service 层 ════════════════════
+│
+├── core/                            # 领域无关的 Service 基础设施
+│   ├── app/                         #   createApp, eventBus
+│   ├── approval/                    #   approval rules
+│   ├── auth/                        #   认证
+│   ├── audit/                       #   audit schema（纯 schema，不是 IO）
+│   ├── diagnostics/                 #   doctor, debugBundle, status
+│   ├── errors/                      #   error codes
+│   ├── models/                      # ← 合并原 src/services/{models,modelContextCatalog}
+│   │   ├── models.ts
+│   │   └── modelContextCatalog.ts
+│   ├── policy/                      #   policy engine
+│   └── setup/                       #   session setup
+│
+├── chat/                            # LLM 引擎（不变）
+│   ├── engine.ts
+│   └── context/
+│
+├── streaming/                       # 流处理（不变）
+│   ├── types.ts                     #   (同时归属 Types 层)
+│   ├── index.ts
+│   ├── anthropic/
+│   └── openai/
+│
+├── prompts/                         # Prompt 构建（不变）
+│   ├── types.ts                     #   (同时归属 Types 层)
+│   ├── system.ts
+│   ├── init.ts
+│   ├── compact.ts
+│   └── reminders/
+│
+├── hooks/                           # Hook 系统（不变）
+│
+├── subagents/                       # 子代理（不变）
+│
+├── tools/                           # 工具系统（Service 部分）
+│   ├── modules/
+│   ├── executor/
+│   ├── catalog/
+│   ├── specs/
+│   ├── runtime/
+│   ├── utils/
+│   ├── patches/
+│   ├── registry.ts
+│   ├── loader.ts
+│   └── types.ts
+│   # ⚠️ presenters/ 移出 → 见 UI 层
+│
+├── features/
+│   ├── semantics/                   # 语义核心（不变）
+│   │   ├── core/                    #   (Types 层)
+│   │   ├── adapters/                #   (Service 层)
+│   │   ├── projection/              #   (Service 层)
+│   │   ├── runtime/                 #   (Service 层)
+│   │   ├── selectors/               #   (Service 层)
+│   │   └── __tests__/
+│   │
+│   ├── repl/                        # REPL 领域
+│   │   ├── controller/              #   [Service]
+│   │   ├── sessionSave/             #   [Repo]
+│   │   ├── mode.ts                  #   [Service]
+│   │   ├── planSession.ts           #   [Service]
+│   │   ├── injectedBlocks.ts        #   [Service]
+│   │   ├── reminders/               #   [Service]
+│   │   ├── useReplController.ts     #   [Service] 主控 hook
+│   │   ├── useInputAudit.test.ts    #   [Service]
+│   │   ├── keys/                    #   [UI]
+│   │   ├── overlays/                #   [UI]
+│   │   ├── inputScopeContext.tsx     #   [UI]
+│   │   ├── replUiContext.tsx         #   [UI]
+│   │   └── planContext.tsx           #   [UI]
+│   │
+│   ├── commands/                    # ← 合并原 src/commands + src/features/commands
+│   │   ├── CommandStore.ts          #   [Repo]
+│   │   ├── registry.ts              #   [Service]
+│   │   ├── adapter.ts               #   [Service]
+│   │   ├── configDialogService.ts   #   [Service]
+│   │   ├── permissionsDialogService.ts
+│   │   ├── replDoctorService.ts     #   [Service]
+│   │   ├── replEnvironmentService.ts
+│   │   ├── resumeDialogService.ts   #   [Service]
+│   │   ├── contracts.ts             #   [Service]
+│   │   └── render.ts               #   [UI]
+│   │
+│   ├── sessionTitle/                # 会话标题生成（不变）
+│   │
+│   └── skills/                      # ← 移入 features（原 src/skills）
+│       ├── SkillStore.ts            #   [Repo]
+│       └── SkillStore.test.ts
+│
+│  ════════════════════ Runtime 层 ════════════════════
+│
+├── app-server/                      # JSON-RPC 服务端（不变，独立 top-level）
+│   ├── server.ts
+│   ├── protocol.ts
+│   ├── protocol/
+│   ├── jsonrpc.ts
+│   ├── threadStore.ts
+│   ├── turnRunner.ts
+│   ├── devBridge.ts
+│   ├── replayStateSnapshot.ts
+│   ├── threadStateReducer.ts
+│   ├── index.ts
+│   ├── store/
+│   ├── transport/
+│   └── turn/
+│
+├── runtime/                         # ← 合并原 runtime + cli + legacy + serve + web + network
+│   ├── createRuntime.ts             #   (原 src/runtime/)
+│   ├── cli/                         #   (原 src/cli)
+│   │   ├── main.ts
+│   │   ├── args.ts
+│   │   ├── help.ts
+│   │   ├── json.ts
+│   │   └── exitCodes.ts
+│   ├── bootstrap/                   #   (原 src/legacy/bootstrap)
+│   ├── serve/                       #   (原 src/serve)
+│   ├── web/                         #   (原 src/web)
+│   └── network/                     #   (原 src/network)
+│
+├── entrypoints/                     # 入口文件（不变）
+│
+│  ════════════════════ UI 层 ════════════════════
+│
+├── screens/                         # Ink 屏幕（不变）
+│   ├── REPL.tsx
+│   ├── repl/
+│   └── ...
+│
+├── components/                      # Ink 组件
+│   ├── chat/
+│   ├── tool/                        # ← 吸收原 tools/presenters
+│   │   ├── ConfirmMenu.tsx
+│   │   ├── AskUserQuestionToolBlock.tsx
+│   │   ├── BashApprovalToolBlock.tsx
+│   │   ├── PatchPreview.tsx
+│   │   ├── MarkdownBlock.tsx
+│   │   └── ...
+│   └── ui/
+│
+├── tui/                             # ← 重命名原 src/ui
+│   ├── toolFormatting.ts
+│   ├── consoleLogger.ts
+│   ├── inkStreams.ts
+│   ├── theme.ts
+│   └── ...
+│
+└── services/                        # ← 仅保留 UI 层桥接
+    └── runtimeUiBridge.tsx           #   [UI] Runtime-UI 桥接
+```
+
+## Before → After 迁移对照
+
+| #   | 原目录                       | 文件数 | 目标位置                 | 操作                               |
+| --- | ---------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 1   | `src/shared`                 | 8      | `src/shared/`            | **保留** + 吸收 invokables、utils  |
+| 2   | `src/invokables`             | 3      | `src/shared/invokables/` | **合并**                           |
+| 3   | `src/utils`                  | 20     | `src/shared/utils/`      | **合并**                           |
+| 4   | `src/env`                    | 11     | `src/config/`            | **合并**为 config 顶层             |
+| 5   | `src/core/config`            | 14     | `src/config/settings/`   | **合并**为 config 子目录           |
+| 6   | `src/core/{其余 8 个子目录}` | ~37    | `src/core/`              | **保留** + 吸收 services/models    |
+| 7   | `src/adapters`               | 36     | `src/adapters/`          | **不变**                           |
+| 8   | `src/chat`                   | 13     | `src/chat/`              | **不变**                           |
+| 9   | `src/streaming`              | 11     | `src/streaming/`         | **不变**                           |
+| 10  | `src/prompts`                | 14     | `src/prompts/`           | **不变**                           |
+| 11  | `src/hooks`                  | 14     | `src/hooks/`             | **不变**                           |
+| 12  | `src/subagents`              | 17     | `src/subagents/`         | **不变**                           |
+| 13  | `src/tools`                  | 225    | `src/tools/`             | **保留** − presenters              |
+| 14  | `src/tools/presenters`       | 45     | `src/components/tool/`   | **搬迁**                           |
+| 15  | `src/features/semantics`     | 67     | 不变                     | **不变**                           |
+| 16  | `src/features/repl`          | 121    | 不变                     | **不变**（内部层标注）             |
+| 17  | `src/features/commands`      | 16     | `src/features/commands/` | **吸收** src/commands              |
+| 18  | `src/commands`               | 4      | `src/features/commands/` | **合并**                           |
+| 19  | `src/features/sessionTitle`  | 9      | 不变                     | **不变**                           |
+| 20  | `src/features/tools`         | 19     | `src/features/tools/`    | **不变**                           |
+| 21  | `src/skills`                 | 2      | `src/features/skills/`   | **移入** features                  |
+| 22  | `src/services`               | 6      | 拆分                     | models→`core/models/`, bridge→保留 |
+| 23  | `src/cli`                    | 9      | `src/runtime/cli/`       | **合并**                           |
+| 24  | `src/runtime`                | 2      | `src/runtime/`           | **保留** + 吸收其他 Runtime 目录   |
+| 25  | `src/legacy`                 | 17     | `src/runtime/bootstrap/` | **合并**                           |
+| 26  | `src/serve`                  | 3      | `src/runtime/serve/`     | **合并**                           |
+| 27  | `src/web`                    | 3      | `src/runtime/web/`       | **合并**                           |
+| 28  | `src/network`                | 2      | `src/runtime/network/`   | **合并**                           |
+| 29  | `src/app-server`             | 32     | `src/app-server/`        | **不变**                           |
+| 30  | `src/entrypoints`            | 6      | `src/entrypoints/`       | **不变**                           |
+| 31  | `src/screens`                | 39     | `src/screens/`           | **不变**                           |
+| 32  | `src/components`             | 42     | `src/components/`        | **保留** + 吸收 tools/presenters   |
+| 33  | `src/ui`                     | 54     | `src/tui/`               | **重命名**                         |
+
+## 对应 `layer-contract.config.json`
+
+```json
+{
+  "layerOrder": ["Types", "Config", "Repo", "Service", "Runtime", "UI"],
+  "scanRoots": ["src", "apps/web-reference-react/src"],
+  "layers": {
+    "Types": [
+      "src/shared",
+      "src/prompts/types.ts",
+      "src/streaming/types.ts",
+      "src/features/semantics/core"
+    ],
+    "Config": ["src/config"],
+    "Repo": [
+      "src/adapters",
+      "src/features/repl/sessionSave",
+      "src/features/commands/CommandStore.ts",
+      "src/features/skills"
+    ],
+    "Service": [
+      "src/core",
+      "src/chat",
+      "src/streaming",
+      "src/prompts",
+      "src/hooks",
+      "src/subagents",
+      "src/tools",
+      "src/features/commands",
+      "src/features/sessionTitle",
+      "src/features/semantics/projection",
+      "src/features/semantics/adapters",
+      "src/features/semantics/runtime",
+      "src/features/semantics/selectors",
+      "src/features/repl/controller",
+      "src/features/tools"
+    ],
+    "Runtime": ["src/runtime", "src/app-server", "src/entrypoints"],
+    "UI": [
+      "src/tui",
+      "src/screens",
+      "src/components",
+      "src/services/runtimeUiBridge.tsx",
+      "src/features/repl/keys",
+      "src/features/repl/overlays",
+      "src/features/repl/inputScopeContext.tsx",
+      "src/features/repl/replUiContext.tsx",
+      "src/features/repl/planContext.tsx",
+      "src/features/commands/render.ts",
+      "apps/web-reference-react/src"
+    ]
+  }
+}
+```
+
+## 变化统计
+
+| 指标                 | 当前 | 目标                 |
+| -------------------- | ---- | -------------------- |
+| `src/` 顶层目录数    | 27   | 16                   |
+| 未映射到层的目录     | 8    | 0                    |
+| 跨层混放的目录       | 4    | 0                    |
+| 需搬迁的文件（估算） | —    | ~100 个文件          |
+| 不动的目录           | —    | 17 个（占总量 60%+） |

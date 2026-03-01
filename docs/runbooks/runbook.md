@@ -5,9 +5,11 @@
 1. `bun run check:partial-stage`
 2. `bun run check:plan-traceability`
 3. `bun run check:layer-contracts`
-4. `bun run check:golden-principles`
-5. `bun run test:repl-semantic-gate`
-6. `bun run type-check`
+4. `bun run check:layer-coverage`
+5. `bun run check:shared-types`
+6. `bun run check:golden-principles`
+7. `bun run test:repl-semantic-gate`
+8. `bun run type-check`
 
 与暂存文件相关的定向测试可用：`bun run test:changed`。
 非阻断漂移观察：`bun run check:presenter-parity`（默认告警，`--strict` 才阻断）。
@@ -23,6 +25,8 @@
 - `bun run type-check`
 - `bun run test:repl-semantic-gate`
 - `bun run check:layer-contracts`
+- `bun run check:layer-coverage`
+- `bun run check:shared-types`
 - `bun run check:golden-principles`
 - `bun run check:presenter-parity`（告警步骤，`continue-on-error: true`）
 - `node ./scripts/check-plan-traceability.mjs`（当 `code` 或 `harness_governance` 变更时）
@@ -56,6 +60,30 @@
 4. 再次执行 `bun run check:layer-contracts`。
 
 备注：`staleBaseline>0` 不会阻断，但应在同一 PR 清理，避免基线漂移。
+
+### 2.1 `check:layer-coverage` 失败
+
+触发信号：
+- 输出包含 `Layer coverage: ... unmapped=... (failed)`。
+- 输出包含 `Unmapped source files by directory:`。
+
+修复路径：
+1. 按目录聚合结果定位未映射文件。
+2. 在 `scripts/layer-contract.config.json` 中补齐对应路径映射（目录或单文件）。
+3. 重新执行 `bun run check:layer-coverage` 直到 `unmapped=0`。
+4. 再执行 `bun run check:layer-contracts`，确认补映射后没有引入新导入方向违规。
+
+### 2.2 `check:shared-types` 失败
+
+触发信号：
+- 输出包含 `Shared-types check failed`。
+- 某个 `src/platform/types/shared/**` 文件提示 `single feature consumer`。
+
+修复路径：
+1. 若该类型仅服务单一 feature，优先下沉到 `src/features/<feature>/types`。
+2. 若确实是跨 feature 共享，补齐第二个 feature 的真实消费点，并保持语义一致。
+3. 重新执行 `bun run check:shared-types` 直到无违规。
+4. 再执行相关 feature 的定向测试，避免仅靠门禁通过而行为漂移。
 
 ### 3. `check:golden-principles` 失败
 

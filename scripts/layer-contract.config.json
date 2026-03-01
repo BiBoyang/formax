@@ -4,6 +4,9 @@
   "layers": {
     "Types": [
       "src/shared",
+      "src/utils",
+      "src/invokables",
+      "src/prompts",
       "src/prompts/types.ts",
       "src/streaming/types.ts",
       "src/features/semantics/core"
@@ -16,22 +19,43 @@
       "src/adapters",
       "src/features/repl/sessionSave",
       "src/commands/CommandStore.ts",
-      "src/skills/SkillStore.ts"
+      "src/skills/SkillStore.ts",
+      "src/services/models.ts",
+      "src/services/modelContextCatalog.ts",
+      "src/core/errors/codes.ts",
+      "src/core/setup/errorMapping.ts",
+      "src/core/setup/types.ts",
+      "src/core/auth/index.ts",
+      "src/core/audit/schema.ts",
+      "src/core/diagnostics/redaction.ts",
+      "src/core/policy"
     ],
     "Service": [
+      "src/ui",
+      "src/screens",
+      "src/components",
+      "src/core",
       "src/chat",
+      "src/streaming",
+      "src/services",
       "src/tools",
       "src/hooks",
       "src/subagents",
+      "src/features/repl",
+      "src/features/tools",
       "src/features/commands",
       "src/features/sessionTitle",
       "src/features/semantics/projection",
       "src/features/semantics/adapters",
-      "src/features/semantics/runtime"
+      "src/features/semantics/runtime",
+      "src/features/semantics/selectors",
+      "src/commands/render.ts"
     ],
     "Runtime": [
       "src/runtime",
       "src/legacy/bootstrap",
+      "src/legacy/runLegacyCli.tsx",
+      "src/cli",
       "src/app-server",
       "src/serve",
       "src/web",
@@ -39,9 +63,6 @@
       "src/network"
     ],
     "UI": [
-      "src/ui",
-      "src/screens",
-      "src/components",
       "apps/web-reference-react/src"
     ]
   }
