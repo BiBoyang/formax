@@ -1,5 +1,5 @@
-import { fetchAnthropicModels, fetchCustomModels } from '../../services/models.js'
-import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../services/modelContextCatalog.js'
+import { fetchAnthropicModels, fetchCustomModels } from '../../core/models/models.js'
+import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../core/models/modelContextCatalog.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { mapUnknownError } from '../../core/setup/errorMapping.js'
 import type { ProviderId } from '../../core/config/schema.js'

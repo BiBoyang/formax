@@ -291,6 +291,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 UI 文案、布局、交互和样式行为。
   - 不改主题定义，仅做导入路径收敛。
 
+## 执行状态（Phase C - Slice 17）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/adapters/setup/connectionTest.ts` 与对应测试对 `services/{models,modelContextCatalog}` 的导入切换为 `core/models/*`。
+  - `connectionTest.test.ts` 的 `vi.mock` 目标路径同步到 `core/models/*`。
+- 明确不做：
+  - 不改连接测试逻辑、错误映射与模型 context 推断语义。
+  - 不删除 `src/services/{models,modelContextCatalog}` 兼容 re-export 文件。
+
 ## 目标结构
 
 ```

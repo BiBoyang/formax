@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { testSetupConnection } from './connectionTest.js'
-import { fetchAnthropicModels, fetchCustomModels } from '../../services/models.js'
-import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../services/modelContextCatalog.js'
+import { fetchAnthropicModels, fetchCustomModels } from '../../core/models/models.js'
+import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../core/models/modelContextCatalog.js'
 
-vi.mock('../../services/models.js', () => ({ fetchAnthropicModels: vi.fn(), fetchCustomModels: vi.fn() }))
-vi.mock('../../services/modelContextCatalog.js', () => ({
+vi.mock('../../core/models/models.js', () => ({ fetchAnthropicModels: vi.fn(), fetchCustomModels: vi.fn() }))
+vi.mock('../../core/models/modelContextCatalog.js', () => ({
   getModelContextWindowsFromCatalog: vi.fn(async () => ({})),
   resolveCatalogProviderKeys: vi.fn(() => []),
 }))
