@@ -301,6 +301,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改连接测试逻辑、错误映射与模型 context 推断语义。
   - 不删除 `src/services/{models,modelContextCatalog}` 兼容 re-export 文件。
 
+## 执行状态（Phase C - Slice 18）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `scripts/check-no-ansi.mjs` 的白名单与失败提示从 `src/utils/terminal.ts` 切换为 `src/shared/utils/terminal.ts`。
+  - `scripts/surface-screen-model-smoke.tsx` 对 `inkStreams` 的导入切换为 `src/shared/utils/inkStreams.ts`。
+  - `scripts/check-coverage-thresholds.mjs` 对 `planMode` 的覆盖率目标切换为 `src/shared/utils/planMode.ts`。
+  - `CODEMAP.md` 与 `pitfalls.md` 中对应索引路径收敛到 canonical 位置（`shared/utils`、`features/commands`）。
+- 明确不做：
+  - 不改任何运行时行为、工具逻辑或 UI 交互。
+  - 不删除旧 shim 文件，仅做索引与脚本路径收敛。
+
 ## 目标结构
 
 ```

@@ -112,7 +112,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Fix**:
   - Clear transcript state first (`setMessages([])` + `setTranscriptSeq(+1)`), then clear the terminal.
   - Keep a single clear path for legacy REPL (`resetInkStaticOutputForStdout` + `clearTerminal()`), avoid extra `replInstance.clear()` calls that can race with the next paint.
-- **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/utils/terminal.ts`
+- **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/shared/utils/terminal.ts`
 - **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
 
 ## `/resume` select-session black screen (bypassed reset transaction)

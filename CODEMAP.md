@@ -210,7 +210,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - REPL mode type: `src/features/repl/mode.ts`
 - REPL mode transition application: `src/features/repl/useReplController.ts`
 - Plan session manager (plan file path, lifecycle): `src/features/repl/planSession.ts`
-- Plan path helpers: `src/utils/planMode.ts`
+- Plan path helpers: `src/shared/utils/planMode.ts`
 - Plan mode injected blocks: `src/features/repl/controller/send/sendMainTurn.ts` (wired by `src/features/repl/useReplController.ts`)
 - App-server runtime mode change notifications: `src/app-server/turnRunner.ts` (`turn/modeChanged`)
 - Plan tools:
@@ -227,8 +227,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Slash Commands
 - Slash command registry + suggest + dispatch: `src/features/commands/registry.ts`
 - Built-in command effects → command contract adapter: `src/features/commands/adapter.ts`, `src/features/commands/contracts.ts`
-- Custom commands store (scan `.formax/commands/**` and global overrides): `src/commands/CommandStore.ts`
-- Custom command rendering (markdown → injected prompt blocks): `src/commands/render.ts`
+- Custom commands store (scan `.formax/commands/**` and global overrides): `src/features/commands/CommandStore.ts`
+- Custom command rendering (markdown → injected prompt blocks): `src/features/commands/render.ts`
 - CLI wires suggestions/registry into REPL: `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
 
 ## Config / Auth / Paths
