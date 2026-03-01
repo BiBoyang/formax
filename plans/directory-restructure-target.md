@@ -241,6 +241,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 console logger 的 WebSocket 服务、HTML 输出和序列化逻辑。
   - 不改 subagent 运行时日志的触发时机与日志内容。
 
+## 执行状态（Phase C - Slice 12）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/toolFormatting.ts` 与 `src/utils/toolFormatting.test.ts` 迁移到 `src/shared/utils/`。
+  - `tools/modules/*/presenter.tsx`、`tools/executor/handlers/taskSubAgent.ts`、`features/repl/*`、`features/tools/presentation/*`、`features/semantics/selectors/*` 改为引用 `src/shared/utils/toolFormatting`。
+  - 相关 `presenter.branches.test.tsx` 的 `vi.doMock`/`vi.importActual` 路径同步到新位置。
+  - 在 `src/utils/toolFormatting.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改 tool call/result 格式化规则、计数规则与摘要文案。
+  - 不改 task/tool message 映射语义。
+
 ## 目标结构
 
 ```

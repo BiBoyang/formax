@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box } from 'ink'
-import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'

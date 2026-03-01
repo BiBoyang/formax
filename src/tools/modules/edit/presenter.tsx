@@ -1,7 +1,7 @@
 import React from 'react'
 import path from 'node:path'
 import { Box } from 'ink'
-import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import { isSameFilePath } from '../../../shared/utils/planMode'
 import type { ToolPresenter } from '../../../shared/toolPresenterContracts'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'

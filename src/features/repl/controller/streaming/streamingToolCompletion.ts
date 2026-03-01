@@ -1,7 +1,7 @@
 import type { Msg } from '../../../../components/tool/ToolMessage'
 import type { TokenUsage } from '../../../../streaming/types'
 import type { ToolResult } from '../../../../tools/types'
-import { formatToolResult } from '../../../../utils/toolFormatting'
+import { formatToolResult } from '../../../../shared/utils/toolFormatting'
 import { parseBackgroundTaskId, parseTaskTranscript } from '../send/taskResult'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 

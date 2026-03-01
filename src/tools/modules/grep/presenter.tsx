@@ -1,7 +1,7 @@
 import React from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../../utils/theme'
-import { formatToolCallParts } from '../../../utils/toolFormatting'
+import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'

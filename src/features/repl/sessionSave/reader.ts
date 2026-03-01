@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import readline from 'node:readline'
 import path from 'node:path'
-import { formatToolResult } from '../../../utils/toolFormatting'
+import { formatToolResult } from '../../../shared/utils/toolFormatting'
 import {
   createPersistedToolEventAggregator,
   type PersistedToolMessage,

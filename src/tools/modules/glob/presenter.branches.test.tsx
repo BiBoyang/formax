@@ -3,8 +3,8 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 
 async function loadPresenterWithEmptyParams() {
   vi.resetModules()
-  vi.doMock('../../../utils/toolFormatting', async () => {
-    const actual = await vi.importActual<object>('../../../utils/toolFormatting')
+  vi.doMock('../../../shared/utils/toolFormatting', async () => {
+    const actual = await vi.importActual<object>('../../../shared/utils/toolFormatting')
     return {
       ...actual,
       formatToolCallParts: () => ({ toolName: 'Search', params: '   ' }),
