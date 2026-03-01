@@ -7,7 +7,8 @@
       "src/prompts",
       "src/prompts/types.ts",
       "src/streaming/types.ts",
-      "src/features/semantics/core"
+      "src/features/semantics/core",
+      "src/features/subagents/types.ts"
     ],
     "Config": [
       "src/config"
@@ -38,6 +39,7 @@
       "src/tools",
       "src/hooks",
       "src/subagents",
+      "src/features/subagents",
       "src/features/repl",
       "src/features/tools",
       "src/features/commands",

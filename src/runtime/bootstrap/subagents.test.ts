@@ -14,10 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../adapters/fs/configPaths.js', () => ({
   getConfigPaths: mocks.getConfigPaths,
 }))
-vi.mock('../../subagents/registry.js', () => ({
+vi.mock('../../features/subagents/registry.js', () => ({
   createSubAgentRegistry: mocks.createSubAgentRegistry,
 }))
-vi.mock('../../subagents/runner.js', () => ({
+vi.mock('../../features/subagents/runner.js', () => ({
   createSubAgentRunner: mocks.createSubAgentRunner,
 }))
 vi.mock('../../tools/executor/handlers/taskSubAgent.js', () => ({

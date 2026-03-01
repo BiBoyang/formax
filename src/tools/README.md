@@ -15,7 +15,7 @@ Last verified: 2026-01-13
 - **不做什么**：
   - 不处理 streaming 解析（由 `streaming/` 负责）
   - 不持久化工具状态（执行完即结束，状态由上层 chat loop 管理）
-  - 不定义 subagent 运行逻辑（由 `subagents/` 负责）
+  - 不定义 subagent 运行逻辑（由 `features/subagents/` 负责）
 
 ## 2) 入口（Entry points）
 

@@ -218,10 +218,10 @@ This file is a “where to change what” index for quickly navigating the codeb
   - ExitPlanMode: `src/tools/modules/exitPlanMode/*`
 
 ## Sub-agents (Task tool)
-- Built-in subagents registry (names, prompts, tool allowlist): `src/subagents/builtins.ts`
-- Subagent registry: `src/subagents/registry.ts`
-- Runner (spawning + tool allowlist enforcement): `src/subagents/runner.ts`
-- Agents creation wizard (generate with model / manual): `src/subagents/agentsWizard.ts`
+- Built-in subagents registry (names, prompts, tool allowlist): `src/features/subagents/builtins.ts`
+- Subagent registry: `src/features/subagents/registry.ts`
+- Runner (spawning + tool allowlist enforcement): `src/features/subagents/runner.ts`
+- Agents creation wizard (generate with model / manual): `src/features/subagents/agentsWizard.ts`
 - Approval/“read-only” strategy notes (Claude Code vs Formax vs Kode): `docs/SUBAGENT-APPROVAL-STRATEGY.md`
 
 ## Slash Commands
@@ -241,7 +241,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Core (config/auth/setup/policy): `src/core/README.md`
 - Tools (registry/executor/presenters/runtime): `src/tools/README.md`
 - Streaming (SSE parsing + tool execution): `src/streaming/README.md`
-- Sub-agents (registry/runner/allowlist): `src/subagents/README.md`
+- Sub-agents (registry/runner/allowlist): `src/features/subagents/README.md`
 
 ## Docs Governance (Contracts / Invariants)
 - Docs source-of-truth index: `docs/index.md`
@@ -271,4 +271,4 @@ This file is a “where to change what” index for quickly navigating the codeb
 - UI behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
 - New tool: add `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}`, then register in `src/tools/registry.ts`
 - New slash command: add to `src/features/commands/registry.ts` (and optionally implement LLM tool exposure later)
-- Sub-agent capability/prompt: update `src/subagents/builtins.ts` and related prompt sources under `src/subagents/prompts/`
+- Sub-agent capability/prompt: update `src/features/subagents/builtins.ts` and related prompt sources under `src/features/subagents/prompts/`

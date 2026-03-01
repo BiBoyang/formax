@@ -7,7 +7,7 @@ import type { ToolPreflight, ToolExecutor } from '../../tools/executor/index.js'
 import type { ToolRegistry } from '../../tools/registry.js'
 import type { TaskManager } from '../../tools/runtime/taskManager.js'
 import type { UserInputManager } from '../../tools/runtime/userInputManager.js'
-import type { SubAgentRunner } from '../../subagents/runner.js'
+import type { SubAgentRunner } from '../../features/subagents/runner.js'
 
 export type BootstrapContext = {
   cwd: string

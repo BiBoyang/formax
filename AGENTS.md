@@ -11,7 +11,7 @@
   - `screens/` Ink screens; `components/` reusable UI.
   - `tools/` tool registry, modules, handlers, presenters, runtime managers.
   - `streaming/` Anthropic streaming client and parsers.
-  - `subagents/` registry/runner for sub-agent tools.
+  - `features/subagents/` registry/runner for sub-agent tools.
   - `prompts/`, `config/`, `services/`, `shared/utils/` supporting code.
 - `apps/` contains standalone companion apps used for parity/reference development.
   - `web-reference-react/` isolated React + Vite web reference client for app-server protocol/semantics validation (separate package/deps).
@@ -95,7 +95,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - `src/tools/README.md`
   - `src/core/README.md`
   - `src/streaming/README.md`
-  - `src/subagents/README.md`
+  - `src/features/subagents/README.md`
 - Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
 
 ## Configuration & Runtime Notes

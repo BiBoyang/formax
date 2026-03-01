@@ -35,7 +35,7 @@ async function waitForText(
   throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${finalFrame}`)
 }
 
-vi.mock('../../../../subagents/agentsWizard', () => {
+vi.mock('../../../subagents/agentsWizard', () => {
   return {
     generateAgentDraftWithClaude: vi.fn(async () => {
       return {

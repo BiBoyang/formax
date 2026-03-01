@@ -45,7 +45,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 2. **Adapters Layer** (`src/adapters/`) - I/O implementations (fs, permissions, audit) that implement core interfaces
 3. **Application Layer** (`src/runtime/bootstrap/`, `src/runtime/cli/`, `src/features/`) - CLI wiring, command dispatch, feature modules
 4. **UI Layer** (`src/tui/`, `src/screens/`, `src/components/`) - Ink-based terminal UI
-5. **Infrastructure** (`src/tools/`, `src/streaming/`, `src/subagents/`) - Cross-cutting concerns
+5. **Infrastructure** (`src/tools/`, `src/streaming/`, `src/features/subagents/`) - Cross-cutting concerns
 
 **Key invariant**: `src/core/` may import from `src/core/`, `src/config/`, and `src/adapters/`, but must NOT import from UI/runtime surfaces such as `src/tui/`, `src/screens/`, or `src/tools/modules/`. This keeps core testable while matching current dependency ownership.
 
@@ -126,8 +126,8 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 - `src/tools/SPEC_HANDLER_MISMATCHES.md` - Tracking spec/handler mismatches
 
 **Sub-Agents**
-- `src/subagents/registry.ts` - Loads and manages sub-agent definitions from `.formax/agents/*.md` and `~/.formax/agents/*.md` (also supports `.claude/agents` for compatibility)
-- `src/subagents/runner.ts` - Executes sub-agents with isolated contexts and tool allowlists
+- `src/features/subagents/registry.ts` - Loads and manages sub-agent definitions from `.formax/agents/*.md` and `~/.formax/agents/*.md` (also supports `.claude/agents` for compatibility)
+- `src/features/subagents/runner.ts` - Executes sub-agents with isolated contexts and tool allowlists
 
 **Supporting Modules**
 - `src/prompts/` - Prompt construction and system message management
@@ -301,7 +301,7 @@ Many modules have detailed README files with architecture documentation:
 - `src/core/README.md` - Config, auth, setup, diagnostics, policy architecture
 - `src/tools/README.md` - Tool system architecture and patterns
 - `src/tools/STATUS.md` - Tool system development status and roadmap
-- `src/subagents/README.md` - Sub-agent system architecture
+- `src/features/subagents/README.md` - Sub-agent system architecture
 - `src/streaming/README.md` - Streaming client architecture
 
 When working in these modules, read their READMEs first to understand patterns and invariants.

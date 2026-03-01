@@ -1,5 +1,5 @@
-import type { SubAgentRegistry } from '../../../subagents/registry'
-import type { SubAgentRunner } from '../../../subagents/runner'
+import type { SubAgentRegistry } from '../../../features/subagents/registry'
+import type { SubAgentRunner } from '../../../features/subagents/runner'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../index'
 import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'

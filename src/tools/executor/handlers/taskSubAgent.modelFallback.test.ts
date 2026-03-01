@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SubAgentRegistry } from '../../../subagents/registry'
-import type { SubAgentRunner } from '../../../subagents/runner'
+import type { SubAgentRegistry } from '../../../features/subagents/registry'
+import type { SubAgentRunner } from '../../../features/subagents/runner'
 import type { ToolCall } from '../../types'
 import { TaskManager } from '../../runtime/taskManager'
 

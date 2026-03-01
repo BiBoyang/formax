@@ -1091,6 +1091,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 adapters/runtime 子模块实现与导出内容，仅统一入口文件命名。
 
+## 执行状态（Phase C - Slice 90）
+
+- 状态：进行中（feature 收敛，subagents 归位）。
+- 本轮已完成：
+  - `src/subagents/**` 迁移到 `src/features/subagents/**`（包含 `registry` / `runner` / `builtins` / `agentsWizard` / `types` 与 `prompts/`）。
+  - `runtime/bootstrap`、`tools/executor/handlers/taskSubAgent`、`features/repl/controller/ui/overlays` 的生产导入切换到 `src/features/subagents/*`。
+  - `src/subagents/*` 保留最薄兼容 shim（re-export 到 `src/features/subagents/*`），避免一次性修改全部历史调用方/测试路径。
+  - `layer-contract.config.json` 增补 `src/features/subagents` 映射，并将 `src/features/subagents/types.ts` 标注到 Types 层。
+  - `AGENTS.md`、`CLAUDE.md`、`CODEMAP.md`、`src/tools/README.md` 的 subagents 事实路径更新到 `src/features/subagents/*`。
+- 明确不做：
+  - 不改 subagent 运行逻辑、allow/deny 语义与 prompt 内容，仅做目录归位与导入路径收敛。
+  - 不移除 `src/subagents/*` shim（留待后续硬收口阶段）。
+
 ## 目标结构
 
 ```
@@ -1169,8 +1182,6 @@ src/
 │
 ├── hooks/                           # Hook 系统（不变）
 │
-├── subagents/                       # 子代理（不变）
-│
 ├── tools/                           # 工具系统（Service 部分）
 │   ├── modules/
 │   ├── executor/
@@ -1222,9 +1233,17 @@ src/
 │   │
 │   ├── sessionTitle/                # 会话标题生成（不变）
 │   │
-│   └── skills/                      # ← 移入 features（原 src/skills）
+│   ├── skills/                      # ← 移入 features（原 src/skills）
 │       ├── SkillStore.ts            #   [Repo]
 │       └── SkillStore.test.ts
+│
+│   └── subagents/                   # ← 移入 features（原 src/subagents）
+│       ├── builtins.ts              #   [Service]
+│       ├── registry.ts              #   [Service]
+│       ├── runner.ts                #   [Service]
+│       ├── agentsWizard.ts          #   [Service]
+│       ├── types.ts                 #   [Types]
+│       └── prompts/                 #   [Service]
 │
 │  ════════════════════ Runtime 层 ════════════════════
 │
@@ -1302,7 +1321,7 @@ src/
 | 9   | `src/streaming`              | 11     | `src/streaming/`         | **不变**                           |
 | 10  | `src/prompts`                | 14     | `src/prompts/`           | **不变**                           |
 | 11  | `src/hooks`                  | 14     | `src/hooks/`             | **不变**                           |
-| 12  | `src/subagents`              | 17     | `src/subagents/`         | **不变**                           |
+| 12  | `src/subagents`              | 17     | `src/features/subagents/`| **移入** features                  |
 | 13  | `src/tools`                  | 225    | `src/tools/`             | **保留** − presenters              |
 | 14  | `src/tools/presenters`       | 45     | `src/components/tool/`   | **搬迁**                           |
 | 15  | `src/features/semantics`     | 67     | 不变                     | **不变**                           |
@@ -1343,7 +1362,8 @@ src/
       "src/adapters",
       "src/features/repl/sessionSave",
       "src/features/commands/CommandStore.ts",
-      "src/features/skills"
+      "src/features/skills",
+      "src/features/subagents/types.ts"
     ],
     "Service": [
       "src/core",
@@ -1351,8 +1371,8 @@ src/
       "src/streaming",
       "src/prompts",
       "src/hooks",
-      "src/subagents",
       "src/tools",
+      "src/features/subagents",
       "src/features/commands",
       "src/features/sessionTitle",
       "src/features/semantics/projection",

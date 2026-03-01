@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { createSubAgentRunner } from './runner'
-import type { ToolDefinition, ToolCall, ToolResult } from '../tools/types'
-import { createToolExecutor } from '../tools/executor'
-import type { ToolHandler } from '../tools/executor'
-import type { LlmStreamOnceArgs, StreamTurnResult } from '../streaming/types'
+import type { ToolDefinition, ToolCall, ToolResult } from '../../tools/types'
+import { createToolExecutor } from '../../tools/executor'
+import type { ToolHandler } from '../../tools/executor'
+import type { LlmStreamOnceArgs, StreamTurnResult } from '../../streaming/types'
 
 function tool(name: string): ToolDefinition {
   return { name, description: `${name} tool`, input_schema: {} }
