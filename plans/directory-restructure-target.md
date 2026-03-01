@@ -43,6 +43,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不修改审批菜单交互逻辑（键位、提交、取消、反馈）与文案。
   - 不移动任何目录或组件位置。
 
+## 执行状态（Phase B - Slice 3）
+
+- 状态：进行中（细化类型统一，不搬目录）。
+- 本轮已完成：
+  - `src/components/tool/ToolHeaderLine.tsx` 删除本地 `ToolHeaderStatus` 重复定义，改为复用并 re-export `src/shared/toolMessageTypes` 的同名类型。
+  - `src/components/tool/ToolSubline.tsx` 删除本地 `ToolSublineStatus` 重复定义，改为复用并 re-export `src/shared/toolMessageTypes` 的同名类型。
+- 明确不做：
+  - 不调整 header/subline 的渲染逻辑、文案、缩进与配色。
+
 ## 目标结构
 
 ```

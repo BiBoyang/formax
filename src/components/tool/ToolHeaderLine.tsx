@@ -2,8 +2,9 @@ import React from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../utils/theme'
 import { PulsingDot } from '../ui/PulsingDot'
+import type { ToolHeaderStatus } from '../../shared/toolMessageTypes'
 
-export type ToolHeaderStatus = 'running' | 'completed' | 'error'
+export type { ToolHeaderStatus } from '../../shared/toolMessageTypes'
 
 export function ToolHeaderLine({
   status,
