@@ -938,6 +938,20 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 runtime 启动行为，不改路径解析逻辑实现，仅去除中间桥接层。
 
+## 执行状态（Phase C - Slice 77）
+
+- 状态：进行中（目录迁移第二批，TUI 工具实现实迁）。
+- 本轮已完成：
+  - `src/shared/utils/theme.ts` 实现迁移到 `src/tui/theme.ts`。
+  - `src/shared/utils/consoleLogger.ts` 实现迁移到 `src/tui/consoleLogger.ts`。
+  - `src/shared/utils/inkStreams.ts` 实现迁移到 `src/tui/inkStreams.ts`。
+  - `src/shared/utils/consoleLogger.test.ts` 迁移到 `src/tui/consoleLogger.test.ts`。
+  - `src/shared/utils/inkStreams.test.ts` 迁移到 `src/tui/inkStreams.test.ts`。
+  - 删除 `src/shared/utils/` 下上述已迁实现文件，避免双事实源。
+  - 验证通过：`tui/inkStreams.test.ts`、`runLegacyCli.test.tsx`、`runtimeUiBridge.test.tsx`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 暂不迁移 `shared/utils/toolFormatting.ts`（`Repo` 层仍有合法依赖），避免引入跨层违规。
+
 ## 目标结构
 
 ```
