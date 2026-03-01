@@ -1081,6 +1081,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不调整 semantics 规则实现，仅统一 barrel 入口命名与导入路径。
 
+## 执行状态（Phase C - Slice 89）
+
+- 状态：进行中（目录迁移第二批，semantics 入口命名补齐）。
+- 本轮已完成：
+  - `src/features/semantics/adapters/adapters.ts` 重命名为 `src/features/semantics/adapters/index.ts`。
+  - `src/features/semantics/runtime/runtime.ts` 重命名为 `src/features/semantics/runtime/index.ts`。
+  - 验证通过：`runtimeReplayParity.test.ts`、`turnInputBuilder.contract.test.ts`、`features:boundaries`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改 adapters/runtime 子模块实现与导出内容，仅统一入口文件命名。
+
 ## 目标结构
 
 ```
