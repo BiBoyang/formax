@@ -136,6 +136,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 slash command 的解析、派发与输出语义。
   - 不改 CommandStore 的扫描逻辑与命令覆盖优先级。
 
+## 执行状态（Phase C - Slice 3）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/services/models.ts` 与 `src/services/models.test.ts` 迁移到 `src/core/models/`。
+  - `src/services/modelContextCatalog.ts` 与 `src/services/modelContextCatalog.test.ts` 迁移到 `src/core/models/`。
+  - 在 `src/services/models.ts` 与 `src/services/modelContextCatalog.ts` 保留兼容 re-export，避免一次性迁移上层调用方。
+  - `layer-contract.config.json` 增补 `src/core/models/{models,modelContextCatalog}.ts` 的 Repo 层映射（过渡期）。
+- 明确不做：
+  - 不改模型拉取逻辑、catalog 缓存策略、错误映射与超时行为。
+  - 不改 `adapters/setup/connectionTest` 的调用路径与用户可见输出。
+
 ## 目标结构
 
 ```

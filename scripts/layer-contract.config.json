@@ -22,6 +22,8 @@
       "src/features/skills",
       "src/commands/CommandStore.ts",
       "src/skills/SkillStore.ts",
+      "src/core/models/models.ts",
+      "src/core/models/modelContextCatalog.ts",
       "src/services/models.ts",
       "src/services/modelContextCatalog.ts",
       "src/core/errors/codes.ts",
