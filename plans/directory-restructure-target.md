@@ -74,6 +74,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改变 ApprovalHeader / MarkdownBlock 的渲染行为。
   - 不处理 ConfirmMenu 双实现（留到后续独立切片）。
 
+## 执行状态（Phase B - Slice 6）
+
+- 状态：进行中（继续单实现收敛，不搬目录）。
+- 本轮已完成：
+  - `src/tools/presenters/ConfirmMenu.tsx` 改为转发 `src/components/ui/ConfirmMenu`，并由 shared 合同导出类型。
+  - 保留原 `src/tools/presenters/ConfirmMenu` 导入入口，避免调用方改动。
+- 明确不做：
+  - 不改 ConfirmMenu 任何键盘交互/焦点/提交语义。
+
 ## 目标结构
 
 ```
