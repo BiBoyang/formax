@@ -747,6 +747,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 CLI 参数解析/帮助文本/命令分发逻辑，仅迁移独立常量模块路径。
 
+## 执行状态（Phase C - Slice 60）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，低风险切片）。
+- 本轮已完成：
+  - `src/cli/{args,help,json}.ts` 迁移到 `src/runtime/cli/{args,help,json}.ts`。
+  - `src/cli/{args,help,json}.ts` 保留兼容 re-export（桥接到 `src/runtime/cli/*`）。
+  - `src/cli/main.ts` 与 `src/entrypoints/cli.tsx` 改为直接导入 `src/runtime/cli/*`，减少 shim 跳转层。
+- 明确不做：
+  - 不改参数解析规则、help 文案、JSON envelope 结构，仅迁移模块归属路径。
+
 ## 目标结构
 
 ```

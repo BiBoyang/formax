@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config'
-import { parseCliArgs } from '../cli/args.js'
+import { parseCliArgs } from '../runtime/cli/args.js'
 import { dispatchCli } from '../cli/main.js'
 
 async function main(): Promise<void> {
