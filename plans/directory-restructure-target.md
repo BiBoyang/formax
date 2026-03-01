@@ -1050,6 +1050,22 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 `messages/overlays/surfaceReset` 的实现逻辑，仅收敛入口文件命名与导入路径。
 
+## 执行状态（Phase C - Slice 87）
+
+- 状态：进行中（目录迁移第二批，controller barrel 统一）。
+- 本轮已完成：
+  - `src/features/repl/controller/{canonical,session,shared}` 的 barrel 统一为目录入口 `index.ts`：
+    - `canonical/canonical.ts -> canonical/index.ts`
+    - `session/session.ts -> session/index.ts`
+    - `shared/shared.ts -> shared/index.ts`
+  - 同步外部导入到目录入口：
+    - `src/features/repl/useReplController.ts`
+    - `src/screens/REPL.tsx`
+    - `src/features/repl/controller/send/sendOrchestration.ts`
+  - 验证通过：`useReplController.test.tsx`、`REPL.overlays.test.tsx`、`REPL.test.tsx`、`features:boundaries`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改任何 canonical/session/shared 子模块实现，仅统一入口命名与路径。
+
 ## 目标结构
 
 ```

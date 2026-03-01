@@ -34,8 +34,8 @@ import {
   emitCanonicalUiMessageForTurn,
   emitCanonicalTurnFooterForTurn,
   projectCanonicalEventToTransientMessages,
-} from './controller/canonical/canonical'
-import { resolveTurnProvider } from './controller/shared/shared'
+} from './controller/canonical'
+import { resolveTurnProvider } from './controller/shared'
 import {
   applyConfigExitInjection,
   buildMessageByIdMap,
@@ -56,7 +56,7 @@ import {
   runNewSessionTransition,
   runResumeSessionTransition,
   type SessionWriterRefs,
-} from './controller/session/session'
+} from './controller/session'
 import { createSendTurnContext } from './controller/send/sendTypes'
 import { runLocalBashTurn } from './controller/send/bashMode'
 import { runReplModelSendFlow } from './controller/send/sendOrchestration'

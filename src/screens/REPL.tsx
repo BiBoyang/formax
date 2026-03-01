@@ -46,7 +46,7 @@ import { createSlashCommandSpecMap, resolveSlashCommandInputHint } from './repl/
 import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../config/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/ui'
-import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared/shared'
+import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared'
 import { parseModelTier, resolveModelForTier, type ModelTier } from '../config/modelTier'
 
 type Props = {
