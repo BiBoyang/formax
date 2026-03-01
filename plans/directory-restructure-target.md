@@ -738,6 +738,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何运行时代码，仅同步文档路径，避免后续排障误导。
 
+## 执行状态（Phase C - Slice 59）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线启动，低风险切片）。
+- 本轮已完成：
+  - `src/cli/exitCodes.ts` 迁移到 `src/runtime/cli/exitCodes.ts`。
+  - `src/cli/exitCodes.ts` 保留兼容 re-export（桥接到 `src/runtime/cli/exitCodes.js`）。
+- 明确不做：
+  - 不改 CLI 参数解析/帮助文本/命令分发逻辑，仅迁移独立常量模块路径。
+
 ## 目标结构
 
 ```
