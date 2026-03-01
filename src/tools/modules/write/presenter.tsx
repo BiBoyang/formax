@@ -9,7 +9,7 @@ import type { Msg } from '../../../shared/toolMessageTypes'
 import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
 import { WriteApprovalToolBlock } from './WriteApprovalToolBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
-import { getTheme } from '../../../utils/theme'
+import { getTheme } from '../../../shared/utils/theme'
 import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
 
 function shouldShowSurfaceSuffix(): boolean {

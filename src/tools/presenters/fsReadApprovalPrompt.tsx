@@ -1,7 +1,7 @@
 import React from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import type { ConfirmMenuDecision, FsReadApprovalDecision } from '../../shared/approvalPromptContracts'
 import { ConfirmMenu } from './ConfirmMenu'
 import { ApprovalHeader } from './ApprovalHeader'

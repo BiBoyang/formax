@@ -6,7 +6,7 @@ const harness = vi.hoisted(() => ({
   handler: null as null | ((input: string, key: Record<string, unknown>) => void),
 }))
 
-vi.mock('../../utils/theme', () => ({
+vi.mock('../../shared/utils/theme', () => ({
   getTheme: () => ({ text: 'white', secondaryText: 'gray' }),
 }))
 

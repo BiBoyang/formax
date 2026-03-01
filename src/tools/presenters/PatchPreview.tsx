@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 
 const MAX_LINE_DP_CELLS = 60_000
 const MAX_TOKEN_DP_CELLS = 30_000

@@ -273,6 +273,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何主题色值、主题字段和 `getTheme()` 返回语义。
   - 暂不改现有调用方导入路径（保持兼容入口以降低改动面）。
 
+## 执行状态（Phase C - Slice 15）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/tools/**` 下所有 `utils/theme` 依赖切换为 `shared/utils/theme`（含 presenter 与相关测试 mock）。
+- 明确不做：
+  - 不改任意 presenter 的渲染逻辑、文案、样式规则。
+  - 不改主题定义和颜色值，仅做导入路径收敛。
+
 ## 目标结构
 
 ```

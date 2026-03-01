@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../../../utils/theme', () => ({
+vi.mock('../../../shared/utils/theme', () => ({
   getTheme: () => ({
     error: 'red',
     text: 'white',

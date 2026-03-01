@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import path from 'node:path'
 import { Text, useStdout } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import { PatchPreview } from './PatchPreview'
 import { useSnippetStartLineNumber } from './useSnippetStartLineNumber'
 
