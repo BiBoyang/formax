@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
+import type { ConfirmMenuDecision, ConfirmMenuOption } from '../../shared/approvalPromptContracts'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences'
@@ -13,20 +14,7 @@ import {
   isShiftTabToken,
 } from '../../features/repl/keys/keyTokens'
 
-export type ConfirmMenuOption =
-  | {
-      kind: 'choice'
-      key: string
-      label: string
-      dim?: boolean
-      emphasis?: { text: string; color?: string; bold?: boolean }
-    }
-  | { kind: 'feedback'; key: string; label: string; placeholder: string }
-
-export type ConfirmMenuDecision =
-  | { kind: 'choice'; key: string }
-  | { kind: 'feedback'; key: string; feedback: string }
-  | { kind: 'cancel' }
+export type { ConfirmMenuDecision, ConfirmMenuOption } from '../../shared/approvalPromptContracts'
 
 export function ConfirmMenu({
   options,

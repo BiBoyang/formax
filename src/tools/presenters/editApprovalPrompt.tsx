@@ -1,14 +1,11 @@
 import React, { useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { ConfirmMenu, type ConfirmMenuDecision } from './ConfirmMenu'
+import type { ConfirmMenuDecision, EditApprovalDecision } from '../../shared/approvalPromptContracts'
+import { ConfirmMenu } from './ConfirmMenu'
 import { ApprovalHeader } from './ApprovalHeader'
 
-export type EditApprovalDecision =
-  | { kind: 'approve' }
-  | { kind: 'approve_remember'; scope: 'session' | 'project' | 'global' }
-  | { kind: 'feedback'; feedback: string }
-  | { kind: 'cancel' }
+export type { EditApprovalDecision } from '../../shared/approvalPromptContracts'
 
 export function EditApprovalPrompt({
   title,

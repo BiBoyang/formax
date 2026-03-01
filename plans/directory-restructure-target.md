@@ -31,6 +31,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不迁移 `src/tools/presenters/*` 到 `src/components/tool/*`。
   - 不改任何 tool UI 文案、交互逻辑、审批流语义。
 
+## 执行状态（Phase B - Slice 2）
+
+- 状态：进行中（继续类型抽离，不搬目录）。
+- 本轮已完成：
+  - 新增 `src/shared/approvalPromptContracts.ts`，统一承接 `ConfirmMenuOption` / `ConfirmMenuDecision` 与各类 `*ApprovalDecision`。
+  - `src/tools/presenters/ConfirmMenu.tsx` 与 `src/components/ui/ConfirmMenu.tsx` 改为消费 shared 合同，并保留类型 re-export 兼容入口。
+  - `bash/edit/fsRead/fsWrite/skill` 五个 approval prompt 统一改为 shared decision 类型输入，并保留原文件 `export type` 兼容。
+  - 新增 `src/shared/approvalPromptContracts.test.ts`，锁定关键 union 合同。
+- 明确不做：
+  - 不修改审批菜单交互逻辑（键位、提交、取消、反馈）与文案。
+  - 不移动任何目录或组件位置。
+
 ## 目标结构
 
 ```

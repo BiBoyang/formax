@@ -1,14 +1,11 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { ConfirmMenu, type ConfirmMenuDecision } from './ConfirmMenu'
+import type { ConfirmMenuDecision, FsWriteApprovalDecision } from '../../shared/approvalPromptContracts'
+import { ConfirmMenu } from './ConfirmMenu'
 import { ApprovalHeader } from './ApprovalHeader'
 
-export type FsWriteApprovalDecision =
-  | { kind: 'approve' }
-  | { kind: 'approve_remember' }
-  | { kind: 'feedback'; feedback: string }
-  | { kind: 'cancel' }
+export type { FsWriteApprovalDecision } from '../../shared/approvalPromptContracts'
 
 export function FsWriteApprovalPrompt({
   title,

@@ -2,14 +2,11 @@ import React from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { ConfirmMenu, type ConfirmMenuDecision } from './ConfirmMenu'
+import type { ConfirmMenuDecision, FsReadApprovalDecision } from '../../shared/approvalPromptContracts'
+import { ConfirmMenu } from './ConfirmMenu'
 import { ApprovalHeader } from './ApprovalHeader'
 
-export type FsReadApprovalDecision =
-  | { kind: 'approve' }
-  | { kind: 'approve_remember' }
-  | { kind: 'feedback'; feedback: string }
-  | { kind: 'cancel' }
+export type { FsReadApprovalDecision } from '../../shared/approvalPromptContracts'
 
 export function FsReadApprovalPrompt({
   title,
