@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { PlanProvider } from '../../../features/repl/planContext'
-import type { Msg } from '../../../shared/toolMessageTypes'
+import { PlanProvider } from '../../features/repl/planContext'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { EditPlanFileBlock } from './EditPlanFileBlock'
 
 function createMessage(overrides: Partial<Msg> = {}): Msg {

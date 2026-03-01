@@ -1,9 +1,9 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import { ApprovalHeader } from '../../../components/ui/ApprovalHeader'
-import { PatchApprovalPreview } from '../../../components/tool/PatchApprovalPreview'
-import { FsWriteApprovalPrompt } from '../../../components/tool/fsWriteApprovalPrompt'
-import { useUserInputManager } from '../../runtime/userInputContext'
+import { ApprovalHeader } from '../ui/ApprovalHeader'
+import { PatchApprovalPreview } from './PatchApprovalPreview'
+import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
+import { useUserInputManager } from '../../tools/runtime/userInputContext'
 
 export function EditApprovalToolBlock({
   toolUseId,

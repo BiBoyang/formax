@@ -9,8 +9,8 @@ import type { Msg } from '../../../shared/toolMessageTypes'
 import { PatchPreview } from '../../../components/tool/PatchPreview'
 import { ToolHeaderLine, ToolSubline } from '../../../components/tool/ToolUiPrimitives'
 import { stripCatNPrefixes } from '../../../shared/utils/catN'
-import { EditApprovalToolBlock } from './EditApprovalToolBlock'
-import { EditPlanFileBlock } from './EditPlanFileBlock'
+import { EditApprovalToolBlock } from '../../../components/tool/EditApprovalToolBlock'
+import { EditPlanFileBlock } from '../../../components/tool/EditPlanFileBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
 
 // Component that renders the complete edit tool UI.

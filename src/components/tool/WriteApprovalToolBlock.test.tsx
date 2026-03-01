@@ -15,15 +15,15 @@ const mocks = vi.hoisted(() => ({
   previewProps: [] as Array<{ fileName: string; width: number; remainingLines: number }>,
 }))
 
-vi.mock('../../runtime/userInputContext', () => ({
+vi.mock('../../tools/runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../../components/ui/ApprovalHeader', () => ({
+vi.mock('../ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-vi.mock('../../../components/tool/ApprovalPreview', () => ({
+vi.mock('./ApprovalPreview', () => ({
   ApprovalPreview: ({
     fileName,
     width,
@@ -45,14 +45,14 @@ vi.mock('../../../components/tool/ApprovalPreview', () => ({
   },
 }))
 
-vi.mock('../../../components/ui/MarkdownBlock', () => ({
+vi.mock('../ui/MarkdownBlock', () => ({
   MarkdownBlock: ({ markdown }: { markdown: string }) => {
     mocks.markdownProps.push({ markdown })
     return <Text>{markdown}</Text>
   },
 }))
 
-vi.mock('../../../components/tool/fsWriteApprovalPrompt', () => ({
+vi.mock('./fsWriteApprovalPrompt', () => ({
   FsWriteApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>

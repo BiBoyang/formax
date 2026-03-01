@@ -597,6 +597,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 approval prompt 交互逻辑，仅做导入路径规范化。
   - 不改任意测试断言语义。
 
+## 执行状态（Phase C - Slice 46）
+
+- 状态：进行中（目录迁移第一批，低风险，tool block 归位）。
+- 本轮已完成：
+  - 将 `WriteApprovalToolBlock`、`EditApprovalToolBlock`、`EditPlanFileBlock` 及对应测试从 `src/tools/modules/{write,edit}/` 迁移到 `src/components/tool/`。
+  - `src/tools/modules/{write,edit}/presenter.tsx` 切换为引用 `src/components/tool/*` 的新位置实现。
+  - 迁移后组件与测试的相对导入统一按 `components` 层内路径修正（`../ui/*`、`./*`、`../../shared/*`、`../../features/*`、`../../tools/runtime/*`）。
+- 明确不做：
+  - 不改 write/edit approval 的交互逻辑、decision payload 与文案。
+  - 不改 write/edit presenter 的渲染策略，仅变更模块归属与导入路径。
+
 ## 目标结构
 
 ```

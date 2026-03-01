@@ -14,22 +14,22 @@ const mocks = vi.hoisted(() => ({
   patchCalls: [] as Array<{ filePath: string; oldText: string; newText: string }>,
 }))
 
-vi.mock('../../runtime/userInputContext', () => ({
+vi.mock('../../tools/runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../../components/ui/ApprovalHeader', () => ({
+vi.mock('../ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-vi.mock('../../../components/tool/PatchApprovalPreview', () => ({
+vi.mock('./PatchApprovalPreview', () => ({
   PatchApprovalPreview: (props: { filePath: string; oldText: string; newText: string }) => {
     mocks.patchCalls.push(props)
     return <Text>{`patch:${props.filePath}`}</Text>
   },
 }))
 
-vi.mock('../../../components/tool/fsWriteApprovalPrompt', () => ({
+vi.mock('./fsWriteApprovalPrompt', () => ({
   FsWriteApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>
