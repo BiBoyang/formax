@@ -973,6 +973,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不调整任何 subline 文案、缩进或渲染行为，仅收敛文件归属与导入路径。
 
+## 执行状态（Phase C - Slice 80）
+
+- 状态：进行中（目录迁移第二批，dead code 收敛）。
+- 本轮已完成：
+  - 删除无调用文件 `src/shared/utils/config.ts`。
+  - 全仓复扫 `ModelProfile`/`GlobalConfig` 等导出符号，确认无任何业务依赖。
+  - 验证通过：`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改任何配置读写逻辑；仅移除未接入代码路径。
+
 ## 目标结构
 
 ```
