@@ -860,6 +860,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 REPL 启动行为与错误处理语义，仅迁移入口模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 71）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，legacy 收口）。
+- 本轮已完成：
+  - 删除 `src/legacy/runLegacyCli.tsx` 兼容 shim。
+  - 删除空目录 `src/legacy/`。
+  - `scripts/layer-contract.config.json` 的 Runtime 映射移除 `src/legacy/runLegacyCli.tsx` 陈旧路径。
+- 明确不做：
+  - 不改 REPL 启动行为，仅删除无调用兼容层并同步门禁映射。
+
 ## 目标结构
 
 ```
