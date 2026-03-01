@@ -180,7 +180,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Blocks presenter helper: `createToolBlocksPresenter` in `src/tools/presenters/types.ts`
 - FS read approval bridge (blocks presenter → runtime user input): `src/tools/presenters/FsReadApprovalToolBlock.tsx`
 - Shared approval prompt (Edit/Write/NotebookEdit): `src/tools/presenters/editApprovalPrompt.tsx`
-- Fallback presenter: `src/tools/presenters/fallback.tsx`
+- Fallback presenter: `src/components/tool/FallbackToolPresenter.tsx`
 
 ### Tool specs (“model-facing contract”)
 - Each tool module owns its spec under `src/tools/modules/<tool>/spec.ts`.

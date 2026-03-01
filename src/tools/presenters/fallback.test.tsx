@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../shared/toolMessageTypes'
-import { FallbackToolPresenter, shouldShowSurfaceSuffix, toSurfaceSuffix } from './fallback'
+import { FallbackToolPresenter, shouldShowSurfaceSuffix, toSurfaceSuffix } from '../../components/tool/FallbackToolPresenter'
 
 function createMessage(overrides: Partial<Msg> = {}): Msg {
   return {

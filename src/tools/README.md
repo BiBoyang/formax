@@ -103,7 +103,7 @@ flowchart LR
 | Spec/Handler 名称不一致导致漏执行           | `SPEC_HANDLER_MISMATCHES.md` 文档 + `bun run tools:parity` | `bun run tools:parity`                                  |
 | 用户输入卡住（Promise 未 resolve）          | `runtime/userInputManager.ts` pending map                  | -                                                       |
 | 后台任务执行后结果丢失                      | `runtime/taskManager.ts` 任务是否 resolveDone              | `bun run test -- src/tools/runtime/taskManager.test.ts` |
-| Presenter 报错导致 UI 崩溃                  | `presenters/fallback.tsx` 兜底渲染                         | -                                                       |
+| Presenter 报错导致 UI 崩溃                  | `../components/tool/FallbackToolPresenter.tsx` 兜底渲染    | -                                                       |
 | allow/deny list 不生效                      | `executor/index.ts` normalizeCtx 检查                      | `bun run test -- src/tools/executor`                    |
 
 ## 7) 相关链接（Repo links）

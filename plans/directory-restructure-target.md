@@ -364,6 +364,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 fallback 渲染逻辑、surface suffix 规则和 tool summary 文案。
   - 不删除 `src/tools/presenters/fallback.tsx` wrapper（留待后续切片统一收口）。
 
+## 执行状态（Phase C - Slice 24）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/fallback.tsx`（已无生产调用方）。
+  - `src/tools/presenters/fallback.test.tsx` 改为直接验证 `src/components/tool/FallbackToolPresenter`。
+- 明确不做：
+  - 不改 fallback 的渲染实现与行为，只移除中转 wrapper。
+  - 不调整工具模块的 UI 展示文案和状态映射逻辑。
+
 ## 目标结构
 
 ```
