@@ -5,7 +5,7 @@ import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/plan
 import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
-import { stripCatNPrefixes } from '../../../utils/catN'
+import { stripCatNPrefixes } from '../../../shared/utils/catN'
 
 export function createEditToolHandler(): ToolHandler {
   return {

@@ -8,7 +8,7 @@ import { createToolBlocksPresenter } from '../../../shared/toolPresenterContract
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { PatchPreview } from '../../presenters/PatchPreview'
 import { ToolHeaderLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
-import { stripCatNPrefixes } from '../../../utils/catN'
+import { stripCatNPrefixes } from '../../../shared/utils/catN'
 import { EditApprovalToolBlock } from './EditApprovalToolBlock'
 import { EditPlanFileBlock } from './EditPlanFileBlock'
 import { usePlanSession } from '../../../features/repl/planContext'

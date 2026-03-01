@@ -159,6 +159,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 `truncateByCharBudget` 行为和截断语义。
   - 不改 skill 工具的输出格式与命令拼接策略。
 
+## 执行状态（Phase C - Slice 5）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/catN.ts` 与 `src/utils/catN.test.ts` 迁移到 `src/shared/utils/`。
+  - `edit` 工具与 `patchStartLineNumber` 改为引用 `src/shared/utils/catN`。
+  - 在 `src/utils/catN.ts` 保留兼容 re-export，避免旧导入路径一次性失效。
+- 明确不做：
+  - 不改 `stripCatNPrefixes` 的解析规则与正则语义。
+  - 不改 edit/patch 的业务流程与输出文案。
+
 ## 目标结构
 
 ```

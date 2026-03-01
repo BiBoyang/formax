@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { findSnippetStartLineNumber } from '../../../../tools/presenters/snippetStartLine'
-import { stripCatNPrefixes } from '../../../../utils/catN'
+import { stripCatNPrefixes } from '../../../../shared/utils/catN'
 
 const MAX_FILE_BYTES = 512 * 1024
 
