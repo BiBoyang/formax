@@ -51,12 +51,8 @@
       "src/runtime",
       "src/legacy/bootstrap",
       "src/legacy/runLegacyCli.tsx",
-      "src/cli",
       "src/app-server",
-      "src/serve",
-      "src/web",
-      "src/entrypoints",
-      "src/network"
+      "src/entrypoints"
     ],
     "UI": [
       "apps/web-reference-react/src"

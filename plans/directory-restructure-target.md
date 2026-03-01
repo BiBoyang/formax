@@ -820,6 +820,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 serve/web/network 运行逻辑、参数语义与对外行为，仅迁移模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 67）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，shim 收口）。
+- 本轮已完成：
+  - 删除 `src/network/runtime.ts`、`src/serve/localServer.ts`、`src/web/localUi.ts` 兼容 shim。
+  - `scripts/layer-contract.config.json` 的 Runtime 映射移除 `src/cli`、`src/network`、`src/serve`、`src/web` 陈旧路径，仅保留现状入口。
+- 明确不做：
+  - 不改 runtime 行为与启动参数语义，仅删除无调用 shim 并同步门禁映射。
+
 ## 目标结构
 
 ```
