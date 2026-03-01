@@ -1,5 +1,5 @@
 import type { Msg } from '../../../../shared/toolMessageTypes'
-import type { TranscriptProjectionState } from '../../../semantics/projection/projection'
+import type { TranscriptProjectionState } from '../../../semantics/projection'
 import { selectTerminalTurnInvariantIssues } from '../../../semantics/selectors/invariants'
 
 export type ReplCanonicalInvariantIssue =

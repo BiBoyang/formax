@@ -1,7 +1,7 @@
 import type { Msg } from '../../../../shared/toolMessageTypes'
-import type { CanonicalEvent } from '../../../semantics/core/core'
-import { reduceTranscriptProjection } from '../../../semantics/projection/projection'
-import type { TranscriptProjectionState } from '../../../semantics/projection/projection'
+import type { CanonicalEvent } from '../../../semantics/core'
+import { reduceTranscriptProjection } from '../../../semantics/projection'
+import type { TranscriptProjectionState } from '../../../semantics/projection'
 import { canonicalTurnSegmentsToMessages, tailSegmentsForTurn } from './canonicalTurnMessages'
 
 type PreviousTransientProjection = {

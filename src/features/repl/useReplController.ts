@@ -64,12 +64,12 @@ import { maybeHandleClearCommand } from './controller/send/send'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import {
   createInitialTranscriptProjectionState,
-} from '../semantics/projection/projection'
-import type { CanonicalEvent } from '../semantics/core/core'
+} from '../semantics/projection'
+import type { CanonicalEvent } from '../semantics/core'
 import {
   resolveReplModeTransition,
   shouldInjectExitPlanReminder,
-} from '../semantics/core/core'
+} from '../semantics/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { toPersistedAppToolEventData } from './sessionSave/appToolEventPayload'

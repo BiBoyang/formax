@@ -1066,6 +1066,21 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何 canonical/session/shared 子模块实现，仅统一入口命名与路径。
 
+## 执行状态（Phase C - Slice 88）
+
+- 状态：进行中（目录迁移第二批，semantics barrel 收口）。
+- 本轮已完成：
+  - `src/features/semantics/core/core.ts` 重命名为 `src/features/semantics/core/index.ts`。
+  - `src/features/semantics/projection/projection.ts` 重命名为 `src/features/semantics/projection/index.ts`。
+  - 相关调用方导入改为目录入口：
+    - `src/features/repl/useReplController.ts`
+    - `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
+    - `src/features/repl/controller/canonical/canonicalEventOrchestration.test.ts`
+    - `src/features/repl/controller/canonical/canonicalInvariants.ts`
+  - 验证通过：`canonicalEventOrchestration.test.ts`、`useReplController.test.tsx`、`REPL.test.tsx`、`features:boundaries`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不调整 semantics 规则实现，仅统一 barrel 入口命名与导入路径。
+
 ## 目标结构
 
 ```
