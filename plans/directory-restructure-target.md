@@ -757,6 +757,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改参数解析规则、help 文案、JSON envelope 结构，仅迁移模块归属路径。
 
+## 执行状态（Phase C - Slice 61）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，低风险切片）。
+- 本轮已完成：
+  - `src/cli/main.ts` 迁移到 `src/runtime/cli/main.ts`。
+  - `src/cli/main.ts` 保留兼容 re-export（桥接到 `src/runtime/cli/main.js`）。
+  - `src/entrypoints/cli.tsx` 改为直接导入 `src/runtime/cli/main.ts`。
+- 明确不做：
+  - 不改 CLI 命令分发逻辑、返回结构、错误处理分支，仅迁移模块归属路径。
+
 ## 目标结构
 
 ```

@@ -2,7 +2,7 @@
 
 import 'dotenv/config'
 import { parseCliArgs } from '../runtime/cli/args.js'
-import { dispatchCli } from '../cli/main.js'
+import { dispatchCli } from '../runtime/cli/main.js'
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2)
