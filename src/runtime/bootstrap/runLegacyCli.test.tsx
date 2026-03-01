@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RuntimeConfig } from '../config/config.js'
+import type { RuntimeConfig } from '../../config/config.js'
 
 const clearTerminal = vi.fn(async () => {})
 const createRuntime = vi.fn()
@@ -7,23 +7,23 @@ const resolveInitialSession = vi.fn()
 const renderReplApp = vi.fn()
 const resetInkStaticOutputForStdout = vi.fn(async () => {})
 
-vi.mock('../shared/utils/terminal.js', () => ({
+vi.mock('../../shared/utils/terminal.js', () => ({
   clearTerminal,
 }))
 
-vi.mock('../runtime/createRuntime.js', () => ({
+vi.mock('../createRuntime.js', () => ({
   createRuntime,
 }))
 
-vi.mock('../runtime/bootstrap/session.js', () => ({
+vi.mock('./session.js', () => ({
   resolveInitialSession,
 }))
 
-vi.mock('../runtime/bootstrap/renderReplApp.js', () => ({
+vi.mock('./renderReplApp.js', () => ({
   renderReplApp,
 }))
 
-vi.mock('../shared/utils/inkStreams.js', () => ({
+vi.mock('../../shared/utils/inkStreams.js', () => ({
   resetInkStaticOutputForStdout,
 }))
 

@@ -5,7 +5,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Entry Points
 - CLI entrypoint (main): `src/entrypoints/cli.tsx`
 - CLI arg parsing + dispatch: `src/runtime/cli/args.ts`, `src/runtime/cli/main.ts`
-- Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
+- Legacy REPL bootstrap orchestration: `src/runtime/bootstrap/runLegacyCli.tsx`
   - Runtime assembly slices: `src/runtime/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
 - Serve runtime launcher (`formax serve`, WebSocket bridge): `src/runtime/serve/localServer.ts`

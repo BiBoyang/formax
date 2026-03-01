@@ -849,6 +849,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 `runLegacyCli` 与 runtime 组装行为，仅删除无调用 shim 并同步门禁映射。
 
+## 执行状态（Phase C - Slice 70）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，legacy 入口归拢）。
+- 本轮已完成：
+  - `src/legacy/runLegacyCli.{tsx,test.tsx}` 迁移到 `src/runtime/bootstrap/runLegacyCli.{tsx,test.tsx}`。
+  - `src/entrypoints/cli.tsx` 改为直接导入 `src/runtime/bootstrap/runLegacyCli`。
+  - `src/legacy/runLegacyCli.tsx` 保留兼容 shim（桥接到 `src/runtime/bootstrap/runLegacyCli.js`）。
+  - `CODEMAP.md`、`CLAUDE.md` 的 runLegacyCli 事实路径同步为 `src/runtime/bootstrap/runLegacyCli.tsx`。
+- 明确不做：
+  - 不改 REPL 启动行为与错误处理语义，仅迁移入口模块归属与导入路径。
+
 ## 目标结构
 
 ```

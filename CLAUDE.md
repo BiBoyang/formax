@@ -43,7 +43,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 
 1. **Core Layer** (`src/core/`) - Business logic and configuration, no dependencies on outer layers
 2. **Adapters Layer** (`src/adapters/`) - I/O implementations (fs, permissions, audit) that implement core interfaces
-3. **Application Layer** (`src/legacy/`, `src/runtime/cli/`, `src/features/`) - CLI wiring, command dispatch, feature modules
+3. **Application Layer** (`src/runtime/bootstrap/`, `src/runtime/cli/`, `src/features/`) - CLI wiring, command dispatch, feature modules
 4. **UI Layer** (`src/ui/`, `src/screens/`, `src/components/`) - Ink-based terminal UI
 5. **Infrastructure** (`src/tools/`, `src/streaming/`, `src/subagents/`) - Cross-cutting concerns
 
@@ -62,7 +62,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 **CLI Layer**
 - `src/runtime/cli/args.ts` - CLI argument parsing
 - `src/runtime/cli/main.ts` - Command dispatch (handles `formax doctor`, `formax auth`, etc.)
-- `src/legacy/runLegacyCli.tsx` - Legacy REPL initialization flow
+- `src/runtime/bootstrap/runLegacyCli.tsx` - Legacy REPL initialization flow
 
 **App Server** (`src/app-server/`)
 JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Also exposes a WebSocket dev bridge (`formax serve`, `formax web`) for the web reference UI.

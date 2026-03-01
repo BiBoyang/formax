@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   }
 
   const { createApp } = await import('../core/app/createApp.js')
-  const { runLegacyCli } = await import('../legacy/runLegacyCli.js')
+  const { runLegacyCli } = await import('../runtime/bootstrap/runLegacyCli.js')
   const app = createApp()
   await runLegacyCli({
     app,
