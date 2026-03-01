@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
 import { ApprovalHeader } from '../../../components/ui/ApprovalHeader'
-import { ApprovalPreview } from '../../presenters/ApprovalPreview'
+import { ApprovalPreview } from '../../../components/tool/ApprovalPreview'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
 import { useUserInputManager } from '../../runtime/userInputContext'

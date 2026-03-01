@@ -23,7 +23,7 @@ vi.mock('../../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-vi.mock('../../presenters/ApprovalPreview', () => ({
+vi.mock('../../../components/tool/ApprovalPreview', () => ({
   ApprovalPreview: ({
     fileName,
     width,

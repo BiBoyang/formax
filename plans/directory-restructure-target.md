@@ -411,6 +411,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 Approval UI 任何实现，仅修正 backlog 文档路径。
 
+## 执行状态（Phase C - Slice 29）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `ApprovalPreview` 实现迁移到 `src/components/tool/ApprovalPreview.tsx`。
+  - `src/tools/modules/write/WriteApprovalToolBlock.tsx` 与对应测试改为直接依赖 `components/tool/ApprovalPreview`。
+  - `src/tools/presenters/ApprovalPreview.tsx` 降级为兼容 re-export，避免一次性影响剩余调用方/测试。
+- 明确不做：
+  - 不改 preview 样式、文案与 remaining lines 展示语义。
+  - 不触发 `PatchApprovalPreview`/`PatchPreview` 的迁移（留后续切片）。
+
 ## 目标结构
 
 ```
