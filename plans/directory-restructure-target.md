@@ -193,6 +193,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 plan mode reminder 文案、拼接规则与路径显示语义。
   - 不改编辑权限约束（plan mode 限制）和执行流程。
 
+## 执行状态（Phase C - Slice 8）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/toolUi.ts` 迁移到 `src/shared/utils/toolUi.ts`。
+  - `src/utils/toolErrorUi.ts` 与 `src/utils/toolErrorUi.test.ts` 迁移到 `src/shared/utils/`。
+  - `components/tool/*` 与 `tools/modules/{bash,glob,grep,read,write}/presenter.tsx`、`tools/presenters/ToolUiPrimitives.tsx` 改为引用 `src/shared/utils/{toolUi,toolErrorUi}`。
+  - 在 `src/utils/toolUi.ts` 与 `src/utils/toolErrorUi.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改 tool subline 缩进、前缀符号与渲染样式。
+  - 不改 compact error detail 的过滤规则与文案策略。
+
 ## 目标结构
 
 ```

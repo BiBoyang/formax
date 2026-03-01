@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../utils/theme'
-import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../utils/toolUi'
+import { TOOL_SUBLINE_INDENT, TOOL_SUBLINE_LEFT_PAD, TOOL_SUBLINE_PREFIX } from '../../shared/utils/toolUi'
 import type { ToolHeaderStatus, ToolSublineStatus, ToolUiBlock } from '../../shared/toolMessageTypes'
 
 function stripWhitespaceTextNodes(children: React.ReactNode): React.ReactNode {

@@ -6,7 +6,7 @@ import { createToolBlocksPresenter } from '../../../shared/toolPresenterContract
 import type { Msg } from '../../../shared/toolMessageTypes'
 import path from 'node:path'
 import { formatPathForDisplay } from '../../../shared/utils/paths'
-import { pickCompactErrorDetailLine } from '../../../utils/toolErrorUi'
+import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
 import { FsReadApprovalToolBlock } from '../../presenters/FsReadApprovalToolBlock'
 
