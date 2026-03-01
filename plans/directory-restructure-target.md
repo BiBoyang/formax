@@ -104,6 +104,14 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不修改 TodoWrite 业务校验、文件路径与写入行为。
 
+## 执行状态（Phase B - Slice 9）
+
+- 状态：进行中（继续去除 todoWrite 内部类型耦合，不搬目录）。
+- 本轮已完成：
+  - `src/tools/modules/todoWrite/presenter.tsx` 不再从 `./handler` 获取 `TodoItem`，改为直接使用 `src/shared/todoContracts`。
+- 明确不做：
+  - 不修改 todo 列表展示逻辑或状态文案。
+
 ## 目标结构
 
 ```
