@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import { useSnippetStartLineNumber } from './useSnippetStartLineNumber.js'
+import { useSnippetStartLineNumber } from '../../components/tool/useSnippetStartLineNumber.js'
 
 function Probe({ filePath, snippet }: { filePath: string; snippet: string }): React.ReactNode {
   const line = useSnippetStartLineNumber({ filePath, snippet })
