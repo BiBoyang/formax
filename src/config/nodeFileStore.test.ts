@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createNodeFileStore } from './nodeFileStore.js'
 
-describe('env/nodeFileStore', () => {
+describe('config/nodeFileStore', () => {
   let dir: string
 
   beforeEach(async () => {

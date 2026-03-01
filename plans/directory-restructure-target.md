@@ -651,6 +651,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改配置路径计算逻辑、默认目录约定与环境变量解析语义。
   - 不改 replDoctor 的诊断输出行为，仅调整模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 51）
+
+- 状态：进行中（目录迁移第一批，低风险，Config 目录扩展）。
+- 本轮已完成：
+  - `src/env/configFiles.ts` 迁移到 `src/config/configFiles.ts`。
+  - `src/env/nodeFileStore.ts` 与测试迁移到 `src/config/nodeFileStore.{ts,test.ts}`。
+  - `src/env/configFiles.ts` 与 `src/env/nodeFileStore.ts` 保留兼容 re-export。
+  - `src/env/config.ts` 内部导入改为直接引用 `src/config/{configFiles,nodeFileStore}`。
+- 明确不做：
+  - 不改 runtime config 的解析与合并行为，仅调整模块归属与导入路径。
+  - 不改 node file store 的文件写入/原子写/权限容错语义。
+
 ## 目标结构
 
 ```
