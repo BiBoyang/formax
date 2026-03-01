@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { pickCompactErrorDetailLine } from './toolErrorUi'
 
-describe('utils/toolErrorUi', () => {
+describe('tools/utils/toolErrorUi', () => {
   it('returns null when no usable lines exist', () => {
     expect(pickCompactErrorDetailLine({})).toBeNull()
     expect(pickCompactErrorDetailLine({ middleLines: [' ', '\t'] })).toBeNull()

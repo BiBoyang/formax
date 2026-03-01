@@ -10,7 +10,7 @@ import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from '../../../componen
 import { WriteApprovalToolBlock } from '../../../components/tool/WriteApprovalToolBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../tui/theme'
-import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
+import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 
 function shouldShowSurfaceSuffix(): boolean {
   const raw = String(process.env.FORMAX_HOOKS_DEBUG ?? '').trim().toLowerCase()

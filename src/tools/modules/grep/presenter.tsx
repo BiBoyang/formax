@@ -4,7 +4,7 @@ import { getTheme } from '../../../tui/theme'
 import { formatToolCallParts } from '../../../tui/toolFormatting'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 import type { Msg } from '../../../shared/toolMessageTypes'
-import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
+import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
 import { FsReadApprovalToolBlock } from '../../../components/tool/FsReadApprovalToolBlock'
 

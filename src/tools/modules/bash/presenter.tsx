@@ -6,7 +6,7 @@ import { createToolBlocksPresenter } from '../../../shared/toolPresenterContract
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { extractFilepathsFromCommandOutput } from './filepaths'
 import { BashApprovalToolBlock } from '../../../components/tool/BashApprovalToolBlock'
-import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
+import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
 import { buildBashParamsFromInput } from '../../../features/tools/presentation/bashParams'
 

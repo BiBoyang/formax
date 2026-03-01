@@ -983,6 +983,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何配置读写逻辑；仅移除未接入代码路径。
 
+## 执行状态（Phase C - Slice 81）
+
+- 状态：进行中（目录迁移第二批，Presenter 错误摘要工具归位）。
+- 本轮已完成：
+  - `pickCompactErrorDetailLine` 从 `src/shared/utils/toolErrorUi.ts` 迁移到 `src/tools/utils/toolErrorUi.ts`。
+  - 对应测试迁移到 `src/tools/utils/toolErrorUi.test.ts`。
+  - 更新调用方导入：
+    - `src/components/tool/{FallbackToolPresenter,ToolMessage}.tsx`
+    - `src/tools/modules/{bash,glob,grep,read,write}/presenter.tsx`
+  - 删除 `src/shared/utils/toolErrorUi.{ts,test.ts}`，避免 shared 承担 Presenter 专用工具职责。
+- 明确不做：
+  - 不修改错误摘要筛选规则（pattern 集合与返回策略保持不变），仅调整文件归属与导入路径。
+
 ## 目标结构
 
 ```
