@@ -9,7 +9,12 @@ import type {
   TurnInputSubmitStatus,
 } from '../protocol/input.js'
 import { createInputId } from './inputId.js'
-import { transitionInputSubmit, transitionResolvePending, type InputState } from '../../features/semantics/runtime/inputStateMachine.js'
+import {
+  transitionInputSubmit,
+  transitionResolvePending,
+  type InputState,
+  type InputStateResolved,
+} from '../../features/semantics/runtime/inputStateMachine.js'
 
 type PendingInputRecord = {
   inputId: string
@@ -85,6 +90,13 @@ function toResolvedPayload(record: ResolvedInputRecord): InputResolvedPayload {
 
 function isPending(record: InputRecord): record is PendingInputRecord {
   return record.status === 'pending'
+}
+
+function expectResolvedState(state: InputState, context: string): InputStateResolved {
+  if (state.status === 'pending') {
+    throw new Error(`[TurnInputStore] expected resolved input state in ${context}`)
+  }
+  return state
 }
 
 function toInputState(record: InputRecord): InputState {
@@ -186,6 +198,7 @@ export class TurnInputStore {
       answersHash: hashAnswers(args.answers),
       submissionId: args.submissionId,
     })
+    const nextState = expectResolvedState(transition.nextState, 'submitInput')
 
     const resolved: ResolvedInputRecord = {
       inputId: record.inputId,
@@ -193,13 +206,13 @@ export class TurnInputStore {
       turnId: record.turnId,
       toolUseId: record.toolUseId,
       kind: record.kind,
-      status: transition.nextState.status,
-      createdAt: transition.nextState.createdAt,
-      expiresAt: transition.nextState.expiresAt,
-      resolvedAt: transition.nextState.resolvedAt,
-      ...(transition.nextState.reason ? { reason: transition.nextState.reason } : {}),
-      ...(transition.nextState.answersHash ? { answersHash: transition.nextState.answersHash } : {}),
-      submissionIds: new Set(transition.nextState.submissionIds),
+      status: nextState.status,
+      createdAt: nextState.createdAt,
+      expiresAt: nextState.expiresAt,
+      resolvedAt: nextState.resolvedAt,
+      ...(nextState.reason ? { reason: nextState.reason } : {}),
+      ...(nextState.answersHash ? { answersHash: nextState.answersHash } : {}),
+      submissionIds: new Set(nextState.submissionIds),
     }
     const stateChanged = isPending(record)
       ? true
@@ -268,18 +281,19 @@ export class TurnInputStore {
       resolvedAt,
       reason,
     })
+    const nextState = expectResolvedState(resolvedState, 'resolveRecord')
     const resolved: ResolvedInputRecord = {
       inputId: record.inputId,
       threadId: record.threadId,
       turnId: record.turnId,
       toolUseId: record.toolUseId,
       kind: record.kind,
-      status: resolvedState.status,
-      createdAt: resolvedState.createdAt,
-      expiresAt: resolvedState.expiresAt,
-      resolvedAt: resolvedState.resolvedAt,
-      submissionIds: new Set(resolvedState.submissionIds),
-      ...(resolvedState.reason ? { reason: resolvedState.reason } : {}),
+      status: nextState.status,
+      createdAt: nextState.createdAt,
+      expiresAt: nextState.expiresAt,
+      resolvedAt: nextState.resolvedAt,
+      submissionIds: new Set(nextState.submissionIds),
+      ...(nextState.reason ? { reason: nextState.reason } : {}),
     }
     this.byInputId.set(record.inputId, resolved)
     return toResolvedPayload(resolved)
