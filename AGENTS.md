@@ -6,7 +6,7 @@
   - `runtime/cli/` argument parsing + command dispatch for the CLI wrapper.
   - `runtime/bootstrap/` REPL bootstrap + runtime assembly wiring.
   - `core/` productized app core (config resolution, setup flows, boundaries checks).
-  - `ui/` Ink “wizard” UIs (first-run setup, selectors, forms).
+  - `tui/` Ink “wizard” UIs (first-run setup, selectors, forms).
   - `adapters/` filesystem + setup adapters (config files, setup persistence).
   - `screens/` Ink screens; `components/` reusable UI.
   - `tools/` tool registry, modules, handlers, presenters, runtime managers.

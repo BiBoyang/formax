@@ -899,6 +899,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何 overlay 行为与 UI 交互语义，仅迁移目录归属并收敛边界门禁。
 
+## 执行状态（Phase C - Slice 74）
+
+- 状态：进行中（目录迁移第二批，技能与辅助计划文档路径收口）。
+- 本轮已完成：
+  - `.codex/skills/formax-config-settings-workflow/SKILL.md` 中 ConfigDialog 路径与测试命令统一到 `src/tui/config/*`。
+  - `.codex/skills/formax-permissions-workflow/SKILL.md` 中 PermissionsDialog 路径与测试命令统一到 `src/tui/permissions/*`。
+  - `AGENTS.md` 的项目结构说明由 `ui/` 更新为 `tui/`。
+  - `plans/config-settings/TODO.md` 与 `plans/hooks/TODO.md` 中的 `src/ui/*` 历史路径更新为 `src/tui/*`。
+- 明确不做：
+  - 不改任何运行时代码、边界规则或 UI 行为，仅收敛文档与技能指引路径事实。
+
 ## 目标结构
 
 ```

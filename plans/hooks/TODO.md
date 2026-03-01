@@ -4,7 +4,7 @@
 
 信息来源：
 - `plans/hooks/hooks.md`（Claude Code 文档）
-- Formax 现状：`src/hooks/types.ts`、`src/hooks/store.ts`、`src/hooks/runtime.ts`、`src/chat/engine.ts`、`src/ui/hooks/*`
+- Formax 现状：`src/hooks/types.ts`、`src/hooks/store.ts`、`src/hooks/runtime.ts`、`src/chat/engine.ts`、`src/tui/hooks/*`
 
 ## 0) 约定（matcher 怎么算）
 

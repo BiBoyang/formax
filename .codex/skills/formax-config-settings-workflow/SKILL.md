@@ -24,8 +24,8 @@ Add or change `/config` settings in Formax while keeping:
   - `src/adapters/fs/configFiles.ts` (load `config.json` patches)
   - `src/env/config.ts` (final `RuntimeConfig` shape used by UI/runtime)
 - **/config UI overlay**
-  - `src/ui/config/ConfigDialog.tsx` (reads effective config + writes patches)
-  - `src/ui/config/constants.ts` / `src/ui/config/reducer.ts` / `src/ui/config/ui.tsx`
+  - `src/tui/config/ConfigDialog.tsx` (reads effective config + writes patches)
+  - `src/tui/config/constants.ts` / `src/tui/config/reducer.ts` / `src/tui/config/ui.tsx`
   - `src/screens/REPL.tsx` (mount overlay + reload runtime config on exit)
 - **Runtime wiring (effects)**
   - Prompt injection: `src/features/repl/controller/send.ts` + `src/prompts/reminders/*`
@@ -61,7 +61,7 @@ Add or change `/config` settings in Formax while keeping:
 ## Tests to update
 
 - UI overlay read/write:
-  - `src/ui/config/ConfigDialog.test.tsx`
+  - `src/tui/config/ConfigDialog.test.tsx`
 - Prompt injection behavior:
   - `src/features/repl/useReplController.test.tsx` (injection decisions)
   - `src/screens/REPL.test.tsx` / `src/screens/REPL.overlays.test.tsx` (only if you touch REPL wiring)
@@ -74,7 +74,7 @@ Add or change `/config` settings in Formax while keeping:
 **Test command policy**
 - Do **not** run `bun run test:coverage` while iterating.
 - Run only targeted tests for the files you touched, e.g.:
-  - `bun run test -- src/ui/config/ConfigDialog.test.tsx`
+  - `bun run test -- src/tui/config/ConfigDialog.test.tsx`
   - `bun run test -- src/streaming/anthropic/StreamClient.test.ts`
 
 ## Guardrails

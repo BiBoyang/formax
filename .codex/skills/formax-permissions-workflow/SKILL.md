@@ -39,8 +39,8 @@ Make changes to permissions and approvals while keeping:
   - `src/components/ui/ConfirmMenu.tsx`: menu input + highlight rules
 
 ### 4) /permissions overlay (manage rules & workspace)
-- `src/ui/permissions/PermissionsDialog.tsx`: state machine + key handling
-- `src/ui/permissions/ui.tsx`: rendering primitives (Tabs, lists, confirm views)
+- `src/tui/permissions/PermissionsDialog.tsx`: state machine + key handling
+- `src/tui/permissions/ui.tsx`: rendering primitives (Tabs, lists, confirm views)
 - `src/features/repl/controller/overlays.ts`: overlay open/close + “command_subline” dismissal messages
 - Slash command wiring:
   - `src/features/commands/registry.ts` (or `src/screens/repl/createReplCommandRegistry.ts`): `/permissions` opens overlay
@@ -75,7 +75,7 @@ Run targeted tests close to your change:
 - `bun run test -- src/tools/presenters/fsReadApprovalPrompt.test.tsx` (if present)
 - `bun run test -- src/tools/presenters/fsWriteApprovalPrompt.test.tsx`
 - `bun run test -- src/tools/presenters/skillApprovalPrompt.test.tsx`
-- `bun run test -- src/ui/permissions/PermissionsDialog.test.tsx`
+- `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
 
 ## Workflow (use every time)
 
