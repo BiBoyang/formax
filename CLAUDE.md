@@ -119,7 +119,7 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 - `src/tools/specs/reference/` - Reference tool spec snapshots (used for parity/coverage only)
 - `src/tools/patches/` - Patches to modify tool specs at runtime (e.g., sub-agent integration)
 - `src/tools/runtime/` - Runtime managers for background tasks and user input prompts
-- `src/tools/presenters/` - Output formatting/presentation for tool results
+- `src/components/tool/` - Output formatting/presentation for tool results
 - `src/tools/catalog/` - Tool catalog utilities
 - `src/tools/README.md` - Tool system architecture and patterns documentation
 - `src/tools/STATUS.md` - Tool system development status and roadmap

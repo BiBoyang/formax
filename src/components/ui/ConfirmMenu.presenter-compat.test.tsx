@@ -8,7 +8,7 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-describe('tools/presenters/ConfirmMenu', () => {
+describe('ConfirmMenu presenter compatibility', () => {
   it('moves cursor with arrows and submits a choice', async () => {
     const onDecision = vi.fn()
     const { stdin } = render(

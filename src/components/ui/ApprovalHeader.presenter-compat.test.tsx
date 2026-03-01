@@ -22,7 +22,7 @@ function renderFrame(node: React.ReactElement): string {
   return frame
 }
 
-describe('tools/presenters/ApprovalHeader', () => {
+describe('ApprovalHeader presenter compatibility', () => {
   beforeEach(() => {
     mocks.columns = 100
   })

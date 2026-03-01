@@ -575,6 +575,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何生产实现，仅做测试文件归位与导入路径修正。
   - 不删减既有断言语义，只修复迁移带来的路径/时序稳定性问题。
 
+## 执行状态（Phase C - Slice 44）
+
+- 状态：进行中（目录迁移第一批，低风险，文档与尾差清理）。
+- 本轮已完成：
+  - 删除空目录 `src/tools/presenters/`（代码与测试已全部归位到 `components` 层）。
+  - `CLAUDE.md` Tool System 索引从 `src/tools/presenters/` 更新为 `src/components/tool/`。
+  - `docs/runbooks/runbook.md` 中 `check:presenter-parity` 排障说明改为基于 `PAIRS` 配置的当前事实流程。
+  - UI 兼容测试标题文案从历史 `tools/presenters/*` 更新为组件层语义，降低误导。
+- 明确不做：
+  - 不改任何运行时代码路径，仅清理迁移后文档与测试元信息尾差。
+
 ## 目标结构
 
 ```

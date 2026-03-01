@@ -120,8 +120,8 @@
 - 输出包含 `[presenter-parity] drift detected`。
 
 修复路径：
-1. 对比并收敛双实现文件（`src/tools/presenters/*` 与 `src/components/ui/*`）。
-2. 若差异是有意的，补齐两侧测试并在 `plans/app-server/` 留下原因说明。
+1. 先检查 `scripts/check-duplicate-presenters-parity.mjs` 的 `PAIRS` 配置是否符合当前结构（默认可能为空）。
+2. 若当前引入了新的“并行实现”文件，先对比并收敛，再补齐两侧测试与迁移说明。
 3. 说明完成后更新 baseline：`node ./scripts/check-duplicate-presenters-parity.mjs --write-baseline`。
 4. 若需要阻断式验证，执行 `node ./scripts/check-duplicate-presenters-parity.mjs --strict`。
 

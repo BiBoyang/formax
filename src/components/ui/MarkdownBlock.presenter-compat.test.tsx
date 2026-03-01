@@ -10,7 +10,7 @@ function renderFrame(node: React.ReactElement): string {
   return frame
 }
 
-describe('tools/presenters/MarkdownBlock', () => {
+describe('MarkdownBlock presenter compatibility', () => {
   it('renders paragraphs/lists/code and strips fence markers', () => {
     const markdown = ['Hello `world`', '', '- a', '- b', '', '```js', "console.log('hi')", '```'].join('\n')
     const frame = renderFrame(<ServiceMarkdownBlock markdown={markdown} />)
