@@ -112,6 +112,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不修改 todo 列表展示逻辑或状态文案。
 
+## 执行状态（Phase C - Slice 1）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/skills/SkillStore.ts` 与 `src/skills/SkillStore.test.ts` 迁移到 `src/features/skills/`。
+  - `src/tools/modules/skill/handler.ts` 与 `src/tools/modules/skill/index.ts` 改为引用 `src/features/skills/SkillStore`。
+  - 在 `src/skills/SkillStore.ts` 保留兼容 re-export，降低一次性迁移风险。
+  - `layer-contract.config.json` 增补 `src/features/skills` 的 Repo 层映射。
+- 明确不做：
+  - 不改 SkillStore 的扫描逻辑、缓存语义和 skill 工具行为。
+
 ## 目标结构
 
 ```

@@ -18,6 +18,7 @@
     "Repo": [
       "src/adapters",
       "src/features/repl/sessionSave",
+      "src/features/skills",
       "src/commands/CommandStore.ts",
       "src/skills/SkillStore.ts",
       "src/services/models.ts",
