@@ -3,7 +3,7 @@ import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRuntimeFlags, type RuntimeFlags } from '../../../../env/runtimeFlags'
 import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildBashModeInjectedBlocks } from '../../injectedBlocks'
 

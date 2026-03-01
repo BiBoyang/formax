@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatHistory } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { UserInputManager } from '../../../../tools/runtime/userInputManager'
 import { applyAbortToMessages } from './abortTranscript'
 

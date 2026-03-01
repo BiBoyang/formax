@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { StreamEvent } from '../../../../streaming/types'
 
 export function createRunningToolMessage(args: {

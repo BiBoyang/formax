@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 
 type SurfaceOperation = () => Promise<void>
 

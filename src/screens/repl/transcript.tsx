@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Box, Static } from 'ink'
 import { HeaderBanner } from '../../components/chat/HeaderBanner'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 
 function shouldEnableInkStatic(): boolean {
   if (process.env.FORMAX_FORCE_INK_STATIC === '1') return true

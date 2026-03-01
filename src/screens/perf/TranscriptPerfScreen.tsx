@@ -18,7 +18,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text } from 'ink'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { ToolMessage } from '../../components/tool/ToolMessage'
 import TextInput from '../../components/ui/TextInput'
 import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext'

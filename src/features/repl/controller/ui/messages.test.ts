@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { isTransientMessage, partitionMessages } from './messages'
 
 function makeMsg(args: Partial<Msg> & Pick<Msg, 'id' | 'role' | 'content'>): Msg {

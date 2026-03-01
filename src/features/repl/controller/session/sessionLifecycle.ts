@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react'
 import type { ChatHistory } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { SessionWriter } from '../../sessionSave/writer'
 
 export type SessionWriterRefs = {

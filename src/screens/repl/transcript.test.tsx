@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { ExpandedReplTranscript, ReplTranscript } from './transcript'
 
 function msg(overrides: Partial<Msg>): Msg {

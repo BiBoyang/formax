@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { runAbortSessionTransition, runNewSessionTransition, runResumeSessionTransition } from './sessionTransitions'
 
 function createMsg(id: string, content: string): Msg {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import {
   appendCanonicalTailFinalRows,
   assertNoDuplicateToolUseIdsInTurn,

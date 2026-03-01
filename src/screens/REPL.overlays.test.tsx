@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { useInput } from 'ink'
 import type { RuntimeConfig } from '../env/config'
-import type { Msg } from '../components/tool/ToolMessage'
+import type { Msg } from '../shared/toolMessageTypes'
 import { InputScopeProvider, useInputScope } from '../features/repl/inputScopeContext.js'
 
 let mockState: any

@@ -618,6 +618,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何 presenter 运行时代码与渲染行为。
   - 不改测试断言语义，仅做类型导入路径收敛。
 
+## 执行状态（Phase C - Slice 48）
+
+- 状态：进行中（目录迁移第一批，低风险，REPL 消息类型去 UI 依赖）。
+- 本轮已完成：
+  - `src/features/repl/**` 与 `src/screens/**` 中所有 `import type { Msg } from */components/tool/ToolMessage*` 统一切换为 `*/shared/toolMessageTypes*`。
+  - 保留 `ToolMessage` 组件的运行时渲染导入路径不变，仅收敛类型来源，避免 Service/Runtime 层对 UI 组件路径产生类型耦合。
+- 明确不做：
+  - 不改任何消息投影、流式拼接、surface reset 或渲染分支逻辑。
+  - 不改 `ToolMessage` 组件实现与展示行为。
+
 ## 目标结构
 
 ```

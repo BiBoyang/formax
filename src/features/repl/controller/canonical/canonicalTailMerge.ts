@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import { canonicalTurnSegmentsToMessages, tailSegmentsForTurn } from './canonicalTurnMessageMapping'
 import { type CanonicalTurnOutcome, computeCanonicalTurnAppend } from './canonicalTurnMerge'

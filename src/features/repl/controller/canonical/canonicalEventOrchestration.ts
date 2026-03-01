@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { CanonicalEvent } from '../../../semantics/core/core'
 import { reduceTranscriptProjection } from '../../../semantics/projection/projection'
 import type { TranscriptProjectionState } from '../../../semantics/projection/projection'

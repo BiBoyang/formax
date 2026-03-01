@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { buildMessageByIdMap, markDirtyMessageIdsFromTransition } from './sessionDirtyTracking'
 
 function createMsg(overrides: Partial<Msg>): Msg {

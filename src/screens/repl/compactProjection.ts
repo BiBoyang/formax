@@ -1,4 +1,4 @@
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 
 export function isCompactSlashCommandText(text: string): boolean {
   return /^\/compact(?:\s|$)/i.test(text.trim())

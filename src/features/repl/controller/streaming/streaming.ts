@@ -1,7 +1,7 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
 import type { StreamEvent, TokenUsage } from '../../../../streaming/types'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { ReminderService } from '../../reminders/ReminderService'
 import { makeMessageId } from '../shared/ids'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'

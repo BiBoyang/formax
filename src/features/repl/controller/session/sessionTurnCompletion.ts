@@ -1,5 +1,5 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import {
   extractLastAssistantTextFromHistory,
   maybeAutoGenerateSessionTitle,

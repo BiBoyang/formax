@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import type { StreamEvent } from '../../../../streaming/types'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { useReplStreaming } from './streaming'
 import {
   createInitialTranscriptProjectionState,

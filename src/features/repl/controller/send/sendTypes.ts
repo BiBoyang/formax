@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatHistory } from '../../../../chat/engine'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import type { ReplMode } from '../../mode'
 

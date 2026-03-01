@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 
 export function buildMessageByIdMap(messages: Msg[]): Map<string, Msg> {
   const map = new Map<string, Msg>()

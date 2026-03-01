@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 
 const ERROR_SUBLINE_MAX_CHARS = 320
 

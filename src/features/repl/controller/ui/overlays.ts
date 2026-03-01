@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatEngine } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { createAgentFromWizardAnswers, generateAgentDraftWithClaude } from '../../../../subagents/agentsWizard'
 import type {
   AgentsDialogGenerateDraft,

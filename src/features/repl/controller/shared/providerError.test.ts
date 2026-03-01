@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { applyProviderErrorToState } from './providerError'
 
 describe('applyProviderErrorToState', () => {

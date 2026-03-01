@@ -3,7 +3,7 @@ import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import { nextReplMode, type ReplMode } from '../../features/repl/mode'
 import { getInputToken, isCtrlChord, isDeleteOrBackspaceToken, isShiftTabToken } from '../../features/repl/keys/keyTokens'
 import type { ReplController } from '../../features/repl/useReplController'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 import type { ToolRegistry } from '../../tools/registry'
 import type { UserInputManager } from '../../tools/runtime/userInputManager'
 

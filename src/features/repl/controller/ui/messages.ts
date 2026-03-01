@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 
 export function isTransientMessage(msg: Msg): boolean {
   if (msg.surfaceOwner === 'transient') return true

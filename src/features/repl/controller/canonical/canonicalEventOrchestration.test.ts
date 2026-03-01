@@ -3,7 +3,7 @@ import { appendCanonicalTurnFinalRows } from './canonicalTurnMessages'
 import { projectCanonicalEventToTransientMessages } from './canonicalEventOrchestration'
 import { createInitialTranscriptProjectionState } from '../../../semantics/projection/projection'
 import type { CanonicalEvent } from '../../../semantics/core/core'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 
 function canonicalEvent(replaySeq: number, payload: Record<string, unknown>): CanonicalEvent {
   return {

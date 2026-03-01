@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext.js'
 import { handleCtrlCKeypress, useReplHotkeys } from './hotkeys.js'
 

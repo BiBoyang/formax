@@ -1,4 +1,4 @@
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 
 export type MessageItemDescriptor =
   | { kind: 'message'; key: string; message: Msg }

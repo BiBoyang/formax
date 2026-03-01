@@ -4,7 +4,7 @@ import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'

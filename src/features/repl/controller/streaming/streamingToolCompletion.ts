@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TokenUsage } from '../../../../streaming/types'
 import type { ToolResult } from '../../../../tools/types'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'

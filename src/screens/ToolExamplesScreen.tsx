@@ -11,7 +11,7 @@
 import React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ToolRouter } from '../components/tool/ToolRouter'
-import type { Msg } from '../components/tool/ToolMessage'
+import type { Msg } from '../shared/toolMessageTypes'
 import type { ToolRegistry } from '../tools/registry'
 
 type Props = {

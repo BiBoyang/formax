@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import type { RuntimeConfig } from '../env/config'
-import type { Msg } from '../components/tool/ToolMessage'
+import type { Msg } from '../shared/toolMessageTypes'
 import type { SlashCommandRegistry, SlashCommandSpec } from '../features/commands/registry'
 import { InputScopeProvider } from '../features/repl/inputScopeContext'
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import { enqueueSurfaceOperation, queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './surfaceReset'
 
 describe('queueTranscriptSurfaceReset', () => {

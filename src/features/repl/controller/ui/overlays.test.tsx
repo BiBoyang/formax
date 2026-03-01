@@ -3,7 +3,7 @@ import { Box, Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChatEngine } from '../../../../chat/engine.js'
-import type { Msg } from '../../../../components/tool/ToolMessage.js'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { OverlaySpec } from '../../../commands/contracts.js'
 import { useReplOverlays } from './overlays.js'
 

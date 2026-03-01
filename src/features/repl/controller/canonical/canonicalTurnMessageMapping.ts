@@ -1,4 +1,4 @@
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TranscriptSegment } from '../../../semantics/projection/transcriptProjection'
 import { selectTailSegmentsForTurn } from '../../../semantics/selectors/transcriptSegments'
 import { selectToolPresentation } from '../../../semantics/selectors/toolPresentation'

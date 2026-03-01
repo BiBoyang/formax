@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import type { Msg } from '../../../../components/tool/ToolMessage'
+import type { Msg } from '../../../../shared/toolMessageTypes'
 import * as sessionTitle from '../../../sessionTitle'
 import { collectUiStatsForTurnCompletion, runSessionTurnCompletionSideEffects } from './sessionTurnCompletion'
 

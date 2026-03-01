@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import type { Msg } from '../../components/tool/ToolMessage'
+import type { Msg } from '../../shared/toolMessageTypes'
 import { getTheme } from '../../shared/utils/theme'
 import { formatTokens, sumTokens, truncate } from './format'
 
