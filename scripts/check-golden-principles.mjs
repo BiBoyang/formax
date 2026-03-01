@@ -16,6 +16,12 @@ function rel(p) {
   return path.relative(REPO_ROOT, p).replace(/\\/g, '/')
 }
 
+function normalizeRepoRelPath(rawPath) {
+  const raw = String(rawPath || '').trim().replace(/\\/g, '/')
+  if (!raw) return ''
+  return raw.replace(/^\.\//, '')
+}
+
 function parseArgs() {
   const args = process.argv.slice(2)
   let configPath = DEFAULT_CONFIG_PATH
@@ -161,6 +167,7 @@ function loadLayerConfig(configPath) {
   const parsed = JSON.parse(raw)
   const layerOrder = Array.isArray(parsed.layerOrder) ? parsed.layerOrder.map(String) : []
   const scanRoots = Array.isArray(parsed.scanRoots) ? parsed.scanRoots.map((p) => path.resolve(REPO_ROOT, String(p))) : []
+  const allowedImports = parseAllowedImports(parsed.allowedImports)
   const layers = parsed.layers && typeof parsed.layers === 'object' ? parsed.layers : {}
 
   const mappingEntries = []
@@ -175,7 +182,22 @@ function loadLayerConfig(configPath) {
   }
 
   mappingEntries.sort((a, b) => b.absPath.length - a.absPath.length)
-  return { scanRoots, mappingEntries }
+  return { scanRoots, mappingEntries, allowedImports }
+}
+
+function parseAllowedImports(rawAllowedImports) {
+  if (!Array.isArray(rawAllowedImports)) return []
+  const out = []
+  for (const rawEntry of rawAllowedImports) {
+    if (!rawEntry || typeof rawEntry !== 'object') continue
+    const source = normalizeRepoRelPath(rawEntry.source)
+    const target = normalizeRepoRelPath(rawEntry.target)
+    const rule = rawEntry.rule === 'UI_MUST_NOT_IMPORT_REPO' ? 'UI_MUST_NOT_IMPORT_REPO' : rawEntry.rule === 'LAYER_ORDER' ? 'LAYER_ORDER' : ''
+    const reason = typeof rawEntry.reason === 'string' ? rawEntry.reason.trim() : ''
+    if (!source || !target || !rule) continue
+    out.push({ source, target, rule, reason })
+  }
+  return out
 }
 
 function resolveLayerForFile(filePath, mappingEntries) {
@@ -415,6 +437,52 @@ function printViolations(title, violations) {
   }
 }
 
+function printAllowedImports(title, entries) {
+  if (entries.length === 0) return
+  console.error(`\n${title}`)
+  for (const entry of entries) {
+    const reasonSuffix = entry.reason ? ` | reason: ${entry.reason}` : ''
+    console.error(`- ${entry.source} -> ${entry.target} (${entry.rule})${reasonSuffix}`)
+  }
+}
+
+function applyAllowedImports(violations, allowedImports) {
+  const uiAllowed = allowedImports.filter((entry) => entry.rule === 'LAYER_ORDER')
+  if (uiAllowed.length === 0) {
+    return { filtered: violations, staleAllowedImports: [] }
+  }
+
+  const allowMap = new Map()
+  for (const entry of uiAllowed) {
+    allowMap.set(`${normalizeRepoRelPath(entry.source)}::${normalizeRepoRelPath(entry.target)}`, entry)
+  }
+
+  const matchedAllowedKeys = new Set()
+  const filtered = []
+
+  for (const violation of violations) {
+    if (violation.rule !== 'NO_BUSINESS_TO_UI') {
+      filtered.push(violation)
+      continue
+    }
+
+    const key = `${normalizeRepoRelPath(violation.sourceFile)}::${normalizeRepoRelPath(violation.targetPath)}`
+    if (allowMap.has(key)) {
+      matchedAllowedKeys.add(key)
+      continue
+    }
+
+    filtered.push(violation)
+  }
+
+  const staleAllowedImports = uiAllowed.filter((entry) => {
+    const key = `${normalizeRepoRelPath(entry.source)}::${normalizeRepoRelPath(entry.target)}`
+    return !matchedAllowedKeys.has(key)
+  })
+
+  return { filtered, staleAllowedImports }
+}
+
 function runSingleWriterCheck() {
   const result = spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts', 'check-repl-single-writer.mjs')], {
     stdio: 'inherit',
@@ -428,14 +496,18 @@ function main() {
   const args = parseArgs()
   const config = loadLayerConfig(args.configPath)
 
-  const violations = [
+  const observedViolations = [
     ...collectBusinessToUiViolations(config),
     ...collectAuditTraceViolations(config.scanRoots),
   ].sort((a, b) => violationKey(a).localeCompare(violationKey(b)))
+  const { filtered: violations, staleAllowedImports } = applyAllowedImports(observedViolations, config.allowedImports)
 
   if (args.writeBaseline) {
     saveBaseline(args.baselinePath, violations)
     console.log(`Wrote ${violations.length} golden-principles baseline violations to ${rel(args.baselinePath)}`)
+    if (staleAllowedImports.length > 0) {
+      printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+    }
     return
   }
 
@@ -452,6 +524,9 @@ function main() {
     if (staleBaseline.length > 0) {
       printViolations('Stale baseline entries (can be cleaned up):', staleBaseline)
     }
+    if (staleAllowedImports.length > 0) {
+      printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+    }
     process.exitCode = 1
     return
   }
@@ -463,8 +538,11 @@ function main() {
   }
 
   console.log(
-    `Golden principles check passed. baseline=${baseline.violations.length}, current=${violations.length}, staleBaseline=${staleBaseline.length}`,
+    `Golden principles check passed. baseline=${baseline.violations.length}, current=${violations.length}, staleBaseline=${staleBaseline.length}, staleAllowedImports=${staleAllowedImports.length}`,
   )
+  if (staleAllowedImports.length > 0) {
+    printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+  }
 }
 
 main()

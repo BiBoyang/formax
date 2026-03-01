@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { vi } from 'vitest'
-import * as snippetStartLine from '../../../../components/tool/snippetStartLine'
+import * as snippetStartLine from '../../../../shared/utils/snippetStartLine'
 import { computeEditPatchStartLineNumber } from './patchStartLineNumber'
 
 describe('computeEditPatchStartLineNumber', () => {

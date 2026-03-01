@@ -1416,3 +1416,26 @@ src/
 | 跨层混放的目录       | 4    | 0                    |
 | 需搬迁的文件（估算） | —    | ~100 个文件          |
 | 不动的目录           | —    | 17 个（占总量 60%+） |
+
+## 执行状态（Phase E - Slice 92）
+
+- 状态：已完成（层映射修正 + Service->UI 违规清零）。
+- 本轮已完成：
+  - `scripts/layer-contract.config.json` 完成硬切映射：`src/tui`/`src/screens`/`src/components` 归 UI。
+  - 新增 `allowedImports` 机制并落地入口白名单，`check-layer-contracts` 支持 `staleAllowedImports` 漂移提示。
+  - `src/features/repl/*` 对 Dialog 类型依赖从 `tui/*Dialog.tsx` 抽离到 `src/shared/replDialogContracts.ts`，清零 Repl Service->UI 类型违规。
+  - `src/core/errors/codes.ts` 与 `src/core/setup/types.ts` 分别归位到 Types/Config 映射，避免 UI->Repo 误伤。
+- 明确不做：
+  - 不调整 REPL、Dialog、Tool 行为与交互语义，仅做分层治理与类型归位。
+
+## 执行状态（Phase F - Slice 93）
+
+- 状态：已完成（当前链路 shim 收口）。
+- 本轮已完成：
+  - 全链路移除对 `src/tui/toolFormatting` 的依赖，统一改为 `src/shared/utils/toolFormatting`。
+  - 删除 shim 文件 `src/tui/toolFormatting.ts`。
+  - 新增 `src/shared/utils/snippetStartLine.ts`，Service 侧改为直接依赖 shared；`src/components/tool/snippetStartLine.ts` 保留最薄 re-export。
+  - `scripts/layer-contract.config.json` 移除 `toolFormatting` 与 `snippetStartLine` 的过渡例外映射。
+  - 同步合同与 runbook 的 `allowedImports` 说明与排障路径。
+- 明确不做：
+  - 不做全仓 shim 清理，仅处理 Phase E/F 当前链路。

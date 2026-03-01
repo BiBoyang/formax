@@ -1,7 +1,7 @@
 import React from 'react'
 import { Text } from 'ink'
 import { getTheme } from '../../../tui/theme'
-import { formatToolCallParts } from '../../../tui/toolFormatting'
+import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { extractFilepathsFromCommandOutput } from './filepaths'

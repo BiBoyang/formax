@@ -85,6 +85,28 @@
 3. 重新执行 `bun run check:shared-types` 直到无违规。
 4. 再执行相关 feature 的定向测试，避免仅靠门禁通过而行为漂移。
 
+### 2.3 `check:layer-contracts` 出现 `staleAllowedImports`
+
+触发信号：
+- `check:layer-contracts` 输出包含 `staleAllowedImports=` 且大于 0。
+- 或输出 `Stale allowedImports entries (can be cleaned up):` 明细。
+
+修复路径：
+1. 在 `scripts/layer-contract.config.json` 的 `allowedImports` 中删除失效条目。
+2. 重新执行 `bun run check:layer-contracts`，确认 `staleAllowedImports=0`。
+3. 若该跨层依赖仍存在且确属入口装配，补回精确白名单并填写 `reason`。
+
+### 2.4 `check:layer-coverage` 或 `check:layer-contracts` 命中 presenter 归属问题
+
+触发信号：
+- 新增 `src/tools/modules/*/presenter.tsx` 后出现 `LAYER_ORDER` 违规。
+- 或 `layer-coverage` 显示该 presenter 文件未映射。
+
+修复路径：
+1. 在 `scripts/layer-contract.config.json` 的 `UI` 层补齐该 presenter 文件映射。
+2. 若对应 `index.ts` 绑定 presenter 出现跨层告警，先确认是否已有对应 `allowedImports` 条目。
+3. 重新执行 `bun run check:layer-contracts` 与 `bun run check:layer-coverage`。
+
 ### 3. `check:golden-principles` 失败
 
 触发信号：

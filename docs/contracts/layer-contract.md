@@ -32,6 +32,13 @@
 - 映射文件：`scripts/layer-contract.config.json`
 - 基线文件：`scripts/baselines/layer-contract-violations.json`
 
+## allowedImports（入口白名单）
+
+- `allowedImports` 用于声明“已评审且暂时允许”的单条跨层导入。
+- 条目必须精确到 `(source, target, rule)`，并写明 `reason`。
+- 该机制仅用于入口/装配型跨层依赖，不用于批量绕过分层治理。
+- `check-layer-contracts` 会输出 `staleAllowedImports`，表示该白名单项已不再命中，可清理。
+
 ## 校验命令
 
 - 仅检查：`bun run check:layer-contracts`
@@ -44,5 +51,6 @@
 1. 若因“新增违规”失败，优先修复导入方向或把代码移动到正确层。
 2. 若违规是有意设计且已评审，先补架构说明，再更新 baseline。
 3. 若出现陈旧 baseline 项，建议在同一改动中刷新 baseline，避免漂移。
-4. 若 `check:layer-coverage` 失败，必须补齐 `layer-contract.config.json` 映射，不允许绕过。
-5. 若 `check:shared-types` 失败，优先将类型下沉回单 feature；确需共享时补充第二个 feature 消费点。
+4. 若 `staleAllowedImports > 0`，在同一改动中清理无效白名单，避免白名单漂移。
+5. 若 `check:layer-coverage` 失败，必须补齐 `layer-contract.config.json` 映射，不允许绕过。
+6. 若 `check:shared-types` 失败，优先将类型下沉回单 feature；确需共享时补充第二个 feature 消费点。

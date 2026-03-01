@@ -190,9 +190,7 @@
       "src/features/semantics/adapters",
       "src/features/semantics/runtime",
       "src/features/semantics/selectors",
-      "src/tui/toolFormatting.ts",
-      "src/tui/consoleLogger.ts",
-      "src/components/tool/snippetStartLine.ts"
+      "src/tui/consoleLogger.ts"
     ],
     "Runtime": [
       "src/runtime",

@@ -1,7 +1,7 @@
 import React from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import { formatToolCallParts } from '../../../tui/toolFormatting'
+import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import { isSameFilePath, formatPlanPathForDisplay } from '../../../shared/utils/planMode'
 import type { ToolPresenter } from '../../../shared/toolPresenterContracts'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'

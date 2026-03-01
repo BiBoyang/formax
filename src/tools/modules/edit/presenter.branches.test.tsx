@@ -6,8 +6,8 @@ import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 async function loadPresenterWithBlankParams() {
   vi.resetModules()
-  vi.doMock('../../../tui/toolFormatting', async () => {
-    const actual = await vi.importActual<object>('../../../tui/toolFormatting')
+  vi.doMock('../../../shared/utils/toolFormatting', async () => {
+    const actual = await vi.importActual<object>('../../../shared/utils/toolFormatting')
     return {
       ...actual,
       formatToolCallParts: () => ({ toolName: 'Edit', params: '   ' }),

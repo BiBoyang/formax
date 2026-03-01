@@ -3,8 +3,8 @@ import type { Msg } from '../../../shared/toolMessageTypes'
 
 async function loadPresenterForNullInput() {
   vi.resetModules()
-  vi.doMock('../../../tui/toolFormatting', async () => {
-    const actual = await vi.importActual<object>('../../../tui/toolFormatting')
+  vi.doMock('../../../shared/utils/toolFormatting', async () => {
+    const actual = await vi.importActual<object>('../../../shared/utils/toolFormatting')
     return {
       ...actual,
       formatToolCallParts: () => ({ toolName: 'Bash', params: 'command: "echo hi"' }),
