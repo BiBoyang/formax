@@ -1038,6 +1038,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不调整任何代码导入或边界脚本逻辑，仅同步文档契约表述。
 
+## 执行状态（Phase C - Slice 86）
+
+- 状态：进行中（目录迁移第二批，controller/ui 入口收口）。
+- 本轮已完成：
+  - `src/features/repl/controller/ui/ui.ts` 重命名为目录入口 `src/features/repl/controller/ui/index.ts`。
+  - 外部调用方导入收敛为目录导入：
+    - `src/features/repl/useReplController.ts`
+    - `src/screens/REPL.tsx`
+  - 验证通过：`useReplController.test.tsx`、`REPL.overlays.test.tsx`、`REPL.test.tsx`、`features:boundaries`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改 `messages/overlays/surfaceReset` 的实现逻辑，仅收敛入口文件命名与导入路径。
+
 ## 目标结构
 
 ```

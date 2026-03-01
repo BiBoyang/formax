@@ -26,7 +26,7 @@ import {
   queueTranscriptSurfaceReplace,
   queueTranscriptSurfaceReset,
   useReplOverlays,
-} from './controller/ui/ui'
+} from './controller/ui'
 import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
 import {
   assertReplCanonicalInvariants,
