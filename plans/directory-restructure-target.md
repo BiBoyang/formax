@@ -507,6 +507,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 patch approval 的路径解析、宽度回退与 snippet 行号推断逻辑。
   - 不改 edit 审批流程的 UI 文案与交互语义。
 
+## 执行状态（Phase C - Slice 38）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `ToolUiPrimitives` 实现迁移到 `src/components/tool/ToolUiPrimitives.tsx`。
+  - `src/tools/presenters/ToolUiPrimitives.tsx` 降级为兼容 re-export，保证现有调用方与 mock 路径稳定。
+- 明确不做：
+  - 不改 Tool header/subline/indent 的视觉渲染与 pulse 行为。
+  - 不改 `ToolUiBlocks` 的 block 渲染顺序和语义。
+
 ## 目标结构
 
 ```
