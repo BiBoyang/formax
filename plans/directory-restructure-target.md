@@ -403,6 +403,14 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 presenter contract 类型定义与运行时行为，仅删除中转 shim 并修正文档索引。
 
+## 执行状态（Phase C - Slice 28）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `plans/ui/BACKLOG-approval-preview.md` 中 Approval 相关组件索引改为当前事实路径（`components/ui/ApprovalHeader`、`components/ui/MarkdownBlock`、`tools/presenters/ApprovalPreview`）。
+- 明确不做：
+  - 不改 Approval UI 任何实现，仅修正 backlog 文档路径。
+
 ## 目标结构
 
 ```
