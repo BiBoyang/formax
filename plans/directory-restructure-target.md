@@ -63,6 +63,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不修改任何问题文案、fallback 文案与 prompt 解析逻辑。
   - 不移动目录结构。
 
+## 执行状态（Phase B - Slice 5）
+
+- 状态：进行中（单实现收敛，不搬目录）。
+- 本轮已完成：
+  - `src/tools/presenters/ApprovalHeader.tsx` 改为转发 `src/components/ui/ApprovalHeader`。
+  - `src/tools/presenters/MarkdownBlock.tsx` 改为转发 `src/components/ui/MarkdownBlock`（含 `parseMarkdown` / `renderInline`）。
+  - 保留原导入路径，避免调用方改动。
+- 明确不做：
+  - 不改变 ApprovalHeader / MarkdownBlock 的渲染行为。
+  - 不处理 ConfirmMenu 双实现（留到后续独立切片）。
+
 ## 目标结构
 
 ```
