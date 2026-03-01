@@ -9,7 +9,7 @@ import {
   displayHostForLogs,
 } from '../network/runtime.js'
 import { startServeBridge } from '../serve/localServer.js'
-import type { WebCommandOptions } from './command.js'
+import type { WebCommandOptions } from '../runtime/cli/webCommand.js'
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',

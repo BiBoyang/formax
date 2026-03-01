@@ -798,6 +798,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 `serve/web` 参数语义、默认值、help 文案与错误消息，仅迁移模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 65）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，shim 收口）。
+- 本轮已完成：
+  - 删除 `src/serve/command.ts` 与 `src/web/command.ts` 兼容 shim。
+  - `serve/web` 命令解析唯一事实源已收敛到 `src/runtime/cli/{serveCommand,webCommand}.ts`。
+- 明确不做：
+  - 不改 `formax serve` / `formax web` 的参数行为与 help 文案，仅收口路径层兼容文件。
+
 ## 目标结构
 
 ```

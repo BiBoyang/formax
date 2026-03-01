@@ -1,7 +1,7 @@
 import { startAppServerDevBridge } from '../app-server/devBridge.js'
 import type { BridgeSecurityOptions } from '../network/runtime.js'
 import { displayHostForLogs } from '../network/runtime.js'
-import type { ServeCommandOptions } from './command.js'
+import type { ServeCommandOptions } from '../runtime/cli/serveCommand.js'
 
 export type ServeBridgeHandle = {
   url: string
