@@ -1097,12 +1097,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 本轮已完成：
   - `src/subagents/**` 迁移到 `src/features/subagents/**`（包含 `registry` / `runner` / `builtins` / `agentsWizard` / `types` 与 `prompts/`）。
   - `runtime/bootstrap`、`tools/executor/handlers/taskSubAgent`、`features/repl/controller/ui/overlays` 的生产导入切换到 `src/features/subagents/*`。
-  - `src/subagents/*` 保留最薄兼容 shim（re-export 到 `src/features/subagents/*`），避免一次性修改全部历史调用方/测试路径。
   - `layer-contract.config.json` 增补 `src/features/subagents` 映射，并将 `src/features/subagents/types.ts` 标注到 Types 层。
   - `AGENTS.md`、`CLAUDE.md`、`CODEMAP.md`、`src/tools/README.md` 的 subagents 事实路径更新到 `src/features/subagents/*`。
 - 明确不做：
   - 不改 subagent 运行逻辑、allow/deny 语义与 prompt 内容，仅做目录归位与导入路径收敛。
-  - 不移除 `src/subagents/*` shim（留待后续硬收口阶段）。
+
+## 执行状态（Phase C - Slice 91）
+
+- 状态：进行中（feature 收敛，subagents shim 硬收口）。
+- 本轮已完成：
+  - 删除 `src/subagents/*` 全部兼容 shim（`README` / `registry` / `runner` / `builtins` / `agentsWizard` / `types`）。
+  - `layer-contract.config.json` Service 映射移除 `src/subagents`，仅保留 `src/features/subagents`。
+- 明确不做：
+  - 不改任何 subagent 业务行为，仅删除已无调用兼容层并同步门禁映射。
 
 ## 目标结构
 

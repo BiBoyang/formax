@@ -38,7 +38,6 @@
       "src/services",
       "src/tools",
       "src/hooks",
-      "src/subagents",
       "src/features/subagents",
       "src/features/repl",
       "src/features/tools",
