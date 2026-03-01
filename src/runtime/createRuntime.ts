@@ -1,4 +1,4 @@
-import { createRuntimeFlags, type RuntimeFlags } from '../env/runtimeFlags.js'
+import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 import { createChatRuntime } from '../legacy/bootstrap/chatRuntime.js'
 import { createLlmClients, type LlmClients } from '../legacy/bootstrap/llmClients.js'
 import { createPolicyAndHooksRuntime, type PolicyHooksRuntime } from '../legacy/bootstrap/policyHooks.js'

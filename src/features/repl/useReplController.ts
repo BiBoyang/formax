@@ -73,7 +73,7 @@ import {
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { toPersistedAppToolEventData } from './sessionSave/appToolEventPayload'
-import { createRuntimeFlags, type RuntimeFlags } from '../../env/runtimeFlags'
+import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 

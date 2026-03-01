@@ -5,7 +5,7 @@ import type { ToolPreflight } from '../../tools/executor/index.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import { createToolExecutor } from '../../tools/executor/index.js'
-import type { RuntimeFlags } from '../../env/runtimeFlags.js'
+import type { RuntimeFlags } from '../../config/runtimeFlags.js'
 
 export function createChatRuntime(args: {
   client: AnthropicCompatibleStreamClient

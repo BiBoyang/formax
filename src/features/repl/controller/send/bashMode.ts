@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { createRuntimeFlags, type RuntimeFlags } from '../../../../env/runtimeFlags'
+import { createRuntimeFlags, type RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'

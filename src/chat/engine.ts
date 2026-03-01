@@ -8,7 +8,7 @@ import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditLog } from '../adapters/audit/auditLog.js'
 import { appendHookRunAuditEvents } from '../hooks/audit.js'
 import { randomUUID } from 'node:crypto'
-import { createRuntimeFlags, type RuntimeFlags } from '../env/runtimeFlags.js'
+import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 
 export type ChatHistory = PromptMessage[]
 

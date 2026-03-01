@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   createToolingRuntime: vi.fn(),
 }))
 
-vi.mock('../env/runtimeFlags.js', () => ({
+vi.mock('../config/runtimeFlags.js', () => ({
   createRuntimeFlags: mocks.createRuntimeFlags,
 }))
 vi.mock('../legacy/bootstrap/chatRuntime.js', () => ({
