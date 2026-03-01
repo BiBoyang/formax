@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import { SearchToolPresenter } from './presenter'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 

@@ -3,7 +3,7 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { BashToolPresenter } from './presenter'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 type MockUserInput = {

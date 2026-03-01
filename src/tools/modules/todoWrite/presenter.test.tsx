@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { TodoWriteToolPresenter } from './presenter'
-import type { Msg } from '../../../components/tool/ToolMessage'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
 
 describe('TodoWriteToolPresenter', () => {

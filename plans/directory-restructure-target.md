@@ -608,6 +608,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 write/edit approval 的交互逻辑、decision payload 与文案。
   - 不改 write/edit presenter 的渲染策略，仅变更模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 47）
+
+- 状态：进行中（目录迁移第一批，低风险，测试类型依赖收敛）。
+- 本轮已完成：
+  - `src/tools/modules/*/presenter*.test.tsx` 中 `Msg` 类型导入由 `src/components/tool/ToolMessage` 统一收敛为 `src/shared/toolMessageTypes`。
+  - 覆盖 ask/bash/edit/enterPlanMode/exitPlanMode/glob/grep/killShell/notebookEdit/read/search/skill/task/taskOutput/todoWrite/webFetch/webSearch/write 等模块测试，减少测试层对 UI 组件文件的反向类型耦合。
+- 明确不做：
+  - 不改任何 presenter 运行时代码与渲染行为。
+  - 不改测试断言语义，仅做类型导入路径收敛。
+
 ## 目标结构
 
 ```
