@@ -840,6 +840,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 REPL 启动逻辑、setup 流程与 runtime 组装行为，仅迁移模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 69）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，shim 收口）。
+- 本轮已完成：
+  - 删除 `src/legacy/bootstrap/*` 兼容 shim，`bootstrap` 唯一事实源收敛到 `src/runtime/bootstrap/*`。
+  - `scripts/layer-contract.config.json` 的 Runtime 映射移除 `src/legacy/bootstrap` 陈旧路径，仅保留 `src/legacy/runLegacyCli.tsx`。
+- 明确不做：
+  - 不改 `runLegacyCli` 与 runtime 组装行为，仅删除无调用 shim 并同步门禁映射。
+
 ## 目标结构
 
 ```

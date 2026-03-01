@@ -49,7 +49,6 @@
     ],
     "Runtime": [
       "src/runtime",
-      "src/legacy/bootstrap",
       "src/legacy/runLegacyCli.tsx",
       "src/app-server",
       "src/entrypoints"
