@@ -39,7 +39,7 @@ vi.mock('../../presenters/ToolUiPrimitives', () => ({
   ToolSubline: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('../../presenters/skillApprovalPrompt', () => ({
+vi.mock('../../../components/tool/skillApprovalPrompt', () => ({
   SkillApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>

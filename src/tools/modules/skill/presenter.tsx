@@ -6,7 +6,7 @@ import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPres
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { ToolHeaderLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
-import { SkillApprovalPrompt } from '../../presenters/skillApprovalPrompt'
+import { SkillApprovalPrompt } from '../../../components/tool/skillApprovalPrompt'
 
 export const SkillToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()

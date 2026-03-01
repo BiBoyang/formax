@@ -6,7 +6,7 @@ import { createToolBlocksPresenter } from '../../../shared/toolPresenterContract
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
-import { FsReadApprovalToolBlock } from '../../presenters/FsReadApprovalToolBlock'
+import { FsReadApprovalToolBlock } from '../../../components/tool/FsReadApprovalToolBlock'
 
 export const GlobToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {

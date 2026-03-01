@@ -4,7 +4,7 @@ import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
 import type { Msg } from '../../../shared/toolMessageTypes'
-import { EditApprovalPrompt } from '../../presenters/editApprovalPrompt'
+import { EditApprovalPrompt } from '../../../components/tool/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { ToolHeaderLine } from '../../presenters/ToolUiPrimitives'
 

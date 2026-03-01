@@ -178,8 +178,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool UI Blocks renderer (C-lite): `src/components/tool/ToolUiBlocks.tsx`
 - Presenter interface: `src/shared/toolPresenterContracts.ts`
 - Blocks presenter helper: `createToolBlocksPresenter` in `src/shared/toolPresenterContracts.ts`
-- FS read approval bridge (blocks presenter → runtime user input): `src/tools/presenters/FsReadApprovalToolBlock.tsx`
-- Shared approval prompt (Edit/Write/NotebookEdit): `src/tools/presenters/editApprovalPrompt.tsx`
+- FS read approval bridge (blocks presenter → runtime user input): `src/components/tool/FsReadApprovalToolBlock.tsx`
+- Shared approval prompt (Edit/Write/NotebookEdit): `src/components/tool/editApprovalPrompt.tsx`
 - Fallback presenter: `src/components/tool/FallbackToolPresenter.tsx`
 
 ### Tool specs (“model-facing contract”)

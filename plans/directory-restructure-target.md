@@ -528,6 +528,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 LocalBash 输出截断规则、状态渲染和 expanded 语义。
   - 不改 tooling 注册顺序与 runtime 初始化行为。
 
+## 执行状态（Phase C - Slice 40）
+
+- 状态：进行中（目录迁移第一批，低风险，批量路径收敛）。
+- 本轮已完成：
+  - 下列实现迁移到 `src/components/tool/`：`AskUserQuestionToolBlock`、`BashApprovalToolBlock`、`FsReadApprovalToolBlock`、`bashApprovalPrompt`、`editApprovalPrompt`、`fsReadApprovalPrompt`、`fsWriteApprovalPrompt`、`skillApprovalPrompt`。
+  - `src/tools/presenters/` 同名文件降级为兼容 re-export，避免一次性修改全部测试入口。
+  - `src/tools/modules/*` 中对以上 presenter 的生产导入与测试 mock 路径统一切到 `components/tool/*`。
+  - 文档索引（`CODEMAP.md`、`docs/inventories/interactive-input-inventory.md`、`plans/ui/formax-tool-ui-migration-test-prompt.md`）同步到新事实路径。
+- 明确不做：
+  - 不改 approval/ask 交互语义与 payload 映射。
+  - 不改 ConfirmMenu/ApprovalHeader 视觉与键盘交互规则。
+
 ## 目标结构
 
 ```

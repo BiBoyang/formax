@@ -8,7 +8,7 @@ import path from 'node:path'
 import { formatPathForDisplay } from '../../../shared/utils/paths'
 import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
-import { FsReadApprovalToolBlock } from '../../presenters/FsReadApprovalToolBlock'
+import { FsReadApprovalToolBlock } from '../../../components/tool/FsReadApprovalToolBlock'
 
 export const ReadToolPresenter = createToolBlocksPresenter(
   ({ message }: { message: Msg }): ToolBlocksOutput => {

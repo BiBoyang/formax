@@ -17,7 +17,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => userInput,
 }))
 
-vi.mock('../../presenters/fsReadApprovalPrompt', () => ({
+vi.mock('../../../components/tool/fsReadApprovalPrompt', () => ({
   FsReadApprovalPrompt: (props: any) => {
     lastPrompt = props
     return <Text>{props.title}</Text>

@@ -22,7 +22,7 @@ vi.mock('../runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('./bashApprovalPrompt', () => ({
+vi.mock('../../components/tool/bashApprovalPrompt', () => ({
   BashApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>

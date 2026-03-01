@@ -18,7 +18,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => userInput,
 }))
 
-vi.mock('../../presenters/AskUserQuestionToolBlock', () => ({
+vi.mock('../../../components/tool/AskUserQuestionToolBlock', () => ({
   AskUserQuestionToolBlock: (props: { toolUseId: string; questions: unknown[] }) => {
     lastBlockProps = props
     return React.createElement(Text, null, 'AskUserQuestion Interactive')

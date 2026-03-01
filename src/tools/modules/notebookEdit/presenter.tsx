@@ -3,7 +3,7 @@ import path from 'node:path'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
 import type { Msg } from '../../../shared/toolMessageTypes'
-import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
+import { FsWriteApprovalPrompt } from '../../../components/tool/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 export const NotebookEditToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {

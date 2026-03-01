@@ -6,7 +6,7 @@ import type { Msg } from '../../../components/tool/ToolMessage'
 
 let lastPromptProps: null | { title: string; onDecision: (d: any) => void } = null
 
-vi.mock('../../presenters/fsWriteApprovalPrompt', () => ({
+vi.mock('../../../components/tool/fsWriteApprovalPrompt', () => ({
   FsWriteApprovalPrompt: (props: any) => {
     lastPromptProps = props
     return <Text>{props.title}</Text>

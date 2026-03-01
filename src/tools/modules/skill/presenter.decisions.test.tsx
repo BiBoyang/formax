@@ -20,7 +20,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../presenters/skillApprovalPrompt', () => ({
+vi.mock('../../../components/tool/skillApprovalPrompt', () => ({
   SkillApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>

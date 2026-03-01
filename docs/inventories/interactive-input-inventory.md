@@ -42,12 +42,12 @@
 
 | # | TUI 交互形态 | 主要组件 | 当前使用工具（示例） | 决策/提交语义 |
 |---|---|---|---|---|
-| 1 | Bash 审批 | `src/tools/presenters/BashApprovalToolBlock.tsx` + `src/tools/presenters/bashApprovalPrompt.tsx` | `Bash` | `approve / approve_remember / feedback / cancel` |
-| 2 | 文件读取审批 | `src/tools/presenters/FsReadApprovalToolBlock.tsx` + `src/tools/presenters/fsReadApprovalPrompt.tsx` | `Read / Grep / Glob` | 同上 |
-| 3 | 文件写入审批 | `src/tools/presenters/fsWriteApprovalPrompt.tsx` | `Write / Edit / NotebookEdit` | 同上 |
-| 4 | Skill 审批 | `src/tools/presenters/skillApprovalPrompt.tsx` | `Skill` | 同上 |
-| 5 | 带 remember-scope 的审批 | `src/tools/presenters/editApprovalPrompt.tsx` | `WebFetch / WebSearch` | `approve_remember` 额外包含 `scope` |
-| 6 | Ask 问题交互 | `src/tools/presenters/AskUserQuestionToolBlock.tsx` | `AskUserQuestion`（及 ask 类输入） | `Record<string,string>` |
+| 1 | Bash 审批 | `src/components/tool/BashApprovalToolBlock.tsx` + `src/components/tool/bashApprovalPrompt.tsx` | `Bash` | `approve / approve_remember / feedback / cancel` |
+| 2 | 文件读取审批 | `src/components/tool/FsReadApprovalToolBlock.tsx` + `src/components/tool/fsReadApprovalPrompt.tsx` | `Read / Grep / Glob` | 同上 |
+| 3 | 文件写入审批 | `src/components/tool/fsWriteApprovalPrompt.tsx` | `Write / Edit / NotebookEdit` | 同上 |
+| 4 | Skill 审批 | `src/components/tool/skillApprovalPrompt.tsx` | `Skill` | 同上 |
+| 5 | 带 remember-scope 的审批 | `src/components/tool/editApprovalPrompt.tsx` | `WebFetch / WebSearch` | `approve_remember` 额外包含 `scope` |
+| 6 | Ask 问题交互 | `src/components/tool/AskUserQuestionToolBlock.tsx` | `AskUserQuestion`（及 ask 类输入） | `Record<string,string>` |
 
 ## AskUserQuestion 子形态（不单独计入 6 类总数）
 

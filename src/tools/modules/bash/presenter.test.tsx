@@ -18,7 +18,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => userInput,
 }))
 
-vi.mock('../../presenters/BashApprovalToolBlock', () => ({
+vi.mock('../../../components/tool/BashApprovalToolBlock', () => ({
   BashApprovalToolBlock: (props: { title: string; command: string; cwd: string; toolUseId: string }) => {
     lastBlockProps = props
     return React.createElement(Text, null, props.title)

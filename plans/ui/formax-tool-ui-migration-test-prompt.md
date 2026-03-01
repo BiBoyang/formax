@@ -8,7 +8,7 @@
 - Blocks presenter helper：`createToolBlocksPresenter` in `src/shared/toolPresenterContracts.ts`
 - Blocks renderer：`src/components/tool/ToolUiBlocks.tsx`
 - 现成 blocks presenter 样例（已迁移完成，可参考结构/测试写法）：`src/tools/modules/read/presenter.tsx` / `src/tools/modules/grep/presenter.tsx` / `src/tools/modules/glob/presenter.tsx` / `src/tools/modules/todoWrite/presenter.tsx`
-- 现成 bridge 样例（blocks presenter 里返回 custom node，node 内可以用 hook）：`src/tools/presenters/FsReadApprovalToolBlock.tsx`
+- 现成 bridge 样例（blocks presenter 里返回 custom node，node 内可以用 hook）：`src/components/tool/FsReadApprovalToolBlock.tsx`
 - 现有 edit/write presenter（当前可能仍是 React presenter 或部分 blocks 化；以当前代码为准）：
   - `src/tools/modules/edit/presenter.tsx`
   - `src/tools/modules/write/presenter.tsx`

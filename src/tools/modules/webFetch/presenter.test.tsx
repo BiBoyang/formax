@@ -10,7 +10,7 @@ import type { UserInputManager } from '../../runtime/userInputManager'
 
 let promptProps: null | { title: string; onDecision: (d: any) => void } = null
 
-vi.mock('../../presenters/editApprovalPrompt', () => ({
+vi.mock('../../../components/tool/editApprovalPrompt', () => ({
   EditApprovalPrompt: (props: any) => {
     promptProps = props
     return <Text>{props.title}</Text>

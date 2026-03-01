@@ -52,7 +52,7 @@ vi.mock('../../../components/ui/MarkdownBlock', () => ({
   },
 }))
 
-vi.mock('../../presenters/fsWriteApprovalPrompt', () => ({
+vi.mock('../../../components/tool/fsWriteApprovalPrompt', () => ({
   FsWriteApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>
