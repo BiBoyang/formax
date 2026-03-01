@@ -6,6 +6,7 @@ const REPO_ROOT = process.cwd()
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
 const CORE_ROOT = path.join(SRC_ROOT, 'core')
 const ADAPTERS_ROOT = path.join(SRC_ROOT, 'adapters')
+const CONFIG_ROOT = path.join(SRC_ROOT, 'config')
 const FEATURES_ROOT = path.join(SRC_ROOT, 'features')
 const COMMANDS_ROOT = path.join(FEATURES_ROOT, 'commands')
 const SKILLS_ROOT = path.join(FEATURES_ROOT, 'skills')
@@ -13,8 +14,8 @@ const TUI_ROOT = path.join(SRC_ROOT, 'tui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const TOOLS_MODULES_ROOT = path.join(SRC_ROOT, 'tools', 'modules')
 
-const FORBIDDEN_EXTERNAL_PACKAGES = new Set(['ink', '@anthropic-ai/sdk', 'openai'])
-const ALLOWED_EXTERNAL_PACKAGES = new Set(['zod'])
+const FORBIDDEN_EXTERNAL_PACKAGES = new Set(['ink'])
+const ALLOWED_EXTERNAL_PACKAGES = new Set(['zod', '@anthropic-ai/sdk', 'openai'])
 
 const IMPORT_SPECIFIER_RE = /(?:^|\n)\s*(?:import|export)\s+(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]/g
 const DYNAMIC_IMPORT_RE = /import\(\s*['"]([^'"]+)['"]\s*\)/g
@@ -84,7 +85,8 @@ function checkCoreImports(file, specifier) {
     const resolved = path.normalize(path.resolve(path.dirname(file), raw))
     if (isUnderDir(resolved, CORE_ROOT)) return null
     if (isUnderDir(resolved, ADAPTERS_ROOT)) return null
-    return 'Core may only import from src/core/** and src/adapters/**'
+    if (isUnderDir(resolved, CONFIG_ROOT)) return null
+    return 'Core may only import from src/core/**, src/config/** and src/adapters/**'
   }
 
   const pkg = packageNameFromSpecifier(raw)

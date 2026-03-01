@@ -1016,6 +1016,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 本轮不调整 core 包依赖白名单与 core→config 依赖规则，仅做目录路径事实对齐。
 
+## 执行状态（Phase C - Slice 84）
+
+- 状态：进行中（目录迁移第二批，core 门禁规则对齐）。
+- 本轮已完成：
+  - `scripts/check-core-boundaries.mjs` 增加 `src/config/**` 作为 core 合法依赖目标，匹配现有 `core/* -> config/settings/*` 的真实依赖。
+  - 更新 core 外部依赖允许集，显式允许 `@anthropic-ai/sdk` 与 `openai`（对应 `src/core/models/models.ts` 的既有实现）。
+  - 保留对 `ink` 的禁止依赖约束，维持 core 无 UI 依赖。
+  - 验证通过：`core:boundaries`、`ui:boundaries`、`features:boundaries`。
+- 明确不做：
+  - 不修改任何业务实现或模型拉取逻辑，仅修正规则与当前代码事实不一致的问题。
+
 ## 目标结构
 
 ```
