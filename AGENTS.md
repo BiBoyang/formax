@@ -99,7 +99,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
 
 ## Configuration & Runtime Notes
-- Runtime config is loaded via `loadRuntimeConfig()` (`src/env/config.ts`) and supports:
+- Runtime config is loaded via `loadRuntimeConfig()` (`src/config/config.ts`) and supports:
   - env vars (loaded via `dotenv/config` in `src/entrypoints/cli.tsx`)
   - global config files under `FORMAX_CONFIG_DIR` (default `~/.formax/`)
   - per-project overrides under `<repo>/.formax/`

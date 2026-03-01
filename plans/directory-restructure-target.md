@@ -730,6 +730,14 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改配置解析/迁移/持久化行为，仅做路径收敛与 shim 收口。
   - 不改 CLI/REPL/setup 的用户可见语义。
 
+## 执行状态（Phase C - Slice 58）
+
+- 状态：进行中（目录迁移第一批，低风险，文档路径对齐）。
+- 本轮已完成：
+  - `AGENTS.md` 与 `CLAUDE.md` 中 runtime config / config merge 的事实路径更新为 `src/config/{config.ts,settings/*}`。
+- 明确不做：
+  - 不改任何运行时代码，仅同步文档路径，避免后续排障误导。
+
 ## 目标结构
 
 ```

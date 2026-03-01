@@ -79,7 +79,7 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 - `apps/web-reference-react/` - Reference React web client (isolated app)
 
 **Core Layer** (productized configuration, auth, policy)
-- `src/core/config/` - Multi-source config merging (default → global → project → env → flags)
+- `src/config/settings/` - Multi-source config merging (default → global → project → env → flags)
 - `src/core/auth/` - API key storage and retrieval (auth.json)
 - `src/core/setup/` - First-run setup wizard state machine
 - `src/core/diagnostics/` - `formax doctor` health checks
@@ -131,7 +131,7 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 
 **Supporting Modules**
 - `src/prompts/` - Prompt construction and system message management
-- `src/env/config.ts` - Runtime configuration from environment variables
+- `src/config/config.ts` - Runtime configuration loader and env/file merge entry
 - `src/services/` - External service integrations
 - `src/shared/utils/` - Shared utility functions (terminal helpers, logging, formatting, paths, etc.)
 
