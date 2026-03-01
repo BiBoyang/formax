@@ -11,8 +11,7 @@
     ],
     "Config": [
       "src/config",
-      "src/core/config",
-      "src/env"
+      "src/core/config"
     ],
     "Repo": [
       "src/adapters",

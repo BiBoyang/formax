@@ -686,6 +686,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 runtime config 解析/合并逻辑与默认值语义。
   - 不改 REPL/chat/taskSubAgent 的行为，仅调整配置模块归属与导入路径。
 
+## 执行状态（Phase C - Slice 54）
+
+- 状态：进行中（目录迁移第一批，低风险，Config 兼容层收口）。
+- 本轮已完成：
+  - 删除 `src/env/{config,configFiles,configPaths,modelTier,nodeFileStore,runtimeFlags}.ts` 兼容 re-export 文件。
+  - `scripts/layer-contract.config.json` 的 Config 层映射移除 `src/env`，仅保留 `src/config` 与 `src/core/config`。
+- 明确不做：
+  - 不改任何配置加载行为与运行时逻辑，仅清理已无调用方的兼容层文件。
+  - 不修改 `dotenv/config` 入口行为。
+
 ## 目标结构
 
 ```

@@ -6,7 +6,7 @@ import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createSafeInkStdout, resetInkStaticOutputForStdout } from '../src/shared/utils/inkStreams.js'
-import type { RuntimeConfig } from '../src/env/config.js'
+import type { RuntimeConfig } from '../src/config/config.js'
 import type { ChatEngine } from '../src/chat/engine.js'
 import type { PromptBlock, PromptMessage } from '../src/prompts/index.js'
 
