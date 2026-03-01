@@ -433,6 +433,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 patch diff 计算、行号渲染与高亮规则语义。
   - 不调整 edit tool 的文案和审批行为。
 
+## 执行状态（Phase C - Slice 31）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `PatchApprovalPreview` 实现迁移到 `src/components/tool/PatchApprovalPreview.tsx`。
+  - `src/tools/modules/edit/EditApprovalToolBlock.tsx` 与对应测试改为直接依赖 `components/tool/PatchApprovalPreview`。
+  - `src/tools/presenters/PatchApprovalPreview.tsx` 降级为兼容 re-export，降低迁移风险。
+- 明确不做：
+  - 不改 patch approval 视觉样式与行号计算语义。
+  - 暂不迁移 `useSnippetStartLineNumber`（当前通过兼容路径复用）。
+
 ## 目标结构
 
 ```

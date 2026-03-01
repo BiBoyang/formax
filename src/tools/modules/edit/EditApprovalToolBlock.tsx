@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { ApprovalHeader } from '../../../components/ui/ApprovalHeader'
-import { PatchApprovalPreview } from '../../presenters/PatchApprovalPreview'
+import { PatchApprovalPreview } from '../../../components/tool/PatchApprovalPreview'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 

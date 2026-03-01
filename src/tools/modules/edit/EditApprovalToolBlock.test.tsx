@@ -22,7 +22,7 @@ vi.mock('../../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-vi.mock('../../presenters/PatchApprovalPreview', () => ({
+vi.mock('../../../components/tool/PatchApprovalPreview', () => ({
   PatchApprovalPreview: (props: { filePath: string; oldText: string; newText: string }) => {
     mocks.patchCalls.push(props)
     return <Text>{`patch:${props.filePath}`}</Text>
