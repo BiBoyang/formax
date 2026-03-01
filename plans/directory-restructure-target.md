@@ -962,6 +962,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不调整 smoke 脚本行为逻辑，仅做路径事实修正。
 
+## 执行状态（Phase C - Slice 79）
+
+- 状态：进行中（目录迁移第二批，UI 常量归位）。
+- 本轮已完成：
+  - 新增 `src/components/tool/toolUi.ts`，承接 Tool transcript subline 的 UI 常量定义。
+  - `src/components/tool/ToolUiPrimitives.tsx` 与 `src/components/tool/ToolSubline.tsx` 改为本地依赖 `./toolUi`。
+  - 删除 `src/shared/utils/toolUi.ts`，避免 UI 常量继续滞留在 shared/utils。
+  - 验证通过：`ToolSubline.test.tsx`、`ToolUiPrimitives.test.tsx`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不调整任何 subline 文案、缩进或渲染行为，仅收敛文件归属与导入路径。
+
 ## 目标结构
 
 ```
