@@ -1,11 +1,11 @@
 import path from 'node:path'
-import { resolveRuntimeConfig } from '../core/config/resolve.js'
-import type { FileStore } from '../core/config/fileStore.js'
+import { resolveRuntimeConfig } from '../config/settings/resolve.js'
+import type { FileStore } from '../config/settings/fileStore.js'
 import { createNodeFileStore } from './nodeFileStore.js'
 import { loadConfigFiles } from './configFiles.js'
 import { getConfigPaths } from './configPaths.js'
 import { resolveActiveModel } from './modelTier.js'
-import type { ModelTier, ProviderId } from '../core/config/schema.js'
+import type { ModelTier, ProviderId } from '../config/settings/schema.js'
 
 export type RuntimeConfig = {
   llm: {

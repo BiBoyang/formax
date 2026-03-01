@@ -2,7 +2,7 @@ import { fetchAnthropicModels, fetchCustomModels } from '../../core/models/model
 import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../core/models/modelContextCatalog.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { mapUnknownError } from '../../core/setup/errorMapping.js'
-import type { ProviderId } from '../../core/config/schema.js'
+import type { ProviderId } from '../../config/settings/schema.js'
 import type { ConnectionTestResult } from '../../core/setup/types.js'
 
 function toPositiveInt(value: unknown): number | undefined {

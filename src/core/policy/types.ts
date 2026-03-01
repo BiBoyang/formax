@@ -1,4 +1,4 @@
-import type { ProviderId } from '../config/schema.js'
+import type { ProviderId } from '../../config/settings/schema.js'
 
 export type PolicyAction =
   | { kind: 'fs.read'; path: string }

@@ -1,5 +1,5 @@
 import type { FileStore } from '../../adapters/fs/fileStore.js'
-import type { ConfigShowResult } from '../config/show.js'
+import type { ConfigShowResult } from '../../config/settings/show.js'
 import type { LoadedPolicyRules } from '../policy/store.js'
 import type { DoctorReport } from './doctor.js'
 import type { StatusSnapshot } from './status.js'

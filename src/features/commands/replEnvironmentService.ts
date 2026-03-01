@@ -2,7 +2,7 @@ import path from 'node:path'
 import { getConfigPaths } from '../../adapters/fs/configPaths'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots, type WorkspaceRootsResult } from '../../adapters/fs/workspaceRoots'
-import { updateConfigPatchFile } from '../../core/config/persist'
+import { updateConfigPatchFile } from '../../config/settings/persist'
 import type { ModelTier } from '../../config/modelTier'
 
 export function resolveUserAgentsDir(args?: {

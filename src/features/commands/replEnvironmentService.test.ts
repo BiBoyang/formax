@@ -16,7 +16,7 @@ vi.mock('../../adapters/fs/nodeFileStore', () => ({
 vi.mock('../../adapters/fs/workspaceRoots', () => ({
   detectWorkspaceRoots: mocks.detectWorkspaceRoots,
 }))
-vi.mock('../../core/config/persist', () => ({
+vi.mock('../../config/settings/persist', () => ({
   updateConfigPatchFile: mocks.updateConfigPatchFile,
 }))
 

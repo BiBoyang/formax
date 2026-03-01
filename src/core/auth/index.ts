@@ -1,6 +1,6 @@
 import type { FileStore } from '../../adapters/fs/fileStore.js'
-import { AuthStoreV1Schema } from '../config/schema.js'
-import type { AuthStoreV1, ProviderId } from '../config/schema.js'
+import { AuthStoreV1Schema } from '../../config/settings/schema.js'
+import type { AuthStoreV1, ProviderId } from '../../config/settings/schema.js'
 
 const AUTH_FILE_MODE = 0o600
 

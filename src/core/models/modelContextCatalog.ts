@@ -1,4 +1,4 @@
-import type { ProviderId } from '../config/schema.js'
+import type { ProviderId } from '../../config/settings/schema.js'
 
 type ModelsDevModelInfo = {
   limit?: {

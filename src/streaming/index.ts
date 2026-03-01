@@ -1,4 +1,4 @@
-import type { ProviderId } from '../core/config/schema.js'
+import type { ProviderId } from '../config/settings/schema.js'
 import { AnthropicStreamClient } from './anthropic/StreamClient.js'
 import { OpenAIStreamClient } from './openai/StreamClient.js'
 

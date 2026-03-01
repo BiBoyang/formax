@@ -1,5 +1,5 @@
-import type { ConfigShowResult } from '../config/show.js'
-import type { AssistantTextMode, PromptProfile } from '../config/schema.js'
+import type { ConfigShowResult } from '../../config/settings/show.js'
+import type { AssistantTextMode, PromptProfile } from '../../config/settings/schema.js'
 
 export type RuntimeStatusSnapshot = {
   llm: {

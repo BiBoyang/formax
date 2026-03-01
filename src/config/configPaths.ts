@@ -1,6 +1,6 @@
 import os from 'node:os'
 import path from 'node:path'
-import type { ConfigPaths, Platform } from '../core/config/paths.js'
+import type { ConfigPaths, Platform } from '../config/settings/paths.js'
 
 function expandLeadingTilde(inputPath: string, homedir: string): string {
   const raw = String(inputPath || '').trim()

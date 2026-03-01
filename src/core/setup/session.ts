@@ -1,4 +1,4 @@
-import type { ModelTier, ProviderId } from '../config/schema.js'
+import type { ModelTier, ProviderId } from '../../config/settings/schema.js'
 import type {
   ConnectionTestResult,
   SetupAnthropicVendor,

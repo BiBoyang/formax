@@ -10,7 +10,7 @@ import { createSetupSession } from '../core/setup/session.js'
 import type { ConnectionTester, SetupSession } from '../core/setup/session.js'
 import { getConnectionTestHint } from '../core/setup/hints.js'
 import type { SetupAnthropicVendor, SetupDraft, SetupProviderOption } from '../core/setup/types.js'
-import type { ModelTier, ProviderId } from '../core/config/schema.js'
+import type { ModelTier, ProviderId } from '../config/settings/schema.js'
 import type { ErrorCode as ErrorCodeValue } from '../core/errors/codes.js'
 
 type ChoiceOption = {

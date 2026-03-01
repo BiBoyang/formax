@@ -1,4 +1,4 @@
-import type { ProviderId } from '../config/schema.js'
+import type { ProviderId } from '../../config/settings/schema.js'
 import { ErrorCode } from '../errors/codes.js'
 import type { ErrorCode as ErrorCodeValue } from '../errors/codes.js'
 import type { ConnectionTestResult } from '../setup/types.js'

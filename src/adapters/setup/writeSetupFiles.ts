@@ -4,8 +4,8 @@ import type { FileStore } from '../fs/fileStore.js'
 import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
-import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../core/config/schema.js'
-import type { ProviderId, TierModelMapping } from '../../core/config/schema.js'
+import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/settings/schema.js'
+import type { ProviderId, TierModelMapping } from '../../config/settings/schema.js'
 
 export type WriteSetupFilesResult = {
   configPath: string

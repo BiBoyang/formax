@@ -2,9 +2,9 @@ import type { FileStore } from '../../adapters/fs/fileStore.js'
 import { loadConfigFiles } from '../../adapters/fs/configFiles.js'
 import { getConfigPaths } from '../../adapters/fs/configPaths.js'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
-import { updateConfigPatchFile } from '../../core/config/persist.js'
-import { resolveRuntimeConfig } from '../../core/config/resolve.js'
-import { OutputStyleSchema, type FormaxConfigV1Patch } from '../../core/config/schema.js'
+import { updateConfigPatchFile } from '../../config/settings/persist.js'
+import { resolveRuntimeConfig } from '../../config/settings/resolve.js'
+import { OutputStyleSchema, type FormaxConfigV1Patch } from '../../config/settings/schema.js'
 
 export type ConfigDialogSettingId = 'outputStyle' | 'thinkingMode' | 'verboseOutput'
 

@@ -1,4 +1,4 @@
-import type { ModelTier, ProviderId } from '../config/schema.js'
+import type { ModelTier, ProviderId } from '../../config/settings/schema.js'
 import type { ErrorCode } from '../errors/codes.js'
 
 export type SetupProviderOption = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ConfigShowResult } from '../config/show.js'
+import type { ConfigShowResult } from '../../config/settings/show.js'
 import { createStatusSnapshot } from './status.js'
 
 describe('createStatusSnapshot', () => {

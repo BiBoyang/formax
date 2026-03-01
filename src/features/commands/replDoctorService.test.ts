@@ -28,7 +28,7 @@ vi.mock('../../adapters/fs/nodeFileStore.js', () => ({
 vi.mock('../../adapters/setup/connectionTest.js', () => ({
   testSetupConnection,
 }))
-vi.mock('../../core/config/show.js', () => ({
+vi.mock('../../config/settings/show.js', () => ({
   configShow,
 }))
 vi.mock('../../core/diagnostics/doctor.js', () => ({

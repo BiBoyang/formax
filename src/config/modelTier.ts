@@ -1,5 +1,5 @@
-import type { ModelTier } from '../core/config/schema.js'
-export type { ModelTier } from '../core/config/schema.js'
+import type { ModelTier } from '../config/settings/schema.js'
+export type { ModelTier } from '../config/settings/schema.js'
 
 const DEFAULT_MODEL_BY_TIER: Record<ModelTier, string> = {
   haiku: 'claude-3-5-haiku-latest',

@@ -718,6 +718,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改配置解析/持久化/迁移/展示逻辑，仅变更模块归属与导入层次。
   - 不改 `cli`、`features/commands`、`config loader` 的行为。
 
+## 执行状态（Phase C - Slice 57）
+
+- 状态：进行中（目录迁移第一批，低风险，core/config shim 清理）。
+- 本轮已完成：
+  - 业务代码导入从 `src/core/config/*` 统一收敛到 `src/config/settings/*`。
+  - 删除 `src/core/config/{schema,fileStore,paths,configFiles,resolve,persist,migrate,show}.ts` shim 文件（已无调用方）。
+  - `scripts/layer-contract.config.json` 的 Config 层映射移除 `src/core/config`，仅保留 `src/config`。
+  - `docs/environment-variables.md` 的 resolve 事实路径更新到 `src/config/settings/resolve.ts`。
+- 明确不做：
+  - 不改配置解析/迁移/持久化行为，仅做路径收敛与 shim 收口。
+  - 不改 CLI/REPL/setup 的用户可见语义。
+
 ## 目标结构
 
 ```

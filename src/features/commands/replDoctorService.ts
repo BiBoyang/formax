@@ -1,7 +1,7 @@
 import { checkWritableDir } from '../../adapters/fs/checkWritableDir'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
 import { testSetupConnection } from '../../adapters/setup/connectionTest'
-import { configShow } from '../../core/config/show'
+import { configShow } from '../../config/settings/show'
 import { runDoctor } from '../../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../../core/diagnostics/format'
 import type { RuntimeConfig } from '../../config/config'

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { FileMode, FileStore } from '../core/config/fileStore.js'
+import type { FileMode, FileStore } from '../config/settings/fileStore.js'
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {

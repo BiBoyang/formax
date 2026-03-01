@@ -1,6 +1,6 @@
-import type { FileStore } from '../core/config/fileStore.js'
-import type { Platform } from '../core/config/paths.js'
-import { loadConfigFiles as loadConfigFilesWithPaths } from '../core/config/configFiles.js'
+import type { FileStore } from '../config/settings/fileStore.js'
+import type { Platform } from '../config/settings/paths.js'
+import { loadConfigFiles as loadConfigFilesWithPaths } from '../config/settings/configFiles.js'
 import { getConfigPaths } from './configPaths.js'
 
 export async function loadConfigFiles(args: {
