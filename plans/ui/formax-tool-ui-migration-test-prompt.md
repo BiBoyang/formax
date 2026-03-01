@@ -5,7 +5,7 @@
 - `write`（create/patch preview / approval UX）
 
 背景（你可以直接用现有实现作为模板，不要重新发明架构）：
-- Blocks presenter helper：`createToolBlocksPresenter` in `src/tools/presenters/types.ts`
+- Blocks presenter helper：`createToolBlocksPresenter` in `src/shared/toolPresenterContracts.ts`
 - Blocks renderer：`src/components/tool/ToolUiBlocks.tsx`
 - 现成 blocks presenter 样例（已迁移完成，可参考结构/测试写法）：`src/tools/modules/read/presenter.tsx` / `src/tools/modules/grep/presenter.tsx` / `src/tools/modules/glob/presenter.tsx` / `src/tools/modules/todoWrite/presenter.tsx`
 - 现成 bridge 样例（blocks presenter 里返回 custom node，node 内可以用 hook）：`src/tools/presenters/FsReadApprovalToolBlock.tsx`

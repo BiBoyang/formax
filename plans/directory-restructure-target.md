@@ -394,6 +394,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何运行时逻辑与测试行为，仅修正文档索引路径。
 
+## 执行状态（Phase C - Slice 27）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/types.ts`（已无代码调用方，shared 合同已是唯一实现）。
+  - `CODEMAP.md`、`CLAUDE.md`、`plans/ui/formax-tool-ui-migration-test-prompt.md` 中的 blocks presenter helper 索引统一切换到 `src/shared/toolPresenterContracts.ts`。
+- 明确不做：
+  - 不改 presenter contract 类型定义与运行时行为，仅删除中转 shim 并修正文档索引。
+
 ## 目标结构
 
 ```

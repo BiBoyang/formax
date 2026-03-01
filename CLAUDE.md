@@ -148,7 +148,7 @@ Named as `createXToolModule()` where X is the tool name.
 **Tool Transcript UI Blocks (C-lite)**
 Some tools render via Tool UI Blocks instead of bespoke presenters. When adjusting common transcript formatting (⏺ spacing/indent, sublines, etc.), start at:
 - `src/components/tool/ToolUiBlocks.tsx` - block renderer
-- `src/tools/presenters/types.ts` - `createToolBlocksPresenter` helper
+- `src/shared/toolPresenterContracts.ts` - `createToolBlocksPresenter` helper
 
 **Tool Registry Flow**
 1. Registry initialized with spec source (proxy JSON or built-ins)
