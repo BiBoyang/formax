@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
-import { getConfigPaths } from '../../env/configPaths'
+import { getConfigPaths } from '../../config/configPaths'
 import { configShow } from './show.js'
 
 describe('configShow', () => {

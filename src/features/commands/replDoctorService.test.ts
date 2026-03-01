@@ -37,7 +37,7 @@ vi.mock('../../core/diagnostics/doctor.js', () => ({
 vi.mock('../../core/diagnostics/format.js', () => ({
   formatDoctorHuman,
 }))
-vi.mock('../../env/configPaths.js', () => ({
+vi.mock('../../config/configPaths.js', () => ({
   getConfigPaths,
 }))
 

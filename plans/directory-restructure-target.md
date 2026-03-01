@@ -640,6 +640,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 model tier 解析、默认模型选择与 env 覆盖优先级语义。
   - 不改 REPL/TaskSubAgent 的业务流程，仅切换配置模块归属。
 
+## 执行状态（Phase C - Slice 50）
+
+- 状态：进行中（目录迁移第一批，低风险，Config 目录扩展）。
+- 本轮已完成：
+  - `src/env/configPaths.ts` 与对应测试迁移到 `src/config/configPaths.{ts,test.ts}`。
+  - `src/env/configPaths.ts` 保留兼容 re-export（桥接到 `src/config/configPaths.js`）。
+  - `features/commands/replDoctorService`、`core/diagnostics`、`core/config/show`、`cli/main` 等调用方导入统一改为 `src/config/configPaths`。
+- 明确不做：
+  - 不改配置路径计算逻辑、默认目录约定与环境变量解析语义。
+  - 不改 replDoctor 的诊断输出行为，仅调整模块归属与导入路径。
+
 ## 目标结构
 
 ```

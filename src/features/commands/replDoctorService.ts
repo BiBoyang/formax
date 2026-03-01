@@ -5,7 +5,7 @@ import { configShow } from '../../core/config/show'
 import { runDoctor } from '../../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../../core/diagnostics/format'
 import type { RuntimeConfig } from '../../env/config'
-import { getConfigPaths } from '../../env/configPaths'
+import { getConfigPaths } from '../../config/configPaths'
 
 export async function runReplDoctor(args: {
   version: string
