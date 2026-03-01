@@ -91,7 +91,7 @@ vi.mock('../screens/perf/TranscriptPerfScreen.js', () => ({
 vi.mock('../ui/SetupWizard.js', () => ({
   SetupWizard: mocks.SetupWizard,
 }))
-vi.mock('../utils/inkStreams.js', () => ({
+vi.mock('../shared/utils/inkStreams.js', () => ({
   createSafeInkStdout: mocks.createSafeInkStdout,
 }))
 

@@ -218,6 +218,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改终端清屏时机、TTY 检测和 ANSI 样式定义。
   - 不改命令 registry 的输出语义与文案。
 
+## 执行状态（Phase C - Slice 10）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/inkStreams.ts` 与 `src/utils/inkStreams.test.ts` 迁移到 `src/shared/utils/`。
+  - `services/runtimeUiBridge.tsx` 与 `legacy/runLegacyCli.tsx` 改为引用 `src/shared/utils/inkStreams`。
+  - `runtimeUiBridge` 与 `runLegacyCli` 对应测试里的 `vi.mock` 路径同步到新位置。
+  - 在 `src/utils/inkStreams.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改 Ink stdout 安全代理逻辑与默认行列回退策略。
+  - 不改 static output reset 行为与异常吞掉策略。
+
 ## 目标结构
 
 ```

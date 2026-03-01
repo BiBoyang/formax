@@ -23,7 +23,7 @@ vi.mock('./bootstrap/renderReplApp.js', () => ({
   renderReplApp,
 }))
 
-vi.mock('../utils/inkStreams.js', () => ({
+vi.mock('../shared/utils/inkStreams.js', () => ({
   resetInkStaticOutputForStdout,
 }))
 
