@@ -133,7 +133,7 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 - `src/prompts/` - Prompt construction and system message management
 - `src/env/config.ts` - Runtime configuration from environment variables
 - `src/services/` - External service integrations
-- `src/utils/` - Utility functions (terminal helpers, logging, etc.)
+- `src/shared/utils/` - Shared utility functions (terminal helpers, logging, formatting, paths, etc.)
 
 ### Key Patterns
 

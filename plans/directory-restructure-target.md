@@ -386,6 +386,14 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 ConfirmMenu/ApprovalHeader/MarkdownBlock 的实现逻辑与交互语义。
   - 不改审批流程 decision 映射和 UI 文案。
 
+## 执行状态（Phase C - Slice 26）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `CLAUDE.md` 的 Supporting Modules 索引从 `src/utils/` 同步为 `src/shared/utils/`，与当前目录事实一致。
+- 明确不做：
+  - 不改任何运行时逻辑与测试行为，仅修正文档索引路径。
+
 ## 目标结构
 
 ```
