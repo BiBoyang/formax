@@ -354,6 +354,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改审批提示文案、键盘交互与 decision 映射语义。
   - 不删除现有 wrapper 文件（留待后续切片处理测试收敛）。
 
+## 执行状态（Phase C - Slice 23）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/tools/modules/{webFetch,notebookEdit,task,exitPlanMode,skill,enterPlanMode,webSearch}/presenter.tsx` 中对 `../../presenters/fallback` 的依赖切换为直接引用 `src/components/tool/FallbackToolPresenter`。
+  - `src/tools/modules/skill/presenter.interactions.test.tsx` 的 mock 目标同步到新路径。
+- 明确不做：
+  - 不改 fallback 渲染逻辑、surface suffix 规则和 tool summary 文案。
+  - 不删除 `src/tools/presenters/fallback.tsx` wrapper（留待后续切片统一收口）。
+
 ## 目标结构
 
 ```

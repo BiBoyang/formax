@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
-import { FallbackToolPresenter } from '../../presenters/fallback'
+import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../shared/utils/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'

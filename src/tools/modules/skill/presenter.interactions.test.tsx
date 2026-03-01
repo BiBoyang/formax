@@ -30,7 +30,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../presenters/fallback', () => ({
+vi.mock('../../../components/tool/FallbackToolPresenter', () => ({
   FallbackToolPresenter: () => <Text>fallback</Text>,
 }))
 
