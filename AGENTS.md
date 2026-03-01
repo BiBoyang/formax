@@ -3,16 +3,16 @@
 ## Project Structure & Module Organization
 - `src/` contains TypeScript source.
   - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
-  - `cli/` argument parsing + command dispatch for the CLI wrapper.
+  - `runtime/cli/` argument parsing + command dispatch for the CLI wrapper.
+  - `runtime/bootstrap/` REPL bootstrap + runtime assembly wiring.
   - `core/` productized app core (config resolution, setup flows, boundaries checks).
   - `ui/` Ink “wizard” UIs (first-run setup, selectors, forms).
-  - `legacy/` current REPL bootstrap + wiring (loads config, tools, subagents, renders `REPL`).
   - `adapters/` filesystem + setup adapters (config files, setup persistence).
   - `screens/` Ink screens; `components/` reusable UI.
   - `tools/` tool registry, modules, handlers, presenters, runtime managers.
   - `streaming/` Anthropic streaming client and parsers.
   - `subagents/` registry/runner for sub-agent tools.
-  - `prompts/`, `env/`, `services/`, `utils/` supporting code.
+  - `prompts/`, `config/`, `services/`, `shared/utils/` supporting code.
 - `apps/` contains standalone companion apps used for parity/reference development.
   - `web-reference-react/` isolated React + Vite web reference client for app-server protocol/semantics validation (separate package/deps).
 - Tests live next to source as `*.test.ts`/`*.test.tsx`.

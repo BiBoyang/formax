@@ -870,6 +870,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 REPL 启动行为，仅删除无调用兼容层并同步门禁映射。
 
+## 执行状态（Phase C - Slice 72）
+
+- 状态：进行中（目录迁移第二批，文档路径一致性收口）。
+- 本轮已完成：
+  - `AGENTS.md` 的项目结构说明从 `src/cli`/`src/legacy` 更新为 `src/runtime/cli`/`src/runtime/bootstrap`。
+  - `src/core/README.md` 的上层调用路径从 `src/legacy` 更新为 `src/runtime/bootstrap`。
+- 明确不做：
+  - 不改任何运行时代码与行为，仅同步文档事实路径。
+
 ## 目标结构
 
 ```

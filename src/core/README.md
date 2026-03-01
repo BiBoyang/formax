@@ -26,7 +26,7 @@ Last verified: 2026-01-13
 | `auth/index.ts`     | authList/authSet/authDelete 管理凭证 |
 | `setup/session.ts`  | createSetupSession 首次向导状态机    |
 
-上层 `src/legacy/` 和 CLI entrypoint 调用这些函数完成启动前准备。
+上层 `src/runtime/bootstrap/` 和 CLI entrypoint 调用这些函数完成启动前准备。
 
 ## 3) 流程（Flow）
 
