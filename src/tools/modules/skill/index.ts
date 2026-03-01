@@ -5,7 +5,7 @@ import { SkillToolPresenter } from './presenter'
 import { baseSpec } from './spec'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
 import { createSkillStore } from '../../../features/skills/SkillStore'
-import { truncateByCharBudget } from '../../../invokables/charBudget'
+import { truncateByCharBudget } from '../../../shared/invokables/charBudget'
 
 const DEFAULT_SKILL_TOOL_CHAR_BUDGET = 15000
 

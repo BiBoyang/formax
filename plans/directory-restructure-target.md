@@ -148,6 +148,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改模型拉取逻辑、catalog 缓存策略、错误映射与超时行为。
   - 不改 `adapters/setup/connectionTest` 的调用路径与用户可见输出。
 
+## 执行状态（Phase C - Slice 4）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/invokables/{types.ts,charBudget.ts,charBudget.test.ts}` 迁移到 `src/shared/invokables/`。
+  - `src/tools/modules/skill/{handler.ts,index.ts}` 改为引用 `src/shared/invokables/charBudget`。
+  - 在 `src/invokables/{types.ts,charBudget.ts}` 保留兼容 re-export，确保旧导入路径仍可用。
+- 明确不做：
+  - 不改 `truncateByCharBudget` 行为和截断语义。
+  - 不改 skill 工具的输出格式与命令拼接策略。
+
 ## 目标结构
 
 ```
