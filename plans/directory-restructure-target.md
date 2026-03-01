@@ -1027,6 +1027,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不修改任何业务实现或模型拉取逻辑，仅修正规则与当前代码事实不一致的问题。
 
+## 执行状态（Phase C - Slice 85）
+
+- 状态：进行中（目录迁移第二批，边界文档同步）。
+- 本轮已完成：
+  - 同步 `CLAUDE.md` 中的 core 边界描述，改为与当前门禁脚本一致：
+    - 允许 `core -> config/adapters`
+    - 继续禁止 `core -> tui/screens/tools/modules` 等 UI/runtime 方向依赖。
+  - 保持 `bun run core:boundaries` 作为唯一判定标准，避免文档与脚本出现双事实源。
+- 明确不做：
+  - 不调整任何代码导入或边界脚本逻辑，仅同步文档契约表述。
+
 ## 目标结构
 
 ```

@@ -47,7 +47,7 @@ The codebase follows a layered architecture with strict dependency boundaries (e
 4. **UI Layer** (`src/tui/`, `src/screens/`, `src/components/`) - Ink-based terminal UI
 5. **Infrastructure** (`src/tools/`, `src/streaming/`, `src/subagents/`) - Cross-cutting concerns
 
-**Key invariant**: `src/core/` must NOT import from `src/adapters/`, `src/tui/`, `src/runtime/cli/`, or `src/screens/`. This prevents circular dependencies and keeps core testable.
+**Key invariant**: `src/core/` may import from `src/core/`, `src/config/`, and `src/adapters/`, but must NOT import from UI/runtime surfaces such as `src/tui/`, `src/screens/`, or `src/tools/modules/`. This keeps core testable while matching current dependency ownership.
 
 ### Core Components
 
@@ -285,7 +285,7 @@ Example: `refactor(tools): extract handler execution into separate module`
 ## Pitfalls & Gotchas (Keep Updated)
 When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it here **and** in `AGENTS.md` so future agents can avoid re-discovering it.
 
-- **Core module boundaries**: `src/core/` MUST NOT import from `src/adapters/`, `src/tui/`, `src/runtime/cli/`, or `src/screens/`. This is enforced by `bun run core:boundaries`. If you hit this error, refactor to move the dependency into an adapter or use dependency injection.
+- **Core module boundaries**: `src/core/` may depend on `src/config/` and `src/adapters/`, but must avoid UI/runtime surfaces (`src/tui/`, `src/screens/`, `src/tools/modules/`). This is enforced by `bun run core:boundaries`. If you hit this error, refactor dependency direction instead of bypassing the check.
 - **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
 - **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
 - **Compact + Ctrl+O duplicate rows**: duplicated `HeaderBanner`/compact rows are usually surface ownership/race issues in Ink `Static`, not transcript-slice logic bugs. Do not move header/messages out of `Static` as a workaround.
