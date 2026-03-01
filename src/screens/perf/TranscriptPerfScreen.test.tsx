@@ -28,7 +28,7 @@ vi.mock('../../features/repl/inputScopeContext', () => ({
   },
 }))
 
-vi.mock('../../utils/terminal', () => ({
+vi.mock('../../shared/utils/terminal', () => ({
   clearTerminal: mocks.clearTerminal,
 }))
 

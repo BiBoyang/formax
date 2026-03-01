@@ -7,7 +7,7 @@ const resolveInitialSession = vi.fn()
 const renderReplApp = vi.fn()
 const resetInkStaticOutputForStdout = vi.fn(async () => {})
 
-vi.mock('../utils/terminal.js', () => ({
+vi.mock('../shared/utils/terminal.js', () => ({
   clearTerminal,
 }))
 

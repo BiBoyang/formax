@@ -7,7 +7,7 @@
  * Run with: bun run toole
  */
 
-import { clearTerminal } from '../utils/terminal.js'
+import { clearTerminal } from '../shared/utils/terminal.js'
 import { renderToolExamplesEntry } from '../services/runtimeUiBridge.js'
 import { ToolRegistry } from '../tools/registry.js'
 import { registerBuiltinToolModules } from '../tools/modules/index.js'

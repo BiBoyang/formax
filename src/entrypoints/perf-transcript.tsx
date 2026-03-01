@@ -7,7 +7,7 @@
  * Run with: bun run perf:transcript
  */
 
-import { clearTerminal } from '../utils/terminal.js'
+import { clearTerminal } from '../shared/utils/terminal.js'
 import { renderTranscriptPerfEntry } from '../services/runtimeUiBridge.js'
 
 function parseArgs(argv: string[]): { count: number } {

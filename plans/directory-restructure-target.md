@@ -205,6 +205,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 tool subline 缩进、前缀符号与渲染样式。
   - 不改 compact error detail 的过滤规则与文案策略。
 
+## 执行状态（Phase C - Slice 9）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/terminal.ts`、`src/utils/terminal.test.ts`、`src/utils/terminal.ansiAudit.test.ts` 迁移到 `src/shared/utils/`。
+  - `entrypoints/*`、`legacy/runLegacyCli.tsx`、`screens/perf/TranscriptPerfScreen.tsx`、`features/commands/registry.ts` 改为引用 `src/shared/utils/terminal`。
+  - `TranscriptPerfScreen` 与 `runLegacyCli` 对应测试的 `vi.mock` 路径同步到新位置。
+  - ANSI audit 白名单路径更新为 `src/shared/utils/terminal.ts`。
+  - 在 `src/utils/terminal.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改终端清屏时机、TTY 检测和 ANSI 样式定义。
+  - 不改命令 registry 的输出语义与文案。
+
 ## 目标结构
 
 ```

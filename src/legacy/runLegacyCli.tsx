@@ -1,4 +1,4 @@
-import { clearTerminal } from '../utils/terminal.js'
+import { clearTerminal } from '../shared/utils/terminal.js'
 import type { App } from '../core/app/createApp.js'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { resolveInitialSession } from './bootstrap/session.js'

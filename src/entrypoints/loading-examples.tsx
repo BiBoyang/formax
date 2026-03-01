@@ -7,7 +7,7 @@
  * Run with: bun run loade
  */
 
-import { clearTerminal } from '../utils/terminal.js'
+import { clearTerminal } from '../shared/utils/terminal.js'
 import { renderLoadingExamplesEntry } from '../services/runtimeUiBridge.js'
 
 async function main() {
