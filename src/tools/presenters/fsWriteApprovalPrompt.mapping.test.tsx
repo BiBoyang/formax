@@ -7,14 +7,14 @@ const mocks = vi.hoisted(() => ({
   menuProps: null as null | { onDecision: (d: any) => void },
 }))
 
-vi.mock('./ConfirmMenu', () => ({
+vi.mock('../../components/ui/ConfirmMenu', () => ({
   ConfirmMenu: (props: any) => {
     mocks.menuProps = props
     return <Text>menu</Text>
   },
 }))
 
-vi.mock('./ApprovalHeader', () => ({
+vi.mock('../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
@@ -48,4 +48,3 @@ describe('FsWriteApprovalPrompt mapping', () => {
     expect(lastFrame()).toContain('menu')
   })
 })
-

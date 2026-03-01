@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../shared/utils/theme'
 import type { ConfirmMenuDecision, EditApprovalDecision } from '../../shared/approvalPromptContracts'
-import { ConfirmMenu } from './ConfirmMenu'
-import { ApprovalHeader } from './ApprovalHeader'
+import { ConfirmMenu } from '../../components/ui/ConfirmMenu'
+import { ApprovalHeader } from '../../components/ui/ApprovalHeader'
 
 export type { EditApprovalDecision } from '../../shared/approvalPromptContracts'
 

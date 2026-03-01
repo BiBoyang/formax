@@ -344,6 +344,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何 shared utils/shared invokables 的实现逻辑与对外函数语义。
   - 不改工具执行流程、UI 渲染逻辑或命令行为。
 
+## 执行状态（Phase C - Slice 22）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/tools/presenters/*ApprovalPrompt.tsx` 中对 `./ConfirmMenu` 与 `./ApprovalHeader` 的依赖切换为直接引用 `src/components/ui/{ConfirmMenu,ApprovalHeader}`。
+  - 生产路径不再依赖这两个 wrapper 文件，降低 `tools/presenters` 与 UI 组件之间的中间层耦合。
+- 明确不做：
+  - 不改审批提示文案、键盘交互与 decision 映射语义。
+  - 不删除现有 wrapper 文件（留待后续切片处理测试收敛）。
+
 ## 目标结构
 
 ```
