@@ -83,6 +83,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 ConfirmMenu 任何键盘交互/焦点/提交语义。
 
+## 执行状态（Phase B - Slice 7）
+
+- 状态：进行中（fallback presenter 解耦，不搬目录）。
+- 本轮已完成：
+  - 新增 `src/components/tool/FallbackToolPresenter.tsx` 承接 fallback presenter 实现。
+  - `src/tools/presenters/fallback.tsx` 降级为兼容 re-export。
+  - `src/components/tool/ToolRouter.tsx` 不再依赖 `src/tools/presenters/fallback`，改为依赖本层组件实现。
+- 明确不做：
+  - 不修改 fallback 的展示逻辑、surface suffix 规则和错误详情渲染规则。
+
 ## 目标结构
 
 ```
