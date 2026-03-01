@@ -5,7 +5,7 @@ import { createToolBlocksPresenter } from '../../../shared/toolPresenterContract
 import type { Msg } from '../../../shared/toolMessageTypes'
 import type { TodoItem } from '../../../shared/todoContracts'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'
-import { ToolIndented } from '../../presenters/ToolUiPrimitives'
+import { ToolIndented } from '../../../components/tool/ToolUiPrimitives'
 import { formatItemCountLabel, summarizeTodoWriteStatus } from '../../../features/tools/presentation/labels'
 
 export const TodoWriteToolPresenter = createToolBlocksPresenter(

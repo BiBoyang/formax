@@ -34,7 +34,7 @@ vi.mock('../../../components/tool/FallbackToolPresenter', () => ({
   FallbackToolPresenter: () => <Text>fallback</Text>,
 }))
 
-vi.mock('../../presenters/ToolUiPrimitives', () => ({
+vi.mock('../../../components/tool/ToolUiPrimitives', () => ({
   ToolHeaderLine: ({ label, params }: { label: string; params: string }) => <Text>{`${label}(${params})`}</Text>,
   ToolSubline: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))

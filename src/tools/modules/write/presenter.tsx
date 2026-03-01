@@ -6,7 +6,7 @@ import { isSameFilePath, formatPlanPathForDisplay } from '../../../shared/utils/
 import type { ToolPresenter } from '../../../shared/toolPresenterContracts'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 import type { Msg } from '../../../shared/toolMessageTypes'
-import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from '../../presenters/ToolUiPrimitives'
+import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolUiPrimitives'
 import { WriteApprovalToolBlock } from './WriteApprovalToolBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../shared/utils/theme'

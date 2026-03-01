@@ -6,7 +6,7 @@ import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPres
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { EditApprovalPrompt } from '../../../components/tool/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
-import { ToolHeaderLine } from '../../presenters/ToolUiPrimitives'
+import { ToolHeaderLine } from '../../../components/tool/ToolUiPrimitives'
 
 export const WebFetchToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const userInput = useUserInputManager()

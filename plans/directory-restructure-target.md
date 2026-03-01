@@ -551,6 +551,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 approval/ask 交互行为、键位语义、decision payload。
   - 不改测试断言语义，仅更新导入目标与兼容层收口。
 
+## 执行状态（Phase C - Slice 42）
+
+- 状态：进行中（目录迁移第一批，低风险，剩余 shim 清理）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/LocalBashPresenter.tsx` 与 `src/tools/presenters/ToolUiPrimitives.tsx` 兼容 shim。
+  - `src/tools/modules/*` 中对 `ToolUiPrimitives` 的导入与相关测试 mock 路径统一切到 `src/components/tool/ToolUiPrimitives`。
+  - `src/tools/presenters/{LocalBashPresenter,ToolUiPrimitives}.test.tsx` 改为直接验证 `src/components/tool/*` 实现。
+- 明确不做：
+  - 不改 LocalBash 呈现逻辑（输出截断、expanded、error 状态）。
+  - 不改 ToolUiPrimitives 的渲染与 pulse 行为。
+
 ## 目标结构
 
 ```
