@@ -333,6 +333,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 custom commands 的扫描/渲染语义。
   - 不改 skill store 的扫描、缓存与加载行为。
 
+## 执行状态（Phase C - Slice 21）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/utils/*` 下 11 个 legacy re-export shim 文件（已全量切换到 `src/shared/utils/*`）。
+  - 删除 `src/invokables/{types.ts,charBudget.ts}` 两个 legacy re-export shim 文件（已切换到 `src/shared/invokables/*`）。
+  - `scripts/layer-contract.config.json` 的 Types 映射移除 `src/utils` 与 `src/invokables` 过渡条目，仅保留 `src/shared` 作为 canonical 类型/纯工具入口。
+- 明确不做：
+  - 不改任何 shared utils/shared invokables 的实现逻辑与对外函数语义。
+  - 不改工具执行流程、UI 渲染逻辑或命令行为。
+
 ## 目标结构
 
 ```

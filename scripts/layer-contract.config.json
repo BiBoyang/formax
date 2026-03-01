@@ -4,8 +4,6 @@
   "layers": {
     "Types": [
       "src/shared",
-      "src/utils",
-      "src/invokables",
       "src/prompts",
       "src/prompts/types.ts",
       "src/streaming/types.ts",
