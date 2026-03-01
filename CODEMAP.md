@@ -82,7 +82,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Hard pruning rules (tool pair invariants + truncation): `src/chat/context/prune.ts`
 - Compaction tail selection (keep last N turns): `src/chat/context/compact.ts`
 - Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
-- Config knobs (defaults + env): `src/config/settings/schema.ts`, `src/core/config/resolve.ts`, `src/config/config.ts`
+- Config knobs (defaults + env): `src/config/settings/schema.ts`, `src/config/settings/resolve.ts`, `src/config/config.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Semantics governance contract (SoT): `docs/contracts/semantics-contract.md`

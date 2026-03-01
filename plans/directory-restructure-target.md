@@ -707,6 +707,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 config schema、file store、paths 的字段定义与行为逻辑，仅调整模块归属。
   - 不改 `core/config/resolve`、`persist`、`show`、`migrate` 的行为。
 
+## 执行状态（Phase C - Slice 56）
+
+- 状态：进行中（目录迁移第一批，低风险，core/config 向 config/settings 下沉）。
+- 本轮已完成：
+  - `src/core/config/{configFiles,resolve,persist,migrate,show}.{ts,test.ts}` 迁移到 `src/config/settings/`。
+  - `src/core/config/{configFiles,resolve,persist,migrate,show}.ts` 保留兼容 re-export，避免一次性修改所有调用方。
+  - `CODEMAP.md` 的 config resolve 事实路径更新到 `src/config/settings/resolve.ts`。
+- 明确不做：
+  - 不改配置解析/持久化/迁移/展示逻辑，仅变更模块归属与导入层次。
+  - 不改 `cli`、`features/commands`、`config loader` 的行为。
+
 ## 目标结构
 
 ```
