@@ -3,7 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { REPL } from '../REPL'
 import type { ChatEngine } from '../../chat/engine'
-import type { RuntimeConfig } from '../../env/config'
+import type { RuntimeConfig } from '../../config/config'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 
 function tick(ms = 5): Promise<void> {

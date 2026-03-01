@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
-import type { RuntimeConfig } from '../../env/config'
+import type { RuntimeConfig } from '../../config/config'
 import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../prompts'

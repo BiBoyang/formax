@@ -7,7 +7,7 @@ const runLegacySetupWizard = vi.fn(async () => {})
 vi.mock('../../adapters/fs/nodeFileStore.js', () => ({
   createNodeFileStore,
 }))
-vi.mock('../../env/config.js', () => ({
+vi.mock('../../config/config.js', () => ({
   loadRuntimeConfig,
 }))
 vi.mock('../../services/runtimeUiBridge.js', () => ({

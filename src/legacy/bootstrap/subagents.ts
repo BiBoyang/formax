@@ -6,7 +6,7 @@ import { createTaskSubAgentToolHandler } from '../../tools/executor/handlers/tas
 import { createTaskToolModule } from '../../tools/modules/task/index.js'
 import { patchTaskToolForSubagents } from '../../tools/patches/taskSubagent.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
-import type { RuntimeConfig } from '../../env/config.js'
+import type { RuntimeConfig } from '../../config/config.js'
 import type { ToolRegistry } from '../../tools/registry.js'
 import type { TaskManager } from '../../tools/runtime/taskManager.js'
 import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'

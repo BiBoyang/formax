@@ -1,7 +1,7 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render } from 'ink-testing-library'
-import type { RuntimeConfig } from '../env/config'
+import type { RuntimeConfig } from '../config/config'
 
 let mockState: any
 let mockActions: any

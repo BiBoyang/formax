@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Box, Text } from 'ink'
 import type { ChatEngine, ChatHistory } from '../chat/engine'
-import { loadRuntimeConfig, type RuntimeConfig } from '../env/config'
+import { loadRuntimeConfig, type RuntimeConfig } from '../config/config'
 import type { ToolDefinition } from '../tools/types'
 import type { ToolRegistry } from '../tools/registry'
 import { useReplController } from '../features/repl/useReplController'

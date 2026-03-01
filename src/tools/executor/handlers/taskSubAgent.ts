@@ -6,7 +6,7 @@ import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'
 import { formatToolCallParts, formatToolResult } from '../../../shared/utils/toolFormatting'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
-import { loadRuntimeConfig } from '../../../env/config.js'
+import { loadRuntimeConfig } from '../../../config/config.js'
 import { parseModelTier, resolveModelForTier, type ModelTier } from '../../../config/modelTier.js'
 import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow.js'
 

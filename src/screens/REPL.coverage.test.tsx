@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render } from 'ink-testing-library'
 import { Text } from 'ink'
-import type { RuntimeConfig } from '../env/config'
+import type { RuntimeConfig } from '../config/config'
 
 let mockState: any
 let mockActions: any
@@ -23,8 +23,8 @@ const loadRuntimeConfigMock = vi.fn()
 const loadWorkspaceRootsMock = vi.fn(async () => ({ workspaceRoots: ['/ws'], warnings: ['warn'] }))
 const persistDefaultModelTierMock = vi.fn(async () => {})
 
-vi.mock('../env/config', async () => {
-  const actual = (await vi.importActual('../env/config')) as Record<string, unknown>
+vi.mock('../config/config', async () => {
+  const actual = (await vi.importActual('../config/config')) as Record<string, unknown>
   return {
     ...actual,
     loadRuntimeConfig: (...args: any[]) => loadRuntimeConfigMock(...args),

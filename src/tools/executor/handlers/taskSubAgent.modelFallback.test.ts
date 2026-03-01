@@ -4,7 +4,7 @@ import type { SubAgentRunner } from '../../../subagents/runner'
 import type { ToolCall } from '../../types'
 import { TaskManager } from '../../runtime/taskManager'
 
-vi.mock('../../../env/config.js', () => ({
+vi.mock('../../../config/config.js', () => ({
   loadRuntimeConfig: async () => ({
     llm: {
       provider: 'anthropic',

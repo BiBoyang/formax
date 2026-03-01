@@ -1,5 +1,5 @@
 import pkg from '../../../package.json'
-import type { RuntimeConfig } from '../../env/config'
+import type { RuntimeConfig } from '../../config/config'
 import type { TaskManager } from '../../tools/runtime/taskManager'
 import type { PlanSessionManager } from '../../features/repl/planSession'
 import { createSlashCommandRegistry } from '../../features/commands/registry'

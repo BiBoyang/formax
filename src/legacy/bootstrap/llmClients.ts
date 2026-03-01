@@ -1,4 +1,4 @@
-import type { RuntimeConfig } from '../../env/config.js'
+import type { RuntimeConfig } from '../../config/config.js'
 import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 import { createAnthropicCompatibleStreamClient } from '../../streaming/index.js'
 

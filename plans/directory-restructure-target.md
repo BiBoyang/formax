@@ -674,6 +674,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 runtime flags 的解析规则与默认值，仅切换模块归属。
   - 不改 REPL/runtime 启动行为、chat engine 流程与 bash mode 逻辑。
 
+## 执行状态（Phase C - Slice 53）
+
+- 状态：进行中（目录迁移第一批，低风险，Config 目录扩展）。
+- 本轮已完成：
+  - `src/env/config.ts` 与测试迁移到 `src/config/config.{ts,test.ts}`。
+  - `src/env/config.ts` 保留兼容 re-export（桥接到 `src/config/config.js`）。
+  - `services/runtimeUiBridge`、`cli/main`、`screens/REPL`、`features/repl`、`legacy/bootstrap`、`tools/executor/taskSubAgent` 等调用方导入统一切到 `src/config/config`。
+  - `CODEMAP.md` 的 runtime config 入口更新到 `src/config/config.ts`。
+- 明确不做：
+  - 不改 runtime config 解析/合并逻辑与默认值语义。
+  - 不改 REPL/chat/taskSubAgent 的行为，仅调整配置模块归属与导入路径。
+
 ## 目标结构
 
 ```

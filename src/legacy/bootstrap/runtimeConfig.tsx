@@ -1,5 +1,5 @@
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
-import { loadRuntimeConfig } from '../../env/config.js'
+import { loadRuntimeConfig } from '../../config/config.js'
 import { runLegacySetupWizard } from '../../services/runtimeUiBridge.js'
 import type { BootstrapContext } from './types.js'
 

@@ -1,6 +1,6 @@
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { AuditLog } from '../../adapters/audit/auditLog.js'
-import type { RuntimeConfig } from '../../env/config.js'
+import type { RuntimeConfig } from '../../config/config.js'
 import type { ChatEngine } from '../../chat/engine.js'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { ToolPreflight, ToolExecutor } from '../../tools/executor/index.js'

@@ -4,7 +4,7 @@ import { testSetupConnection } from '../../adapters/setup/connectionTest'
 import { configShow } from '../../core/config/show'
 import { runDoctor } from '../../core/diagnostics/doctor'
 import { formatDoctorHuman } from '../../core/diagnostics/format'
-import type { RuntimeConfig } from '../../env/config'
+import type { RuntimeConfig } from '../../config/config'
 import { getConfigPaths } from '../../config/configPaths'
 
 export async function runReplDoctor(args: {

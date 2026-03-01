@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RuntimeConfig } from '../../env/config.js'
+import type { RuntimeConfig } from '../../config/config.js'
 
 const {
   checkWritableDir,

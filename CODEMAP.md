@@ -82,7 +82,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Hard pruning rules (tool pair invariants + truncation): `src/chat/context/prune.ts`
 - Compaction tail selection (keep last N turns): `src/chat/context/compact.ts`
 - Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
-- Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/env/config.ts`
+- Config knobs (defaults + env): `src/core/config/schema.ts`, `src/core/config/resolve.ts`, `src/config/config.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Semantics governance contract (SoT): `docs/contracts/semantics-contract.md`
@@ -232,7 +232,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - CLI wires suggestions/registry into REPL: `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
 
 ## Config / Auth / Paths
-- Runtime config loader: `src/env/config.ts`
+- Runtime config loader: `src/config/config.ts`
 - Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `src/config/runtimeFlags.ts`
 - Config paths + migration/legacy behavior: `src/adapters/fs/configPaths.ts`
 - Reading config files (auth.json, etc): `src/adapters/fs/configFiles.ts`

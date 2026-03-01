@@ -1,5 +1,5 @@
 import type { ChatEngine } from '../../../../chat/engine'
-import type { RuntimeConfig } from '../../../../env/config'
+import type { RuntimeConfig } from '../../../../config/config'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { ReplMode } from '../../mode'
