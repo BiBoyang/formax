@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import { getTheme } from '../utils/theme.js'
+import { getTheme } from '../shared/utils/theme.js'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine.js'
 import { SelectList } from '../components/ui/SelectList.js'
 import TextInput from '../components/ui/TextInput.js'

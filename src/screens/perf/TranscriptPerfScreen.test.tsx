@@ -32,7 +32,7 @@ vi.mock('../../shared/utils/terminal', () => ({
   clearTerminal: mocks.clearTerminal,
 }))
 
-vi.mock('../../utils/theme', () => ({
+vi.mock('../../shared/utils/theme', () => ({
   getTheme: () => ({
     replUserPromptFg: 'white',
     replUserPromptBg: 'blue',

@@ -1,6 +1,6 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Text, useInput } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../features/repl/keys/escapeSequences.js'

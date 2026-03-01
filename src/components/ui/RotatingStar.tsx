@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Text } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 
 const STAR_SYMBOLS = ['·', '✢', '✳', '✶', '✻', '✽'] as const
 

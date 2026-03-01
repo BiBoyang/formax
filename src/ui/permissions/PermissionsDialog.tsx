@@ -5,7 +5,7 @@ import {
   type LoadedPermissions,
   type PermissionListKind,
 } from '../../features/commands/permissionsDialogService.js'
-import { getTheme } from '../../utils/theme.js'
+import { getTheme } from '../../shared/utils/theme.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'

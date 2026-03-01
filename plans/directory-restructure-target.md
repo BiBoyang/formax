@@ -282,6 +282,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任意 presenter 的渲染逻辑、文案、样式规则。
   - 不改主题定义和颜色值，仅做导入路径收敛。
 
+## 执行状态（Phase C - Slice 16）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/components/**`、`src/screens/**`、`src/ui/**` 下剩余 `utils/theme` 依赖切换为 `shared/utils/theme`（含相关测试 mock 与类型导入）。
+- 明确不做：
+  - 不改 UI 文案、布局、交互和样式行为。
+  - 不改主题定义，仅做导入路径收敛。
+
 ## 目标结构
 
 ```

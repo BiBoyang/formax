@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { getTheme } from '../../utils/theme.js'
+import { getTheme } from '../../shared/utils/theme.js'
 import {
   AddHookView,
   AddMatcherView,

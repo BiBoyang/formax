@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { Box, Text, useStdout } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 
 export function ApprovalHeader({ title }: { title: string }): React.ReactNode {
   const theme = getTheme()

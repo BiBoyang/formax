@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import type { ConfirmMenuDecision, ConfirmMenuOption } from '../../shared/approvalPromptContracts'
 import type { InputScopeId } from '../../features/repl/inputScopeContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'

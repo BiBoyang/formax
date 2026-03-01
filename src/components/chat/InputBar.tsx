@@ -1,7 +1,7 @@
 import React, { memo } from 'react'
 import { Box, Text } from 'ink'
 import TextInput from '../ui/TextInput'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 
 type Props = {
   value: string

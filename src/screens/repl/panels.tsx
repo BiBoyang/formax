@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import type { Msg } from '../../components/tool/ToolMessage'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import { formatTokens, sumTokens, truncate } from './format'
 
 export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.ReactNode {

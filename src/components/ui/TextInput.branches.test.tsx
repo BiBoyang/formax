@@ -16,7 +16,7 @@ vi.mock('ink', async () => {
   }
 })
 
-vi.mock('../../utils/theme', () => ({
+vi.mock('../../shared/utils/theme', () => ({
   getTheme: () => ({ text: 'white', secondaryText: 'gray' }),
 }))
 

@@ -23,7 +23,7 @@ import { ToolMessage } from '../../components/tool/ToolMessage'
 import TextInput from '../../components/ui/TextInput'
 import { InputScopeProvider, useScopedRoutedInput } from '../../features/repl/inputScopeContext'
 import { clearTerminal } from '../../shared/utils/terminal'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import { ReplTranscript } from '../repl/transcript'
 
 type Props = {

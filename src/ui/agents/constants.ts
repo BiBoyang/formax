@@ -1,4 +1,4 @@
-import type { Theme } from '../../utils/theme.js'
+import type { Theme } from '../../shared/utils/theme.js'
 
 export type AgentListItem = { name: string; description: string }
 

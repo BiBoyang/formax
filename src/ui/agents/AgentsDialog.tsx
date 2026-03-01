@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useReducer } 
 import { Box, Text } from 'ink'
 import TextInput from '../../components/ui/TextInput'
 import { RotatingStar } from '../../components/ui/RotatingStar'
-import { getTheme } from '../../utils/theme'
+import { getTheme } from '../../shared/utils/theme'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getKeyName, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'

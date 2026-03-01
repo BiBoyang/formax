@@ -5,7 +5,7 @@ import { LoadingStatusLine } from '../../components/ui/LoadingStatusLine.js'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext.js'
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
-import { getTheme } from '../../utils/theme.js'
+import { getTheme } from '../../shared/utils/theme.js'
 import type { ModelTier } from '../../env/modelTier.js'
 
 const MODEL_SCOPE = 'overlay:model' as const

@@ -6,7 +6,7 @@ import { useScopeActivation, useScopedInput } from '../../features/repl/inputSco
 import { consumeBufferedArrow } from '../../features/repl/keys/escapeSequences.js'
 import { getInputToken, getVerticalArrowKeyDelta, isReturnKeyToken } from '../../features/repl/keys/keyTokens.js'
 import { listResumeDialogSessions, loadResumeDialogPreview, type ResumeSessionSummary } from '../../features/commands/resumeDialogService.js'
-import { getTheme } from '../../utils/theme.js'
+import { getTheme } from '../../shared/utils/theme.js'
 
 import { MAX_SESSIONS, MAX_VISIBLE_SESSIONS, RESUME_SCOPE } from './constants.js'
 import { dialogReducer, initialDialogState } from './reducer.js'

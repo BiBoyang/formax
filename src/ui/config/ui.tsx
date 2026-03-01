@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import { Box, Text } from 'ink'
-import type { Theme } from '../../utils/theme.js'
+import type { Theme } from '../../shared/utils/theme.js'
 import type { ConfigRow, ConfigTab, OutputStyleOption } from './constants.js'
 import { TABS } from './constants.js'
 

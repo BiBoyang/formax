@@ -19,7 +19,7 @@ import type { ReplMode } from '../features/repl/mode'
 import { useUserInputManager } from '../tools/runtime/userInputContext'
 import { createPlanSessionManager } from '../features/repl/planSession'
 import { PlanProvider } from '../features/repl/planContext'
-import { getTheme } from '../utils/theme'
+import { getTheme } from '../shared/utils/theme'
 import {
   loadWorkspaceRoots,
   persistDefaultModelTier,
