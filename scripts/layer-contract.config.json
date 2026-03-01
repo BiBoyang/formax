@@ -20,8 +20,6 @@
       "src/features/repl/sessionSave",
       "src/features/commands/CommandStore.ts",
       "src/features/skills",
-      "src/commands/CommandStore.ts",
-      "src/skills/SkillStore.ts",
       "src/core/models/models.ts",
       "src/core/models/modelContextCatalog.ts",
       "src/core/errors/codes.ts",
@@ -50,8 +48,7 @@
       "src/features/semantics/projection",
       "src/features/semantics/adapters",
       "src/features/semantics/runtime",
-      "src/features/semantics/selectors",
-      "src/commands/render.ts"
+      "src/features/semantics/selectors"
     ],
     "Runtime": [
       "src/runtime",

@@ -323,6 +323,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 `src/core/models/*` 的实现逻辑、错误映射或网络请求行为。
   - 不改 `runtimeUiBridge` 等仍位于 `src/services/` 的模块职责。
 
+## 执行状态（Phase C - Slice 20）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/commands/CommandStore.ts`、`src/commands/render.ts` 与 `src/skills/SkillStore.ts` 三个已无调用方的兼容 re-export shim。
+  - `scripts/layer-contract.config.json` 移除上述三项过渡映射条目，仅保留 `src/features/{commands,skills}` canonical 映射。
+- 明确不做：
+  - 不改 custom commands 的扫描/渲染语义。
+  - 不改 skill store 的扫描、缓存与加载行为。
+
 ## 目标结构
 
 ```
