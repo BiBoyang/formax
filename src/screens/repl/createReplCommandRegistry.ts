@@ -5,7 +5,7 @@ import type { PlanSessionManager } from '../../features/repl/planSession'
 import { createSlashCommandRegistry } from '../../features/commands/registry'
 import { runReplDoctor } from '../../features/commands/replDoctorService'
 import { createStatusSnapshot } from '../../core/diagnostics/status'
-import type { ModelTier } from '../../env/modelTier'
+import type { ModelTier } from '../../config/modelTier'
 
 export function createReplCommandRegistry(args: {
   cfg: RuntimeConfig

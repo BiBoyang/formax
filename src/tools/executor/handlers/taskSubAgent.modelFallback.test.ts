@@ -21,7 +21,7 @@ vi.mock('../../../env/config.js', () => ({
   }),
 }))
 
-vi.mock('../../../env/modelTier.js', () => ({
+vi.mock('../../../config/modelTier.js', () => ({
   parseModelTier: (raw: unknown) => {
     const v = String(raw || '').toLowerCase()
     return v === 'sonnet' || v === 'opus' || v === 'haiku' ? v : null

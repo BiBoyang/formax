@@ -628,6 +628,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何消息投影、流式拼接、surface reset 或渲染分支逻辑。
   - 不改 `ToolMessage` 组件实现与展示行为。
 
+## 执行状态（Phase C - Slice 49）
+
+- 状态：进行中（目录迁移第一批，低风险，Config 目录启动）。
+- 本轮已完成：
+  - `src/env/modelTier.ts` 与对应测试迁移到 `src/config/modelTier.{ts,test.ts}`。
+  - `src/env/modelTier.ts` 保留兼容 re-export（桥接到 `src/config/modelTier.js`），降低一次性迁移风险。
+  - `features/commands`、`screens`、`tools/executor`、`ui/model` 的 `modelTier` 导入统一改为 `src/config/modelTier`。
+  - `scripts/layer-contract.config.json` 的 Config 层映射新增 `src/config`。
+- 明确不做：
+  - 不改 model tier 解析、默认模型选择与 env 覆盖优先级语义。
+  - 不改 REPL/TaskSubAgent 的业务流程，仅切换配置模块归属。
+
 ## 目标结构
 
 ```

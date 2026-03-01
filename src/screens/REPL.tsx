@@ -47,7 +47,7 @@ import { projectCompactPrimaryTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../env/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/ui/ui'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared/shared'
-import { parseModelTier, resolveModelForTier, type ModelTier } from '../env/modelTier'
+import { parseModelTier, resolveModelForTier, type ModelTier } from '../config/modelTier'
 
 type Props = {
   onExit?: () => void

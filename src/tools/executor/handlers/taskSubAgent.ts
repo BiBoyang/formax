@@ -7,7 +7,7 @@ import { formatToolCallParts, formatToolResult } from '../../../shared/utils/too
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { loadRuntimeConfig } from '../../../env/config.js'
-import { parseModelTier, resolveModelForTier, type ModelTier } from '../../../env/modelTier.js'
+import { parseModelTier, resolveModelForTier, type ModelTier } from '../../../config/modelTier.js'
 import { getKnownContextWindowTokens } from '../../../chat/context/modelWindow.js'
 
 type NestedToolEntry = {

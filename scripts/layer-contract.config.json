@@ -10,6 +10,7 @@
       "src/features/semantics/core"
     ],
     "Config": [
+      "src/config",
       "src/core/config",
       "src/env"
     ],

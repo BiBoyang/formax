@@ -10,7 +10,7 @@ import { getConfigPaths } from '../../adapters/fs/configPaths'
 import { createCommandStore } from './CommandStore'
 import { buildFileCommandContent } from './render'
 import { ansiBold, ansiGray, ansiStrike } from '../../shared/utils/terminal'
-import { parseModelTier, type ModelTier } from '../../env/modelTier.js'
+import { parseModelTier, type ModelTier } from '../../config/modelTier.js'
 
 export type SlashCommandSpec = {
   id: string
