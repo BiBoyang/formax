@@ -230,6 +230,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 Ink stdout 安全代理逻辑与默认行列回退策略。
   - 不改 static output reset 行为与异常吞掉策略。
 
+## 执行状态（Phase C - Slice 11）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/consoleLogger.ts` 与 `src/utils/consoleLogger.test.ts` 迁移到 `src/shared/utils/`。
+  - `subagents/registry.ts` 改为引用 `src/shared/utils/consoleLogger`。
+  - 在 `src/utils/consoleLogger.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改 console logger 的 WebSocket 服务、HTML 输出和序列化逻辑。
+  - 不改 subagent 运行时日志的触发时机与日志内容。
+
 ## 目标结构
 
 ```
