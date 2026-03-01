@@ -3,7 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
-import { FsReadApprovalPrompt } from './fsReadApprovalPrompt'
+import { FsReadApprovalPrompt } from '../../components/tool/fsReadApprovalPrompt'
 
 function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

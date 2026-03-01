@@ -29,7 +29,7 @@ vi.mock('../../components/tool/bashApprovalPrompt', () => ({
   },
 }))
 
-import { BashApprovalToolBlock } from './BashApprovalToolBlock.js'
+import { BashApprovalToolBlock } from '../../components/tool/BashApprovalToolBlock.js'
 
 describe('BashApprovalToolBlock', () => {
   beforeEach(() => {

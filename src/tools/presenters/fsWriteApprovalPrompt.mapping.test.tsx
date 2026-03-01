@@ -18,7 +18,7 @@ vi.mock('../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
-import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
+import { FsWriteApprovalPrompt } from '../../components/tool/fsWriteApprovalPrompt'
 
 describe('FsWriteApprovalPrompt mapping', () => {
   beforeEach(() => {

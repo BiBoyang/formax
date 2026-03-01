@@ -32,7 +32,7 @@ vi.mock('../../features/repl/inputScopeContext', () => ({
   },
 }))
 
-import { AskUserQuestionToolBlock } from './AskUserQuestionToolBlock.js'
+import { AskUserQuestionToolBlock } from '../../components/tool/AskUserQuestionToolBlock.js'
 
 function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -128,6 +128,7 @@ describe('AskUserQuestionToolBlock', () => {
     // "2" points to the synthetic "Type something." row for single-select.
     await input('2', {})
     await input('x', {})
+    await waitForText(view.lastFrame, 'x')
     await input('', { return: true })
     await waitForText(view.lastFrame, 'Review your answers')
     await input('', { return: true })

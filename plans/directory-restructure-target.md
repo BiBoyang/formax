@@ -540,6 +540,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 approval/ask 交互语义与 payload 映射。
   - 不改 ConfirmMenu/ApprovalHeader 视觉与键盘交互规则。
 
+## 执行状态（Phase C - Slice 41）
+
+- 状态：进行中（目录迁移第一批，低风险，批量 shim 清理）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/` 下以下兼容 shim：`AskUserQuestionToolBlock`、`BashApprovalToolBlock`、`FsReadApprovalToolBlock`、`bashApprovalPrompt`、`editApprovalPrompt`、`fsReadApprovalPrompt`、`fsWriteApprovalPrompt`、`skillApprovalPrompt`。
+  - 对应 `src/tools/presenters/*.test.tsx` 全部改为直接引用 `src/components/tool/*`。
+  - `docs/contracts/interactive-input-contract.md` 的 AskUserQuestion 关联路径更新到组件层事实路径。
+- 明确不做：
+  - 不改 approval/ask 交互行为、键位语义、decision payload。
+  - 不改测试断言语义，仅更新导入目标与兼容层收口。
+
 ## 目标结构
 
 ```

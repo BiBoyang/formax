@@ -24,7 +24,7 @@ vi.mock('../../components/tool/fsReadApprovalPrompt', () => ({
   },
 }))
 
-import { FsReadApprovalToolBlock } from './FsReadApprovalToolBlock'
+import { FsReadApprovalToolBlock } from '../../components/tool/FsReadApprovalToolBlock'
 
 describe('FsReadApprovalToolBlock', () => {
   beforeEach(() => {

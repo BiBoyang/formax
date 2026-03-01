@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type React from 'react'
 import { render } from 'ink-testing-library'
-import { __testOnlyAskUserQuestionToolBlock } from './AskUserQuestionToolBlock'
+import { __testOnlyAskUserQuestionToolBlock } from '../../components/tool/AskUserQuestionToolBlock'
 
 type Q = {
   question: string
