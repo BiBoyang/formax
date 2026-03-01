@@ -1006,6 +1006,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何 glob 工具行为；仅移除未接入路径。
 
+## 执行状态（Phase C - Slice 83）
+
+- 状态：进行中（目录迁移第二批，门禁路径对齐）。
+- 本轮已完成：
+  - `scripts/check-core-boundaries.mjs` 中 commands/skills 扫描根从旧路径 `src/{commands,skills}` 切换为 `src/features/{commands,skills}`。
+  - 移除脚本内对 `src/ui` 目录常量的相对路径判定分支，保持与当前 `src/tui` 目录事实一致。
+  - 保留对非相对导入字符串 `src/ui/` 的兜底拦截，避免 legacy 路径回流。
+- 明确不做：
+  - 本轮不调整 core 包依赖白名单与 core→config 依赖规则，仅做目录路径事实对齐。
+
 ## 目标结构
 
 ```

@@ -6,10 +6,10 @@ const REPO_ROOT = process.cwd()
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
 const CORE_ROOT = path.join(SRC_ROOT, 'core')
 const ADAPTERS_ROOT = path.join(SRC_ROOT, 'adapters')
-const COMMANDS_ROOT = path.join(SRC_ROOT, 'commands')
-const SKILLS_ROOT = path.join(SRC_ROOT, 'skills')
+const FEATURES_ROOT = path.join(SRC_ROOT, 'features')
+const COMMANDS_ROOT = path.join(FEATURES_ROOT, 'commands')
+const SKILLS_ROOT = path.join(FEATURES_ROOT, 'skills')
 const TUI_ROOT = path.join(SRC_ROOT, 'tui')
-const LEGACY_UI_ROOT = path.join(SRC_ROOT, 'ui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const TOOLS_MODULES_ROOT = path.join(SRC_ROOT, 'tools', 'modules')
 
@@ -105,7 +105,7 @@ function checkCommandsOrSkillsImports(file, specifier, opts) {
 
   if (raw.startsWith('.') || raw.startsWith('..')) {
     const resolved = path.normalize(path.resolve(path.dirname(file), raw))
-    if (isUnderDir(resolved, TUI_ROOT) || isUnderDir(resolved, LEGACY_UI_ROOT)) {
+    if (isUnderDir(resolved, TUI_ROOT)) {
       return 'May not import from src/tui/**'
     }
     if (isUnderDir(resolved, SCREENS_ROOT)) return 'May not import from src/screens/**'
