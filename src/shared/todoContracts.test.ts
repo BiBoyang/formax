@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { TODO_STATUSES, type TodoItem, type TodoStatus } from './todoContracts'
 
 describe('todoContracts', () => {

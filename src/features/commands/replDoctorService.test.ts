@@ -52,34 +52,28 @@ function makeRuntimeConfig(): RuntimeConfig {
       model: 'gpt-4o-mini',
       timeoutMs: 30_000,
       thinkingMode: false,
-      contextWindowTokens: null,
+      contextWindowTokens: 200_000,
     },
     paths: {
-      configDir: '/cfg',
-      globalConfigDir: '/cfg',
-      projectConfigDir: '/repo/.formax',
-      historyDir: '/cfg/history',
       logsDir: '/cfg/logs',
       planDir: '/cfg/plans',
       subagentsDir: '/cfg/subagents',
-      commandDir: '/cfg/commands',
-      hooksDir: '/cfg/hooks',
-    },
-    auth: {
-      method: 'apikey',
-      useCodexAuth: false,
-    },
-    model: {
-      defaultModel: '',
-      baselineModels: [],
     },
     context: {
       effectiveContextWindowPercent: 0.8,
       autoCompactTokenLimitPercent: 0.9,
       baselineTokens: 0,
+      compactKeepLastTurns: 4,
+      enableAutoCompact: true,
+      autoCompactMinTurnsBetweenRuns: 8,
     },
-    execution: {
-      maxOutputChars: 12_000,
+    ui: {
+      assistantTextMode: 'stream',
+      promptProfile: 'lite',
+      showContextMeter: true,
+      showAutoCompactNotice: true,
+      outputStyle: 'default',
+      verboseOutput: false,
     },
   }
 }

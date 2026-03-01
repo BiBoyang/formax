@@ -506,7 +506,7 @@ describe('permissions store (merged user/project settings)', () => {
   })
 
   it('continues write when existing settings cannot be read', async () => {
-    const writeJsonAtomic = vi.fn(async () => {})
+    const writeJsonAtomic = vi.fn(async (_filePath: string, _value: unknown) => {})
     const fileStore: FileStore = {
       exists: async () => true,
       readText: async () => {

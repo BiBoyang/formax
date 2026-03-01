@@ -11,12 +11,13 @@ describe('prompts/init', () => {
 
   it('buildInitCommandContent wraps command banner and prompt in text blocks', () => {
     const blocks = buildInitCommandContent()
+    const promptBlock = blocks[1] as { type?: string; text?: string }
     expect(blocks).toHaveLength(2)
     expect(blocks[0]).toEqual({
       type: 'text',
       text: '<command-message>init is analyzing your codebase…</command-message>\n<command-name>/init</command-name>',
     })
-    expect(blocks[1].type).toBe('text')
-    expect(blocks[1].text).toBe(buildInitPrompt())
+    expect(promptBlock.type).toBe('text')
+    expect(promptBlock.text).toBe(buildInitPrompt())
   })
 })

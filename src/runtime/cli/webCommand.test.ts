@@ -49,31 +49,36 @@ describe('parseWebCommandArgs', () => {
     const parsed = parseWebCommandArgs(['--help'])
     expect(parsed.ok).toBe(false)
     if (parsed.ok) return
-    expect(parsed.message).toBe('__HELP__')
+    const parseError = parsed as { ok: false; message: string }
+    expect(parseError.message).toBe('__HELP__')
   })
 
   it('returns error for unknown arguments', () => {
     const parsed = parseWebCommandArgs(['--wat'])
     expect(parsed.ok).toBe(false)
     if (parsed.ok) return
-    expect(parsed.message).toContain('Unknown argument')
+    const parseError = parsed as { ok: false; message: string }
+    expect(parseError.message).toContain('Unknown argument')
   })
 
   it('returns error for missing option values', () => {
     const missingHost = parseWebCommandArgs(['--host'])
     expect(missingHost.ok).toBe(false)
     if (missingHost.ok) return
-    expect(missingHost.message).toContain('Missing value for --host')
+    const hostError = missingHost as { ok: false; message: string }
+    expect(hostError.message).toContain('Missing value for --host')
 
     const missingUiPort = parseWebCommandArgs(['--ui-port'])
     expect(missingUiPort.ok).toBe(false)
     if (missingUiPort.ok) return
-    expect(missingUiPort.message).toContain('Missing value for --ui-port')
+    const uiPortError = missingUiPort as { ok: false; message: string }
+    expect(uiPortError.message).toContain('Missing value for --ui-port')
 
     const missingBridgePort = parseWebCommandArgs(['--bridge-port'])
     expect(missingBridgePort.ok).toBe(false)
     if (missingBridgePort.ok) return
-    expect(missingBridgePort.message).toContain('Missing value for --bridge-port')
+    const bridgePortError = missingBridgePort as { ok: false; message: string }
+    expect(bridgePortError.message).toContain('Missing value for --bridge-port')
   })
 
   it('handles non-Error throws while parsing args', () => {
@@ -87,7 +92,8 @@ describe('parseWebCommandArgs', () => {
     const parsed = parseWebCommandArgs(args)
     expect(parsed.ok).toBe(false)
     if (parsed.ok) return
-    expect(parsed.message).toBe('boom')
+    const parseError = parsed as { ok: false; message: string }
+    expect(parseError.message).toBe('boom')
   })
 })
 

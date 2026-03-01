@@ -156,7 +156,9 @@ describe('parseServeCommandArgs', () => {
 
     const unknown = parseServeCommandArgs(['--wat'])
     expect(unknown.ok).toBe(false)
-    if (!unknown.ok) expect(unknown.message).toContain('Unknown argument')
+    if (unknown.ok) return
+    const parseError = unknown as { ok: false; message: string }
+    expect(parseError.message).toContain('Unknown argument')
   })
 
   it('validates origin protocol and non-empty token/tls/audit strings', () => {

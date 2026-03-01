@@ -29,7 +29,6 @@ function createFileStore(entries: Record<string, string>, opts?: { throwRead?: s
     }),
     writeTextAtomic: vi.fn(async () => {}),
     writeJsonAtomic: vi.fn(async () => {}),
-    mkdirp: vi.fn(async () => {}),
   }
 }
 

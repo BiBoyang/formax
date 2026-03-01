@@ -61,6 +61,9 @@ describe('diagnostics format', () => {
           globalConfigPath: '/cfg/config.json',
           globalAuthPath: '/cfg/auth.json',
           globalRulesPath: '/cfg/rules.json',
+          legacyConfigPath: '/legacy/config.json',
+          legacyAuthPath: '/legacy/auth.json',
+          legacyRulesPath: '/legacy/rules.json',
           projectConfigPath: '/repo/.formax/config.json',
           projectRulesPath: '/repo/.formax/rules.json',
         },
@@ -135,6 +138,9 @@ describe('diagnostics format', () => {
           globalConfigPath: '/cfg/config.json',
           globalAuthPath: '/cfg/auth.json',
           globalRulesPath: '/cfg/rules.json',
+          legacyConfigPath: '/legacy/config.json',
+          legacyAuthPath: '/legacy/auth.json',
+          legacyRulesPath: '/legacy/rules.json',
           projectConfigPath: '/repo/.formax/config.json',
           projectRulesPath: '/repo/.formax/rules.json',
         },
@@ -148,6 +154,7 @@ describe('diagnostics format', () => {
         auth: null,
         sources: {},
       },
+      policySummary: '',
       warnings: [],
     }
 

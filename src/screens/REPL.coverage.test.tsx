@@ -27,7 +27,7 @@ vi.mock('../config/config', async () => {
   const actual = (await vi.importActual('../config/config')) as Record<string, unknown>
   return {
     ...actual,
-    loadRuntimeConfig: (...args: any[]) => loadRuntimeConfigMock(...args),
+    loadRuntimeConfig: loadRuntimeConfigMock,
   }
 })
 
@@ -35,8 +35,8 @@ vi.mock('../features/commands/replEnvironmentService', async () => {
   const actual = (await vi.importActual('../features/commands/replEnvironmentService')) as Record<string, unknown>
   return {
     ...actual,
-    loadWorkspaceRoots: (...args: any[]) => loadWorkspaceRootsMock(...args),
-    persistDefaultModelTier: (...args: any[]) => persistDefaultModelTierMock(...args),
+    loadWorkspaceRoots: loadWorkspaceRootsMock,
+    persistDefaultModelTier: persistDefaultModelTierMock,
     resolveUserAgentsDir: () => '/tmp/user-agents',
   }
 })
