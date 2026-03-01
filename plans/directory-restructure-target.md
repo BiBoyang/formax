@@ -996,6 +996,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不修改错误摘要筛选规则（pattern 集合与返回策略保持不变），仅调整文件归属与导入路径。
 
+## 执行状态（Phase C - Slice 82）
+
+- 状态：进行中（目录迁移第二批，dead util 收敛）。
+- 本轮已完成：
+  - 删除无调用文件 `src/tools/utils/globPattern.ts`。
+  - 全仓复扫 `globPatternToRegex` 符号，确认无任何调用方。
+  - 验证通过：`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改任何 glob 工具行为；仅移除未接入路径。
+
 ## 目标结构
 
 ```
