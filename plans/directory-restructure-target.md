@@ -487,6 +487,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 Approval preview 的布局、文案与 remaining lines 计算规则。
   - 不改 approval 流程和交互语义。
 
+## 执行状态（Phase C - Slice 36）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/PatchPreview.tsx` 兼容 shim（已无生产调用方）。
+  - `src/tools/presenters/PatchPreview.test.tsx` 改为直接验证 `src/components/tool/PatchPreview.tsx`。
+- 明确不做：
+  - 不改 patch diff 算法、行号显示策略与截断规则。
+  - 不改 edit 审批流的 UI 文案与交互语义。
+
 ## 目标结构
 
 ```

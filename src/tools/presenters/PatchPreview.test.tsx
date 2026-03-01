@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { patchPreviewTestExports, PatchPreview } from './PatchPreview'
+import { patchPreviewTestExports, PatchPreview } from '../../components/tool/PatchPreview'
 
 describe('PatchPreview', () => {
   it('aligns unchanged lines with +/- lines', () => {
