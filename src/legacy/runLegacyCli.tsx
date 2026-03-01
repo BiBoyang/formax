@@ -1,8 +1,8 @@
 import { clearTerminal } from '../shared/utils/terminal.js'
 import type { App } from '../core/app/createApp.js'
 import { createRuntime } from '../runtime/createRuntime.js'
-import { resolveInitialSession } from './bootstrap/session.js'
-import { renderReplApp } from './bootstrap/renderReplApp.js'
+import { resolveInitialSession } from '../runtime/bootstrap/session.js'
+import { renderReplApp } from '../runtime/bootstrap/renderReplApp.js'
 import { resetInkStaticOutputForStdout } from '../shared/utils/inkStreams.js'
 
 export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forceSetup?: boolean } = {}): Promise<void> {

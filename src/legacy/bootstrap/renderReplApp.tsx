@@ -1,1 +1,1 @@
-export { renderLegacyReplApp as renderReplApp } from '../../services/runtimeUiBridge.js'
+export * from '../../runtime/bootstrap/renderReplApp.js'

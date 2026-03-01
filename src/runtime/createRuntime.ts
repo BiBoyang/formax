@@ -1,11 +1,11 @@
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
-import { createChatRuntime } from '../legacy/bootstrap/chatRuntime.js'
-import { createLlmClients, type LlmClients } from '../legacy/bootstrap/llmClients.js'
-import { createPolicyAndHooksRuntime, type PolicyHooksRuntime } from '../legacy/bootstrap/policyHooks.js'
-import { createRuntimeConfigContext } from '../legacy/bootstrap/runtimeConfig.js'
-import type { BootstrapContext } from '../legacy/bootstrap/types.js'
-import { createSubagentRuntime, type SubagentRuntime } from '../legacy/bootstrap/subagents.js'
-import { createToolingRuntime, type ToolingRuntime } from '../legacy/bootstrap/tooling.js'
+import { createChatRuntime } from './bootstrap/chatRuntime.js'
+import { createLlmClients, type LlmClients } from './bootstrap/llmClients.js'
+import { createPolicyAndHooksRuntime, type PolicyHooksRuntime } from './bootstrap/policyHooks.js'
+import { createRuntimeConfigContext } from './bootstrap/runtimeConfig.js'
+import type { BootstrapContext } from './bootstrap/types.js'
+import { createSubagentRuntime, type SubagentRuntime } from './bootstrap/subagents.js'
+import { createToolingRuntime, type ToolingRuntime } from './bootstrap/tooling.js'
 
 type ChatRuntime = ReturnType<typeof createChatRuntime>
 

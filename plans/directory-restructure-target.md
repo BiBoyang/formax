@@ -829,6 +829,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 runtime 行为与启动参数语义，仅删除无调用 shim 并同步门禁映射。
 
+## 执行状态（Phase C - Slice 68）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，bootstrap 归拢）。
+- 本轮已完成：
+  - `src/legacy/bootstrap/*`（源码 + 测试）迁移到 `src/runtime/bootstrap/*`。
+  - `src/runtime/createRuntime.{ts,test.ts}` 与 `src/legacy/runLegacyCli.tsx` 改为直接导入 `src/runtime/bootstrap/*`。
+  - `src/legacy/bootstrap/*` 保留兼容 shim（桥接到 `src/runtime/bootstrap/*`），避免一次性改动潜在外部引用。
+  - `CODEMAP.md` 的 runtime assembly slices 事实路径更新到 `src/runtime/bootstrap/*`。
+- 明确不做：
+  - 不改 REPL 启动逻辑、setup 流程与 runtime 组装行为，仅迁移模块归属与导入路径。
+
 ## 目标结构
 
 ```

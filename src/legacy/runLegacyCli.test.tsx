@@ -15,11 +15,11 @@ vi.mock('../runtime/createRuntime.js', () => ({
   createRuntime,
 }))
 
-vi.mock('./bootstrap/session.js', () => ({
+vi.mock('../runtime/bootstrap/session.js', () => ({
   resolveInitialSession,
 }))
 
-vi.mock('./bootstrap/renderReplApp.js', () => ({
+vi.mock('../runtime/bootstrap/renderReplApp.js', () => ({
   renderReplApp,
 }))
 

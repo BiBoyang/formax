@@ -13,22 +13,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../config/runtimeFlags.js', () => ({
   createRuntimeFlags: mocks.createRuntimeFlags,
 }))
-vi.mock('../legacy/bootstrap/chatRuntime.js', () => ({
+vi.mock('./bootstrap/chatRuntime.js', () => ({
   createChatRuntime: mocks.createChatRuntime,
 }))
-vi.mock('../legacy/bootstrap/llmClients.js', () => ({
+vi.mock('./bootstrap/llmClients.js', () => ({
   createLlmClients: mocks.createLlmClients,
 }))
-vi.mock('../legacy/bootstrap/policyHooks.js', () => ({
+vi.mock('./bootstrap/policyHooks.js', () => ({
   createPolicyAndHooksRuntime: mocks.createPolicyAndHooksRuntime,
 }))
-vi.mock('../legacy/bootstrap/runtimeConfig.js', () => ({
+vi.mock('./bootstrap/runtimeConfig.js', () => ({
   createRuntimeConfigContext: mocks.createRuntimeConfigContext,
 }))
-vi.mock('../legacy/bootstrap/subagents.js', () => ({
+vi.mock('./bootstrap/subagents.js', () => ({
   createSubagentRuntime: mocks.createSubagentRuntime,
 }))
-vi.mock('../legacy/bootstrap/tooling.js', () => ({
+vi.mock('./bootstrap/tooling.js', () => ({
   createToolingRuntime: mocks.createToolingRuntime,
 }))
 
