@@ -517,6 +517,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 Tool header/subline/indent 的视觉渲染与 pulse 行为。
   - 不改 `ToolUiBlocks` 的 block 渲染顺序和语义。
 
+## 执行状态（Phase C - Slice 39）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `LocalBashPresenter` 实现迁移到 `src/components/tool/LocalBashPresenter.tsx`。
+  - `src/tools/presenters/LocalBashPresenter.tsx` 降级为兼容 re-export，避免一次性改动全部调用方。
+  - `src/legacy/bootstrap/tooling.ts` 与对应测试改为直接依赖 `components/tool/LocalBashPresenter`。
+- 明确不做：
+  - 不改 LocalBash 输出截断规则、状态渲染和 expanded 语义。
+  - 不改 tooling 注册顺序与 runtime 初始化行为。
+
 ## 目标结构
 
 ```

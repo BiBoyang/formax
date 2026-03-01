@@ -67,7 +67,7 @@ vi.mock('../../tools/modules/askUserQuestion/index.js', () => ({
 vi.mock('../../tools/modules/killShell/index.js', () => ({
   createKillShellToolModule: mocks.createKillShellToolModule,
 }))
-vi.mock('../../tools/presenters/LocalBashPresenter.js', () => ({
+vi.mock('../../components/tool/LocalBashPresenter.js', () => ({
   LocalBashPresenter: mocks.LocalBashPresenter,
 }))
 

@@ -6,7 +6,7 @@ import { createTaskOutputToolModule } from '../../tools/modules/taskOutput/index
 import { createUserInputManager } from '../../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../../tools/modules/killShell/index.js'
-import { LocalBashPresenter } from '../../tools/presenters/LocalBashPresenter.js'
+import { LocalBashPresenter } from '../../components/tool/LocalBashPresenter.js'
 import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 
 export type ToolingRuntime = {
