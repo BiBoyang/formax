@@ -42,7 +42,7 @@ vi.mock('../../features/repl/keys/escapeSequences', () => ({
   },
 }))
 
-import { ConfirmMenu } from '../../components/ui/ConfirmMenu'
+import { ConfirmMenu } from './ConfirmMenu'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))

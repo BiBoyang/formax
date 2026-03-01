@@ -586,6 +586,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何运行时代码路径，仅清理迁移后文档与测试元信息尾差。
 
+## 执行状态（Phase C - Slice 45）
+
+- 状态：进行中（目录迁移第一批，低风险，导入路径一致性）。
+- 本轮已完成：
+  - `src/components/tool/*ApprovalPrompt*.tsx` 内对 UI 组件的导入由 `../../components/ui/*` 统一收敛为 `../ui/*`。
+  - 对应 mapping/branches 测试中的 `vi.mock` 目标路径同步收敛到 `../ui/*`。
+  - `src/components/ui/ConfirmMenu.presenter-branches.test.tsx` 组件导入路径收敛为同目录相对导入。
+- 明确不做：
+  - 不改 approval prompt 交互逻辑，仅做导入路径规范化。
+  - 不改任意测试断言语义。
+
 ## 目标结构
 
 ```

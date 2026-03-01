@@ -3,8 +3,8 @@ import path from 'node:path'
 import { Box, Text } from 'ink'
 import { getTheme } from '../../shared/utils/theme'
 import type { ConfirmMenuDecision, FsReadApprovalDecision } from '../../shared/approvalPromptContracts'
-import { ConfirmMenu } from '../../components/ui/ConfirmMenu'
-import { ApprovalHeader } from '../../components/ui/ApprovalHeader'
+import { ConfirmMenu } from '../ui/ConfirmMenu'
+import { ApprovalHeader } from '../ui/ApprovalHeader'
 
 export type { FsReadApprovalDecision } from '../../shared/approvalPromptContracts'
 

@@ -8,14 +8,14 @@ const mocks = vi.hoisted(() => ({
   onDecisionFromMenu: null as null | ((decision: any) => void),
 }))
 
-vi.mock('../../components/ui/ConfirmMenu', () => ({
+vi.mock('../ui/ConfirmMenu', () => ({
   ConfirmMenu: (props: any) => {
     mocks.onDecisionFromMenu = props.onDecision
     return <Text>mock-menu</Text>
   },
 }))
 
-vi.mock('../../components/ui/ApprovalHeader', () => ({
+vi.mock('../ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 

@@ -4,7 +4,7 @@ import { render } from 'ink-testing-library'
 
 const calls = vi.hoisted(() => ({ mode: 'unknown' as 'unknown' | 'approve' }))
 
-vi.mock('../../components/ui/ConfirmMenu', () => ({
+vi.mock('../ui/ConfirmMenu', () => ({
   ConfirmMenu: ({ onDecision }: { onDecision: (d: any) => void }) => {
     if (calls.mode === 'approve') onDecision({ kind: 'choice', key: 'approve' })
     else onDecision({ kind: 'choice', key: 'not-supported' })
