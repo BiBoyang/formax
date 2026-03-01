@@ -476,6 +476,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 hook 的异步读文件时序和错误兜底行为。
   - 不改 patch approval 的起始行推断语义。
 
+## 执行状态（Phase C - Slice 35）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/ApprovalPreview.tsx` 兼容 shim（已无生产调用方）。
+  - `src/tools/presenters/ApprovalPreview.test.tsx` 改为直接验证 `src/components/tool/ApprovalPreview.tsx`。
+  - `plans/ui/BACKLOG-approval-preview.md` 的现状索引同步到组件层真实路径。
+- 明确不做：
+  - 不改 Approval preview 的布局、文案与 remaining lines 计算规则。
+  - 不改 approval 流程和交互语义。
+
 ## 目标结构
 
 ```

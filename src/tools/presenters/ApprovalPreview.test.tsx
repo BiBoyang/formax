@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import { ApprovalPreview } from './ApprovalPreview'
+import { ApprovalPreview } from '../../components/tool/ApprovalPreview'
 
 describe('ApprovalPreview', () => {
   it('shows remaining line count when positive', () => {
