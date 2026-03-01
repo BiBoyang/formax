@@ -879,6 +879,26 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何运行时代码与行为，仅同步文档事实路径。
 
+## 执行状态（Phase C - Slice 73）
+
+- 状态：进行中（目录迁移第二批，TUI 目录重命名收口）。
+- 本轮已完成：
+  - `src/ui/**` 迁移为 `src/tui/**`，并同步核心调用方导入：
+    - `src/screens/REPL.tsx`
+    - `src/features/repl/useReplController.ts`
+    - `src/features/repl/controller/ui/overlays.ts`
+    - `src/features/repl/controller/session/localCommandInjection.ts`
+    - `src/services/runtimeUiBridge.tsx`
+  - 对应测试 mock 路径切换为 `src/tui/**`（`src/screens/REPL.coverage.test.tsx`、`src/services/runtimeUiBridge.test.tsx`）。
+  - 门禁脚本同步：
+    - `scripts/check-ui-boundaries.mjs` 扫描根切换为 `src/tui`
+    - `scripts/check-core-boundaries.mjs` 禁止依赖目标切换为 `src/tui/**`（并兼容拦截 legacy `src/ui/**` 字符串）
+    - `scripts/layer-contract.config.json` Service 映射改为 `src/tui`
+  - 文档路径事实同步：
+    - `AGENTS.md`、`CLAUDE.md`、`CODEMAP.md`、`src/hooks/README.md`
+- 明确不做：
+  - 不改任何 overlay 行为与 UI 交互语义，仅迁移目录归属并收敛边界门禁。
+
 ## 目标结构
 
 ```

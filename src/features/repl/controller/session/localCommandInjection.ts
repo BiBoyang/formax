@@ -1,5 +1,5 @@
 import type { PromptBlock } from '../../../../prompts'
-import type { ConfigDialogExit } from '../../../../ui/config/ConfigDialog.js'
+import type { ConfigDialogExit } from '../../../../tui/config/ConfigDialog.js'
 import type { SessionWriter } from '../../sessionSave/writer'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import { buildLocalCommandInjectedBlocks } from '../../injectedBlocks'

@@ -73,9 +73,9 @@ Formax 也按这个语义实现：
 
 仅在 UI 需要展示/选择事件时修改：
 
-- `src/ui/hooks/constants.ts`：事件列表/启用开关
-- `src/ui/hooks/HooksDialog.tsx`：不支持事件的提示文案（保持准确，不要改风格）
-- `src/ui/hooks/HooksDialog.test.tsx`：锁定 UI 文案/事件列表（避免回归）
+- `src/tui/hooks/constants.ts`：事件列表/启用开关
+- `src/tui/hooks/HooksDialog.tsx`：不支持事件的提示文案（保持准确，不要改风格）
+- `src/tui/hooks/HooksDialog.test.tsx`：锁定 UI 文案/事件列表（避免回归）
 
 ### 6) 验证与交付
 

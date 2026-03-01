@@ -8,7 +8,8 @@ const CORE_ROOT = path.join(SRC_ROOT, 'core')
 const ADAPTERS_ROOT = path.join(SRC_ROOT, 'adapters')
 const COMMANDS_ROOT = path.join(SRC_ROOT, 'commands')
 const SKILLS_ROOT = path.join(SRC_ROOT, 'skills')
-const UI_ROOT = path.join(SRC_ROOT, 'ui')
+const TUI_ROOT = path.join(SRC_ROOT, 'tui')
+const LEGACY_UI_ROOT = path.join(SRC_ROOT, 'ui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const TOOLS_MODULES_ROOT = path.join(SRC_ROOT, 'tools', 'modules')
 
@@ -104,7 +105,9 @@ function checkCommandsOrSkillsImports(file, specifier, opts) {
 
   if (raw.startsWith('.') || raw.startsWith('..')) {
     const resolved = path.normalize(path.resolve(path.dirname(file), raw))
-    if (isUnderDir(resolved, UI_ROOT)) return 'May not import from src/ui/**'
+    if (isUnderDir(resolved, TUI_ROOT) || isUnderDir(resolved, LEGACY_UI_ROOT)) {
+      return 'May not import from src/tui/**'
+    }
     if (isUnderDir(resolved, SCREENS_ROOT)) return 'May not import from src/screens/**'
     if (opts?.disallowToolsModules && isUnderDir(resolved, TOOLS_MODULES_ROOT)) {
       return 'May not import from src/tools/modules/**'
@@ -112,9 +115,9 @@ function checkCommandsOrSkillsImports(file, specifier, opts) {
     return null
   }
 
-  // Non-relative imports: enforce by path segment heuristic when importing within src
-  // (e.g. "src/ui/..." shouldn't appear with TS path mapping, but keep this guard).
-  if (raw.includes('src/ui/')) return 'May not import from src/ui/**'
+  // Non-relative imports: enforce by path segment heuristic when importing within src.
+  if (raw.includes('src/ui/')) return 'May not import from src/tui/**'
+  if (raw.includes('src/tui/')) return 'May not import from src/tui/**'
   if (raw.includes('src/screens/')) return 'May not import from src/screens/**'
   if (opts?.disallowToolsModules && raw.includes('src/tools/modules/')) return 'May not import from src/tools/modules/**'
 

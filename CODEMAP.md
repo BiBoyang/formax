@@ -49,13 +49,13 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Pulsing dot: `src/components/ui/PulsingDot.tsx`
 
 ## Setup / Dialogs (Overlays)
-- First-run setup wizard (UI): `src/ui/SetupWizard.tsx`
+- First-run setup wizard (UI): `src/tui/SetupWizard.tsx`
 - Setup session + state machine: `src/core/setup/session.ts`
 - Setup persistence + connection checks: `src/adapters/setup/writeSetupFiles.ts`, `src/adapters/setup/connectionTest.ts`
 - Overlay manager (open/close dialogs): `src/features/repl/overlays/OverlayManager.ts`
-- Agents dialog (overlay UI): `src/ui/agents/AgentsDialog.tsx`
-- Permissions dialog (overlay UI): `src/ui/permissions/PermissionsDialog.tsx`
-- Config dialog (overlay UI, WIP): `src/ui/config/ConfigDialog.tsx`
+- Agents dialog (overlay UI): `src/tui/agents/AgentsDialog.tsx`
+- Permissions dialog (overlay UI): `src/tui/permissions/PermissionsDialog.tsx`
+- Config dialog (overlay UI, WIP): `src/tui/config/ConfigDialog.tsx`
 
 ## Chat Loop / Streaming
 - Chat loop + tool loop: `src/chat/engine.ts`
@@ -130,7 +130,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Approval service (user prompts, remember, auditable decision): `src/tools/executor/approvalService.ts`
 - Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
 - `/permissions` wiring (slash command → open overlay): `src/features/commands/registry.ts`, `src/features/commands/adapter.ts`, `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
-- `/permissions` UI: `src/ui/permissions/PermissionsDialog.tsx`
+- `/permissions` UI: `src/tui/permissions/PermissionsDialog.tsx`
 
 ## Hooks (Phase 1: PreToolUse / PermissionRequest / PostToolUse)
 - Hook config (repo-level): `.formax/settings.local.json` (see `hooks` field)

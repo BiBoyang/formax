@@ -88,7 +88,7 @@ vi.mock('../screens/LoadingExampleScreen.js', () => ({
 vi.mock('../screens/perf/TranscriptPerfScreen.js', () => ({
   TranscriptPerfScreen: mocks.TranscriptPerfScreen,
 }))
-vi.mock('../ui/SetupWizard.js', () => ({
+vi.mock('../tui/SetupWizard.js', () => ({
   SetupWizard: mocks.SetupWizard,
 }))
 vi.mock('../shared/utils/inkStreams.js', () => ({

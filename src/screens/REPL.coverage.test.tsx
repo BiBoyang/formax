@@ -117,33 +117,33 @@ vi.mock('./repl/messageItems', async () => {
   }
 })
 
-vi.mock('../ui/agents/AgentsDialog', () => ({
+vi.mock('../tui/agents/AgentsDialog', () => ({
   AgentsDialog: (props: any) => <Text>{`AGENTS:${props.toolNames?.length ?? 0}`}</Text>,
 }))
 
-vi.mock('../ui/permissions/PermissionsDialog', () => ({
+vi.mock('../tui/permissions/PermissionsDialog', () => ({
   PermissionsDialog: () => <Text>PERMISSIONS</Text>,
 }))
 
-vi.mock('../ui/hooks/HooksDialog', () => ({
+vi.mock('../tui/hooks/HooksDialog', () => ({
   HooksDialog: () => <Text>HOOKS</Text>,
 }))
 
-vi.mock('../ui/config/ConfigDialog', () => ({
+vi.mock('../tui/config/ConfigDialog', () => ({
   ConfigDialog: (props: any) => {
     configDialogProps = props
     return <Text>{`CONFIG:${typeof props.onExit}`}</Text>
   },
 }))
 
-vi.mock('../ui/model/ModelDialog', () => ({
+vi.mock('../tui/model/ModelDialog', () => ({
   ModelDialog: (props: any) => {
     modelDialogProps = props
     return <Text>{`MODEL:${props.currentTier}`}</Text>
   },
 }))
 
-vi.mock('../ui/resume/ResumeDialog', () => ({
+vi.mock('../tui/resume/ResumeDialog', () => ({
   ResumeDialog: () => <Text>RESUME</Text>,
 }))
 

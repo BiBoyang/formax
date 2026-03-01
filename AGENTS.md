@@ -29,7 +29,7 @@
 - `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
 - `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
-- `bun run ui:boundaries` runs UI boundary checks (guards `src/ui/`, `src/screens/`, `src/components/` from importing forbidden layers).
+- `bun run ui:boundaries` runs UI boundary checks (guards `src/tui/`, `src/screens/`, `src/components/` from importing forbidden layers).
 - `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
 - `npm --prefix apps/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
 - Single test: `bun run test -- src/tools/registry.test.ts`.

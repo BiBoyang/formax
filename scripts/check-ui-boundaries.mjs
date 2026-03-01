@@ -4,7 +4,7 @@ import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
-const UI_ROOT = path.join(SRC_ROOT, 'ui')
+const TUI_ROOT = path.join(SRC_ROOT, 'tui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const COMPONENTS_ROOT = path.join(SRC_ROOT, 'components')
 const TOOLS_EXECUTOR_ROOT = path.join(SRC_ROOT, 'tools', 'executor')
@@ -93,7 +93,7 @@ function main() {
   runNoClaudeCheck({ repoRoot: REPO_ROOT })
 
   const violations = []
-  const roots = [UI_ROOT, SCREENS_ROOT, COMPONENTS_ROOT].filter((d) => fs.existsSync(d))
+  const roots = [TUI_ROOT, SCREENS_ROOT, COMPONENTS_ROOT].filter((d) => fs.existsSync(d))
 
   for (const root of roots) {
     for (const file of listSourceFiles(root)) {
@@ -119,4 +119,3 @@ function main() {
 }
 
 main()
-

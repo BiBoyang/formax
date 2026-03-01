@@ -28,7 +28,7 @@
       "src/core/policy"
     ],
     "Service": [
-      "src/ui",
+      "src/tui",
       "src/screens",
       "src/components",
       "src/core",

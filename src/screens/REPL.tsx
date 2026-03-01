@@ -25,12 +25,12 @@ import {
   persistDefaultModelTier,
   resolveUserAgentsDir,
 } from '../features/commands/replEnvironmentService'
-import { AgentsDialog } from '../ui/agents/AgentsDialog'
-import { PermissionsDialog } from '../ui/permissions/PermissionsDialog'
-import { HooksDialog } from '../ui/hooks/HooksDialog'
-import { ConfigDialog, type ConfigDialogExit } from '../ui/config/ConfigDialog'
-import { ModelDialog } from '../ui/model/ModelDialog'
-import { ResumeDialog } from '../ui/resume/ResumeDialog'
+import { AgentsDialog } from '../tui/agents/AgentsDialog'
+import { PermissionsDialog } from '../tui/permissions/PermissionsDialog'
+import { HooksDialog } from '../tui/hooks/HooksDialog'
+import { ConfigDialog, type ConfigDialogExit } from '../tui/config/ConfigDialog'
+import { ModelDialog } from '../tui/model/ModelDialog'
+import { ResumeDialog } from '../tui/resume/ResumeDialog'
 import type { TokenUsage } from '../streaming/types'
 import { findLastContiguousExploreTaskGroup } from './repl/messageItems'
 import { createReplCommandRegistry } from './repl/createReplCommandRegistry'
