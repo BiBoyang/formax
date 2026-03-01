@@ -52,6 +52,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不调整 header/subline 的渲染逻辑、文案、缩进与配色。
 
+## 执行状态（Phase B - Slice 4）
+
+- 状态：进行中（继续抽离 interactive prompt 类型合同，不搬目录）。
+- 本轮已完成：
+  - 新增 `src/shared/interactivePromptContracts.ts`，集中定义 ask/plan-mode 交互提示的类型合同。
+  - `askQuestions.ts`、`interactivePrompts.ts`、`planModeQuestions.ts` 改为消费 shared 合同并保留 type re-export，保持现有导入兼容。
+  - 新增 `src/shared/interactivePromptContracts.test.ts`，锁定核心 union/结构类型。
+- 明确不做：
+  - 不修改任何问题文案、fallback 文案与 prompt 解析逻辑。
+  - 不移动目录结构。
+
 ## 目标结构
 
 ```

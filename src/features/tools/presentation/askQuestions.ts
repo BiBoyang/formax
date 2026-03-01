@@ -1,15 +1,6 @@
-export type PresentationAskOption = {
-  label: string
-  description: string
-}
+import type { PresentationAskOption, PresentationAskQuestion } from '../../../shared/interactivePromptContracts'
 
-export type PresentationAskQuestion = {
-  question: string
-  header: string
-  fieldId?: string
-  options: PresentationAskOption[]
-  multiSelect: boolean
-}
+export type { PresentationAskOption, PresentationAskQuestion } from '../../../shared/interactivePromptContracts'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null

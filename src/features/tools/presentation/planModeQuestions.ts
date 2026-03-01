@@ -1,15 +1,6 @@
-export type PresentationQuestionOption = {
-  label: string
-  description: string
-}
+import type { PresentationQuestion } from '../../../shared/interactivePromptContracts'
 
-export type PresentationQuestion = {
-  header: string
-  question: string
-  fieldId: string
-  options: PresentationQuestionOption[]
-  multiSelect: boolean
-}
+export type { PresentationQuestion, PresentationQuestionOption } from '../../../shared/interactivePromptContracts'
 
 export const ENTER_PLAN_MODE_PROMPT: PresentationQuestion = {
   header: 'Plan',

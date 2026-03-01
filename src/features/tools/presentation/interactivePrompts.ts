@@ -1,41 +1,24 @@
-import { normalizeAskQuestions, type PresentationAskQuestion } from './askQuestions'
+import {
+  type AskPromptQuestion,
+  type AskUserQuestionPromptModel,
+  type EnterPlanModePromptModel,
+  type ExitPlanModePromptModel,
+  type InteractivePromptModel,
+  type InteractivePromptOption,
+  type PresentationAskQuestion,
+} from '../../../shared/interactivePromptContracts'
+import { normalizeAskQuestions } from './askQuestions'
 import { ENTER_PLAN_MODE_PROMPT, EXIT_PLAN_MODE_PROMPT } from './planModeQuestions'
 import { getToolPresentationSemantic } from './toolSemantics'
 
-export type InteractivePromptOption<TChoice extends string = string> = {
-  choice: TChoice
-  label: string
-}
-
-export type AskPromptQuestion = PresentationAskQuestion & {
-  header: string
-}
-
-export type AskUserQuestionPromptModel = {
-  kind: 'ask_user_question'
-  questions: AskPromptQuestion[]
-}
-
-export type EnterPlanModePromptModel = {
-  kind: 'enter_plan_mode'
-  question: string
-  options: [InteractivePromptOption<'enter'>, InteractivePromptOption<'skip'>]
-}
-
-export type ExitPlanModePromptModel = {
-  kind: 'exit_plan_mode'
-  question: string
-  options: [
-    InteractivePromptOption<'auto'>,
-    InteractivePromptOption<'manual'>,
-    InteractivePromptOption<'feedback'>,
-  ]
-}
-
-export type InteractivePromptModel =
-  | AskUserQuestionPromptModel
-  | EnterPlanModePromptModel
-  | ExitPlanModePromptModel
+export type {
+  AskPromptQuestion,
+  AskUserQuestionPromptModel,
+  EnterPlanModePromptModel,
+  ExitPlanModePromptModel,
+  InteractivePromptModel,
+  InteractivePromptOption,
+} from '../../../shared/interactivePromptContracts'
 
 function readOptionLabel(raw: unknown, fallback: string): string {
   if (typeof raw === 'string' && raw.trim()) return raw
