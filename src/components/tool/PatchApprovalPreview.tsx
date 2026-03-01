@@ -3,7 +3,7 @@ import path from 'node:path'
 import { Text, useStdout } from 'ink'
 import { getTheme } from '../../shared/utils/theme'
 import { PatchPreview } from './PatchPreview'
-import { useSnippetStartLineNumber } from '../../tools/presenters/useSnippetStartLineNumber'
+import { useSnippetStartLineNumber } from './useSnippetStartLineNumber'
 
 export function PatchApprovalPreview({
   filePath,

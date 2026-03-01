@@ -444,6 +444,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 patch approval 视觉样式与行号计算语义。
   - 暂不迁移 `useSnippetStartLineNumber`（当前通过兼容路径复用）。
 
+## 执行状态（Phase C - Slice 32）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `snippetStartLine.ts` 与 `useSnippetStartLineNumber.ts` 实现迁移到 `src/components/tool/`。
+  - `src/components/tool/PatchApprovalPreview.tsx` 改为直接依赖同层 hook/util，不再反向依赖 `tools/presenters`。
+  - `src/tools/presenters/{snippetStartLine,useSnippetStartLineNumber}.ts` 降级为兼容 re-export，保证现有测试入口稳定。
+- 明确不做：
+  - 不改 snippet 匹配算法与行号推断行为。
+  - 不改 patch approval UI 渲染逻辑。
+
 ## 目标结构
 
 ```
