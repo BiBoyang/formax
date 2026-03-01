@@ -325,7 +325,7 @@ describe('useReplOverlays', () => {
     const app = render(
       <Harness
         apiRef={apiRef}
-        initialOverlay={{ kind: 'status' }}
+        initialOverlay={{ kind: 'config' }}
         initialMessages={[
           {
             id: 'u1',
@@ -342,8 +342,8 @@ describe('useReplOverlays', () => {
     apiRef.current?.closeConfigDialog({ kind: 'changed', message: 'Updated config' })
     await waitForText(app.lastFrame, 'Updated config')
 
-    apiRef.current?.openOverlay({ kind: 'status' })
-    await waitForText(app.lastFrame, 'overlay=status')
+    apiRef.current?.openOverlay({ kind: 'config' })
+    await waitForText(app.lastFrame, 'overlay=config')
     apiRef.current?.closeConfigDialog({ kind: 'dismissed' })
     await waitForText(app.lastFrame, 'Status dialog dismissed')
   })

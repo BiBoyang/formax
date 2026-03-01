@@ -5,6 +5,21 @@ import {
   recordLocalCommandInjectionEvent,
 } from './sessionEvents'
 
+const EMPTY_CLAUDE_MD_META = { capChars: 200_000, global: null, project: null } as const
+
+function createClaudeMdFileMeta(scope: 'global' | 'project') {
+  return {
+    scope,
+    filePath: scope === 'global' ? '/home/user/.formax/CLAUDE.md' : '/tmp/project/CLAUDE.md',
+    sizeBytes: 128,
+    mtimeMs: 1_700_000_000_000,
+    includedSha256: 'abc123',
+    originalChars: 128,
+    includedChars: 128,
+    truncated: false,
+  }
+}
+
 vi.mock('../../injectedBlocks', () => ({
   getClaudeMdInjectionMeta: vi.fn(),
 }))
@@ -18,7 +33,7 @@ describe('sessionEvents', () => {
     vi.clearAllMocks()
     const { getClaudeMdInjectionMeta } = await import('../../injectedBlocks')
     const { getLocalCommandInjectionStats } = await import('./localCommandInjection')
-    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue({ global: false, project: false })
+    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(EMPTY_CLAUDE_MD_META as any)
     vi.mocked(getLocalCommandInjectionStats).mockReturnValue({ matched: 1, injected: 1, skipped: 0 } as any)
   })
 
@@ -74,7 +89,12 @@ describe('sessionEvents', () => {
     const appendEvent = vi.fn()
     const lastSigRef = { current: null as string | null }
     const { getClaudeMdInjectionMeta } = await import('../../injectedBlocks')
-    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue({ global: true, project: false } as any)
+    const meta = {
+      capChars: 200_000,
+      global: createClaudeMdFileMeta('global'),
+      project: null,
+    }
+    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(meta as any)
 
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
@@ -86,8 +106,8 @@ describe('sessionEvents', () => {
     })
 
     expect(appendEvent).toHaveBeenCalledTimes(1)
-    expect(appendEvent).toHaveBeenCalledWith('claude_md_injection', { global: true, project: false })
-    expect(lastSigRef.current).toBe(JSON.stringify({ global: true, project: false }))
+    expect(appendEvent).toHaveBeenCalledWith('claude_md_injection', meta)
+    expect(lastSigRef.current).toBe(JSON.stringify(meta))
   })
 
   it('skips claude_md_injection when disabled/non-full/empty/same-signature', async () => {
@@ -105,14 +125,14 @@ describe('sessionEvents', () => {
     })
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
-      promptProfile: 'compact',
+      promptProfile: 'lite',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,
       writer: { appendEvent },
     })
 
-    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue({ global: false, project: false } as any)
+    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(EMPTY_CLAUDE_MD_META as any)
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
       promptProfile: 'full',
@@ -122,8 +142,13 @@ describe('sessionEvents', () => {
       writer: { appendEvent },
     })
 
-    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue({ global: true, project: false } as any)
-    lastSigRef.current = JSON.stringify({ global: true, project: false })
+    const repeatedMeta = {
+      capChars: 200_000,
+      global: createClaudeMdFileMeta('global'),
+      project: null,
+    }
+    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(repeatedMeta as any)
+    lastSigRef.current = JSON.stringify(repeatedMeta)
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
       promptProfile: 'full',

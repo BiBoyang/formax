@@ -4,7 +4,10 @@ import { ToolRegistry } from './registry'
 describe('ToolRegistry', () => {
   it('registers handlers, presenters, specs, aliases, and meta', () => {
     const registry = new ToolRegistry()
-    const handler = vi.fn()
+    const handler = {
+      canHandle: vi.fn(() => true),
+      execute: vi.fn(async () => ({ tool_use_id: 'toolu_read', content: 'ok' })),
+    }
     const presenter = vi.fn() as any
 
     registry.register({
@@ -25,11 +28,17 @@ describe('ToolRegistry', () => {
 
   it('returns defensive copy for handlers', () => {
     const registry = new ToolRegistry()
-    const handler = vi.fn()
+    const handler = {
+      canHandle: vi.fn(() => true),
+      execute: vi.fn(async () => ({ tool_use_id: 'toolu_a', content: 'ok' })),
+    }
     registry.register({ name: 'a', handler })
 
     const handlers = registry.getHandlers()
-    handlers.push(vi.fn() as any)
+    handlers.push({
+      canHandle: vi.fn(() => true),
+      execute: vi.fn(async () => ({ tool_use_id: 'toolu_b', content: 'ok' })),
+    })
 
     expect(registry.getHandlers()).toEqual([handler])
   })

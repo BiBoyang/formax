@@ -127,6 +127,7 @@ describe('TaskManager', () => {
         await new Promise<never>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
         })
+        return { content: 'unreachable' }
       },
     })
 
@@ -144,6 +145,7 @@ describe('TaskManager', () => {
         await new Promise<never>((_resolve, reject) => {
           ctx.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
         })
+        return { content: 'unreachable' }
       },
     })
 

@@ -99,7 +99,7 @@ describe('createReplCommandRegistry', () => {
 
   it('exposes promptProfile/modelTier accessors and fallback tier', async () => {
     const setPromptProfile = vi.fn()
-    const setDefaultModelTier = vi.fn(async () => 'haiku')
+    const setDefaultModelTier = vi.fn(async (_next: 'haiku' | 'sonnet' | 'opus') => 'haiku' as const)
     const registry: any = createReplCommandRegistry({
       cfg: {
         llm: {
@@ -113,14 +113,14 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'compact',
+      promptProfile: 'lite',
       setPromptProfile,
       setDefaultModelTier,
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
     })
 
-    expect(registry.promptProfile.get()).toBe('compact')
+    expect(registry.promptProfile.get()).toBe('lite')
     registry.promptProfile.set('full')
     expect(setPromptProfile).toHaveBeenCalledWith('full')
 

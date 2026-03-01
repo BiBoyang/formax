@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ChatHistory } from '../../chat/engine'
 import {
   detectNewTopicTitleCandidate,
   extractLastAssistantTextFromHistory,
@@ -39,9 +40,9 @@ describe('sessionTitle generate helpers', () => {
   })
 
   it('falls back to the last assistant message when stream text is empty', async () => {
-    const runTurn = vi.fn(async () => [
+    const runTurn = vi.fn(async (): Promise<ChatHistory> => [
       { role: 'assistant', content: [{ type: 'text', text: '   Title from history   ' }] },
-      { role: 'assistant', content: [{ type: 'tool_result', text: 'ignored' }] },
+      { role: 'assistant', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ignored' }] },
     ])
     const title = await generateSessionTitle({
       engine: { runTurn },
@@ -99,7 +100,7 @@ describe('sessionTitle generate helpers', () => {
     })
     expect(valid).toEqual({ isNewTopic: true, title: 'Refactor session titles' })
 
-    const runTurnInvalid = vi.fn(async () => [
+    const runTurnInvalid = vi.fn(async (): Promise<ChatHistory> => [
       { role: 'assistant', content: [{ type: 'text', text: '{invalid-json' }] },
     ])
     const invalid = await detectNewTopicTitleCandidate({
@@ -111,7 +112,7 @@ describe('sessionTitle generate helpers', () => {
   })
 
   it('returns null for empty topic text or invalid topic decision schema', async () => {
-    const runTurnEmpty = vi.fn(async () => [
+    const runTurnEmpty = vi.fn(async (): Promise<ChatHistory> => [
       { role: 'assistant', content: [{ type: 'text', text: '   ' }] },
     ])
     const empty = await detectNewTopicTitleCandidate({
@@ -123,7 +124,9 @@ describe('sessionTitle generate helpers', () => {
 
     const runTurnBadSchema = vi.fn(async (args: any) => {
       args.onEvent?.({ type: 'thinking_delta', text: 'ignored' })
-      return [{ role: 'assistant', content: [{ type: 'text', text: '{"isNewTopic":"yes","title":"x"}' }] }]
+      return [
+        { role: 'assistant', content: [{ type: 'text', text: '{"isNewTopic":"yes","title":"x"}' }] },
+      ] satisfies ChatHistory
     })
     const badSchema = await detectNewTopicTitleCandidate({
       engine: { runTurn: runTurnBadSchema },

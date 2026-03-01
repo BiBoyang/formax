@@ -73,7 +73,10 @@ describe('transcriptProjectionLifecycleReducer', () => {
   it('does not force-finalize non-running thinking segments', () => {
     const draft = makeDraft()
     draft.segments[0] = {
-      ...draft.segments[0],
+      id: 'thinking-1',
+      kind: 'thinking',
+      turnId: 'turn-1',
+      text: 'reasoning',
       status: 'finalized',
     }
     closeThinkingSegment(draft, 'turn-1')

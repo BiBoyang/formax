@@ -178,6 +178,7 @@ describe('ReadToolPresenter', () => {
     const message = {
       id: 'tool-5',
       role: 'tool',
+      content: '',
       timestamp: new Date(),
       toolInfo: {
         name: 'Read',

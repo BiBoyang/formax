@@ -11,7 +11,7 @@ describe('createSkillPreflight', () => {
   it('returns null for non-Skill calls', async () => {
     const store = createNodeFileStore()
     const preflight = createSkillPreflight({ fileStore: store, userInput: null })
-    const res = await preflight({ id: 'noop', name: 'Read', input: {} } as any, { agentDepth: 0 })
+    const res = await preflight({ id: 'noop', name: 'Read', input: {} } as any, { cwd: process.cwd(), agentDepth: 0 })
     expect(res).toBeNull()
   })
 
@@ -605,7 +605,7 @@ describe('createSkillPreflight', () => {
       const preflight = createSkillPreflight({ fileStore: store, userInput: null })
       const res = await preflight(
         { id: 't-cwd-fallback', name: 'Skill', input: { skill: 'frontend-design' } },
-        { agentDepth: 0 },
+        { cwd: process.cwd(), agentDepth: 0 },
       )
       expect(res).toBeNull()
     } finally {

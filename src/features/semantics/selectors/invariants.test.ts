@@ -171,17 +171,6 @@ describe('selectTerminalTurnInvariantIssues', () => {
     ])
     const runtimeState = createRuntimeState([
       {
-        inputId: 'resolved-input',
-        threadId: 'thread-1',
-        turnId: 'turn-terminal',
-        toolUseId: 'tool-x',
-        kind: 'approval',
-        status: 'resolved',
-        createdAt: '2026-02-17T00:00:01.000Z',
-        expiresAt: '2026-02-17T00:05:01.000Z',
-        payload: {},
-      },
-      {
         inputId: 'pending-other-turn',
         threadId: 'thread-1',
         turnId: 'turn-other',

@@ -164,7 +164,13 @@ describe('streamBridge', () => {
         onEvent,
       },
       canonicalTurnId: 'turn-1',
-      event: { type: 'approval_request', toolName: 'bash', arguments: {} },
+      event: {
+        type: 'approval_request',
+        toolUseId: 'toolu_1',
+        toolName: 'bash',
+        action: { cmd: 'ls' },
+        effectiveDecision: 'ask',
+      },
     })
 
     expect(mapSpy).toHaveBeenCalledTimes(1)
@@ -186,7 +192,18 @@ describe('streamBridge', () => {
         onEvent,
       },
       canonicalTurnId: 'turn-1',
-      event: { type: 'ask_user_question', question: 'continue?' },
+      event: {
+        type: 'ask_user_question',
+        toolUseId: 'toolu_2',
+        questions: [
+          {
+            question: 'continue?',
+            header: 'Confirm',
+            options: [{ label: 'Yes', description: 'continue execution' }],
+            multiSelect: false,
+          },
+        ],
+      },
     })
 
     expect(mapSpy).toHaveBeenCalledTimes(1)
@@ -216,7 +233,7 @@ describe('streamBridge', () => {
     mapSpy.mockRestore()
   })
 
-  it('maps tool_* events to tool source', () => {
+  it('maps tool_end events to tool source', () => {
     const onEvent = vi.fn<(event: CanonicalEvent) => void>()
     const mapSpy = vi
       .spyOn(canonicalEventAdapter, 'mapStreamEventToCanonicalEvents')
@@ -230,7 +247,14 @@ describe('streamBridge', () => {
         onEvent,
       },
       canonicalTurnId: 'turn-1',
-      event: { type: 'tool_result', tool_name: 'bash', result: { ok: true } },
+      event: {
+        type: 'tool_end',
+        id: 'toolu_3',
+        result: {
+          tool_use_id: 'toolu_3',
+          content: 'ok',
+        },
+      },
     })
 
     expect(mapSpy).toHaveBeenCalledTimes(1)

@@ -245,14 +245,7 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
       return
     }
 
-    const interactiveKind = s.view.kind as
-      | 'confirmDeleteHook'
-      | 'saveHook'
-      | 'eventList'
-      | 'matcherList'
-      | 'hookList'
-
-    switch (interactiveKind) {
+    switch (s.view.kind) {
       case 'confirmDeleteHook': {
         if (!isEnter) return
         const view = s.view
@@ -351,6 +344,9 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
         })
         return
       }
+      case 'addMatcher':
+      case 'addHook':
+        return
     }
   },
   {

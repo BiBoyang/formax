@@ -191,8 +191,8 @@ describe('SkillStore', () => {
         name: 'unknown',
         isDirectory: () => false,
         isFile: () => false,
-      } as fs.Dirent,
-    ])
+      } as unknown as fs.Dirent,
+    ] as any)
 
     const store = createSkillStore({ cwd, globalConfigDir })
     expect(store.list()).toEqual([])

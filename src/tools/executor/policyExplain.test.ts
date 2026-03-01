@@ -4,7 +4,7 @@ import { formatPolicyExplainLines } from './policyExplain.js'
 describe('formatPolicyExplainLines', () => {
   it('formats effective decision, matched rule details, suggestions, and warnings', () => {
     const lines = formatPolicyExplainLines({
-      effectiveDecision: 'ask',
+      effectiveDecision: 'prompt',
       explained: {
         decision: 'deny',
         matchedRule: {
@@ -19,7 +19,7 @@ describe('formatPolicyExplainLines', () => {
     })
 
     expect(lines).toEqual([
-      'EffectiveDecision: ask',
+      'EffectiveDecision: prompt',
       'PolicyDecision: deny',
       'MatchedRule: rule-1 (project)',
       'MatchedRuleDecision: deny',
@@ -47,22 +47,22 @@ describe('formatPolicyExplainLines', () => {
 
   it('omits matched rule reason when rule has no reason', () => {
     const lines = formatPolicyExplainLines({
-      effectiveDecision: 'ask',
+      effectiveDecision: 'prompt',
       explained: {
-        decision: 'ask',
+        decision: 'prompt',
         matchedRule: {
           ruleId: 'rule-2',
           scope: 'global',
-          decision: 'ask',
+          decision: 'prompt',
         },
       } as any,
     })
 
     expect(lines).toEqual([
-      'EffectiveDecision: ask',
-      'PolicyDecision: ask',
+      'EffectiveDecision: prompt',
+      'PolicyDecision: prompt',
       'MatchedRule: rule-2 (global)',
-      'MatchedRuleDecision: ask',
+      'MatchedRuleDecision: prompt',
     ])
   })
 })
