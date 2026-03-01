@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import path from 'node:path'
 import { Text, useStdout } from 'ink'
 import { getTheme } from '../../shared/utils/theme'
-import { PatchPreview } from './PatchPreview'
+import { PatchPreview } from '../../components/tool/PatchPreview'
 import { useSnippetStartLineNumber } from './useSnippetStartLineNumber'
 
 export function PatchApprovalPreview({

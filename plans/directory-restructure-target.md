@@ -422,6 +422,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 preview 样式、文案与 remaining lines 展示语义。
   - 不触发 `PatchApprovalPreview`/`PatchPreview` 的迁移（留后续切片）。
 
+## 执行状态（Phase C - Slice 30）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `PatchPreview` 实现迁移到 `src/components/tool/PatchPreview.tsx`。
+  - `src/tools/modules/edit/presenter.tsx` 与 `src/tools/presenters/PatchApprovalPreview.tsx` 改为直接依赖 `components/tool/PatchPreview`。
+  - `src/tools/presenters/PatchPreview.tsx` 降级为兼容 re-export，避免一次性影响既有测试入口。
+- 明确不做：
+  - 不改 patch diff 计算、行号渲染与高亮规则语义。
+  - 不调整 edit tool 的文案和审批行为。
+
 ## 目标结构
 
 ```
