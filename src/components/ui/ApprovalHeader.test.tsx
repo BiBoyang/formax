@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { ApprovalHeader as ServiceApprovalHeader } from '../../tools/presenters/ApprovalHeader'
 import { ApprovalHeader as UiApprovalHeader } from './ApprovalHeader'
 
 const mocks = vi.hoisted(() => ({
@@ -37,14 +36,6 @@ describe('components/ui/ApprovalHeader', () => {
       .map((line) => line.trimEnd())
       .filter((line) => /^─{20,}$/.test(line))
     expect(ruleLines).toHaveLength(1)
-  })
-
-  it('matches service ApprovalHeader rendering baseline', () => {
-    const title = 'Resume Session'
-    const uiFrame = renderFrame(<UiApprovalHeader title={title} />)
-    const serviceFrame = renderFrame(<ServiceApprovalHeader title={title} />)
-
-    expect(uiFrame).toBe(serviceFrame)
   })
 
   it('falls back to 80 columns when stdout columns are unavailable', () => {

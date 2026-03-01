@@ -18,7 +18,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../presenters/ApprovalHeader', () => ({
+vi.mock('../../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 

@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
-import { ApprovalHeader } from '../../presenters/ApprovalHeader'
+import { ApprovalHeader } from '../../../components/ui/ApprovalHeader'
 import { ApprovalPreview } from '../../presenters/ApprovalPreview'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'
-import { MarkdownBlock } from '../../presenters/MarkdownBlock'
+import { MarkdownBlock } from '../../../components/ui/MarkdownBlock'
 import { useUserInputManager } from '../../runtime/userInputContext'
 
 function buildPreviewMarkdown(

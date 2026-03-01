@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { MarkdownBlock as ServiceMarkdownBlock } from '../../tools/presenters/MarkdownBlock'
 import { MarkdownBlock as UiMarkdownBlock, parseMarkdown } from './MarkdownBlock'
 
 function renderFrame(node: React.ReactElement): string {
@@ -35,14 +34,6 @@ describe('components/ui/MarkdownBlock', () => {
   it('treats unmatched inline backticks as plain text', () => {
     const frame = renderFrame(<UiMarkdownBlock markdown={'prefix `unfinished'} />)
     expect(frame).toContain('prefix `unfinished')
-  })
-
-  it('matches service MarkdownBlock rendering baseline', () => {
-    const md = ['Paragraph 1', '', '- item-1', '- item-2', '', '```txt', 'code line', '```', '', '`tail`'].join('\n')
-    const uiFrame = renderFrame(<UiMarkdownBlock markdown={md} />)
-    const serviceFrame = renderFrame(<ServiceMarkdownBlock markdown={md} />)
-
-    expect(uiFrame).toBe(serviceFrame)
   })
 
   it('renders empty code lines as visible blank rows', () => {

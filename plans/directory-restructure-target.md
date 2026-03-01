@@ -374,6 +374,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 fallback 的渲染实现与行为，只移除中转 wrapper。
   - 不调整工具模块的 UI 展示文案和状态映射逻辑。
 
+## 执行状态（Phase C - Slice 25）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - 删除 `src/tools/presenters/{ApprovalHeader,ConfirmMenu,MarkdownBlock}.tsx` 三个已无生产调用方的 wrapper。
+  - `src/tools/presenters/*` 与 `src/components/ui/*` 相关测试改为直接引用 `src/components/ui/*`。
+  - 移除仅用于 wrapper 对齐的冗余基线断言，保留功能与交互断言。
+  - `scripts/check-duplicate-presenters-parity.mjs` 清空已下线 wrapper 的对照项，消除已知结构下的长期假告警。
+- 明确不做：
+  - 不改 ConfirmMenu/ApprovalHeader/MarkdownBlock 的实现逻辑与交互语义。
+  - 不改审批流程 decision 映射和 UI 文案。
+
 ## 目标结构
 
 ```

@@ -19,7 +19,7 @@ vi.mock('../../runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../presenters/ApprovalHeader', () => ({
+vi.mock('../../../components/ui/ApprovalHeader', () => ({
   ApprovalHeader: ({ title }: { title: string }) => <Text>{title}</Text>,
 }))
 
@@ -45,7 +45,7 @@ vi.mock('../../presenters/ApprovalPreview', () => ({
   },
 }))
 
-vi.mock('../../presenters/MarkdownBlock', () => ({
+vi.mock('../../../components/ui/MarkdownBlock', () => ({
   MarkdownBlock: ({ markdown }: { markdown: string }) => {
     mocks.markdownProps.push({ markdown })
     return <Text>{markdown}</Text>

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
-import { ConfirmMenu } from './ConfirmMenu'
+import { ConfirmMenu } from '../../components/ui/ConfirmMenu'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 5))

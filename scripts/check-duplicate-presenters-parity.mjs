@@ -5,23 +5,9 @@ import { runNoClaudeCheck } from './check-no-claude.mjs'
 const REPO_ROOT = process.cwd()
 const DEFAULT_BASELINE_PATH = path.join(REPO_ROOT, 'scripts', 'baselines', 'presenter-parity-violations.json')
 
-const PAIRS = [
-  {
-    name: 'ApprovalHeader',
-    servicePath: 'src/tools/presenters/ApprovalHeader.tsx',
-    uiPath: 'src/components/ui/ApprovalHeader.tsx',
-  },
-  {
-    name: 'ConfirmMenu',
-    servicePath: 'src/tools/presenters/ConfirmMenu.tsx',
-    uiPath: 'src/components/ui/ConfirmMenu.tsx',
-  },
-  {
-    name: 'MarkdownBlock',
-    servicePath: 'src/tools/presenters/MarkdownBlock.tsx',
-    uiPath: 'src/components/ui/MarkdownBlock.tsx',
-  },
-]
+// Wrapper parity targets were fully removed in Phase C slices.
+// Keep the checker in place so new duplicate presenter pairs can be added explicitly if needed.
+const PAIRS = []
 
 function toAbs(relPath) {
   return path.resolve(REPO_ROOT, relPath)
