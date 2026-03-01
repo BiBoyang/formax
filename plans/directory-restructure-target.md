@@ -263,6 +263,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何运行时配置加载逻辑（`src/env/config.ts` / `src/core/config/*`）。
   - 不改默认配置字段和值语义。
 
+## 执行状态（Phase C - Slice 14）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/theme.ts` 迁移到 `src/shared/utils/theme.ts`。
+  - 在 `src/utils/theme.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改任何主题色值、主题字段和 `getTheme()` 返回语义。
+  - 暂不改现有调用方导入路径（保持兼容入口以降低改动面）。
+
 ## 目标结构
 
 ```
