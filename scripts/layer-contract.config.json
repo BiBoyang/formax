@@ -1,6 +1,7 @@
 {
   "layerOrder": ["Types", "Config", "Repo", "Service", "Runtime", "UI"],
   "scanRoots": ["src", "apps/web-reference-react/src"],
+  "allowedImports": [],
   "layers": {
     "Types": [
       "src/shared",

@@ -177,6 +177,7 @@ function loadConfig(configPath) {
   const parsed = JSON.parse(raw)
   const layerOrder = Array.isArray(parsed.layerOrder) ? parsed.layerOrder.map(String) : []
   const scanRoots = Array.isArray(parsed.scanRoots) ? parsed.scanRoots.map((p) => path.resolve(REPO_ROOT, String(p))) : []
+  const allowedImports = parseAllowedImports(parsed.allowedImports)
   const layers = parsed.layers && typeof parsed.layers === 'object' ? parsed.layers : {}
 
   const mappingEntries = []
@@ -197,7 +198,28 @@ function loadConfig(configPath) {
   mappingEntries.sort((a, b) => b.absPath.length - a.absPath.length)
   const layerIndex = new Map(layerOrder.map((name, idx) => [name, idx]))
 
-  return { layerOrder, layerIndex, scanRoots, mappingEntries }
+  return { layerOrder, layerIndex, scanRoots, mappingEntries, allowedImports }
+}
+
+function normalizeRepoRelPath(rawPath) {
+  const raw = String(rawPath || '').trim().replace(/\\/g, '/')
+  if (!raw) return ''
+  return raw.replace(/^\.\//, '')
+}
+
+function parseAllowedImports(rawAllowedImports) {
+  if (!Array.isArray(rawAllowedImports)) return []
+  const out = []
+  for (const rawEntry of rawAllowedImports) {
+    if (!rawEntry || typeof rawEntry !== 'object') continue
+    const source = normalizeRepoRelPath(rawEntry.source)
+    const target = normalizeRepoRelPath(rawEntry.target)
+    const rule = rawEntry.rule === 'UI_MUST_NOT_IMPORT_REPO' ? 'UI_MUST_NOT_IMPORT_REPO' : rawEntry.rule === 'LAYER_ORDER' ? 'LAYER_ORDER' : ''
+    const reason = typeof rawEntry.reason === 'string' ? rawEntry.reason.trim() : ''
+    if (!source || !target || !rule) continue
+    out.push({ source, target, rule, reason })
+  }
+  return out
 }
 
 function resolveLayerForFile(filePath, mappingEntries) {
@@ -297,16 +319,62 @@ function printViolations(title, violations) {
   }
 }
 
+function allowedImportKey(v) {
+  return [normalizeRepoRelPath(v.sourceFile), normalizeRepoRelPath(v.targetPath), v.rule].join('::')
+}
+
+function printAllowedImports(title, entries) {
+  if (entries.length === 0) return
+  console.error(`\n${title}`)
+  for (const entry of entries) {
+    const reasonSuffix = entry.reason ? ` | reason: ${entry.reason}` : ''
+    console.error(`- ${entry.source} -> ${entry.target} (${entry.rule})${reasonSuffix}`)
+  }
+}
+
+function applyAllowedImports(violations, allowedImports) {
+  if (allowedImports.length === 0) {
+    return { filtered: violations, staleAllowedImports: [] }
+  }
+
+  const allowMap = new Map()
+  for (const entry of allowedImports) {
+    allowMap.set(allowedImportKey({ sourceFile: entry.source, targetPath: entry.target, rule: entry.rule }), entry)
+  }
+
+  const matchedAllowedKeys = new Set()
+  const filtered = []
+  for (const violation of violations) {
+    const key = allowedImportKey(violation)
+    if (allowMap.has(key)) {
+      matchedAllowedKeys.add(key)
+      continue
+    }
+    filtered.push(violation)
+  }
+
+  const staleAllowedImports = allowedImports.filter((entry) => {
+    const key = allowedImportKey({ sourceFile: entry.source, targetPath: entry.target, rule: entry.rule })
+    return !matchedAllowedKeys.has(key)
+  })
+
+  return { filtered, staleAllowedImports }
+}
+
 function main() {
   runNoClaudeCheck({ repoRoot: REPO_ROOT })
 
   const args = parseArgs()
   const config = loadConfig(args.configPath)
-  const current = collectViolations(config)
+  const observed = collectViolations(config)
+  const { filtered: current, staleAllowedImports } = applyAllowedImports(observed, config.allowedImports)
 
   if (args.writeBaseline) {
     saveBaseline(args.baselinePath, current)
     console.log(`Wrote ${current.length} layer-contract baseline violations to ${rel(args.baselinePath)}`)
+    if (staleAllowedImports.length > 0) {
+      printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+    }
     return
   }
 
@@ -323,13 +391,19 @@ function main() {
     if (staleBaseline.length > 0) {
       printViolations('Stale baseline entries (can be cleaned up):', staleBaseline)
     }
+    if (staleAllowedImports.length > 0) {
+      printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+    }
     process.exitCode = 1
     return
   }
 
   console.log(
-    `Layer contract check passed. baseline=${baseline.violations.length}, current=${current.length}, staleBaseline=${staleBaseline.length}`,
+    `Layer contract check passed. baseline=${baseline.violations.length}, current=${current.length}, staleBaseline=${staleBaseline.length}, staleAllowedImports=${staleAllowedImports.length}`,
   )
+  if (staleAllowedImports.length > 0) {
+    printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
+  }
 }
 
 main()
