@@ -4,7 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createSlashCommandToolModule } from './index.js'
 import { getConfigPaths } from '../../../adapters/fs/configPaths.js'
-import { createCommandStore } from '../../../commands/CommandStore.js'
+import { createCommandStore } from '../../../features/commands/CommandStore.js'
 import { parseMarkdownFrontmatter } from '../../../shared/frontmatter.js'
 
 async function withTempRepo<T>(fn: (args: { root: string; globalConfigDir: string }) => Promise<T>): Promise<T> {

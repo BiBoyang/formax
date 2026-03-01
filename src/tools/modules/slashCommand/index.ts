@@ -3,7 +3,7 @@ import type { ToolDefinition } from '../../types'
 import { SlashCommandToolHandler } from './handler'
 import { baseSpec } from './spec'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
-import { createCommandStore } from '../../../commands/CommandStore'
+import { createCommandStore } from '../../../features/commands/CommandStore'
 
 function buildAvailableCommandsSection(cwd: string): string {
   const configPaths = getConfigPaths({ cwd, env: process.env })

@@ -123,6 +123,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 SkillStore 的扫描逻辑、缓存语义和 skill 工具行为。
 
+## 执行状态（Phase C - Slice 2）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/commands/CommandStore.ts` 与 `src/commands/CommandStore.test.ts` 迁移到 `src/features/commands/`。
+  - `src/commands/render.ts` 与 `src/commands/render.test.ts` 迁移到 `src/features/commands/`。
+  - `src/features/commands/registry.ts` 与 `src/tools/modules/slashCommand/*` 改为引用 `src/features/commands/{CommandStore,render}`。
+  - 在 `src/commands/CommandStore.ts` 与 `src/commands/render.ts` 保留兼容 re-export，降低一次性迁移风险。
+  - `layer-contract.config.json` 增补 `src/features/commands/CommandStore.ts` 的 Repo 层映射。
+- 明确不做：
+  - 不改 slash command 的解析、派发与输出语义。
+  - 不改 CommandStore 的扫描逻辑与命令覆盖优先级。
+
 ## 目标结构
 
 ```

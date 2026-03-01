@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../commands/CommandStore', () => {
+vi.mock('./CommandStore', () => {
   return {
     createCommandStore: () => ({
       listAll: () => [],
@@ -21,4 +21,3 @@ describe('slash command: /resume', () => {
     expect(effect).toEqual({ kind: 'open_resume_dialog' })
   })
 })
-

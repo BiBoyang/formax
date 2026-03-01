@@ -2,8 +2,8 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
-import { createCommandStore } from '../../../commands/CommandStore'
-import { buildFileCommandExpandedText } from '../../../commands/render'
+import { createCommandStore } from '../../../features/commands/CommandStore'
+import { buildFileCommandExpandedText } from '../../../features/commands/render'
 
 export const SlashCommandToolHandler: ToolHandler = {
   canHandle(name: string): boolean {
