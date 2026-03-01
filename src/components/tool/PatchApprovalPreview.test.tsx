@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import path from 'node:path'
 import { render } from 'ink-testing-library'
-import * as snippetLineHook from '../../components/tool/useSnippetStartLineNumber'
-import { PatchApprovalPreview } from '../../components/tool/PatchApprovalPreview'
+import * as snippetLineHook from './useSnippetStartLineNumber'
+import { PatchApprovalPreview } from './PatchApprovalPreview'
 
 const mocks = vi.hoisted(() => ({
   columns: 100 as number | undefined,

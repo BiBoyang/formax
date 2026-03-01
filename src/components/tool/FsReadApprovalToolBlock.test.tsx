@@ -13,18 +13,18 @@ const mocks = vi.hoisted(() => ({
   promptProps: null as null | { onDecision: (decision: { kind: string; feedback?: string }) => void },
 }))
 
-vi.mock('../runtime/userInputContext', () => ({
+vi.mock('../../tools/runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../components/tool/fsReadApprovalPrompt', () => ({
+vi.mock('./fsReadApprovalPrompt', () => ({
   FsReadApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>
   },
 }))
 
-import { FsReadApprovalToolBlock } from '../../components/tool/FsReadApprovalToolBlock'
+import { FsReadApprovalToolBlock } from './FsReadApprovalToolBlock'
 
 describe('FsReadApprovalToolBlock', () => {
   beforeEach(() => {

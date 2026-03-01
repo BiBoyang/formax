@@ -18,18 +18,18 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../runtime/userInputContext', () => ({
+vi.mock('../../tools/runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
-vi.mock('../../components/tool/bashApprovalPrompt', () => ({
+vi.mock('./bashApprovalPrompt', () => ({
   BashApprovalPrompt: (props: any) => {
     mocks.promptProps = props
     return <Text>{props.title}</Text>
   },
 }))
 
-import { BashApprovalToolBlock } from '../../components/tool/BashApprovalToolBlock.js'
+import { BashApprovalToolBlock } from './BashApprovalToolBlock.js'
 
 describe('BashApprovalToolBlock', () => {
   beforeEach(() => {

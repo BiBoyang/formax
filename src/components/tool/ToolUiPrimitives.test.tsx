@@ -8,7 +8,7 @@ import {
   ToolIndentedLine,
   ToolSubline,
   ToolUiBlocks,
-} from '../../components/tool/ToolUiPrimitives'
+} from './ToolUiPrimitives'
 
 describe('ToolUiPrimitives', () => {
   it('renders header line with suffix/params and pulsing running status', () => {

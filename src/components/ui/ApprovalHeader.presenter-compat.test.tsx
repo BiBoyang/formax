@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { ApprovalHeader as ServiceApprovalHeader } from '../../components/ui/ApprovalHeader'
+import { ApprovalHeader as ServiceApprovalHeader } from './ApprovalHeader'
 
 const mocks = vi.hoisted(() => ({
   columns: 100 as number | undefined,

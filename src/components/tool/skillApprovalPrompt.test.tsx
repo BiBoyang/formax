@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
-import { SkillApprovalPrompt } from '../../components/tool/skillApprovalPrompt'
+import { SkillApprovalPrompt } from './skillApprovalPrompt'
 
 function tick(): Promise<void> {
   // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.

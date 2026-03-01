@@ -3,7 +3,7 @@ import React from 'react'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../features/repl/replUiContext'
-import { EditApprovalPrompt } from '../../components/tool/editApprovalPrompt'
+import { EditApprovalPrompt } from './editApprovalPrompt'
 
 function tick(): Promise<void> {
   // Under full-suite + coverage load (Ink 6 / React 19), input + frames can be batched/delayed.

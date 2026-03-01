@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
-import { MarkdownBlock as ServiceMarkdownBlock, parseMarkdown } from '../../components/ui/MarkdownBlock'
+import { MarkdownBlock as ServiceMarkdownBlock, parseMarkdown } from './MarkdownBlock'
 
 function renderFrame(node: React.ReactElement): string {
   const view = render(node)

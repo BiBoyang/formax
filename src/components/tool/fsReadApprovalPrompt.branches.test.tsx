@@ -12,7 +12,7 @@ vi.mock('../../components/ui/ConfirmMenu', () => ({
   },
 }))
 
-import { FsReadApprovalPrompt } from '../../components/tool/fsReadApprovalPrompt'
+import { FsReadApprovalPrompt } from './fsReadApprovalPrompt'
 
 describe('FsReadApprovalPrompt branches', () => {
   it('ignores unknown choice keys in handleDecision', () => {

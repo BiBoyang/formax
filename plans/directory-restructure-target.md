@@ -562,6 +562,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 LocalBash 呈现逻辑（输出截断、expanded、error 状态）。
   - 不改 ToolUiPrimitives 的渲染与 pulse 行为。
 
+## 执行状态（Phase C - Slice 43）
+
+- 状态：进行中（目录迁移第一批，低风险，测试目录收口）。
+- 本轮已完成：
+  - 将 `src/tools/presenters` 下剩余测试批量迁移到对应所有者目录：
+    - tool 相关测试迁移至 `src/components/tool/*`
+    - ui 兼容测试迁移至 `src/components/ui/*presenter-compat.test.tsx`
+  - `src/tools/presenters` 目录内测试清空（目录层面完成收口）。
+  - `docs/contracts/interactive-input-contract.md` 的 approval prompt 测试路径同步更新至 `src/components/tool/*approvalPrompt.test.tsx`。
+- 明确不做：
+  - 不改任何生产实现，仅做测试文件归位与导入路径修正。
+  - 不删减既有断言语义，只修复迁移带来的路径/时序稳定性问题。
+
 ## 目标结构
 
 ```

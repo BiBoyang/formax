@@ -159,7 +159,7 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 3. `apps/web-reference-react/src/App.test.tsx`
 4. `src/tools/executor/approvalService.test.ts`
 5. `src/tools/executor/policyPreflight.test.ts`
-6. `src/tools/presenters/*approvalPrompt.test.tsx`
+6. `src/components/tool/*approvalPrompt.test.tsx`
 7. 与 `src/components/tool/AskUserQuestionToolBlock.tsx` 相关的 presenter 测试
 
 ## 8. 变更控制

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
-import { SkillApprovalPrompt } from '../../components/tool/skillApprovalPrompt'
+import { SkillApprovalPrompt } from './skillApprovalPrompt'
 
 const mocks = vi.hoisted(() => ({
   onDecisionFromMenu: null as null | ((decision: any) => void),

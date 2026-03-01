@@ -1,9 +1,9 @@
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
-import { ToolUiBlocks } from '../../components/tool/ToolUiBlocks'
-import type { Msg } from '../../components/tool/ToolMessage'
-import { LocalBashPresenter } from '../../components/tool/LocalBashPresenter'
+import { ToolUiBlocks } from './ToolUiBlocks'
+import type { Msg } from './ToolMessage'
+import { LocalBashPresenter } from './LocalBashPresenter'
 
 function renderMessage(message: Msg): string {
   const out = LocalBashPresenter({ message })

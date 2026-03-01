@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   activateCalls: [] as string[],
 }))
 
-vi.mock('../runtime/userInputContext', () => ({
+vi.mock('../../tools/runtime/userInputContext', () => ({
   useUserInputManager: () => mocks.userInput,
 }))
 
@@ -32,7 +32,7 @@ vi.mock('../../features/repl/inputScopeContext', () => ({
   },
 }))
 
-import { AskUserQuestionToolBlock } from '../../components/tool/AskUserQuestionToolBlock.js'
+import { AskUserQuestionToolBlock } from './AskUserQuestionToolBlock.js'
 
 function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
