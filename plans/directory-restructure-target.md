@@ -952,6 +952,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 暂不迁移 `shared/utils/toolFormatting.ts`（`Repo` 层仍有合法依赖），避免引入跨层违规。
 
+## 执行状态（Phase C - Slice 78）
+
+- 状态：进行中（目录迁移第二批，脚本路径收口）。
+- 本轮已完成：
+  - `scripts/surface-screen-model-smoke.tsx` 对 `inkStreams` 的导入从 `src/shared/utils/inkStreams` 切换到 `src/tui/inkStreams`。
+  - 全仓复扫 `shared/utils/inkStreams` 残留引用，确认仅该脚本存在旧路径依赖并已收敛。
+  - 验证通过：`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不调整 smoke 脚本行为逻辑，仅做路径事实修正。
+
 ## 目标结构
 
 ```
