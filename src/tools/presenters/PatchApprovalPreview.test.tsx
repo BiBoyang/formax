@@ -3,7 +3,7 @@ import React from 'react'
 import path from 'node:path'
 import { render } from 'ink-testing-library'
 import * as snippetLineHook from '../../components/tool/useSnippetStartLineNumber'
-import { PatchApprovalPreview } from './PatchApprovalPreview'
+import { PatchApprovalPreview } from '../../components/tool/PatchApprovalPreview'
 
 const mocks = vi.hoisted(() => ({
   columns: 100 as number | undefined,
