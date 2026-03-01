@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { createNodeFileStore } from '../adapters/fs/nodeFileStore.js'
-import { getConfigPaths } from '../adapters/fs/configPaths.js'
+import { createNodeFileStore } from '../../adapters/fs/nodeFileStore.js'
+import { getConfigPaths } from '../../adapters/fs/configPaths.js'
 import { dispatchCli } from './main.js'
-import pkg from '../../package.json'
+import pkg from '../../../package.json'
 
 describe('dispatchCli', () => {
   it('prints version for --version', async () => {

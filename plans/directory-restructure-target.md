@@ -767,6 +767,15 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 CLI 命令分发逻辑、返回结构、错误处理分支，仅迁移模块归属路径。
 
+## 执行状态（Phase C - Slice 62）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，低风险切片）。
+- 本轮已完成：
+  - `src/cli/{args,help,main}.test.ts` 迁移到 `src/runtime/cli/{args,help,main}.test.ts`。
+  - 迁移后测试内相对导入已对齐 `src/runtime/cli` 目录层级。
+- 明确不做：
+  - 不改测试断言与用例语义，仅调整测试文件归属与导入路径。
+
 ## 目标结构
 
 ```
