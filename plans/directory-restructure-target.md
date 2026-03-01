@@ -253,6 +253,16 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 tool call/result 格式化规则、计数规则与摘要文案。
   - 不改 task/tool message 映射语义。
 
+## 执行状态（Phase C - Slice 13）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/config.ts` 迁移到 `src/shared/utils/config.ts`。
+  - 在 `src/utils/config.ts` 保留兼容 re-export。
+- 明确不做：
+  - 不改任何运行时配置加载逻辑（`src/env/config.ts` / `src/core/config/*`）。
+  - 不改默认配置字段和值语义。
+
 ## 目标结构
 
 ```
