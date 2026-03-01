@@ -5,7 +5,7 @@ import { ReadToolPresenter } from './presenter'
 import type { Msg } from '../../../components/tool/ToolMessage'
 import path from 'node:path'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
-import { isToolBlocksPresenter } from '../../presenters/types'
+import { isToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 
 function getBlocks(message: Msg) {
   if (!isToolBlocksPresenter(ReadToolPresenter)) {

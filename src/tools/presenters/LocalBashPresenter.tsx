@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import { createToolBlocksPresenter } from './types'
+import { createToolBlocksPresenter } from '../../shared/toolPresenterContracts'
 import type { Msg } from '../../shared/toolMessageTypes'
 import type { ToolBlocksOutput } from '../../shared/toolMessageTypes'
 import { ToolIndentedLine, ToolSubline } from './ToolUiPrimitives'

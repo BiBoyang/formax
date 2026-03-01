@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import path from 'node:path'
-import type { ToolPresenterComponent } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { FsWriteApprovalPrompt } from '../../presenters/fsWriteApprovalPrompt'

@@ -4,7 +4,7 @@ import type { Msg } from '../../shared/toolMessageTypes'
 import { getTheme } from '../../utils/theme'
 import { pickCompactErrorDetailLine } from '../../utils/toolErrorUi'
 import { selectToolHeaderFromInput } from '../../features/tools/presentation/toolViewModel'
-import type { ToolPresenterComponent } from './types'
+import type { ToolPresenterComponent } from '../../shared/toolPresenterContracts'
 import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from './ToolUiPrimitives'
 
 export function shouldShowSurfaceSuffix(): boolean {

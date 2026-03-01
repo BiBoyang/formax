@@ -2,7 +2,7 @@ import React from 'react'
 import type { Msg } from './ToolMessage'
 import type { ToolRegistry } from '../../tools/registry'
 import { FallbackToolPresenter } from '../../tools/presenters/fallback'
-import { isToolBlocksPresenter } from '../../tools/presenters/types'
+import { isToolBlocksPresenter } from '../../shared/toolPresenterContracts'
 import { ToolUiBlocks } from './ToolUiBlocks'
 
 type Props = {

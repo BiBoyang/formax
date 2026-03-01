@@ -1,6 +1,6 @@
 import type { ToolHandler } from './executor'
 import type { ToolDefinition } from './types'
-import type { ToolPresenter } from './presenters/types'
+import type { ToolPresenter } from '../shared/toolPresenterContracts'
 
 export type ToolSpecPatch = (tools: ToolDefinition[]) => ToolDefinition[]
 

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import type { ToolPresenterComponent } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../utils/theme'

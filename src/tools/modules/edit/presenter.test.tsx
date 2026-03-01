@@ -7,7 +7,7 @@ import { PlanProvider } from '../../../features/repl/planContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
-import { isToolBlocksPresenter } from '../../presenters/types'
+import { isToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 
 // Helper to render blocks presenter
 function renderBlocksPresenter(presenter: typeof EditToolPresenter, message: Msg) {

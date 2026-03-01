@@ -5,7 +5,7 @@ import { render } from 'ink-testing-library'
 import { ToolRouter } from './ToolRouter'
 import type { Msg } from './ToolMessage'
 import { ToolRegistry } from '../../tools/registry'
-import { createToolBlocksPresenter } from '../../tools/presenters/types'
+import { createToolBlocksPresenter } from '../../shared/toolPresenterContracts'
 
 function createToolMsg(overrides: Partial<Msg> = {}): Msg {
   return {

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
-import type { ToolPresenterComponent } from '../../presenters/types'
+import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../presenters/fallback'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../utils/theme'

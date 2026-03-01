@@ -19,6 +19,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不移动 `src/` 目录结构。
   - 不改变业务行为或 UI 语义。
 
+## 执行状态（Phase B - Slice 1）
+
+- 状态：进行中（类型抽离 + presenter contract 解耦，仍不搬目录）。
+- 本轮已完成：
+  - 新增 `src/shared/toolPresenterContracts.ts`，承接 `ToolPresenter` / `ToolBlocksPresenter` / `createToolBlocksPresenter` / `isToolBlocksPresenter` 作为共享合同。
+  - `src/tools/presenters/types.ts` 降级为兼容 re-export，避免一次性大爆炸改动。
+  - `ToolRouter`、`ToolRegistry`、以及各 `src/tools/modules/*/presenter*.tsx` 的 contract 类型导入改为指向 shared 合同层，减少对 `src/tools/presenters/` 的直接耦合。
+  - 新增 `src/shared/toolPresenterContracts.test.ts`，锁定 blocks presenter 标记与类型守卫行为。
+- 明确不做：
+  - 不迁移 `src/tools/presenters/*` 到 `src/components/tool/*`。
+  - 不改任何 tool UI 文案、交互逻辑、审批流语义。
+
 ## 目标结构
 
 ```
