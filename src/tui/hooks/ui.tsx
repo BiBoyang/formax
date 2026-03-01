@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import type { Theme } from '../../shared/utils/theme.js'
+import type { Theme } from '../theme.js'
 import { OverlayFrame } from '../../components/ui/OverlayFrame.js'
 import TextInput from '../../components/ui/TextInput.js'
 import type { InputScopeId } from '../../features/repl/inputScopeContext.js'

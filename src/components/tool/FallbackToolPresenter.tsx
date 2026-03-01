@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box } from 'ink'
 import type { Msg } from './ToolMessage'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import { pickCompactErrorDetailLine } from '../../shared/utils/toolErrorUi'
 import { selectToolHeaderFromInput } from '../../features/tools/presentation/toolViewModel'
 import { ToolHeaderLine } from './ToolHeaderLine'

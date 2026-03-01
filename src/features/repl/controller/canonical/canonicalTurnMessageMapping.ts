@@ -4,7 +4,7 @@ import { selectTailSegmentsForTurn } from '../../../semantics/selectors/transcri
 import { selectToolPresentation } from '../../../semantics/selectors/toolPresentation'
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
-import { formatToolResult } from '../../../../shared/utils/toolFormatting'
+import { formatToolResult } from '../../../../tui/toolFormatting'
 import { parseTaskTranscript } from '../send/taskResult'
 
 function decodeParamValue(value: string, valueType: 'string' | 'json'): unknown {

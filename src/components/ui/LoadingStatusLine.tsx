@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Text } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 
 const DEFAULT_LOADING_WORDS: readonly string[] = [
   'Accomplishing',

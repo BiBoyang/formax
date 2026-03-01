@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Text } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 
 export function dimHexColor(hex: string, factor: number): string | null {
   const raw = String(hex || '').trim()

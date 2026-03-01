@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import type { Theme } from '../../shared/utils/theme'
+import type { Theme } from '../../tui/theme'
 
 export type ThinkingBlockRenderMode = 'primary' | 'expanded'
 

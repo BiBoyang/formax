@@ -1,6 +1,6 @@
 import React from 'react'
 import { Text } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import { PulsingDot } from '../ui/PulsingDot'
 import type { ToolHeaderStatus } from '../../shared/toolMessageTypes'
 

@@ -910,6 +910,21 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改任何运行时代码、边界规则或 UI 行为，仅收敛文档与技能指引路径事实。
 
+## 执行状态（Phase C - Slice 75）
+
+- 状态：进行中（目录迁移第二批，TUI 公共工具入口收口）。
+- 本轮已完成：
+  - 新增 `src/tui/{theme,toolFormatting,consoleLogger,inkStreams}.ts` 四个稳定入口（当前转发到 `src/shared/utils/*` 实现）。
+  - 全仓 UI/Presenter/REPL 相关导入切换到 `src/tui/*` 入口：
+    - 主题：`theme`
+    - 工具文案格式化：`toolFormatting`
+    - 浏览器日志桥：`consoleLogger`
+    - Ink stdout 安全适配：`inkStreams`
+  - `Repo` 层文件 `src/features/repl/sessionSave/reader.ts` 保持依赖 `shared/utils/toolFormatting`，避免跨层违规。
+  - 相关门禁通过：`check:layer-contracts`、`check:layer-coverage`、`check:shared-types`。
+- 明确不做：
+  - 不搬动 `src/shared/utils/*` 实现文件本体，仅先收敛调用入口，后续再按层策略决定是否迁实现。
+
 ## 目标结构
 
 ```

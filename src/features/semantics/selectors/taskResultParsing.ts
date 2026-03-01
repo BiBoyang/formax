@@ -1,4 +1,4 @@
-import { stripTrailingSystemReminderBlock } from '../../../shared/utils/toolFormatting'
+import { stripTrailingSystemReminderBlock } from '../../../tui/toolFormatting'
 
 function parseTaskResultJson(rawResult: string): Record<string, unknown> | null {
   const text = stripTrailingSystemReminderBlock(String(rawResult || '')).trim()

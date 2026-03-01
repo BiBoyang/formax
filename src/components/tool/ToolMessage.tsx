@@ -10,7 +10,7 @@
 
 import React from 'react'
 import { Box } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import type { Msg } from '../../shared/toolMessageTypes'
 import { pickCompactErrorDetailLine } from '../../shared/utils/toolErrorUi'
 import { selectToolHeaderFromInput } from '../../features/tools/presentation/toolViewModel'

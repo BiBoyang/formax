@@ -4,7 +4,7 @@ import { createToolBlocksPresenter } from '../../shared/toolPresenterContracts'
 import type { Msg } from '../../shared/toolMessageTypes'
 import type { ToolBlocksOutput } from '../../shared/toolMessageTypes'
 import { ToolIndentedLine, ToolSubline } from './ToolUiPrimitives'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 
 function parseCommand(input: unknown): string {
   const rec = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null

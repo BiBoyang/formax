@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'

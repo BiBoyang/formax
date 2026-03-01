@@ -1,7 +1,7 @@
 import React from 'react'
 import { Text } from 'ink'
 import type { ReplMode } from '../../features/repl/mode'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import { ModeIndicator } from './ModeIndicator'
 
 type Props = {

@@ -3,7 +3,7 @@ import type { App } from '../../core/app/createApp.js'
 import { createRuntime } from '../createRuntime.js'
 import { resolveInitialSession } from './session.js'
 import { renderReplApp } from './renderReplApp.js'
-import { resetInkStaticOutputForStdout } from '../../shared/utils/inkStreams.js'
+import { resetInkStaticOutputForStdout } from '../../tui/inkStreams.js'
 
 export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forceSetup?: boolean } = {}): Promise<void> {
   await clearTerminal()

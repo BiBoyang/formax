@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import { Box, Text } from 'ink'
-import type { Theme } from '../../shared/utils/theme.js'
+import type { Theme } from '../theme.js'
 import { KeyHintBar } from '../../components/ui/KeyHintBar.js'
 import { OverlayFrame } from '../../components/ui/OverlayFrame.js'
 import { SelectList } from '../../components/ui/SelectList.js'

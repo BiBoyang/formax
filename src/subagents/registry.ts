@@ -1,6 +1,6 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { wsWarn, wsError, wsInfo } from '../shared/utils/consoleLogger'
+import { wsWarn, wsError, wsInfo } from '../tui/consoleLogger'
 import type { SubAgentConfig } from './types'
 import { getBuiltinSubagents } from './builtins'
 

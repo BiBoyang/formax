@@ -3,7 +3,7 @@ import { Box, Text } from 'ink'
 import { ToolSubline } from './ToolUiPrimitives'
 import { formatPlanPathForDisplay } from '../../shared/utils/planMode'
 import { usePlanSession } from '../../features/repl/planContext'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import type { Msg } from '../../shared/toolMessageTypes'
 
 export function EditPlanFileBlock({ message }: { message: Msg }): React.ReactNode {

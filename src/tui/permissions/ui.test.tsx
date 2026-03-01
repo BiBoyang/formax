@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import { Text } from 'ink'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../theme'
 import {
   __permissionsUiTestHooks,
   DialogFrame,

@@ -1,7 +1,7 @@
 import type { ToolSegment } from '../../semantics/projection/transcriptProjection'
 import { selectToolPresentation } from '../../semantics/selectors/toolPresentation'
 import type { InputKind, InputStatus } from '../../../shared/inputContracts'
-import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
+import { formatToolCallParts } from '../../../tui/toolFormatting'
 
 export type ToolViewCompletion = { kind: 'started'; taskId: string } | { kind: 'done' } | null
 

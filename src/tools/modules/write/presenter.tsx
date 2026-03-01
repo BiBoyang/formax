@@ -1,7 +1,7 @@
 import React from 'react'
 import path from 'node:path'
 import { Box, Text } from 'ink'
-import { formatToolCallParts } from '../../../shared/utils/toolFormatting'
+import { formatToolCallParts } from '../../../tui/toolFormatting'
 import { isSameFilePath, formatPlanPathForDisplay } from '../../../shared/utils/planMode'
 import type { ToolPresenter } from '../../../shared/toolPresenterContracts'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
@@ -9,7 +9,7 @@ import type { Msg } from '../../../shared/toolMessageTypes'
 import { ToolHeaderLine, ToolIndentedLine, ToolSubline } from '../../../components/tool/ToolUiPrimitives'
 import { WriteApprovalToolBlock } from '../../../components/tool/WriteApprovalToolBlock'
 import { usePlanSession } from '../../../features/repl/planContext'
-import { getTheme } from '../../../shared/utils/theme'
+import { getTheme } from '../../../tui/theme'
 import { pickCompactErrorDetailLine } from '../../../shared/utils/toolErrorUi'
 
 function shouldShowSurfaceSuffix(): boolean {

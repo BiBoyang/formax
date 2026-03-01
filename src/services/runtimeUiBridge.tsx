@@ -17,7 +17,7 @@ import type { ToolDefinition } from '../tools/types.js'
 import type { TaskManager } from '../tools/runtime/taskManager.js'
 import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
-import { createSafeInkStdout } from '../shared/utils/inkStreams.js'
+import { createSafeInkStdout } from '../tui/inkStreams.js'
 import { SetupWizard } from '../tui/SetupWizard.js'
 
 const SETUP_PROVIDER_OPTIONS: SetupProviderOption[] = [

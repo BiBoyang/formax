@@ -1,6 +1,6 @@
 import React from 'react'
 import { Text } from 'ink'
-import { getTheme } from '../../../shared/utils/theme'
+import { getTheme } from '../../../tui/theme'
 import { createToolBlocksPresenter } from '../../../shared/toolPresenterContracts'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import type { ToolBlocksOutput } from '../../../shared/toolMessageTypes'

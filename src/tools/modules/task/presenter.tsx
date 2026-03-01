@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
-import { getTheme } from '../../../shared/utils/theme'
+import { getTheme } from '../../../tui/theme'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
 import type { Msg } from '../../../shared/toolMessageTypes'

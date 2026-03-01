@@ -1,7 +1,7 @@
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 import { render } from 'ink-testing-library'
-import { getTheme } from '../../shared/utils/theme'
+import { getTheme } from '../../tui/theme'
 import { renderThinkingBlock, shouldRenderThinkingBlock } from './thinkingBlock'
 
 describe('thinkingBlock', () => {
