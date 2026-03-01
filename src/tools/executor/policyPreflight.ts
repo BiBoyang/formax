@@ -18,7 +18,7 @@ import { nowIso, type TraceContext } from '../../core/audit/schema.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
-import { formatPathForDisplay, normalizePathForCompare } from '../../utils/paths.js'
+import { formatPathForDisplay, normalizePathForCompare } from '../../shared/utils/paths.js'
 import type { HookRun } from '../../hooks/types.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
 

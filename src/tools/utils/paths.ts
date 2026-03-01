@@ -1,1 +1,1 @@
-export { requireAbsolutePath } from '../../utils/paths'
+export { requireAbsolutePath } from '../../shared/utils/paths'

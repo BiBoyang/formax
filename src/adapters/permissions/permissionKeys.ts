@@ -1,4 +1,4 @@
-import { normalizePathForCompare } from '../../utils/paths.js'
+import { normalizePathForCompare } from '../../shared/utils/paths.js'
 
 export type FsWriteToolName = 'Write' | 'Edit' | 'NotebookEdit'
 
@@ -20,4 +20,3 @@ export function buildFsWritePermissionKey(args: {
   const normalized = normalizePathForCompare(args.filePath, args.cwd)
   return buildToolPermissionKey(args.toolName, normalized)
 }
-

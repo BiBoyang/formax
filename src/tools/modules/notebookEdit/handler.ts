@@ -1,7 +1,7 @@
 import fsp from 'node:fs/promises'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import { requireAbsolutePath } from '../../utils/paths'
+import { requireAbsolutePath } from '../../../shared/utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 type EditMode = 'replace' | 'insert' | 'delete'

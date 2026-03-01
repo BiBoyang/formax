@@ -170,6 +170,18 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 `stripCatNPrefixes` 的解析规则与正则语义。
   - 不改 edit/patch 的业务流程与输出文案。
 
+## 执行状态（Phase C - Slice 6）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/paths.ts` 与 `src/utils/paths.test.ts` 迁移到 `src/shared/utils/`。
+  - `tools/modules/{read,write,edit,notebookEdit}`、`tools/executor/*`、`adapters/permissions/permissionKeys.ts` 改为引用 `src/shared/utils/paths`。
+  - `src/tools/utils/paths.ts` 改为桥接到 `src/shared/utils/paths`。
+  - 在 `src/utils/paths.ts` 保留兼容 re-export，保证旧导入路径可用。
+- 明确不做：
+  - 不改绝对路径校验、路径归一化与显示格式语义。
+  - 不改任意工具模块的业务逻辑与权限策略。
+
 ## 目标结构
 
 ```

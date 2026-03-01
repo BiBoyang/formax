@@ -4,7 +4,7 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
 import { hasReadFile } from '../../runtime/readLedger'
-import { requireAbsolutePath } from '../../utils/paths'
+import { requireAbsolutePath } from '../../../shared/utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
 export function createWriteToolHandler(): ToolHandler {

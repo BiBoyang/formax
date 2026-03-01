@@ -1,5 +1,5 @@
 import type { PolicyAction } from '../../core/policy/types.js'
-import { normalizePathForCompare, requireAbsolutePath } from '../../utils/paths.js'
+import { normalizePathForCompare, requireAbsolutePath } from '../../shared/utils/paths.js'
 import type { ToolCall } from '../types.js'
 import type { ExecutionContext } from './index.js'
 

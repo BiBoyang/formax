@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import { requireAbsolutePath } from '../../utils/paths'
+import { requireAbsolutePath } from '../../../shared/utils/paths'
 import { markFileRead } from '../../runtime/readLedger'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 
