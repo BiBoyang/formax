@@ -11,7 +11,7 @@ const { state } = vi.hoisted(() => ({
     },
     appServerOptions: null as any,
     handleMessage: (async () => []) as (message: unknown, options: any) => Promise<unknown[]>,
-    createRuntimeSpy: vi.fn(async () => ({
+    createRuntimeSpy: vi.fn(async (_args?: unknown) => ({
       engine: {},
       tools: {},
       allowedSubagents: [],
@@ -27,13 +27,15 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock('./transport/stdio.js', () => {
   class StdioPayloadTooLargeError extends Error {
-    maxBytes: number
-    actualBytes: number
+    readonly maxBytes: number
+    readonly actualBytes: number
+    readonly direction: 'request' | 'event'
 
-    constructor(maxBytes: number, actualBytes: number) {
+    constructor(args: { direction: 'request' | 'event'; maxBytes: number; actualBytes: number }) {
       super('PAYLOAD_TOO_LARGE')
-      this.maxBytes = maxBytes
-      this.actualBytes = actualBytes
+      this.maxBytes = args.maxBytes
+      this.actualBytes = args.actualBytes
+      this.direction = args.direction
     }
   }
 
@@ -70,7 +72,7 @@ vi.mock('./server.js', () => ({
 }))
 
 vi.mock('../runtime/createRuntime.js', () => ({
-  createRuntime: (...args: unknown[]) => state.createRuntimeSpy(...args),
+  createRuntime: (args: unknown) => state.createRuntimeSpy(args),
 }))
 
 vi.mock('./turnRunner.js', () => ({
@@ -153,11 +155,32 @@ describe('runAppServer (coverage branches)', () => {
 
     const ensureThreadFile = vi.fn(async ({ threadId }: { threadId: string; cwd: string }) => `/tmp/${threadId}.json`)
     const threadStore = {
-      startThread: async () => ({ thread: { id: 'thread-1' } }),
-      resumeThread: async () => ({ thread: { id: 'thread-1' } }),
-      listThreads: async () => ({ threads: [] }),
-      readThread: async () => ({ thread: null }),
-      listThreadMessages: async () => ({ messages: [] }),
+      startThread: async () => ({
+        id: 'thread-1',
+        cwd: '/tmp/repo',
+        createdAt: '2026-03-01T00:00:00.000Z',
+        updatedAt: '2026-03-01T00:00:00.000Z',
+      }),
+      resumeThread: async () => ({
+        thread: {
+          id: 'thread-1',
+          cwd: '/tmp/repo',
+          createdAt: '2026-03-01T00:00:00.000Z',
+          updatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        staleInputs: [],
+      }),
+      listThreads: async () => ({ data: [], nextCursor: null }),
+      readThread: async () => ({
+        thread: {
+          id: 'thread-1',
+          cwd: '/tmp/repo',
+          createdAt: '2026-03-01T00:00:00.000Z',
+          updatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        transcriptPreview: [],
+      }),
+      listThreadMessages: async () => ({ data: [], nextCursor: null }),
       ensureThreadFile,
     }
 
@@ -196,7 +219,7 @@ describe('runAppServer (coverage branches)', () => {
     state.transport.send = async (message: unknown) => {
       sendCount += 1
       if (sendCount === 1) {
-        throw new StdioPayloadTooLargeError(64, 128)
+        throw new StdioPayloadTooLargeError({ direction: 'event', maxBytes: 64, actualBytes: 128 })
       }
       state.transport.sent.push(message)
     }
@@ -220,7 +243,9 @@ describe('runAppServer (coverage branches)', () => {
     let sendCount = 0
     state.transport.send = async (message: unknown) => {
       sendCount += 1
-      if (sendCount === 1) throw new StdioPayloadTooLargeError(32, 96)
+      if (sendCount === 1) {
+        throw new StdioPayloadTooLargeError({ direction: 'event', maxBytes: 32, actualBytes: 96 })
+      }
       state.transport.sent.push(message)
     }
     state.handleMessage = async (message, options) => {
@@ -232,11 +257,32 @@ describe('runAppServer (coverage branches)', () => {
     }
 
     const threadStore = {
-      startThread: async () => ({ thread: { id: 'thread-1' } }),
-      resumeThread: async () => ({ thread: { id: 'thread-1' } }),
-      listThreads: async () => ({ threads: [] }),
-      readThread: async () => ({ thread: null }),
-      listThreadMessages: async () => ({ messages: [] }),
+      startThread: async () => ({
+        id: 'thread-1',
+        cwd: '/tmp/repo',
+        createdAt: '2026-03-01T00:00:00.000Z',
+        updatedAt: '2026-03-01T00:00:00.000Z',
+      }),
+      resumeThread: async () => ({
+        thread: {
+          id: 'thread-1',
+          cwd: '/tmp/repo',
+          createdAt: '2026-03-01T00:00:00.000Z',
+          updatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        staleInputs: [],
+      }),
+      listThreads: async () => ({ data: [], nextCursor: null }),
+      readThread: async () => ({
+        thread: {
+          id: 'thread-1',
+          cwd: '/tmp/repo',
+          createdAt: '2026-03-01T00:00:00.000Z',
+          updatedAt: '2026-03-01T00:00:00.000Z',
+        },
+        transcriptPreview: [],
+      }),
+      listThreadMessages: async () => ({ data: [], nextCursor: null }),
     }
 
     await runAppServer({ cwd: '/tmp/repo', env: {}, threadStore })

@@ -448,7 +448,7 @@ describe('AppServer', () => {
   })
 
   it('consumes pending exit-plan reminder after command/dispatch turn start success', async () => {
-    const startTurn = vi.fn(async () => ({ turnId: 'turn-1', acceptedAt: new Date().toISOString() }))
+    const startTurn = vi.fn(async (_params: unknown) => ({ turnId: 'turn-1', acceptedAt: new Date().toISOString() }))
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
       turnRunner: {
@@ -504,7 +504,7 @@ describe('AppServer', () => {
     ;(server as any).pendingExitPlanReminderByThreadId.set('t-1', true)
     await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/compact keep summary' }))
 
-    const call = startTurn.mock.calls[0]?.[0] ?? {}
+    const call = (startTurn.mock.calls[0]?.[0] ?? {}) as { includeExitPlanReminder?: boolean }
     expect(call.includeExitPlanReminder).toBe(true)
     expect((server as any).pendingExitPlanReminderByThreadId.get('t-1')).toBeUndefined()
   })
@@ -2522,8 +2522,8 @@ describe('AppServer', () => {
       emitNotification(message) {
         notifications.push(message)
       },
-      maxReplayEventsPerThread: 1,
     })
+    ;(server as any).maxReplayEventsPerThread = 1
     ;(server as any).replayTrimmedBeforeByThreadId.set('thread-trim', 100)
     const emit = server.createTurnNotificationEmitter()
     emit('turn/started', { threadId: 'thread-trim' })
