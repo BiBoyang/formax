@@ -1,7 +1,7 @@
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
-import { buildExitedPlanModeSystemReminder } from '../../../utils/planMode'
+import { buildExitedPlanModeSystemReminder } from '../../../shared/utils/planMode'
 import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
 
 const QUESTIONS: AskUserQuestion[] = [EXIT_PLAN_MODE_PROMPT]

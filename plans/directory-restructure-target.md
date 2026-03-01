@@ -182,6 +182,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改绝对路径校验、路径归一化与显示格式语义。
   - 不改任意工具模块的业务逻辑与权限策略。
 
+## 执行状态（Phase C - Slice 7）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/utils/planMode.ts` 与 `src/utils/planMode.test.ts` 迁移到 `src/shared/utils/`。
+  - `tools/modules/{edit,write,exitPlanMode}`、`tools/executor/policyPreflight.ts`、`features/semantics/core/modeSemantics.ts` 改为引用 `src/shared/utils/planMode`。
+  - 在 `src/utils/planMode.ts` 保留兼容 re-export，保证旧导入路径仍可用。
+- 明确不做：
+  - 不改 plan mode reminder 文案、拼接规则与路径显示语义。
+  - 不改编辑权限约束（plan mode 限制）和执行流程。
+
 ## 目标结构
 
 ```

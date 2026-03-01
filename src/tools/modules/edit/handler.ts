@@ -1,7 +1,7 @@
 import fsp from 'node:fs/promises'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
-import { buildPlanModeSystemReminder, isSameFilePath } from '../../../utils/planMode'
+import { buildPlanModeSystemReminder, isSameFilePath } from '../../../shared/utils/planMode'
 import { hasReadFile } from '../../runtime/readLedger'
 import { requireAbsolutePath } from '../../../shared/utils/paths'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'

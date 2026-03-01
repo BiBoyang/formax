@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import { ToolSubline } from '../../presenters/ToolUiPrimitives'
-import { formatPlanPathForDisplay } from '../../../utils/planMode'
+import { formatPlanPathForDisplay } from '../../../shared/utils/planMode'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { getTheme } from '../../../utils/theme'
 import type { Msg } from '../../../shared/toolMessageTypes'
