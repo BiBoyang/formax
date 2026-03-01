@@ -455,6 +455,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改 snippet 匹配算法与行号推断行为。
   - 不改 patch approval UI 渲染逻辑。
 
+## 执行状态（Phase C - Slice 33）
+
+- 状态：进行中（目录迁移第一批，低风险）。
+- 本轮已完成：
+  - `src/features/repl/controller/streaming/patchStartLineNumber.ts` 改为直接依赖 `src/components/tool/snippetStartLine.ts`，移除对 `tools/presenters` 的反向耦合。
+  - `src/features/repl/controller/streaming/patchStartLineNumber.test.ts` 的 spy 目标同步到新路径。
+  - 删除 `src/tools/presenters/snippetStartLine.ts` 兼容 shim；相关单测改为直接验证 `components/tool` 实现。
+- 明确不做：
+  - 不改 `computeEditPatchStartLineNumber` 的匹配策略与 fallback 顺序。
+  - 不改 patch preview/approval 的 UI 渲染逻辑。
+
 ## 目标结构
 
 ```
