@@ -925,6 +925,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不搬动 `src/shared/utils/*` 实现文件本体，仅先收敛调用入口，后续再按层策略决定是否迁实现。
 
+## 执行状态（Phase C - Slice 76）
+
+- 状态：进行中（目录迁移第二批，死 shim / dead barrel 清理）。
+- 本轮已完成：
+  - 删除无调用 shim：`src/runtime/bootstrap/renderReplApp.tsx`。
+  - `src/runtime/bootstrap/runLegacyCli.tsx` 改为直接依赖 `src/services/runtimeUiBridge` 的 `renderLegacyReplApp`。
+  - `src/runtime/bootstrap/runLegacyCli.test.tsx` 的 mock 目标同步到 `src/services/runtimeUiBridge.js`。
+  - 删除无调用 shim：`src/tools/utils/paths.ts`。
+  - 删除无调用 barrel：`src/tui/config/index.tsx`、`src/tui/hooks/index.ts`。
+  - 验证通过：`runLegacyCli.test.tsx`、`check:layer-contracts`、`check:layer-coverage`。
+- 明确不做：
+  - 不改 runtime 启动行为，不改路径解析逻辑实现，仅去除中间桥接层。
+
 ## 目标结构
 
 ```

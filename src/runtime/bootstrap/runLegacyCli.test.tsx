@@ -19,8 +19,8 @@ vi.mock('./session.js', () => ({
   resolveInitialSession,
 }))
 
-vi.mock('./renderReplApp.js', () => ({
-  renderReplApp,
+vi.mock('../../services/runtimeUiBridge.js', () => ({
+  renderLegacyReplApp: renderReplApp,
 }))
 
 vi.mock('../../tui/inkStreams.js', () => ({
