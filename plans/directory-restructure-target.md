@@ -696,6 +696,17 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - 不改任何配置加载行为与运行时逻辑，仅清理已无调用方的兼容层文件。
   - 不修改 `dotenv/config` 入口行为。
 
+## 执行状态（Phase C - Slice 55）
+
+- 状态：进行中（目录迁移第一批，低风险，core/config 向 config/settings 下沉）。
+- 本轮已完成：
+  - `src/core/config/{schema.ts,schema.test.ts,fileStore.ts,paths.ts}` 迁移到 `src/config/settings/`。
+  - 在 `src/core/config/{schema,fileStore,paths}.ts` 保留兼容 re-export，避免一次性改动所有调用方。
+  - `CODEMAP.md` 的配置 schema 事实路径更新到 `src/config/settings/schema.ts`。
+- 明确不做：
+  - 不改 config schema、file store、paths 的字段定义与行为逻辑，仅调整模块归属。
+  - 不改 `core/config/resolve`、`persist`、`show`、`migrate` 的行为。
+
 ## 目标结构
 
 ```
