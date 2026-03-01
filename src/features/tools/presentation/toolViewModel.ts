@@ -1,5 +1,6 @@
 import type { ToolSegment } from '../../semantics/projection/transcriptProjection'
 import { selectToolPresentation } from '../../semantics/selectors/toolPresentation'
+import type { InputKind, InputStatus } from '../../../shared/inputContracts'
 import { formatToolCallParts } from '../../../utils/toolFormatting'
 
 export type ToolViewCompletion = { kind: 'started'; taskId: string } | { kind: 'done' } | null
@@ -11,8 +12,8 @@ export type ToolViewModel = {
   detailLines: string[]
   paramsText?: string
   inputState?: {
-    kind: 'approval' | 'ask_user_question'
-    status: 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+    kind: InputKind
+    status: InputStatus
   }
   taskSummaryLine: string
   taskCompletion: ToolViewCompletion

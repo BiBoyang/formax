@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import readline from 'node:readline'
 import type { InputKind, InputResolvedPayload } from '../protocol/input.js'
+import { isInputKind } from '../../shared/inputContracts.js'
 import {
   createPersistedToolEventAggregator,
   type PersistedToolMessage,
@@ -36,7 +37,7 @@ function parsePendingInput(data: unknown): PendingInput | null {
   const createdAt = coerceNonEmptyString(data.createdAt)
   const expiresAt = coerceNonEmptyString(data.expiresAt)
   if (!inputId || !threadId || !turnId || !toolUseId || !createdAt || !expiresAt) return null
-  if (kind !== 'approval' && kind !== 'ask_user_question') return null
+  if (!isInputKind(kind)) return null
   return { inputId, threadId, turnId, toolUseId, kind, createdAt, expiresAt }
 }
 

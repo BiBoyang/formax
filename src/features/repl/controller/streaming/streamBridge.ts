@@ -1,6 +1,7 @@
 import type { StreamEvent } from '../../../../streaming/types'
 import type { CanonicalEvent } from '../../../semantics/core/canonicalEvents'
 import { mapStreamEventToCanonicalEvents } from '../../../semantics/adapters/canonicalEventAdapter'
+import { sourceFromRuntimeEventType } from '../../../../shared/runtimeEventSource'
 import { isAbortLikeError } from '../shared/utils'
 
 export type CanonicalStreamBridge = {
@@ -16,14 +17,6 @@ export type CanonicalStreamWritePolicy = {
   canonicalOnly: boolean
   canWriteLegacyTranscript: boolean
   shouldForwardCanonical: boolean
-}
-
-function resolveCanonicalSourceFromStreamEvent(event: StreamEvent): CanonicalEvent['source'] {
-  if (event.type === 'approval_request') return 'policy'
-  if (event.type === 'ask_user_question') return 'tool'
-  if (event.type.startsWith('tool_')) return 'tool'
-  if (event.type === 'error') return 'system'
-  return 'engine'
 }
 
 export function resolveCanonicalStreamWritePolicy(args: {
@@ -56,7 +49,7 @@ export function forwardCanonicalStreamEvent(args: {
     threadId: args.canonical.threadId,
     turnId: args.canonicalTurnId,
     nextReplaySeq: args.canonical.nextReplaySeq,
-    source: resolveCanonicalSourceFromStreamEvent(args.event),
+    source: sourceFromRuntimeEventType(args.event.type),
   })
   for (const event of canonicalEvents) {
     args.canonical.onEvent(args.mapEvent ? args.mapEvent(event) : event)

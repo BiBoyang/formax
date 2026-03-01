@@ -1,5 +1,7 @@
 import { isReplMode, type ReplMode } from '../core/replModeTransition'
-export type ThreadRuntimePendingInputKind = 'approval' | 'ask_user_question'
+import { isInputKind, type InputKind } from '../../../shared/inputContracts'
+
+export type ThreadRuntimePendingInputKind = InputKind
 const MAX_STICKY_TOOL_NAMES = 512
 
 export type ThreadRuntimePendingInput = {
@@ -141,7 +143,7 @@ export function reduceThreadRuntimeState(
       const threadId = typeof record.threadId === 'string' && record.threadId.trim() ? record.threadId : state.threadId
       const toolUseIdRaw = toNonEmptyString(record.toolUseId)
       const pendingToolUseId = toolUseIdRaw ?? inputId
-      const kind = record.kind === 'approval' || record.kind === 'ask_user_question' ? record.kind : null
+      const kind = isInputKind(record.kind) ? record.kind : null
       const createdAt = typeof record.createdAt === 'string' ? record.createdAt : nowIso()
       const expiresAt = typeof record.expiresAt === 'string' ? record.expiresAt : createdAt
       if (inputId && turnId && kind && pendingToolUseId) {

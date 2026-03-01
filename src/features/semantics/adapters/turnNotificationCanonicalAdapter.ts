@@ -4,6 +4,7 @@ import {
   type CanonicalEvent,
   type CanonicalEventSource,
 } from '../core/canonicalEvents'
+import { isInputKind, isInputStatus } from '../../../shared/inputContracts'
 import { inferCanonicalFailureStatus, toCanonicalTimestamp } from './canonicalAdapterCommon'
 import { toCanonicalEventsFromStreamPayload } from './streamEventCanonicalMapper'
 
@@ -385,16 +386,8 @@ export function toCanonicalEventsFromTurnNotification(
     const kind = inputRecord.kind
     const status = inputRecord.status
     if (!toolUseId) return []
-    if (kind !== 'approval' && kind !== 'ask_user_question') return []
-    if (
-      status !== 'pending' &&
-      status !== 'submitted' &&
-      status !== 'canceled' &&
-      status !== 'expired' &&
-      status !== 'failed'
-    ) {
-      return []
-    }
+    if (!isInputKind(kind)) return []
+    if (!isInputStatus(status)) return []
     const toolNameRaw = (inputRecord.payload as Record<string, unknown> | undefined)?.toolName
     const toolName = typeof toolNameRaw === 'string' && toolNameRaw.trim() ? toolNameRaw : undefined
     return [

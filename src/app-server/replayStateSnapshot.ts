@@ -1,6 +1,7 @@
 import type { TranscriptProjectionState } from '../features/semantics/projection/transcriptProjection.js'
 import { type SemanticsInvariantIssue, selectTerminalTurnInvariantIssues } from '../features/semantics/selectors/invariants.js'
 import { selectProjectionSnapshot, type ProjectionSnapshot } from '../features/semantics/selectors/transcriptSegments.js'
+import type { InputKind } from '../shared/inputContracts.js'
 import type { ThreadRuntimeState } from './threadStateReducer.js'
 
 export type ReplayStateSnapshot = {
@@ -15,7 +16,7 @@ export type ReplayStateSnapshot = {
     threadId: string
     turnId: string
     toolUseId: string
-    kind: 'approval' | 'ask_user_question'
+    kind: InputKind
     status: 'pending'
     createdAt: string
     expiresAt: string

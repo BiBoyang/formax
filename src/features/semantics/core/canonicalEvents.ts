@@ -1,11 +1,12 @@
 import type { TokenUsage } from '../../../streaming/types'
+import type { InputKind, InputStatus } from '../../../shared/inputContracts'
 
 export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui'
 export const CANONICAL_EVENT_SCHEMA_VERSION = 1 as const
 export type CanonicalEventSchemaVersion = typeof CANONICAL_EVENT_SCHEMA_VERSION
 
-export type ToolInputKind = 'approval' | 'ask_user_question'
-export type ToolInputStatus = 'pending' | 'submitted' | 'canceled' | 'expired' | 'failed'
+export type ToolInputKind = InputKind
+export type ToolInputStatus = InputStatus
 export type CanonicalMessageUiKind = 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
 
 export type CanonicalEventEnvelope = {

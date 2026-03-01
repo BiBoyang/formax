@@ -8,13 +8,14 @@ import { buildSystemPrompt, type SystemPromptProfile } from '../prompts/index.js
 import { buildCompactRequest } from '../prompts/compact.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
+import { sourceFromInputKind } from '../shared/inputContracts.js'
+import { sourceFromRuntimeEventType } from '../shared/runtimeEventSource.js'
 import type { StreamEvent } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
 import type {
   InputEnvelopeMeta,
-  InputKind,
   InputRequestedPayload,
   InputResolvedPayload,
   TurnInputSubmitResult,
@@ -92,15 +93,7 @@ function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition
 }
 
 function sourceFromStreamEvent(event: StreamEvent): InputEnvelopeMeta['source'] {
-  if (event.type === 'approval_request') return 'policy'
-  if (event.type === 'ask_user_question') return 'tool'
-  if (event.type.startsWith('tool_')) return 'tool'
-  if (event.type === 'error') return 'system'
-  return 'engine'
-}
-
-function sourceFromInputKind(kind: InputKind): InputEnvelopeMeta['source'] {
-  return kind === 'approval' ? 'policy' : 'tool'
+  return sourceFromRuntimeEventType(event.type)
 }
 
 function compactParamsText(input: unknown): string | undefined {
