@@ -12,7 +12,7 @@ import {
   type BridgeRateLimitOptions,
   type BridgeRateLimitState,
   type BridgeSecurityOptions,
-} from '../network/runtime.js'
+} from '../runtime/network/runtime.js'
 import { runAppServer } from './index.js'
 
 export type AppServerDevBridgeOptions = {

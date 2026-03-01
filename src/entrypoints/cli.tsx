@@ -27,13 +27,13 @@ async function main(): Promise<void> {
   }
 
   if (res.kind === 'serve') {
-    const { runServe } = await import('../serve/localServer.js')
+    const { runServe } = await import('../runtime/serve/localServer.js')
     await runServe(res.options)
     return
   }
 
   if (res.kind === 'web') {
-    const { runWebUi } = await import('../web/localUi.js')
+    const { runWebUi } = await import('../runtime/web/localUi.js')
     await runWebUi(res.options)
     return
   }

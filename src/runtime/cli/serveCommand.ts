@@ -1,4 +1,4 @@
-import { parseTcpPort } from '../../network/runtime.js'
+import { parseTcpPort } from '../network/runtime.js'
 
 export const DEFAULT_SERVE_HOST = '127.0.0.1'
 export const DEFAULT_SERVE_PORT = 3777

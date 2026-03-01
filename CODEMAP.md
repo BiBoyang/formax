@@ -8,8 +8,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Legacy REPL bootstrap orchestration: `src/legacy/runLegacyCli.tsx`
   - Runtime assembly slices: `src/legacy/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
-- Serve runtime launcher (`formax serve`, WebSocket bridge): `src/serve/localServer.ts`
-- Web UI runtime launcher (`formax web`, bridge + static host): `src/web/localUi.ts`
+- Serve runtime launcher (`formax serve`, WebSocket bridge): `src/runtime/serve/localServer.ts`
+- Web UI runtime launcher (`formax web`, bridge + static host): `src/runtime/web/localUi.ts`
 - App-server dev bridge entrypoint (WebSocket -> stdio loop): `src/entrypoints/app-server-bridge.ts`
 - App-server web reference entrypoint (bridge + React UI dev server): `src/entrypoints/app-server-web-reference.ts`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
@@ -27,7 +27,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Dev bridge (WebSocket fan-in/fan-out to app-server loop): `src/app-server/devBridge.ts`
 - Serve command parsing/help text: `src/runtime/cli/serveCommand.ts`
 - Web command parsing/help text: `src/runtime/cli/webCommand.ts`
-- Shared web/bridge network + security helpers (host/port/url/origin/token): `src/network/runtime.ts`
+- Shared web/bridge network + security helpers (host/port/url/origin/token): `src/runtime/network/runtime.ts`
 - Web reference React client (isolated app): `apps/web-reference-react/*` (see "Web Reference React Client")
 - Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
 - Shared persisted tool-event reconstruction (used by app-server + REPL resume): `src/features/repl/sessionSave/persistedToolEvents.ts`

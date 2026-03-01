@@ -5,7 +5,7 @@ import {
   formatServeCommandHelp,
   parseServeCommandArgs,
 } from './serveCommand.js'
-import * as runtime from '../../network/runtime.js'
+import * as runtime from '../network/runtime.js'
 
 describe('parseServeCommandArgs', () => {
   it('returns defaults for empty args', () => {

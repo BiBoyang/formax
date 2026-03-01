@@ -73,9 +73,9 @@ JSON-RPC 2.0 server over stdio used by GUI/IDE clients (`formax app-server`). Al
 - `src/app-server/turnRunner.ts` - Turn execution and streaming forwarding
 - `src/app-server/devBridge.ts` - WebSocket fan-in/fan-out to app-server loop
 - `src/app-server/transport/stdio.ts` - Stdio JSONL transport
-- `src/network/runtime.ts` - Shared host/port/URL/security helpers for web + bridge
-- `src/serve/localServer.ts` - `formax serve` WebSocket bridge launcher
-- `src/web/localUi.ts` - `formax web` bridge + static host launcher
+- `src/runtime/network/runtime.ts` - Shared host/port/URL/security helpers for web + bridge
+- `src/runtime/serve/localServer.ts` - `formax serve` WebSocket bridge launcher
+- `src/runtime/web/localUi.ts` - `formax web` bridge + static host launcher
 - `apps/web-reference-react/` - Reference React web client (isolated app)
 
 **Core Layer** (productized configuration, auth, policy)

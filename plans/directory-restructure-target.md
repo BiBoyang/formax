@@ -807,6 +807,19 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
 - 明确不做：
   - 不改 `formax serve` / `formax web` 的参数行为与 help 文案，仅收口路径层兼容文件。
 
+## 执行状态（Phase C - Slice 66）
+
+- 状态：进行中（目录迁移第二批，Runtime 合并线，network/serve/web 归拢）。
+- 本轮已完成：
+  - `src/network/runtime.{ts,test.ts}` 迁移到 `src/runtime/network/runtime.{ts,test.ts}`。
+  - `src/serve/localServer.ts` 迁移到 `src/runtime/serve/localServer.ts`。
+  - `src/web/localUi.ts` 迁移到 `src/runtime/web/localUi.ts`。
+  - `src/entrypoints/cli.tsx`、`src/app-server/devBridge.ts`、`src/runtime/cli/{serveCommand,webCommand}.ts` 等调用方改为直连 `src/runtime/*`。
+  - 旧路径保留最薄 shim：`src/network/runtime.ts`、`src/serve/localServer.ts`、`src/web/localUi.ts`。
+  - `CODEMAP.md` 与 `CLAUDE.md` 的相关事实路径同步到 `src/runtime/{network,serve,web}`。
+- 明确不做：
+  - 不改 serve/web/network 运行逻辑、参数语义与对外行为，仅迁移模块归属与导入路径。
+
 ## 目标结构
 
 ```
