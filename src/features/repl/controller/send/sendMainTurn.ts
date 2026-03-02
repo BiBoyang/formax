@@ -303,7 +303,6 @@ function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition
 function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {
   const msg = history[userIndex]
   if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return history
-  if (injectedCount <= 0) return history
   if (msg.content.length <= injectedCount) return history
 
   const stripped: ChatHistory[number] = {
