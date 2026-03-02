@@ -2,12 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
 import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
-import { TurnRunner } from './turnRunner.js'
+import { __turnRunnerTestOnly, TurnRunner } from './turnRunner.js'
 
 type Notification = { method: string; params?: any }
 
@@ -79,6 +79,139 @@ async function readAppToolEvents(filePath: string): Promise<Array<Record<string,
 }
 
 describe('TurnRunner', () => {
+  it('covers turnRunner helper edge branches', () => {
+    expect(__turnRunnerTestOnly.flattenPromptText('not-array')).toBe('')
+    expect(__turnRunnerTestOnly.compactParamsText(null)).toBeUndefined()
+    expect(__turnRunnerTestOnly.compactParamsText({})).toBeUndefined()
+    expect(__turnRunnerTestOnly.compactParamsText({ a: 'x'.repeat(300) })).toContain('...')
+
+    expect(
+      __turnRunnerTestOnly.resolveEditPatchStartLineNumber({
+        cwd: process.cwd(),
+        toolName: 'Bash',
+        isError: false,
+        toolInput: { command: 'pwd' },
+      }),
+    ).toBeNull()
+    expect(
+      __turnRunnerTestOnly.resolveEditPatchStartLineNumber({
+        cwd: process.cwd(),
+        toolName: 'Edit',
+        isError: true,
+        toolInput: {},
+      }),
+    ).toBeNull()
+
+    expect(
+      __turnRunnerTestOnly.flattenPromptText([
+        null,
+        1,
+        { type: 'tool_use', text: 'skip' },
+        { type: 'text', text: 'hello' },
+        { type: 'text', text: 'world' },
+      ]),
+    ).toBe('hello\n\nworld')
+
+    expect(
+      __turnRunnerTestOnly.firstUserPromptFromHistory([
+        { role: 'assistant', content: [{ type: 'text', text: 'a' }] },
+        { role: 'user', content: [{ type: 'text', text: '  ask ' }] },
+      ] as any),
+    ).toBe('ask')
+    expect(__turnRunnerTestOnly.firstUserPromptFromHistory([{ role: 'user', content: [{ type: 'text', text: ' ' }] }] as any)).toBeNull()
+    expect(__turnRunnerTestOnly.extractAssistantText([{ role: 'assistant', content: [{ type: 'text', text: ' ok ' }] }] as any)).toBe(
+      'ok',
+    )
+    expect(__turnRunnerTestOnly.extractAssistantText([{ role: 'assistant', content: 'bad' }] as any)).toBe('')
+
+    expect(
+      __turnRunnerTestOnly.toToolUpdateLine({
+        type: 'tool_update',
+        transcriptLines: ['  latest '],
+      } as any),
+    ).toBe('latest')
+    expect(__turnRunnerTestOnly.toToolUpdateLine({ type: 'tool_update', toolUses: 2 } as any)).toBe('tool uses 2')
+    expect(__turnRunnerTestOnly.toToolUpdateLine({ type: 'tool_update' } as any)).toBeNull()
+
+    expect(__turnRunnerTestOnly.toToolEndPayload({ type: 'tool_end', result: { is_error: true, content: 'x\n' } } as any).status).toBe(
+      'error',
+    )
+    expect(__turnRunnerTestOnly.normalizePositiveLimit(NaN, 5)).toBe(5)
+    expect(__turnRunnerTestOnly.normalizePositiveLimit(0, 5)).toBe(5)
+    expect(__turnRunnerTestOnly.normalizePositiveLimit(4.9, 5)).toBe(4)
+
+    const stripped = __turnRunnerTestOnly.stripInjectedBlocksFromHistory(
+      [{ role: 'user', content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] }] as any,
+      0,
+      1,
+    )
+    expect((stripped[0] as any).content).toHaveLength(1)
+  })
+
+  it('covers private runner utilities and guard branches', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const resolved = await (runner as any).resolveOrCreateThreadFilePath({ threadId: fixture.threadId, cwd: fixture.cwd })
+    expect(resolved).toBeTruthy()
+    ;(runner as any).threadFilePathById.set('missing-path-thread', path.join(fixture.cwd, 'missing.jsonl'))
+    const recreated = await (runner as any).resolveOrCreateThreadFilePath({
+      threadId: 'missing-path-thread',
+      cwd: fixture.cwd,
+    })
+    expect(recreated).toBeTruthy()
+
+    const fakeRunning = {
+      threadId: 't1',
+      writer: null,
+      pendingEventWrites: [],
+      inputExpiryTimers: new Map<string, NodeJS.Timeout>(),
+    }
+    ;(runner as any).appendAppEvent(fakeRunning, 'noop', { ok: true })
+    fakeRunning.writer = { appendEvent: vi.fn().mockRejectedValue(new Error('write failed')) }
+    ;(runner as any).appendAppEvent(fakeRunning, 'fail', { ok: true })
+    await Promise.all(fakeRunning.pendingEventWrites)
+
+    ;(runner as any).armInputExpiryTimer(
+      {
+        ...fakeRunning,
+        inputExpiryTimers: new Map(),
+      },
+      { inputId: 'x1', expiresAt: 'invalid-date' },
+    )
+
+    const timers = new Map<string, NodeJS.Timeout>()
+    timers.set('t1', setTimeout(() => undefined, 1000))
+    ;(runner as any).clearAllInputExpiryTimers({ inputExpiryTimers: timers })
+    expect(timers.size).toBe(0)
+
+    ;(runner as any).runningByThreadId.set('thread-a', { turnId: 'turn-a' })
+    ;(runner as any).expirePendingInput(
+      {
+        threadId: 'thread-a',
+        turnId: 'turn-b',
+        inputStore: { submitInput: vi.fn() },
+      },
+      { inputId: 'x', expiresAt: new Date().toISOString() },
+    )
+  })
+
   it('creates a session file lazily when starting a turn for a provisional thread id', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-lazy-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-turn-runner-lazy-config-'))

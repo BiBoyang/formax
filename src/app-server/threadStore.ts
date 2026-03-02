@@ -858,3 +858,21 @@ export class ThreadStore {
     return toThreadSummary(summary, archived, options)
   }
 }
+
+export const __threadStoreTestOnly = {
+  parseCursorOffset,
+  flattenMessageText,
+  parseOccurredAtMs,
+  extractThreadMessages,
+  formatToolParamsText,
+  collectToolDetailLines,
+  mergeToolDetailLines,
+  parseToolUseInput,
+  isNonEmptyRecord,
+  choosePreferredInput,
+  parseToolUseId,
+  parseToolUseName,
+  extractToolUseInputById,
+  resolveEditPatchStartLineNumber,
+  extractThreadTimelineFromUi,
+}

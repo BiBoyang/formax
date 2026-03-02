@@ -870,3 +870,15 @@ export class TurnRunner {
     }
   }
 }
+
+export const __turnRunnerTestOnly = {
+  compactParamsText,
+  resolveEditPatchStartLineNumber,
+  flattenPromptText,
+  firstUserPromptFromHistory,
+  extractAssistantText,
+  toToolUpdateLine,
+  toToolEndPayload,
+  normalizePositiveLimit,
+  stripInjectedBlocksFromHistory,
+}

@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { findSessionFileBySessionId, SessionWriter } from '../features/repl/sessionSave/index.js'
-import { ThreadStore } from './threadStore.js'
+import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
 async function createStore() {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
@@ -40,6 +40,218 @@ async function ensureThreadSessionFile(args: {
 }
 
 describe('ThreadStore', () => {
+  it('covers threadStore helper edge branches', async () => {
+    expect(__threadStoreTestOnly.flattenMessageText('not-array')).toBe('')
+    expect(__threadStoreTestOnly.parseCursorOffset()).toBe(0)
+    expect(__threadStoreTestOnly.parseCursorOffset('12')).toBe(12)
+    expect(() => __threadStoreTestOnly.parseCursorOffset('9007199254740993')).toThrow(
+      'non-negative integer offset',
+    )
+
+    expect(
+      __threadStoreTestOnly.flattenMessageText([
+        null,
+        1,
+        { type: 'tool_use', text: 'skip' },
+        { type: 'text', text: 1 },
+        { type: 'text', text: '  ' },
+        { type: 'text', text: 'hello' },
+        { type: 'text', text: 'world' },
+      ]),
+    ).toBe('hello\n\nworld')
+
+    const when = new Date('2026-02-08T00:00:00.000Z')
+    expect(__threadStoreTestOnly.parseOccurredAtMs(when)).toBe(when.getTime())
+    expect(__threadStoreTestOnly.parseOccurredAtMs('2026-02-08T00:00:00.000Z')).toBeGreaterThan(0)
+    expect(__threadStoreTestOnly.parseOccurredAtMs('not-a-date')).toBe(0)
+
+    expect(
+      __threadStoreTestOnly.extractThreadMessages([
+        null as any,
+        { role: 'system', content: [{ type: 'text', text: 'skip' }] } as any,
+        { role: 'user', content: [{ type: 'text', text: '' }] } as any,
+        { role: 'assistant', content: [{ type: 'text', text: 'ok' }] } as any,
+      ] as any),
+    ).toEqual([{ id: '0', kind: 'message', role: 'assistant', text: 'ok' }])
+  })
+
+  it('covers tool extraction and formatting helpers', () => {
+    expect(__threadStoreTestOnly.formatToolParamsText({})).toBeUndefined()
+    expect(__threadStoreTestOnly.formatToolParamsText({ a: 'x'.repeat(300) })).toContain('...')
+    expect(__threadStoreTestOnly.parseToolUseInput(null)).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseInput([])).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseInput({ command: 'pwd' })).toEqual({ command: 'pwd' })
+    expect(__threadStoreTestOnly.isNonEmptyRecord({})).toBe(false)
+    expect(__threadStoreTestOnly.isNonEmptyRecord({ ok: true })).toBe(true)
+    expect(__threadStoreTestOnly.choosePreferredInput(undefined, {}, { picked: 1 })).toEqual({ picked: 1 })
+    expect(__threadStoreTestOnly.parseToolUseId('  ')).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseId(1)).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseId(' id-1 ')).toBe('id-1')
+    expect(__threadStoreTestOnly.parseToolUseName(0)).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseName(' Edit ')).toBe('Edit')
+
+    const details = __threadStoreTestOnly.collectToolDetailLines({
+      content: ' summary ',
+      toolInfo: {
+        middleLines: ['  m1 ', '', 1, 'm1', 'm2'],
+        result: '\nline-a\n \nline-b\n',
+      },
+    })
+    expect(details).toEqual(['summary', 'm1', 'm2', 'line-a', 'line-b'])
+    const capped = __threadStoreTestOnly.collectToolDetailLines({
+      toolInfo: { result: Array.from({ length: 150 }, (_, i) => `line-${i}`).join('\n') },
+    })
+    expect(capped).toHaveLength(120)
+    expect(__threadStoreTestOnly.mergeToolDetailLines(['a'], [' ', 'a', 'b'])).toEqual(['a', 'b'])
+  })
+
+  it('covers tool-use map extraction and ui timeline normalization helpers', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-thread-store-helpers-'))
+    expect(
+      __threadStoreTestOnly.extractToolUseInputById([
+        { content: 'skip' } as any,
+        {
+          content: [
+            null,
+            { type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'a.ts' } },
+            { type: 'tool_use', id: ' ', name: 'skip' },
+          ],
+        } as any,
+      ] as any).get('t1'),
+    ).toEqual({ toolName: 'Edit', input: { file_path: 'a.ts' } })
+
+    expect(
+      __threadStoreTestOnly.resolveEditPatchStartLineNumber({
+        cwd,
+        toolName: 'Bash',
+        input: { command: 'pwd' },
+      }),
+    ).toBeUndefined()
+
+    const timeline = __threadStoreTestOnly.extractThreadTimelineFromUi([
+      null as any,
+      { id: 'skip-role', role: 'system', content: 'x' },
+      { id: 'skip-thinking', role: 'assistant', content: 'x', ui: { kind: 'thinking_block' } },
+      { id: 'skip-non-string', role: 'assistant', content: [{ type: 'text', text: 'x' }] },
+      { id: 'skip-empty', role: 'assistant', content: '   ' },
+      { id: 'u1', role: 'user', content: 'hello', timestamp: '2026-02-08T00:00:00.000Z' },
+      {
+        id: 'tool-1',
+        role: 'tool',
+        content: 'done',
+        toolInfo: { name: 'Read', toolUseId: 'call-1', status: 'error' },
+      },
+    ] as any)
+    expect(timeline.map((entry) => entry.item)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'message', id: 'u1', role: 'user', text: 'hello' }),
+        expect.objectContaining({ kind: 'tool', id: 'tool-1', toolUseId: 'call-1', status: 'error' }),
+      ]),
+    )
+  })
+
+  it('renames persisted threads and handles missing-thread rename failures', async () => {
+    const { cwd, env, store } = await createStore()
+    const started = await store.startThread({})
+    await ensureThreadSessionFile({ cwd, env, threadId: started.id })
+
+    const renamed = await store.renameThread({ threadId: started.id, label: 'Persisted Rename' })
+    expect(renamed.thread.label).toBe('Persisted Rename')
+    await expect(store.renameThread({ threadId: 'missing-thread', label: 'x' })).rejects.toThrow(
+      'Thread not found: missing-thread',
+    )
+  })
+
+  it('returns existing file path in ensureThreadFile when thread file already exists', async () => {
+    const { cwd, env, store } = await createStore()
+    const started = await store.startThread({})
+    const existing = await ensureThreadSessionFile({ cwd, env, threadId: started.id })
+
+    const ensured = await store.ensureThreadFile({ threadId: started.id, cwd })
+    expect(ensured).toBe(existing)
+  })
+
+  it('uses id tiebreak sort when thread updatedAt timestamps are equal', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-sort-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-sort-')) }
+    const now = new Date('2026-02-08T00:00:00.000Z')
+    const archiveStore = {
+      locateThreadFile: vi.fn().mockResolvedValue(null),
+      listThreads: vi.fn().mockResolvedValue([
+        {
+          meta: { sessionId: 'a-thread', cwd, startedAt: now.toISOString() },
+          updatedAt: now,
+          messageCount: 0,
+          lastUserPrompt: null,
+          label: null,
+        },
+        {
+          meta: { sessionId: 'z-thread', cwd, startedAt: now.toISOString() },
+          updatedAt: now,
+          messageCount: 0,
+          lastUserPrompt: null,
+          label: null,
+        },
+      ]),
+      archiveThread: vi.fn().mockResolvedValue(undefined),
+      unarchiveThread: vi.fn().mockResolvedValue(undefined),
+    }
+    const store = new ThreadStore({ cwd, env, archiveStore: archiveStore as any })
+    const out = await store.listThreads({ limit: 20 })
+    expect(out.data.map((thread) => thread.id)).toEqual(['z-thread', 'a-thread'])
+  })
+
+  it('sorts threads by updatedAt descending when timestamps differ', async () => {
+    const { store } = await createStore()
+    const t1 = await store.startThread({})
+    const t2 = await store.startThread({})
+    const provisional = (store as any).provisionalThreads as Map<string, any>
+    provisional.set(t1.id, { ...provisional.get(t1.id), updatedAt: '2026-02-08T00:00:00.000Z' })
+    provisional.set(t2.id, { ...provisional.get(t2.id), updatedAt: '2026-02-08T00:00:10.000Z' })
+
+    const out = await store.listThreads({ limit: 20 })
+    expect(out.data.findIndex((thread) => thread.id === t2.id)).toBeLessThan(
+      out.data.findIndex((thread) => thread.id === t1.id),
+    )
+  })
+
+  it('covers ensure/list/archive fallback branches with mocked archive store', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-mock-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-mock-')) }
+    const archiveStore = {
+      locateThreadFile: vi.fn().mockResolvedValue(null),
+      listThreads: vi.fn().mockResolvedValue([]),
+      archiveThread: vi.fn().mockResolvedValue(undefined),
+      unarchiveThread: vi.fn().mockResolvedValue(undefined),
+    }
+    const store = new ThreadStore({ cwd, env, archiveStore: archiveStore as any })
+
+    const provisional = await store.startThread({})
+    const emptyPage = await store.listThreadMessages({ threadId: provisional.id, limit: 20, cursor: '3' })
+    expect(emptyPage).toEqual({ data: [], nextCursor: null })
+
+    const fakeSummary = {
+      id: provisional.id,
+      cwd,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 0,
+      lastUserPrompt: null,
+      label: null,
+      archivedAt: new Date().toISOString(),
+    }
+    const readSummarySpy = vi.spyOn(store as any, 'readThreadSummary').mockResolvedValue(fakeSummary)
+    const archived = await store.archiveThread('unknown-thread-id')
+    expect(archived.thread.id).toBe(fakeSummary.id)
+    expect(archiveStore.archiveThread).toHaveBeenCalled()
+    readSummarySpy.mockRestore()
+
+    await expect((store as any).readThreadSummary('still-missing', false)).rejects.toThrow(
+      'Thread not found: still-missing',
+    )
+    await expect(store.readThread('missing-thread')).rejects.toThrow('Thread not found: missing-thread')
+  })
+
   it('supports provisional start/resume/read and persisted sessionSave', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
@@ -427,6 +639,65 @@ describe('ThreadStore', () => {
     expect(tool.patchStartLineNumber).toBe(22)
     expect(tool.paramsText).toBe('command="npm run type-check"')
     expect(tool.detailLines).toEqual(expect.arrayContaining(['running...', '> tsc --noEmit']))
+  })
+
+  it('adds persisted tool rows without UI entries and keeps stable sequence order', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'run read',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'run read' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'tool-extra-1', name: 'Read', input: { file_path: 'x.ts' } }],
+      },
+    ] as any)
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolName: 'Read',
+      phase: 'start',
+      status: 'running',
+      summary: 'Read running',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolName: 'Read',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Read done',
+      lines: ['done'],
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const tool = out.data.find((entry) => entry.kind === 'tool') as any
+    expect(tool).toBeTruthy()
+    expect(tool.toolName).toBe('Read')
+    expect(tool.summary).toBe('Read done')
+  })
+
+  it('uses sequence fallback when timeline entries have non-positive occurredAtMs', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    const badDate = new Date('invalid-date')
+    await writer.appendStableMsg({ id: 'm1', role: 'user', content: 'first', timestamp: badDate as any })
+    await writer.appendStableMsg({ id: 'm2', role: 'assistant', content: 'second', timestamp: badDate as any })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const ids = out.data.filter((entry) => entry.kind === 'message').map((entry) => entry.id)
+    expect(ids).toEqual(expect.arrayContaining(['m1', 'm2']))
   })
 
   it('enriches existing ui tool rows with persisted app_tool_event input', async () => {
