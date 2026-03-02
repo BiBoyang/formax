@@ -40,13 +40,36 @@ export type CliDispatchResult =
 
 type ConnectionTester = (args: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
 
+function toOptionalWarnings(warnings: string[]): string[] | undefined {
+  return warnings.length ? warnings : undefined
+}
+
+function formatUnknownError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function getCliVersion(meta: unknown = pkg): string {
+  return String((meta as any)?.version || 'unknown')
+}
+
+function resolveTestConnection(testConnection?: ConnectionTester): ConnectionTester {
+  return testConnection ?? testSetupConnection
+}
+
+function resolveTarGz(tarGz?: (args: { sourceDir: string; outPath: string }) => Promise<void>): (args: {
+  sourceDir: string
+  outPath: string
+}) => Promise<void> {
+  return tarGz ?? createTarGz
+}
+
 function okJson(command: string, data: unknown, warnings: string[] = [], meta?: Record<string, unknown>): string {
   const envelope: JsonEnvelope = {
     schemaVersion: 1,
     command,
     ok: true,
     data,
-    warnings: warnings.length ? warnings : undefined,
+    warnings: toOptionalWarnings(warnings),
     meta,
   }
   return toJson(envelope)
@@ -58,7 +81,7 @@ function errJson(command: string, message: string, warnings: string[] = [], meta
     command,
     ok: false,
     error: { message },
-    warnings: warnings.length ? warnings : undefined,
+    warnings: toOptionalWarnings(warnings),
     meta,
   }
   return toJson(envelope)
@@ -285,6 +308,10 @@ function deleteRule(rules: PolicyRule[], ruleId: string): { rules: PolicyRule[];
   return { rules: next, changedCount: rules.length - next.length }
 }
 
+function getPolicyInputRules(policyDoc: { rules?: PolicyRule[] } | null | undefined): PolicyRule[] {
+  return policyDoc?.rules ?? []
+}
+
 export async function dispatchCli(
   argv: string[],
   opts: {
@@ -309,7 +336,7 @@ export async function dispatchCli(
   const flags = parsed.flags
 
   if (flags.version) {
-    const version = String((pkg as any)?.version || 'unknown')
+    const version = getCliVersion()
     if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('version', { version }), stderr: '' }
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
   }
@@ -336,9 +363,6 @@ export async function dispatchCli(
     const parsedServe = parseServeCommandArgs(args.slice(1))
     if (!parsedServe.ok) {
       const parseError = parsedServe as { ok: false; message: string }
-      if (parseError.message === '__HELP__') {
-        return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatServeCommandHelp(), stderr: '' }
-      }
       return {
         kind: 'handled',
         exitCode: ExitCode.Usage,
@@ -366,9 +390,6 @@ export async function dispatchCli(
     const parsedWeb = parseWebCommandArgs(args.slice(1))
     if (!parsedWeb.ok) {
       const parseError = parsedWeb as { ok: false; message: string }
-      if (parseError.message === '__HELP__') {
-        return { kind: 'handled', exitCode: ExitCode.Ok, stdout: formatWebCommandHelp(), stderr: '' }
-      }
       return {
         kind: 'handled',
         exitCode: ExitCode.Usage,
@@ -386,19 +407,13 @@ export async function dispatchCli(
   }
 
   if (args[0] === 'version') {
-    const version = String((pkg as any)?.version || 'unknown')
+    const version = getCliVersion()
     if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('version', { version }), stderr: '' }
     return { kind: 'handled', exitCode: ExitCode.Ok, stdout: version + '\n', stderr: '' }
   }
 
-  const unimplemented = (command: string): CliDispatchResult => {
-    const message = `Command "${command}" is not implemented yet.`
-    if (flags.json) return { kind: 'handled', exitCode: ExitCode.Error, stdout: errJson(command, message), stderr: '' }
-    return { kind: 'handled', exitCode: ExitCode.Error, stdout: message + '\n', stderr: '' }
-  }
-
   if (args[0] === 'status') {
-    const version = String((pkg as any)?.version || 'unknown')
+    const version = getCliVersion()
     const [shown, runtime, roots] = await Promise.all([
       configShow({ fileStore: store, paths: configPaths, cwd, env, platform, homedir }),
       loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir }),
@@ -442,8 +457,8 @@ export async function dispatchCli(
     }
   }
   if (args[0] === 'doctor') {
-    const version = String((pkg as any)?.version || 'unknown')
-    const testConnection = opts.testConnection ?? testSetupConnection
+    const version = getCliVersion()
+    const testConnection = resolveTestConnection(opts.testConnection)
     const wantsBundle = flags.bundle
     const wantsBundleTar = flags.bundleTar
 
@@ -517,16 +532,16 @@ export async function dispatchCli(
         if (wantsBundleTar) {
           try {
             const archivePath = `${bundleDir}.tgz`
-            const tarImpl = opts.tarGz ?? createTarGz
+            const tarImpl = resolveTarGz(opts.tarGz)
             await tarImpl({ sourceDir: bundleDir, outPath: archivePath })
             bundle.archivePath = archivePath
           } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e)
+            const msg = formatUnknownError(e)
             bundleWarnings.push(`Failed to create bundle archive: ${msg}`)
           }
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const msg = formatUnknownError(e)
         bundleWarnings.push(`Failed to write debug bundle: ${msg}`)
       }
     }
@@ -655,12 +670,12 @@ export async function dispatchCli(
 	      const loaded = await loadPolicyRules({ fileStore: store, cwd, env, platform, homedir })
 	      const updates: { scope: 'global' | 'project'; filePath: string; changedCount: number }[] = []
 
-	      try {
-	        if (loaded.projectRules) {
-	          const inputRules = loaded.projectRules.rules ?? []
-	          const hadRule = inputRules.some((r) => r.ruleId === ruleId)
-	          const changed =
-	            sub === 'disable' ? setRuleEnabled(inputRules, ruleId, false) : deleteRule(inputRules, ruleId)
+		      try {
+		        if (loaded.projectRules) {
+		          const inputRules = getPolicyInputRules(loaded.projectRules)
+		          const hadRule = inputRules.some((r) => r.ruleId === ruleId)
+		          const changed =
+		            sub === 'disable' ? setRuleEnabled(inputRules, ruleId, false) : deleteRule(inputRules, ruleId)
 	          if (changed.changedCount > 0) {
 	            const saved = await savePolicyRules({
 	              fileStore: store,
@@ -677,11 +692,11 @@ export async function dispatchCli(
 	          }
 	        }
 
-	        if (loaded.globalRules) {
-	          const inputRules = loaded.globalRules.rules ?? []
-	          const hadRule = inputRules.some((r) => r.ruleId === ruleId)
-	          const changed =
-	            sub === 'disable' ? setRuleEnabled(inputRules, ruleId, false) : deleteRule(inputRules, ruleId)
+		        if (loaded.globalRules) {
+		          const inputRules = getPolicyInputRules(loaded.globalRules)
+		          const hadRule = inputRules.some((r) => r.ruleId === ruleId)
+		          const changed =
+		            sub === 'disable' ? setRuleEnabled(inputRules, ruleId, false) : deleteRule(inputRules, ruleId)
 	          if (changed.changedCount > 0) {
 	            const saved = await savePolicyRules({
 	              fileStore: store,
@@ -698,7 +713,7 @@ export async function dispatchCli(
 	          }
 	        }
 	      } catch (err) {
-	        const message = err instanceof Error ? err.message : String(err)
+	        const message = formatUnknownError(err)
 	        if (flags.json) return { kind: 'handled', exitCode: ExitCode.Error, stdout: errJson(`policy ${sub}`, message, loaded.warnings), stderr: '' }
         return { kind: 'handled', exitCode: ExitCode.Error, stdout: '', stderr: `Error: ${message}\n` }
       }
@@ -773,7 +788,7 @@ export async function dispatchCli(
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Ok, stdout: okJson('auth set', res, res.warnings), stderr: '' }
       return { kind: 'handled', exitCode: ExitCode.Ok, stdout: `Saved ${res.provider}:${res.authRef} to ${res.authPath}\n`, stderr: '' }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatUnknownError(err)
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth set', message), stderr: '' }
       return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
     }
@@ -792,7 +807,7 @@ export async function dispatchCli(
         stderr: '',
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatUnknownError(err)
       if (flags.json) return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('auth delete', message), stderr: '' }
       return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Error: ${message}\n` + formatCliHelp() }
     }
@@ -807,4 +822,26 @@ export async function dispatchCli(
     return { kind: 'handled', exitCode: ExitCode.Usage, stdout: errJson('unknown', 'Unknown command'), stderr: '' }
   }
   return { kind: 'handled', exitCode: ExitCode.Usage, stdout: '', stderr: `Unknown command.\n\n` + formatCliHelp() }
+}
+
+export const __mainTestOnly = {
+  okJson,
+  errJson,
+  toOptionalWarnings,
+  formatUnknownError,
+  getCliVersion,
+  resolveTestConnection,
+  resolveTarGz,
+  formatConfigShowHuman,
+  formatConfigMigrateHuman,
+  formatAuthListHuman,
+  normalizeProvider,
+  ensureFileStore,
+  getFlagValue,
+  parsePolicyActionFromArgs,
+  formatPolicyListHuman,
+  formatPolicyExplainHuman,
+  setRuleEnabled,
+  deleteRule,
+  getPolicyInputRules,
 }
