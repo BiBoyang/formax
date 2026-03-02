@@ -64,6 +64,7 @@
 - `bun run check:layer-contracts`
 - `bun run check:layer-coverage`
 - `bun run check:shared-types`
+- `bun run check:doc-paths`
 - `bun run check:golden-principles`
 - `bun run check:presenter-parity`（告警型漂移观察）
 - `bun run check:plan-traceability`（任务来源可追溯性）

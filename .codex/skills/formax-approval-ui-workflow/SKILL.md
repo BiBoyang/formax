@@ -13,18 +13,18 @@ description: Use when adding or changing any Approval prompt/presenter.
 ## Where to change what
 
 - Shared approval “chrome”
-  - `src/tools/presenters/ApprovalHeader.tsx` (top divider + title color)
+  - `src/components/ui/ApprovalHeader.tsx` (top divider + title color)
   - `src/components/ui/ConfirmMenu.tsx` (numbered options + selection color)
 - Preview (optional section under header)
-  - `src/tools/presenters/ApprovalPreview.tsx` (simple file preview)
-  - `src/tools/presenters/PatchApprovalPreview.tsx` (edit-file wrapper: header + file + preview)
-  - `src/tools/presenters/PatchPreview.tsx` (diff rendering + performance guards)
+  - `src/components/tool/ApprovalPreview.tsx` (simple file preview)
+  - `src/components/tool/PatchApprovalPreview.tsx` (edit-file wrapper: header + file + preview)
+  - `src/components/tool/PatchPreview.tsx` (diff rendering + performance guards)
 - Per-tool approval prompts (labels, options, allow/ask/deny / remember write paths)
-  - `src/tools/presenters/bashApprovalPrompt.tsx`
-  - `src/tools/presenters/fsReadApprovalPrompt.tsx`
-  - `src/tools/presenters/fsWriteApprovalPrompt.tsx`
-  - `src/tools/presenters/skillApprovalPrompt.tsx`
-  - (if present) `src/tools/presenters/editApprovalPrompt.tsx` (legacy)
+  - `src/components/tool/bashApprovalPrompt.tsx`
+  - `src/components/tool/fsReadApprovalPrompt.tsx`
+  - `src/components/tool/fsWriteApprovalPrompt.tsx`
+  - `src/components/tool/skillApprovalPrompt.tsx`
+  - (if present) `src/components/tool/editApprovalPrompt.tsx` (legacy)
 - Tool presenters that mount approval prompts
   - `src/tools/modules/bash/presenter.tsx`
   - `src/tools/modules/read/presenter.tsx`
@@ -32,7 +32,7 @@ description: Use when adding or changing any Approval prompt/presenter.
   - `src/tools/modules/edit/presenter.tsx`
   - `src/tools/modules/skill/presenter.tsx`
 - Colors / theme
-  - `src/utils/theme.ts` (`theme.permission`, `theme.text`, `theme.diff.*`)
+  - `src/tui/theme.ts` (`theme.permission`, `theme.text`, `theme.diff.*`)
 ## Patterns
 
 - Layout skeleton (keep consistent)
@@ -60,10 +60,10 @@ description: Use when adding or changing any Approval prompt/presenter.
 
 - Unit/component tests (minimum regression set):
   - `src/components/ui/ConfirmMenu.test.tsx` (ReactNode label + selection color)
-  - `src/tools/presenters/bashApprovalPrompt.test.tsx` (if exists)
-  - `src/tools/presenters/fsReadApprovalPrompt.test.tsx` (if exists)
-  - `src/tools/presenters/fsWriteApprovalPrompt.test.tsx` (if exists)
-  - `src/tools/presenters/skillApprovalPrompt.test.tsx` (if exists)
+  - `src/components/tool/bashApprovalPrompt.test.tsx` (if exists)
+  - `src/components/tool/fsReadApprovalPrompt.test.tsx` (if exists)
+  - `src/components/tool/fsWriteApprovalPrompt.test.tsx` (if exists)
+  - `src/components/tool/skillApprovalPrompt.test.tsx` (if exists)
   - `src/tools/modules/edit/presenter.test.tsx` (preview/diff layout + performance guard)
 
 - Manual spot-check (fast)

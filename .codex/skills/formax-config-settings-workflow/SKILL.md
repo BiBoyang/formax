@@ -16,19 +16,19 @@ Add or change `/config` settings in Formax while keeping:
 ## Where to change what
 
 - **Config schema + merge semantics**
-  - `src/core/config/schema.ts` (add fields + defaults; validate values)
-  - `src/core/config/resolve.ts` (merge precedence + `sources` mapping)
-  - `src/core/config/persist.ts` (patch read/write + `stripDefaultsFromPatch`)
+  - `src/config/settings/schema.ts` (add fields + defaults; validate values)
+  - `src/config/settings/resolve.ts` (merge precedence + `sources` mapping)
+  - `src/config/settings/persist.ts` (patch read/write + `stripDefaultsFromPatch`)
 - **Disk locations**
   - `src/adapters/fs/configPaths.ts` (project/global config dirs)
   - `src/adapters/fs/configFiles.ts` (load `config.json` patches)
-  - `src/env/config.ts` (final `RuntimeConfig` shape used by UI/runtime)
+  - `src/config/config.ts` (final `RuntimeConfig` shape used by UI/runtime)
 - **/config UI overlay**
   - `src/tui/config/ConfigDialog.tsx` (reads effective config + writes patches)
   - `src/tui/config/constants.ts` / `src/tui/config/reducer.ts` / `src/tui/config/ui.tsx`
   - `src/screens/REPL.tsx` (mount overlay + reload runtime config on exit)
 - **Runtime wiring (effects)**
-  - Prompt injection: `src/features/repl/controller/send.ts` + `src/prompts/reminders/*`
+  - Prompt injection: `src/features/repl/controller/send/send.ts` + `src/prompts/reminders/*`
   - Request parameters: `src/chat/engine.ts` → `src/streaming/**`
   - UI-only flags: `src/screens/REPL.tsx` and small helpers under `src/screens/repl/*`
 - **Command injection rule (only when prompt semantics changed)**

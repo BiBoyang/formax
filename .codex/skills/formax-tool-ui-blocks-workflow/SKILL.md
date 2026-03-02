@@ -23,12 +23,12 @@ Stabilize and evolve the tool transcript UI with **minimal churn**:
 - Renderer: `src/components/tool/ToolUiBlocks.tsx`
 - Block types: `src/components/tool/toolUiBlocksTypes.ts`
 - Dispatch: `src/components/tool/ToolRouter.tsx`
-- Presenter typing helpers: `src/tools/presenters/types.ts`
+- Presenter typing helpers: `src/shared/toolPresenterContracts.ts`
 - Shared primitives:
   - `src/components/ui/PulsingDot.tsx`
   - `src/components/tool/ToolHeaderLine.tsx`
   - `src/components/tool/ToolSubline.tsx`
-  - `src/utils/toolUi.ts`
+  - `src/components/tool/toolUi.ts`
 
 ## Workflow (repeatable loop)
 
@@ -63,7 +63,7 @@ If the change is “global formatting”, change it in one of:
 
 - `PulsingDot.tsx` for bullet spacing
 - `ToolHeaderLine.tsx` for header composition (dot + label + params)
-- `ToolSubline.tsx` / `src/utils/toolUi.ts` for subline prefix + indentation
+- `ToolSubline.tsx` / `src/components/tool/toolUi.ts` for subline prefix + indentation
 - `ToolUiBlocks.tsx` for block-to-UI mapping and composition
 
 Do not change dozens of tool presenters for global spacing changes.

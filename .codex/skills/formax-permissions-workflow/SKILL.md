@@ -29,19 +29,19 @@ Make changes to permissions and approvals while keeping:
 ### 3) Approvals (prompt UI + persistence side-effects)
 - `src/tools/executor/approvalService.ts`: “ensureApproved” flow, integrates UI prompts + writes allow/ask/deny when applicable
 - UI prompts (tool-level approvals):
-  - `src/tools/presenters/bashApprovalPrompt.tsx`
-  - `src/tools/presenters/fsReadApprovalPrompt.tsx`
-  - `src/tools/presenters/fsWriteApprovalPrompt.tsx`
-  - `src/tools/presenters/skillApprovalPrompt.tsx`
-  - `src/tools/presenters/editApprovalPrompt.tsx`
+  - `src/components/tool/bashApprovalPrompt.tsx`
+  - `src/components/tool/fsReadApprovalPrompt.tsx`
+  - `src/components/tool/fsWriteApprovalPrompt.tsx`
+  - `src/components/tool/skillApprovalPrompt.tsx`
+  - `src/components/tool/editApprovalPrompt.tsx`
 - Shared pieces:
-  - `src/tools/presenters/ApprovalHeader.tsx`: Claude-style divider + permission-colored title
+  - `src/components/ui/ApprovalHeader.tsx`: Claude-style divider + permission-colored title
   - `src/components/ui/ConfirmMenu.tsx`: menu input + highlight rules
 
 ### 4) /permissions overlay (manage rules & workspace)
 - `src/tui/permissions/PermissionsDialog.tsx`: state machine + key handling
 - `src/tui/permissions/ui.tsx`: rendering primitives (Tabs, lists, confirm views)
-- `src/features/repl/controller/overlays.ts`: overlay open/close + “command_subline” dismissal messages
+- `src/features/repl/controller/ui/overlays.ts`: overlay open/close + “command_subline” dismissal messages
 - Slash command wiring:
   - `src/features/commands/registry.ts` (or `src/screens/repl/createReplCommandRegistry.ts`): `/permissions` opens overlay
 
@@ -71,10 +71,10 @@ When a single substring should be white/bold (e.g. `capture-terminal/`):
 Run targeted tests close to your change:
 - `bun run test -- src/tools/executor/policyPreflight.test.ts`
 - `bun run test -- src/tools/executor/approvalService.test.ts`
-- `bun run test -- src/tools/presenters/bashApprovalPrompt.test.tsx`
-- `bun run test -- src/tools/presenters/fsReadApprovalPrompt.test.tsx` (if present)
-- `bun run test -- src/tools/presenters/fsWriteApprovalPrompt.test.tsx`
-- `bun run test -- src/tools/presenters/skillApprovalPrompt.test.tsx`
+- `bun run test -- src/components/tool/bashApprovalPrompt.test.tsx`
+- `bun run test -- src/components/tool/fsReadApprovalPrompt.test.tsx` (if present)
+- `bun run test -- src/components/tool/fsWriteApprovalPrompt.test.tsx`
+- `bun run test -- src/components/tool/skillApprovalPrompt.test.tsx`
 - `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
 
 ## Workflow (use every time)

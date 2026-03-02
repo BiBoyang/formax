@@ -7,9 +7,10 @@
 3. `bun run check:layer-contracts`
 4. `bun run check:layer-coverage`
 5. `bun run check:shared-types`
-6. `bun run check:golden-principles`
-7. `bun run test:repl-semantic-gate`
-8. `bun run type-check`
+6. `bun run check:doc-paths`
+7. `bun run check:golden-principles`
+8. `bun run test:repl-semantic-gate`
+9. `bun run type-check`
 
 与暂存文件相关的定向测试可用：`bun run test:changed`。
 非阻断漂移观察：`bun run check:presenter-parity`（默认告警，`--strict` 才阻断）。
@@ -27,6 +28,7 @@
 - `bun run check:layer-contracts`
 - `bun run check:layer-coverage`
 - `bun run check:shared-types`
+- `bun run check:doc-paths`
 - `bun run check:golden-principles`
 - `bun run check:presenter-parity`（告警步骤，`continue-on-error: true`）
 - `node ./scripts/check-plan-traceability.mjs`（当 `code` 或 `harness_governance` 变更时）
@@ -106,6 +108,18 @@
 1. 在 `scripts/layer-contract.config.json` 的 `UI` 层补齐该 presenter 文件映射。
 2. 若对应 `index.ts` 绑定 presenter 出现跨层告警，先确认是否已有对应 `allowedImports` 条目。
 3. 重新执行 `bun run check:layer-contracts` 与 `bun run check:layer-coverage`。
+
+### 2.5 `check:doc-paths` 失败
+
+触发信号：
+- 输出包含 `[doc-paths] check failed`。
+- 输出包含 `Missing local doc refs:`，并列出 `file:line -> path`。
+
+修复路径：
+1. 按报错定位到具体文档行，确认引用路径是否已迁移。
+2. 将旧路径改为当前 canonical 路径（重点范围：`AGENTS.md`、`.codex/skills/**`、`docs/**`、`plans/**`、目录内 `README.md`）。
+3. 若文档中的路径是模板占位符（如 `src/features/<name>/...`），保持占位符写法并避免被误写成不存在的具体路径。
+4. 重新执行 `bun run check:doc-paths` 直到无缺失。
 
 ### 3. `check:golden-principles` 失败
 

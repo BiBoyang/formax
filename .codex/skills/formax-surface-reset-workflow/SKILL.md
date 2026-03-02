@@ -26,7 +26,7 @@ Use this skill whenever the change touches any of:
   - `src/features/repl/controller/session/`
   - `src/features/repl/useReplController.ts`
   - `src/screens/repl/`
-  - `src/legacy/runLegacyCli.tsx`
+  - `src/runtime/bootstrap/runLegacyCli.tsx`
 
 ## Non-Negotiable Rules
 

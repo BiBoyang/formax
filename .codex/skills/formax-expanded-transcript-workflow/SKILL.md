@@ -20,9 +20,9 @@ Align Formax’s `ctrl+o` behavior with Claude Code’s “Expanded Transcript�
 - View wiring + footer: `src/screens/REPL.tsx` (expanded view selection, global footer, toolInfo.expanded)
 - Compact projection (pure): `src/screens/repl/compactProjection.ts` (primary slice + compact command fallback)
 - Transcript rendering: `src/screens/repl/transcript.tsx` (must be toggle-friendly; avoid Ink `<Static>` for content that must disappear)
-- Persist thinking blocks: `src/features/repl/controller/streaming.ts` (consume `thinking_delta` → `ui.kind: 'thinking_block'`)
+- Persist thinking blocks: `src/features/repl/controller/streaming/streaming.ts` (consume `thinking_delta` → `ui.kind: 'thinking_block'`)
 - Expanded Transcript details: `src/screens/repl/panels.tsx` (panel composition; avoid duplicated footers)
-- Compact command lifecycle: `src/features/repl/controller/send.ts` (in-progress `/compact` row, boundary/banner/summary/subline order)
+- Compact command lifecycle: `src/features/repl/controller/send/send.ts` (in-progress `/compact` row, boundary/banner/summary/subline order)
 - Surface reset owner: `src/screens/repl/useSurfaceTransitionManager.ts` (single owner for clear/reset/remount)
 
 ## Patterns

@@ -16,7 +16,7 @@ Make changes to slash commands while keeping:
 
 ### 1) Command discovery + dispatch
 - `src/features/commands/registry.ts`: command list/suggest/dispatch wiring
-- `src/commands/CommandStore.ts`: disk scanning + precedence (project overrides user)
+- `src/features/commands/CommandStore.ts`: disk scanning + precedence (project overrides user)
 
 ### 2) Command result contract (UI vs model)
 - `src/features/commands/contracts.ts`: `UiEffect` / `UiMessage` / `ModelEffect` shapes
@@ -25,10 +25,10 @@ Make changes to slash commands while keeping:
   - If you want next-turn injection, keep using the existing `recordForNextTurn` / injected-blocks path
 
 ### 3) Overlay dismissal “subline output”
-- `src/features/repl/controller/overlays.ts`: overlay open/close + append “dismissed” sublines
+- `src/features/repl/controller/ui/overlays.ts`: overlay open/close + append “dismissed” sublines
 
 ### 4) REPL message plumbing + rendering
-- `src/features/repl/controller/send.ts`: applies `UiEffect.appendMessages` to `Msg` (make sure `Msg.ui` passes through)
+- `src/features/repl/controller/send/send.ts`: applies `UiEffect.appendMessages` to `Msg` (make sure `Msg.ui` passes through)
 - `src/screens/REPL.tsx`: render `msg.ui.kind === 'command_subline'` as `⎿  ...` (no `⏺`)
 
 ## Patterns
@@ -46,7 +46,7 @@ If a command needs to inform the model (e.g. `/todos` producing `<local-command-
 
 ## Tests to update (minimum)
 
-- `src/features/repl/controller/overlays.test.tsx`: overlay open/close adds the right sublines
+- `src/features/repl/controller/ui/overlays.test.tsx`: overlay open/close adds the right sublines
 - `src/features/commands/adapter.test.ts`: contract mapping for `/todos` vs other commands
 
 ## Guardrails (do not regress)

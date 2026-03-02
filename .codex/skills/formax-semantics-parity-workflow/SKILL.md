@@ -34,8 +34,8 @@ Use this workflow for any feature/change touching:
 - `src/app-server/turn/inputStore.ts`
 
 ### 3) TUI adapter (renderer can differ, semantics cannot)
-- `src/features/repl/controller/send.ts`
-- `src/features/repl/controller/streaming.ts`
+- `src/features/repl/controller/send/send.ts`
+- `src/features/repl/controller/streaming/streaming.ts`
 - `src/features/repl/useReplController.ts`
 
 ### 4) Web adapter (renderer can differ, semantics cannot)
@@ -45,10 +45,10 @@ Use this workflow for any feature/change touching:
 - `apps/web-reference-react/src/turnEventCursor.ts`
 
 ### 5) Canonical docs to keep in sync
-- `plans/app-server/INTERACTION-CONTRACT.md`
-- `plans/app-server/PARITY-MATRIX.md`
-- `plans/app-server/UI-SPEC.md`
-- `plans/app-server/TODO.md`
+- `docs/contracts/app-server-interaction-contract.md`
+- `docs/contracts/semantics-contract.md`
+- `docs/frontend/app-server-ui-spec.md`
+- `plans/app-server/TODO-INDEX.md`
 
 ## Patterns
 

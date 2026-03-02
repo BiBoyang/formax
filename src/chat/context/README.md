@@ -102,7 +102,7 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“/compact（P4）”
 
-尚未实现（参见 `plans/ctx-manage/TODO.md`）。
+尚未实现（参见 `plans/_archive/ctx-manage/TODO.md`）。
 建议未来入口：
 - slash command：`src/features/commands/registry.ts`
 - 行为落点：`src/features/repl/useReplController.ts`（重写 historyRef + 插入 UI 提示）
@@ -113,4 +113,3 @@ Formax 的“上下文管理”分两条线：
 
 - **UI transcript ≠ Prompt transcript**：不要为了省 token 去删 UI 的 `messages[]`，应该只裁剪 `historyRef`。
 - **tool 成对不变量**：任何 trim/compact 后必须保持 `tool_use ↔ tool_result` 成对，不然 Edit/Write 等会出现“找不到 old_string / 上下文错位”等连锁错误。
-

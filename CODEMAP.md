@@ -222,7 +222,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Subagent registry: `src/features/subagents/registry.ts`
 - Runner (spawning + tool allowlist enforcement): `src/features/subagents/runner.ts`
 - Agents creation wizard (generate with model / manual): `src/features/subagents/agentsWizard.ts`
-- Approval/“read-only” strategy notes (Claude Code vs Formax vs Kode): `docs/SUBAGENT-APPROVAL-STRATEGY.md`
+- Approval/“read-only” strategy notes (Claude Code vs Formax vs Kode): `plans/_archive/sub-agent/claude-code-subagent-analysis.md`
 
 ## Slash Commands
 - Slash command registry + suggest + dispatch: `src/features/commands/registry.ts`
