@@ -162,16 +162,13 @@ function ExitPlanModePrompt({
     })
   }, [])
 
-  const setTypingStateSafe = useCallback(
-    (next: TypingState | ((state: TypingState) => TypingState)) => {
-      setTypingState((prev) => {
-        const resolved = typeof next === 'function' ? (next as (state: TypingState) => TypingState)(prev) : next
-        typingStateRef.current = resolved
-        return resolved
-      })
-    },
-    [],
-  )
+  const setTypingStateSafe = useCallback((next: (state: TypingState) => TypingState) => {
+    setTypingState((prev) => {
+      const resolved = next(prev)
+      typingStateRef.current = resolved
+      return resolved
+    })
+  }, [])
 
   const submit = useCallback(
     (kind: 'auto' | 'manual' | 'feedback' | 'cancel', feedback?: string) => {

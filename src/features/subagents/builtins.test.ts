@@ -71,4 +71,10 @@ describe('getBuiltinSubagents', () => {
       'Explore uses ${GLOB_TOOL_NAME}',
     )
   })
+
+  it('tolerates undefined prompt text for helper functions', () => {
+    expect(__testOnly.stripLeadingHtmlComment(undefined as any)).toBe('')
+    expect(__testOnly.interpolatePrompt(undefined as any, {})).toBe('')
+    expect(__testOnly.interpolatePrompt(undefined as any, { GLOB_TOOL_NAME: 'Glob' })).toBe('')
+  })
 })

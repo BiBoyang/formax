@@ -344,9 +344,6 @@ export function HooksDialog({ onExit }: { onExit: () => void }): React.ReactNode
         })
         return
       }
-      case 'addMatcher':
-      case 'addHook':
-        return
     }
   },
   {

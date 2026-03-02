@@ -53,4 +53,9 @@ describe('redaction', () => {
     expect(redactJsonSecrets(true)).toBe(true)
     expect(redactJsonSecrets('sk-abcdefghi')).toBe('sk-<redacted>')
   })
+
+  it('handles falsy text and empty object keys without crashing', () => {
+    expect(redactTextSecrets(undefined as any)).toBe('')
+    expect(redactJsonSecrets({ '': 'plain' })).toEqual({ '': 'plain' })
+  })
 })
