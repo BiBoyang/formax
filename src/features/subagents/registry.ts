@@ -165,7 +165,7 @@ function parseSimpleYaml(lines: string[]): Record<string, unknown> {
     if (!keyMatch) continue
 
     const key = keyMatch[1]
-    const rest = keyMatch[2] ?? ''
+    const rest = keyMatch[2]
 
     if (rest) {
       data[key] = unquote(rest)
@@ -219,4 +219,12 @@ function parseToolsField(raw: unknown): string[] {
 function isMissingDir(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   return (err as any).code === 'ENOENT'
+}
+
+export const __testOnlyRegistry = {
+  parseFrontmatter,
+  parseSimpleYaml,
+  unquote,
+  parseToolsField,
+  isMissingDir,
 }
