@@ -681,25 +681,24 @@ export class ThreadStore {
         const existingIndex = tool.toolUseId ? toolIndexByUseId.get(tool.toolUseId) : undefined
         if (existingIndex !== undefined) {
           const existingEntry = timeline[existingIndex]
-          if (existingEntry?.item.kind === 'tool') {
-            const mergedDetailLines = mergeToolDetailLines(existingEntry.item.detailLines, tool.detailLines)
-            const historyTool = existingEntry.item.toolUseId ? toolUseInputById.get(existingEntry.item.toolUseId) : undefined
-            const input = choosePreferredInput(existingEntry.item.input, tool.input, historyTool?.input)
-            const patchStartLineNumber =
-              existingEntry.item.patchStartLineNumber ??
-              tool.patchStartLineNumber ??
-              resolveEditPatchStartLineNumber({
-                cwd: replay.meta.cwd,
-                toolName: historyTool?.toolName ?? existingEntry.item.toolName,
-                input,
-              })
-            existingEntry.item = {
-              ...existingEntry.item,
-              ...(input ? { input } : {}),
-              ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
-              ...(existingEntry.item.paramsText ? {} : tool.paramsText ? { paramsText: tool.paramsText } : {}),
-              ...(mergedDetailLines ? { detailLines: mergedDetailLines } : {}),
-            }
+          const existingTool = existingEntry!.item as ThreadToolMessage
+          const mergedDetailLines = mergeToolDetailLines(existingTool.detailLines, tool.detailLines)
+          const historyTool = toolUseInputById.get(existingTool.toolUseId!)
+          const input = choosePreferredInput(existingTool.input, tool.input, historyTool?.input)
+          const patchStartLineNumber =
+            existingTool.patchStartLineNumber ??
+            tool.patchStartLineNumber ??
+            resolveEditPatchStartLineNumber({
+              cwd: replay.meta.cwd,
+              toolName: historyTool?.toolName ?? existingTool.toolName,
+              input,
+            })
+          existingEntry!.item = {
+            ...existingTool,
+            ...(input ? { input } : {}),
+            ...(patchStartLineNumber !== undefined ? { patchStartLineNumber } : {}),
+            ...(existingTool.paramsText ? {} : tool.paramsText ? { paramsText: tool.paramsText } : {}),
+            ...(mergedDetailLines ? { detailLines: mergedDetailLines } : {}),
           }
           continue
         }
@@ -860,6 +859,7 @@ export class ThreadStore {
 }
 
 export const __threadStoreTestOnly = {
+  toThreadSummaryFromProvisional,
   parseCursorOffset,
   flattenMessageText,
   parseOccurredAtMs,

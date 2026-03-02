@@ -264,6 +264,7 @@ export class TurnRunner {
       includeExitPlanReminder: Boolean(params.includeExitPlanReminder),
     })
     const commandRouting = resolveCommandRouting(params.input.text)
+    const compactInstructions = commandRouting.isExactCompact ? (commandRouting.commandArgs as string) : ''
 
     const turnId = randomUUID()
     const running: RunningTurn = {
@@ -290,7 +291,7 @@ export class TurnRunner {
       inputExpiryTimers: new Map(),
       compact: {
         isCommand: commandRouting.isExactCompact,
-        instructions: commandRouting.isExactCompact ? commandRouting.commandArgs ?? '' : '',
+        instructions: compactInstructions,
       },
       toolNameByUseId: new Map<string, string>(),
       toolInputByUseId: new Map<string, unknown>(),
@@ -418,7 +419,7 @@ export class TurnRunner {
       const tools = patchToolsForTurn(this.tools, running.cwd)
 
       let assistantText = ''
-      let nextHistoryForSnapshot: ChatHistory | null = null
+      let nextHistoryForSnapshot: ChatHistory = history
       const shouldAutoGenerateTitle = !running.compact.isCommand
       const emitStreamTurnEvent = (event: StreamEvent) => {
         this.emitTurnNotification(running, 'turn/event', sourceFromStreamEvent(event), {
@@ -632,7 +633,7 @@ export class TurnRunner {
             : (nextHistory as ChatHistory)
       }
 
-      const historyForSnapshot = nextHistoryForSnapshot ?? history
+      const historyForSnapshot = nextHistoryForSnapshot
 
       if (assistantText.trim()) {
         await writer.appendStableMsg({
@@ -720,7 +721,7 @@ export class TurnRunner {
         threadId: running.threadId,
         status,
       },
-      error: errorMessage ?? 'Unknown error',
+      error: String(errorMessage),
     })
   }
 

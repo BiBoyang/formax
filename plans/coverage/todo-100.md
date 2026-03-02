@@ -1,7 +1,7 @@
 # Coverage 100 TODO (4 Metrics)
 
 Generated: 2026-03-02T06:47:42.901Z
-Last synced: 2026-03-02 (incremental, targeted coverage runs)
+Last synced: 2026-03-02 (incremental, targeted coverage runs; threadStore/turnRunner removed after 100% verification)
 Coverage source: `coverage/coverage-final.json`
 Total files: 422
 Files with any metric <100%: 53
@@ -13,8 +13,6 @@ So this checklist may temporarily diverge from `coverage/coverage-final.json` un
 
 ## Checklist
 
-- [ ] `src/app-server/threadStore.ts` (min=69.28%, s=84.80%, f=100.00%, b=69.28%, l=100.00%, stmts=342)
-- [ ] `src/app-server/turnRunner.ts` (min=68.75%, s=86.47%, f=84.78%, b=68.75%, l=100.00%, stmts=340)
 - [ ] `src/core/setup/session.ts` (min=71.20%, s=86.26%, f=100.00%, b=71.20%, l=100.00%, stmts=262)
 - [ ] `src/features/repl/sessionSave/reader.ts` (min=67.70%, s=76.78%, f=69.57%, b=67.70%, l=100.00%, stmts=366)
 - [ ] `src/features/repl/sessionSave/writer.ts` (min=65.05%, s=81.22%, f=83.72%, b=65.05%, l=100.00%, stmts=245)

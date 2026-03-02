@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import * as sessionSave from '../features/repl/sessionSave/index.js'
 import { findSessionFileBySessionId, SessionWriter } from '../features/repl/sessionSave/index.js'
 import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
@@ -41,6 +42,31 @@ async function ensureThreadSessionFile(args: {
 
 describe('ThreadStore', () => {
   it('covers threadStore helper edge branches', async () => {
+    expect(
+      __threadStoreTestOnly.toThreadSummaryFromProvisional(
+        {
+          id: 'p1',
+          cwd: '/tmp/p1',
+          createdAt: '2026-02-08T00:00:00.000Z',
+          updatedAt: '2026-02-08T00:00:00.000Z',
+          label: null,
+        },
+        true,
+        { archivedAt: '2026-02-09T00:00:00.000Z' },
+      ).archivedAt,
+    ).toBe('2026-02-09T00:00:00.000Z')
+    expect(
+      __threadStoreTestOnly.toThreadSummaryFromProvisional(
+        {
+          id: 'p2',
+          cwd: '/tmp/p2',
+          createdAt: '2026-02-08T00:00:00.000Z',
+          updatedAt: '2026-02-08T00:00:00.000Z',
+          label: null,
+        },
+        true,
+      ).archivedAt,
+    ).toBeNull()
     expect(__threadStoreTestOnly.flattenMessageText('not-array')).toBe('')
     expect(__threadStoreTestOnly.parseCursorOffset()).toBe(0)
     expect(__threadStoreTestOnly.parseCursorOffset('12')).toBe(12)
@@ -88,7 +114,14 @@ describe('ThreadStore', () => {
     expect(__threadStoreTestOnly.parseToolUseId(1)).toBeUndefined()
     expect(__threadStoreTestOnly.parseToolUseId(' id-1 ')).toBe('id-1')
     expect(__threadStoreTestOnly.parseToolUseName(0)).toBeUndefined()
+    expect(__threadStoreTestOnly.parseToolUseName('   ')).toBeUndefined()
     expect(__threadStoreTestOnly.parseToolUseName(' Edit ')).toBe('Edit')
+    expect(
+      __threadStoreTestOnly.resolveEditPatchStartLineNumber({
+        cwd: process.cwd(),
+        toolName: 'Edit',
+      } as any),
+    ).toBeUndefined()
 
     const details = __threadStoreTestOnly.collectToolDetailLines({
       content: ' summary ',
@@ -98,11 +131,13 @@ describe('ThreadStore', () => {
       },
     })
     expect(details).toEqual(['summary', 'm1', 'm2', 'line-a', 'line-b'])
+    expect(__threadStoreTestOnly.collectToolDetailLines({ content: '   ' })).toEqual([])
     const capped = __threadStoreTestOnly.collectToolDetailLines({
       toolInfo: { result: Array.from({ length: 150 }, (_, i) => `line-${i}`).join('\n') },
     })
     expect(capped).toHaveLength(120)
     expect(__threadStoreTestOnly.mergeToolDetailLines(['a'], [' ', 'a', 'b'])).toEqual(['a', 'b'])
+    expect(__threadStoreTestOnly.mergeToolDetailLines(undefined, ['   '])).toBeUndefined()
   })
 
   it('covers tool-use map extraction and ui timeline normalization helpers', async () => {
@@ -119,6 +154,13 @@ describe('ThreadStore', () => {
         } as any,
       ] as any).get('t1'),
     ).toEqual({ toolName: 'Edit', input: { file_path: 'a.ts' } })
+    expect(
+      __threadStoreTestOnly.extractToolUseInputById([
+        {
+          content: [{ type: 'tool_use', id: 't2', name: '   ' }],
+        } as any,
+      ] as any).get('t2'),
+    ).toEqual({})
 
     expect(
       __threadStoreTestOnly.resolveEditPatchStartLineNumber({
@@ -141,6 +183,24 @@ describe('ThreadStore', () => {
         content: 'done',
         toolInfo: { name: 'Read', toolUseId: 'call-1', status: 'error' },
       },
+      {
+        id: 2,
+        role: 'tool',
+        content: '',
+        toolInfo: { name: 'Read', status: 'error' },
+      } as any,
+      {
+        id: 3,
+        role: 'tool',
+        content: '',
+        toolInfo: { name: 'Read', status: 'running' },
+      } as any,
+      {
+        id: 4,
+        role: 'tool',
+        content: '',
+        toolInfo: { name: 'Read', status: 'completed' },
+      } as any,
     ] as any)
     expect(timeline.map((entry) => entry.item)).toEqual(
       expect.arrayContaining([
@@ -169,6 +229,9 @@ describe('ThreadStore', () => {
 
     const ensured = await store.ensureThreadFile({ threadId: started.id, cwd })
     expect(ensured).toBe(existing)
+
+    const ensuredDefaultCwd = await store.ensureThreadFile({ threadId: started.id })
+    expect(ensuredDefaultCwd).toBe(existing)
   })
 
   it('uses id tiebreak sort when thread updatedAt timestamps are equal', async () => {
@@ -215,6 +278,14 @@ describe('ThreadStore', () => {
     )
   })
 
+  it('covers default constructor paths without explicit cwd/env', async () => {
+    const store = new ThreadStore()
+    const started = await store.startThread({})
+    expect(started.id).toBeTruthy()
+    const inAltCwd = await store.startThread({ cwd: path.join(process.cwd(), 'subdir') })
+    expect(inAltCwd.cwd).toContain('subdir')
+  })
+
   it('covers ensure/list/archive fallback branches with mocked archive store', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-mock-'))
     const env = { ...process.env, FORMAX_CONFIG_DIR: await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-mock-')) }
@@ -250,6 +321,9 @@ describe('ThreadStore', () => {
       'Thread not found: still-missing',
     )
     await expect(store.readThread('missing-thread')).rejects.toThrow('Thread not found: missing-thread')
+    await expect(store.listThreadMessages({ threadId: 'missing-thread', limit: 10 })).rejects.toThrow(
+      'Thread not found: missing-thread',
+    )
   })
 
   it('supports provisional start/resume/read and persisted sessionSave', async () => {
@@ -685,6 +759,141 @@ describe('ThreadStore', () => {
     expect(tool.summary).toBe('Read done')
   })
 
+  it('adds persisted tool row with toolUseId/input/params/patch and no detail lines', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendStableMsg({
+      id: 'u1',
+      role: 'user',
+      content: 'run edit',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-missing-ui-1',
+      toolName: 'Edit',
+      phase: 'update',
+      input: { file_path: 'x.ts' },
+      patchStartLineNumber: 10,
+      paramsText: 'file_path=\"x.ts\"',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'tool-missing-ui-1',
+      toolName: 'Edit',
+      phase: 'end',
+      status: 'completed',
+      summary: 'Edited x.ts',
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const tool = out.data.find((entry) => (entry as any).toolUseId === 'tool-missing-ui-1') as any
+    expect(tool.input).toEqual({ file_path: 'x.ts' })
+    expect(tool.patchStartLineNumber).toBe(10)
+    expect(tool.paramsText).toContain('file_path')
+    expect(tool.detailLines).toEqual(expect.arrayContaining(['Edited x.ts']))
+  })
+
+  it('hydrates persisted tool rows into no-existing timeline path via replay mock', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'persisted-only-1',
+      toolName: 'Edit',
+      phase: 'update',
+      input: { file_path: 'mock.ts' },
+      patchStartLineNumber: 12,
+      paramsText: 'file_path=\"mock.ts\"',
+    })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'persisted-only-1',
+      toolName: 'Edit',
+      phase: 'end',
+      status: 'completed',
+      summary: 'done',
+    })
+    await writer.shutdown()
+
+    const replaySpy = vi.spyOn(sessionSave, 'readSessionFile').mockResolvedValue({
+      meta: { cwd, sessionId: thread.id },
+      history: [],
+      messages: [
+        { id: 'm0', role: 'user', content: 'hello', timestamp: 'invalid-date' },
+        { id: 'm1', role: 'assistant', content: 'world', timestamp: 'invalid-date' },
+      ],
+    } as any)
+    try {
+      const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+      const tool = out.data.find((entry) => (entry as any).toolUseId === 'persisted-only-1') as any
+      expect(tool).toBeTruthy()
+      expect(tool.input).toEqual({ file_path: 'mock.ts' })
+      expect(tool.patchStartLineNumber).toBe(12)
+      expect(tool.paramsText).toContain('file_path')
+      expect(tool.detailLines).toBeUndefined()
+    } finally {
+      replaySpy.mockRestore()
+    }
+  })
+
+  it('covers duplicate toolUseId map false branch and empty merged detailLines branch', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'dup-merged-none-1',
+      toolName: 'Read',
+      phase: 'end',
+      status: 'completed',
+      summary: 'done',
+    })
+    await writer.shutdown()
+
+    const replaySpy = vi.spyOn(sessionSave, 'readSessionFile').mockResolvedValue({
+      meta: { cwd, sessionId: thread.id },
+      history: [],
+      messages: [
+        {
+          id: 'tool-dup-a',
+          role: 'tool',
+          content: '',
+          timestamp: '2026-02-08T00:00:00.000Z',
+          toolInfo: { name: 'Read', toolUseId: 'dup-merged-none-1', status: 'running' },
+        },
+        {
+          id: 'tool-dup-b',
+          role: 'tool',
+          content: '',
+          timestamp: '2026-02-08T00:00:01.000Z',
+          toolInfo: { name: 'Read', toolUseId: 'dup-merged-none-1', status: 'completed' },
+        },
+      ],
+    } as any)
+    try {
+      const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+      const toolRows = out.data.filter((entry) => entry.kind === 'tool' && (entry as any).toolUseId === 'dup-merged-none-1')
+      expect(toolRows.length).toBeGreaterThan(0)
+      for (const row of toolRows as any[]) {
+        expect(row.detailLines).toBeUndefined()
+      }
+    } finally {
+      replaySpy.mockRestore()
+    }
+  })
+
   it('uses sequence fallback when timeline entries have non-positive occurredAtMs', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
@@ -698,6 +907,40 @@ describe('ThreadStore', () => {
     const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
     const ids = out.data.filter((entry) => entry.kind === 'message').map((entry) => entry.id)
     expect(ids).toEqual(expect.arrayContaining(['m1', 'm2']))
+  })
+
+  it('handles duplicate toolUseId entries from UI timeline without remapping twice', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendStableMsg({
+      id: 'tool-a',
+      role: 'tool',
+      content: 'first',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+      toolInfo: { name: 'Read', toolUseId: 'dup-1', status: 'running' },
+    } as any)
+    await writer.appendStableMsg({
+      id: 'tool-b',
+      role: 'tool',
+      content: 'second',
+      timestamp: new Date('2026-02-08T00:00:01.000Z'),
+      toolInfo: { name: 'Read', toolUseId: 'dup-1', status: 'completed' },
+    } as any)
+    await writer.appendEvent('app_tool_event', {
+      threadId: thread.id,
+      turnId: 'turn-1',
+      toolUseId: 'dup-1',
+      toolName: 'Read',
+      phase: 'end',
+      status: 'completed',
+      summary: 'done',
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(out.data.some((entry) => entry.kind === 'tool' && (entry as any).toolUseId === 'dup-1')).toBe(true)
   })
 
   it('enriches existing ui tool rows with persisted app_tool_event input', async () => {
