@@ -254,15 +254,13 @@ export function useReplStreaming(args: {
           if (now - args.thinkingLastFlushAtRef.current > 200) {
             args.thinkingLastFlushAtRef.current = now
             args.setThinkingText(args.thinkingBufferRef.current)
-            const id = args.currentThinkingMessageIdRef.current
-            if (id) {
-              const text = args.thinkingBufferRef.current
-              writeLegacyThinkingUpdateFallback({
-                legacyTranscript,
-                thinkingId: id,
-                text,
-              })
-            }
+            const text = args.thinkingBufferRef.current
+            const thinkingId = args.currentThinkingMessageIdRef.current as string
+            writeLegacyThinkingUpdateFallback({
+              legacyTranscript,
+              thinkingId,
+              text,
+            })
           }
           return
         }

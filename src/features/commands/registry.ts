@@ -168,8 +168,7 @@ export function createSlashCommandRegistry(deps: {
 
   const setBuiltinDispatcher = (command: string, dispatch: CommandEntry['dispatch']): void => {
     const id = `builtin:${command}`
-    const entry = entriesById.get(id)
-    if (!entry) return
+    const entry = entriesById.get(id)!
     entry.dispatch = dispatch
   }
 
@@ -191,7 +190,7 @@ export function createSlashCommandRegistry(deps: {
       stdout,
       recordForNextTurn: {
         commandName: invocation.command,
-        commandMessage: invocation.command.startsWith('/') ? invocation.command.slice(1) : invocation.command,
+        commandMessage: invocation.command.slice(1),
         commandArgs: invocation.args,
         stdout,
       },
@@ -317,12 +316,11 @@ export function createSlashCommandRegistry(deps: {
 
   const list = (): SlashCommandSpec[] => {
     const merged = Array.from(entriesById.values()).map((e) => e.spec)
-    merged.sort(
-      (a, b) =>
-        a.command.localeCompare(b.command) ||
-        sourceRank(a.source) - sourceRank(b.source) ||
-        a.id.localeCompare(b.id),
-    )
+    merged.sort((a, b) => {
+      const aKey = `${a.command}\u0000${sourceRank(a.source)}\u0000${a.id}`
+      const bKey = `${b.command}\u0000${sourceRank(b.source)}\u0000${b.id}`
+      return aKey.localeCompare(bKey)
+    })
     return merged
   }
 
@@ -366,8 +364,7 @@ export function createSlashCommandRegistry(deps: {
         a.tie - b.tie ||
         a.start - b.start ||
         a.c.command.localeCompare(b.c.command) ||
-        sourceRank(a.c.source) - sourceRank(b.c.source) ||
-        a.c.id.localeCompare(b.c.id),
+        sourceRank(a.c.source) - sourceRank(b.c.source),
     )
     return scored.map((v) => v.c)
   }

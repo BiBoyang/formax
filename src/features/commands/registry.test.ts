@@ -373,6 +373,7 @@ describe('SlashCommandRegistry', () => {
 
       const statusVariants = reg.list().filter((c) => c.command === '/status')
       expect(statusVariants.length).toBeGreaterThanOrEqual(3)
+      expect(statusVariants.map((c) => c.source).slice(0, 3)).toEqual(['builtin', 'project', 'user'])
 
       // Default dispatch should prefer builtin when present.
       const builtinEffect = reg.dispatch('/status')
@@ -381,6 +382,9 @@ describe('SlashCommandRegistry', () => {
       // If a specific variant is selected in the UI, it should be dispatchable.
       const projectEffect = reg.dispatch('/status', { preferredSpecId: 'project:/status' })
       expect(projectEffect?.kind).toBe('llm')
+
+      const suggestedStatus = reg.suggest('/status').filter((c) => c.command === '/status')
+      expect(suggestedStatus.map((c) => c.source).slice(0, 3)).toEqual(['builtin', 'project', 'user'])
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }
@@ -581,6 +585,19 @@ describe('SlashCommandRegistry', () => {
     }
   })
 
+  it('dispatches /prompt with default full profile when promptProfile service is missing', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/prompt')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('Prompt profile: full')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('dispatches /todos as empty when no store exists', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
@@ -764,6 +781,116 @@ describe('SlashCommandRegistry', () => {
       expect(effect?.kind).toBe('local')
       if (!effect || effect.kind !== 'local') return
       expect(effect.stdout).toBe('No background tasks.')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /tasks without task manager as empty task list message', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+      })
+      const effect = reg.dispatch('/tasks')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toBe('No background tasks.')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /model with missing model controls', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/model')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toContain('not available in this context')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /model with unknown tier usage text', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        modelTier: { get: () => 'sonnet', set: async () => 'sonnet' },
+      })
+      const effect = reg.dispatch('/model not-a-tier')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toContain('Unknown model tier: not-a-tier')
+      expect(effect.stdout).toContain('/model sonnet')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /status and /doctor as unavailable when dependencies are missing', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+
+      const statusEffect = reg.dispatch('/status')
+      expect(statusEffect?.kind).toBe('local')
+      if (!statusEffect || statusEffect.kind !== 'local') throw new Error('Expected local status effect')
+      expect(statusEffect.stdout).toContain('Status is not available in this context.')
+
+      const doctorEffect = reg.dispatch('/doctor')
+      expect(doctorEffect?.kind).toBe('local')
+      if (!doctorEffect || doctorEffect.kind !== 'local') throw new Error('Expected local doctor effect')
+      expect(doctorEffect.stdout).toContain('Doctor is not available in this context.')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /init as an llm command', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/init')
+      expect(effect?.kind).toBe('llm')
+      if (!effect || effect.kind !== 'llm') return
+      expect(effect.loadingText).toBe('Spelunking')
+      expect(effect.blocks.length).toBeGreaterThan(0)
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatch returns null for non-slash input and unknown slash command', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      expect(reg.dispatch('hello world')).toBeNull()
+      expect(reg.dispatch('/no-such-command')).toBeNull()
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /plan with empty file as (empty plan)', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const planPath = path.join(cwd, 'plan.md')
+      await fsp.writeFile(planPath, '\n\n', 'utf8')
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        plan: { getPlanPath: () => planPath },
+      })
+      const effect = reg.dispatch('/plan')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toBe('(empty plan)')
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }
