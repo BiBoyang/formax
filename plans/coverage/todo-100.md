@@ -8,11 +8,12 @@ Files with any metric <100%: 53
 
 Rule: each file must satisfy s=100%, b=100%, f=100%, l=100%.
 Note: totals above are from the original full snapshot and may be stale until the final full run.
+Checklist source of truth: items are kept/removed based on latest targeted `--coverage.include=<file>` verification for that file.
+So this checklist may temporarily diverge from `coverage/coverage-final.json` until the final full-coverage refresh.
 
 ## Checklist
 
 - [ ] `src/app-server/threadStore.ts` (min=69.28%, s=84.80%, f=100.00%, b=69.28%, l=100.00%, stmts=342)
-- [ ] `src/app-server/turn/inputStore.ts` (min=98.31%, s=98.75%, f=100.00%, b=98.31%, l=100.00%, stmts=80)
 - [ ] `src/app-server/turnRunner.ts` (min=68.75%, s=86.47%, f=84.78%, b=68.75%, l=100.00%, stmts=340)
 - [ ] `src/chat/context/prune.ts` (min=65.79%, s=75.92%, f=100.00%, b=65.79%, l=100.00%, stmts=191)
 - [ ] `src/chat/engine.ts` (min=87.93%, s=94.48%, f=100.00%, b=87.93%, l=100.00%, stmts=163)
