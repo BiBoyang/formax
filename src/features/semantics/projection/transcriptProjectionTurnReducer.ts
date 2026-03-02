@@ -30,7 +30,7 @@ function finalizeRunningToolSegmentsForTurn(args: {
       ? `${segment.toolName} ${nextSummarySuffix}`
       : segment.summary
     const shouldSetAbortResult = args.event.status === 'interrupted' && Boolean(args.event.message)
-    const result = shouldSetAbortResult ? `Error: ${String(args.event.message ?? '')}` : segment.result
+    const result = shouldSetAbortResult ? `Error: ${String(args.event.message)}` : segment.result
     args.draft.segments[index] = {
       ...segment,
       status: nextToolStatus,
@@ -56,13 +56,11 @@ export function reduceTurnFooterEvent(args: {
   )
 
   if (existingIndex >= 0) {
-    const current = draft.segments[existingIndex]
-    if (current.kind === 'turn_footer') {
-      draft.segments[existingIndex] = {
-        ...current,
-        status: event.status,
-        ...(event.message ? { message: event.message } : {}),
-      }
+    const current = draft.segments[existingIndex] as TurnFooterSegment
+    draft.segments[existingIndex] = {
+      ...current,
+      status: event.status,
+      ...(event.message ? { message: event.message } : {}),
     }
     return
   }

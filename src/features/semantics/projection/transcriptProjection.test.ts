@@ -322,4 +322,18 @@ describe('transcriptProjection', () => {
       middleLines: ['line-1'],
     })
   })
+
+  it('records replay/id for skipped empty message turns without adding segments', () => {
+    const state = createInitialTranscriptProjectionState({ threadId: 'thread-1' })
+    const next = projectCanonicalEvents(state, [
+      eventFactory(
+        { replaySeq: 1, eventId: 's1' },
+        { kind: 'user_message', turnId: 'turn-1', text: '' },
+      ),
+    ])
+
+    expect(next.lastReplaySeq).toBe(1)
+    expect(next.seenEventIds.has('s1')).toBe(true)
+    expect(next.segments).toEqual([])
+  })
 })
