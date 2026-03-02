@@ -54,12 +54,12 @@ describe('SkillStore', () => {
     expect(store.get('build')?.scope).toBe('project')
   })
 
-  it('loads project skills from .skills compatibility directory', async () => {
+  it('loads project skills from .agents/skills directory', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-'))
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
 
     await writeFileEnsuringDir(
-      path.join(cwd, '.skills', 'compat', 'SKILL.md'),
+      path.join(cwd, '.agents', 'skills', 'compat', 'SKILL.md'),
       ['---', 'description: Compat skill', '---', '', 'Do compat things'].join('\n'),
     )
 
@@ -69,7 +69,7 @@ describe('SkillStore', () => {
     expect(meta?.description).toBe('Compat skill')
   })
 
-  it('prefers .skills project skill over user skill for same name', async () => {
+  it('prefers .agents/skills project skill over user skill for same name', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-'))
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
 
@@ -78,7 +78,7 @@ describe('SkillStore', () => {
       ['---', 'description: User reviewer', '---', '', 'User body'].join('\n'),
     )
     await writeFileEnsuringDir(
-      path.join(cwd, '.skills', 'reviewer', 'SKILL.md'),
+      path.join(cwd, '.agents', 'skills', 'reviewer', 'SKILL.md'),
       ['---', 'description: Compat reviewer', '---', '', 'Compat body'].join('\n'),
     )
 
@@ -107,12 +107,12 @@ describe('SkillStore', () => {
     expect(meta?.description).toBe('Project reviewer')
   })
 
-  it('prefers .formax/skills over .skills for same name', async () => {
+  it('prefers .formax/skills over .agents/skills for same name', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-'))
     const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
 
     await writeFileEnsuringDir(
-      path.join(cwd, '.skills', 'reviewer', 'SKILL.md'),
+      path.join(cwd, '.agents', 'skills', 'reviewer', 'SKILL.md'),
       ['---', 'description: Compat reviewer', '---', '', 'Compat body'].join('\n'),
     )
     await writeFileEnsuringDir(
@@ -124,6 +124,25 @@ describe('SkillStore', () => {
     const meta = store.get('reviewer')
     expect(meta?.scope).toBe('project')
     expect(meta?.description).toBe('Project reviewer')
+  })
+
+  it('keeps different skills from .agents/skills and .formax/skills together', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skills-'))
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-global-'))
+
+    await writeFileEnsuringDir(
+      path.join(cwd, '.agents', 'skills', 'alpha', 'SKILL.md'),
+      ['---', 'description: Alpha skill', '---', '', 'Alpha body'].join('\n'),
+    )
+    await writeFileEnsuringDir(
+      path.join(cwd, '.formax', 'skills', 'beta', 'SKILL.md'),
+      ['---', 'description: Beta skill', '---', '', 'Beta body'].join('\n'),
+    )
+
+    const store = createSkillStore({ cwd, globalConfigDir })
+    expect(store.get('alpha')?.description).toBe('Alpha skill')
+    expect(store.get('beta')?.description).toBe('Beta skill')
+    expect(store.list().map((s) => s.name)).toEqual(['alpha', 'beta'])
   })
 
   it('supports disable-model-invocation in frontmatter', async () => {

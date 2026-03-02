@@ -9,7 +9,7 @@
 - Skill 目录发现规则与优先级
 - Skill 名称推导与合法性约束
 - Skill 元数据（frontmatter）与可调用性约束
-- `.skills` 与 `.formax/skills` 的长期并行支持边界
+- `.agents/skills` 与 `.formax/skills` 的长期并行支持边界
 
 不在范围内：
 - Tool 审批 UI 视觉样式
@@ -44,18 +44,18 @@ Skill 调用行为（unknown/missing/disabled、正文截断、返回结构）MU
 `SKILL-PATH-002`  
 SkillStore MUST 扫描以下目录（按覆盖优先级从低到高）：
 1. 用户目录：`<FORMAX_CONFIG_DIR>/skills/**/SKILL.md`
-2. 项目历史目录：`<project>/.skills/**/SKILL.md`
+2. 项目历史目录：`<project>/.agents/skills/**/SKILL.md`
 3. 项目标准目录：`<project>/.formax/skills/**/SKILL.md`
 
 `SKILL-PATH-003`  
 同名 skill 冲突时 MUST 使用“后写覆盖前写”规则，因此优先级为：
 1. `.formax/skills`（最高）
-2. `.skills`
+2. `.agents/skills`
 3. 用户目录 `skills`（最低）
 
 `SKILL-PATH-004`  
-`.skills` 与 `.formax/skills` 同属受支持目录。  
-实现 MUST 长期保持对 `.skills` 的读取支持，不得将其视为临时 shim。
+`.agents/skills` 与 `.formax/skills` 同属受支持目录。  
+实现 MUST 长期保持对 `.agents/skills` 的读取支持，不得将其视为临时 shim。
 
 ## 3. 文件与命名规则
 
@@ -113,10 +113,10 @@ frontmatter 可选字段：
 ## 6. 目录支持策略（长期）
 
 `SKILL-COMPAT-001`  
-.skills 目录支持是稳定业务能力，不得在重构中以“清理兼容层”为由移除。
+.agents/skills 目录支持是稳定业务能力，不得在重构中以“清理兼容层”为由移除。
 
 `SKILL-COMPAT-002`  
-无论是否新增其他目录规范，`.skills` 的读取行为 MUST 保持向后兼容。
+无论是否新增其他目录规范，`.agents/skills` 的读取行为 MUST 保持向后兼容。
 
 ## 7. 一致性测试映射
 
