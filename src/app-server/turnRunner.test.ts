@@ -7,6 +7,7 @@ import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
 import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
+import * as sessionTitle from '../features/sessionTitle/index.js'
 import { __turnRunnerTestOnly, TurnRunner } from './turnRunner.js'
 
 type Notification = { method: string; params?: any }
@@ -107,6 +108,7 @@ describe('TurnRunner', () => {
         null,
         1,
         { type: 'tool_use', text: 'skip' },
+        { type: 'text', text: 1 },
         { type: 'text', text: 'hello' },
         { type: 'text', text: 'world' },
       ]),
@@ -122,6 +124,12 @@ describe('TurnRunner', () => {
     expect(__turnRunnerTestOnly.extractAssistantText([{ role: 'assistant', content: [{ type: 'text', text: ' ok ' }] }] as any)).toBe(
       'ok',
     )
+    expect(
+      __turnRunnerTestOnly.extractAssistantText([
+        { role: 'assistant', content: 'not-array' },
+        { role: 'assistant', content: [{ type: 'text', text: 1 }, null] },
+      ] as any),
+    ).toBe('')
     expect(__turnRunnerTestOnly.extractAssistantText([{ role: 'assistant', content: 'bad' }] as any)).toBe('')
 
     expect(
@@ -210,6 +218,380 @@ describe('TurnRunner', () => {
       },
       { inputId: 'x', expiresAt: new Date().toISOString() },
     )
+  })
+
+  it('covers start/interrupt/submit guard branches', async () => {
+    const fixture = await createThreadFixture()
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification() {},
+    })
+
+    ;(runner as any).runningByThreadId.set(fixture.threadId, { turnId: 'existing-turn' })
+    await expect(
+      runner.startTurn({
+        threadId: fixture.threadId,
+        input: { text: 'hello' },
+      }),
+    ).rejects.toThrow('Turn already running for thread')
+
+    await expect(runner.interruptTurn({ threadId: fixture.threadId, turnId: 'missing-turn' })).rejects.toThrow(
+      'Turn not running',
+    )
+    await expect(
+      runner.submitInput({
+        threadId: fixture.threadId,
+        turnId: 'missing-turn',
+        inputId: 'i1',
+        answers: {},
+      }),
+    ).rejects.toThrow('Input submission unavailable')
+  })
+
+  it('returns not_pending when input manager rejects accepted submission', async () => {
+    const fixture = await createThreadFixture()
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      userInputManager: { submitAnswers: vi.fn().mockReturnValue(false) } as any,
+      emitNotification() {},
+    })
+
+    ;(runner as any).runningByThreadId.set('thread-1', {
+      turnId: 'turn-1',
+      inputStore: {
+        hasInput: () => true,
+        resolveInputIdFromToolUseId: () => null,
+        submitInput: () => ({ accepted: true, status: 'accepted', toolUseId: 'tool-1', transition: null }),
+      },
+    })
+
+    const out = await runner.submitInput({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      inputId: 'input-1',
+      answers: { ok: true },
+    })
+    expect(out).toEqual({ accepted: false, status: 'not_pending' })
+  })
+
+  it('fails compact command when summary is empty and forwards compact thinking events', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'thinking_delta', text: 'internal' } as any)
+          args.onEvent({ type: 'usage', usage: { input_tokens: 1, output_tokens: 1 } } as any)
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: '/compact' },
+    })
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(String(failed.params?.error || '')).toContain('Compact failed: empty summary')
+    expect(
+      notifications.some(
+        (n) =>
+          n.method === 'turn/event' &&
+          (n.params?.event?.type === 'thinking_delta' || n.params?.event?.type === 'usage'),
+      ),
+    ).toBe(true)
+  })
+
+  it('marks turn failed when writer flush fails after completion', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const openSpy = vi.spyOn(SessionWriter, 'openExisting').mockResolvedValue({
+      appendEvent: vi.fn().mockResolvedValue(undefined),
+      appendStableMsg: vi.fn().mockResolvedValue(undefined),
+      appendHistorySnapshot: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockRejectedValue(new Error('flush failed')),
+      shutdown: vi.fn().mockRejectedValue(new Error('shutdown failed')),
+    } as any)
+
+    try {
+      const runner = new TurnRunner({
+        engine: {
+          async runTurn(args) {
+            args.onEvent({ type: 'assistant_delta', text: 'ok' } as any)
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+            ] as ChatHistory
+          },
+        },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        promptProfile: 'lite',
+        cwd: fixture.cwd,
+        env: fixture.env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      await runner.startTurn({
+        threadId: fixture.threadId,
+        input: { text: 'hello' },
+      })
+      const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+      expect(String(failed.params?.error || '')).toContain('flush failed')
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('uses ensureThreadFilePath override when provided', async () => {
+    const fixture = await createThreadFixture()
+    const ensureThreadFilePath = vi.fn(async () => path.join(fixture.cwd, 'custom-thread.jsonl'))
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      ensureThreadFilePath,
+      emitNotification() {},
+    })
+
+    const out = await (runner as any).resolveOrCreateThreadFilePath({ threadId: 't-override', cwd: fixture.cwd })
+    expect(out).toContain('custom-thread.jsonl')
+    expect(ensureThreadFilePath).toHaveBeenCalled()
+  })
+
+  it('emits startTurn background failure when finally-phase logic throws', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+    ;(runner as any).resolvePendingInputs = () => {
+      throw new Error('finally explosion')
+    }
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(String(failed.params?.error || '')).toContain('finally explosion')
+  })
+
+  it('marks compact turn interrupted when aborted after compact run', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'summary' }] }] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: '/compact' } })
+    await runner.interruptTurn({ threadId: fixture.threadId, turnId: started.turn.id })
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(failed.params?.turn?.status).toBe('interrupted')
+  })
+
+  it('marks normal turn interrupted and swallows auto-title rejection', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const titleSpy = vi.spyOn(sessionTitle, 'maybeAutoGenerateSessionTitle').mockRejectedValue(new Error('title fail'))
+    try {
+      const runner = new TurnRunner({
+        engine: {
+          async runTurn(args) {
+            await new Promise((resolve) => setTimeout(resolve, 40))
+            return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }] as ChatHistory
+          },
+        },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        promptProfile: 'lite',
+        cwd: fixture.cwd,
+        env: fixture.env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+      await runner.interruptTurn({ threadId: fixture.threadId, turnId: started.turn.id })
+      const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+      expect(failed.params?.turn?.status).toBe('interrupted')
+    } finally {
+      titleSpy.mockRestore()
+    }
+  })
+
+  it('hits post-run abort checks for compact and normal branches', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'assistant_delta', text: 'x' } as any)
+          // Abort after runTurn returns so post-run aborted checks are exercised.
+          ;(args.signal as AbortSignal).dispatchEvent?.(new Event('noop'))
+          return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'x' }] }] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const mkRunning = (compact: boolean) =>
+      ({
+        turnId: randomUUID(),
+        traceId: randomUUID(),
+        seq: 0,
+        threadId: fixture.threadId,
+        filePath: (runner as any).threadFilePathById.get(fixture.threadId) ?? '',
+        cwd: fixture.cwd,
+        inputText: compact ? '/compact' : 'hello',
+        modelInputText: compact ? '/compact' : 'hello',
+        modelUserContent: [{ type: 'text', text: compact ? '/compact' : 'hello' }],
+        semanticBlockCount: 0,
+        replMode: 'normal',
+        abortController: new AbortController(),
+        inputStore: { resolveAllPending: () => [] },
+        writer: null,
+        pendingEventWrites: [],
+        inputExpiryTimers: new Map(),
+        compact: { isCommand: compact, instructions: '' },
+        toolNameByUseId: new Map(),
+        toolInputByUseId: new Map(),
+      }) as any
+
+    const pathOut = await (runner as any).resolveOrCreateThreadFilePath({ threadId: fixture.threadId, cwd: fixture.cwd })
+    ;(runner as any).threadFilePathById.set(fixture.threadId, pathOut)
+
+    const compactRunning = mkRunning(true)
+    const normalRunning = mkRunning(false)
+    vi.spyOn(compactRunning.abortController, 'abort').mockImplementation(function (this: AbortController) {
+      AbortController.prototype.abort.call(this)
+    })
+    vi.spyOn(normalRunning.abortController, 'abort').mockImplementation(function (this: AbortController) {
+      AbortController.prototype.abort.call(this)
+    })
+
+    const originalRunTurn = (runner as any).engine.runTurn
+    let callCount = 0
+    ;(runner as any).engine.runTurn = async (args: any) => {
+      callCount += 1
+      if (callCount === 1) compactRunning.abortController.abort()
+      if (callCount === 2) normalRunning.abortController.abort()
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'x' }] }]
+    }
+    try {
+      await (runner as any).runTurnInBackground(compactRunning)
+      await (runner as any).runTurnInBackground(normalRunning)
+    } finally {
+      ;(runner as any).engine.runTurn = originalRunTurn
+    }
+
+    expect(notifications.some((n) => n.method === 'turn/failed')).toBe(true)
+  })
+
+  it('swallows auto-title errors on successful non-compact turns', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const titleSpy = vi.spyOn(sessionTitle, 'maybeAutoGenerateSessionTitle').mockRejectedValue(new Error('title fail'))
+    try {
+      const runner = new TurnRunner({
+        engine: {
+          async runTurn(args) {
+            args.onEvent({ type: 'assistant_delta', text: 'ok' } as any)
+            return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }] as ChatHistory
+          },
+        },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        promptProfile: 'lite',
+        cwd: fixture.cwd,
+        env: fixture.env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+      await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    } finally {
+      titleSpy.mockRestore()
+    }
   })
 
   it('creates a session file lazily when starting a turn for a provisional thread id', async () => {
