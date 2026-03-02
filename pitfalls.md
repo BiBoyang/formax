@@ -66,7 +66,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   2) type quickly; observe flicker or dropped characters
 - **Root cause**: an effect that manages input scope (`pushScope/popScope`) depends on the whole `view` object. Controlled inputs update `view` on every keystroke → effect cleanup runs per keystroke → scope is popped/pushed repeatedly → transient “no active handler” windows.
 - **Fix**: scope activation effects must depend only on stable state (usually `view.kind`), not the full `view` object.
-- **Links**: `src/features/repl/inputScopeContext.tsx`, `src/ui/hooks/HooksDialog.tsx`
+- **Links**: `src/features/repl/inputScopeContext.tsx`, `src/tui/hooks/HooksDialog.tsx`
 - **Keywords**: ink, input scope, useLayoutEffect, controlled input, flicker, pushScope, popScope
 
 ## Ink overlay “full page flash” on every keystroke (layout height / margins)
@@ -82,7 +82,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - keep “typing views” compact: avoid tall blocks above the input; prefer `marginTop` over `marginY`; reduce blank lines;
   - make bordered input containers stable: `width="100%"` so they don’t shrink/expand with text;
   - if the view must be long, introduce an explicit scroll region or collapse long help/examples (UI behavior change — requires user approval).
-- **Links**: `src/ui/hooks/ui.tsx`
+- **Links**: `src/tui/hooks/ui.tsx`
 - **Keywords**: ink, overlay, flicker, flash, layout, terminal height, marginY, marginBottom, width=100%, TextInput
 
 ## Ink `useInput` “bubbling” (multiple handlers receive the same key)
@@ -112,7 +112,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Fix**:
   - Clear transcript state first (`setMessages([])` + `setTranscriptSeq(+1)`), then clear the terminal.
   - Keep a single clear path for legacy REPL (`resetInkStaticOutputForStdout` + `clearTerminal()`), avoid extra `replInstance.clear()` calls that can race with the next paint.
-- **Links**: `src/features/repl/useReplController.ts`, `src/legacy/runLegacyCli.tsx`, `src/shared/utils/terminal.ts`
+- **Links**: `src/features/repl/useReplController.ts`, `src/runtime/bootstrap/runLegacyCli.tsx`, `src/shared/utils/terminal.ts`
 - **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
 
 ## `/resume` select-session black screen (bypassed reset transaction)
@@ -128,7 +128,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - Route resume surface updates through shared `resetTranscriptSurface()` transaction (same owner/queue as Ctrl+O paths).
   - Keep only one terminal clear path in legacy runner.
   - Add regression test asserting resume uses shared surface reset transaction ordering.
-- **Links**: `src/features/repl/controller/session/sessionTransitions.ts`, `src/features/repl/useReplController.ts`, `src/features/repl/controller/ui/surfaceReset.ts`, `src/legacy/runLegacyCli.tsx`
+- **Links**: `src/features/repl/controller/session/sessionTransitions.ts`, `src/features/repl/useReplController.ts`, `src/features/repl/controller/ui/surfaceReset.ts`, `src/runtime/bootstrap/runLegacyCli.tsx`
 - **Keywords**: resume, black screen, Static, reset transaction, surface queue, clear race
 
 ## Bash-mode Backspace fails after toggling mode (stale callback closure)

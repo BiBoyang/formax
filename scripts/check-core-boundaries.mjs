@@ -118,7 +118,6 @@ function checkCommandsOrSkillsImports(file, specifier, opts) {
   }
 
   // Non-relative imports: enforce by path segment heuristic when importing within src.
-  if (raw.includes('src/ui/')) return 'May not import from src/tui/**'
   if (raw.includes('src/tui/')) return 'May not import from src/tui/**'
   if (raw.includes('src/screens/')) return 'May not import from src/screens/**'
   if (opts?.disallowToolsModules && raw.includes('src/tools/modules/')) return 'May not import from src/tools/modules/**'

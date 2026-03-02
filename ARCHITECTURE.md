@@ -116,7 +116,7 @@ policy/preflight 的解释与 remember 生效由执行层拥有，renderer 不�
 
 ## 5. Cross-cutting Concerns
 
-1. 配置分层：环境变量 + 全局配置 + 项目覆盖（见 `src/env/config.ts` 与 `docs/environment-variables.md`）
+1. 配置分层：环境变量 + 全局配置 + 项目覆盖（见 `src/config/config.ts` 与 `docs/environment-variables.md`）
 2. 可观测性/审计：tool 执行、hook 运行、turn 事件需可追踪
 3. 回归门禁：`type-check`、`test:repl-semantic-gate`、layer/golden principle 检查
 4. 漂移治理：pitfalls 与 contracts 同步维护，禁止“代码改了文档没改”

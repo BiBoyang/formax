@@ -1439,3 +1439,24 @@ src/
   - 同步合同与 runbook 的 `allowedImports` 说明与排障路径。
 - 明确不做：
   - 不做全仓 shim 清理，仅处理 Phase E/F 当前链路。
+
+## 执行状态（Phase C - Slice 94）
+
+- 状态：进行中（目录迁移第一批，文档路径事实收口）。
+- 本轮已完成：
+  - 活跃文档中的历史路径同步到现状目录：
+    - `README.md`: `src/subagents/README.md -> src/features/subagents/README.md`
+    - `ARCHITECTURE.md`: `src/env/config.ts -> src/config/config.ts`
+    - `pitfalls.md`: `src/ui/* -> src/tui/*`，`src/legacy/runLegacyCli.tsx -> src/runtime/bootstrap/runLegacyCli.tsx`
+  - 保持实现不变，仅修正文档导航与排障链接，减少后续排障误导。
+- 明确不做：
+  - 不改任何运行时代码与分层规则，仅做文档事实收敛。
+
+## 执行状态（Phase C - Slice 95）
+
+- 状态：进行中（目录迁移第一批，门禁术语历史兼容收口）。
+- 本轮已完成：
+  - `scripts/check-core-boundaries.mjs` 移除 `src/ui/*` 的非相对导入字符串兼容分支，仅保留当前事实路径 `src/tui/*` 与 `src/screens/*` 检查。
+  - 目的为消除“目录迁移已完成但门禁仍含历史路径术语”的噪音，避免后续排障误判。
+- 明确不做：
+  - 不改变任何分层规则方向与业务行为，仅收口历史兼容分支。

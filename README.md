@@ -140,7 +140,7 @@ bun run test -- src/tools/registry.test.ts
 - Core configuration and setup internals: [`src/core/README.md`](src/core/README.md)
 - Tool registry/execution/presentation internals: [`src/tools/README.md`](src/tools/README.md)
 - Streaming client and parser internals: [`src/streaming/README.md`](src/streaming/README.md)
-- Sub-agent registry and runner internals: [`src/subagents/README.md`](src/subagents/README.md)
+- Sub-agent registry and runner internals: [`src/features/subagents/README.md`](src/features/subagents/README.md)
 
 ## Troubleshooting
 
