@@ -21,6 +21,8 @@ import {
 } from './ui/dialog'
 import { Input } from './ui/input'
 
+const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
+
 export type LeftRailProps = {
   connectionStatus?: 'disconnected' | 'connecting' | 'connected'
   bridgeUrl?: string
@@ -43,12 +45,38 @@ export type LeftRailProps = {
   isBusy?: boolean
 }
 
+function readOpenByCwdFromStorage(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(OPEN_BY_CWD_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out: Record<string, boolean> = {}
+    for (const [cwd, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!cwd.trim()) continue
+      if (typeof value !== 'boolean') continue
+      out[cwd] = value
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function writeOpenByCwdToStorage(openByCwd: Record<string, boolean>): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(OPEN_BY_CWD_STORAGE_KEY, JSON.stringify(openByCwd))
+  } catch {
+    // Ignore storage quota/privacy errors and keep runtime state in-memory.
+  }
+}
+
 function relativeTime(updatedAt: string): string {
   const ts = Date.parse(updatedAt)
   if (!Number.isFinite(ts)) return '--'
-  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
+  const minutes = Math.max(1, Math.floor((Date.now() - ts) / 60_000))
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h`
@@ -58,17 +86,16 @@ function relativeTime(updatedAt: string): string {
 
 function groupThreadsByCwd(threads: ThreadViewModel[]): Array<{ cwd: string; threads: ThreadViewModel[] }> {
   const groupMap = new Map<string, ThreadViewModel[]>()
-  const groupOrder: string[] = []
   for (const thread of threads) {
     const cwd = thread.cwd
     if (!groupMap.has(cwd)) {
       groupMap.set(cwd, [thread])
-      groupOrder.push(cwd)
       continue
     }
     groupMap.get(cwd)?.push(thread)
   }
-  return groupOrder.map((cwd) => ({ cwd, threads: groupMap.get(cwd) ?? [] }))
+  const sortedCwds = Array.from(groupMap.keys()).sort((a, b) => compareCwdGroupOrder(a, b))
+  return sortedCwds.map((cwd) => ({ cwd, threads: groupMap.get(cwd) ?? [] }))
 }
 
 function cwdLabel(cwd: string): string {
@@ -76,6 +103,17 @@ function cwdLabel(cwd: string): string {
   if (!normalized) return cwd
   const parts = normalized.split('/').filter(Boolean)
   return parts.length > 0 ? parts[parts.length - 1] : normalized
+}
+
+function compareCwdGroupOrder(aCwd: string, bCwd: string): number {
+  const aLabel = cwdLabel(aCwd).toLowerCase()
+  const bLabel = cwdLabel(bCwd).toLowerCase()
+  if (aLabel !== bLabel) return aLabel < bLabel ? -1 : 1
+
+  const aPath = aCwd.replace(/\\/g, '/').toLowerCase()
+  const bPath = bCwd.replace(/\\/g, '/').toLowerCase()
+  if (aPath === bPath) return 0
+  return aPath < bPath ? -1 : 1
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -103,7 +141,7 @@ export function LeftRail(props: LeftRailProps) {
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
   const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
   const activeThreadCwd = activeThread?.cwd ?? null
-  const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>({})
+  const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>(() => readOpenByCwdFromStorage())
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
@@ -124,6 +162,10 @@ export function LeftRail(props: LeftRailProps) {
       return changed ? next : previous
     })
   }, [visibleGroupedThreads])
+
+  useEffect(() => {
+    writeOpenByCwdToStorage(openByCwd)
+  }, [openByCwd])
 
   const closeRenameDialog = () => {
     if (isRenaming) return
