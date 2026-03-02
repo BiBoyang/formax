@@ -390,10 +390,7 @@ export function createSlashCommandRegistry(deps: {
       candidates.find((e) => e.spec.source === 'builtin') ??
       candidates.find((e) => e.spec.source === 'project') ??
       candidates.find((e) => e.spec.source === 'user') ??
-      candidates[0] ??
-      null
-
-    if (!entry) return null
+      candidates[0]
 
     if (entry.dispatch) {
       return entry.dispatch(parsed)
@@ -449,10 +446,8 @@ function formatTodosCommandOutput(
 
 
 function subsequenceMatch(query: string, text: string): { start: number; span: number; gaps: number } | null {
-  const q = String(query || '')
-  const t = String(text || '')
-  if (!q) return { start: 0, span: 0, gaps: 0 }
-  if (!t) return null
+  const q = query
+  const t = text
 
   const positions: number[] = []
   let qi = 0
@@ -464,8 +459,8 @@ function subsequenceMatch(query: string, text: string): { start: number; span: n
   }
   if (qi !== q.length) return null
 
-  const start = positions[0] ?? 0
-  const end = positions[positions.length - 1] ?? start
+  const start = positions[0] as number
+  const end = positions[positions.length - 1] as number
   const span = Math.max(0, end - start)
   const gaps = Math.max(0, (span + 1) - q.length)
   return { start, span, gaps }

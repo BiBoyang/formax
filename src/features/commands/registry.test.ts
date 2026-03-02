@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { createStatusSnapshot } from '../../core/diagnostics/status.js'
-import { createSlashCommandRegistry } from './registry'
+import { createSlashCommandRegistry, parseSlashCommand } from './registry'
 
 function stripAnsi(text: string): string {
   return String(text || '').replace(/\u001b\[[0-9;]*m/g, '')
@@ -164,6 +164,54 @@ describe('SlashCommandRegistry', () => {
     }
   })
 
+  it('dispatches /config to open config dialog', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/config')
+      expect(effect?.kind).toBe('open_config_dialog')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /config with args as usage output', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/config extra')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toBe('Usage: /config')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /resume to open resume dialog', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/resume')
+      expect(effect?.kind).toBe('open_resume_dialog')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /resume with args as usage output', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/resume extra')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toBe('Usage: /resume')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('dispatches /model to open model dialog', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
     try {
@@ -246,6 +294,49 @@ describe('SlashCommandRegistry', () => {
 
     const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
     expect(reg.list().some((c) => c.command === '/hello')).toBe(true)
+  })
+
+  it('dispatches project-only custom command when no builtin exists', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
+    try {
+      const projectDir = path.join(cwd, '.formax', 'commands')
+      await fsp.mkdir(projectDir, { recursive: true })
+      await fsp.writeFile(path.join(projectDir, 'hello.md'), 'Project hello', 'utf8')
+
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/hello')
+      expect(effect?.kind).toBe('llm')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches user-only custom command when no builtin/project exists', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-commands-'))
+    try {
+      const userDir = path.join(cwd, 'commands')
+      await fsp.mkdir(userDir, { recursive: true })
+      await fsp.writeFile(path.join(userDir, 'solo.md'), 'User solo command', 'utf8')
+
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/solo')
+      expect(effect?.kind).toBe('llm')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('allows preferredSpecId to resolve from registry id map fallback', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/status', { preferredSpecId: 'builtin:/help' })
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('Formax help')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
   })
 
   it('keeps builtin commands and lists custom variants (user/project) without overriding by default', async () => {
@@ -383,6 +474,113 @@ describe('SlashCommandRegistry', () => {
     }
   })
 
+  it('dispatches /plan when no plan exists', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        plan: { getPlanPath: () => null },
+      })
+      const effect = reg.dispatch('/plan')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('No plan found')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /plan with plan file contents when present', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const planPath = path.join(cwd, 'plan.md')
+      await fsp.writeFile(planPath, 'Plan line 1\nPlan line 2\n', 'utf8')
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        plan: { getPlanPath: () => planPath },
+      })
+      const effect = reg.dispatch('/plan')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toBe('Plan line 1\nPlan line 2')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /plan as no plan found when reading plan fails', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        plan: { getPlanPath: () => path.join(cwd, 'missing-plan.md') },
+      })
+      const effect = reg.dispatch('/plan')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('No plan found')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /prompt with usage when no args provided', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        promptProfile: { get: () => 'lite', set: () => {} },
+      })
+      const effect = reg.dispatch('/prompt')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('Prompt profile: lite')
+      expect(effect.stdout).toContain('/prompt full')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /prompt with unknown profile message', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        promptProfile: { get: () => 'full', set: () => {} },
+      })
+      const effect = reg.dispatch('/prompt weird')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(effect.stdout).toContain('Unknown profile: weird')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /prompt and updates profile when value is valid', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const set = vi.fn()
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        promptProfile: { get: () => 'full', set },
+      })
+      const effect = reg.dispatch('/prompt lite')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
+      expect(set).toHaveBeenCalledWith('lite')
+      expect(effect.stdout).toContain('Prompt profile set to: lite')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('dispatches /todos as empty when no store exists', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH
@@ -439,5 +637,139 @@ describe('SlashCommandRegistry', () => {
       restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
       await fsp.rm(cwd, { recursive: true, force: true })
     }
+  })
+
+  it('renders /todos with in_progress and completed statuses', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', cwd)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = path.join(cwd, 'todos', 'test-session-agent-test-session.json')
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify(
+          {
+            todos: [
+              { content: 'doing', status: 'in_progress', activeForm: 'doing' },
+              { content: 'done', status: 'completed', activeForm: 'done' },
+            ],
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      )
+
+      const reg = createSlashCommandRegistry({ cwd })
+      const effect = reg.dispatch('/todos')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      const stdout = stripAnsi(effect.stdout)
+      expect(stdout).toContain('☐ doing')
+      expect(stdout).toContain('☒ done')
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('renders /todos robustly when todo fields are missing', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-todos-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', cwd)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = path.join(cwd, 'todos', 'test-session-agent-test-session.json')
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(todosPath, JSON.stringify({ todos: [{}] }, null, 2), 'utf8')
+
+      const reg = createSlashCommandRegistry({ cwd })
+      const effect = reg.dispatch('/todos')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      const stdout = stripAnsi(effect.stdout)
+      expect(stdout).toContain('1 todo:')
+      expect(stdout).toContain('☐ ')
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches unimplemented builtins as unimplemented effect', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+      const effect = reg.dispatch('/stats')
+      expect(effect?.kind).toBe('unimplemented')
+      if (!effect || effect.kind !== 'unimplemented') return
+      expect(effect.message).toContain('/stats')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /tasks with formatted task list output', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        taskManager: {
+          list: () => [
+            { id: 'task-1', status: 'running', kind: 'shell', label: 'Build project' },
+            { id: 'task-2', status: 'done' },
+          ],
+        } as any,
+      })
+      const effect = reg.dispatch('/tasks')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toContain('Background tasks:')
+      expect(effect.stdout).toContain('- running shell task-1')
+      expect(effect.stdout).toContain('Build project')
+      expect(effect.stdout).toContain('Tip: ask me to run TaskOutput')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches /tasks with empty task list message', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    try {
+      const reg = createSlashCommandRegistry({
+        cwd,
+        globalConfigDir: cwd,
+        taskManager: {
+          list: () => [],
+        } as any,
+      })
+      const effect = reg.dispatch('/tasks')
+      expect(effect?.kind).toBe('local')
+      if (!effect || effect.kind !== 'local') return
+      expect(effect.stdout).toBe('No background tasks.')
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('parses undefined input safely as non-slash command', () => {
+    expect(parseSlashCommand(undefined as any)).toBeNull()
   })
 })
