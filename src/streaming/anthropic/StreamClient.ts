@@ -138,7 +138,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
     const controller = new AbortController()
     const timeoutId = setTimeout(
       () => controller.abort(),
-      this.config.timeoutMs ?? 600000,
+      this.config.timeoutMs,
     )
 
     const combinedSignal = args.signal

@@ -37,5 +37,15 @@ describe('sortToolResultsByCallOrder', () => {
     const toolResults = [{ tool_use_id: 'x', content: 'X' }]
     expect(sortToolResultsByCallOrder([], toolResults)).toEqual(toolResults)
   })
-})
 
+  it('keeps the first result when duplicate tool_use_id entries exist', () => {
+    const out = sortToolResultsByCallOrder(
+      ['a'],
+      [
+        { tool_use_id: 'a', content: 'first' },
+        { tool_use_id: 'a', content: 'second' },
+      ],
+    )
+    expect(out).toEqual([{ tool_use_id: 'a', content: 'first' }])
+  })
+})

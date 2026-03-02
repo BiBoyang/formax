@@ -1,7 +1,7 @@
 # Coverage 100 TODO (4 Metrics)
 
 Generated: 2026-03-02T06:47:42.901Z
-Last synced: 2026-03-02 (incremental, targeted coverage runs; threadStore/turnRunner/writer/reader/session/agentsWizard/useReplController/runtime/cli/main removed after 100% verification)
+Last synced: 2026-03-02 (incremental, targeted coverage runs; threadStore/turnRunner/writer/reader/session/agentsWizard/useReplController/runtime/cli/main/streaming/anthropic/StreamClient removed after 100% verification)
 Coverage source: `coverage/coverage-final.json`
 Total files: 422
 Files with any metric <100%: 53
@@ -13,7 +13,6 @@ So this checklist may temporarily diverge from `coverage/coverage-final.json` un
 
 ## Checklist
 
-- [ ] `src/streaming/anthropic/StreamClient.ts` (min=73.33%, s=90.74%, f=84.00%, b=73.33%, l=100.00%, stmts=108)
 - [ ] `src/streaming/openai/StreamClient.ts` (min=53.97%, s=65.63%, f=80.00%, b=53.97%, l=100.00%, stmts=480)
 - [ ] `src/tui/agents/AgentsDialog.tsx` (min=77.29%, s=89.11%, f=97.06%, b=77.29%, l=100.00%, stmts=358)
 - [ ] `src/tui/SetupWizard.tsx` (min=73.50%, s=81.01%, f=85.14%, b=73.50%, l=100.00%, stmts=358)

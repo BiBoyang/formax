@@ -112,6 +112,127 @@ describe('AnthropicStreamClient.streamOnce', () => {
     )
   })
 
+  it('normalizes empty baseUrl and falls back model from client config when args model is blank', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: '',
+      model: 'm-from-config',
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      model: '   ',
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [url, init] = (globalThis.fetch as any).mock.calls[0]
+    expect(url).toBe('/messages')
+    expect(JSON.parse(init.body).model).toBe('m-from-config')
+  })
+
+  it('uses arch fallback and non-darwin os header values', async () => {
+    const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'arch', { value: '', configurable: true })
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    try {
+      const { AnthropicStreamClient } = await import('./StreamClient')
+
+      ;(globalThis.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+      parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+        callbacks.onMessageComplete()
+        return {
+          contentBlocks: [{ type: 'text', text: 'ok' }],
+          stopReason: 'end_turn',
+          usage: undefined,
+        }
+      })
+
+      const client = new AnthropicStreamClient({
+        apiKey: 'k',
+        baseUrl: 'http://example',
+        model: 'm',
+      })
+
+      await client.streamOnce({
+        messages: [],
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      })
+
+      const [, init] = (globalThis.fetch as any).mock.calls[0]
+      expect(init.headers['x-stainless-arch']).toBe('arm64')
+      expect(init.headers['x-stainless-os']).toBe('linux')
+    } finally {
+      if (originalArch) Object.defineProperty(process, 'arch', originalArch)
+      if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform)
+    }
+  })
+
+  it('uses empty-string model when neither args nor client model is set', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: '',
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    expect(JSON.parse(init.body).model).toBe('')
+  })
+
   it('uses per-turn model override when provided', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
@@ -248,6 +369,71 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
   })
 
+  it('throws retry HTTP error when fallback request also fails', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unknown field: thinking',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => 'retry-failed',
+        body: null,
+      })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await expect(
+      client.streamOnce({
+        messages: [],
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      }),
+    ).rejects.toThrow('HTTP 500: retry-failed')
+  })
+
+  it('does not retry when error text is empty/falsy', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () => undefined,
+      body: null,
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await expect(
+      client.streamOnce({
+        messages: [],
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      }),
+    ).rejects.toThrow('HTTP 400: undefined')
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(1)
+  })
+
   it('emits tool_start/tool_input/tool_end and returns sorted toolResults', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
@@ -346,6 +532,52 @@ describe('AnthropicStreamClient.streamOnce', () => {
       {
         tool_use_id: 't1',
         content: 'Error: boom',
+        is_error: true,
+      },
+    ])
+  })
+
+  it('formats non-Error tool execution failures', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      callbacks.onToolUseStart('t1', 'Bash')
+      await callbacks.onToolUseComplete(0, { id: 't1', name: 'Bash', input: {} })
+      return {
+        contentBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: {} }],
+        stopReason: 'tool_use',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => {
+        throw 'boom-string'
+      },
+    })
+
+    expect(out.toolResults).toEqual([
+      {
+        tool_use_id: 't1',
+        content: 'Error: boom-string',
         is_error: true,
       },
     ])
@@ -493,6 +725,96 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(out.toolResults).toEqual([{ tool_use_id: 't1', content: 'Request aborted', is_error: true }])
   })
 
+  it('skips tool execution when already aborted before tool_use_complete', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      callbacks.onToolUseStart('t1', 'Bash')
+      await callbacks.onToolUseComplete(0, { id: 't1', name: 'Bash' })
+      return {
+        contentBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash' }],
+        stopReason: 'tool_use',
+        usage: undefined,
+      }
+    })
+
+    const controller = new AbortController()
+    controller.abort()
+    const executeTool = vi.fn(async () => ({ tool_use_id: 't1', content: 'ok' }))
+    const events: any[] = []
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      signal: controller.signal,
+      onEvent: (e) => events.push(e),
+      executeTool,
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(events.some((e) => e.type === 'tool_input')).toBe(false)
+    expect(out.toolResults).toEqual([
+      {
+        tool_use_id: 't1',
+        content: expect.stringContaining('missing tool_result'),
+        is_error: true,
+      },
+    ])
+  })
+
+  it('passes empty object when tool_use input is missing', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      await callbacks.onToolUseComplete(0, { id: 't1', name: 'Bash' })
+      return {
+        contentBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash' }],
+        stopReason: 'tool_use',
+        usage: undefined,
+      }
+    })
+
+    const executeTool = vi.fn(async (call: any) => ({ tool_use_id: call.id, content: 'ok' }))
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool,
+    })
+
+    expect(executeTool).toHaveBeenCalledWith({ id: 't1', name: 'Bash', input: {} })
+  })
+
   it('forwards assistant deltas and maps content blocks into assistantBlocks', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
@@ -543,5 +865,237 @@ describe('AnthropicStreamClient.streamOnce', () => {
       { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
       { type: 'foo', bar: 1 },
     ])
+  })
+
+  it('maps tool_use defaults and thinking signature blocks', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [
+          { type: 'tool_use' },
+          { type: 'thinking', thinking: 'deep', signature: 'sig-1' },
+        ],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect(out.assistantBlocks).toEqual([
+      { type: 'tool_use', id: '', name: '', input: {} },
+      { type: 'thinking', thinking: 'deep', signature: 'sig-1' },
+    ])
+  })
+
+  it('maps empty text/thinking values to empty strings', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [
+          { type: 'text' },
+          { type: 'thinking', signature: 'sig-2' },
+        ],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect(out.assistantBlocks).toEqual([
+      { type: 'text', text: '' },
+      { type: 'thinking', thinking: '', signature: 'sig-2' },
+    ])
+  })
+
+  it('maps thinking blocks without signature and empty text', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'thinking' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const out = await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect(out.assistantBlocks).toEqual([{ type: 'thinking', thinking: '' }])
+  })
+
+  it('emits thinking_stop and parser error events', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async (_body: any, callbacks: any) => {
+      callbacks.onThinkingStop()
+      callbacks.onError('parser-failed')
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const events: any[] = []
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: (e) => events.push(e),
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect(events.some((e) => e.type === 'thinking_stop')).toBe(true)
+    expect(events.some((e) => e.type === 'error' && e.error === 'parser-failed')).toBe(true)
+  })
+
+  it('combines with an already aborted external signal', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const controller = new AbortController()
+    controller.abort()
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      signal: controller.signal,
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    expect(init.signal.aborted).toBe(true)
+  })
+
+  it('aborts request when timeout elapses', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockImplementationOnce(async (_url: string, init: any) => {
+      return await new Promise((_resolve, reject) => {
+        init.signal.addEventListener(
+          'abort',
+          () => reject(new Error('aborted-by-timeout')),
+          { once: true },
+        )
+      })
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 10,
+    })
+
+    await expect(
+      client.streamOnce({
+        messages: [],
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      }),
+    ).rejects.toThrow('aborted-by-timeout')
   })
 })
