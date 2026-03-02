@@ -290,7 +290,7 @@ describe('canonicalInvariants', () => {
     const issues = collectReplCanonicalInvariantIssues({
       projection: createProjection({ segments: [] }),
       messages: [
-        { id: 'sys1', role: 'system', content: 'prelude', timestamp: new Date(1) },
+        { id: 'sys1', role: 'assistant', content: 'prelude', timestamp: new Date(1) },
         { id: 'a1', role: 'assistant', content: 'thinking', timestamp: new Date(2) },
         { id: 't-blank', role: 'tool', content: '', timestamp: new Date(3), toolInfo: { toolUseId: '  ' } as any },
         { id: 'u1', role: 'user', content: 'run', timestamp: new Date(4) },

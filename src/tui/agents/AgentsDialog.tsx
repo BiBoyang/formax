@@ -128,6 +128,10 @@ function isChoiceView(kind: View['kind']): kind is 'create_scope' | 'create_meth
   return kind === 'create_scope' || kind === 'create_method' || kind === 'create_tools' || kind === 'create_model' || kind === 'create_color'
 }
 
+function viewHasCursor(view: View): view is Extract<View, { cursor: number }> {
+  return view.kind === 'list' || isChoiceView(view.kind)
+}
+
 function shouldAwaitBufferedArrow(res: { pending: boolean; delta: number }): boolean {
   return res.pending && res.delta === 0
 }
@@ -687,7 +691,8 @@ export function AgentsDialog({
       })
       /* c8 ignore start */
       if (max !== undefined) {
-        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(view.cursor + arrowDelta, max)) })
+        const cursor = viewHasCursor(view) ? view.cursor : 0
+        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(cursor + arrowDelta, max)) })
         return
       }
       /* c8 ignore stop */

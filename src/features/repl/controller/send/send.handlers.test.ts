@@ -454,7 +454,7 @@ describe('send handlers', () => {
       commandRegistry: {
         list: () => [],
         suggest: () => [],
-        dispatch: () => ({ __result: { consumed: false } }),
+        dispatch: () => ({ __result: { consumed: false } } as any),
       },
       ...baseArgs,
     })
@@ -470,7 +470,7 @@ describe('send handlers', () => {
         suggest: () => [],
         dispatch: () => ({
           __result: { consumed: true, ui: [], data: { kind: 'llm', blocks: [{ type: 'text', text: 'do' }] } },
-        }),
+        } as any),
       },
       ...baseArgs,
     })

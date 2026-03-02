@@ -43,11 +43,11 @@ describe('sessionSave/writer helpers', () => {
       role: 'tool',
       content: 'running',
       timestamp: new Date(),
-      toolInfo: { name: 'Bash', status: 'running' },
+      toolInfo: { name: 'Bash', input: {}, status: 'running' },
     }
     expect(__writerTestOnly.isPersistableMsg({ ...runningTool, isStreaming: true } as Msg)).toBe(false)
     expect(__writerTestOnly.isPersistableMsg(runningTool)).toBe(false)
-    expect(__writerTestOnly.isPersistableMsg({ ...runningTool, toolInfo: { name: 'Bash', status: 'completed' } } as Msg)).toBe(true)
+    expect(__writerTestOnly.isPersistableMsg({ ...runningTool, toolInfo: { name: 'Bash', input: {}, status: 'completed' } } as Msg)).toBe(true)
     expect(__writerTestOnly.isPersistableMsg({ ...runningTool, role: 'user' } as Msg)).toBe(true)
   })
 
@@ -59,6 +59,7 @@ describe('sessionSave/writer helpers', () => {
       timestamp: new Date(),
       toolInfo: {
         name: 'Read',
+        input: {},
         status: 'completed',
         result: 'y'.repeat(200),
         nestedTools: [{ id: 'n1', name: 'sub', status: 'completed' }] as any,
@@ -83,7 +84,7 @@ describe('sessionSave/writer helpers', () => {
       role: 'tool',
       content: 'z'.repeat(400),
       timestamp: new Date(),
-      toolInfo: { name: 'Edit', status: 'completed', result: 'q'.repeat(400) },
+      toolInfo: { name: 'Edit', input: {}, status: 'completed', result: 'q'.repeat(400) },
     }
     expect(__writerTestOnly.truncateMsgInPlace({ msg: msgForTruncate, maxContentBytes: 64 })).toBe(true)
     expect(String(msgForTruncate.content).length).toBeLessThan(400)

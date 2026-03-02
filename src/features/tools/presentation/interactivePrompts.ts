@@ -1,11 +1,5 @@
 import {
-  type AskPromptQuestion,
-  type AskUserQuestionPromptModel,
-  type EnterPlanModePromptModel,
-  type ExitPlanModePromptModel,
   type InteractivePromptModel,
-  type InteractivePromptOption,
-  type PresentationAskQuestion,
 } from '../../../shared/interactivePromptContracts'
 import { normalizeAskQuestions } from './askQuestions'
 import { ENTER_PLAN_MODE_PROMPT, EXIT_PLAN_MODE_PROMPT } from './planModeQuestions'

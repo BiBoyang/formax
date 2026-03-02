@@ -389,7 +389,7 @@ describe('TurnRunner', () => {
       threadId: 'thread-1',
       turnId: 'turn-1',
       inputId: 'input-1',
-      answers: { ok: true },
+      answers: { ok: 'true' },
     })
     expect(out).toEqual({ accepted: false, status: 'not_pending' })
   })

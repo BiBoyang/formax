@@ -359,7 +359,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
         result: 'result-body',
         resultLines: 3,
         transcriptLines: ['t-a', 't-b'],
-        nestedTools: [{ id: 'nested-1', name: 'Read', status: 'completed' }],
+        nestedTools: [{ id: 'nested-1', name: 'Read', input: {}, status: 'completed' }],
         toolUses: 2,
         usage: { input_tokens: 12, output_tokens: 4 },
         durationMs: 80,
@@ -1792,7 +1792,7 @@ describe('canonical edge branch coverage', () => {
           kind: 'user',
           turnId: 'turn-kind',
           text: 'hello',
-          messageKind: 'command_subline',
+          messageKind: 'compact_summary',
         },
         {
           id: 'turn-kind:system:2',
@@ -1806,7 +1806,7 @@ describe('canonical edge branch coverage', () => {
     })
 
     expect(msgs).toHaveLength(2)
-    expect(msgs[0]).toMatchObject({ role: 'user', ui: { kind: 'command_subline' } })
+    expect(msgs[0]).toMatchObject({ role: 'user', ui: { kind: 'compact_summary' } })
     expect(msgs[1]).toMatchObject({ role: 'assistant', content: 'plain' })
     expect(msgs[1]?.ui).toBeUndefined()
   })

@@ -361,7 +361,7 @@ describe('transcriptProjectionToolReducer', () => {
           toolUseId: 'tool-3',
           toolName: 'Read',
           status: 'completed',
-          terminalSource: 'tool_result',
+          terminalSource: 'tool_event',
           summary: 'Read completed',
           detailLines: [],
         },
@@ -390,7 +390,7 @@ describe('transcriptProjectionToolReducer', () => {
       kind: 'tool',
       toolName: 'Write',
       status: 'completed',
-      terminalSource: 'tool_result',
+      terminalSource: 'tool_event',
       summary: 'Write completed',
       detailLines: [],
     })
