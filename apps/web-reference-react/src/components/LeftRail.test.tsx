@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LeftRail } from './LeftRail'
+
+const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
 
 const threads = [
   {
@@ -26,6 +28,10 @@ const threads = [
 ]
 
 describe('LeftRail', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('renders status and dispatches actions', () => {
     const onSelectThread = vi.fn()
     const onSelectCwd = vi.fn()
@@ -246,5 +252,160 @@ describe('LeftRail', () => {
 
     expect(screen.queryByTitle('/repo')).not.toBeInTheDocument()
     expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
+  })
+
+  it('keeps cwd group order stable by folder name even when thread recency changes', () => {
+    const unorderedThreads = [
+      {
+        id: 'thread-z',
+        cwd: '/workspace/zeta',
+        createdAt: '2026-02-09T00:00:00.000Z',
+        updatedAt: '2026-02-13T00:00:00.000Z',
+        messageCount: 1,
+        lastUserPrompt: 'z',
+        label: null,
+        title: 'z',
+      },
+      {
+        id: 'thread-a',
+        cwd: '/workspace/alpha',
+        createdAt: '2026-02-09T00:00:00.000Z',
+        updatedAt: '2026-02-11T00:00:00.000Z',
+        messageCount: 1,
+        lastUserPrompt: 'a',
+        label: null,
+        title: 'a',
+      },
+      {
+        id: 'thread-b',
+        cwd: '/workspace/beta',
+        createdAt: '2026-02-09T00:00:00.000Z',
+        updatedAt: '2026-02-12T00:00:00.000Z',
+        messageCount: 1,
+        lastUserPrompt: 'b',
+        label: null,
+        title: 'b',
+      },
+    ]
+
+    render(
+      <LeftRail
+        threads={unorderedThreads}
+        selectedCwd="/workspace/alpha"
+        onSelectCwd={() => undefined}
+        activeThreadId={unorderedThreads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const folderActionLabels = screen
+      .getAllByRole('button', { name: /Folder actions for /i })
+      .map((button) => button.getAttribute('aria-label'))
+    expect(folderActionLabels).toEqual([
+      'Folder actions for alpha',
+      'Folder actions for beta',
+      'Folder actions for zeta',
+    ])
+  })
+
+  it('renders recent thread time with minute granularity instead of seconds', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-03-03T03:00:52.000Z'))
+      render(
+        <LeftRail
+          threads={[
+            {
+              id: 'thread-recent',
+              cwd: '/repo',
+              createdAt: '2026-03-03T03:00:00.000Z',
+              updatedAt: '2026-03-03T03:00:00.000Z',
+              messageCount: 1,
+              lastUserPrompt: 'recent',
+              label: null,
+              title: 'recent',
+            },
+          ]}
+          selectedCwd="/repo"
+          onSelectCwd={() => undefined}
+          activeThreadId="thread-recent"
+          onSelectThread={() => undefined}
+          onStartThread={() => undefined}
+          onStartThreadInCwd={() => undefined}
+          hiddenGroupCwds={[]}
+          onHideThreadGroup={() => undefined}
+        />,
+      )
+
+      expect(screen.getByText('1m')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('restores folder open state from localStorage cache', () => {
+    window.localStorage.setItem(OPEN_BY_CWD_STORAGE_KEY, JSON.stringify({ '/repo': false, '/repo-b': true }))
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo-b"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[1].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /hello/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /world/i })).toBeInTheDocument()
+  })
+
+  it('persists folder open state to localStorage after toggle', async () => {
+    const { unmount } = render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    fireEvent.click(screen.getByTitle('/repo'))
+    await waitFor(() => {
+      const raw = window.localStorage.getItem(OPEN_BY_CWD_STORAGE_KEY)
+      expect(raw).not.toBeNull()
+      const parsed = JSON.parse(raw ?? '{}') as Record<string, boolean>
+      expect(parsed['/repo']).toBe(false)
+    })
+
+    unmount()
+
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo-b"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[1].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /hello/i })).not.toBeInTheDocument()
   })
 })
