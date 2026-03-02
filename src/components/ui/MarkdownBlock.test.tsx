@@ -43,6 +43,18 @@ describe('components/ui/MarkdownBlock', () => {
     expect(frame).toContain('line-3')
   })
 
+  it('renders internal blank markdown rows between paragraphs', () => {
+    const frame = renderFrame(<UiMarkdownBlock markdown={'first\n\nsecond'} />)
+    expect(frame).toContain('first')
+    expect(frame).toContain('second')
+  })
+
+  it('renders inline code when backtick starts at beginning of line', () => {
+    const frame = renderFrame(<UiMarkdownBlock markdown={'`head` tail'} />)
+    expect(frame).toContain('head')
+    expect(frame).toContain('tail')
+  })
+
   it('parseMarkdown normalizes mixed blocks and trims outer blanks', () => {
     const blocks = parseMarkdown(['', '', 'Para', '', '- item', '```', 'code', '```', '', ''].join('\n'))
     expect(blocks).toEqual([

@@ -189,4 +189,26 @@ describe('TurnInputStore', () => {
       }),
     ).not.toThrow()
   })
+
+  it('throws when resolveRecord receives an invalid transition that stays pending', () => {
+    const store = new TurnInputStore({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+    })
+    const requested = store.createPendingInput({
+      toolUseId: 'ask-1',
+      kind: 'ask_user_question',
+      payload: { questions: [] },
+    })
+    const pendingRecord = (store as any).byInputId.get(requested.inputId)
+    expect(pendingRecord?.status).toBe('pending')
+
+    expect(() =>
+      (store as any).resolveRecord(
+        pendingRecord,
+        'pending',
+        new Date().toISOString(),
+      ),
+    ).toThrow('[TurnInputStore] expected resolved input state in resolveRecord')
+  })
 })

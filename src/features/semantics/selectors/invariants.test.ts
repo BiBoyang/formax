@@ -184,6 +184,33 @@ describe('selectTerminalTurnInvariantIssues', () => {
     ])
     expect(selectTerminalTurnInvariantIssues({ projection: terminalProjection, runtimeState })).toEqual([])
   })
+
+  it('ignores non-pending-like runtime entries even if they match a terminal turn', () => {
+    const projection = createProjection([
+      {
+        id: 'footer-terminal',
+        kind: 'turn_footer',
+        turnId: 'turn-terminal',
+        status: 'completed',
+      },
+    ])
+    const runtimeState = createRuntimeState([
+      {
+        inputId: 'resolved-like',
+        threadId: 'thread-1',
+        turnId: 'turn-terminal',
+        toolUseId: 'tool-z',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-02-17T00:00:02.000Z',
+        expiresAt: '2026-02-17T00:05:02.000Z',
+        payload: {},
+      },
+    ])
+    ;(runtimeState.pendingInputs['resolved-like'] as any).status = 'canceled'
+
+    expect(selectTerminalTurnInvariantIssues({ projection, runtimeState })).toEqual([])
+  })
 })
 
 describe('summarizeInvariantIssues', () => {

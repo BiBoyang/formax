@@ -30,6 +30,18 @@ describe('diagnostics format', () => {
     expect(out).toContain('- w2')
   })
 
+  it('omits warnings section in doctor output when warnings are empty', () => {
+    const checks: DoctorCheck[] = [{ id: 'a', status: 'pass', title: 'A', message: 'ok' }]
+    const out = formatDoctorHuman({
+      version: '1.0.0',
+      cwd: '/repo',
+      checks,
+      warnings: [],
+    })
+
+    expect(out).not.toContain('Warnings:')
+  })
+
   it('formats status with optional config, sources, policy and warnings', () => {
     const snapshot: StatusSnapshot = {
       version: '9.9.9',
@@ -69,9 +81,9 @@ describe('diagnostics format', () => {
         },
         files: {
           globalConfigLoaded: true,
-          projectConfigLoaded: false,
+          projectConfigLoaded: true,
           authStoreLoaded: true,
-          globalRulesLoaded: false,
+          globalRulesLoaded: true,
           projectRulesLoaded: true,
         },
         auth: {
@@ -105,6 +117,39 @@ describe('diagnostics format', () => {
     expect(out).toContain('allow=1 prompt=2 deny=3')
     expect(out).toContain('Warnings:')
     expect(out).toContain('- warn-a')
+  })
+
+  it('formats status without config section when config is absent', () => {
+    const snapshot: StatusSnapshot = {
+      version: '1.0.0',
+      cwd: '/cwd',
+      workspaceRoots: [],
+      runtime: {
+        llm: {
+          provider: 'anthropic',
+          baseUrl: 'https://api.anthropic.com/v1',
+          model: 'claude-sonnet',
+          timeoutMs: 600000,
+          apiKeyPresent: false,
+        },
+        paths: {
+          logsDir: '/logs',
+          subagentsDir: '/agents',
+          planDir: '/plans',
+        },
+        ui: {
+          promptProfile: 'full',
+          assistantTextMode: 'buffered',
+        },
+      },
+      config: null,
+      policySummary: null,
+      warnings: [],
+    }
+
+    const out = formatStatusHuman(snapshot)
+    expect(out).not.toContain('Config dirs:')
+    expect(out).toContain('LLM:')
   })
 
   it('omits optional sections and marks auth as absent when missing', () => {
