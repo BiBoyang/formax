@@ -1460,3 +1460,20 @@ src/
   - 目的为消除“目录迁移已完成但门禁仍含历史路径术语”的噪音，避免后续排障误判。
 - 明确不做：
   - 不改变任何分层规则方向与业务行为，仅收口历史兼容分支。
+
+## 执行状态（Phase C - Slice 96）
+
+- 状态：已完成（目录迁移第一批验收收口）。
+- 本轮已完成：
+  - 按 Phase C 验收口径完成全量检查并通过：
+    - `bun run type-check`
+    - `bun run test -- src/features/commands src/tools/modules/slashCommand src/core/config`
+    - `bun run check:layer-contracts`
+    - `bun run check:layer-coverage`
+    - `bun run check:shared-types`
+  - 当前门禁状态：
+    - `layer-contracts`: `baseline=0, current=0`
+    - `layer-coverage`: `mapped=549, unmapped=0`
+    - `shared-types`: `src/platform/types/shared` 尚未建立，检查按合同策略跳过（不阻断）。
+- 明确不做：
+  - 不进入 Phase D（已决议不执行），后续按既定 E/F 与 feature 收口策略推进。
