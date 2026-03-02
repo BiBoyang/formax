@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useReplController } from './useReplController'
+import { __useReplControllerTestOnly, useReplController } from './useReplController'
 import { createUserInputManager } from '../../tools/runtime/userInputManager'
 import { UserInputProvider } from '../../tools/runtime/userInputContext'
 import type { ChatEngine } from '../../chat/engine'
@@ -17,6 +17,10 @@ import type { PromptBlock } from '../../prompts'
 import { readSessionFile } from './sessionSave/reader'
 import * as sessionReader from './sessionSave/reader'
 import { SessionWriter } from './sessionSave/writer'
+import * as sendOrchestration from './controller/send/sendOrchestration'
+import * as sendBashMode from './controller/send/bashMode'
+import * as sessionController from './controller/session'
+import * as controllerShared from './controller/shared'
 
 const { estimatePromptTokensMock } = vi.hoisted(() => ({
   estimatePromptTokensMock: vi.fn(() => 0),
@@ -33,6 +37,162 @@ const { runBashModeCommandMock } = vi.hoisted(() => ({
 vi.mock('./controller/bashMode', async () => {
   const actual = await vi.importActual<any>('./controller/bashMode')
   return { ...actual, runBashModeCommand: runBashModeCommandMock }
+})
+
+describe('useReplController targeted branch coverage', () => {
+  it('invokes compact lifecycle callbacks and mode accessors through send orchestration', async () => {
+    const tempConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-targeted-save-'))
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+    vi.stubEnv('FORMAX_CONFIG_DIR', tempConfigDir)
+
+    try {
+      const registerSpy = vi
+        .spyOn(sessionController, 'registerSessionWriterProcessHandlers')
+        .mockImplementation(({ getWriter }) => {
+          void getWriter()
+          return () => {}
+        })
+
+      const orchestrationSpy = vi.spyOn(sendOrchestration, 'runReplModelSendFlow').mockImplementation(async (args: any) => {
+        args.callbacks.onCompactLifecycle({ type: 'compact_started', source: 'manual' })
+        args.callbacks.onCompactLifecycle({ type: 'compact_succeeded', source: 'manual' })
+        args.callbacks.onCompactLifecycle({ type: 'compact_failed', source: 'manual', error: 'x' })
+        args.sendContext.replModeAccess.getReplMode()
+        args.sendContext.replModeAccess.setReplMode('normal')
+        args.sendContext.replModeAccess.setReplMode('plan')
+        args.canonical.turnIdRef.current = 'turn-1'
+        args.callbacks.handleEvent({ type: 'tool_start', id: 'ask-1', name: 'AskUserQuestion' })
+        args.sendContext.sendStateSetters.setIsLoading(true)
+      })
+
+      const onModeChange = vi.fn()
+      const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+      let controller!: ReturnType<typeof useReplController>
+      renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} onModeChange={onModeChange} />)
+      await waitFor(() => Boolean(controller))
+
+      await controller.actions.send('hello')
+      controller.actions.abort()
+
+      expect(orchestrationSpy).toHaveBeenCalledTimes(1)
+      expect(registerSpy).toHaveBeenCalled()
+      expect(onModeChange).toHaveBeenCalledWith('plan')
+    } finally {
+      await fsp.rm(tempConfigDir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles unsupported provider and empty bang command branches', async () => {
+    const providerSpy = vi.spyOn(controllerShared, 'resolveTurnProvider').mockImplementation(() => {
+      throw 'bad-provider'
+    })
+    const orchestrationSpy = vi.spyOn(sendOrchestration, 'runReplModelSendFlow').mockImplementation(async () => {})
+
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('hello')
+    await controller.actions.send('!    ')
+    await waitFor(() => controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('Usage: ! <command>')))
+
+    expect(providerSpy).toHaveBeenCalled()
+    expect(orchestrationSpy).toHaveBeenCalledTimes(1)
+    expect(controller.state.messages.some((m) => m.role === 'assistant' && m.content.includes('Usage: ! <command>'))).toBe(true)
+  })
+
+  it('covers resume early-return and non-Error failure mapping', async () => {
+    const orchestrationSpy = vi.spyOn(sendOrchestration, 'runReplModelSendFlow').mockImplementation(async (args: any) => {
+      args.sendContext.sendStateSetters.setIsLoading(true)
+    })
+    const resumeSpy = vi.spyOn(sessionController, 'runResumeSessionTransition').mockImplementation(async () => {
+      throw 'resume-failed'
+    })
+
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let loadingController!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (loadingController = c)} />)
+    await waitFor(() => Boolean(loadingController))
+
+    await loadingController.actions.send('hello')
+    await waitFor(() => loadingController.state.isLoading === true)
+    await loadingController.actions.resumeSession('/tmp/ignored.jsonl')
+    expect(resumeSpy).not.toHaveBeenCalled()
+
+    orchestrationSpy.mockImplementation(async () => {})
+    let idleController!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (idleController = c)} />)
+    await waitFor(() => Boolean(idleController))
+    await idleController.actions.resumeSession('/tmp/ignored.jsonl')
+
+    expect(resumeSpy).toHaveBeenCalled()
+    await waitFor(() => typeof idleController.state.error === 'string')
+    expect(idleController.state.error).toContain('resume-failed')
+  })
+
+  it('maps aborted bash outcomes and exercises renameSession', async () => {
+    const runLocalBashTurnSpy = vi.spyOn(sendBashMode, 'runLocalBashTurn').mockResolvedValue('aborted' as any)
+    const appendEvent = vi.fn(async () => {})
+    const shutdown = vi.fn(async () => {})
+    const writerOpenSpy = vi.spyOn(SessionWriter, 'openExisting').mockResolvedValue({ appendEvent, shutdown } as any)
+
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('! ls')
+    await waitFor(() => runLocalBashTurnSpy.mock.calls.length === 1)
+
+    await controller.actions.renameSession('/tmp/s.jsonl', 'renamed')
+    expect(writerOpenSpy).toHaveBeenCalledWith({ filePath: '/tmp/s.jsonl' })
+    expect(appendEvent).toHaveBeenCalledWith('session_rename', { label: 'renamed' })
+    expect(shutdown).toHaveBeenCalled()
+  })
+
+  it('handles non-aborted local bash outcomes', async () => {
+    const runLocalBashTurnSpy = vi.spyOn(sendBashMode, 'runLocalBashTurn').mockResolvedValue('completed' as any)
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+    await controller.actions.send('! echo ok')
+    await waitFor(() => runLocalBashTurnSpy.mock.calls.length === 1)
+  })
+
+  it('queues session transitions through resumeSession', async () => {
+    const resumeSpy = vi.spyOn(sessionController, 'runResumeSessionTransition').mockResolvedValue(undefined as any)
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+    await waitFor(() => Boolean(controller))
+    await controller.actions.resumeSession('/tmp/session.jsonl')
+    expect(resumeSpy).toHaveBeenCalled()
+  })
+
+  it('handles mode transition reminder effect and reset/newSession actions', async () => {
+    const queueResetSpy = vi.spyOn(sessionController, 'runNewSessionTransition').mockImplementation(async ({ replaceTranscript }) => {
+      await replaceTranscript([])
+    })
+
+    const engine: ChatEngine = { runTurn: vi.fn(async ({ history, user }) => [...history, user]) } as any
+    let controller!: ReturnType<typeof useReplController>
+    const rendered = renderTracked(
+      <Harness engine={engine} mode="plan" onController={(c) => (controller = c)} cfg={createCfg()} />,
+    )
+    await waitFor(() => Boolean(controller))
+
+    rendered.rerender(<Harness engine={engine} mode="normal" onController={(c) => (controller = c)} cfg={createCfg()} />)
+    await tick(0)
+
+    await controller.actions.resetTranscriptSurface()
+    controller.actions.newSession()
+    await tick(20)
+
+    expect(queueResetSpy).toHaveBeenCalled()
+    expect(typeof controller.state.transcriptSeq).toBe('number')
+  })
 })
 
 const unmountFns: Array<() => void> = []
@@ -119,6 +279,8 @@ function Harness(args: {
   tools?: ToolDefinition[]
   cfg?: RuntimeConfig
   cwd?: string
+  mode?: 'normal' | 'plan'
+  onModeChange?: (mode: 'normal' | 'plan') => void
   commandRegistry?: SlashCommandRegistry
   initialSession?: { filePath?: string; messages?: any[]; history?: any[] }
   onController: (c: ReturnType<typeof useReplController>) => void
@@ -128,7 +290,8 @@ function Harness(args: {
     tools: args.tools ?? [],
     cfg: args.cfg ?? createCfg(),
     cwd: args.cwd,
-    mode: 'normal',
+    mode: args.mode ?? 'normal',
+    onModeChange: args.onModeChange as any,
     commandRegistry: args.commandRegistry,
     initialSession: args.initialSession as any,
   })
@@ -1388,6 +1551,212 @@ describe('useReplController', () => {
 	    expect(controller.state.thinkingStartedAtMs).toBe(null)
 
     dateNowSpy.mockRestore()
+  })
+})
+
+describe('__useReplControllerTestOnly', () => {
+  it('compares tool info snapshots strictly', () => {
+    const base = {
+      name: 'Bash',
+      toolUseId: 't-1',
+      status: 'completed',
+      result: 'ok',
+      input: { cmd: 'pwd' },
+      middleLines: ['m'],
+      transcriptLines: ['t'],
+      nestedTools: ['n'],
+      toolUses: 1,
+      usage: { inputTokens: 1, outputTokens: 1 },
+      durationMs: 10,
+      patchStartLineNumber: 1,
+      expandInfo: { open: true },
+    } as any
+
+    expect(__useReplControllerTestOnly.areToolInfosEqual(undefined, base)).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, undefined)).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, base)).toBe(true)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, name: 'Read' })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, toolUseId: 't-2' })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, status: 'running' })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, result: 'changed' })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, input: { cmd: 'ls' } })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, middleLines: ['x'] })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, transcriptLines: ['x'] })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, nestedTools: ['x'] })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, toolUses: 2 })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, usage: { inputTokens: 2, outputTokens: 1 } })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, durationMs: 11 })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, patchStartLineNumber: 2 })).toBe(false)
+    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, expandInfo: { open: false } })).toBe(false)
+  })
+
+  it('keeps static rows only when rows are immutable-equivalent', () => {
+    const existing = {
+      id: 'm-1',
+      role: 'assistant',
+      content: 'same',
+      timestamp: new Date(1),
+      surfaceOwner: 'static',
+      isStreaming: false,
+      ui: { kind: 'plain' },
+    } as any
+    const incoming = { ...existing } as any
+
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(undefined, incoming)).toBe(false)
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, surfaceOwner: 'transient' })).toBe(
+      false,
+    )
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, id: 'm-2' })).toBe(false)
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, incoming)).toBe(true)
+
+    const toolRow = {
+      ...existing,
+      role: 'tool',
+      toolInfo: { name: 'Bash', toolUseId: 'x', status: 'completed', result: 'ok' },
+    } as any
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(toolRow, { ...toolRow })).toBe(true)
+    expect(
+      __useReplControllerTestOnly.shouldKeepExistingStaticRow(toolRow, { ...toolRow, toolInfo: { ...toolRow.toolInfo, result: 'changed' } }),
+    ).toBe(false)
+    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, role: 'user' })).toBe(false)
+  })
+
+  it('merges projected static rows with stable timestamp behavior', () => {
+    const prev = [
+      {
+        id: 'm-1',
+        role: 'assistant',
+        content: 'a',
+        timestamp: new Date(1000),
+        surfaceOwner: 'static',
+        isStreaming: false,
+      },
+      undefined as any,
+    ] as any
+    const onNonAppendUpdate = vi.fn()
+
+    const appended = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev,
+      projectedStaticRows: [
+        { id: 'm-2', role: 'assistant', content: 'b', timestamp: new Date(1500), surfaceOwner: 'static', isStreaming: false } as any,
+      ],
+      onNonAppendUpdate,
+    })
+    expect(appended).toHaveLength(3)
+    expect(appended[2]?.timestamp).toBeInstanceOf(Date)
+
+    const appendedWithOldTimestamp = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev: appended as any,
+      projectedStaticRows: [
+        { id: 'm-3', role: 'assistant', content: 'c', timestamp: new Date(500), surfaceOwner: 'static', isStreaming: false } as any,
+      ],
+      onNonAppendUpdate,
+    })
+    expect((appendedWithOldTimestamp[3] as any).timestamp.getTime()).toBeGreaterThan(1500)
+
+    const appendedWithInvalidTimestamp = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev: [
+        ...appendedWithOldTimestamp,
+        { id: 'm-4', role: 'assistant', content: 'd', timestamp: 'not-a-date', surfaceOwner: 'static', isStreaming: false } as any,
+      ] as any,
+      projectedStaticRows: [
+        { id: 'm-5', role: 'assistant', content: 'e', timestamp: 'not-a-date-either', surfaceOwner: 'static', isStreaming: false } as any,
+      ],
+      onNonAppendUpdate,
+    })
+    expect((appendedWithInvalidTimestamp[5] as any).timestamp).toBeInstanceOf(Date)
+
+    const replaced = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev: appended as any,
+      projectedStaticRows: [
+        { id: 'm-1', role: 'assistant', content: 'updated', timestamp: new Date(1), surfaceOwner: 'static', isStreaming: false } as any,
+      ],
+      onNonAppendUpdate,
+    })
+    expect(replaced[0]?.content).toBe('updated')
+    expect(onNonAppendUpdate).toHaveBeenCalled()
+
+    const untouched = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev: replaced as any,
+      projectedStaticRows: [],
+      onNonAppendUpdate,
+    })
+    expect(untouched).toBe(replaced)
+  })
+
+  it('handles unserializable values in safeJson', () => {
+    const circular: any = {}
+    circular.self = circular
+    expect(__useReplControllerTestOnly.safeJson(circular)).toBe('"[unserializable]"')
+  })
+
+  it('detects running AskUserQuestion tools from tracked and transient sources', () => {
+    expect(
+      __useReplControllerTestOnly.hasRunningAskTool({
+        trackedRunningToolsSnapshot: [['id-1', 'AskUserQuestion']],
+        transientSnapshot: null,
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.hasRunningAskTool({
+        trackedRunningToolsSnapshot: [],
+        transientSnapshot: {
+          messages: [
+            {
+              id: 'm-1',
+              role: 'tool',
+              content: '',
+              timestamp: new Date(),
+              surfaceOwner: 'transient',
+              isStreaming: true,
+              toolInfo: { name: 'AskUserQuestion', status: 'running' } as any,
+            } as any,
+          ],
+        },
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.hasRunningAskTool({
+        trackedRunningToolsSnapshot: [],
+        transientSnapshot: { messages: [] as any },
+      }),
+    ).toBe(false)
+  })
+
+  it('maps local bash outcomes for canonical tail rows', () => {
+    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('completed')).toBe('completed')
+    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('failed')).toBe('failed')
+    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('aborted')).toBe('failed')
+  })
+
+  it('enqueues session transitions and decrements pending count', async () => {
+    const sessionTransitionQueueRef = { current: Promise.resolve() }
+    const sessionTransitionPendingCountRef = { current: 0 }
+    const run = vi.fn(async () => {})
+
+    await __useReplControllerTestOnly.enqueueSessionTransition({
+      sessionTransitionQueueRef,
+      sessionTransitionPendingCountRef,
+      run,
+    })
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(sessionTransitionPendingCountRef.current).toBe(0)
+  })
+
+  it('continues queueing when previous transition promise rejects', async () => {
+    const sessionTransitionQueueRef = { current: Promise.reject(new Error('previous failed')) }
+    const sessionTransitionPendingCountRef = { current: 0 }
+    const run = vi.fn(async () => {})
+
+    await __useReplControllerTestOnly.enqueueSessionTransition({
+      sessionTransitionQueueRef,
+      sessionTransitionPendingCountRef,
+      run,
+    })
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(sessionTransitionPendingCountRef.current).toBe(0)
   })
 })
 

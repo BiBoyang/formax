@@ -356,10 +356,6 @@ export function parseAgentArchitectDraft(raw: string): AgentArchitectDraft {
     throw new Error('Failed to parse JSON output from agent architect.')
   }
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Expected a JSON object from agent architect.')
-  }
-
   const obj = parsed as Record<string, unknown>
 
   const identifier = typeof obj.identifier === 'string' ? obj.identifier : typeof obj.name === 'string' ? obj.name : ''
@@ -428,4 +424,19 @@ export async function generateAgentDraftWithClaude(args: {
     description: draft.whenToUse,
     systemPrompt: draft.systemPrompt,
   }
+}
+
+export const __agentsWizardTestOnly = {
+  yamlInlineValue,
+  normalizeAgentName,
+  normalizeAgentModel,
+  normalizeAgentColor,
+  toolsFrontmatterFromAnswer,
+  pickNonexistentPath,
+  stripLeadingHtmlComment,
+  interpolatePrompt,
+  loadPrompt,
+  extractAssistantText,
+  extractFirstJsonObject,
+  PROMPTS_DIR,
 }

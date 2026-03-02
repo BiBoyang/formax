@@ -154,7 +154,7 @@ function mergeProjectedStaticRows(args: {
 
   const ensureTimestampCursor = (): number => {
     if (timestampCursor !== null) return timestampCursor
-    const source = next ?? args.prev
+    const source = args.prev
     for (let index = source.length - 1; index >= 0; index -= 1) {
       const message = source[index]
       if (!message) continue
@@ -200,13 +200,48 @@ function mergeProjectedStaticRows(args: {
       ...projectedRow,
       surfaceOwner: 'static',
       isStreaming: false,
-      timestamp: existing?.timestamp ?? projectedRow.timestamp,
+      timestamp: existing.timestamp,
     }
     args.onNonAppendUpdate?.()
     didChange = true
   }
 
-  return didChange ? (next ?? args.prev) : args.prev
+  if (!didChange) return args.prev
+  return next as Msg[]
+}
+
+function hasRunningAskTool(args: {
+  trackedRunningToolsSnapshot: Array<[string, string]>
+  transientSnapshot: { messages: Msg[] } | null
+}): boolean {
+  const hasTrackedAsk = args.trackedRunningToolsSnapshot.some(([, name]) => name === 'AskUserQuestion')
+  if (hasTrackedAsk) return true
+  return (
+    args.transientSnapshot?.messages.some(
+      (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
+    ) === true
+  )
+}
+
+function mapLocalBashTurnOutcomeForTail(outcome: 'completed' | 'failed' | 'aborted'): 'completed' | 'failed' {
+  return outcome === 'aborted' ? 'failed' : outcome
+}
+
+function enqueueSessionTransition(args: {
+  sessionTransitionQueueRef: { current: Promise<void> }
+  sessionTransitionPendingCountRef: { current: number }
+  run: () => Promise<void>
+}): Promise<void> {
+  args.sessionTransitionPendingCountRef.current += 1
+  const next = args.sessionTransitionQueueRef.current.catch(() => undefined).then(async () => {
+    try {
+      await args.run()
+    } finally {
+      args.sessionTransitionPendingCountRef.current = Math.max(0, args.sessionTransitionPendingCountRef.current - 1)
+    }
+  })
+  args.sessionTransitionQueueRef.current = next.catch(() => undefined)
+  return next
 }
 
 export type ReplControllerState = {
@@ -553,12 +588,10 @@ export function useReplController(deps: {
     return canonicalRefs.turnSeqRef.current
   }, [])
 
-	  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
     if (sessionSaveEnabled && event.kind === 'tool_event') {
       const writer = sessionWriterRef.current
-      if (writer) {
-        void writer.appendEvent('app_tool_event', toPersistedAppToolEventData(event))
-      }
+      void writer?.appendEvent('app_tool_event', toPersistedAppToolEventData(event))
     }
 
 	    const includeAssistantStreaming = assistantTextMode === 'stream'
@@ -767,11 +800,10 @@ export function useReplController(deps: {
         onCanonicalEvent,
       })
 
-      const hadAsk =
-        trackedRunningToolsSnapshot.some(([, name]) => name === 'AskUserQuestion') ||
-        canonicalRefs.transientSnapshotRef.current?.messages.some(
-          (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
-        ) === true
+      const hadAsk = hasRunningAskTool({
+        trackedRunningToolsSnapshot,
+        transientSnapshot: canonicalRefs.transientSnapshotRef.current,
+      })
 
       if (hadAsk && hadInFlightRequest) {
         emitCanonicalUiMessageForTurn({
@@ -833,18 +865,15 @@ export function useReplController(deps: {
     [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef],
   )
 
-  const queueSessionTransition = useCallback((run: () => Promise<void>): Promise<void> => {
-    sessionTransitionPendingCountRef.current += 1
-    const next = sessionTransitionQueueRef.current.catch(() => undefined).then(async () => {
-      try {
-        await run()
-      } finally {
-        sessionTransitionPendingCountRef.current = Math.max(0, sessionTransitionPendingCountRef.current - 1)
-      }
-    })
-    sessionTransitionQueueRef.current = next.catch(() => undefined)
-    return next
-  }, [])
+  const queueSessionTransition = useCallback(
+    (run: () => Promise<void>): Promise<void> =>
+      enqueueSessionTransition({
+        sessionTransitionQueueRef,
+        sessionTransitionPendingCountRef,
+        run,
+      }),
+    [],
+  )
 
   const runNewSession = useCallback(async (): Promise<void> => {
     initialSessionFilePathRef.current = undefined
@@ -979,7 +1008,7 @@ export function useReplController(deps: {
             const nextMessages = appendCanonicalTailFinalRows({
               messages: prev,
               turnId: localTurnId,
-              turnOutcome: localTurnOutcome === 'aborted' ? 'failed' : localTurnOutcome,
+              turnOutcome: mapLocalBashTurnOutcomeForTail(localTurnOutcome),
               projectionSegments: canonicalRefs.projectionRef.current.segments,
             })
             assertReplCanonicalInvariants({
@@ -1169,5 +1198,15 @@ export function useReplController(deps: {
       saveAgentFromDialog,
     },
   }
+}
+
+export const __useReplControllerTestOnly = {
+  safeJson,
+  areToolInfosEqual,
+  shouldKeepExistingStaticRow,
+  mergeProjectedStaticRows,
+  hasRunningAskTool,
+  mapLocalBashTurnOutcomeForTail,
+  enqueueSessionTransition,
 }
  
