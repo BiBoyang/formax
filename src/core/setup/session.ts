@@ -53,6 +53,11 @@ function createEmptyTierModels(): SetupTierModels {
   return { haiku: '', sonnet: '', opus: '' }
 }
 
+function pickTierModel(current: string, seed: string): string {
+  const trimmed = String(current || '').trim()
+  return trimmed.length > 0 ? trimmed : seed
+}
+
 function normalizeBaseUrl(_provider: ProviderId, input: string): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
@@ -100,7 +105,7 @@ export function createSetupSession(args: {
   const getCurrentModelTier = (): ModelTier | null => {
     if (state.step !== 'model') return null
     if (state.draft.modelMode !== 'advanced') return null
-    return ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))] ?? null
+    return ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
   }
 
   const syncModelTierState = () => {
@@ -225,9 +230,9 @@ export function createSetupSession(args: {
       const seed = state.draft.model.trim()
       if (seed) {
         state.draft.tierModels = {
-          haiku: tierModels.haiku.trim() || seed,
-          sonnet: tierModels.sonnet.trim() || seed,
-          opus: tierModels.opus.trim() || seed,
+          haiku: pickTierModel(tierModels.haiku, seed),
+          sonnet: pickTierModel(tierModels.sonnet, seed),
+          opus: pickTierModel(tierModels.opus, seed),
         }
       }
       state.draft.model = state.draft.tierModels.sonnet.trim()
@@ -247,12 +252,10 @@ export function createSetupSession(args: {
       updateDraftContextWindow(state.draft.model)
     } else {
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
-      if (tier) {
-        state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
-        if (tier === 'sonnet') {
-          state.draft.model = value
-          updateDraftContextWindow(state.draft.model)
-        }
+      state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
+      if (tier === 'sonnet') {
+        state.draft.model = value
+        updateDraftContextWindow(state.draft.model)
       }
     }
     setError(null)
@@ -261,24 +264,43 @@ export function createSetupSession(args: {
   const back = () => {
     setError(null)
     if (state.step === 'welcome') return
-    if (state.step === 'provider') state.step = 'welcome'
-    else if (state.step === 'anthropicVendor') state.step = 'provider'
-    else if (state.step === 'baseUrl') state.step = state.draft.provider === 'anthropic' ? 'anthropicVendor' : 'provider'
-    else if (state.step === 'apiKey') state.step = 'baseUrl'
-    else if (state.step === 'test') state.step = 'apiKey'
-    else if (state.step === 'modelMode') state.step = 'apiKey'
-    else if (state.step === 'model') {
-      if (state.draft.modelMode === 'advanced' && modelTierIndex > 0) {
-        modelTierIndex -= 1
-      } else {
-        state.step = 'modelMode'
-        modelTierIndex = 0
-      }
-    } else if (state.step === 'confirm') {
-      state.step = 'model'
-      if (state.draft.modelMode === 'advanced') modelTierIndex = ADVANCED_MODEL_TIERS.length - 1
-    } else if (state.step === 'write') state.step = 'confirm'
-    else if (state.step === 'done') state.step = 'write'
+
+    switch (state.step) {
+      case 'provider':
+        state.step = 'welcome'
+        break
+      case 'anthropicVendor':
+        state.step = 'provider'
+        break
+      case 'baseUrl':
+        state.step = state.draft.provider === 'anthropic' ? 'anthropicVendor' : 'provider'
+        break
+      case 'apiKey':
+        state.step = 'baseUrl'
+        break
+      case 'test':
+      case 'modelMode':
+        state.step = 'apiKey'
+        break
+      case 'model':
+        if (state.draft.modelMode === 'advanced' && modelTierIndex > 0) {
+          modelTierIndex -= 1
+        } else {
+          state.step = 'modelMode'
+          modelTierIndex = 0
+        }
+        break
+      case 'confirm':
+        state.step = 'model'
+        if (state.draft.modelMode === 'advanced') modelTierIndex = ADVANCED_MODEL_TIERS.length - 1
+        break
+      case 'write':
+        state.step = 'confirm'
+        break
+      case 'done':
+        state.step = 'write'
+        break
+    }
     syncModelTierState()
   }
 
@@ -396,8 +418,8 @@ export function createSetupSession(args: {
       }
 
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
-      if (!tier || !state.draft.tierModels[tier].trim()) {
-        setError(`Select a model for ${tier ?? 'this tier'}`)
+      if (!state.draft.tierModels[tier].trim()) {
+        setError(`Select a model for ${tier}`)
         return
       }
 
@@ -436,4 +458,11 @@ export function createSetupSession(args: {
     back,
     next,
   }
+}
+
+export const __setupSessionTestOnly = {
+  createEmptyTierModels,
+  pickTierModel,
+  normalizeBaseUrl,
+  inferContextWindowTokens,
 }

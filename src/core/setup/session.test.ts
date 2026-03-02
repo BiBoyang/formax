@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ErrorCode } from '../errors/codes.js'
 import type { ErrorCode as ErrorCodeValue } from '../errors/codes.js'
-import { createSetupSession } from './session.js'
+import { createSetupSession, __setupSessionTestOnly } from './session.js'
 import type { ConnectionTestResult, SetupProviderOption } from './types.js'
 
 const PROVIDERS: SetupProviderOption[] = [
@@ -19,6 +19,22 @@ const okWithContext = (models: string[], modelContextWindows: Record<string, num
 const err = (code: ErrorCodeValue, message: string): ConnectionTestResult => ({ ok: false, code, message })
 
 describe('createSetupSession', () => {
+  it('covers setup helper branches', () => {
+    expect(__setupSessionTestOnly.createEmptyTierModels()).toEqual({ haiku: '', sonnet: '', opus: '' })
+    expect(__setupSessionTestOnly.pickTierModel('haiku-model', 'fallback-model')).toBe('haiku-model')
+    expect(__setupSessionTestOnly.pickTierModel('', 'fallback-model')).toBe('fallback-model')
+    expect(__setupSessionTestOnly.normalizeBaseUrl('anthropic', '')).toBe('')
+    expect(__setupSessionTestOnly.normalizeBaseUrl('openai', ' https://x/v1/// ')).toBe('https://x/v1')
+
+    expect(__setupSessionTestOnly.inferContextWindowTokens('')).toBe(32768)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('claude-3-5-sonnet')).toBe(200000)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('gpt-4o-mini')).toBe(128000)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('gpt-4')).toBe(8192)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('gpt-3.5-turbo')).toBe(16385)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('o1-preview')).toBe(128000)
+    expect(__setupSessionTestOnly.inferContextWindowTokens('unknown-model')).toBe(32768)
+  })
+
   it('does not force a /v1 suffix in baseUrl input', async () => {
     const testConnection = vi.fn(async () => ok(['model-a']))
     const s = createSetupSession({ providers: PROVIDERS, testConnection })
@@ -344,5 +360,236 @@ describe('createSetupSession', () => {
 
     s.setModel('m1')
     expect(s.getState().draft.contextWindowTokens).toBe(8000)
+  })
+
+  it('covers additional validation and transition edge branches', async () => {
+    const pendingConnection = new Promise<ConnectionTestResult>(() => {})
+    const testConnection = vi.fn(async () => pendingConnection)
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    ;(s as any).setAnthropicVendor(null)
+    await s.next()
+    expect(s.getState().error).toBe('Select a provider')
+
+    s.setAnthropicVendor('anthropic')
+    await s.next()
+    s.setBaseUrl('')
+    await s.next()
+    expect(s.getState().error).toBe('Enter a base URL')
+    s.setBaseUrl('https://api.anthropic.com/v1')
+    await s.next()
+    await s.next()
+    expect(s.getState().error).toBe('Enter an API key')
+    s.setApiKey('sk-test')
+    void s.next()
+    await Promise.resolve()
+    expect(s.getState().step).toBe('test')
+
+    await s.next()
+    expect(s.getState().step).toBe('test')
+  })
+
+  it('covers advanced-model empty tier and back transitions from write/done', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+
+    s.setModelMode('advanced')
+    await s.next()
+    await s.next()
+    expect(s.getState().error).toContain('Select a model for')
+
+    s.back()
+    expect(s.getState().step).toBe('modelMode')
+
+    s.setModelMode('quick')
+    await s.next()
+    s.setModel('m1')
+    await s.next()
+    await s.next()
+    await s.next()
+    expect(s.getState().step).toBe('done')
+    s.back()
+    expect(s.getState().step).toBe('write')
+    s.back()
+    expect(s.getState().step).toBe('confirm')
+  })
+
+  it('covers runTest missing provider/baseUrl/apiKey branches while in test step', async () => {
+    const pendingConnection = new Promise<ConnectionTestResult>(() => {})
+    const testConnection = vi.fn(async () => pendingConnection)
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('openai')
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    void s.next()
+    await Promise.resolve()
+    expect(s.getState().step).toBe('test')
+
+    ;(s as any).setProvider(null)
+    await s.next()
+    expect(s.getState().error).toBe('Missing provider')
+
+    s.setProvider('openai')
+    s.setBaseUrl('')
+    await s.next()
+    expect(s.getState().error).toBe('Missing baseUrl')
+
+    s.setBaseUrl('https://api.openai.com/v1')
+    ;(s as any).setApiKey(undefined)
+    await s.next()
+    expect(s.getState().error).toBe('Missing apiKey')
+  })
+
+  it('covers provider and model-mode setter edge branches', async () => {
+    const testConnection = vi.fn(async () => ok(['m1']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    ;(s as any).setAnthropicVendor(null)
+    s.setProvider('anthropic')
+    expect(s.getState().draft.anthropicVendor).toBe('anthropic')
+
+    s.setBaseUrl('https://proxy.anthropic.local/v1')
+    s.setProvider('anthropic')
+    expect(s.getState().draft.baseUrl).toBe('https://proxy.anthropic.local/v1')
+
+    ;(s as any).setAnthropicVendor('unknown-vendor')
+    s.setProvider('anthropic')
+    expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com/v1')
+
+    s.setProvider('openai')
+    ;(s as any).setAnthropicVendor('custom')
+    s.setProvider('anthropic')
+    expect(s.getState().draft.baseUrl).toBe('')
+
+    s.setAnthropicVendor('glm')
+    s.setBaseUrl('https://relay.example.com/anthropic')
+    s.setAnthropicVendor('glm')
+    expect(s.getState().draft.baseUrl).toBe('https://relay.example.com/anthropic')
+
+    ;(s as any).setProvider(null)
+    ;(s as any).setBaseUrl(undefined)
+    expect(s.getState().draft.baseUrl).toBe('')
+
+    s.setProvider('openai')
+    s.setBaseUrl('https://api.openai.com/v1')
+    s.setApiKey('sk-test')
+    await s.next()
+    await s.next()
+
+    s.setModelMode('quick')
+    s.setModel('m1')
+    s.setModelMode('quick')
+    expect(s.getState().draft.tierModels).toEqual({ haiku: 'm1', sonnet: 'm1', opus: 'm1' })
+
+    s.setModelMode('advanced')
+    expect(s.getState().draft.tierModels).toEqual({ haiku: 'm1', sonnet: 'm1', opus: 'm1' })
+
+    s.setModelMode('quick')
+    ;(s as any).setModel(undefined)
+    expect(s.getState().draft.model).toBe('')
+  })
+
+  it('covers openai back transitions and next fall-through at done', async () => {
+    const pendingConnection = new Promise<ConnectionTestResult>(() => {})
+    const blockingTestConnection = vi.fn(async () => pendingConnection)
+    const s = createSetupSession({ providers: PROVIDERS, testConnection: blockingTestConnection })
+
+    await s.next()
+    s.setProvider('openai')
+    await s.next()
+    expect(s.getState().step).toBe('baseUrl')
+
+    s.back()
+    expect(s.getState().step).toBe('provider')
+
+    await s.next()
+    await s.next()
+    expect(s.getState().step).toBe('apiKey')
+
+    s.back()
+    expect(s.getState().step).toBe('baseUrl')
+
+    await s.next()
+    s.setApiKey('sk-test')
+    void s.next()
+    await Promise.resolve()
+    expect(s.getState().step).toBe('test')
+
+    s.back()
+    expect(s.getState().step).toBe('apiKey')
+
+    const passingTestConnection = vi.fn(async () => ok(['m-haiku', 'm-sonnet', 'm-opus']))
+    const s2 = createSetupSession({ providers: PROVIDERS, testConnection: passingTestConnection })
+
+    await s2.next()
+    s2.setProvider('openai')
+    await s2.next()
+    await s2.next()
+    s2.setApiKey('sk-test')
+    await s2.next()
+    expect(s2.getState().step).toBe('modelMode')
+
+    s2.setModelMode('advanced')
+    await s2.next()
+    s2.setModel('m-haiku')
+    await s2.next()
+    s2.setModel('m-sonnet')
+    await s2.next()
+    expect(s2.getState().modelTier).toBe('opus')
+
+    s2.back()
+    expect(s2.getState().modelTier).toBe('sonnet')
+
+    s2.setModel('m-sonnet')
+    await s2.next()
+    s2.setModel('m-opus')
+    await s2.next()
+    expect(s2.getState().step).toBe('confirm')
+
+    s2.back()
+    expect(s2.getState().step).toBe('model')
+    expect(s2.getState().modelTier).toBe('opus')
+
+    await s2.next()
+    expect(s2.getState().step).toBe('confirm')
+    await s2.next()
+    expect(s2.getState().step).toBe('write')
+    await s2.next()
+    expect(s2.getState().step).toBe('done')
+
+    s2.back()
+    expect(s2.getState().step).toBe('write')
+    s2.back()
+    expect(s2.getState().step).toBe('confirm')
+
+    s2.setModelMode('quick')
+    s2.back()
+    expect(s2.getState().step).toBe('model')
+
+    await s2.next()
+    expect(s2.getState().step).toBe('confirm')
+    await s2.next()
+    expect(s2.getState().step).toBe('write')
+    await s2.next()
+    expect(s2.getState().step).toBe('done')
+
+    await s2.next()
+    expect(s2.getState().step).toBe('done')
   })
 })
