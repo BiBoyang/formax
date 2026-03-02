@@ -19,8 +19,6 @@ So this checklist may temporarily diverge from `coverage/coverage-final.json` un
 - [ ] `src/chat/engine.ts` (min=87.93%, s=95.09%, f=100.00%, b=87.93%, l=100.00%, stmts=163)
 - [ ] `src/core/setup/session.ts` (min=71.20%, s=86.26%, f=100.00%, b=71.20%, l=100.00%, stmts=262)
 - [ ] `src/features/commands/registry.ts` (min=64.29%, s=79.57%, f=85.00%, b=64.29%, l=100.00%, stmts=235)
-- [ ] `src/features/repl/controller/send/bashMode.ts` (min=71.72%, s=87.74%, f=100.00%, b=71.72%, l=100.00%, stmts=106)
-- [ ] `src/features/repl/controller/send/send.ts` (min=66.18%, s=86.73%, f=92.86%, b=66.18%, l=100.00%, stmts=113)
 - [ ] `src/features/repl/controller/streaming/streaming.ts` (min=86.67%, s=94.27%, f=86.67%, b=89.16%, l=100.00%, stmts=157)
 - [ ] `src/features/repl/sessionSave/reader.ts` (min=67.70%, s=76.78%, f=69.57%, b=67.70%, l=100.00%, stmts=366)
 - [ ] `src/features/repl/sessionSave/writer.ts` (min=65.05%, s=81.22%, f=83.72%, b=65.05%, l=100.00%, stmts=245)
