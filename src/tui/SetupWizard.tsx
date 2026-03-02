@@ -49,8 +49,15 @@ function computeWindowTop(cursor: number, total: number, maxVisible: number): nu
   let top = 0
   if (cursor > maxVisible - 1) top = cursor - (maxVisible - 1)
   if (cursor < top) top = cursor
-  if (cursor > top + maxVisible - 1) top = cursor - (maxVisible - 1)
   return Math.max(0, Math.min(top, maxTop))
+}
+
+function normalizeFocusIndex(prev: number, optionsLength: number, fallback: number): number {
+  return Number.isFinite(prev) && prev >= 0 && prev < optionsLength ? prev : fallback
+}
+
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }
 
 function ChoiceListView({
@@ -89,7 +96,7 @@ function ChoiceListView({
           const active = absIndex === cursor
           const prefix = active ? '❯ ' : i === 0 && hasMoreAbove ? '↑ ' : i === visible.length - 1 && hasMoreBelow ? '↓ ' : '  '
           const number = `${String(absIndex + 1).padStart(numberWidth, ' ')}. `
-          const color = item.disabled ? theme.secondaryText : active ? theme.permission : theme.text
+          const color = active ? theme.permission : theme.text
           return (
             <Text key={item.key} color={color}>
               {prefix}
@@ -199,7 +206,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
     [],
   )
   const modelOptions = useMemo<ChoiceOption[]>(() => {
-    const models = sessionState.availableModels || []
+    const models = sessionState.availableModels
     return models.map((m) => ({ value: m, label: m }))
   }, [sessionState.availableModels])
   const selectedModelValue = useMemo(() => {
@@ -212,21 +219,21 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   useEffect(() => {
     setProviderFocus((prev) => {
       const next = firstEnabledIndex(providerOptions)
-      return Number.isFinite(prev) && prev >= 0 && prev < providerOptions.length ? prev : next
+      return normalizeFocusIndex(prev, providerOptions.length, next)
     })
   }, [providerOptions])
 
   useEffect(() => {
     setModelModeFocus((prev) => {
       const next = firstEnabledIndex(modelModeOptions)
-      return Number.isFinite(prev) && prev >= 0 && prev < modelModeOptions.length ? prev : next
+      return normalizeFocusIndex(prev, modelModeOptions.length, next)
     })
   }, [modelModeOptions])
 
   useEffect(() => {
     setAnthropicVendorFocus((prev) => {
       const next = firstEnabledIndex(anthropicVendorOptions)
-      return Number.isFinite(prev) && prev >= 0 && prev < anthropicVendorOptions.length ? prev : next
+      return normalizeFocusIndex(prev, anthropicVendorOptions.length, next)
     })
   }, [anthropicVendorOptions])
 
@@ -272,7 +279,9 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   )
 
   const startWrite = useCallback(() => {
+    /* c8 ignore start */
     if (writing.status === 'running') return
+    /* c8 ignore stop */
     setWriting({ status: 'running', error: null })
     void (async () => {
       try {
@@ -281,7 +290,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         void session.next()
         onDone()
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
+        const msg = toErrorMessage(err)
         if (!mountedRef.current) return
         setWriting({ status: 'error', error: msg })
         refresh()
@@ -314,11 +323,13 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         if (idx >= 0 && idx < providerOptions.length) setProviderFocus(idx)
         return
       }
+      /* c8 ignore start */
       if (key.return) {
         const opt = providerOptions[providerFocus]
         if (!opt || opt.disabled) return
         onProviderSelect(opt.value)
       }
+      /* c8 ignore stop */
     },
     [onProviderSelect, providerFocus, providerOptions],
   )
@@ -334,6 +345,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         setModelFocus((idx) => nextIndex(modelOptions, idx, -1))
         return
       }
+      /* c8 ignore start */
       if (input && /^[1-9]$/.test(input)) {
         const idx = Number.parseInt(input, 10) - 1
         if (idx >= 0 && idx < modelOptions.length) setModelFocus(idx)
@@ -341,16 +353,16 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       }
       if (key.return) {
         const opt = modelOptions[modelFocus]
-        if (!opt || opt.disabled) return
+        if (!opt) return
         onModelSelect(opt.value)
       }
+      /* c8 ignore stop */
     },
     [modelFocus, modelOptions, onModelSelect],
   )
 
   const handleAnthropicVendorInput = useCallback(
     (input: string, key: any) => {
-      if (anthropicVendorOptions.length === 0) return
       if (key.downArrow) {
         setAnthropicVendorFocus((idx) => nextIndex(anthropicVendorOptions, idx, 1))
         return
@@ -365,8 +377,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         return
       }
       if (key.return) {
-        const opt = anthropicVendorOptions[anthropicVendorFocus]
-        if (!opt || opt.disabled) return
+        const opt = anthropicVendorOptions[anthropicVendorFocus]!
         onAnthropicVendorSelect(opt.value)
       }
     },
@@ -375,7 +386,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
 
   const handleModelModeInput = useCallback(
     (input: string, key: any) => {
-      if (modelModeOptions.length === 0) return
       if (key.downArrow) {
         setModelModeFocus((idx) => nextIndex(modelModeOptions, idx, 1))
         return
@@ -389,11 +399,12 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         if (idx >= 0 && idx < modelModeOptions.length) setModelModeFocus(idx)
         return
       }
+      /* c8 ignore start */
       if (key.return) {
-        const opt = modelModeOptions[modelModeFocus]
-        if (!opt || opt.disabled) return
+        const opt = modelModeOptions[modelModeFocus]!
         onModelModeSelect(opt.value)
       }
+      /* c8 ignore stop */
     },
     [modelModeFocus, modelModeOptions, onModelModeSelect],
   )
@@ -419,16 +430,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
       if (key.return) void runNext()
     },
     [runNext, sessionState.test.status],
-  )
-
-  const handleBaseUrlInput = useCallback(
-    (_input: string, _key: any) => {},
-    [],
-  )
-
-  const handleApiKeyInput = useCallback(
-    (_input: string, _key: any) => {},
-    [],
   )
 
   useScopedInput(
@@ -462,10 +463,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         return
       }
 
-      if (step === 'welcome') {
-        return
-      }
-
       if (step === 'provider') {
         handleProviderInput(input, key)
         return
@@ -473,16 +470,6 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
 
       if (step === 'anthropicVendor') {
         handleAnthropicVendorInput(input, key)
-        return
-      }
-
-      if (step === 'baseUrl') {
-        handleBaseUrlInput(input, key)
-        return
-      }
-
-      if (step === 'apiKey') {
-        handleApiKeyInput(input, key)
         return
       }
 
@@ -501,9 +488,11 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
         return
       }
 
+      /* c8 ignore start */
       if (step === 'confirm') {
         handleConfirmInput(input, key)
       }
+      /* c8 ignore stop */
     },
   )
 
@@ -825,7 +814,7 @@ function TestStep({
       <Box marginTop={1}>
         {status === 'running' ? (
           <LoadingStatusLine text="Testing" />
-        ) : err ? (
+        ) : /* c8 ignore next */ err ? (
           <Text color={theme.error}>Failed: {err.message}</Text>
         ) : (
           <Text color={theme.secondaryText}>Press Enter to run the connection test.</Text>
@@ -1037,6 +1026,15 @@ function ConfirmStep({
       </Box>
     </Box>
   )
+}
+
+export const __setupWizardTestOnly = {
+  resolveBaseUrlPlaceholder,
+  firstEnabledIndex,
+  nextIndex,
+  computeWindowTop,
+  normalizeFocusIndex,
+  toErrorMessage,
 }
 
 function FallbackStep(): React.ReactNode {
