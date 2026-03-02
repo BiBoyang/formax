@@ -125,7 +125,7 @@ export function mergeCanonicalTurnIntoMessages(args: {
       timestamp: legacyTool?.timestamp ?? baseMessage.timestamp,
       content: legacyTool?.content || baseMessage.content,
       isStreaming: false,
-      ...(canonicalToolInfo ? { toolInfo: canonicalToolInfo } : {}),
+      toolInfo: canonicalToolInfo,
     }]
   })
 
@@ -366,8 +366,8 @@ function mergeCanonicalToolMessage(canonical: Msg, legacy: Msg | null): Msg {
   if (legacy.toolInfo?.status === 'completed' || legacy.toolInfo?.status === 'error') {
     return legacy
   }
-  const canonicalToolInfo = canonical.toolInfo ?? undefined
-  const legacyToolInfo = legacy.toolInfo ?? undefined
+  const canonicalToolInfo = canonical.toolInfo as NonNullable<Msg['toolInfo']>
+  const legacyToolInfo = legacy.toolInfo as NonNullable<Msg['toolInfo']>
   const canonicalInput = canonicalToolInfo?.input
   const canonicalInputHasKeys =
     canonicalInput && typeof canonicalInput === 'object' && Object.keys(canonicalInput).length > 0
@@ -376,8 +376,8 @@ function mergeCanonicalToolMessage(canonical: Msg, legacy: Msg | null): Msg {
   const mergedToolInfo =
     mergedName && mergedStatus
       ? {
-          ...(legacyToolInfo ?? {}),
-          ...(canonicalToolInfo ?? {}),
+          ...legacyToolInfo,
+          ...canonicalToolInfo,
           name: mergedName,
           status: mergedStatus,
           input: canonicalInputHasKeys ? canonicalInput : legacyToolInfo?.input ?? canonicalInput ?? {},

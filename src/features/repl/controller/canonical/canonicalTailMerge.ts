@@ -63,7 +63,6 @@ export function appendCanonicalTailFinalRows(args: {
             id: legacyTool.id,
             timestamp: legacyTool.timestamp ?? nextMessage.timestamp,
             content: legacyTool.content || nextMessage.content,
-            ...(nextMessage.toolInfo ? { toolInfo: nextMessage.toolInfo } : {}),
           }
         }
       }

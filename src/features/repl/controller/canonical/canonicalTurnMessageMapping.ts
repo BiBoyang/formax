@@ -214,7 +214,7 @@ export function canonicalTurnSegmentsToMessages(args: {
         result: rawResult ?? [firstLine, ...middleLines].filter((line) => line.length > 0).join('\n'),
         middleLines,
         ...(formatted?.expandInfo || segment.expandInfo ? { expandInfo: segment.expandInfo ?? formatted?.expandInfo } : {}),
-        ...(resultLines !== undefined ? { resultLines } : {}),
+        resultLines,
         ...(segment.transcriptLines ? { transcriptLines: segment.transcriptLines } : {}),
         ...(segment.nestedTools ? { nestedTools: segment.nestedTools } : {}),
         ...(segment.toolUses !== undefined ? { toolUses: segment.toolUses } : {}),

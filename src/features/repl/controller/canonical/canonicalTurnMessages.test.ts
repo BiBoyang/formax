@@ -1741,3 +1741,660 @@ describe('tailSegmentsForTurn', () => {
     expect(tail.map((segment) => segment.id)).toEqual(['turn-2:user:3', 'turn-2:assistant:4', 'turn-2:tool:5:t1'])
   })
 })
+
+describe('canonical edge branch coverage', () => {
+  it('returns empty when target turn has no segments', () => {
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'missing-turn',
+      segments: [{ id: 'turn-1:assistant:1', kind: 'assistant', turnId: 'turn-1', text: 'x' }],
+    })
+    expect(msgs).toEqual([])
+  })
+
+  it('maps system message kinds and respects includeUserSystem=false', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-s:system:1',
+        kind: 'system',
+        turnId: 'turn-s',
+        role: 'assistant',
+        text: 'Error: failed',
+        messageKind: 'command_subline',
+      },
+    ]
+    expect(
+      canonicalTurnSegmentsToMessages({
+        turnId: 'turn-s',
+        segments,
+        includeUserSystem: false,
+      }),
+    ).toEqual([])
+
+    const mapped = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-s',
+      segments,
+      includeUserSystem: true,
+    })
+    expect(mapped).toHaveLength(1)
+    expect(mapped[0]).toMatchObject({
+      role: 'assistant',
+      ui: { kind: 'command_subline' },
+      content: 'Error: failed',
+    })
+  })
+
+  it('maps user message kinds and keeps plain system messages without ui metadata', () => {
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-kind',
+      segments: [
+        {
+          id: 'turn-kind:user:1',
+          kind: 'user',
+          turnId: 'turn-kind',
+          text: 'hello',
+          messageKind: 'command_subline',
+        },
+        {
+          id: 'turn-kind:system:2',
+          kind: 'system',
+          turnId: 'turn-kind',
+          role: 'assistant',
+          text: 'plain',
+        },
+      ],
+      includeUserSystem: true,
+    })
+
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toMatchObject({ role: 'user', ui: { kind: 'command_subline' } })
+    expect(msgs[1]).toMatchObject({ role: 'assistant', content: 'plain' })
+    expect(msgs[1]?.ui).toBeUndefined()
+  })
+
+  it('keeps Task middleLines and expandInfo when explicitly provided', () => {
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-task',
+      segments: [
+        {
+          id: 'turn-task:tool:1:task-1',
+          kind: 'tool',
+          turnId: 'turn-task',
+          toolUseId: 'task-1',
+          toolName: 'Task',
+          status: 'completed',
+          summary: 'ok',
+          detailLines: [],
+          middleLines: ['hook-line'],
+          expandInfo: { payload: 'x' } as any,
+        },
+      ],
+    })
+
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: {
+        toolUseId: 'task-1',
+        middleLines: ['hook-line'],
+        expandInfo: { payload: 'x' },
+      },
+    })
+  })
+
+  it('returns original messages when merge inputs are missing', () => {
+    const messages: Msg[] = [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }]
+    expect(
+      mergeCanonicalTurnIntoMessages({
+        messages,
+        userMessageId: 'u1',
+        canonicalRowsForAppend: [],
+        turnOutcome: 'completed',
+        isFailureSubline: () => false,
+      }),
+    ).toBe(messages)
+
+    expect(
+      mergeCanonicalTurnIntoMessages({
+        messages,
+        userMessageId: 'missing',
+        canonicalRowsForAppend: [{ id: 'a1', role: 'assistant', content: 'x', timestamp: new Date(0) }],
+        turnOutcome: 'completed',
+        isFailureSubline: () => false,
+      }),
+    ).toBe(messages)
+  })
+
+  it('handles blank tool_use_id rows without replacing them', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool-blank',
+          role: 'tool',
+          content: 'legacy',
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: '   ', name: 'Bash', status: 'running', input: {} },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        {
+          id: 'canonical-tool-blank',
+          role: 'tool',
+          content: 'canonical',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: '   ', name: 'Bash', status: 'running', input: {} },
+        },
+      ],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged.map((message) => message.id)).toEqual(['u1', 'legacy-tool-blank', 'canonical-tool-blank'])
+  })
+
+  it('normalizes assistant timestamps when canonical timestamp would go backwards', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [{ id: 'a1', role: 'assistant', content: 'answer', timestamp: new Date(50) }],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+    expect(merged).toHaveLength(2)
+    expect(merged[1]?.timestamp.getTime()).toBe(101)
+  })
+
+  it('normalizes assistant timestamps after existing tail tool rows with larger timestamps', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'tail-tool',
+          role: 'tool',
+          content: 'done',
+          timestamp: new Date(200),
+          toolInfo: { toolUseId: 'tail-tool', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [{ id: 'canonical-a', role: 'assistant', content: 'late', timestamp: new Date(0) }],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'tail-tool', 'canonical-a'])
+    expect(merged[2]?.timestamp.getTime()).toBe(201)
+  })
+
+  it('dedupe pass keeps canonical command_subline rows when text normalizes to empty', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-subline',
+          role: 'assistant',
+          content: 'Error: failed',
+          timestamp: new Date(101),
+          ui: { kind: 'command_subline' },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        {
+          id: 'canonical-subline-empty',
+          role: 'assistant',
+          content: '   ',
+          timestamp: new Date(0),
+          ui: { kind: 'command_subline' },
+        },
+      ],
+      turnOutcome: 'failed',
+      isFailureSubline: (message) =>
+        Boolean(message && message.role === 'assistant' && message.ui?.kind === 'command_subline'),
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-subline-empty', 'legacy-subline'])
+  })
+
+  it('treats empty assistant content as non-stable output for aborted append checks', () => {
+    const out = computeCanonicalTurnAppend({
+      turnOutcome: 'aborted',
+      canonicalFinalMessages: [{ id: 'assistant-empty', role: 'assistant', content: '', timestamp: new Date(0) }],
+    })
+    expect(out.canonicalRowsForAppend.map((m) => m.id)).toEqual(['assistant-empty'])
+    expect(out.shouldAppendCanonicalFinal).toBe(false)
+  })
+
+  it('handles nullish subline content, missing tool metadata, and non-date timestamps during merge', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: 'bad-ts' as any },
+        {
+          id: 'subline-nullish',
+          role: 'assistant',
+          content: undefined as any,
+          timestamp: new Date(101),
+          ui: { kind: 'command_subline' },
+        },
+        { id: 'legacy-tool-no-info', role: 'tool', content: 'legacy', timestamp: 'bad-ts' as any } as Msg,
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        { id: 'canonical-tool-no-info', role: 'tool', content: 'canonical-tool', timestamp: 'bad-ts' as any } as Msg,
+        { id: 'canonical-assistant', role: 'assistant', content: 'answer', timestamp: 'bad-ts' as any },
+      ],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'subline-nullish', 'legacy-tool-no-info', 'canonical-tool-no-info', 'canonical-assistant'])
+    expect(merged[3]?.timestamp).toBeInstanceOf(Date)
+    expect(merged[4]?.timestamp).toBeInstanceOf(Date)
+  })
+
+  it('returns original when replaceTurnTailWithCanonicalMessages has no canonical rows', () => {
+    const messages: Msg[] = [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }]
+    expect(
+      replaceTurnTailWithCanonicalMessages({
+        messages,
+        userMessageId: 'u1',
+        canonicalTurnMessages: [],
+      }),
+    ).toBe(messages)
+  })
+
+  it('does not text-match canonical assistant rows when canonical text is empty', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'legacy-a', role: 'assistant', content: 'legacy', timestamp: new Date(101) },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [{ id: 'canonical-a', role: 'assistant', content: '', timestamp: new Date(0) }],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'canonical-a'])
+  })
+
+  it('does not text-match canonical assistants when canonical content is undefined', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'legacy-a', role: 'assistant', content: 'legacy', timestamp: new Date(101) },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [{ id: 'canonical-a', role: 'assistant', content: undefined as any, timestamp: new Date(0) }],
+    })
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'canonical-a'])
+  })
+
+  it('can append canonical tool rows without matching legacy tool rows', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'new tool',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-new', name: 'Bash', status: 'running', input: {} },
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'canonical-tool'])
+    expect(replaced[1]?.toolInfo?.toolUseId).toBe('tool-new')
+  })
+
+  it('keeps compact boundary rows as auxiliary leftovers during replace', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'compact-boundary', role: 'assistant', content: '', timestamp: new Date(101), ui: { kind: 'compact_boundary' } },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [{ id: 'canonical-a', role: 'assistant', content: 'answer', timestamp: new Date(0) }],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'compact-boundary', 'canonical-a'])
+  })
+
+  it('reuses assistant match scanning while skipping already used tail indices', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'legacy-a-1', role: 'assistant', content: 'one', timestamp: new Date(101) },
+        { id: 'legacy-a-2', role: 'assistant', content: 'two', timestamp: new Date(102) },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        { id: 'canonical-a-1', role: 'assistant', content: 'one', timestamp: new Date(0) },
+        { id: 'canonical-a-2', role: 'assistant', content: 'two', timestamp: new Date(0) },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-a-1', 'legacy-a-2'])
+  })
+
+  it('falls back to legacy thinking content when canonical thinking content is undefined', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-thinking',
+          role: 'assistant',
+          content: 'legacy-thinking',
+          timestamp: new Date(101),
+          isStreaming: true,
+          ui: { kind: 'thinking_block' },
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-thinking',
+          role: 'assistant',
+          content: undefined as any,
+          timestamp: new Date(0),
+          ui: { kind: 'thinking_block' },
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-thinking'])
+    expect(replaced[1]?.content).toBe('legacy-thinking')
+    expect(replaced[1]?.isStreaming).toBe(false)
+  })
+
+  it('keeps tool row without merged toolInfo when canonical and legacy tool metadata are incomplete', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: undefined as any,
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: 'tool-1' } as any,
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'fallback',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1' } as any,
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(replaced[1]?.content).toBe('fallback')
+    expect(replaced[1]?.toolInfo).toEqual({ toolUseId: 'tool-1' })
+  })
+
+  it('uses canonical tool result and middle lines when legacy row does not provide them', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: 'bad-ts' as any },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: undefined as any,
+          timestamp: 'bad-ts' as any,
+          toolInfo: { toolUseId: 'tool-2', name: 'Bash', status: 'running' } as any,
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'canonical-summary',
+          timestamp: new Date(0),
+          toolInfo: {
+            toolUseId: 'tool-2',
+            name: 'Bash',
+            status: 'running',
+            input: {},
+            result: 'canonical-result',
+            middleLines: ['canonical-middle'],
+          } as any,
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(replaced[1]?.toolInfo?.result).toBe('canonical-result')
+    expect(replaced[1]?.toolInfo?.middleLines).toEqual(['canonical-middle'])
+    expect(replaced[1]?.toolInfo?.input).toEqual({})
+    expect(replaced[1]?.timestamp).toBe('bad-ts')
+  })
+
+  it('prefers canonical non-empty tool input over legacy tool input', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: 'legacy',
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: 'tool-3', name: 'Bash', status: 'running', input: { command: 'ls' } } as any,
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'canonical',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-3', name: 'Bash', status: 'running', input: { command: 'pwd' } } as any,
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(replaced[1]?.toolInfo?.input).toEqual({ command: 'pwd' })
+  })
+
+  it('falls back to empty object input when both canonical and legacy tool inputs are missing', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: 'legacy',
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: 'tool-5', name: 'Bash', status: 'running' } as any,
+        },
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'canonical',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-5', name: 'Bash', status: 'running' } as any,
+        },
+      ],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'legacy-tool'])
+    expect(replaced[1]?.toolInfo?.input).toEqual({})
+  })
+
+  it('normalizes leftover assistant rows with non-date timestamps after merge', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'leftover-a', role: 'assistant', content: 'leftover', timestamp: 'bad-ts' as any },
+      ],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'canonical',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-4', name: 'Bash', status: 'running', input: {} },
+        },
+      ],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged.map((m) => m.id)).toEqual(['u1', 'leftover-a', 'canonical-tool'])
+    expect(merged[1]?.timestamp).toBeInstanceOf(Date)
+  })
+
+  it('merges tool rows even when tool metadata is missing', () => {
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+        { id: 'legacy-tool', role: 'tool', content: undefined as any, timestamp: new Date(101) } as Msg,
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [{ id: 'canonical-tool', role: 'tool', content: 'fallback', timestamp: new Date(0) }],
+    })
+
+    expect(replaced.map((m) => m.id)).toEqual(['u1', 'canonical-tool'])
+    expect(replaced[1]?.content).toBe('fallback')
+  })
+
+  it('ignores undefined/non-tool/blank-tool rows in duplicate assertion and stops at next user', () => {
+    expect(() =>
+      assertNoDuplicateToolUseIdsInTurn({
+        messages: [
+          { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+          undefined as unknown as Msg,
+          { id: 'assistant-1', role: 'assistant', content: 'x', timestamp: new Date(101) },
+          { id: 'tool-blank', role: 'tool', content: '', timestamp: new Date(102), toolInfo: { toolUseId: ' ' } as any },
+          { id: 'u2', role: 'user', content: 'next', timestamp: new Date(103) },
+          {
+            id: 'tool-next-1',
+            role: 'tool',
+            content: '',
+            timestamp: new Date(104),
+            toolInfo: { toolUseId: 'dup-next', name: 'Bash', status: 'running', input: {} },
+          },
+          {
+            id: 'tool-next-2',
+            role: 'tool',
+            content: '',
+            timestamp: new Date(105),
+            toolInfo: { toolUseId: 'dup-next', name: 'Bash', status: 'completed', input: {} },
+          },
+        ],
+        userIndex: 0,
+      }),
+    ).not.toThrow()
+  })
+
+  it('returns early in duplicate assertion under production env', () => {
+    const old = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      expect(() =>
+        assertNoDuplicateToolUseIdsInTurn({
+          messages: [
+            { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) },
+            {
+              id: 'tool-1',
+              role: 'tool',
+              content: '',
+              timestamp: new Date(101),
+              toolInfo: { toolUseId: 'dup', name: 'Bash', status: 'running', input: {} },
+            },
+            {
+              id: 'tool-2',
+              role: 'tool',
+              content: '',
+              timestamp: new Date(102),
+              toolInfo: { toolUseId: 'dup', name: 'Bash', status: 'completed', input: {} },
+            },
+          ],
+          userIndex: 0,
+        }),
+      ).not.toThrow()
+    } finally {
+      if (old === undefined) delete process.env.NODE_ENV
+      else process.env.NODE_ENV = old
+    }
+  })
+
+  it('uses Date.now fallback and canonical content when legacy tail metadata is invalid', () => {
+    const next = appendCanonicalTailFinalRows({
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: 'bad-ts' as any },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: '',
+          timestamp: 'bad-ts' as any,
+          toolInfo: { toolUseId: 'tool-1', name: 'LocalBash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      turnId: 'local-bash-bad-ts',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'local-bash-bad-ts:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'local-bash-bad-ts',
+          toolUseId: 'tool-1',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: '/repo',
+          detailLines: [],
+          paramsText: 'command=\"pwd\"',
+        },
+      ],
+    })
+
+    expect(next).toHaveLength(2)
+    expect(next[1]?.id).toBe('legacy-tool')
+    expect(next[1]?.content).toBe('/repo')
+    expect(next[1]?.timestamp).toBeInstanceOf(Date)
+  })
+
+  it('falls back to canonical timestamp when legacy timestamp is undefined', () => {
+    const next = appendCanonicalTailFinalRows({
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: 'legacy',
+          timestamp: undefined as any,
+          toolInfo: { toolUseId: 'tool-1', name: 'LocalBash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      turnId: 'local-bash-undefined-ts',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'local-bash-undefined-ts:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'local-bash-undefined-ts',
+          toolUseId: 'tool-1',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: '/repo',
+          detailLines: [],
+          paramsText: 'command=\"pwd\"',
+        },
+      ],
+    })
+
+    expect(next).toHaveLength(2)
+    expect(next[1]?.id).toBe('legacy-tool')
+    expect(next[1]?.timestamp).toBeInstanceOf(Date)
+  })
+})

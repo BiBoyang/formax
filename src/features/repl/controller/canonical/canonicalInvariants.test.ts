@@ -346,4 +346,114 @@ describe('canonicalInvariants', () => {
       },
     ])
   })
+
+  it('ignores terminal turns without open assistant segment mapping', () => {
+    const issues = collectReplCanonicalInvariantIssues({
+      projection: createProjection({
+        segments: [
+          {
+            id: 'footer-1',
+            kind: 'turn_footer',
+            turnId: 'turn-1',
+            status: 'completed',
+            replaySeq: 1,
+            ts: new Date(1).toISOString(),
+          },
+        ],
+      }),
+      messages: [],
+    })
+    expect(issues).toEqual([])
+  })
+
+  it('falls back to last user turn when target anchor id is missing', () => {
+    const issues = collectReplCanonicalInvariantIssues({
+      projection: createProjection({ segments: [] }),
+      messages: [
+        { id: 'u-old', role: 'user', content: 'old', timestamp: new Date(1) },
+        {
+          id: 't-old-1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(2),
+          toolInfo: { toolUseId: 'dup-old', name: 'Bash', status: 'running', input: {} },
+        },
+        {
+          id: 't-old-2',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(3),
+          toolInfo: { toolUseId: 'dup-old', name: 'Bash', status: 'completed', input: {} },
+        },
+        { id: 'u-new', role: 'user', content: 'new', timestamp: new Date(4) },
+        { id: 't-blank', role: 'tool', content: '', timestamp: new Date(5), toolInfo: { toolUseId: '   ' } as any },
+      ],
+      targetTurnAnchorMessageId: 'missing-anchor',
+    })
+    expect(issues).toEqual([])
+  })
+
+  it('uses __prelude__ when matched user anchor has empty id', () => {
+    const issues = collectReplCanonicalInvariantIssues({
+      projection: createProjection({ segments: [] }),
+      messages: [
+        { id: '', role: 'user', content: 'run', timestamp: new Date(1) },
+        {
+          id: 'tool-1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(2),
+          toolInfo: { toolUseId: 'dup-1', name: 'Bash', status: 'running', input: {} },
+        },
+        {
+          id: 'tool-2',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(3),
+          toolInfo: { toolUseId: 'dup-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+      targetTurnAnchorMessageId: '',
+    })
+
+    expect(issues).toEqual([
+      {
+        kind: 'duplicate_tool_row_in_turn',
+        turnAnchorMessageId: '__prelude__',
+        toolUseId: 'dup-1',
+      },
+    ])
+  })
+
+  it('treats tool rows without toolInfo as blank ids and skips them', () => {
+    const issues = collectReplCanonicalInvariantIssues({
+      projection: createProjection({ segments: [] }),
+      messages: [
+        { id: 'u1', role: 'user', content: 'run', timestamp: new Date(1) },
+        { id: 'tool-missing-info', role: 'tool', content: '', timestamp: new Date(2) } as Msg,
+        {
+          id: 'tool-1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(3),
+          toolInfo: { toolUseId: 'dup-1', name: 'Bash', status: 'running', input: {} },
+        },
+        {
+          id: 'tool-2',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(4),
+          toolInfo: { toolUseId: 'dup-1', name: 'Bash', status: 'completed', input: {} },
+        },
+      ],
+    })
+
+    expect(issues).toEqual([
+      {
+        kind: 'duplicate_tool_row_in_turn',
+        turnAnchorMessageId: 'u1',
+        toolUseId: 'dup-1',
+      },
+    ])
+  })
 })
