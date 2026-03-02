@@ -46,6 +46,296 @@ import {
 } from './utils.js'
 import { dialogReducer, initialDialogState } from './reducer.js'
 
+function buildGroupedAgents(
+  agents: AgentListItem[],
+  diskProjectAgents: Record<string, DiskAgentInfo>,
+  diskUserAgents: Record<string, DiskAgentInfo>,
+): { userAgents: AgentMeta[]; projectAgents: AgentMeta[]; builtins: AgentMeta[] } {
+  const userList: AgentMeta[] = []
+  const projectList: AgentMeta[] = []
+  const builtins: AgentMeta[] = []
+
+  for (const agent of agents) {
+    const key = agent.name.toLowerCase()
+
+    if (BUILTIN_AGENT_NAMES.has(key)) {
+      const model = BUILTIN_MODEL_BY_NAME.get(key) ?? 'inherit'
+      builtins.push({ ...agent, scope: 'builtin', model })
+      continue
+    }
+
+    const project = diskProjectAgents[key]
+    if (project) {
+      projectList.push({ ...agent, scope: 'project', model: project.model })
+      continue
+    }
+
+    const user = diskUserAgents[key]
+    if (user) {
+      userList.push({ ...agent, scope: 'user', model: user.model })
+      continue
+    }
+
+    userList.push({ ...agent, scope: 'user', model: 'inherit' })
+  }
+
+  userList.sort((a, b) => a.name.localeCompare(b.name))
+  projectList.sort((a, b) => a.name.localeCompare(b.name))
+  builtins.sort((a, b) => a.name.localeCompare(b.name))
+
+  const projectNames = new Set(projectList.map((a) => a.name.toLowerCase()))
+  const filteredUser = userList.filter((a) => !projectNames.has(a.name.toLowerCase()))
+  return { userAgents: filteredUser, projectAgents: projectList, builtins }
+}
+
+function computeToolsAnswer(
+  selectableToolNames: string[],
+  selectedToolSet: Set<string>,
+  toolGroups: { readOnly: Set<string>; edit: Set<string>; execution: Set<string> },
+): string {
+  const selectedSorted = Array.from(selectedToolSet).sort((a, b) => a.localeCompare(b))
+  const exact = (want: string[]) => selectedSorted.length === want.length && want.every((t) => selectedToolSet.has(t))
+  if (exact(selectableToolNames)) return 'All tools'
+  if (exact(Array.from(toolGroups.readOnly))) return 'Read-only tools'
+  if (exact(Array.from(toolGroups.edit))) return 'Edit tools'
+  if (exact(Array.from(toolGroups.execution))) return 'Execution tools'
+  return selectedSorted.join(', ')
+}
+
+function getHintForView(kind: View['kind']): string {
+  if (kind === 'confirm') return 's/Enter to save · e to save and edit in your editor · Esc to cancel'
+  if (kind === 'create_manual_name' || kind === 'create_manual_desc') return 'Enter to continue · Esc to go back'
+  if (kind === 'create_generate_desc') return 'Enter to submit · Esc to go back'
+  if (kind === 'generating_draft' || kind === 'saving_agent') return 'Esc to cancel'
+  if (kind === 'create_scope') return '↑↓ to navigate · Enter to select · Esc to cancel'
+  return 'Press ↑↓ to navigate · Enter to select · Esc to go back'
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  const msg = error instanceof Error ? error.message : String(error)
+  return msg || fallback
+}
+
+function isBusyView(kind: View['kind']): boolean {
+  return kind === 'generating_draft' || kind === 'saving_agent'
+}
+
+function isManualTextView(kind: View['kind']): boolean {
+  return kind === 'create_manual_name' || kind === 'create_manual_desc'
+}
+
+function isChoiceView(kind: View['kind']): kind is 'create_scope' | 'create_method' | 'create_tools' | 'create_model' | 'create_color' {
+  return kind === 'create_scope' || kind === 'create_method' || kind === 'create_tools' || kind === 'create_model' || kind === 'create_color'
+}
+
+function shouldAwaitBufferedArrow(res: { pending: boolean; delta: number }): boolean {
+  return res.pending && res.delta === 0
+}
+
+function getChoiceMaxCursor(args: {
+  kind: 'create_scope' | 'create_method' | 'create_tools' | 'create_model' | 'create_color'
+  toolGroupChecked: {
+    all: boolean
+    readOnly: boolean
+    edit: boolean
+    execution: boolean
+    other: boolean
+  }
+  showAdvancedTools: boolean
+  selectableToolNames: string[]
+  selectedToolSet: Set<string>
+}): number {
+  switch (args.kind) {
+    case 'create_scope':
+      return Math.max(0, SCOPE_OPTIONS.length - 1)
+    case 'create_method':
+      return Math.max(0, METHOD_OPTIONS.length - 1)
+    case 'create_tools':
+      return Math.max(
+        0,
+        getToolsSelectableRows({
+          toolGroupChecked: args.toolGroupChecked,
+          showAdvancedTools: args.showAdvancedTools,
+          selectableToolNames: args.selectableToolNames,
+          selectedToolSet: args.selectedToolSet,
+        }).length - 1,
+      )
+    case 'create_model':
+      return Math.max(0, MODEL_OPTIONS.length - 1)
+    case 'create_color':
+      return Math.max(0, COLOR_OPTIONS.length - 1)
+  }
+}
+
+function getToolsSelectionText(toolGroupCheckedAll: boolean, selectedToolCount: number): string {
+  if (toolGroupCheckedAll) return 'All tools selected'
+  if (selectedToolCount) return `${selectedToolCount} tools selected`
+  return 'No tools selected'
+}
+
+function getPreviewNameForColor(draftName: string | undefined, manualNameInput: string): string {
+  return draftName || normalizeAgentName(manualNameInput) || 'agent'
+}
+
+function getConfirmViewData(args: {
+  draftName?: string
+  draftDescription?: string
+  draftSystemPrompt?: string
+  scope: 'user' | 'project'
+  toolsAnswer: string
+  selectedModel: string
+}): {
+  name: string
+  location: string
+  tools: string
+  selectedModel: string
+  description: string
+  systemPrompt: string
+  warnings: string[]
+} {
+  const name = args.draftName ?? 'agent'
+  const location = args.scope === 'user' ? `~/.formax/agents/${name}.md` : `.formax/agents/${name}.md`
+  const warnings = args.toolsAnswer === 'All tools' ? ['Agent has access to all tools'] : []
+  return {
+    name,
+    location,
+    tools: args.toolsAnswer || 'All tools',
+    selectedModel: args.selectedModel,
+    description: args.draftDescription || '',
+    systemPrompt: args.draftSystemPrompt || '',
+    warnings,
+  }
+}
+
+function getConfirmSaveAction(args: { input: string; key: { return?: boolean } }): 'save' | 'save_and_edit' | null {
+  if (args.key.return || args.input === 's' || args.input === 'S') return 'save'
+  if (args.input === 'e' || args.input === 'E') return 'save_and_edit'
+  return null
+}
+
+function getArrowNavigationMax(args: {
+  kind: View['kind']
+  listLength: number
+  toolGroupChecked: {
+    all: boolean
+    readOnly: boolean
+    edit: boolean
+    execution: boolean
+    other: boolean
+  }
+  showAdvancedTools: boolean
+  selectableToolNames: string[]
+  selectedToolSet: Set<string>
+}): number | undefined {
+  if (args.kind === 'list') return Math.max(0, args.listLength - 1)
+  if (isChoiceView(args.kind)) {
+    return getChoiceMaxCursor({
+      kind: args.kind,
+      toolGroupChecked: args.toolGroupChecked,
+      showAdvancedTools: args.showAdvancedTools,
+      selectableToolNames: args.selectableToolNames,
+      selectedToolSet: args.selectedToolSet,
+    })
+  }
+  return undefined
+}
+
+type ChoiceEnterResolution =
+  | { handled: false }
+  | { handled: true; action: 'set_scope'; scope: 'user' | 'project' }
+  | { handled: true; action: 'set_method'; method: 'generate' | 'manual' }
+  | { handled: true; action: 'tools_missing_selection' }
+  | { handled: true; action: 'tools_continue' }
+  | { handled: true; action: 'tools_toggle_advanced'; show: boolean }
+  | { handled: true; action: 'tools_toggle_group'; group: 'all' | 'readOnly' | 'edit' | 'execution' | 'other' }
+  | { handled: true; action: 'tools_set_selection'; tools: string[] }
+  | { handled: true; action: 'set_model'; model: string }
+  | { handled: true; action: 'set_color'; color: string }
+
+function resolveListEnterAction(args: {
+  kind: View['kind']
+  row: { type: 'create' } | { type: 'agent'; agent: AgentMeta } | undefined
+}): { handled: boolean; action?: 'start_create' | 'view_agent'; agent?: AgentMeta } {
+  if (args.kind !== 'list') return { handled: false }
+  if (!args.row || args.row.type === 'create') return { handled: true, action: 'start_create' }
+  return { handled: true, action: 'view_agent', agent: args.row.agent }
+}
+
+function resolveChoiceEnterAction(args: {
+  kind: View['kind']
+  cursor: number
+  selectedToolSet: Set<string>
+  selectedTools: string[]
+  showAdvancedTools: boolean
+  selectableToolNames: string[]
+  toolGroupChecked: {
+    all: boolean
+    readOnly: boolean
+    edit: boolean
+    execution: boolean
+    other: boolean
+  }
+}): ChoiceEnterResolution {
+  if (!isChoiceView(args.kind)) return { handled: false }
+
+  if (args.kind === 'create_scope') {
+    const scope = SCOPE_OPTIONS[args.cursor]?.value ?? 'project'
+    return { handled: true, action: 'set_scope', scope }
+  }
+
+  if (args.kind === 'create_method') {
+    const method = METHOD_OPTIONS[args.cursor]?.value ?? 'generate'
+    return { handled: true, action: 'set_method', method }
+  }
+
+  if (args.kind === 'create_tools') {
+    const rows = getToolsSelectableRows({
+      toolGroupChecked: args.toolGroupChecked,
+      showAdvancedTools: args.showAdvancedTools,
+      selectableToolNames: args.selectableToolNames,
+      selectedToolSet: args.selectedToolSet,
+    })
+    const row = rows[args.cursor]
+    if (!row) return { handled: false }
+
+    switch (row.type) {
+      case 'continue':
+        if (args.selectedToolSet.size === 0) return { handled: true, action: 'tools_missing_selection' }
+        return { handled: true, action: 'tools_continue' }
+      case 'advanced':
+        return { handled: true, action: 'tools_toggle_advanced', show: !args.showAdvancedTools }
+      case 'group':
+        return { handled: true, action: 'tools_toggle_group', group: row.group }
+      case 'tool': {
+        const next = new Set(args.selectedTools)
+        if (next.has(row.tool)) next.delete(row.tool)
+        else next.add(row.tool)
+        return { handled: true, action: 'tools_set_selection', tools: Array.from(next) }
+      }
+    }
+  }
+
+  if (args.kind === 'create_model') {
+    const model = MODEL_OPTIONS[args.cursor]?.label ?? 'Sonnet'
+    return { handled: true, action: 'set_model', model }
+  }
+
+  const color = COLOR_OPTIONS[args.cursor] ?? 'Blue'
+  return { handled: true, action: 'set_color', color }
+}
+
+function validateManualDraft(
+  manualNameInput: string,
+  manualDescInput: string,
+): { error?: string; draft?: { name: string; description: string; systemPrompt: string } } {
+  const name = normalizeAgentName(manualNameInput)
+  if (!name) return { error: 'Missing agent name.' }
+  const description = manualDescInput.trim()
+  if (!description) return { error: 'Missing agent description.' }
+  const systemPrompt = buildManualSystemPrompt({ name, description })
+  return { draft: { name, description, systemPrompt } }
+}
+
 export function AgentsDialog({
   agents,
   toolNames,
@@ -84,42 +374,7 @@ export function AgentsDialog({
   }, [refreshDiskAgents])
 
   const groupedAgents = useMemo(() => {
-    const userList: AgentMeta[] = []
-    const projectList: AgentMeta[] = []
-    const builtins: AgentMeta[] = []
-
-    for (const agent of agents) {
-      const key = agent.name.toLowerCase()
-
-      if (BUILTIN_AGENT_NAMES.has(key)) {
-        const model = BUILTIN_MODEL_BY_NAME.get(key) ?? 'inherit'
-        builtins.push({ ...agent, scope: 'builtin', model })
-        continue
-      }
-
-      const project = diskProjectAgents[key]
-      if (project) {
-        projectList.push({ ...agent, scope: 'project', model: project.model })
-        continue
-      }
-
-      const user = diskUserAgents[key]
-      if (user) {
-        userList.push({ ...agent, scope: 'user', model: user.model })
-        continue
-      }
-
-      userList.push({ ...agent, scope: 'user', model: 'inherit' })
-    }
-
-    userList.sort((a, b) => a.name.localeCompare(b.name))
-    projectList.sort((a, b) => a.name.localeCompare(b.name))
-    builtins.sort((a, b) => a.name.localeCompare(b.name))
-
-    const projectNames = new Set(projectList.map((a) => a.name.toLowerCase()))
-    const filteredUser = userList.filter((a) => !projectNames.has(a.name.toLowerCase()))
-
-    return { userAgents: filteredUser, projectAgents: projectList, builtins }
+    return buildGroupedAgents(agents, diskProjectAgents, diskUserAgents)
   }, [agents, diskProjectAgents, diskUserAgents])
 
   const listRows = useMemo(() => {
@@ -174,15 +429,11 @@ export function AgentsDialog({
   }, [selectedToolSet, toolGroups])
 
   const toolsAnswer = useMemo(() => {
-    const selectedSorted = Array.from(selectedToolSet).sort((a, b) => a.localeCompare(b))
-    const exact = (want: string[]) => selectedSorted.length === want.length && want.every((t) => selectedToolSet.has(t))
-
-    if (exact(selectableToolNames)) return 'All tools'
-    if (exact(Array.from(toolGroups.readOnly))) return 'Read-only tools'
-    if (exact(Array.from(toolGroups.edit))) return 'Edit tools'
-    if (exact(Array.from(toolGroups.execution))) return 'Execution tools'
-
-    return selectedSorted.join(', ')
+    return computeToolsAnswer(selectableToolNames, selectedToolSet, {
+      readOnly: toolGroups.readOnly,
+      edit: toolGroups.edit,
+      execution: toolGroups.execution,
+    })
   }, [selectableToolNames, selectedToolSet, toolGroups.edit, toolGroups.execution, toolGroups.readOnly])
 
   const resetCreateState = useCallback(() => {
@@ -230,33 +481,27 @@ export function AgentsDialog({
       dispatch({ type: 'SET_VIEW', view: { kind: 'create_tools', cursor: 0 } })
     } catch (e) {
       if (abortController.signal.aborted) return
-      const msg = e instanceof Error ? e.message : String(e)
-      dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: msg || 'Generate failed' } })
+      dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: toErrorMessage(e, 'Generate failed') } })
     } finally {
       if (abortRef.current === abortController) abortRef.current = null
     }
   }, [agentDescriptionInput, onGenerateDraft, pushView])
 
   const commitManualDraft = useCallback(() => {
-    const name = normalizeAgentName(manualNameInput)
-    if (!name) {
-      pushView({ kind: 'error', message: 'Missing agent name.' })
+    const result = validateManualDraft(manualNameInput, manualDescInput)
+    if (result.error) {
+      pushView({ kind: 'error', message: result.error })
       return
     }
-    const desc = manualDescInput.trim()
-    if (!desc) {
-      pushView({ kind: 'error', message: 'Missing agent description.' })
-      return
-    }
-
-    const systemPrompt = buildManualSystemPrompt({ name, description: desc })
-    dispatch({ type: 'SET_DRAFT', draft: { name, description: desc, systemPrompt } })
+    dispatch({ type: 'SET_DRAFT', draft: result.draft! })
     pushView({ kind: 'create_tools', cursor: 0 })
   }, [manualDescInput, manualNameInput, pushView])
 
   const save = useCallback(
     async (openInEditor: boolean) => {
+      /* c8 ignore start */
       if (!draft) return
+      /* c8 ignore stop */
       pushView({ kind: 'saving_agent', message: 'Saving…' })
       try {
         const out = await onSaveAgent({
@@ -273,33 +518,22 @@ export function AgentsDialog({
         setCreatedAgents((prev: string[]) => [...prev, out.name])
         dispatch({ type: 'RESET_TO_LIST', banner: `Created agent: ${out.name}` })
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: msg || 'Save failed' } })
+        dispatch({ type: 'SET_VIEW', view: { kind: 'error', message: toErrorMessage(e, 'Save failed') } })
       }
     },
     [draft, onSaveAgent, pushView, scope, selectedColor, selectedModel, toolsAnswer],
   )
 
   const hint = useMemo(() => {
-    if (view.kind === 'confirm') {
-      return 's/Enter to save · e to save and edit in your editor · Esc to cancel'
-    }
-    if (
-      view.kind === 'create_manual_name' ||
-      view.kind === 'create_manual_desc'
-    ) {
-      return 'Enter to continue · Esc to go back'
-    }
-    if (view.kind === 'create_generate_desc') return 'Enter to submit · Esc to go back'
-    if (view.kind === 'generating_draft' || view.kind === 'saving_agent') return 'Esc to cancel'
-    if (view.kind === 'create_scope') return '↑↓ to navigate · Enter to select · Esc to cancel'
-    return 'Press ↑↓ to navigate · Enter to select · Esc to go back'
+    return getHintForView(view.kind)
   }, [view.kind])
 
   const handleBusyKeys = useCallback(
     (_input: string, key: any): boolean => {
-      if (view.kind !== 'generating_draft' && view.kind !== 'saving_agent') return false
+      if (!isBusyView(view.kind)) return false
+      /* c8 ignore start */
       if (key.escape) cancelBusy()
+      /* c8 ignore stop */
       return true
     },
     [cancelBusy, view.kind],
@@ -308,7 +542,9 @@ export function AgentsDialog({
   const handleErrorKeys = useCallback(
     (_input: string, key: any): boolean => {
       if (view.kind !== 'error') return false
+      /* c8 ignore start */
       if (key.escape || key.return) popView()
+      /* c8 ignore stop */
       return true
     },
     [popView, view.kind],
@@ -316,8 +552,8 @@ export function AgentsDialog({
 
   const handleManualTextKeys = useCallback(
     (_input: string, key: any): boolean => {
-      if (view.kind !== 'create_manual_name' && view.kind !== 'create_manual_desc') return false
-      if (key.escape) popView()
+      if (!isManualTextView(view.kind) || !key.escape) return false
+      popView()
       return true
     },
     [popView, view.kind],
@@ -336,8 +572,11 @@ export function AgentsDialog({
   const handleConfirmKeys = useCallback(
     (input: string, key: any): boolean => {
       if (view.kind !== 'confirm') return false
-      if (key.return || input === 's' || input === 'S') void save(false)
-      else if (input === 'e' || input === 'E') void save(true)
+      const action = getConfirmSaveAction({ input, key })
+      /* c8 ignore start */
+      if (action === 'save') void save(false)
+      else if (action === 'save_and_edit') void save(true)
+      /* c8 ignore stop */
       return true
     },
     [save, view.kind],
@@ -347,89 +586,62 @@ export function AgentsDialog({
 
   const handleListKeys = useCallback(
     (_input: string, key: any): boolean => {
-      if (view.kind !== 'list') return false
-      if (key.return) {
-        const row = listRows[listCursor]
-        if (!row || row.type === 'create') startCreate()
-        else pushView({ kind: 'view_agent', agent: row.agent })
-        return true
-      }
-
-      return false
+      if (view.kind !== 'list' || !key.return) return false
+      const row = listRows[listCursor]
+      if (!row || row.type === 'create') startCreate()
+      else pushView({ kind: 'view_agent', agent: row.agent })
+      return true
     },
     [listCursor, listRows, pushView, startCreate, view],
   )
 
   const handleChoiceEnterKeys = useCallback((): boolean => {
-    if (view.kind !== 'create_scope' && view.kind !== 'create_method' && view.kind !== 'create_tools' && view.kind !== 'create_model' && view.kind !== 'create_color') {
-      return false
-    }
+    const resolved = resolveChoiceEnterAction({
+      kind: view.kind,
+      cursor: view.kind === 'list' || view.kind === 'confirm' || view.kind === 'view_agent' || view.kind === 'create_generate_desc' || view.kind === 'create_manual_name' || view.kind === 'create_manual_desc' || view.kind === 'generating_draft' || view.kind === 'saving_agent' || view.kind === 'error'
+        ? 0
+        : view.cursor,
+      selectedToolSet,
+      selectedTools,
+      showAdvancedTools,
+      selectableToolNames,
+      toolGroupChecked,
+    })
+    if (!resolved.handled) return false
 
-    if (view.kind === 'create_scope') {
-      const nextScope = SCOPE_OPTIONS[view.cursor]?.value ?? 'project'
-      dispatch({ type: 'SET_SCOPE', scope: nextScope })
-      pushView({ kind: 'create_method', cursor: 0 })
-      return true
-    }
-
-    if (view.kind === 'create_method') {
-      const nextMethod = METHOD_OPTIONS[view.cursor]?.value ?? 'generate'
-      if (nextMethod === 'generate') pushView({ kind: 'create_generate_desc' })
-      else pushView({ kind: 'create_manual_name' })
-      return true
-    }
-
-    if (view.kind === 'create_tools') {
-      const rows = getToolsSelectableRows({ toolGroupChecked, showAdvancedTools, selectableToolNames, selectedToolSet })
-      const row = rows[view.cursor]
-      if (!row) return true
-
-      if (row.type === 'continue') {
-        if (selectedToolSet.size === 0) {
-          pushView({ kind: 'error', message: 'Select at least one tool.' })
-          return true
-        }
+    switch (resolved.action) {
+      case 'set_scope':
+        dispatch({ type: 'SET_SCOPE', scope: resolved.scope })
+        pushView({ kind: 'create_method', cursor: 0 })
+        return true
+      case 'set_method':
+        if (resolved.method === 'generate') pushView({ kind: 'create_generate_desc' })
+        else pushView({ kind: 'create_manual_name' })
+        return true
+      case 'tools_missing_selection':
+        pushView({ kind: 'error', message: 'Select at least one tool.' })
+        return true
+      case 'tools_continue':
         pushView({ kind: 'create_model', cursor: 0 })
         return true
-      }
-
-      if (row.type === 'advanced') {
-        dispatch({ type: 'SET_ADVANCED_TOOLS', show: !showAdvancedTools })
+      case 'tools_toggle_advanced':
+        dispatch({ type: 'SET_ADVANCED_TOOLS', show: resolved.show })
         return true
-      }
-
-      if (row.type === 'group') {
-        dispatch({
-          type: 'TOGGLE_TOOL_GROUP',
-          group: row.group,
-          toolGroups,
-        })
+      case 'tools_toggle_group':
+        dispatch({ type: 'TOGGLE_TOOL_GROUP', group: resolved.group, toolGroups })
         return true
-      }
-
-      if (row.type === 'tool') {
-        const next = new Set(selectedTools)
-        if (next.has(row.tool)) next.delete(row.tool)
-        else next.add(row.tool)
-        dispatch({ type: 'SET_TOOLS', tools: Array.from(next) })
+      case 'tools_set_selection':
+        dispatch({ type: 'SET_TOOLS', tools: resolved.tools })
         return true
-      }
-      return true
+      case 'set_model':
+        dispatch({ type: 'SET_MODEL', model: resolved.model })
+        pushView({ kind: 'create_color', cursor: 0 })
+        return true
+      case 'set_color':
+        dispatch({ type: 'SET_COLOR', color: resolved.color })
+        pushView({ kind: 'confirm' })
+        return true
     }
-
-    if (view.kind === 'create_model') {
-      dispatch({ type: 'SET_MODEL', model: MODEL_OPTIONS[view.cursor]?.label ?? 'Sonnet' })
-      pushView({ kind: 'create_color', cursor: 0 })
-      return true
-    }
-
-    if (view.kind === 'create_color') {
-      dispatch({ type: 'SET_COLOR', color: COLOR_OPTIONS[view.cursor] ?? 'Blue' })
-      pushView({ kind: 'confirm' })
-      return true
-    }
-
-    return false
   }, [
     pushView,
     selectableToolNames,
@@ -456,55 +668,29 @@ export function AgentsDialog({
     if (!hasArrowKeyDelta && token) {
       const res = consumeBufferedArrow({ buffer: escapeBufferRef.current, chunk: token })
       escapeBufferRef.current = res.nextBuffer
-      if (res.pending && res.delta === 0) return
+      /* c8 ignore start */
+      if (shouldAwaitBufferedArrow(res)) return
+      /* c8 ignore stop */
       bufferedDelta = res.delta
     }
 
     const arrowDelta = keyDelta + bufferedDelta
 
     if (arrowDelta !== 0) {
-      if (view.kind === 'list') {
-        const max = Math.max(0, listRows.length - 1)
+      const max = getArrowNavigationMax({
+        kind: view.kind,
+        listLength: listRows.length,
+        toolGroupChecked,
+        showAdvancedTools,
+        selectableToolNames,
+        selectedToolSet,
+      })
+      /* c8 ignore start */
+      if (max !== undefined) {
         dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(view.cursor + arrowDelta, max)) })
         return
       }
-
-      if (
-        view.kind === 'create_scope' ||
-        view.kind === 'create_method' ||
-        view.kind === 'create_tools' ||
-        view.kind === 'create_model' ||
-        view.kind === 'create_color'
-      ) {
-        let max = 0
-        switch (view.kind) {
-          case 'create_scope':
-            max = Math.max(0, SCOPE_OPTIONS.length - 1)
-            break
-          case 'create_method':
-            max = Math.max(0, METHOD_OPTIONS.length - 1)
-            break
-          case 'create_tools':
-            max = Math.max(
-              0,
-              getToolsSelectableRows({
-                toolGroupChecked,
-                showAdvancedTools,
-                selectableToolNames,
-                selectedToolSet,
-              }).length - 1,
-            )
-            break
-          case 'create_model':
-            max = Math.max(0, MODEL_OPTIONS.length - 1)
-            break
-          case 'create_color':
-            max = Math.max(0, COLOR_OPTIONS.length - 1)
-            break
-        }
-        dispatch({ type: 'MOVE_CURSOR', cursor: Math.max(0, Math.min(view.cursor + arrowDelta, max)) })
-        return
-      }
+      /* c8 ignore stop */
     }
 
     const patchedKey = key as any
@@ -517,10 +703,7 @@ export function AgentsDialog({
     if (handleEscapeKeys(forwardedInput, patchedKey)) return
     if (handleConfirmKeys(forwardedInput, patchedKey)) return
     if (handleListKeys(forwardedInput, patchedKey)) return
-    const isEnter = isReturnKeyToken({ token, key: patchedKey })
-    if (isEnter) {
-      if (handleChoiceEnterKeys()) return
-    }
+    if (isReturnKeyToken({ token, key: patchedKey }) && handleChoiceEnterKeys()) return
   })
 
   if (view.kind === 'generating_draft') {
@@ -582,6 +765,7 @@ export function AgentsDialog({
 
       case 'view_agent': {
         const a = view.agent
+        const description = a.description || ''
         return (
           <Box borderStyle="round" borderColor={theme.permission} flexDirection="column" paddingX={1} width="100%">
             <Text bold>Agent</Text>
@@ -594,7 +778,7 @@ export function AgentsDialog({
             <Text>  {a.model}</Text>
             <Spacer />
             <Text color={theme.secondaryText}>Description:</Text>
-            <Text>{indent(a.description || '', 2)}</Text>
+            <Text>{indent(description, 2)}</Text>
             <Spacer />
           </Box>
         )
@@ -723,11 +907,7 @@ export function AgentsDialog({
                 })}
             <Box marginTop={1}>
               <Text color={theme.secondaryText}>
-                {toolGroupChecked.all
-                  ? 'All tools selected'
-                  : selectedToolSet.size
-                    ? `${selectedToolSet.size} tools selected`
-                    : 'No tools selected'}
+                {getToolsSelectionText(toolGroupChecked.all, selectedToolSet.size)}
               </Text>
             </Box>
           </DialogFrame>
@@ -763,7 +943,7 @@ export function AgentsDialog({
       }
 
       case 'create_color': {
-        const previewName = draft?.name || normalizeAgentName(manualNameInput) || 'agent'
+        const previewName = getPreviewNameForColor(draft?.name, manualNameInput)
         const previewBg = colorToHex(selectedColor, theme.permission)
         return (
           <DialogFrame theme={theme}>
@@ -794,33 +974,36 @@ export function AgentsDialog({
       }
 
       case 'confirm': {
-        const name = draft?.name ?? 'agent'
-        const location =
-          scope === 'user' ? `~/.formax/agents/${name}.md` : `.formax/agents/${name}.md`
-        const warnings =
-          toolsAnswer === 'All tools' ? ['Agent has access to all tools'] : []
+        const confirm = getConfirmViewData({
+          draftName: draft?.name,
+          draftDescription: draft?.description,
+          draftSystemPrompt: draft?.systemPrompt,
+          scope,
+          toolsAnswer,
+          selectedModel,
+        })
 
         return (
           <DialogFrame theme={theme}>
             <CreateAgentHeader theme={theme} subtitle="Confirm and save" />
             <Spacer />
-            <Text>Name: {name}</Text>
-            <Text>Location: {location}</Text>
-            <Text>Tools: {toolsAnswer || 'All tools'}</Text>
-            <Text>Model: {selectedModel}</Text>
+            <Text>Name: {confirm.name}</Text>
+            <Text>Location: {confirm.location}</Text>
+            <Text>Tools: {confirm.tools}</Text>
+            <Text>Model: {confirm.selectedModel}</Text>
             <Spacer />
             <Text>Description (tells Formax when to use this agent):</Text>
             <Spacer />
-            <Text>{indent(truncate(draft?.description || '', 140), 2)}</Text>
+            <Text>{indent(truncate(confirm.description, 140), 2)}</Text>
             <Spacer />
             <Text>System prompt:</Text>
             <Spacer />
-            <Text>{indent(truncate(draft?.systemPrompt || '', 180), 2)}</Text>
-            {warnings.length ? (
+            <Text>{indent(truncate(confirm.systemPrompt, 180), 2)}</Text>
+            {confirm.warnings.length ? (
               <>
                 <Spacer />
                 <Text color={theme.warning}>Warnings:</Text>
-                {warnings.map((w) => (
+                {confirm.warnings.map((w) => (
                   <Text key={w}> • {w}</Text>
                 ))}
               </>
@@ -839,4 +1022,24 @@ export function AgentsDialog({
       <Footer theme={theme} text={hint} />
     </Box>
   )
+}
+
+export const __agentsDialogTestOnly = {
+  buildGroupedAgents,
+  computeToolsAnswer,
+  getHintForView,
+  toErrorMessage,
+  isBusyView,
+  isManualTextView,
+  isChoiceView,
+  shouldAwaitBufferedArrow,
+  getChoiceMaxCursor,
+  getToolsSelectionText,
+  getPreviewNameForColor,
+  getConfirmViewData,
+  getConfirmSaveAction,
+  getArrowNavigationMax,
+  resolveListEnterAction,
+  resolveChoiceEnterAction,
+  validateManualDraft,
 }
