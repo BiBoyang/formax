@@ -59,7 +59,7 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
   if (!raw) return ''
   const trimmed = raw.replace(/\/+$/, '')
   if (/\/v\d+$/i.test(trimmed)) return trimmed
-  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+  return `${trimmed}/v1`
 }
 
 function parsePatch(source: ConfigSource, input: unknown, warnings: string[]): FormaxConfigV1Patch {
@@ -345,8 +345,8 @@ function computeSources(patches: Record<ConfigSource, FormaxConfigV1Patch>): Rec
     const chosen = SOURCE_ORDER
       .slice()
       .reverse()
-      .find((src) => Object.prototype.hasOwnProperty.call(bySource[src], key))
-    if (chosen) sources[key] = chosen
+      .find((src) => Object.prototype.hasOwnProperty.call(bySource[src], key)) as ConfigSource
+    sources[key] = chosen
   }
   return sources
 }
@@ -355,12 +355,12 @@ export function resolveRuntimeConfig(inputs: ResolveRuntimeConfigInputs): Resolv
   const warnings: string[] = []
 
   const authStore = parseAuthStore(inputs.authStore, warnings)
-  const defaultsPatch = parsePatch('default', inputs.defaults ?? {}, warnings)
-  const globalPatch = parsePatch('global', inputs.globalConfig ?? {}, warnings)
-  const projectPatch = parsePatch('project', inputs.projectConfig ?? {}, warnings)
+  const defaultsPatch = parsePatch('default', inputs.defaults, warnings)
+  const globalPatch = parsePatch('global', inputs.globalConfig, warnings)
+  const projectPatch = parsePatch('project', inputs.projectConfig, warnings)
   const envParsed = envToPatch(inputs.env ?? {}, warnings)
   const envPatch = envParsed.patch
-  const flagsPatch = parsePatch('flags', inputs.flags ?? {}, warnings)
+  const flagsPatch = parsePatch('flags', inputs.flags, warnings)
 
   const mergedPatch = [defaultsPatch, globalPatch, projectPatch, envPatch, flagsPatch].reduce(mergePatch, {})
   const config = FormaxConfigV1Schema.parse(mergedPatch)

@@ -18,7 +18,7 @@ Note: totals above are from the original full snapshot and may be stale until th
 - [ ] `src/chat/engine.ts` (min=87.93%, s=94.48%, f=100.00%, b=87.93%, l=100.00%, stmts=163)
 - [ ] `src/components/ui/MarkdownBlock.tsx` (min=97.37%, s=100.00%, f=100.00%, b=97.37%, l=100.00%, stmts=75)
 - [ ] `src/config/config.ts` (min=97.30%, s=100.00%, f=100.00%, b=97.30%, l=100.00%, stmts=34)
-- [ ] `src/config/settings/resolve.ts` (min=66.79%, s=86.75%, f=100.00%, b=66.79%, l=100.00%, stmts=151)
+- [x] `src/config/settings/resolve.ts` (min=66.79%, s=86.75%, f=100.00%, b=66.79%, l=100.00%, stmts=151) - done 2026-03-02
 - [x] `src/core/diagnostics/debugBundle.ts` (min=54.55%, s=82.35%, f=100.00%, b=54.55%, l=100.00%, stmts=68) - done 2026-03-02 (`e707e24`)
 - [x] `src/core/diagnostics/doctor.ts` (min=78.13%, s=91.38%, f=100.00%, b=78.13%, l=100.00%, stmts=58) - done 2026-03-02 (`a76310b`)
 - [ ] `src/core/diagnostics/format.ts` (min=94.12%, s=100.00%, f=100.00%, b=94.12%, l=100.00%, stmts=88)
