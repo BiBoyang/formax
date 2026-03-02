@@ -62,69 +62,66 @@ export function reduceToolEvent(args: {
   })
 
   if (toolIndex >= 0) {
-    const current = draft.segments[toolIndex]
-    if (current.kind === 'tool') {
-      const detailLinesFromEvent =
-        Array.isArray(event.middleLines) && event.middleLines.length > 0
-          ? event.middleLines.map((line) => String(line ?? '').trim()).filter((line) => line.length > 0)
-          : null
-      const middleLinesFromEvent =
-        Array.isArray(event.middleLines) && event.middleLines.length > 0 ? event.middleLines : undefined
-      const transcriptLinesFromEvent =
-        Array.isArray(event.transcriptLines) && event.transcriptLines.length > 0 ? event.transcriptLines : undefined
-      const nestedToolsFromEvent =
-        Array.isArray(event.nestedTools) && event.nestedTools.length > 0 ? event.nestedTools : undefined
-      const detailLines = detailLinesFromEvent ?? dedupeAppend(current.detailLines, event.line)
-      const status = event.phase === 'end' ? (event.isError ? 'error' : 'completed') : current.status
-      const terminalSource =
-        event.phase === 'end'
-          ? ('tool_event' as const)
-          : status === 'running'
-            ? undefined
-            : current.terminalSource
-      const reboundSummary = rebindToolSummaryForName({
-        summary: current.summary,
-        currentToolName: current.toolName,
-        nextToolName: toolName,
-        status: current.status,
-      })
-      const endFallbackSummary = reboundSummary === `${toolName} running` ? `${toolName} completed` : reboundSummary
-      const summary =
-        event.phase === 'end' ? String(event.summary ?? event.line ?? endFallbackSummary) : reboundSummary
-      const eventTsMs = parseTimestampMs(event.ts)
-      const startedAtMs =
-        current.startedAtMs !== undefined
-          ? current.startedAtMs
-          : event.phase === 'start' && eventTsMs !== null
-            ? eventTsMs
-            : undefined
-      const durationMs =
-        event.durationMs ??
-        (event.phase === 'end' && startedAtMs !== undefined && eventTsMs !== null
-          ? Math.max(0, eventTsMs - startedAtMs)
-          : current.durationMs)
+    const current = draft.segments[toolIndex] as ToolSegment
+    const detailLinesFromEvent =
+      Array.isArray(event.middleLines) && event.middleLines.length > 0
+        ? event.middleLines.map((line) => String(line ?? '').trim()).filter((line) => line.length > 0)
+        : null
+    const middleLinesFromEvent =
+      Array.isArray(event.middleLines) && event.middleLines.length > 0 ? event.middleLines : undefined
+    const transcriptLinesFromEvent =
+      Array.isArray(event.transcriptLines) && event.transcriptLines.length > 0 ? event.transcriptLines : undefined
+    const nestedToolsFromEvent =
+      Array.isArray(event.nestedTools) && event.nestedTools.length > 0 ? event.nestedTools : undefined
+    const detailLines = detailLinesFromEvent ?? dedupeAppend(current.detailLines, event.line)
+    const status = event.phase === 'end' ? (event.isError ? 'error' : 'completed') : current.status
+    const terminalSource =
+      event.phase === 'end'
+        ? ('tool_event' as const)
+        : status === 'running'
+          ? undefined
+          : current.terminalSource
+    const reboundSummary = rebindToolSummaryForName({
+      summary: current.summary,
+      currentToolName: current.toolName,
+      nextToolName: toolName,
+      status: current.status,
+    })
+    const endFallbackSummary = reboundSummary === `${toolName} running` ? `${toolName} completed` : reboundSummary
+    const summary = event.phase === 'end' ? String(event.summary ?? event.line ?? endFallbackSummary) : reboundSummary
+    const eventTsMs = parseTimestampMs(event.ts)
+    const startedAtMs =
+      current.startedAtMs !== undefined
+        ? current.startedAtMs
+        : event.phase === 'start' && eventTsMs !== null
+          ? eventTsMs
+          : undefined
+    const durationMs =
+      event.durationMs ??
+      (event.phase === 'end' && startedAtMs !== undefined && eventTsMs !== null
+        ? Math.max(0, eventTsMs - startedAtMs)
+        : current.durationMs)
 
-      draft.segments[toolIndex] = {
-        ...current,
-        toolName,
-        status,
-        ...(terminalSource ? { terminalSource } : {}),
-        summary,
-        detailLines,
-        ...(event.input ? { input: event.input } : {}),
-        ...(event.result !== undefined ? { result: event.result } : {}),
-        ...(event.resultLines !== undefined ? { resultLines: event.resultLines } : {}),
-        ...(event.expandInfo !== undefined ? { expandInfo: event.expandInfo } : {}),
-        ...(middleLinesFromEvent !== undefined ? { middleLines: middleLinesFromEvent } : {}),
-        ...(transcriptLinesFromEvent !== undefined ? { transcriptLines: transcriptLinesFromEvent } : {}),
-        ...(nestedToolsFromEvent !== undefined ? { nestedTools: nestedToolsFromEvent } : {}),
-        ...(event.toolUses !== undefined ? { toolUses: event.toolUses } : {}),
-        ...(event.usage !== undefined ? { usage: event.usage } : {}),
-        ...(durationMs !== undefined ? { durationMs } : {}),
-        ...(startedAtMs !== undefined ? { startedAtMs } : {}),
-        ...(event.patchStartLineNumber !== undefined ? { patchStartLineNumber: event.patchStartLineNumber } : {}),
-        ...(event.paramsText ? { paramsText: event.paramsText } : {}),
-      }
+    draft.segments[toolIndex] = {
+      ...current,
+      toolName,
+      status,
+      ...(terminalSource ? { terminalSource } : {}),
+      summary,
+      detailLines,
+      ...(event.input ? { input: event.input } : {}),
+      ...(event.result !== undefined ? { result: event.result } : {}),
+      ...(event.resultLines !== undefined ? { resultLines: event.resultLines } : {}),
+      ...(event.expandInfo !== undefined ? { expandInfo: event.expandInfo } : {}),
+      ...(middleLinesFromEvent !== undefined ? { middleLines: middleLinesFromEvent } : {}),
+      ...(transcriptLinesFromEvent !== undefined ? { transcriptLines: transcriptLinesFromEvent } : {}),
+      ...(nestedToolsFromEvent !== undefined ? { nestedTools: nestedToolsFromEvent } : {}),
+      ...(event.toolUses !== undefined ? { toolUses: event.toolUses } : {}),
+      ...(event.usage !== undefined ? { usage: event.usage } : {}),
+      ...(durationMs !== undefined ? { durationMs } : {}),
+      ...(startedAtMs !== undefined ? { startedAtMs } : {}),
+      ...(event.patchStartLineNumber !== undefined ? { patchStartLineNumber: event.patchStartLineNumber } : {}),
+      ...(event.paramsText ? { paramsText: event.paramsText } : {}),
     }
     return
   }
@@ -188,23 +185,21 @@ export function reduceToolInputStateEvent(args: {
     toolUseId: event.toolUseId,
   })
   if (toolIndex >= 0) {
-    const current = draft.segments[toolIndex]
-    if (current.kind === 'tool') {
-      const summary = rebindToolSummaryForName({
-        summary: current.summary,
-        currentToolName: current.toolName,
-        nextToolName: toolName,
-        status: current.status,
-      })
-      draft.segments[toolIndex] = {
-        ...current,
-        toolName,
-        summary,
-        inputState: {
-          kind: event.inputKind,
-          status: event.status,
-        },
-      }
+    const current = draft.segments[toolIndex] as ToolSegment
+    const summary = rebindToolSummaryForName({
+      summary: current.summary,
+      currentToolName: current.toolName,
+      nextToolName: toolName,
+      status: current.status,
+    })
+    draft.segments[toolIndex] = {
+      ...current,
+      toolName,
+      summary,
+      inputState: {
+        kind: event.inputKind,
+        status: event.status,
+      },
     }
     return
   }

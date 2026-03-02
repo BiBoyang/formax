@@ -346,4 +346,221 @@ describe('threadRuntimeState (shared)', () => {
     expect(next).not.toBe(state)
     expect(next.lastTurnStatus).toBe('failed')
   })
+
+  it('handles invalid/minimal payloads across all reducers without mutating runtime invariants', () => {
+    expect(extractThreadIdFromNotificationParams(null)).toBeNull()
+    expect(extractThreadIdFromNotificationParams({ turn: { threadId: '   ' } })).toBeNull()
+
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: Number.NaN,
+      method: 'turn/bootstrap',
+      ts: 'not-a-date',
+    })
+    expect(state.lastReplaySeq).toBe(0)
+    expect(Number.isFinite(Date.parse(state.updatedAt))).toBe(true)
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/unknown' as any,
+      replaySeq: 1,
+      params: null,
+    })
+    expect(state.lastNotificationMethod).toBe('turn/unknown')
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/started',
+      replaySeq: 2,
+      params: {},
+    })
+    expect(state.activeTurnId).toBeNull()
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/started',
+      replaySeq: 3,
+      params: {
+        turn: {
+          id: '   ',
+          mode: 'invalid-mode',
+        },
+      },
+    })
+    expect(state.mode).toBe('normal')
+    expect(state.lastTurnId).toBeNull()
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 4,
+      params: {},
+    })
+    expect(state.pendingInputs).toEqual({})
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 5,
+      params: {
+        input: {
+          inputId: 123,
+          turnId: 456,
+          toolUseId: '   ',
+          kind: 'unknown-kind',
+          createdAt: 1,
+          expiresAt: 2,
+          payload: { toolName: '   ' },
+        },
+      },
+    })
+    expect(state.pendingInputs).toEqual({})
+    expect(state.toolNameByUseId).toEqual({})
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputResolved',
+      replaySeq: 6,
+      params: {},
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputResolved',
+      replaySeq: 7,
+      params: {
+        input: { inputId: 'missing-input' },
+      },
+    })
+    expect(state.pendingInputs).toEqual({})
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 8,
+      params: {},
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 9,
+      params: {
+        event: { type: 'assistant_delta' },
+      },
+    })
+    expect(state.toolNameByUseId).toEqual({})
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 10,
+      params: {
+        event: {
+          type: 'tool_start',
+          id: 'tool-repeat',
+          name: 'Repeat',
+        },
+      },
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 11,
+      params: {
+        event: {
+          type: 'tool_start',
+          id: 'tool-repeat',
+          name: 'Repeat',
+        },
+      },
+    })
+    expect(state.toolNameByUseId['tool-repeat']).toBe('Repeat')
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 12,
+      params: {
+        event: {
+          type: 'tool_update',
+          toolUseId: 'tool-fallback-id',
+          toolName: 'FallbackName',
+        },
+      },
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 13,
+      params: {
+        event: {
+          type: 'tool_end',
+          id: 'tool-end-only',
+        },
+      },
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/event',
+      replaySeq: 14,
+      params: {
+        event: {
+          type: 'tool_input',
+          toolUseId: 'tool-input-only',
+          toolName: 'InputTool',
+        },
+      },
+    })
+    expect(state.toolNameByUseId).toMatchObject({
+      'tool-repeat': 'Repeat',
+      'tool-fallback-id': 'FallbackName',
+      'tool-input-only': 'InputTool',
+    })
+    expect(state.toolNameByUseId['tool-end-only']).toBeUndefined()
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/completed',
+      replaySeq: 15,
+      params: {},
+    })
+    expect(state.lastTurnStatus).toBeNull()
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/completed',
+      replaySeq: 16,
+      params: {
+        turn: {
+          id: 123,
+          status: 'completed',
+        },
+      },
+    })
+    expect(state.lastTurnId).toBeNull()
+    expect(state.lastTurnStatus).toBe('completed')
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/modeChanged',
+      replaySeq: 17,
+      params: {
+        mode: 'not-a-mode',
+      },
+    })
+    expect(state.mode).toBe('normal')
+  })
+
+  it('defaults createdAt/expiresAt and params timestamp when payload fields are absent', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'turn/bootstrap',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    const before = Date.parse(state.updatedAt)
+    state = reduceThreadRuntimeState(state, {
+      method: 'turn/inputRequested',
+      replaySeq: 2,
+      params: {
+        ts: null,
+        input: {
+          inputId: 'input-default-time',
+          turnId: 'turn-default-time',
+          kind: 'approval',
+          createdAt: 1,
+          expiresAt: null,
+        },
+      } as any,
+    })
+
+    const pending = state.pendingInputs['input-default-time']
+    expect(pending).toBeDefined()
+    expect(pending?.createdAt).toBeTypeOf('string')
+    expect(pending?.expiresAt).toBe(pending?.createdAt)
+    expect(Date.parse(state.updatedAt)).toBeGreaterThanOrEqual(before)
+  })
 })
