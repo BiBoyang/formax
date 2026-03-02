@@ -9,6 +9,7 @@
 - Golden Principles 护栏：`docs/contracts/golden-principles.md`
 - 项目语义唯一事实源（跨端 semantics）：`docs/contracts/semantics-contract.md`
 - 交互输入语义唯一事实源（approval / ask）：`docs/contracts/interactive-input-contract.md`
+- Skills 目录与调用行为唯一事实源：`docs/contracts/skills-contract.md`
 - app-server 行为合同（protocol behavior）：`docs/contracts/app-server-interaction-contract.md`
 
 ## 配置（Configuration）

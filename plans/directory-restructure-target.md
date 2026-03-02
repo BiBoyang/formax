@@ -1504,3 +1504,12 @@ src/
     - `src/features/commands/registry.ts` 中 `getSlashCommandSuggestions`
 - 明确不做：
   - 不触碰 `legacy transcript` / `legacy session reader` / `config migrate` 等行为兼容逻辑，本轮仅删除无调用导出层。
+
+## 执行状态（Phase C - Slice 99）
+
+- 状态：进行中（Skills 事实源补齐）。
+- 本轮已完成：
+  - 新增 `docs/contracts/skills-contract.md`，将 Skills 的目录发现、优先级、命名规则、元数据语义与 `.skills`/`.formax/skills` 长期并行支持治理写入规范性合同。
+  - `docs/index.md` 的 Contracts 区新增 Skills 合同入口，避免此类事实仅散落在实现/测试中。
+- 明确不做：
+  - 不改 `SkillStore` 运行逻辑，本轮仅补齐文档事实源并建立后续变更流程约束。
