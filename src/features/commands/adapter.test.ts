@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { slashEffectToCommandResult } from './adapter'
+import { isSlashCommandResultData, slashEffectToCommandResult } from './adapter'
 
 describe('slashEffectToCommandResult', () => {
   it('returns consumed=false for null', () => {
@@ -63,6 +63,21 @@ describe('slashEffectToCommandResult', () => {
     })
   })
 
+  it('maps hooks/config/resume dialogs to openOverlay', () => {
+    expect(slashEffectToCommandResult({ kind: 'open_hooks_dialog' })).toEqual({
+      consumed: true,
+      ui: [{ type: 'openOverlay', overlay: { kind: 'hooks' } }],
+    })
+    expect(slashEffectToCommandResult({ kind: 'open_config_dialog' })).toEqual({
+      consumed: true,
+      ui: [{ type: 'openOverlay', overlay: { kind: 'config' } }],
+    })
+    expect(slashEffectToCommandResult({ kind: 'open_resume_dialog' })).toEqual({
+      consumed: true,
+      ui: [{ type: 'openOverlay', overlay: { kind: 'resume' } }],
+    })
+  })
+
   it('maps unimplemented effect to appendMessages', () => {
     const result = slashEffectToCommandResult({ kind: 'unimplemented', message: 'Nope' })
     expect(result).toEqual({
@@ -81,6 +96,16 @@ describe('slashEffectToCommandResult', () => {
     })
   })
 
+  it('uses default loading text when local_async.loadingText is absent', () => {
+    const run = async () => ({ stdout: 'ok' })
+    const result = slashEffectToCommandResult({ kind: 'local_async', run })
+    expect(result).toMatchObject({
+      consumed: true,
+      ui: [{ type: 'appendMessages', messages: [{ content: 'Working...' }] }],
+      data: { kind: 'local_async' },
+    })
+  })
+
   it('maps llm effect to consumed result with llm data', () => {
     const result = slashEffectToCommandResult({
       kind: 'llm',
@@ -91,5 +116,19 @@ describe('slashEffectToCommandResult', () => {
       consumed: true,
       data: { kind: 'llm', loadingText: 'Spelunking' },
     })
+  })
+
+  it('handles undefined local stdout and validates slash result data guard', () => {
+    const local = slashEffectToCommandResult({ kind: 'local', stdout: undefined as any })
+    expect(local).toMatchObject({
+      consumed: true,
+      ui: [{ type: 'appendMessages', messages: [{ content: '' }] }],
+    })
+
+    expect(isSlashCommandResultData({ kind: 'llm', blocks: [] })).toBe(true)
+    expect(isSlashCommandResultData({ kind: 'local_async', run: async () => ({ stdout: 'x' }) })).toBe(true)
+    expect(isSlashCommandResultData({ kind: 'other' })).toBe(false)
+    expect(isSlashCommandResultData(null)).toBe(false)
+    expect(isSlashCommandResultData(123)).toBe(false)
   })
 })
