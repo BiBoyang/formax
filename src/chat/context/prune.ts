@@ -20,8 +20,8 @@ function findLastNonToolUserIndex(messages: PromptMessage[]): number {
   return -1
 }
 
-function getToolUseIds(msg: PromptMessage): string[] {
-  if (msg.role !== 'assistant' || !Array.isArray(msg.content)) return []
+function getToolUseIds(msg: PromptMessage | undefined): string[] {
+  if (!msg || msg.role !== 'assistant' || !Array.isArray(msg.content)) return []
   const ids: string[] = []
   for (const b of msg.content as any[]) {
     if (b?.type === 'tool_use' && typeof b.id === 'string') ids.push(b.id)
@@ -29,8 +29,8 @@ function getToolUseIds(msg: PromptMessage): string[] {
   return ids
 }
 
-function getToolResultIds(msg: PromptMessage): string[] {
-  if (msg.role !== 'user' || !Array.isArray(msg.content)) return []
+function getToolResultIds(msg: PromptMessage | undefined): string[] {
+  if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return []
   const ids: string[] = []
   for (const b of msg.content as any[]) {
     if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') ids.push(b.tool_use_id)
@@ -54,6 +54,7 @@ function normalizeToolPairs(messages: PromptMessage[]): PromptMessage[] {
 
   const out: PromptMessage[] = []
   for (const msg of messages) {
+    if (!msg) continue
     if (!Array.isArray(msg.content) || msg.content.length === 0) continue
 
     if (msg.role === 'assistant') {
@@ -81,16 +82,15 @@ function dropLeadingToolResultMessages(messages: PromptMessage[]): PromptMessage
 }
 
 function keepOnlyToolBlocks(msg: PromptMessage): PromptMessage | null {
-  if (!Array.isArray(msg.content) || msg.content.length === 0) return null
-
   if (msg.role === 'assistant') {
     const next = msg.content.filter((b: any) => b?.type === 'tool_use')
     return next.length > 0 ? { ...msg, content: next as any } : null
   }
 
   if (msg.role === 'user') {
-    const next = msg.content.filter((b: any) => b?.type === 'tool_result')
-    return next.length > 0 ? { ...msg, content: next as any } : null
+    // reduceToEssentialTail only reaches this branch after maxStart, where remaining
+    // user messages are tool_result carriers by construction.
+    return msg
   }
 
   return msg
@@ -148,7 +148,6 @@ function forceFit(args: { system: PromptBlock[]; budgetTokens: number; messages:
     } else {
       for (let i = candidate.length - 1; i >= 0; i--) {
         const msg = candidate[i]
-        if (!msg) continue
         if (!isToolResultMessage(msg)) {
           target = msg
           break
@@ -169,8 +168,7 @@ function forceFit(args: { system: PromptBlock[]; budgetTokens: number; messages:
 }
 
 function truncateTaggedText(raw: string, maxChars: number): string {
-  const text = String(raw ?? '')
-  if (text.length <= maxChars) return text
+  const text = raw
 
   const openMatch = text.match(/^<([a-zA-Z0-9_-]+)(?:\s[^>]*)?>/)
   if (!openMatch) return text.slice(0, maxChars) + '\n… [truncated]'
@@ -273,31 +271,6 @@ export function pruneForPromptBudget(args: {
     }
 
     start++
-  }
-
-  const normalizedAll = dropLeadingToolResultMessages(normalizeToolPairs(truncated))
-  if (normalizedAll.length > 0) {
-    return {
-      messages: forceFit({
-        system: args.system,
-        budgetTokens: budget.effectiveLimitTokens,
-        messages: normalizedAll,
-      }),
-      pruned: true,
-    }
-  }
-
-  // Last-resort fallback: prefer returning nothing over emitting a tool_result-only prompt.
-  // Callers that always append a user message (typical turn) will still be safe.
-  for (let i = truncated.length - 1; i >= 0; i--) {
-    const normalized = dropLeadingToolResultMessages(normalizeToolPairs([truncated[i]!]))
-    const msg = normalized[0]
-    if (!msg) continue
-    if (isToolResultMessage(msg)) continue
-    return {
-      messages: forceFit({ system: args.system, budgetTokens: budget.effectiveLimitTokens, messages: [msg] }),
-      pruned: true,
-    }
   }
 
   return { messages: [], pruned: true }
