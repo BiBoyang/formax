@@ -124,6 +124,7 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Static test parity**: default Vitest can miss real TTY regressions; for compact/expanded changes, validate forced-Static + terminal-model smoke (`surfaceSmoke` and `test:surface-screen-model`).
 - **Clear vs reset on Static paths**: for view-return paths touching `Static`, avoid clear-only behavior; use reset-style clear+remount transactions to prevent stale append artifacts.
 - **Surface reset skill (mandatory for clear/reset paths)**: when touching `/resume`, `/clear`, `onClearTerminal`, `transcriptSeq`, or `Static` remount logic, use `formax-surface-reset-workflow` first, and keep `/resume`/`/clear` on shared `replaceTranscript` transaction path.
+- **Vitest session isolation**: keep test session writes under `FORMAX_VITEST_SESSION_CONFIG_DIR` (system tmp) instead of `~/.formax`; use `bun run test:sessions:cleanup` for temp-root retention cleanup and `bun run test:sessions:cleanup:legacy` for one-off historical marker cleanup.
 - **Anthropic `/v1/messages` fake-overload triage**: first separate main turns from auto-title requests (`tools=0` + `thinking=false`), then debug `thinking.signature` propagation and header routing independently; see `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`.
 
 ## Local Paths

@@ -53,6 +53,7 @@ These are used by development, diagnostics, or legacy paths and are not a stable
 - `FORMAX_FORCE_INK_STATIC`
 - `FORMAX_TODOS_PATH`
 - `FORMAX_TODOS_SESSION_ID`
+- `FORMAX_VITEST_SESSION_CONFIG_DIR` (test-only session storage root override; used by Vitest setup to keep session writes out of `~/.formax`)
 - `FORMAX_SKILL_BODY_CHAR_BUDGET`
 - `FORMAX_SKILL_TOOL_CHAR_BUDGET`
 - `FORMAX_SKILL_STORE_CACHE_TTL_MS`

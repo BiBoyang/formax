@@ -214,3 +214,20 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - 使用稳定主请求 header profile（见下方链接）。
 - **Links**: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`
 - **Keywords**: anthropic, signature_delta, thinking.signature, header routing, auto-title, new_api_error, fake overload
+
+## Vitest session writes pollute `~/.formax` when not isolated
+- **Problem**: running tests can create thousands of real session files under `~/.formax/sessions` and `~/.formax/archived_sessions`, and archived threads may reappear on refresh.
+- **Repro**:
+  1) run REPL/app-server tests that exercise session save + title generation
+  2) inspect `~/.formax/sessions` and archived list in web reference UI
+  3) observe marker conversations such as `HISTLEN:*` and `ACK:Please write a 5-10 word title for the followi`
+- **Root cause**:
+  - session save path defaulted to global config root (`~/.formax`) during Vitest runs
+  - tests intentionally keep real write semantics, so artifacts accumulate unless storage root is redirected
+- **Fix**:
+  - Vitest now sets `FORMAX_VITEST_SESSION_CONFIG_DIR` per worker to a dedicated system tmp root (`<os.tmpdir()>/formax-vitest-session-config-roots/...`)
+  - session path resolver now uses `FORMAX_VITEST_SESSION_CONFIG_DIR` only when `FORMAX_CONFIG_DIR` is not explicitly set
+  - use cleanup scripts for maintenance:
+    - `bun run test:sessions:cleanup:dry` / `bun run test:sessions:cleanup`
+    - `bun run test:sessions:cleanup:legacy:dry` / `bun run test:sessions:cleanup:legacy`
+- **Keywords**: vitest, session isolation, FORMAX_VITEST_SESSION_CONFIG_DIR, tmp ledger, cleanup

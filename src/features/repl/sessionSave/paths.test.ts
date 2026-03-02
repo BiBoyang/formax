@@ -27,8 +27,64 @@ describe('sessionSave paths', () => {
   })
 
   it('builds roots from runtime defaults when optional args are omitted', () => {
-    const sessionsRoot = getSessionsRoot({ cwd: '/repo' })
-    const archivedRoot = getArchivedSessionsRoot({ cwd: '/repo' })
+    const sessionsRoot = getSessionsRoot({
+      cwd: '/repo',
+      env: {} as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
+    const archivedRoot = getArchivedSessionsRoot({
+      cwd: '/repo',
+      env: {} as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
+
+    expect(sessionsRoot).toBe('/repo/.formax/sessions')
+    expect(archivedRoot).toBe('/repo/.formax/archived_sessions')
+  })
+
+  it('uses FORMAX_VITEST_SESSION_CONFIG_DIR when FORMAX_CONFIG_DIR is not set', () => {
+    const sessionsRoot = getSessionsRoot({
+      cwd: '/repo',
+      env: {
+        FORMAX_VITEST_SESSION_CONFIG_DIR: '/tmp/formax-vitest-session-root',
+      } as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
+    const archivedRoot = getArchivedSessionsRoot({
+      cwd: '/repo',
+      env: {
+        FORMAX_VITEST_SESSION_CONFIG_DIR: '/tmp/formax-vitest-session-root',
+      } as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
+
+    expect(sessionsRoot).toBe('/tmp/formax-vitest-session-root/sessions')
+    expect(archivedRoot).toBe('/tmp/formax-vitest-session-root/archived_sessions')
+  })
+
+  it('prefers FORMAX_CONFIG_DIR over FORMAX_VITEST_SESSION_CONFIG_DIR', () => {
+    const sessionsRoot = getSessionsRoot({
+      cwd: '/repo',
+      env: {
+        FORMAX_CONFIG_DIR: '/custom-global-config',
+        FORMAX_VITEST_SESSION_CONFIG_DIR: '/tmp/formax-vitest-session-root',
+      } as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
+    const archivedRoot = getArchivedSessionsRoot({
+      cwd: '/repo',
+      env: {
+        FORMAX_CONFIG_DIR: '/custom-global-config',
+        FORMAX_VITEST_SESSION_CONFIG_DIR: '/tmp/formax-vitest-session-root',
+      } as any,
+      platform: 'darwin',
+      homedir: '/Users/demo',
+    })
 
     expect(sessionsRoot).toBe('/repo/.formax/sessions')
     expect(archivedRoot).toBe('/repo/.formax/archived_sessions')

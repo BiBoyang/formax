@@ -294,6 +294,7 @@ When you hit a non-obvious pitfall (tooling quirks, repo conventions, environmen
 - **Surface reset workflow skill required on clear/reset changes**: for `/resume`, `/clear`, `onClearTerminal`, `transcriptSeq`, or `Static` remount paths, apply `formax-surface-reset-workflow` before implementation, and keep `/resume`/`/clear` on shared `replaceTranscript` transaction path.
 - **Resume selection must use shared surface reset transaction**: `/resume` Enter path should go through `resetTranscriptSurface` queue; avoid ad-hoc clear/remount sequencing and avoid duplicate terminal clear paths (`replInstance.clear` + ANSI).
 - **Anthropic `/v1/messages` fake-overload triage**: separate main turns from auto-title (`tools=0` + `thinking=false`) before A/B, and debug `thinking.signature` propagation separately from header profile routing. Details: `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`.
+- **Vitest session isolation required**: test runs must keep session writes under `FORMAX_VITEST_SESSION_CONFIG_DIR` (system tmp ledger) instead of `~/.formax`; use `bun run test:sessions:cleanup` and `bun run test:sessions:cleanup:legacy` for routine and one-off cleanup.
 
 ## Module Documentation
 
