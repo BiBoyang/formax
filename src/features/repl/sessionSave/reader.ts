@@ -285,7 +285,7 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
   })
 
   for await (const line of rl) {
-    const trimmed = String(line ?? '').trimEnd()
+    const trimmed = String(line).trimEnd()
     if (!trimmed) continue
     let parsed: unknown
     try {
@@ -391,7 +391,7 @@ export async function findLatestSessionFile(args: {
   const cwdReal = await fsp.realpath(args.cwd).catch(() => null)
   const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
-  candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  candidates.sort((a, b) => b.localeCompare(a))
 
   for (const filePath of candidates) {
     try {
@@ -418,12 +418,12 @@ export async function findSessionFileBySessionId(args: {
   archived?: boolean
 }): Promise<string | null> {
   const sessionsRoot = args.archived ? getArchivedSessionsRoot(args) : getSessionsRoot(args)
-  const sessionId = String(args.sessionId ?? '').trim()
+  const sessionId = String(args.sessionId).trim()
   if (!sessionId) return null
   const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
   // Newer files first, in case duplicate session ids exist due to manual edits.
-  candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  candidates.sort((a, b) => b.localeCompare(a))
 
   for (const filePath of candidates) {
     try {
@@ -444,7 +444,7 @@ async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord>
   let meta: SessionMetaRecord | null = null
   try {
     for await (const line of rl) {
-      const trimmed = String(line ?? '').trimEnd()
+      const trimmed = String(line).trimEnd()
       if (!trimmed) continue
       const parsed = JSON.parse(trimmed) as unknown
       if (!isObject(parsed)) break
@@ -585,7 +585,7 @@ export async function listRecentSessions(args: {
   const limit = args.limit ?? 200
   const candidates = await collectSessionCandidates({ root: sessionsRoot, archived: Boolean(args.archived) })
 
-  candidates.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+  candidates.sort((a, b) => b.localeCompare(a))
 
   const out: SessionSummary[] = []
 

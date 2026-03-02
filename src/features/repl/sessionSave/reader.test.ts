@@ -9,6 +9,7 @@ import {
   findSessionFileBySessionId,
   listRecentSessions,
   readSessionFile,
+  readSessionSummary,
   readSessionPreview,
 } from './reader'
 import type { Msg } from './types'
@@ -193,6 +194,21 @@ describe('sessionSave/reader helpers', () => {
     expect(mergedPersistedWins.toolInfo?.result).toBe('persisted result')
     expect(mergedPersistedWins.toolInfo?.middleLines).toEqual(['persisted line'])
     expect(mergedPersistedWins.toolInfo?.patchStartLineNumber).toBe(7)
+
+    const mergedUndefined = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+      persisted: {
+        ...msg,
+        content: undefined as any,
+        toolInfo: { ...msg.toolInfo!, input: undefined, result: undefined, middleLines: undefined },
+      } as Msg,
+      legacy: {
+        ...msg,
+        content: undefined as any,
+        toolInfo: { ...msg.toolInfo!, input: undefined, result: undefined, middleLines: undefined },
+      } as Msg,
+    })
+    expect(mergedUndefined.toolInfo?.input).toBeUndefined()
+    expect(mergedUndefined.content).toBeUndefined()
   })
 
   it('covers metadata/tail/preview helpers', async () => {
@@ -409,6 +425,14 @@ describe('sessionSave/reader helpers', () => {
         limit: 2,
       }),
     ).toEqual([])
+    expect(
+      await findSessionFileBySessionId({
+        cwd: badCwd,
+        env: { ...process.env, FORMAX_CONFIG_DIR: tmp },
+        sessionId: 'x',
+        archived: true,
+      }),
+    ).toBeNull()
   })
 
   it('covers collectSessionCandidates nested readdir catch paths via mocks', async () => {
@@ -453,7 +477,11 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
     readdirSpy.mockImplementationOnce(async () => [direntDir('02')])
     readdirSpy.mockImplementationOnce(async () => [direntDir('03')])
-    readdirSpy.mockImplementationOnce(async () => [direntFile('ok.jsonl')])
+    readdirSpy.mockImplementationOnce(async () => [
+      direntFile('ok.jsonl'),
+      direntFile('skip.txt'),
+      { name: 'not-file', isFile: () => false, isDirectory: () => false } as any,
+    ])
     const archived = await __readerTestOnly.collectSessionCandidates({ root: '/x', archived: true })
     expect(archived).toEqual(['/x/2026/02/03/ok.jsonl'])
 
@@ -482,13 +510,59 @@ describe('sessionSave/reader helpers', () => {
     await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
 
     readdirSpy.mockReset()
-    readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
-    readdirSpy.mockImplementationOnce(async () => [direntDir('02')])
-    readdirSpy.mockImplementationOnce(async () => [direntDir('03')])
-    readdirSpy.mockImplementationOnce(async () => [direntFile('ok2.jsonl')])
+    readdirSpy.mockImplementationOnce(async () => [
+      direntDir('2026'),
+      direntFile('root-file.txt'),
+      { name: 'root-other', isFile: () => false, isDirectory: () => false } as any,
+    ])
+    readdirSpy.mockImplementationOnce(async () => [
+      direntDir('02'),
+      direntFile('year-file.txt'),
+      { name: 'year-other', isFile: () => false, isDirectory: () => false } as any,
+    ])
+    readdirSpy.mockImplementationOnce(async () => [
+      direntDir('03'),
+      direntFile('month-file.txt'),
+      { name: 'month-other', isFile: () => false, isDirectory: () => false } as any,
+    ])
+    readdirSpy.mockImplementationOnce(async () => [
+      direntFile('ok2.jsonl'),
+      direntFile('skip2.md'),
+      { name: 'day-other', isFile: () => false, isDirectory: () => false } as any,
+    ])
     const active = await __readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })
     expect(active).toEqual(['/x/2026/02/03/ok2.jsonl'])
 
+    readdirSpy.mockRestore()
+  })
+
+  it('covers archived candidate filtering branches with mixed dirent shapes', async () => {
+    const direntDir = (name: string) =>
+      ({
+        name,
+        isFile: () => false,
+        isDirectory: () => true,
+      }) as any
+    const direntFile = (name: string) =>
+      ({
+        name,
+        isFile: () => true,
+        isDirectory: () => false,
+      }) as any
+    const direntOther = (name: string) =>
+      ({
+        name,
+        isFile: () => false,
+        isDirectory: () => false,
+      }) as any
+
+    const readdirSpy = vi.spyOn(fs, 'readdir')
+    readdirSpy.mockImplementationOnce(async () => [direntDir('2026'), direntFile('root.log'), direntOther('x')])
+    readdirSpy.mockImplementationOnce(async () => [direntDir('02'), direntFile('month.log'), direntOther('m')])
+    readdirSpy.mockImplementationOnce(async () => [direntDir('03'), direntFile('day.log'), direntOther('d')])
+    readdirSpy.mockImplementationOnce(async () => [direntFile('ok.jsonl'), direntFile('skip.txt'), direntOther('f')])
+    const out = await __readerTestOnly.collectSessionCandidates({ root: '/mixed', archived: true })
+    expect(out).toEqual(['/mixed/2026/02/03/ok.jsonl'])
     readdirSpy.mockRestore()
   })
 
@@ -552,5 +626,312 @@ describe('sessionSave/reader helpers', () => {
     )
     const replay = await readSessionFile(malformedReplay)
     expect(replay.messages).toEqual([])
+
+    const unknownTypeReplay = path.join(tmp, 'unknown-type.jsonl')
+    await fs.writeFile(
+      unknownTypeReplay,
+      [
+        JSON.stringify({
+          type: 'session_meta',
+          v: 1,
+          ts: '2026-02-02T00:00:00.000Z',
+          sessionId: 'unknown-type',
+          startedAt: '2026-02-02T00:00:00.000Z',
+          cwd: tmp,
+          provider: 'anthropic',
+        }),
+        JSON.stringify({ type: 'mystery_record', v: 1, ts: '2026-02-02T00:00:01.000Z' }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const unknownReplay = await readSessionFile(unknownTypeReplay)
+    expect(unknownReplay.meta.sessionId).toBe('unknown-type')
+
+    const duplicatedTool = path.join(tmp, 'dup-tool.jsonl')
+    await fs.writeFile(
+      duplicatedTool,
+      [
+        JSON.stringify({
+          type: 'session_meta',
+          v: 1,
+          ts: '2026-02-02T00:00:00.000Z',
+          sessionId: 'dup-tool',
+          startedAt: '2026-02-02T00:00:00.000Z',
+          cwd: tmp,
+          provider: 'anthropic',
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.000Z',
+          name: 'app_tool_event',
+          data: { toolUseId: 'dup-1', toolName: 'Read', phase: 'end', status: 'completed', summary: 'done' },
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.500Z',
+          name: 'app_tool_event',
+          data: { toolName: 'Read', phase: 'start', status: 'running', summary: 'running' },
+        }),
+        JSON.stringify({
+          type: 'ui_msg',
+          v: 1,
+          ts: '2026-02-02T00:00:02.000Z',
+          msg: {
+            id: 'tool-dup-1',
+            role: 'tool',
+            content: 'ui row',
+            timestamp: '2026-02-02T00:00:02.000Z',
+            toolInfo: { name: 'Read', status: 'completed' },
+          },
+        }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const replayDup = await readSessionFile(duplicatedTool)
+    expect(replayDup.messages.some((msg) => msg.id === 'tool-dup-1')).toBe(true)
+    const replayEventOnly = await readSessionFile(
+      await (async () => {
+        const p = path.join(tmp, 'event-only.jsonl')
+        await fs.writeFile(
+          p,
+          [
+            JSON.stringify({
+              type: 'session_meta',
+              v: 1,
+              ts: '2026-02-02T00:00:00.000Z',
+              sessionId: 'event-only',
+              startedAt: '2026-02-02T00:00:00.000Z',
+              cwd: tmp,
+              provider: 'anthropic',
+            }),
+            JSON.stringify({
+              type: 'event',
+              v: 1,
+              ts: '2026-02-02T00:00:01.000Z',
+              name: 'app_tool_event',
+              data: { toolUseId: 'evt-only-1', toolName: 'Read', phase: 'end', status: 'completed', summary: 'done' },
+            }),
+          ].join('\n') + '\n',
+          'utf8',
+        )
+        return p
+      })(),
+    )
+    expect(replayEventOnly.messages.some((msg) => msg.role === 'tool')).toBe(true)
+
+    const summaryBreak = path.join(tmp, 'summary-break.jsonl')
+    await fs.writeFile(
+      summaryBreak,
+      [
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:00.000Z',
+          name: 'ui_stats',
+          data: { uiMsgCount: 8, lastUserPrompt: 'fallback-title' },
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.000Z',
+          name: 'session_rename',
+          data: { label: 'L1' },
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:02.000Z',
+          name: 'app_turn_started',
+          data: { cwd: '/definitely/not/exist' },
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:03.000Z',
+          name: 'ui_stats',
+          data: { uiMsgCount: 9, firstUserPrompt: 'preferred-title' },
+        }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:04.000Z', name: '  ', data: {} }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:05.000Z', name: 'ui_stats', data: 1 }),
+        '1',
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const summaryData = await __readerTestOnly.readTailSummaryData(summaryBreak)
+    expect(summaryData.messageCount).toBe(9)
+    expect(summaryData.lastUserPrompt).toBe('preferred-title')
+    expect(summaryData.label).toBe('L1')
+    expect(summaryData.latestTurnCwd).toBe('/definitely/not/exist')
+
+    const uiStatsNoBreakFile = path.join(tmp, 'summary-ui-no-break.jsonl')
+    await fs.writeFile(
+      uiStatsNoBreakFile,
+      [
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:00.000Z', name: 'session_rename', data: { label: 'R' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:01.000Z', name: 'app_turn_started', data: { cwd: tmp } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:02.000Z', name: 'ui_stats', data: { uiMsgCount: 2, firstUserPrompt: 'first' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:03.000Z', name: 'ui_stats', data: { uiMsgCount: 3, lastUserPrompt: 'second' } }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const uiStatsNoBreak = await __readerTestOnly.readTailSummaryData(uiStatsNoBreakFile)
+    expect(uiStatsNoBreak.messageCount).toBe(3)
+    expect(uiStatsNoBreak.lastUserPrompt).toBe('second')
+
+    const uiStatsBreakByAllSetFile = path.join(tmp, 'summary-ui-break-allset.jsonl')
+    await fs.writeFile(
+      uiStatsBreakByAllSetFile,
+      [
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:00.000Z', name: 'ui_stats', data: { uiMsgCount: 7, firstUserPrompt: 'target' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:01.000Z', name: 'session_rename', data: { label: 'L2' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:02.000Z', name: 'app_turn_started', data: { cwd: tmp } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:03.000Z', name: 'ui_stats', data: { uiMsgCount: 8 } }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const uiStatsBreakByAllSet = await __readerTestOnly.readTailSummaryData(uiStatsBreakByAllSetFile)
+    expect(uiStatsBreakByAllSet.messageCount).toBe(8)
+
+    const appTurnBreakFile = path.join(tmp, 'summary-app-break.jsonl')
+    await fs.writeFile(
+      appTurnBreakFile,
+      [
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:00.000Z', name: 'app_turn_started', data: { cwd: tmp } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:01.000Z', name: 'session_rename', data: { label: 'R' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:02.000Z', name: 'ui_stats', data: { uiMsgCount: 1, firstUserPrompt: 'p1' } }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const appTurnBreak = await __readerTestOnly.readTailSummaryData(appTurnBreakFile)
+    expect(appTurnBreak.latestTurnCwd).toBe(tmp)
+    expect(appTurnBreak.label).toBe('R')
+
+    const uiStatsBreakFile = path.join(tmp, 'summary-ui-break.jsonl')
+    await fs.writeFile(
+      uiStatsBreakFile,
+      [
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:00.000Z', name: 'ui_stats', data: { uiMsgCount: 3, firstUserPrompt: 'first' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:01.000Z', name: 'session_rename', data: { label: 'L' } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:02.000Z', name: 'app_turn_started', data: { cwd: tmp } }),
+        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:03.000Z', name: 'ui_stats', data: { uiMsgCount: 4, lastUserPrompt: 'second' } }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const uiStatsBreak = await __readerTestOnly.readTailSummaryData(uiStatsBreakFile)
+    expect(uiStatsBreak.messageCount).toBe(4)
+    expect(uiStatsBreak.lastUserPrompt).toBe('second')
+
+    const summaryReadPath = path.join(tmp, 'summary-read.jsonl')
+    await fs.writeFile(
+      summaryReadPath,
+      [
+        JSON.stringify({
+          type: 'session_meta',
+          v: 1,
+          ts: '2026-02-02T00:00:00.000Z',
+          sessionId: 'summary-read',
+          startedAt: '2026-02-02T00:00:00.000Z',
+          cwd: tmp,
+          cwdReal: '/old/real/path',
+          provider: 'anthropic',
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.000Z',
+          name: 'app_turn_started',
+          data: { cwd: '/definitely/not/exist' },
+        }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+    const summaryFromFile = await readSessionSummary(summaryReadPath)
+    expect(summaryFromFile.meta.cwd).toBe('/definitely/not/exist')
+    expect(summaryFromFile.meta.cwdReal).toBeUndefined()
+
+    expect(__readerTestOnly.coerceString(1)).toBeNull()
+
+    const listRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-list-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: listRoot }
+    const cwdForList = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-list-cwd-'))
+    const sessionsRoot = getSessionsRoot({ cwd: cwdForList, env })
+    const p1 = getSessionFilePath({ sessionsRoot, now: new Date('2026-02-06T00:00:00.000Z'), sessionId: 'l1' })
+    const p2 = getSessionFilePath({ sessionsRoot, now: new Date('2026-02-07T00:00:00.000Z'), sessionId: 'l2' })
+    await fs.mkdir(path.dirname(p1), { recursive: true })
+    await fs.mkdir(path.dirname(p2), { recursive: true })
+    await fs.writeFile(
+      p1,
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 'l1',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: cwdForList,
+        cwdReal: '/mismatch-real',
+        provider: 'anthropic',
+      }) + '\n',
+      'utf8',
+    )
+    await fs.writeFile(
+      p2,
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 'l2',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: path.join(cwdForList, 'other'),
+        provider: 'anthropic',
+      }) + '\n',
+      'utf8',
+    )
+    const scoped = await listRecentSessions({
+      cwd: cwdForList,
+      env,
+      includeAllProjects: false,
+      limit: 1,
+    })
+    expect(scoped.length).toBeLessThanOrEqual(1)
+
+    const sameCwdNoReal = getSessionFilePath({ sessionsRoot, now: new Date('2026-02-08T00:00:00.000Z'), sessionId: 'l3' })
+    await fs.mkdir(path.dirname(sameCwdNoReal), { recursive: true })
+    await fs.writeFile(
+      sameCwdNoReal,
+      JSON.stringify({
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-02-02T00:00:00.000Z',
+        sessionId: 'l3',
+        startedAt: '2026-02-02T00:00:00.000Z',
+        cwd: cwdForList,
+        provider: 'anthropic',
+      }) + '\n',
+      'utf8',
+    )
+    const scopedNoMismatch = await listRecentSessions({
+      cwd: cwdForList,
+      env,
+      includeAllProjects: false,
+    })
+    expect(scopedNoMismatch.some((s) => s.meta.sessionId === 'l3')).toBe(true)
+
+    const limited = await listRecentSessions({
+      cwd: cwdForList,
+      env,
+      includeAllProjects: true,
+      limit: 1,
+    })
+    expect(limited.length).toBe(1)
+
+    const openSpy = vi.spyOn(fs, 'open').mockResolvedValue({
+      stat: vi.fn().mockResolvedValue({ size: 0 }),
+      read: vi.fn(),
+      close: vi.fn().mockRejectedValue(new Error('close-fail')),
+    } as any)
+    await expect(__readerTestOnly.readTailText(path.join(tmp, 'any.jsonl'), 64)).resolves.toBe('')
+    openSpy.mockRestore()
   })
 })
