@@ -21,3 +21,4 @@ snapshort/
 .skills/
 repomix-output/
 .tmp/
+plans/claude-agent-sdk/*
