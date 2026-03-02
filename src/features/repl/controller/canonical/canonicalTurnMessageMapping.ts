@@ -5,7 +5,7 @@ import { selectToolPresentation } from '../../../semantics/selectors/toolPresent
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'
-import { parseTaskTranscript } from '../send/taskResult'
+import { parseTaskTranscript } from '../../../semantics/selectors/taskResultParsing'
 
 function decodeParamValue(value: string, valueType: 'string' | 'json'): unknown {
   if (valueType === 'string') return value

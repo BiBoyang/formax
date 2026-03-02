@@ -17,7 +17,7 @@ vi.mock('./openai/StreamClient.js', () => ({
   OpenAIStreamClient: mocks.openaiCtor,
 }))
 
-import { createAnthropicCompatibleStreamClient, createStreamClient } from './index'
+import { createAnthropicCompatibleStreamClient } from './index'
 
 describe('streaming/index', () => {
   it('creates anthropic stream client', () => {
@@ -38,7 +38,7 @@ describe('streaming/index', () => {
     expect(out).toEqual({ kind: 'anthropic', args: expect.any(Object) })
   })
 
-  it('creates openai stream client and supports backward-compatible alias', () => {
+  it('creates openai stream client', () => {
     const out = createAnthropicCompatibleStreamClient({
       provider: 'openai',
       apiKey: 'k2',
@@ -53,13 +53,6 @@ describe('streaming/index', () => {
     })
     expect(out).toEqual({ kind: 'openai', args: expect.any(Object) })
 
-    const aliasOut = createStreamClient({
-      provider: 'anthropic',
-      apiKey: 'a',
-      baseUrl: 'https://anthropic.example.com',
-      model: 'claude-3',
-    })
-    expect(aliasOut).toEqual({ kind: 'anthropic', args: expect.any(Object) })
   })
 
   it('throws for unsupported providers', () => {

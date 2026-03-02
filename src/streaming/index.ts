@@ -36,8 +36,5 @@ export function createAnthropicCompatibleStreamClient(
   throw new Error(`Provider "${args.provider}" is not supported yet`)
 }
 
-// Backward-compatible alias while callers migrate naming.
-export const createStreamClient = createAnthropicCompatibleStreamClient
-
 export { AnthropicStreamClient } from './anthropic/StreamClient.js'
 export { OpenAIStreamClient } from './openai/StreamClient.js'

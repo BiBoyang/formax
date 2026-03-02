@@ -2,7 +2,7 @@ import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TokenUsage } from '../../../../streaming/types'
 import type { ToolResult } from '../../../../tools/types'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'
-import { parseBackgroundTaskId, parseTaskTranscript } from '../send/taskResult'
+import { parseBackgroundTaskId, parseTaskTranscript } from '../../../semantics/selectors/taskResultParsing'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
 
 export type TaskToolCompletionStats = {

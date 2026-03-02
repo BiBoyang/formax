@@ -1489,3 +1489,18 @@ src/
   - 保持 `findSnippetStartLineNumber` 实现与行为不变，仅减少一层路径跳转。
 - 明确不做：
   - 不调整行号计算算法与 patch 渲染行为，仅做导入链路收口。
+
+## 执行状态（Phase C - Slice 98）
+
+- 状态：进行中（无调用兼容层批量删除）。
+- 本轮已完成：
+  - 删除 `src/features/repl/controller/send/taskResult.ts` 薄 shim，并移除其重复测试文件。
+  - REPL 调用方直接改为依赖 `src/features/semantics/selectors/taskResultParsing`：
+    - `src/features/repl/controller/streaming/streamingToolCompletion.ts`
+    - `src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
+  - 删除无仓内调用的兼容导出/别名：
+    - `src/tui/agents/AgentsDialog.tsx` 类型 re-export
+    - `src/streaming/index.ts` 中 `createStreamClient` alias
+    - `src/features/commands/registry.ts` 中 `getSlashCommandSuggestions`
+- 明确不做：
+  - 不触碰 `legacy transcript` / `legacy session reader` / `config migrate` 等行为兼容逻辑，本轮仅删除无调用导出层。

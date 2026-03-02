@@ -46,9 +46,6 @@ import {
 } from './utils.js'
 import { dialogReducer, initialDialogState } from './reducer.js'
 
-// Re-export public types for backward compatibility
-export type { AgentsDialogGenerateDraft, AgentsDialogSaveArgs, AgentsDialogSaveResult } from '../../shared/replDialogContracts.js'
-
 export function AgentsDialog({
   agents,
   toolNames,

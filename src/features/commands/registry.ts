@@ -409,12 +409,6 @@ export function createSlashCommandRegistry(deps: {
   return { list, suggest, dispatch }
 }
 
-export function getSlashCommandSuggestions(input: string): SlashCommandSpec[] {
-  // Backwards-compatible helper for legacy call sites (no plugins, no dispatch).
-  const configPaths = getConfigPaths({ cwd: process.cwd(), env: process.env })
-  return createSlashCommandRegistry({ cwd: process.cwd(), globalConfigDir: configPaths.globalConfigDir }).suggest(input)
-}
-
 export function parseSlashCommand(input: string): { command: string; args: string } | null {
   const raw = (input || '').trim()
   if (!raw.startsWith('/')) return null
