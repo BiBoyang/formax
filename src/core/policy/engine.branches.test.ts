@@ -12,6 +12,29 @@ function makeRule(partial: Pick<PolicyRule, 'ruleId' | 'createdAt' | 'scope' | '
 }
 
 describe('policy engine branch guards', () => {
+  it('keeps better candidate when a later rule has lower priority (continue branch)', () => {
+    const rules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'deny-first',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'deny',
+        match: { kind: 'fs.read', path: '/repo/src' },
+      }),
+      makeRule({
+        ruleId: 'allow-later',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'fs.read', path: '/repo/src' },
+      }),
+    ]
+
+    const out = explainPolicy({ action: { kind: 'fs.read', path: '/repo/src/index.ts' }, rules })
+    expect(out.decision).toBe('deny')
+    expect(out.matchedRule?.ruleId).toBe('deny-first')
+  })
+
   it('handles slash normalization and bounded matches', () => {
     const rules: PolicyRule[] = [
       makeRule({
@@ -73,5 +96,65 @@ describe('policy engine branch guards', () => {
       'search-prefix',
     )
     expect(explainPolicy({ action: { kind: 'tool.install', tool: 'ripgrep' }, rules }).matchedRule?.ruleId).toBe('install-tool')
+  })
+
+  it('covers exact and non-matching boundaries for path/word and non-matching tool/url/query values', () => {
+    const pathRules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'exact-path',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'fs.read', path: '/repo/exact' },
+      }),
+    ]
+    expect(explainPolicy({ action: { kind: 'fs.read', path: '/repo/exact' }, rules: pathRules }).matchedRule?.ruleId).toBe(
+      'exact-path',
+    )
+    expect(explainPolicy({ action: { kind: 'fs.read', path: '/repo/other' }, rules: pathRules }).matchedRule).toBeUndefined()
+
+    const bashRules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'bash-exact',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'bash.exec', commandPrefix: 'echo' },
+      }),
+    ]
+    expect(explainPolicy({ action: { kind: 'bash.exec', command: 'echo' }, rules: bashRules }).matchedRule?.ruleId).toBe(
+      'bash-exact',
+    )
+    expect(explainPolicy({ action: { kind: 'bash.exec', command: 'printf x' }, rules: bashRules }).matchedRule).toBeUndefined()
+
+    const netToolRules: PolicyRule[] = [
+      makeRule({
+        ruleId: 'fetch-prefix',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'net.fetch', urlPrefix: 'https://allowed.example/' },
+      }),
+      makeRule({
+        ruleId: 'search-prefix',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'net.search', queryPrefix: 'find me' },
+      }),
+      makeRule({
+        ruleId: 'install-tool',
+        createdAt: '2026-01-01T00:00:00Z',
+        scope: 'project',
+        decision: 'allow',
+        match: { kind: 'tool.install', tool: 'ripgrep' },
+      }),
+    ]
+
+    expect(
+      explainPolicy({ action: { kind: 'net.fetch', url: 'https://denied.example/path' }, rules: netToolRules }).matchedRule,
+    ).toBeUndefined()
+    expect(explainPolicy({ action: { kind: 'net.search', query: 'other query' }, rules: netToolRules }).matchedRule).toBeUndefined()
+    expect(explainPolicy({ action: { kind: 'tool.install', tool: 'fd' }, rules: netToolRules }).matchedRule).toBeUndefined()
   })
 })

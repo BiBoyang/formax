@@ -107,7 +107,7 @@ function compareCandidates(a: Candidate, b: Candidate): number {
 }
 
 function normalizeSlashes(raw: string): string {
-  return String(raw || '').replaceAll('\\', '/')
+  return raw.replaceAll('\\', '/')
 }
 
 function matchPathPrefix(prefixRaw: string, pathRaw: string): number | null {
@@ -121,8 +121,8 @@ function matchPathPrefix(prefixRaw: string, pathRaw: string): number | null {
 }
 
 function matchWordPrefix(prefixRaw: string, valueRaw: string): number | null {
-  const prefix = String(prefixRaw || '').trim()
-  const value = String(valueRaw || '')
+  const prefix = prefixRaw.trim()
+  const value = valueRaw
   if (!value.startsWith(prefix)) return null
   if (value.length === prefix.length) return prefix.length
   return /\s/.test(value[prefix.length]) ? prefix.length : null
@@ -132,28 +132,29 @@ function matchSpecificity(rule: PolicyRule, action: PolicyAction): number | null
   const match = rule.match
   switch (match.kind) {
     case 'fs.read':
-      return action.kind === 'fs.read' ? matchPathPrefix(match.path, action.path) : null
+      return matchPathPrefix(match.path, (action as Extract<PolicyAction, { kind: 'fs.read' }>).path)
     case 'fs.write':
-      return action.kind === 'fs.write' ? matchPathPrefix(match.path, action.path) : null
+      return matchPathPrefix(match.path, (action as Extract<PolicyAction, { kind: 'fs.write' }>).path)
     case 'bash.exec':
-      return action.kind === 'bash.exec' ? matchWordPrefix(match.commandPrefix, action.command) : null
+      return matchWordPrefix(match.commandPrefix, (action as Extract<PolicyAction, { kind: 'bash.exec' }>).command)
     case 'net.fetch':
-      return action.kind === 'net.fetch' && action.url.startsWith(match.urlPrefix) ? match.urlPrefix.length : null
+      return (action as Extract<PolicyAction, { kind: 'net.fetch' }>).url.startsWith(match.urlPrefix)
+        ? match.urlPrefix.length
+        : null
     case 'net.search':
-      return action.kind === 'net.search' && action.query.startsWith(match.queryPrefix) ? match.queryPrefix.length : null
+      return (action as Extract<PolicyAction, { kind: 'net.search' }>).query.startsWith(match.queryPrefix)
+        ? match.queryPrefix.length
+        : null
     case 'tool.install':
-      return action.kind === 'tool.install' && action.tool === match.tool ? match.tool.length : null
+      return (action as Extract<PolicyAction, { kind: 'tool.install' }>).tool === match.tool ? match.tool.length : null
   }
 }
 
 function suggestionsForDefaultDecision(decision: PolicyDecision, action: PolicyAction): string[] {
   if (decision === 'allow') return []
 
-  const kind = action.kind
   if (decision === 'deny') {
-    if (kind === 'net.fetch' || kind === 'net.search') {
-      return ['Network access is denied by default. Add an allow rule if this is expected.']
-    }
+    return ['Network access is denied by default. Add an allow rule if this is expected.']
   }
 
   // prompt

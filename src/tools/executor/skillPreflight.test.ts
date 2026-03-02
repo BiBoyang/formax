@@ -63,6 +63,32 @@ describe('createSkillPreflight', () => {
     }
   })
 
+  it('falls back to process.cwd() when ctx.cwd is empty', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-cwd-fallback-'))
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+    try {
+      const store = createNodeFileStore()
+      await fs.mkdir(dir, { recursive: true })
+
+      const key = buildSkillPermissionKey('frontend-design')
+      const filePath = getProjectSettingsLocalPath(dir)
+      await store.writeJsonAtomic(filePath, {
+        version: 1,
+        permissions: { allow: [key], ask: [], deny: [], workspace: { additionalDirectories: [] } },
+      })
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput: null })
+      const res = await preflight(
+        { id: 't-cwd-fallback', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: '', agentDepth: 0 },
+      )
+      expect(res).toBeNull()
+    } finally {
+      cwdSpy.mockRestore()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('allows Skill when it is already on the repo allow-list', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-allowed-'))
     try {

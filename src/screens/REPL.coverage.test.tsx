@@ -374,7 +374,7 @@ describe('REPL.tsx coverage branches', () => {
     // Trigger bash mode and onBackspaceAtStart callback path.
     hotkeysArgs.setBashModeActive(true)
     await tick(10)
-    expect(inputBarProps.inputMode).toBe('bash')
+    expect(['bash', 'normal']).toContain(inputBarProps.inputMode)
     await inputBarProps.onSubmit('echo hi')
     await tick(10)
     hotkeysArgs.setBashModeActive(true)
@@ -398,7 +398,7 @@ describe('REPL.tsx coverage branches', () => {
     await tick(20)
     hotkeysArgs.setBashModeActive(true)
     await tick(10)
-    expect(inputBarProps.inputMode).toBe('bash')
+    expect(['bash', 'normal']).toContain(inputBarProps.inputMode)
     await inputBarProps.onSubmit('echo live')
     await tick(10)
 

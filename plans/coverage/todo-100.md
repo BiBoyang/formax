@@ -1,42 +1,64 @@
-## 重要
-1. 不要中途停下，直到todolist 做完
-2. 做完的item可以删除，减少干扰
-3. 如果 todo 没有做完，不要停止
+# Coverage 100 TODO (4 Metrics)
 
+Generated: 2026-03-02T06:47:42.901Z
+Coverage source: `coverage/coverage-final.json`
+Total files: 422
+Files with any metric <100%: 53
 
-- [ ] src/app-server/threadStore.ts
-- [ ] src/app-server/turnRunner.ts
-- [ ] src/chat/context/prune.ts
-- [ ] src/chat/engine.ts
-- [ ] src/cli/main.ts
-- [ ] src/commands/CommandStore.ts
-- [ ] src/env/config.ts
-- [ ] src/features/commands/adapter.ts
-- [ ] src/features/commands/configDialogService.ts
-- [ ] src/features/commands/registry.ts
-- [ ] src/features/repl/controller/canonical/canonicalInvariants.ts
-- [ ] src/features/repl/controller/canonical/canonicalTailMerge.ts
-- [ ] src/features/repl/controller/canonical/canonicalTurnMerge.ts
-- [ ] src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts
-- [ ] src/features/repl/controller/send/bashMode.ts
-- [ ] src/features/repl/controller/send/compactFlow.ts
-- [ ] src/features/repl/controller/send/send.ts
-- [ ] src/features/repl/controller/send/sendAutoCompact.ts
-- [ ] src/features/repl/controller/send/sendMainTurn.ts
-- [ ] src/features/repl/controller/send/sendOrchestration.ts
-- [ ] src/features/repl/controller/send/sendPreMainRouting.ts
-- [ ] src/features/repl/controller/streaming/streaming.ts
-- [ ] src/features/repl/sessionSave/reader.ts
-- [ ] src/features/repl/sessionSave/writer.ts
-- [ ] src/features/repl/useReplController.ts
-- [ ] src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts
-- [ ] src/features/semantics/projection/transcriptProjection.ts
-- [ ] src/features/semantics/projection/transcriptProjectionMessageReducer.ts
-- [ ] src/features/semantics/projection/transcriptProjectionTextReducer.ts
-- [ ] src/features/semantics/projection/transcriptProjectionToolReducer.ts
-- [ ] src/features/semantics/projection/transcriptProjectionTurnReducer.ts
-- [ ] src/features/semantics/runtime/inputStateMachine.ts
-- [ ] src/features/semantics/runtime/threadRuntimeState.ts
-- [ ] src/screens/repl/transcript.tsx
-- [ ] src/streaming/anthropic/StreamClient.ts
-- [ ] src/streaming/openai/StreamClient.ts
+Rule: each file must satisfy s=100%, b=100%, f=100%, l=100%.
+
+## Checklist
+
+- [ ] `src/app-server/threadStore.ts` (min=69.28%, s=84.80%, f=100.00%, b=69.28%, l=100.00%, stmts=342)
+- [ ] `src/app-server/turn/inputStore.ts` (min=98.31%, s=98.75%, f=100.00%, b=98.31%, l=100.00%, stmts=80)
+- [ ] `src/app-server/turnRunner.ts` (min=68.75%, s=86.47%, f=84.78%, b=68.75%, l=100.00%, stmts=340)
+- [ ] `src/chat/context/prune.ts` (min=65.79%, s=75.92%, f=100.00%, b=65.79%, l=100.00%, stmts=191)
+- [ ] `src/chat/engine.ts` (min=87.93%, s=94.48%, f=100.00%, b=87.93%, l=100.00%, stmts=163)
+- [ ] `src/components/ui/MarkdownBlock.tsx` (min=97.37%, s=100.00%, f=100.00%, b=97.37%, l=100.00%, stmts=75)
+- [ ] `src/config/config.ts` (min=97.30%, s=100.00%, f=100.00%, b=97.30%, l=100.00%, stmts=34)
+- [ ] `src/config/settings/resolve.ts` (min=66.79%, s=86.75%, f=100.00%, b=66.79%, l=100.00%, stmts=151)
+- [ ] `src/core/diagnostics/debugBundle.ts` (min=54.55%, s=82.35%, f=100.00%, b=54.55%, l=100.00%, stmts=68)
+- [ ] `src/core/diagnostics/doctor.ts` (min=78.13%, s=91.38%, f=100.00%, b=78.13%, l=100.00%, stmts=58)
+- [ ] `src/core/diagnostics/format.ts` (min=94.12%, s=100.00%, f=100.00%, b=94.12%, l=100.00%, stmts=88)
+- [ ] `src/core/diagnostics/redaction.ts` (min=90.91%, s=100.00%, f=100.00%, b=90.91%, l=100.00%, stmts=22)
+- [ ] `src/core/setup/session.ts` (min=71.20%, s=86.26%, f=100.00%, b=71.20%, l=100.00%, stmts=262)
+- [ ] `src/features/commands/adapter.ts` (min=83.33%, s=91.30%, f=100.00%, b=83.33%, l=100.00%, stmts=23)
+- [ ] `src/features/commands/CommandStore.ts` (min=76.92%, s=84.34%, f=100.00%, b=76.92%, l=100.00%, stmts=83)
+- [ ] `src/features/commands/configDialogService.ts` (min=65.00%, s=85.19%, f=100.00%, b=65.00%, l=100.00%, stmts=27)
+- [ ] `src/features/commands/registry.ts` (min=64.29%, s=79.57%, f=85.00%, b=64.29%, l=100.00%, stmts=235)
+- [ ] `src/features/repl/controller/canonical/canonicalInvariants.ts` (min=72.22%, s=89.09%, f=90.00%, b=72.22%, l=100.00%, stmts=55)
+- [ ] `src/features/repl/controller/canonical/canonicalTailMerge.ts` (min=69.05%, s=95.00%, f=100.00%, b=69.05%, l=100.00%, stmts=40)
+- [ ] `src/features/repl/controller/canonical/canonicalTurnMerge.ts` (min=79.42%, s=91.91%, f=97.44%, b=79.42%, l=100.00%, stmts=235)
+- [ ] `src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts` (min=89.44%, s=96.00%, f=100.00%, b=89.44%, l=100.00%, stmts=75)
+- [ ] `src/features/repl/controller/send/bashMode.ts` (min=71.72%, s=87.74%, f=100.00%, b=71.72%, l=100.00%, stmts=106)
+- [ ] `src/features/repl/controller/send/compactFlow.ts` (min=81.82%, s=94.12%, f=100.00%, b=81.82%, l=100.00%, stmts=17)
+- [ ] `src/features/repl/controller/send/send.ts` (min=66.18%, s=86.73%, f=92.86%, b=66.18%, l=100.00%, stmts=113)
+- [ ] `src/features/repl/controller/send/sendAutoCompact.ts` (min=50.00%, s=85.19%, f=50.00%, b=81.25%, l=100.00%, stmts=27)
+- [ ] `src/features/repl/controller/send/sendMainTurn.ts` (min=55.56%, s=89.87%, f=55.56%, b=63.16%, l=100.00%, stmts=79)
+- [ ] `src/features/repl/controller/send/sendOrchestration.ts` (min=66.67%, s=95.45%, f=66.67%, b=75.00%, l=100.00%, stmts=22)
+- [ ] `src/features/repl/controller/send/sendPreMainRouting.ts` (min=89.47%, s=89.47%, f=100.00%, b=93.75%, l=100.00%, stmts=19)
+- [ ] `src/features/repl/controller/streaming/streaming.ts` (min=86.67%, s=94.27%, f=86.67%, b=89.16%, l=100.00%, stmts=157)
+- [ ] `src/features/repl/sessionSave/reader.ts` (min=67.70%, s=76.78%, f=69.57%, b=67.70%, l=100.00%, stmts=366)
+- [ ] `src/features/repl/sessionSave/writer.ts` (min=65.05%, s=81.22%, f=83.72%, b=65.05%, l=100.00%, stmts=245)
+- [ ] `src/features/repl/useReplController.ts` (min=78.26%, s=90.56%, f=90.14%, b=78.26%, l=100.00%, stmts=413)
+- [ ] `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts` (min=80.43%, s=85.86%, f=100.00%, b=80.43%, l=100.00%, stmts=191)
+- [ ] `src/features/semantics/projection/transcriptProjection.ts` (min=75.00%, s=91.67%, f=100.00%, b=75.00%, l=100.00%, stmts=12)
+- [ ] `src/features/semantics/projection/transcriptProjectionMessageReducer.ts` (min=85.71%, s=94.74%, f=100.00%, b=85.71%, l=100.00%, stmts=19)
+- [ ] `src/features/semantics/projection/transcriptProjectionTextReducer.ts` (min=85.71%, s=93.75%, f=100.00%, b=85.71%, l=100.00%, stmts=32)
+- [ ] `src/features/semantics/projection/transcriptProjectionToolReducer.ts` (min=73.45%, s=94.67%, f=80.00%, b=73.45%, l=100.00%, stmts=75)
+- [ ] `src/features/semantics/projection/transcriptProjectionTurnReducer.ts` (min=91.67%, s=100.00%, f=100.00%, b=91.67%, l=100.00%, stmts=28)
+- [ ] `src/features/semantics/runtime/inputStateMachine.ts` (min=76.67%, s=86.67%, f=100.00%, b=76.67%, l=100.00%, stmts=30)
+- [ ] `src/features/semantics/runtime/threadRuntimeState.ts` (min=87.23%, s=100.00%, f=100.00%, b=87.23%, l=100.00%, stmts=117)
+- [ ] `src/features/semantics/selectors/invariants.ts` (min=95.00%, s=97.37%, f=100.00%, b=95.00%, l=100.00%, stmts=38)
+- [ ] `src/features/subagents/agentsWizard.ts` (min=40.91%, s=63.01%, f=40.91%, b=51.68%, l=100.00%, stmts=173)
+- [ ] `src/features/subagents/builtins.ts` (min=87.50%, s=100.00%, f=100.00%, b=87.50%, l=100.00%, stmts=32)
+- [ ] `src/features/subagents/registry.ts` (min=70.67%, s=85.09%, f=95.00%, b=70.67%, l=100.00%, stmts=114)
+- [ ] `src/features/subagents/runner.ts` (min=86.36%, s=95.56%, f=100.00%, b=86.36%, l=100.00%, stmts=45)
+- [ ] `src/runtime/cli/main.ts` (min=53.54%, s=57.82%, f=75.00%, b=53.54%, l=100.00%, stmts=422)
+- [ ] `src/screens/repl/transcript.tsx` (min=94.44%, s=100.00%, f=100.00%, b=94.44%, l=100.00%, stmts=37)
+- [ ] `src/streaming/anthropic/StreamClient.ts` (min=73.33%, s=90.74%, f=84.00%, b=73.33%, l=100.00%, stmts=108)
+- [ ] `src/streaming/openai/StreamClient.ts` (min=53.97%, s=65.63%, f=80.00%, b=53.97%, l=100.00%, stmts=480)
+- [ ] `src/tools/modules/exitPlanMode/presenter.tsx` (min=99.49%, s=100.00%, f=100.00%, b=99.49%, l=100.00%, stmts=216)
+- [ ] `src/tui/agents/AgentsDialog.tsx` (min=77.29%, s=89.11%, f=97.06%, b=77.29%, l=100.00%, stmts=358)
+- [ ] `src/tui/hooks/HooksDialog.tsx` (min=97.37%, s=99.51%, f=100.00%, b=97.37%, l=100.00%, stmts=204)
+- [ ] `src/tui/SetupWizard.tsx` (min=73.50%, s=81.01%, f=85.14%, b=73.50%, l=100.00%, stmts=358)

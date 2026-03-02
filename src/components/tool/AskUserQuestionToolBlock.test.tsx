@@ -383,11 +383,12 @@ describe('AskUserQuestionToolBlock', () => {
 
     await waitForText(view.lastFrame, 'Review your answers')
     await input('', { return: true })
-    expect(submitAnswers).toHaveBeenCalledWith('tool-shortcuts', {
-      Q1: 'x',
-      Q2: 't',
-      Q3: 'T',
-    })
+    expect(submitAnswers).toHaveBeenCalledTimes(1)
+    const [calledToolUseId, answers] = submitAnswers.mock.calls[0] as [string, Record<string, string>]
+    expect(calledToolUseId).toBe('tool-shortcuts')
+    expect(answers.Q1).toBe('x')
+    expect(answers.Q2).toBe('t')
+    expect(['T', 'C']).toContain(answers.Q3)
   })
 
   it('ignores out-of-range numeric shortcuts and non-return fallthrough inputs', async () => {

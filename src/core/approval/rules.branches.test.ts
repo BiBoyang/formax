@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createAllowRuleFromAction } from './rules'
 
 describe('approval rules branch guards', () => {
@@ -36,5 +36,30 @@ describe('approval rules branch guards', () => {
     })
     expect(rule.ruleId).toBe('custom-id')
     expect(rule.match).toEqual({ kind: 'net.fetch', urlPrefix: 'not a valid url' })
+  })
+
+  it('covers short-id fallback for URL hostname-less schemes', () => {
+    const hostnameFallback = createAllowRuleFromAction({
+      scope: 'project',
+      createdAt: '2026-01-27T00:00:00.000Z',
+      action: { kind: 'net.fetch', url: 'mailto:dev@example.com' },
+    })
+    expect(hostnameFallback.ruleId).toContain('remember-net-fetch-net-fetch-')
+  })
+
+  it('covers createdAt default branch when omitted', () => {
+    const now = new Date('2026-01-27T00:00:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    try {
+      const rule = createAllowRuleFromAction({
+        scope: 'project',
+        action: { kind: 'fs.write', path: '/tmp/generated.txt' },
+      })
+      expect(rule.createdAt).toBe(now.toISOString())
+      expect(rule.ruleId).toContain('remember-fs-write-generated-txt-')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

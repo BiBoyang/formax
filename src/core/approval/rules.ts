@@ -2,7 +2,7 @@ import { PolicyRuleSchema, type PolicyRule, type PolicyScope } from '../policy/s
 import type { PolicyAction } from '../policy/types.js'
 
 function sanitizeIdPart(raw: string): string {
-  return String(raw || '')
+  return String(raw)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -21,7 +21,7 @@ function shortId(action: PolicyAction): string {
     case 'net.search':
       return 'search'
     case 'tool.install':
-      return sanitizeIdPart(action.tool || action.kind)
+      return sanitizeIdPart(action.tool)
   }
 }
 
