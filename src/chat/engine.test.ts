@@ -650,4 +650,60 @@ describe('ChatEngine', () => {
     expect(callCount).toBe(maxToolCalls + 1)
     expect(out[out.length - 1]?.role).toBe('assistant')
   })
+
+  it('throws when stream returns tool_use without tool_results and emits error event', async () => {
+    const events: StreamEvent[] = []
+    const client: LlmStreamClient = {
+      async streamOnce(): Promise<StreamTurnResult> {
+        return {
+          assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/tmp/a' } }],
+          stopReason: 'tool_use',
+          toolResults: [],
+        }
+      },
+    }
+    const executor: ToolExecutor = async () => ({ tool_use_id: 't1', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    await expect(
+      engine.runTurn({
+        history: [],
+        user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+        system: [],
+        tools: [],
+        onEvent: (ev) => events.push(ev),
+        cwd: '/tmp',
+      }),
+    ).rejects.toThrow(/Tool loop produced no tool_results/)
+
+    const errorEvent = events.find((event) => event.type === 'error') as any
+    expect(errorEvent?.error).toBeInstanceOf(Error)
+    expect(String(errorEvent?.error?.message || '')).toContain('Tool loop produced no tool_results')
+  })
+
+  it('wraps non-Error throwables from stream client into Error for onEvent', async () => {
+    const events: StreamEvent[] = []
+    const client: LlmStreamClient = {
+      async streamOnce(): Promise<StreamTurnResult> {
+        throw 'stream failed'
+      },
+    }
+    const executor: ToolExecutor = async () => ({ tool_use_id: 't1', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    await expect(
+      engine.runTurn({
+        history: [],
+        user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+        system: [],
+        tools: [],
+        onEvent: (ev) => events.push(ev),
+        cwd: '/tmp',
+      }),
+    ).rejects.toThrow('stream failed')
+
+    const errorEvent = events.find((event) => event.type === 'error') as any
+    expect(errorEvent?.error).toBeInstanceOf(Error)
+    expect(errorEvent?.error?.message).toBe('stream failed')
+  })
 })
