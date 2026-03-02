@@ -307,10 +307,8 @@ describe('AgentsDialog (edge cases)', () => {
     stdin.write('\r')
     await waitForText(lastFrame, 'Select tools')
 
-    for (let i = 0; i < 6; i += 1) {
-      stdin.write('\u001B[B')
-      await tick()
-    }
+    await moveDownUntilActiveRow(lastFrame, stdin, '[ Show advanced options ]')
+    await tick()
     stdin.write('\r')
     await waitForText(lastFrame, '[ Hide advanced options ]')
 
@@ -358,10 +356,8 @@ describe('AgentsDialog (edge cases)', () => {
     stdin.write('\r')
     await waitForText(lastFrame, 'Select tools')
 
-    for (let i = 0; i < 6; i += 1) {
-      stdin.write('\u001B[B')
-      await tick()
-    }
+    await moveDownUntilActiveRow(lastFrame, stdin, '[ Show advanced options ]')
+    await tick()
     stdin.write('\r')
     await waitForText(lastFrame, '[ Hide advanced options ]')
     stdin.write('\u001B[B')

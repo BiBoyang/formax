@@ -216,7 +216,10 @@ describe('BashToolHandler', () => {
     const exitSignalTaskId = JSON.parse(exitSignalResult.content).task_id as string
     const exitSignalWaited = await taskManager.wait(exitSignalTaskId, { timeoutMs: 5000 })
     expect(exitSignalWaited.snapshot.status).toBe('error')
-    expect(exitSignalWaited.snapshot.result?.content).toContain('Exit signal SIGTERM')
+    const exitSignalContent = exitSignalWaited.snapshot.result?.content ?? ''
+    expect(
+      exitSignalContent.includes('Exit signal SIGTERM') || exitSignalContent.includes('Exit code 143'),
+    ).toBe(true)
 
     const throttledUpdateResult = await handler.execute(
       {

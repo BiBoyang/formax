@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
+import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ConfirmMenu } from './ConfirmMenu'
@@ -188,7 +189,7 @@ describe('ConfirmMenu', () => {
 
   it('renders emphasis, string footer and node footer', async () => {
     const onDecision = vi.fn()
-    const nodeFooter = <>{'node-footer'}</>
+    const nodeFooter = <Text>node-footer</Text>
 
     const first = render(
       <InputScopeProvider initialScope="repl">

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import React from 'react'
+import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import { InputScopeProvider } from '../../features/repl/inputScopeContext'
 import { ConfirmMenu } from './ConfirmMenu'
@@ -156,7 +157,7 @@ describe('ConfirmMenu presenter compatibility', () => {
           scope="prompt:test-footer-b"
           options={[{ kind: 'choice', key: 'one', label: 'One' }]}
           onDecision={onDecision}
-          footer={<>node-footer</>}
+          footer={<Text>node-footer</Text>}
         />
       </InputScopeProvider>,
     )
