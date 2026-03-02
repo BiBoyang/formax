@@ -65,6 +65,7 @@ jobs:
         with:
           files: ./coverage/coverage-final.json
           fail_ci_if_error: false
+          branch: main
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
