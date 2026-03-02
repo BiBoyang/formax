@@ -91,11 +91,11 @@ export function createChatEngine(deps: {
       const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
       let pendingUserPromptSubmitText: string[] | null = null
       const audit = deps.audit
-      const withTrace = (toolUseId?: string) => {
-        if (!exec?.trace && !toolUseId) return undefined
+      const withTrace = (toolUseId: string) => {
+        if (!exec?.trace) return { toolUseId }
         return {
-          ...(exec?.trace ?? {}),
-          ...(toolUseId ? { toolUseId } : {}),
+          ...exec.trace,
+          toolUseId,
         }
       }
 

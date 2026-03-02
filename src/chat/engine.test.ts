@@ -195,7 +195,12 @@ describe('ChatEngine', () => {
     }
 
     const executor: ToolExecutor = async (call) => {
-      return { tool_use_id: call.id, content: 'ok' }
+      return {
+        tool_use_id: call.id,
+        content: 'ok',
+        is_error: true,
+        extraTextBlocks: ['tool-extra'],
+      }
     }
 
     const client: LlmStreamClient = {
@@ -237,6 +242,7 @@ describe('ChatEngine', () => {
       tools: [],
       onEvent: (_ev: StreamEvent) => undefined,
       cwd: '/tmp',
+      exec: { trace: { sessionHint: 'trace-on' } as any },
     })
 
     expect(callCount).toBe(2)
@@ -253,10 +259,11 @@ describe('ChatEngine', () => {
     const blocks = (injectedUserMsg as any).content as any[]
     const idx = blocks.findIndex((b) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
     expect(idx).toBeGreaterThanOrEqual(0)
-    expect(blocks[idx + 1]?.type).toBe('text')
-    expect(String(blocks[idx + 1]?.text || '')).toContain('<system-reminder>')
-    expect(String(blocks[idx + 1]?.text || '')).toContain('PostToolUse:Bash hook additional context:')
-    expect(String(blocks[idx + 1]?.text || '')).toContain('CTX_FROM_HOOK')
+    expect(blocks[idx]?.is_error).toBe(true)
+    expect(blocks.some((b) => b?.type === 'text' && String(b.text || '').includes('tool-extra'))).toBe(true)
+    const hookBlock = blocks.find((b) => b?.type === 'text' && String(b.text || '').includes('PostToolUse:Bash hook additional context:'))
+    expect(String(hookBlock?.text || '')).toContain('<system-reminder>')
+    expect(String(hookBlock?.text || '')).toContain('CTX_FROM_HOOK')
 
     const outJson = JSON.stringify(out)
     expect(outJson).not.toContain('PostToolUse:Bash hook additional context:')
@@ -268,6 +275,7 @@ describe('ChatEngine', () => {
     expect(hookRuns[0].hook.command).toBe('echo hook')
     expect(hookRuns[0].hook.status).toBe('ok')
     expect(hookRuns[0].hook.parsedJson).toBe(true)
+    expect(hookRuns[0].trace?.sessionHint).toBe('trace-on')
     expect(hookRuns[0].hook.stdoutPreview).toBeUndefined()
   })
 
@@ -279,7 +287,22 @@ describe('ChatEngine', () => {
       runPreToolUse: async () => ({ runs: [], blocked: false }),
       runPermissionRequest: async () => ({ runs: [], blocked: false }),
       runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
-      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({
+        runs: [
+          {
+            command: 'echo session-start',
+            exitCode: 0,
+            signal: null,
+            stdout: '',
+            stderr: '',
+            durationMs: 1,
+            timedOut: false,
+            parsedJson: null,
+          },
+        ],
+        additionalContext: [],
+        blocked: false,
+      }),
       runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
       runPostToolUse: async () => ({
         runs: [],
@@ -706,4 +729,282 @@ describe('ChatEngine', () => {
     expect(errorEvent?.error).toBeInstanceOf(Error)
     expect(errorEvent?.error?.message).toBe('stream failed')
   })
+
+  it('does not run UserPromptSubmit for non-user input and does not inject extras onto non-user last message', async () => {
+    let firstCallMessages: PromptMessage[] | null = null
+    let userPromptCalls = 0
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => {
+        userPromptCalls += 1
+        return { runs: [], additionalContext: ['CTX_USER_PROMPT'], blocked: false }
+      },
+      runSessionStart: async () => ({ runs: [], additionalContext: ['CTX_SESSION'], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        firstCallMessages = args.messages
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+
+    const engine = createChatEngine({ client, executor, hooks })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'assistant', content: [{ type: 'text', text: 'not-a-user-prompt' }] } as any,
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(userPromptCalls).toBe(0)
+    expect(firstCallMessages).not.toBeNull()
+    const last = firstCallMessages![firstCallMessages!.length - 1] as any
+    expect(last.role).toBe('assistant')
+    expect(JSON.stringify(last.content)).not.toContain('CTX_SESSION')
+  })
+
+  it('injects post-tool text only for matching tool_result ids and ignores empty blocking stderr', async () => {
+    let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
+
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async (args: any) => ({
+        runs: [],
+        additionalContext: args.toolUseId === 't1' ? ['CTX_T1'] : [],
+        blockingErrors: [{ command: 'echo ignored', stderr: '', stdout: '', exitCode: 1, signal: null, durationMs: 1, timedOut: false, parsedJson: null }],
+      }),
+    }
+    const executor: ToolExecutor = async (call) => ({ tool_use_id: call.id, content: `ok-${call.id}` })
+    const events: StreamEvent[] = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount += 1
+        if (callCount === 1) {
+          const toolResult1 = await args.executeTool({ id: 't1', name: 'Bash', input: undefined } as any)
+          return {
+            assistantBlocks: [
+              { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
+              { type: 'tool_use', id: 't2', name: 'Read', input: { file_path: '/tmp/x' } },
+            ],
+            stopReason: 'tool_use',
+            toolResults: [toolResult1, { tool_use_id: 't2', content: 'ok-t2' }],
+          }
+        }
+        secondCallMessages = args.messages
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (ev) => events.push(ev),
+      cwd: '/tmp',
+    })
+
+    expect(secondCallMessages).not.toBeNull()
+    const msg = secondCallMessages!.find(
+      (m) => m.role === 'user' && Array.isArray(m.content) && (m.content as any[]).some((b) => b?.type === 'tool_result'),
+    ) as any
+    const blocks = msg.content as any[]
+    const t1Index = blocks.findIndex((b: any) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
+    const t2Index = blocks.findIndex((b: any) => b?.type === 'tool_result' && b?.tool_use_id === 't2')
+    expect(String(blocks[t1Index + 1]?.text || '')).toContain('CTX_T1')
+    expect(String(blocks[t2Index + 1]?.text || '')).not.toContain('CTX_T1')
+    expect(events.some((ev) => ev.type === 'tool_update')).toBe(true)
+  })
+
+  it('does not inject pre-call extras onto tool_result-only user messages', async () => {
+    let firstCallMessages: PromptMessage[] | null = null
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: ['CTX_SESSION'], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        firstCallMessages = args.messages
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'res' }] } as any,
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    const last = firstCallMessages![firstCallMessages!.length - 1] as any
+    expect(last.role).toBe('user')
+    expect(last.content).toHaveLength(1)
+    expect(last.content[0]?.type).toBe('tool_result')
+  })
+
+  it('treats non-object assistant blocks as non-tool-use blocks', async () => {
+    const client: LlmStreamClient = {
+      async streamOnce(): Promise<StreamTurnResult> {
+        return {
+          assistantBlocks: [null as any],
+          stopReason: 'tool_use',
+          toolResults: [{ tool_use_id: 'ignored', content: 'ignored' }],
+        }
+      },
+    }
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+    expect(out[out.length - 1]?.role).toBe('assistant')
+  })
+
+  it('executes tools without hooks configured', async () => {
+    let callCount = 0
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount += 1
+        if (callCount === 1) {
+          const toolResult = await args.executeTool({ id: 't1', name: 'Bash', input: { command: 'pwd' } } as any)
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+    const executor: ToolExecutor = async (call) => ({ tool_use_id: call.id, content: 'ok-no-hooks' })
+    const engine = createChatEngine({ client, executor })
+
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+    expect(out.some((m) => m.role === 'user' && JSON.stringify(m.content).includes('ok-no-hooks'))).toBe(true)
+  })
+
+  it('does not enqueue post-tool text when hook returns no additional context or blocking errors', async () => {
+    let secondCallMessages: PromptMessage[] | null = null
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        if (!secondCallMessages) {
+          const toolResult = await args.executeTool({ id: 't1', name: 'Bash', input: { command: 'pwd' } } as any)
+          secondCallMessages = [] as any
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+        secondCallMessages = args.messages
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+    const executor: ToolExecutor = async (call) => ({ tool_use_id: call.id, content: 'ok' })
+    const engine = createChatEngine({ client, executor, hooks })
+
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(JSON.stringify(secondCallMessages)).not.toContain('PostToolUse:')
+  })
+
+  it('handles malformed historical tool_result blocks without tool_use_id', async () => {
+    let secondCallMessages: PromptMessage[] | null = null
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: ['CTX'], blockingErrors: [] }),
+    }
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        if (!secondCallMessages) {
+          const toolResult = await args.executeTool({ id: 't1', name: 'Bash', input: { command: 'pwd' } } as any)
+          secondCallMessages = [] as any
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+        secondCallMessages = args.messages
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+    const executor: ToolExecutor = async (call) => ({ tool_use_id: call.id, content: 'ok' })
+    const engine = createChatEngine({ client, executor, hooks })
+
+    await engine.runTurn({
+      history: [
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', content: 'legacy-missing-id' } as any],
+        } as any,
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(JSON.stringify(secondCallMessages)).toContain('legacy-missing-id')
+  })
+
 })
