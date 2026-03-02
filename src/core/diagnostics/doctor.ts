@@ -107,6 +107,10 @@ function buildWritableDirHint(args: { id: string; error: string }): string {
   return steps.join(' ')
 }
 
+export const __testOnlyDoctor = {
+  buildWritableDirHint,
+}
+
 export async function runDoctor(args: {
   version: string
   cwd: string
