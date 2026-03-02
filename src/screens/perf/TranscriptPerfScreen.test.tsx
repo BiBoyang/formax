@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
-import { render } from 'ink-testing-library'
+import { cleanup, render } from 'ink-testing-library'
 
 type Msg = {
   id: string
@@ -89,6 +89,7 @@ async function submitInput(value: string): Promise<void> {
 
 describe('TranscriptPerfScreen', () => {
 beforeEach(() => {
+    vi.useRealTimers()
     mocks.routedHandler = null
     mocks.textInputProps = null
     mocks.replProps = null
@@ -96,6 +97,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
 })
 
@@ -111,6 +113,7 @@ afterEach(() => {
     await routed('s', { ctrl: true }) // toggle back off to avoid interval churn in tests
 
     await routed('t', { ctrl: true })
+    await waitFor(() => Boolean(mocks.replProps?.staticMessages.some((m) => m.role === 'tool')))
     expect(mocks.replProps?.staticMessages.some((m) => m.role === 'tool')).toBe(true)
 
     await routed('r', { ctrl: true })
@@ -125,6 +128,7 @@ afterEach(() => {
 
   it('handles text input commands for /bash, /read, /tool, and regular chat text', async () => {
     render(<TranscriptPerfScreen count={0} onExit={vi.fn()} />)
+    await waitFor(() => (mocks.replProps?.staticMessages.length ?? -1) === 0)
 
     await submitInput('   ')
     await tick()

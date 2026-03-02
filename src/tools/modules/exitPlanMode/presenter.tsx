@@ -144,6 +144,7 @@ function ExitPlanModePrompt({
   const cursorRef = useRef(0)
   const [typing, setTyping] = useState(false)
   const [typingState, setTypingState] = useState({ value: '', cursor: 0 })
+  const typingStateRef = useRef({ value: '', cursor: 0 })
   const submittedRef = useRef(false)
   const escapeBufferRef = useRef('')
 
@@ -160,6 +161,17 @@ function ExitPlanModePrompt({
       return resolved
     })
   }, [])
+
+  const setTypingStateSafe = useCallback(
+    (next: TypingState | ((state: TypingState) => TypingState)) => {
+      setTypingState((prev) => {
+        const resolved = typeof next === 'function' ? (next as (state: TypingState) => TypingState)(prev) : next
+        typingStateRef.current = resolved
+        return resolved
+      })
+    },
+    [],
+  )
 
   const submit = useCallback(
     (kind: 'auto' | 'manual' | 'feedback' | 'cancel', feedback?: string) => {
@@ -229,7 +241,7 @@ function ExitPlanModePrompt({
           return
         }
         if (horizontalDelta !== 0) {
-          setTypingState((state) => ({
+          setTypingStateSafe((state) => ({
             ...state,
             cursor: Math.max(0, Math.min(state.value.length, state.cursor + horizontalDelta)),
           }))
@@ -241,7 +253,7 @@ function ExitPlanModePrompt({
         }
         const isForwardDelete = bufferedDeletes > 0 || keyName === 'delete' || token === '\u001B[3~'
         if (isForwardDelete) {
-          setTypingState((state) => applyForwardDelete(state, bufferedDeletes))
+          setTypingStateSafe((state) => applyForwardDelete(state, bufferedDeletes))
           return
         }
         const isBackspaceLike =
@@ -249,7 +261,7 @@ function ExitPlanModePrompt({
           keyName !== 'delete' &&
           token !== '\u001B[3~'
         if (isBackspaceLike) {
-          setTypingState((state) => {
+          setTypingStateSafe((state) => {
             if (state.cursor <= 0) return state
             const nextValue = state.value.slice(0, state.cursor - 1) + state.value.slice(state.cursor)
             return { value: nextValue, cursor: Math.max(0, state.cursor - 1) }
@@ -257,11 +269,11 @@ function ExitPlanModePrompt({
           return
         }
         if (isReturnKeyToken({ token, key })) {
-          submit('feedback', typingState.value.trim())
+          submit('feedback', typingStateRef.current.value.trim())
           return
         }
         if (isPrintableToken({ token, key })) {
-          setTypingState((state) => {
+          setTypingStateSafe((state) => {
             const nextValue = state.value.slice(0, state.cursor) + token + state.value.slice(state.cursor)
             return { value: nextValue, cursor: state.cursor + token.length }
           })
@@ -284,7 +296,7 @@ function ExitPlanModePrompt({
         // should start editing instead of triggering numeric shortcuts.
         if (cursorRef.current === 2 && isPrintableToken({ token, key })) {
           setTyping(true)
-          setTypingState((state) => {
+          setTypingStateSafe((state) => {
             const cursorAtEnd = state.value.length
             const nextValue = state.value + token
             return { value: nextValue, cursor: cursorAtEnd + token.length }
@@ -302,7 +314,7 @@ function ExitPlanModePrompt({
           else if (resolvedCursor === 1) submit('manual')
           else {
             setTyping(true)
-            setTypingState((state) => ({ ...state, cursor: state.value.length }))
+            setTypingStateSafe((state) => ({ ...state, cursor: state.value.length }))
           }
         }
       }

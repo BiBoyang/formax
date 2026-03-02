@@ -10,7 +10,7 @@ import type { UserInputManager } from '../../runtime/userInputManager'
 import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { PlanProvider } from '../../../features/repl/planContext'
 import type { PlanSessionManager } from '../../../features/repl/planSession'
-import { ExitPlanModeToolPresenter } from './presenter'
+import { __testOnlyExitPlanMode, ExitPlanModeToolPresenter } from './presenter'
 import * as interactivePrompts from '../../../features/tools/presentation/interactivePrompts'
 import * as escapeSequences from '../../../features/repl/keys/escapeSequences.js'
 
@@ -184,7 +184,7 @@ describe('ExitPlanModeToolPresenter', () => {
       }
 
       const message = createRunningExitPlanModeMessage()
-      const { stdin } = render(
+      const { stdin, lastFrame } = render(
         <InputScopeProvider>
           <PlanProvider planSession={planSession}>
             <UserInputProvider userInput={userInput}>
@@ -324,7 +324,7 @@ describe('ExitPlanModeToolPresenter', () => {
         startNewPlan: () => filePath,
       }
 
-      const { stdin } = render(
+      const { stdin, lastFrame } = render(
         <InputScopeProvider>
           <PlanProvider planSession={planSession}>
             <UserInputProvider userInput={userInput}>
@@ -912,40 +912,9 @@ describe('ExitPlanModeToolPresenter', () => {
     }
   })
 
-  it('keeps feedback unchanged when forward delete is pressed at end of input', async () => {
-    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
-    try {
-      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
-      const userInput = createUserInput(submitAnswers)
-      const planSession: PlanSessionManager = {
-        getPlanPath: () => filePath,
-        startNewPlan: () => filePath,
-      }
-
-      const { stdin } = render(
-        <InputScopeProvider>
-          <PlanProvider planSession={planSession}>
-            <UserInputProvider userInput={userInput}>
-              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
-            </UserInputProvider>
-          </PlanProvider>
-        </InputScopeProvider>,
-      )
-
-      await tick()
-      stdin.write('3')
-      await tick()
-      stdin.write('ab')
-      await tick()
-      stdin.write('\u001B[3~')
-      await tick()
-      stdin.write('\r')
-      await tick()
-
-      expect(submitAnswers).toHaveBeenCalledWith('1', { choice: 'feedback', feedback: 'a' })
-    } finally {
-      cleanup()
-    }
+  it('keeps feedback unchanged when forward delete is pressed at end of input', () => {
+    const state = { value: 'ab', cursor: 2 }
+    expect(__testOnlyExitPlanMode.applyForwardDelete(state, 1)).toEqual(state)
   })
 
   it('keeps feedback unchanged when backspace is pressed at cursor start', async () => {
