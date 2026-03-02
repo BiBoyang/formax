@@ -109,7 +109,7 @@ describe('send handlers', () => {
     )
   })
 
-  it('handles clear command guards and usage branch paths', async () => {
+  it('handles clear command guards and usage branch paths v2', async () => {
     const state1 = createMessageState()
     await expect(
       maybeHandleClearCommand({
