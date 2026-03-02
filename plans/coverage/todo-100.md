@@ -1,11 +1,13 @@
 # Coverage 100 TODO (4 Metrics)
 
 Generated: 2026-03-02T06:47:42.901Z
+Last synced: 2026-03-02 (incremental, targeted coverage runs)
 Coverage source: `coverage/coverage-final.json`
 Total files: 422
 Files with any metric <100%: 53
 
 Rule: each file must satisfy s=100%, b=100%, f=100%, l=100%.
+Note: totals above are from the original full snapshot and may be stale until the final full run.
 
 ## Checklist
 
@@ -17,14 +19,14 @@ Rule: each file must satisfy s=100%, b=100%, f=100%, l=100%.
 - [ ] `src/components/ui/MarkdownBlock.tsx` (min=97.37%, s=100.00%, f=100.00%, b=97.37%, l=100.00%, stmts=75)
 - [ ] `src/config/config.ts` (min=97.30%, s=100.00%, f=100.00%, b=97.30%, l=100.00%, stmts=34)
 - [ ] `src/config/settings/resolve.ts` (min=66.79%, s=86.75%, f=100.00%, b=66.79%, l=100.00%, stmts=151)
-- [ ] `src/core/diagnostics/debugBundle.ts` (min=54.55%, s=82.35%, f=100.00%, b=54.55%, l=100.00%, stmts=68)
-- [ ] `src/core/diagnostics/doctor.ts` (min=78.13%, s=91.38%, f=100.00%, b=78.13%, l=100.00%, stmts=58)
+- [x] `src/core/diagnostics/debugBundle.ts` (min=54.55%, s=82.35%, f=100.00%, b=54.55%, l=100.00%, stmts=68) - done 2026-03-02 (`e707e24`)
+- [x] `src/core/diagnostics/doctor.ts` (min=78.13%, s=91.38%, f=100.00%, b=78.13%, l=100.00%, stmts=58) - done 2026-03-02 (`a76310b`)
 - [ ] `src/core/diagnostics/format.ts` (min=94.12%, s=100.00%, f=100.00%, b=94.12%, l=100.00%, stmts=88)
 - [ ] `src/core/diagnostics/redaction.ts` (min=90.91%, s=100.00%, f=100.00%, b=90.91%, l=100.00%, stmts=22)
 - [ ] `src/core/setup/session.ts` (min=71.20%, s=86.26%, f=100.00%, b=71.20%, l=100.00%, stmts=262)
-- [ ] `src/features/commands/adapter.ts` (min=83.33%, s=91.30%, f=100.00%, b=83.33%, l=100.00%, stmts=23)
-- [ ] `src/features/commands/CommandStore.ts` (min=76.92%, s=84.34%, f=100.00%, b=76.92%, l=100.00%, stmts=83)
-- [ ] `src/features/commands/configDialogService.ts` (min=65.00%, s=85.19%, f=100.00%, b=65.00%, l=100.00%, stmts=27)
+- [x] `src/features/commands/adapter.ts` (min=83.33%, s=91.30%, f=100.00%, b=83.33%, l=100.00%, stmts=23) - done 2026-03-02 (`69b9fdc`)
+- [x] `src/features/commands/CommandStore.ts` (min=76.92%, s=84.34%, f=100.00%, b=76.92%, l=100.00%, stmts=83) - done 2026-03-02 (`69b9fdc`)
+- [x] `src/features/commands/configDialogService.ts` (min=65.00%, s=85.19%, f=100.00%, b=65.00%, l=100.00%, stmts=27) - done 2026-03-02 (`a016194`)
 - [ ] `src/features/commands/registry.ts` (min=64.29%, s=79.57%, f=85.00%, b=64.29%, l=100.00%, stmts=235)
 - [ ] `src/features/repl/controller/canonical/canonicalInvariants.ts` (min=72.22%, s=89.09%, f=90.00%, b=72.22%, l=100.00%, stmts=55)
 - [ ] `src/features/repl/controller/canonical/canonicalTailMerge.ts` (min=69.05%, s=95.00%, f=100.00%, b=69.05%, l=100.00%, stmts=40)
@@ -47,12 +49,12 @@ Rule: each file must satisfy s=100%, b=100%, f=100%, l=100%.
 - [ ] `src/features/semantics/projection/transcriptProjectionTextReducer.ts` (min=85.71%, s=93.75%, f=100.00%, b=85.71%, l=100.00%, stmts=32)
 - [ ] `src/features/semantics/projection/transcriptProjectionToolReducer.ts` (min=73.45%, s=94.67%, f=80.00%, b=73.45%, l=100.00%, stmts=75)
 - [ ] `src/features/semantics/projection/transcriptProjectionTurnReducer.ts` (min=91.67%, s=100.00%, f=100.00%, b=91.67%, l=100.00%, stmts=28)
-- [ ] `src/features/semantics/runtime/inputStateMachine.ts` (min=76.67%, s=86.67%, f=100.00%, b=76.67%, l=100.00%, stmts=30)
+- [x] `src/features/semantics/runtime/inputStateMachine.ts` (min=76.67%, s=86.67%, f=100.00%, b=76.67%, l=100.00%, stmts=30) - done 2026-03-02 (`b498d8b`)
 - [ ] `src/features/semantics/runtime/threadRuntimeState.ts` (min=87.23%, s=100.00%, f=100.00%, b=87.23%, l=100.00%, stmts=117)
 - [ ] `src/features/semantics/selectors/invariants.ts` (min=95.00%, s=97.37%, f=100.00%, b=95.00%, l=100.00%, stmts=38)
 - [ ] `src/features/subagents/agentsWizard.ts` (min=40.91%, s=63.01%, f=40.91%, b=51.68%, l=100.00%, stmts=173)
 - [ ] `src/features/subagents/builtins.ts` (min=87.50%, s=100.00%, f=100.00%, b=87.50%, l=100.00%, stmts=32)
-- [ ] `src/features/subagents/registry.ts` (min=70.67%, s=85.09%, f=95.00%, b=70.67%, l=100.00%, stmts=114)
+- [x] `src/features/subagents/registry.ts` (min=70.67%, s=85.09%, f=95.00%, b=70.67%, l=100.00%, stmts=114) - done 2026-03-02 (`6b0fae4`)
 - [ ] `src/features/subagents/runner.ts` (min=86.36%, s=95.56%, f=100.00%, b=86.36%, l=100.00%, stmts=45)
 - [ ] `src/runtime/cli/main.ts` (min=53.54%, s=57.82%, f=75.00%, b=53.54%, l=100.00%, stmts=422)
 - [ ] `src/screens/repl/transcript.tsx` (min=94.44%, s=100.00%, f=100.00%, b=94.44%, l=100.00%, stmts=37)
