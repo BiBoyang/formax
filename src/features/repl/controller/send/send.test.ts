@@ -284,4 +284,43 @@ describe('resolvePreMainSendRouting', () => {
     expect(messages[1]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Working...' })
     expect(messages[2]).toMatchObject({ role: 'assistant', ui: { kind: 'command_subline' }, content: 'Error: boom' })
   })
+
+  it('short-circuits /compact when providerError exists', async () => {
+    const setError = vi.fn()
+    const { args } = createRoutingHarness({
+      text: '/compact',
+      providerError: 'bad key',
+      setError,
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result).toEqual({ slashEffect: null, shouldReturn: true })
+    expect(setError).toHaveBeenCalled()
+  })
+
+  it('routes /compact through compact handler and notifies compact requested', async () => {
+    const onCompactRequested = vi.fn()
+    const setMessages = vi.fn()
+    const { args } = createRoutingHarness({
+      text: '/compact',
+      onCompactRequested,
+      setMessages: setMessages as any,
+      engine: {
+        runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'summary' }] }]),
+      } as any,
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result).toEqual({ slashEffect: null, shouldReturn: true })
+    expect(onCompactRequested).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls through to main turn when input is not a slash command', async () => {
+    const { args } = createRoutingHarness({
+      text: 'plain input',
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    expect(result).toEqual({ slashEffect: null, shouldReturn: false })
+  })
 })

@@ -152,4 +152,35 @@ describe('canonicalInvariants', () => {
     })
     expect(issues).toEqual([])
   })
+
+  it('filters terminal-turn selector issues by targetTurnId', () => {
+    const issues = collectReplCanonicalInvariantIssues({
+      projection: createProjection({
+        segments: [
+          {
+            id: 'footer-1',
+            kind: 'turn_footer',
+            turnId: 'turn-1',
+            status: 'completed',
+            replaySeq: 1,
+            ts: new Date(1).toISOString(),
+          },
+          {
+            id: 'tool-running-1',
+            kind: 'tool',
+            turnId: 'turn-1',
+            toolUseId: 'tool-1',
+            toolName: 'Bash',
+            status: 'running',
+            summary: 'Bash running',
+            detailLines: [],
+          },
+        ],
+      }),
+      messages: [],
+      targetTurnId: 'turn-2',
+    })
+
+    expect(issues).toEqual([])
+  })
 })

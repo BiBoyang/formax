@@ -1341,6 +1341,27 @@ describe('appendCanonicalTailFinalRows', () => {
 
     expect(next).toBe(messages)
   })
+
+  it('forces monotonic timestamps when canonical tail row timestamp is stale', () => {
+    const baseTs = new Date(9_999_999_999_999)
+    const next = appendCanonicalTailFinalRows({
+      messages: [{ id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: baseTs }],
+      turnId: 'turn-ts',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'turn-ts:assistant:1',
+          kind: 'assistant',
+          turnId: 'turn-ts',
+          text: 'tail',
+        },
+      ],
+    })
+
+    expect(next).toHaveLength(2)
+    expect(next[1]?.role).toBe('assistant')
+    expect(next[1]?.timestamp.getTime()).toBe(baseTs.getTime() + 1)
+  })
 })
 
 describe('tailSegmentsForTurn', () => {
