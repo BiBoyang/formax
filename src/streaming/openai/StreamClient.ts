@@ -46,7 +46,7 @@ function normalizeBaseUrl(baseUrl?: string): string {
   if (!raw) return ''
   const trimmed = raw.replace(/\/+$/, '')
   if (/\/v\d+$/.test(trimmed)) return trimmed
-  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+  return `${trimmed}/v1`
 }
 
 function promptBlockToText(block: PromptBlock): string {
@@ -450,7 +450,7 @@ export class OpenAIStreamClient implements LlmStreamClient {
     const thinkingEnabled = args.thinkingEnabled ?? true
     const modelForRequest = String(args.model || this.config.model || '').trim() || this.config.model
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs ?? 600000)
+    const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs)
     const signal = args.signal ? this.combineSignals(args.signal, controller.signal) : controller.signal
 
     try {
@@ -810,4 +810,29 @@ export class OpenAIStreamClient implements LlmStreamClient {
     }
     return controller.signal
   }
+}
+
+export const __openAiStreamClientTestOnly = {
+  sortToolResultsByCallOrder,
+  getOpenAiHeaders,
+  normalizeBaseUrl,
+  promptBlockToText,
+  systemBlocksToText,
+  promptMessagesToOpenAiMessages,
+  mapToolsToOpenAi,
+  parseToolInput,
+  openAiMessageContentToText,
+  openAiReasoningContentToText,
+  mapOpenAiStopReason,
+  mapOpenAiUsage,
+  openAiDeltaContentToText,
+  applySnapshotTextDelta,
+  mergeOpenAiToolCallDeltas,
+  materializeOpenAiToolCalls,
+  parseOpenAiSseChunk,
+  createReadableStreamFromText,
+  looksLikeSseBody,
+  hasParsedOpenAiContent,
+  findSseBoundary,
+  shouldRetryWithEmptyReasoningContent,
 }
