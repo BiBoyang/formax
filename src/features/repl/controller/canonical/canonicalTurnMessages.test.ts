@@ -77,6 +77,42 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('omits user rows when includeUserSystem=false or transientOnly=true', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-u:user:1',
+        kind: 'user',
+        turnId: 'turn-u',
+        text: 'hello',
+      },
+    ]
+
+    const withoutUserSystem = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-u',
+      segments,
+      includeUserSystem: false,
+    })
+    expect(withoutUserSystem).toEqual([])
+
+    const transientOnly = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-u',
+      segments,
+      transientOnly: true,
+    })
+    expect(transientOnly).toEqual([])
+
+    const includeUser = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-u',
+      segments,
+      includeUserSystem: true,
+    })
+    expect(includeUser).toHaveLength(1)
+    expect(includeUser[0]).toMatchObject({
+      role: 'user',
+      content: 'hello',
+    })
+  })
+
   it('keeps unparseable json fragments as strings in tool input', () => {
     const segments: TranscriptSegment[] = [
       {
@@ -309,6 +345,111 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('preserves non-Task optional tool metadata fields', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-8:tool:1:tool-meta',
+        kind: 'tool',
+        turnId: 'turn-8',
+        toolUseId: 'tool-meta',
+        toolName: 'Edit',
+        status: 'completed',
+        summary: 'Edit completed',
+        detailLines: ['line-a'],
+        result: 'result-body',
+        resultLines: 3,
+        transcriptLines: ['t-a', 't-b'],
+        nestedTools: [{ id: 'nested-1', name: 'Read', status: 'completed' }],
+        toolUses: 2,
+        usage: { input_tokens: 12, output_tokens: 4 },
+        durationMs: 80,
+        expandInfo: { payload: 'x' } as any,
+        patchStartLineNumber: 42,
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-8', segments })
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      toolInfo: {
+        toolUseId: 'tool-meta',
+        resultLines: 1,
+        transcriptLines: ['t-a', 't-b'],
+        nestedTools: [{ id: 'nested-1', name: 'Read' }],
+        toolUses: 2,
+        usage: { input_tokens: 12, output_tokens: 4 },
+        durationMs: 80,
+        patchStartLineNumber: 42,
+      },
+    })
+  })
+
+  it('hides Skill completed summary content but keeps tool result payload', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-skill:tool:1:skill-1',
+        kind: 'tool',
+        turnId: 'turn-skill',
+        toolUseId: 'skill-1',
+        toolName: 'Skill',
+        status: 'completed',
+        summary: 'secret-summary',
+        detailLines: [],
+        result: 'skill output',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-skill', segments })
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      content: '',
+      toolInfo: {
+        toolUseId: 'skill-1',
+        result: 'skill output',
+      },
+    })
+  })
+
+  it('normalizes non-Task error result with Error prefix and keeps expand info from formatter', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-err:tool:1:bash-1',
+        kind: 'tool',
+        turnId: 'turn-err',
+        toolUseId: 'bash-1',
+        toolName: 'Bash',
+        status: 'error',
+        summary: 'Error: Exit code 1',
+        detailLines: [],
+        result: 'Error: Exit code 1\nstderr:\nboom',
+      },
+      {
+        id: 'turn-expand:tool:2:bash-2',
+        kind: 'tool',
+        turnId: 'turn-err',
+        toolUseId: 'bash-2',
+        toolName: 'Bash',
+        status: 'completed',
+        summary: 'line-1\nline-2',
+        detailLines: [],
+        result: 'line-1\nline-2\nline-3\nline-4\nline-5',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({ turnId: 'turn-err', segments })
+    expect(msgs[0]).toMatchObject({
+      role: 'tool',
+      content: 'Error: Exit code 1',
+      toolInfo: {
+        toolUseId: 'bash-1',
+        result: 'Error: Exit code 1\nstderr:\nboom',
+      },
+    })
+    expect(msgs[1]?.toolInfo?.expandInfo).toContain('ctrl+o to expand')
+  })
+
   it('keeps completed tools in transient-only mode', () => {
     const segments: TranscriptSegment[] = [
       {
@@ -472,6 +613,32 @@ describe('canonicalTurnSegmentsToMessages', () => {
     })
   })
 
+  it('keeps finalized thinking blocks in transient-only mode', () => {
+    const segments: TranscriptSegment[] = [
+      {
+        id: 'turn-f:thinking:1',
+        kind: 'thinking',
+        turnId: 'turn-f',
+        text: 'finalized reasoning',
+        status: 'finalized',
+      },
+    ]
+
+    const msgs = canonicalTurnSegmentsToMessages({
+      turnId: 'turn-f',
+      segments,
+      transientOnly: true,
+    })
+
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({
+      role: 'assistant',
+      ui: { kind: 'thinking_block' },
+      content: 'finalized reasoning',
+      surfaceOwner: 'static',
+    })
+  })
+
   it('replaces turn tail after user message with canonical turn messages', () => {
     const replaced = replaceTurnTailWithCanonicalMessages({
       messages: [
@@ -500,6 +667,37 @@ describe('canonicalTurnSegmentsToMessages', () => {
 
     expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-a', 'legacy-t'])
     expect(replaced[1]?.isStreaming).toBe(false)
+  })
+
+  it('reuses legacy thinking row when canonical turn contains a thinking block', () => {
+    const legacyThinking: Msg = {
+      id: 'legacy-thinking',
+      role: 'assistant',
+      content: 'old thinking',
+      timestamp: new Date(20),
+      ui: { kind: 'thinking_block' },
+    }
+    const replaced = replaceTurnTailWithCanonicalMessages({
+      messages: [
+        { id: 'u1', role: 'user', content: 'ask', timestamp: new Date(10) },
+        legacyThinking,
+      ],
+      userMessageId: 'u1',
+      canonicalTurnMessages: [
+        {
+          id: 'canonical-thinking',
+          role: 'assistant',
+          content: 'new thinking',
+          timestamp: new Date(0),
+          ui: { kind: 'thinking_block' },
+        },
+      ],
+    })
+
+    expect(replaced.map((message) => message.id)).toEqual(['u1', 'legacy-thinking'])
+    expect(replaced[1]).not.toBe(legacyThinking)
+    expect(replaced[1]?.ui?.kind).toBe('thinking_block')
+    expect(replaced[1]?.content).toBe('new thinking')
   })
 
   it('returns original messages when user anchor is missing', () => {
@@ -911,6 +1109,52 @@ describe('mergeCanonicalTurnIntoMessages', () => {
     })
 
     expect(merged.map((m) => m.id)).toEqual(['u1', 'canonical-a', 'subline-err'])
+  })
+
+  it('normalizes inserted assistant timestamp relative to user anchor', () => {
+    const canonicalAssistant: Msg = {
+      id: 'canonical-a',
+      role: 'assistant',
+      content: 'final answer',
+      timestamp: new Date(300),
+    }
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [canonicalAssistant],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged).toHaveLength(2)
+    expect(merged[1]).toMatchObject({
+      id: 'canonical-a',
+      role: 'assistant',
+      content: 'final answer',
+      isStreaming: false,
+    })
+    expect(merged[1]?.timestamp.getTime()).toBe(101)
+  })
+
+  it('rewrites non-monotonic canonical tool timestamps relative to turn anchor', () => {
+    const merged = mergeCanonicalTurnIntoMessages({
+      messages: [{ id: 'u1', role: 'user', content: 'ask', timestamp: new Date(100) }],
+      userMessageId: 'u1',
+      canonicalRowsForAppend: [
+        {
+          id: 'canonical-tool',
+          role: 'tool',
+          content: 'done',
+          timestamp: new Date(0),
+          toolInfo: { toolUseId: 'tool-1', name: 'Bash', status: 'running', input: {} },
+        },
+      ],
+      turnOutcome: 'completed',
+      isFailureSubline: () => false,
+    })
+
+    expect(merged).toHaveLength(2)
+    expect(merged[1]?.timestamp.getTime()).toBe(101)
   })
 })
 
@@ -1361,6 +1605,124 @@ describe('appendCanonicalTailFinalRows', () => {
     expect(next).toHaveLength(2)
     expect(next[1]?.role).toBe('assistant')
     expect(next[1]?.timestamp.getTime()).toBe(baseTs.getTime() + 1)
+  })
+
+  it('preserves non-canonical tool rows and helper rows while replacing canonical tool rows', () => {
+    const next = appendCanonicalTailFinalRows({
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: new Date(100) },
+        {
+          id: 'helper-tool',
+          role: 'tool',
+          content: 'helper',
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: '   ', name: 'LocalBash', status: 'running', input: { command: 'echo helper' } },
+        },
+        {
+          id: 'legacy-tool',
+          role: 'tool',
+          content: '$ pwd',
+          timestamp: new Date(102),
+          toolInfo: { toolUseId: 'tool-1', name: 'LocalBash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      turnId: 'local-bash-3',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        { id: 'local-bash-3:assistant:0', kind: 'assistant', turnId: 'local-bash-3', text: 'tail-note' },
+        {
+          id: 'local-bash-3:tool:1:tool-1',
+          kind: 'tool',
+          turnId: 'local-bash-3',
+          toolUseId: 'tool-1',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: '/repo',
+          detailLines: [],
+          paramsText: 'command="pwd"',
+        },
+      ],
+    })
+
+    expect(next.map((message) => message.id)).toEqual([
+      'assistant-1',
+      'helper-tool',
+      'canonical:local-bash-3:assistant:0',
+      'legacy-tool',
+    ])
+    expect(next[1]?.toolInfo?.toolUseId).toBe('   ')
+    expect(next[2]?.role).toBe('assistant')
+    expect(next[3]?.id).toBe('legacy-tool')
+  })
+
+  it('keeps canonical tool rows without legacy match and drops replaced legacy duplicates', () => {
+    const next = appendCanonicalTailFinalRows({
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'prev', timestamp: new Date(100) },
+        {
+          id: 'legacy-tool-keep',
+          role: 'tool',
+          content: '$ ls',
+          timestamp: new Date(101),
+          toolInfo: { toolUseId: '', name: 'LocalBash', status: 'running', input: { command: 'ls' } },
+        },
+        {
+          id: 'legacy-tool-drop',
+          role: 'tool',
+          content: '$ pwd',
+          timestamp: new Date(102),
+          toolInfo: { toolUseId: 'tool-1', name: 'LocalBash', status: 'running', input: { command: 'pwd' } },
+        },
+      ],
+      turnId: 'local-bash-4',
+      turnOutcome: 'completed',
+      projectionSegments: [
+        {
+          id: 'local-bash-4:tool:1:blank-id',
+          kind: 'tool',
+          turnId: 'local-bash-4',
+          toolUseId: '',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: 'blank-id-result',
+          detailLines: [],
+          paramsText: 'command="echo blank"',
+        },
+        {
+          id: 'local-bash-4:tool:2:tool-1',
+          kind: 'tool',
+          turnId: 'local-bash-4',
+          toolUseId: 'tool-1',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: '/repo',
+          detailLines: [],
+          paramsText: 'command="pwd"',
+        },
+        {
+          id: 'local-bash-4:tool:3:tool-2',
+          kind: 'tool',
+          turnId: 'local-bash-4',
+          toolUseId: 'tool-2',
+          toolName: 'LocalBash',
+          status: 'completed',
+          summary: 'new-tool',
+          detailLines: [],
+          paramsText: 'command="whoami"',
+        },
+      ],
+    })
+
+    expect(next.map((message) => message.id)).toEqual([
+      'assistant-1',
+      'legacy-tool-keep',
+      'canonical:local-bash-4:tool:',
+      'legacy-tool-drop',
+      'canonical:local-bash-4:tool:tool-2',
+    ])
+    expect(next[2]?.toolInfo?.toolUseId).toBe('')
+    expect(next[3]?.toolInfo?.toolUseId).toBe('tool-1')
+    expect(next[4]?.toolInfo?.toolUseId).toBe('tool-2')
   })
 })
 
