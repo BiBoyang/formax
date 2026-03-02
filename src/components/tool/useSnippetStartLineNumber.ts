@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { findSnippetStartLineNumber } from './snippetStartLine'
+import { findSnippetStartLineNumber } from '../../shared/utils/snippetStartLine'
 
 export function useSnippetStartLineNumber(args: {
   filePath: string

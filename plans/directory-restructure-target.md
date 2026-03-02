@@ -1477,3 +1477,15 @@ src/
     - `shared-types`: `src/platform/types/shared` 尚未建立，检查按合同策略跳过（不阻断）。
 - 明确不做：
   - 不进入 Phase D（已决议不执行），后续按既定 E/F 与 feature 收口策略推进。
+
+## 执行状态（Phase C - Slice 97）
+
+- 状态：进行中（当前链路 shim 进一步收口，低风险）。
+- 本轮已完成：
+  - 删除 `src/components/tool/snippetStartLine.ts` 薄 re-export shim。
+  - 组件与测试调用方改为直接依赖 `src/shared/utils/snippetStartLine`：
+    - `src/components/tool/useSnippetStartLineNumber.ts`
+    - `src/components/tool/snippetStartLine.test.ts`
+  - 保持 `findSnippetStartLineNumber` 实现与行为不变，仅减少一层路径跳转。
+- 明确不做：
+  - 不调整行号计算算法与 patch 渲染行为，仅做导入链路收口。

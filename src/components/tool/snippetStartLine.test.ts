@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findSnippetStartLineNumber } from './snippetStartLine'
+import { findSnippetStartLineNumber } from '../../shared/utils/snippetStartLine'
 
 describe('findSnippetStartLineNumber', () => {
   it('returns null for empty snippet after trimming trailing blank lines', () => {
