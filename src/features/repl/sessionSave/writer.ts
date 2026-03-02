@@ -48,7 +48,7 @@ function bestEffortGitBranch(cwd: string): string | null {
       windowsHide: true,
     })
     if (res.status !== 0) return null
-    const out = String(res.stdout ?? '').trim()
+    const out = String(res.stdout).trim()
     if (!out || out === 'HEAD') return null
     return out
   } catch {
@@ -463,10 +463,8 @@ export class SessionWriter {
           const { line } = encodeRecord(item.record, this.maxLineBytes)
           lines.push(line)
         }
-        if (lines.length) {
-          await this.handle.write(lines.join(''))
-          await this.handle.sync()
-        }
+        await this.handle.write(lines.join(''))
+        await this.handle.sync()
         for (const item of batch) item.resolve()
       }
     })()
@@ -480,6 +478,25 @@ export class SessionWriter {
 
 export function getDefaultMaxLineBytes(): number {
   return DEFAULT_MAX_LINE_BYTES
+}
+
+export const __writerTestOnly = {
+  isoNow,
+  parseRequestedSessionId,
+  resolveSessionStartTime,
+  bestEffortGitBranch,
+  isPersistableMsg,
+  cloneMsgForPersistence,
+  cloneHistoryForPersistence,
+  truncateMsgInPlace,
+  truncateHistoryInPlace,
+  isPlainObject,
+  truncateTextValue,
+  compactInputObjectForEvent,
+  sanitizeAppToolEventData,
+  buildEssentialAppToolEventData,
+  buildAppToolEventTrimCandidates,
+  encodeRecord,
 }
 
 export type { SessionWriterOptions }

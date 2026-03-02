@@ -655,3 +655,24 @@ export async function readSessionPreview(
 
   return out.reverse()
 }
+
+export const __readerTestOnly = {
+  isObject,
+  isNonEmptyRecord,
+  coerceNonEmptyString,
+  detailLinesFromPersistedTool,
+  isSearchLikeToolName,
+  hasCompactReadSummary,
+  hasCompactSearchSummary,
+  normalizePersistedToolDisplay,
+  toToolMsgFromPersisted,
+  reviveMsg,
+  mergeLegacyToolFieldsIntoPersisted,
+  collectSessionCandidates,
+  readSessionMetaOnly,
+  readTailText,
+  coerceString,
+  coerceNumber,
+  readTailSummaryData,
+  toSingleLinePreview,
+}
