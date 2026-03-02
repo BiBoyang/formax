@@ -151,3 +151,7 @@ function joinPath(baseRaw: string, relRaw: string): string {
   const normalizedRel = rel.replaceAll('\\', '/').replaceAll('/', sep).replace(new RegExp(`^${sep}+`), '')
   return normalizedBase + sep + normalizedRel
 }
+
+export const __testOnlyDebugBundle = {
+  joinPath,
+}
