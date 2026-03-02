@@ -183,6 +183,12 @@ class SizeLimitClient {
   }
 }
 
+class StringThrowClient {
+  async streamOnce(): Promise<StreamTurnResult> {
+    throw 'string-error'
+  }
+}
+
 describe('SubAgentRunner', () => {
   it('filters tools by allowlist and forbids nested tools', async () => {
     const client = new RecordingClient('ok')
@@ -526,5 +532,90 @@ describe('SubAgentRunner', () => {
     const second = await runner.run({ agent, task: 'two', resume: first.agentId, promptBudget: null })
     expect(second.success).toBe(false)
     expect(second.error).toContain('too big')
+  })
+
+  it('uses requested agentId and handles unknown/mismatched resume ids', async () => {
+    const client = new RecordingClient('ok')
+    const executor = createToolExecutor([])
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor,
+      allTools: [tool('Read')],
+    })
+
+    const first = await runner.run({
+      agent: {
+        name: 'agent-a',
+        description: 'a',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task-a',
+      agentId: 'agent-fixed',
+    })
+    expect(first.agentId).toBe('agent-fixed')
+
+    const unknownResume = await runner.run({
+      agent: {
+        name: 'agent-a',
+        description: 'a',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task-b',
+      resume: 'missing-id',
+    })
+    expect(unknownResume.success).toBe(false)
+    expect(unknownResume.error).toContain('Unknown agent ID: missing-id')
+
+    const mismatchedResume = await runner.run({
+      agent: {
+        name: 'agent-b',
+        description: 'b',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task-c',
+      resume: 'agent-fixed',
+    })
+    expect(mismatchedResume.success).toBe(false)
+    expect(mismatchedResume.error).toContain("belongs to 'agent-a', not 'agent-b'")
+  })
+
+  it('supports undefined tool allowlist and string-thrown errors', async () => {
+    const okRunner = createSubAgentRunner({
+      client: new RecordingClient('ok') as any,
+      executor: createToolExecutor([]),
+      allTools: [tool('Read')],
+    })
+
+    const ok = await okRunner.run({
+      agent: {
+        name: 'agent-open',
+        description: 'open',
+        tools: undefined as any,
+        systemPrompt: 'x',
+      } as any,
+      task: 'task',
+    })
+    expect(ok.success).toBe(true)
+    expect(ok.response).toBe('ok')
+
+    const failRunner = createSubAgentRunner({
+      client: new StringThrowClient() as any,
+      executor: createToolExecutor([]),
+      allTools: [],
+    })
+    const failed = await failRunner.run({
+      agent: {
+        name: 'agent-fail',
+        description: 'fail',
+        tools: ['*'],
+        systemPrompt: 'x',
+      },
+      task: 'task',
+    })
+    expect(failed.success).toBe(false)
+    expect(failed.error).toBe('string-error')
   })
 })
