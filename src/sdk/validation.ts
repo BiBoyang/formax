@@ -167,6 +167,10 @@ const queryOptionsSchema = z
     agent: z.string().optional(),
     agents: z.record(z.string(), z.unknown()).optional(),
     mcpServers: z.record(z.string(), z.unknown()).optional(),
+    hooks: z.record(z.string(), z.unknown()).optional(),
+    canUseTool: z.custom<(...args: unknown[]) => unknown>((value) => typeof value === 'function', {
+      message: 'Expected function',
+    }).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

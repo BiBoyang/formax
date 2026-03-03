@@ -386,6 +386,18 @@ function assertToolsAndMcpOptionsSupported(args: {
   }
 }
 
+function assertHookAndToolPermissionOptionsSupported(args: {
+  hooks?: Record<string, unknown>
+  canUseTool?: (...hookArgs: unknown[]) => unknown
+}): void {
+  if (args.hooks !== undefined) {
+    throw new Error('options.hooks is not supported in Formax SDK yet')
+  }
+  if (args.canUseTool !== undefined) {
+    throw new Error('options.canUseTool is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -822,6 +834,10 @@ async function* runQuery(
       assertToolsAndMcpOptionsSupported({
         tools: options.tools,
         mcpServers: options.mcpServers,
+      })
+      assertHookAndToolPermissionOptionsSupported({
+        hooks: options.hooks,
+        canUseTool: options.canUseTool,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,

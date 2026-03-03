@@ -95,6 +95,8 @@ export type QueryOptions = {
   agents?: Record<string, unknown>
   tools?: string[] | ToolsPresetInput
   mcpServers?: Record<string, unknown>
+  hooks?: Record<string, unknown>
+  canUseTool?: (...args: unknown[]) => unknown
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
