@@ -96,9 +96,13 @@
   - 切片：`QRY-25`
   - 说明：接收 `additionalDirectories/sandbox` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query agent option inputs`
+- `6633be1` `feat(sdk): align query agent option inputs`
   - 切片：`QRY-26`
   - 说明：接收 `agent/agents` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query tools and MCP option inputs`
+  - 切片：`QRY-27`
+  - 说明：接收 `tools/mcpServers` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

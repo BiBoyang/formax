@@ -12,6 +12,11 @@ export type SystemPromptPresetInput = {
 
 export type SystemPromptInput = string | PromptBlock[] | SystemPromptPresetInput
 
+export type ToolsPresetInput = {
+  type: 'preset'
+  preset: 'claude_code'
+}
+
 export type JsonSchemaOutputFormat = {
   type: 'json_schema'
   schema: Record<string, unknown>
@@ -88,6 +93,8 @@ export type QueryOptions = {
   sandbox?: unknown
   agent?: string
   agents?: Record<string, unknown>
+  tools?: string[] | ToolsPresetInput
+  mcpServers?: Record<string, unknown>
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

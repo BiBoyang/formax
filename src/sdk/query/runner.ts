@@ -374,6 +374,18 @@ function assertAgentOptionsSupported(args: {
   }
 }
 
+function assertToolsAndMcpOptionsSupported(args: {
+  tools?: string[] | { type: 'preset'; preset: 'claude_code' }
+  mcpServers?: Record<string, unknown>
+}): void {
+  if (args.tools !== undefined) {
+    throw new Error('options.tools is not supported in Formax SDK yet')
+  }
+  if (args.mcpServers !== undefined) {
+    throw new Error('options.mcpServers is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -806,6 +818,10 @@ async function* runQuery(
       assertAgentOptionsSupported({
         agent: options.agent,
         agents: options.agents,
+      })
+      assertToolsAndMcpOptionsSupported({
+        tools: options.tools,
+        mcpServers: options.mcpServers,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,

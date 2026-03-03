@@ -46,6 +46,13 @@ const systemPromptPresetSchema = z
   })
   .strict()
 
+const toolsPresetSchema = z
+  .object({
+    type: z.literal('preset'),
+    preset: z.literal('claude_code'),
+  })
+  .strict()
+
 const systemPromptInputSchema = z.union([
   z.string(),
   z.array(promptBlockSchema),
@@ -122,6 +129,7 @@ const queryOptionsSchema = z
     includePartialMessages: z.boolean().optional(),
     allowedTools: z.array(z.string()).optional(),
     disallowedTools: z.array(z.string()).optional(),
+    tools: z.union([z.array(z.string()), toolsPresetSchema]).optional(),
     replMode: z.enum(['normal', 'acceptEdits', 'plan']).optional(),
     permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']).optional(),
     interactive: z.boolean().optional(),
@@ -158,6 +166,7 @@ const queryOptionsSchema = z
     sandbox: z.unknown().optional(),
     agent: z.string().optional(),
     agents: z.record(z.string(), z.unknown()).optional(),
+    mcpServers: z.record(z.string(), z.unknown()).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

@@ -77,6 +77,7 @@ Implemented and available now:
 - Query persistence alignment (`persistSession/forkSession/enableFileCheckpointing` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query agent alignment (`agent/agents` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query tools/MCP alignment (`tools/mcpServers` accepted as contract inputs; currently fail explicitly as unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

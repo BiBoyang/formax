@@ -1786,6 +1786,84 @@ describe('sdk query()', () => {
     }
   })
 
+  it.each(
+    [
+      {
+        label: 'tools list',
+        options: { tools: ['Read', 'Write'] },
+        expected: 'options.tools',
+      },
+      {
+        label: 'tools preset',
+        options: { tools: { type: 'preset', preset: 'claude_code' as const } },
+        expected: 'options.tools',
+      },
+      {
+        label: 'mcpServers',
+        options: { mcpServers: { local: { type: 'stdio', command: 'mcp-server' } } },
+        expected: 'options.mcpServers',
+      },
+    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
+  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'tools mcp option unsupported',
+      options,
+    })
+
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain(expected)
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
+  it('fails fast on unsupported tools option before draining async prompt stream', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    let nextCalls = 0
+
+    const promptStream: AsyncIterable<SDKUserMessage> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => {
+            nextCalls += 1
+            return {
+              value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
+              done: false,
+            }
+          },
+        }
+      },
+    }
+
+    const messages = await collectMessages({
+      prompt: promptStream,
+      options: {
+        tools: ['Read'],
+      },
+    })
+
+    expect(nextCalls).toBe(0)
+    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.tools')
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
   it('supports overriding and appending system prompt blocks', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       const systemTextBlocks = turnArgs.system

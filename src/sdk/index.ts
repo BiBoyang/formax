@@ -10,6 +10,7 @@ export {
 export type {
   SystemPromptPresetInput,
   SystemPromptInput,
+  ToolsPresetInput,
   JsonSchemaOutputFormat,
   OutputFormat,
   ThinkingAdaptive,
