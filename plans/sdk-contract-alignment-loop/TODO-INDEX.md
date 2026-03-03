@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] `QRY-69`：增强 `canUseTool.updatedPermissions` 映射精度（减少 `approve_remember` 简化映射，补齐更多 destination/type 语义）。
 - [ ] `SDK-14`：增强 `accountInfo()` 输出契约（补齐官方常用兼容字段子集并保持现有字段兼容）。
 
 ## 再生规则（当“当前待办”为空时）

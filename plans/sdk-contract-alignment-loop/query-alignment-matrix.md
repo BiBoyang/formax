@@ -48,7 +48,7 @@
 | `effort` | `options.effort` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |
 | `hooks` | `options.hooks` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `canUseTool` | `options.canUseTool` | Partial | 已支持：作为统一权限/用户输入回调处理 `approval_request` 与 `ask_user_question`；`approval_request` 下支持通过 `updatedInput` 回写工具入参（受控 JSON 通道映射 + 执行侧 deny 重校验）。 |
+| `canUseTool` | `options.canUseTool` | Partial | 已支持：作为统一权限/用户输入回调处理 `approval_request` 与 `ask_user_question`；`approval_request` 下支持通过 `updatedInput` 回写工具入参（受控 JSON 通道映射 + 执行侧 deny 重校验），并对 `updatedPermissions` 做 destination-aware `approve_remember` 映射（当前仅覆盖可表达子集，超出子集回退为一次性 `approve`）。 |
 | `mcpServers` | `options.mcpServers` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `plugins` | `options.plugins` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `settingSources` | `options.settingSources` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |

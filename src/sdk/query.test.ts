@@ -3618,6 +3618,122 @@ describe('sdk query()', () => {
     })
   })
 
+  it('maps canUseTool addDirectories updates to destination-aware remember scope', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-directories',
+        toolName: 'Read',
+        action: { kind: 'fs.read', path: '/outside/workspace/file.txt' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'approved' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'allow workspace directory',
+      options: {
+        interactive: true,
+        canUseTool: async () => ({
+          behavior: 'allow',
+          updatedPermissions: [
+            {
+              type: 'addDirectories',
+              directories: ['/outside/workspace'],
+              destination: 'userSettings',
+            },
+          ],
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-directories', {
+      decision: 'approve_remember',
+      scope: 'global',
+    })
+  })
+
+  it('falls back to approve when updatedPermissions cannot be represented as remember answers', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-remove-rules',
+        toolName: 'Write',
+        action: { kind: 'fs.write', path: '/tmp/remove-rules.txt' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'approved' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'approval remove rules',
+      options: {
+        interactive: true,
+        canUseTool: async () => ({
+          behavior: 'allow',
+          updatedPermissions: [
+            {
+              type: 'removeRules',
+              rules: [{ toolName: 'Write', ruleContent: '/tmp/remove-rules.txt' }],
+              behavior: 'allow',
+              destination: 'projectSettings',
+            },
+          ],
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-remove-rules', {
+      decision: 'approve',
+    })
+  })
+
+  it('falls back to approve when remember-capable updates contain mixed destinations', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-mixed-scopes',
+        toolName: 'Bash',
+        action: { kind: 'bash.exec', command: 'echo hi' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'approved' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'approval mixed scopes',
+      options: {
+        interactive: true,
+        canUseTool: async () => ({
+          behavior: 'allow',
+          updatedPermissions: [
+            {
+              type: 'addRules',
+              rules: [{ toolName: 'Bash', ruleContent: 'echo hi' }],
+              behavior: 'allow',
+              destination: 'session',
+            },
+            {
+              type: 'setMode',
+              mode: 'acceptEdits',
+              destination: 'projectSettings',
+            },
+          ],
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-mixed-scopes', {
+      decision: 'approve',
+    })
+  })
+
   it('forwards canUseTool approval updatedInput via updated_input_json answer', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({

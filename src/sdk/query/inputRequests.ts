@@ -49,18 +49,46 @@ function mapPermissionDestinationToScope(destination: PermissionUpdateDestinatio
   return 'session'
 }
 
+function isRememberCapablePermissionUpdate(update: PermissionUpdate): boolean {
+  switch (update.type) {
+    case 'addRules':
+    case 'replaceRules':
+      return update.behavior === 'allow' && update.rules.length > 0
+    case 'setMode':
+      return update.mode === 'acceptEdits'
+    case 'addDirectories':
+      return update.directories.some((directory) => String(directory ?? '').trim().length > 0)
+    case 'removeRules':
+    case 'removeDirectories':
+      return false
+    default:
+      return false
+  }
+}
+
 function resolveRememberScopeFromPermissionUpdates(
   updates: PermissionUpdate[] | undefined,
 ): 'session' | 'project' | 'global' | null {
   if (!updates || updates.length === 0) return null
+  let rememberScope: 'session' | 'project' | 'global' | null = null
   for (const update of updates) {
     if (!update || typeof update !== 'object') continue
     if (!('destination' in update)) continue
+    if (!isRememberCapablePermissionUpdate(update)) continue
     const destination = update.destination
     if (!destination) continue
-    return mapPermissionDestinationToScope(destination)
+    const nextScope = mapPermissionDestinationToScope(destination)
+    if (!rememberScope) {
+      rememberScope = nextScope
+      continue
+    }
+    if (rememberScope !== nextScope) {
+      // SDK approval answers can only encode one scope; mixed destinations
+      // must fall back to one-time approval to avoid broadening permissions.
+      return null
+    }
   }
-  return 'session'
+  return rememberScope
 }
 
 function toApprovalAnswersFromPermissionResult(result: PermissionResult): Record<string, string> {
