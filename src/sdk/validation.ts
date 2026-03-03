@@ -42,6 +42,14 @@ const tokenUsageSchema = z
 
 const stopReasonSchema = z.union([z.string(), z.null()])
 
+const outputFormatSchema = z
+  .object({
+    type: z.literal('json_schema'),
+    schema: z.record(z.string(), z.unknown()),
+    maxRetries: z.number().int().nonnegative().max(10).optional(),
+  })
+  .strict()
+
 function isAbortSignalLike(value: unknown): value is AbortSignal {
   if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
@@ -66,6 +74,7 @@ const queryOptionsSchema = z
     replMode: z.enum(['normal', 'acceptEdits', 'plan']).optional(),
     interactive: z.boolean().optional(),
     thinkingEnabled: z.boolean().optional(),
+    outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {
       message: 'Expected AbortSignal-compatible object',
     }).optional(),

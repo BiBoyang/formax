@@ -26,6 +26,12 @@ import {
   parseTokenUsage,
   parseToolDefinitions,
 } from './validation.js'
+import {
+  buildStructuredOutputRetryPrompt,
+  buildStructuredOutputSystemPrompt,
+  parseAndValidateStructuredOutput,
+  validateStructuredOutputValue,
+} from './structuredOutput.js'
 
 type QueueResolver<T> = (value: IteratorResult<T>) => void
 
@@ -35,6 +41,28 @@ const USAGE_KEYS: Array<keyof TokenUsage> = [
   'cache_read_input_tokens',
   'cache_creation_input_tokens',
 ]
+
+const STRUCTURED_OUTPUT_TOOL_NAME = 'StructuredOutput'
+const STRUCTURED_OUTPUT_TOOL_DESCRIPTION =
+  'Use this tool to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response to provide the structured output.'
+
+function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): ToolDefinition {
+  // Match official SDK behavior: StructuredOutput.input_schema is derived directly
+  // from outputFormat.schema on each query invocation.
+  return {
+    name: STRUCTURED_OUTPUT_TOOL_NAME,
+    description: STRUCTURED_OUTPUT_TOOL_DESCRIPTION,
+    input_schema: schema,
+  }
+}
+
+function isStructuredOutputToolCall(
+  call: unknown,
+): call is { id: string; name: string; input: unknown } {
+  if (!call || typeof call !== 'object') return false
+  const record = call as { id?: unknown; name?: unknown }
+  return typeof record.id === 'string' && record.name === STRUCTURED_OUTPUT_TOOL_NAME
+}
 
 function hasUsageValue(usage: TokenUsage): boolean {
   for (const key of USAGE_KEYS) {
@@ -116,6 +144,32 @@ function extractLastAssistantMessage(history: PromptMessage[]): { text: string; 
   return null
 }
 
+function extractLastStructuredOutputToolInput(
+  history: PromptMessage[],
+  startIndex = 0,
+): { found: true; input: unknown } | { found: false } {
+  const start = Number.isInteger(startIndex)
+    ? Math.min(Math.max(startIndex, 0), history.length)
+    : 0
+  for (let idx = history.length - 1; idx >= start; idx -= 1) {
+    const message = history[idx]
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (let blockIdx = message.content.length - 1; blockIdx >= 0; blockIdx -= 1) {
+      const block = message.content[blockIdx]
+      if (!block || typeof block !== 'object') continue
+      if ((block as { type?: unknown }).type !== 'tool_use') continue
+      const name = (block as { name?: unknown }).name
+      if (name !== STRUCTURED_OUTPUT_TOOL_NAME) continue
+      return {
+        found: true,
+        input: (block as { input?: unknown }).input,
+      }
+    }
+  }
+
+  return { found: false }
+}
+
 function createAsyncIteratorQueue<T>(): {
   push: (value: T) => void
   close: () => void
@@ -188,13 +242,36 @@ function patchClientStreamOnce(args: {
   runtime: RuntimeBundle
   onStopReason: (reason: StopReason) => void
   onUsage: (usage: TokenUsage) => void
+  interceptExecuteTool?: (call: unknown) => Promise<unknown | null> | unknown | null
 }): (() => void) | null {
   const client = args.runtime.client as { streamOnce?: unknown }
   const original = client.streamOnce
   if (typeof original !== 'function') return null
 
   ;(client as { streamOnce: unknown }).streamOnce = async (...streamArgs: unknown[]) => {
-    const out = await (original as (...methodArgs: unknown[]) => Promise<any>).call(client, ...streamArgs)
+    let methodArgs = streamArgs
+    const firstArg = streamArgs[0]
+    if (
+      args.interceptExecuteTool &&
+      firstArg &&
+      typeof firstArg === 'object' &&
+      !Array.isArray(firstArg) &&
+      typeof (firstArg as { executeTool?: unknown }).executeTool === 'function'
+    ) {
+      const originalExecuteTool = (firstArg as { executeTool: (call: unknown) => Promise<unknown> }).executeTool
+      const wrappedExecuteTool = async (call: unknown): Promise<unknown> => {
+        const intercepted = await args.interceptExecuteTool!(call)
+        if (intercepted != null) return intercepted
+        return await originalExecuteTool(call)
+      }
+      const patchedFirstArg = {
+        ...(firstArg as Record<string, unknown>),
+        executeTool: wrappedExecuteTool,
+      }
+      methodArgs = [patchedFirstArg, ...streamArgs.slice(1)]
+    }
+
+    const out = await (original as (...methodArgs: unknown[]) => Promise<any>).call(client, ...methodArgs)
     args.onStopReason(parseStopReason(out?.stopReason ?? null))
     const usage = parseTokenUsage(out?.usage)
     if (usage) args.onUsage(usage)
@@ -209,13 +286,30 @@ function patchClientStreamOnce(args: {
 function normalizeDisallowedTools(args: {
   interactive: boolean
   disallowedTools?: string[]
+  outputFormatEnabled?: boolean
 }): string[] | undefined {
   const merged = new Set(args.disallowedTools ?? [])
   if (!args.interactive) {
     // Without an answer submission API, AskUserQuestion would deadlock.
     merged.add('AskUserQuestion')
   }
+  if (args.outputFormatEnabled) {
+    // StructuredOutput is an internal synthetic tool used by SDK outputFormat.
+    merged.delete(STRUCTURED_OUTPUT_TOOL_NAME)
+  }
   return merged.size > 0 ? [...merged] : undefined
+}
+
+function normalizeAllowedTools(args: {
+  allowedTools?: string[]
+  outputFormatEnabled?: boolean
+}): string[] | undefined {
+  if (!args.allowedTools) return undefined
+  const merged = new Set(args.allowedTools)
+  if (args.outputFormatEnabled && !merged.has('*')) {
+    merged.add(STRUCTURED_OUTPUT_TOOL_NAME)
+  }
+  return [...merged]
 }
 
 function emitMessage(args: {
@@ -298,15 +392,21 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
 
       const parsedArgs = parseQueryArgsInput(args)
       const options = parsedArgs.options ?? {}
+      const outputFormat = options.outputFormat
       messageCallback = options.onMessage
       const cwd = path.resolve(options.cwd ?? process.cwd())
       const env = options.env ?? process.env
       const history = cloneHistory(parsedArgs.history)
       nextHistory = history
       const interactive = options.interactive === true
+      const allowTools = normalizeAllowedTools({
+        allowedTools: options.allowedTools,
+        outputFormatEnabled: outputFormat?.type === 'json_schema',
+      })
       const disallowedTools = normalizeDisallowedTools({
         interactive,
         disallowedTools: options.disallowedTools,
+        outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
       runSignal = combineSignals(options.signal, controller.signal)
 
@@ -323,14 +423,28 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           streamUsageCount += 1
           mergeUsageTotals(streamUsageTotals, usage)
         },
+        interceptExecuteTool:
+          outputFormat?.type === 'json_schema'
+            ? async (call) => {
+                if (!isStructuredOutputToolCall(call)) return null
+                return {
+                  tool_use_id: call.id,
+                  content: 'Structured output accepted.',
+                  is_error: false,
+                }
+              }
+            : undefined,
       })
 
+      const filteredTools = filterToolsForQuery({
+        tools: patchToolsForTurn(runtime.tools, cwd),
+        allowedTools: allowTools,
+        disallowedTools,
+      })
       const tools = parseToolDefinitions(
-        filterToolsForQuery({
-          tools: patchToolsForTurn(runtime.tools, cwd),
-          allowedTools: options.allowedTools,
-          disallowedTools,
-        }),
+        outputFormat?.type === 'json_schema'
+          ? [...filteredTools, buildStructuredOutputToolDefinition(outputFormat.schema)]
+          : filteredTools,
       )
 
       emitMessage({
@@ -355,6 +469,13 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       const systemOverride = normalizePromptInput(options.systemPrompt)
       const appendSystem = normalizePromptInput(options.appendSystemPrompt)
       const system = [...(systemOverride.length > 0 ? systemOverride : defaultSystem), ...appendSystem]
+      if (outputFormat?.type === 'json_schema') {
+        system.push({
+          type: 'text',
+          text: buildStructuredOutputSystemPrompt(outputFormat.schema),
+          cache_control: { type: 'ephemeral' },
+        })
+      }
 
       const onEvent = (event: StreamEvent) => {
         const parsedEvent = parseStreamEvent(event)
@@ -471,27 +592,85 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         })
       }
 
-      nextHistory = await runtime.engine.runTurn({
-        history,
-        user: toUserPromptMessage(parsedArgs.prompt),
-        system,
-        tools,
-        onEvent,
-        cwd,
-        signal: runSignal,
-        model,
-        thinkingEnabled: options.thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
-        exec: {
-          interactive,
-          replMode: options.replMode,
-          ...(options.allowedTools ? { allowTools: options.allowedTools } : {}),
-          ...(disallowedTools ? { denyTools: disallowedTools } : {}),
-        },
-      })
-
-      nextHistory = parsePromptHistory(nextHistory)
-      const assistantBlocks = extractLastAssistantMessage(nextHistory)
+      const outputMaxRetries =
+        outputFormat?.type === 'json_schema' ? Math.max(0, outputFormat.maxRetries ?? 0) : 0
+      let currentHistory = history
+      let currentPrompt = parsedArgs.prompt
+      let lastStructuredValidationError: string | null = null
+      let structuredOutputValue: unknown
+      let assistantBlocks: { text: string; blocks: PromptBlock[] } | null = null
       let assistantMessage: AssistantMessage | null = null
+      let didStructuredOutputFail = false
+
+      for (let attempt = 0; attempt <= outputMaxRetries; attempt += 1) {
+        nextHistory = await runtime.engine.runTurn({
+          history: currentHistory,
+          user: toUserPromptMessage(currentPrompt),
+          system,
+          tools,
+          onEvent,
+          cwd,
+          signal: runSignal,
+          model,
+          thinkingEnabled: options.thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
+          exec: {
+            interactive,
+            replMode: options.replMode,
+            ...(allowTools ? { allowTools } : {}),
+            ...(disallowedTools ? { denyTools: disallowedTools } : {}),
+          },
+        })
+
+        nextHistory = parsePromptHistory(nextHistory)
+        assistantBlocks = extractLastAssistantMessage(nextHistory)
+
+        if (!(outputFormat?.type === 'json_schema')) {
+          break
+        }
+
+        const structuredToolResult = extractLastStructuredOutputToolInput(
+          nextHistory,
+          currentHistory.length,
+        )
+        if (structuredToolResult.found) {
+          const validated = validateStructuredOutputValue({
+            schema: outputFormat.schema,
+            value: structuredToolResult.input,
+          })
+          if (validated.ok === true) {
+            structuredOutputValue = validated.value
+            lastStructuredValidationError = null
+            break
+          } else {
+            lastStructuredValidationError = validated.error
+          }
+        } else if (!assistantBlocks) {
+          lastStructuredValidationError = 'Model returned no assistant text for structured output'
+        } else {
+          const parsedStructured = parseAndValidateStructuredOutput({
+            schema: outputFormat.schema,
+            text: assistantBlocks.text,
+          })
+          if (parsedStructured.ok === true) {
+            structuredOutputValue = parsedStructured.value
+            lastStructuredValidationError = null
+            break
+          } else {
+            lastStructuredValidationError = parsedStructured.error
+          }
+        }
+
+        if (attempt >= outputMaxRetries) {
+          didStructuredOutputFail = true
+          break
+        }
+
+        currentHistory = nextHistory
+        currentPrompt = buildStructuredOutputRetryPrompt({
+          schema: outputFormat.schema,
+          validationError: lastStructuredValidationError || 'unknown validation error',
+        })
+      }
 
       if (assistantBlocks) {
         assistantMessage = {
@@ -521,14 +700,21 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         type: 'result',
         session_id: sessionId,
         uuid: randomUUID(),
-        subtype: 'success',
+        subtype: didStructuredOutputFail ? 'error_max_structured_output_retries' : 'success',
         stop_reason: lastStopReason,
         result: assistantMessage?.text ?? '',
         usage,
         ...(usageModel ? { model: usageModel } : {}),
         assistant: assistantMessage,
+        ...(structuredOutputValue !== undefined ? { structured_output: structuredOutputValue } : {}),
         history: nextHistory,
         duration_ms: Math.max(0, Date.now() - startedAt),
+        ...(didStructuredOutputFail
+          ? {
+              error:
+                lastStructuredValidationError || 'Unable to produce valid structured output before retry limit',
+            }
+          : {}),
       }
 
       emitMessage({

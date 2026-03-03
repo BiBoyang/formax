@@ -6,6 +6,18 @@ import type { ToolDefinition } from '../tools/types.js'
 
 export type SystemPromptInput = string | PromptBlock[]
 
+export type JsonSchemaOutputFormat = {
+  type: 'json_schema'
+  schema: Record<string, unknown>
+  /**
+   * Additional structured-output correction attempts after the initial response.
+   * `0` means no retry.
+   */
+  maxRetries?: number
+}
+
+export type OutputFormat = JsonSchemaOutputFormat
+
 export type QueryOptions = {
   cwd?: string
   env?: NodeJS.ProcessEnv
@@ -19,6 +31,7 @@ export type QueryOptions = {
   replMode?: ReplMode
   interactive?: boolean
   thinkingEnabled?: boolean
+  outputFormat?: OutputFormat
   signal?: AbortSignal
   onInputRequest?: (
     request: InputRequestMessage,
@@ -59,7 +72,10 @@ export type AssistantMessage = {
   model?: string
 }
 
-export type ResultMessageSubtype = 'success' | 'error_during_execution'
+export type ResultMessageSubtype =
+  | 'success'
+  | 'error_during_execution'
+  | 'error_max_structured_output_retries'
 
 export type ResultMessage = {
   type: 'result'
@@ -71,6 +87,7 @@ export type ResultMessage = {
   usage: TokenUsage | null
   model?: string
   assistant: AssistantMessage | null
+  structured_output?: unknown
   history: PromptMessage[]
   duration_ms: number
   error?: string

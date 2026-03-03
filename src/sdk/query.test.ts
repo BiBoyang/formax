@@ -198,6 +198,467 @@ describe('sdk query()', () => {
     }
   })
 
+  it('returns structured_output when outputFormat schema validation succeeds', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        company_name: { type: 'string' },
+        founded_year: { type: 'number' },
+      },
+      required: ['company_name'],
+      additionalProperties: false,
+    }
+
+    const runtime = createRuntimeFixture({
+      streamOnce: async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({ type: 'assistant_delta', text: '{"company_name":"Anthropic","founded_year":2021}' })
+        onEvent({ type: 'usage', usage: { input_tokens: 3, output_tokens: 4 }, model: 'claude-test' })
+        return {
+          assistantBlocks: [{ type: 'text', text: '{"company_name":"Anthropic","founded_year":2021}' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 3, output_tokens: 4 },
+        }
+      },
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'summarize',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema,
+        },
+      },
+    })
+
+    const toolsPassed = runtime.engine.runTurn.mock.calls[0]?.[0]?.tools as ToolDefinition[]
+    const structuredTool = toolsPassed.find((tool) => tool.name === 'StructuredOutput')
+    expect(structuredTool).toBeTruthy()
+    expect(structuredTool?.input_schema).toEqual(schema)
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({
+        company_name: 'Anthropic',
+        founded_year: 2021,
+      })
+      expect(result.error).toBeUndefined()
+    }
+  })
+
+  it('generates StructuredOutput input_schema from each outputFormat schema dynamically', async () => {
+    const observedStructuredSchemas: unknown[] = []
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const structuredTool = (turnArgs.tools as ToolDefinition[]).find(
+        (tool) => tool.name === 'StructuredOutput',
+      )
+      observedStructuredSchemas.push(structuredTool?.input_schema)
+
+      return [
+        ...turnArgs.history,
+        turnArgs.user,
+        { role: 'assistant', content: [{ type: 'text', text: '{"company_name":"Anthropic"}' }] },
+      ]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const firstSchema = {
+      type: 'object',
+      properties: {
+        company_name: { type: 'string' },
+      },
+      required: ['company_name'],
+    }
+
+    const secondSchema = {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        company_name: { type: 'string' },
+      },
+      required: ['company_name'],
+      additionalProperties: false,
+    }
+
+    await collectMessages({
+      prompt: 'first schema run',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: firstSchema,
+        },
+      },
+    })
+
+    await collectMessages({
+      prompt: 'second schema run',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: secondSchema,
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(2)
+    expect(observedStructuredSchemas).toEqual([firstSchema, secondSchema])
+  })
+
+  it('extracts structured_output from StructuredOutput tool_use input', async () => {
+    const runtime = createRuntimeFixture({
+      streamOnce: async () => {
+        return {
+          assistantBlocks: [
+            {
+              type: 'tool_use',
+              id: 'structured-tool-1',
+              name: 'StructuredOutput',
+              input: { company_name: 'Anthropic' },
+            },
+          ],
+          stopReason: 'tool_use',
+          toolResults: [],
+          usage: { input_tokens: 2, output_tokens: 1 },
+        }
+      },
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'structured tool output',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({ company_name: 'Anthropic' })
+    }
+  })
+
+  it('auto-allows StructuredOutput when outputFormat is enabled', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(new Set(turnArgs.exec?.allowTools ?? [])).toEqual(new Set(['Read', 'StructuredOutput']))
+      expect((turnArgs.tools as ToolDefinition[]).some((tool) => tool.name === 'StructuredOutput')).toBe(true)
+      return [
+        ...turnArgs.history,
+        turnArgs.user,
+        { role: 'assistant', content: [{ type: 'text', text: '{"company_name":"Anthropic"}' }] },
+      ]
+    })
+    const runtime = createRuntimeFixture({
+      runTurn,
+      tools: [createTool('Read'), createTool('Write')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'structured with restricted allow-list',
+      options: {
+        allowedTools: ['Read'],
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+          },
+        },
+      },
+    })
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({ company_name: 'Anthropic' })
+    }
+  })
+
+  it('intercepts StructuredOutput tool execution without requiring runtime tool handler', async () => {
+    let executeToolResult: unknown = null
+    const streamOnce = vi.fn(async (streamArgs: any) => {
+      executeToolResult = await streamArgs.executeTool({
+        id: 'tool-structured',
+        name: 'StructuredOutput',
+        input: { company_name: 'Anthropic' },
+      })
+      streamArgs.onEvent?.({ type: 'assistant_delta', text: '{"company_name":"Anthropic"}' })
+      return {
+        assistantBlocks: [{ type: 'text', text: '{"company_name":"Anthropic"}' }],
+        stopReason: 'end_turn',
+        toolResults: [],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }
+    })
+
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const out = await runtime.client.streamOnce({
+        messages: [...turnArgs.history, turnArgs.user],
+        system: turnArgs.system,
+        tools: turnArgs.tools,
+        onEvent: turnArgs.onEvent,
+        executeTool: async (call: any) => ({
+          tool_use_id: String(call?.id ?? ''),
+          content: `Error: Tool not implemented: ${String(call?.name ?? '')}`,
+          is_error: true,
+        }),
+        signal: turnArgs.signal,
+        model: turnArgs.model,
+        thinkingEnabled: turnArgs.thinkingEnabled,
+      })
+      turnArgs.onEvent({ type: 'complete' })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: out.assistantBlocks }]
+    })
+
+    const runtime = createRuntimeFixture({
+      streamOnce,
+      runTurn,
+      tools: [createTool('Read')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'structured tool interception',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+          },
+        },
+      },
+    })
+
+    expect(executeToolResult).toEqual({
+      tool_use_id: 'tool-structured',
+      content: 'Structured output accepted.',
+      is_error: false,
+    })
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({ company_name: 'Anthropic' })
+    }
+  })
+
+  it('does not reuse stale StructuredOutput tool_use input from prior history turns', async () => {
+    const runtime = createRuntimeFixture({
+      streamOnce: async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({ type: 'assistant_delta', text: '{"company_name":"FreshCo"}' })
+        return {
+          assistantBlocks: [{ type: 'text', text: '{"company_name":"FreshCo"}' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 2, output_tokens: 2 },
+        }
+      },
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'current turn output',
+      history: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'structured-tool-old',
+              name: 'StructuredOutput',
+              input: { company_name: 'OldCo' },
+            },
+          ],
+        },
+      ],
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({ company_name: 'FreshCo' })
+      expect(result.structured_output).not.toEqual({ company_name: 'OldCo' })
+    }
+  })
+
+  it('retries structured output generation when first response fails validation', async () => {
+    const streamOnce = vi
+      .fn()
+      .mockImplementationOnce(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({ type: 'assistant_delta', text: 'not-json' })
+        return {
+          assistantBlocks: [{ type: 'text', text: 'not-json' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }
+      })
+      .mockImplementationOnce(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({ type: 'assistant_delta', text: '{"company_name":"Anthropic"}' })
+        return {
+          assistantBlocks: [{ type: 'text', text: '{"company_name":"Anthropic"}' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }
+      })
+
+    const runtime = createRuntimeFixture({ streamOnce })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'give structured output',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          maxRetries: 1,
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(2)
+    const secondUserText = runtime.engine.runTurn.mock.calls[1]?.[0]?.user?.content?.[0]?.text
+    expect(String(secondUserText)).toContain('Validation error')
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.structured_output).toEqual({ company_name: 'Anthropic' })
+    }
+  })
+
+  it('returns structured output retry error when schema cannot be satisfied', async () => {
+    const streamOnce = vi.fn(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+      onEvent({ type: 'assistant_delta', text: '{"company_name":123}' })
+      return {
+        assistantBlocks: [{ type: 'text', text: '{"company_name":123}' }],
+        stopReason: 'end_turn',
+        toolResults: [],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }
+    })
+    const runtime = createRuntimeFixture({ streamOnce })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'give structured output',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          maxRetries: 1,
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(2)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_max_structured_output_retries')
+      expect(result.structured_output).toBeUndefined()
+      expect(result.error).toContain('Structured output failed schema validation')
+    }
+  })
+
+  it('retries when string constraints (minLength) are violated', async () => {
+    const runtime = createRuntimeFixture({
+      streamOnce: async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({ type: 'assistant_delta', text: '{"company_name":"a"}' })
+        return {
+          assistantBlocks: [{ type: 'text', text: '{"company_name":"a"}' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }
+      },
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'give constrained structured output',
+      options: {
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: {
+                type: 'string',
+                minLength: 3,
+              },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_max_structured_output_retries')
+      expect(String(result.error)).toContain('length >=')
+    }
+  })
+
   it('handles approval input requests via onInputRequest callback', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
