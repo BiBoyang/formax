@@ -59,7 +59,7 @@
 | `additionalDirectories` | `options.additionalDirectories` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `onElicitation` | `options.onElicitation` | Partial | 输入契约已支持；当前统一显式报“暂不支持”（继续使用 Formax `onInputRequest` 语义）。 |
 | `continue` | `options.continue` | Partial | 已支持：读取当前 cwd 最新本地会话并恢复历史；如无历史则按新会话继续。 |
-| `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 已支持：`persistSession=true` 可将 query turn 落盘到本地会话；`forkSession/enableFileCheckpointing` 仍显式报“暂不支持”。 |
+| `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 已支持：`persistSession=true` 可将 query turn 落盘到本地会话；`forkSession=true` 可将 `resume/continue` 历史重绑定到新 session；`enableFileCheckpointing` 仍显式报“暂不支持”。 |
 | `fallbackModel` | `options.fallbackModel` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

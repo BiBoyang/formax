@@ -517,6 +517,41 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it('keeps forkSession compatibility behavior via resumed-history rebinding', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('persisted assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/source-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'source-session', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'forkSession compatibility',
+      options: {
+        resume: 'source-session',
+        sessionId: 'forked-session',
+        forkSession: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('forked-session')
+    }
+  })
+
   it('keeps additionalDirectories compatibility behavior via explicit unsupported error', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]

@@ -58,6 +58,7 @@ export async function resolveQueryResumeResolution(args: {
   const resumeSessionId = parseOptionalSessionId(args.options.resume)
   const requestedSessionId = parseOptionalSessionId(args.options.sessionId)
   const continueConversation = args.options.continue === true
+  const forkSession = args.options.forkSession === true
 
   if (args.options.resumeSessionAt !== undefined) {
     throw new Error(
@@ -72,9 +73,9 @@ export async function resolveQueryResumeResolution(args: {
   }
 
   if (continueConversation) {
-    if (requestedSessionId !== null) {
+    if (requestedSessionId !== null && !forkSession) {
       throw new Error(
-        `options.sessionId (${requestedSessionId}) conflicts with options.continue (${args.options.continue}) because options.forkSession is not supported in Formax SDK yet`,
+        `options.sessionId (${requestedSessionId}) conflicts with options.continue (${args.options.continue}) unless options.forkSession is true`,
       )
     }
 
@@ -90,16 +91,21 @@ export async function resolveQueryResumeResolution(args: {
 
     if (!latestFilePath) {
       return {
-        sessionId: null,
+        sessionId: requestedSessionId,
         history: [],
         sessionFilePath: null,
       }
     }
 
-    return loadReplayFromFile({
+    const continued = await loadReplayFromFile({
       filePath: latestFilePath,
       context: 'continued',
     })
+    return {
+      sessionId: forkSession ? requestedSessionId : requestedSessionId ?? continued.sessionId,
+      history: continued.history,
+      sessionFilePath: forkSession ? null : continued.sessionFilePath,
+    }
   }
 
   if (resumeSessionId === null) {
@@ -110,9 +116,9 @@ export async function resolveQueryResumeResolution(args: {
     }
   }
 
-  if (requestedSessionId !== null && requestedSessionId !== resumeSessionId) {
+  if (requestedSessionId !== null && requestedSessionId !== resumeSessionId && !forkSession) {
     throw new Error(
-      `options.sessionId (${requestedSessionId}) conflicts with options.resume (${resumeSessionId}) because options.forkSession is not supported in Formax SDK yet`,
+      `options.sessionId (${requestedSessionId}) conflicts with options.resume (${resumeSessionId}) unless options.forkSession is true`,
     )
   }
 
@@ -141,8 +147,8 @@ export async function resolveQueryResumeResolution(args: {
     context: 'resumed',
   })
   return {
-    sessionId: requestedSessionId ?? resumeSessionId,
+    sessionId: forkSession ? requestedSessionId : requestedSessionId ?? resumeSessionId,
     history: resumed.history,
-    sessionFilePath: resumed.sessionFilePath,
+    sessionFilePath: forkSession ? null : resumed.sessionFilePath,
   }
 }

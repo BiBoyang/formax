@@ -2251,11 +2251,6 @@ describe('sdk query()', () => {
   it.each(
     [
       {
-        label: 'forkSession',
-        options: { forkSession: true },
-        expected: 'options.forkSession',
-      },
-      {
         label: 'enableFileCheckpointing',
         options: { enableFileCheckpointing: true },
         expected: 'options.enableFileCheckpointing',
@@ -2369,7 +2364,90 @@ describe('sdk query()', () => {
     }
   })
 
-  it('fails fast on unsupported forkSession before draining async prompt stream', async () => {
+  it('supports forkSession for resume + sessionId rebinding', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('persisted assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'forked' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/source-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'source-session', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'fork this conversation',
+      options: {
+        resume: 'source-session',
+        sessionId: 'forked-session',
+        forkSession: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.session_id).toBe('forked-session')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('forked-session')
+    }
+  })
+
+  it('creates a new persistence file when forkSession is true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'fork persisted' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/source-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'source-session', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
+    const writer = createSessionWriterFixture()
+    state.createSessionWriter.mockResolvedValue({
+      writer,
+      meta: { sessionId: 'forked-session' },
+      filePath: '/tmp/forked-session.jsonl',
+    })
+
+    const messages = await collectMessages({
+      prompt: 'fork and persist',
+      options: {
+        resume: 'source-session',
+        sessionId: 'forked-session',
+        forkSession: true,
+        persistSession: true,
+      },
+    })
+
+    expect(state.openSessionWriter).not.toHaveBeenCalled()
+    expect(state.createSessionWriter).toHaveBeenCalledTimes(1)
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('forked-session')
+    }
+  })
+
+  it('fails fast on unsupported enableFileCheckpointing before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
@@ -2391,7 +2469,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        forkSession: true,
+        enableFileCheckpointing: true,
       },
     })
 
@@ -2402,7 +2480,7 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.forkSession')
+      expect(result.error).toContain('options.enableFileCheckpointing')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

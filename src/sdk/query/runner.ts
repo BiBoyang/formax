@@ -376,11 +376,6 @@ function assertSessionPersistenceOptionsSupported(args: {
   forkSession?: boolean
   enableFileCheckpointing?: boolean
 }): void {
-  if (args.forkSession !== undefined) {
-    throw new Error(
-      `options.forkSession (${args.forkSession}) is not supported in Formax SDK yet`,
-    )
-  }
   if (args.enableFileCheckpointing !== undefined) {
     throw new Error(
       `options.enableFileCheckpointing (${args.enableFileCheckpointing}) is not supported in Formax SDK yet`,
