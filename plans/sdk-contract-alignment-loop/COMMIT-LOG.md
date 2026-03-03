@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `9b55914` `feat(sdk): accept query additionalDirectories compatibility`
+  - 切片：`QRY-54`
+  - 说明：`query` 接收 `additionalDirectories` 并在 in-process SDK 模式下按兼容 no-op 处理；`sandbox` 继续显式不支持。
+
 - `4dc3053` `feat(sdk): accept query fallbackModel compatibility`
   - 切片：`QRY-53`
   - 说明：`query` 接收 `fallbackModel`，在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
