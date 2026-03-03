@@ -1093,13 +1093,14 @@ describe('sdk query()', () => {
     )
   })
 
-  it('exposes stopTask() with explicit unsupported error', async () => {
+  it('exposes stopTask() and aborts query before iteration starts', async () => {
     const queryIterator = query({
       prompt: 'stop task',
     })
 
-    await expect(queryIterator.stopTask('task-1')).rejects.toThrow(
-      'query.stopTask is not supported in Formax SDK yet',
+    await queryIterator.stopTask('task-1')
+    await expect(queryIterator.initializationResult()).rejects.toThrow(
+      'query.stopTask was called before query iteration started',
     )
   })
 

@@ -937,7 +937,7 @@ export function query(args: QueryArgs): Query {
   }
   const iterator = runQuery(args, interruptController, controlState)
   const queryIterator = iterator as Query
-  const abortQuery = (methodName: 'query.close' | 'query.interrupt') => {
+  const abortQuery = (methodName: 'query.close' | 'query.interrupt' | 'query.stopTask') => {
     interruptController.abort()
     if (!controlState.started) {
       rejectInitializationOnce(
@@ -973,7 +973,7 @@ export function query(args: QueryArgs): Query {
     throw new Error('query.streamInput is not supported in Formax SDK yet')
   }
   queryIterator.stopTask = async () => {
-    throw new Error('query.stopTask is not supported in Formax SDK yet')
+    abortQuery('query.stopTask')
   }
   queryIterator.rewindFiles = async () => {
     throw new Error('query.rewindFiles is not supported in Formax SDK yet')
