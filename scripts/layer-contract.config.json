@@ -194,6 +194,7 @@
     ],
     "Runtime": [
       "src/runtime",
+      "src/sdk",
       "src/app-server",
       "src/entrypoints",
       "src/services/runtimeUiBridge.tsx",
