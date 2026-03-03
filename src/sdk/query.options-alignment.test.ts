@@ -124,6 +124,29 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it.each(['dontAsk', 'bypassPermissions'] as const)(
+    'keeps permissionMode=%s compatibility behavior via compatibility no-op handling',
+    async (permissionMode) => {
+      const runTurn = vi.fn(async (turnArgs: any) => {
+        expect(turnArgs.exec?.replMode).toBeUndefined()
+        return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+      })
+      state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+      const messages = await collectMessages({
+        prompt: 'permission mode compatibility no-op',
+        options: { permissionMode },
+      })
+
+      expect(runTurn).toHaveBeenCalledTimes(1)
+      const result = messages.at(-1)
+      expect(result?.type).toBe('result')
+      if (result?.type === 'result') {
+        expect(result.subtype).toBe('success')
+      }
+    },
+  )
+
   it('keeps abortController cancellation wiring', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.signal).toBeDefined()

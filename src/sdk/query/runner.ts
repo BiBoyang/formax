@@ -204,9 +204,7 @@ function resolveExecutionReplMode(args: {
   const mappedPermissionMode = (() => {
     if (!args.permissionMode) return undefined
     if (args.permissionMode === 'dontAsk' || args.permissionMode === 'bypassPermissions') {
-      throw new Error(
-        `options.permissionMode (${args.permissionMode}) is not supported in Formax SDK yet`,
-      )
+      return undefined
     }
     return SUPPORTED_PERMISSION_MODE_TO_REPL_MODE[args.permissionMode]
   })()

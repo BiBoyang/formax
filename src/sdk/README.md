@@ -62,7 +62,7 @@ Implemented and available now:
 - Query streaming (`query`)
 - Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput/stopTask/rewindFiles` (currently explicit unsupported) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
-- Query mode alignment (`permissionMode` official values accepted; unsupported ones fail explicitly)
+- Query mode alignment (`permissionMode` official values accepted; `default/acceptEdits/plan` map to runtime modes, `dontAsk/bypassPermissions` are accepted as compatibility no-op inputs)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
 - Query system prompt alignment (`systemPrompt` supports official `preset` object shape)
 - Query thinking alignment (`thinking` supports adaptive/enabled/disabled subset)
