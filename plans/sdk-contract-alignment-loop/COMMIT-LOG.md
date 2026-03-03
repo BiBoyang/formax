@@ -156,6 +156,10 @@
   - 切片：`QRY-38`
   - 说明：为 `Query` 增加 `streamInput()/stopTask()`，当前能力下返回显式“不支持”错误语义。
 
-- `[pending]` `feat(sdk): align query rewindFiles method`
+- `23448c0` `feat(sdk): align query rewindFiles method`
   - 切片：`QRY-39`
   - 说明：为 `Query` 增加 `rewindFiles()`，当前能力下返回显式“不支持”错误语义。
+
+- `[pending]` `feat(sdk): align HOOK_EVENTS constant export`
+  - 切片：`SDK-01`
+  - 说明：新增 `HOOK_EVENTS` 常量导出（基于现有 hooks 事件能力），并补测试与文档。

@@ -17,6 +17,7 @@ Exported function set:
 - `unstable_v2_createSession(options): SDKSession`
 - `unstable_v2_resumeSession(sessionId, options): SDKSession`
 - `unstable_v2_prompt(message, options): Promise<ResultMessage>`
+- `HOOK_EVENTS` (SDK 当前支持的 hook 事件常量子集)
 
 ## Quick Start
 
@@ -87,6 +88,7 @@ Implemented and available now:
 - Interactive input handling (`approval_request`, `ask_user_question`)
 - Structured output (`outputFormat` + `structured_output`)
 - SDK boundary validation for untrusted external input
+- SDK hook constants export (`HOOK_EVENTS`)
 
 ## Planned
 
