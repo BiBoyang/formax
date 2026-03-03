@@ -80,6 +80,7 @@ export type QueryOptions = {
   promptSuggestions?: boolean
   continue?: boolean
   fallbackModel?: string
+  strictMcpConfig?: boolean
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

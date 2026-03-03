@@ -319,6 +319,13 @@ function assertContinuationOptionsSupported(args: {
   }
 }
 
+function assertStrictMcpConfigSupported(strictMcpConfig?: boolean): void {
+  if (strictMcpConfig === undefined) return
+  throw new Error(
+    `options.strictMcpConfig (${strictMcpConfig}) is not supported in Formax SDK yet`,
+  )
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -738,6 +745,7 @@ async function* runQuery(
         continue: options.continue,
         fallbackModel: options.fallbackModel,
       })
+      assertStrictMcpConfigSupported(options.strictMcpConfig)
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

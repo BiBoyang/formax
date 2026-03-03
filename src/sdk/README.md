@@ -73,6 +73,7 @@ Implemented and available now:
 - Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query continuation alignment (`continue/fallbackModel` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

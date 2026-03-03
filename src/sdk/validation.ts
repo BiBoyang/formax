@@ -150,6 +150,7 @@ const queryOptionsSchema = z
     promptSuggestions: z.boolean().optional(),
     continue: z.boolean().optional(),
     fallbackModel: z.string().optional(),
+    strictMcpConfig: z.boolean().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {
