@@ -881,6 +881,17 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
     const defaultModels = getDefaultModels(provider).map((model) => ({
       model: model.model,
       provider: model.provider,
+      value: model.model,
+      displayName: model.model,
+      description: `${model.provider} model`,
+      ...(model.supports_reasoning_effort === undefined
+        ? {}
+        : {
+            supportsEffort: model.supports_reasoning_effort,
+            ...(model.supports_reasoning_effort
+              ? { supportedEffortLevels: ['low', 'medium', 'high', 'max'] as const }
+              : {}),
+          }),
       ...(model.max_tokens === undefined ? {} : { max_tokens: model.max_tokens }),
       ...(model.contextWindowTokens === undefined
         ? {}
@@ -897,6 +908,9 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
       defaultModels.unshift({
         model: activeModel,
         provider,
+        value: activeModel,
+        displayName: activeModel,
+        description: `${provider} model`,
       })
     }
     return parseModelInfoListOutput(defaultModels)

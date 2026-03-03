@@ -184,6 +184,10 @@
   - 切片：`SDK-06`
   - 说明：新增 `Options` 与 `SDK*Message` 系列官方同名类型别名导出，并补类型回归测试。
 
-- `[pending]` `feat(sdk): align supportedCommands shape fields`
+- `a943bbf` `feat(sdk): align supportedCommands shape fields`
   - 切片：`SDK-07`
   - 说明：`supportedCommands()` 补齐官方同名 `name/argumentHint` 字段，并保留 `command/argHint` 兼容字段。
+
+- `[pending]` `feat(sdk): align supportedModels shape fields`
+  - 切片：`SDK-08`
+  - 说明：`supportedModels()` 补齐官方常用 `value/displayName/supportsEffort` 字段，并保留 `model/provider` 兼容字段。

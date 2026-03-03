@@ -129,6 +129,7 @@ These remain out of scope for SDK phase-1:
 - Exports source reference:
   - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
 - `supportedCommands()` now returns both official-compatible fields (`name` / `argumentHint`) and Formax compatibility fields (`command` / `argHint`).
+- `supportedModels()` now returns both official-compatible fields (`value` / `displayName` / `supportsEffort`) and Formax compatibility fields (`model` / `provider` / `supports_reasoning_effort`).
 
 ## Structured Output (`outputFormat`)
 

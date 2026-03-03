@@ -256,6 +256,12 @@ export type AgentInfo = {
 export type ModelInfo = {
   model: string
   provider: string
+  value?: string
+  displayName?: string
+  description?: string
+  supportsEffort?: boolean
+  supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'max'>
+  supportsAdaptiveThinking?: boolean
   max_tokens?: number
   contextWindowTokens?: number
   supports_reasoning_effort?: boolean

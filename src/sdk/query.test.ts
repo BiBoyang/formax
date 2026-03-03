@@ -876,11 +876,19 @@ describe('sdk query()', () => {
 
     const models = await queryIterator.supportedModels()
     expect(models.length).toBeGreaterThan(0)
-    expect(models[0]).toEqual({
+    expect(models[0]).toMatchObject({
       model: 'claude-sonnet-4-6',
       provider: 'anthropic',
+      value: 'claude-sonnet-4-6',
+      displayName: 'claude-sonnet-4-6',
+      description: 'anthropic model',
     })
-    expect(models.some((model) => model.model === 'claude-3-5-sonnet-latest')).toBe(true)
+    const latestSonnet = models.find((model) => model.model === 'claude-3-5-sonnet-latest')
+    expect(latestSonnet).toMatchObject({
+      value: 'claude-3-5-sonnet-latest',
+      displayName: 'claude-3-5-sonnet-latest',
+      supportsEffort: false,
+    })
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
   })
 

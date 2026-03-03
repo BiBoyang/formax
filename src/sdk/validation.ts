@@ -305,6 +305,12 @@ const modelInfoSchema = z
   .object({
     model: z.string(),
     provider: z.string(),
+    value: z.string().optional(),
+    displayName: z.string().optional(),
+    description: z.string().optional(),
+    supportsEffort: z.boolean().optional(),
+    supportedEffortLevels: z.array(z.enum(['low', 'medium', 'high', 'max'])).optional(),
+    supportsAdaptiveThinking: z.boolean().optional(),
     max_tokens: z.number().int().positive().optional(),
     contextWindowTokens: z.number().int().positive().optional(),
     supports_reasoning_effort: z.boolean().optional(),

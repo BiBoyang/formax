@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-07`：增强 `supportedCommands()` 输出契约（补齐官方同名 `name/argumentHint` 字段并保持兼容）。
+- [ ] `SDK-08`：增强 `supportedModels()` 输出契约（补齐官方常用 `value/displayName/supportsEffort` 字段并保持兼容）。
 
 ## 再生规则（当“当前待办”为空时）
 
