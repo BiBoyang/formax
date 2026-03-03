@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `943f873` `feat(sdk): support query stderr callback`
+  - 切片：`QRY-46`
+  - 说明：`query` 正式支持 `options.stderr`（作为可选错误输出回调）；不再因传入 `stderr` 参数而直接报“不支持”。
+
 - `0da1b3c` `feat(sdk): support query enableFileCheckpointing`
   - 切片：`QRY-45`
   - 说明：`query` 正式支持 `options.enableFileCheckpointing=true`（复用现有会话持久化路径并写入历史快照），不再作为“不支持”参数报错。
