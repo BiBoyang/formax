@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { query } from './query.js'
-import type { QueryArgs, QueryMessage, SDKUserMessage } from './types.js'
+import type { QueryArgs, QueryMessage, QueryOptions, SDKUserMessage } from './types.js'
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -1002,7 +1002,7 @@ describe('sdk query()', () => {
       options: { resumeSessionAt: 'session-abc' },
       expected: 'options.resumeSessionAt',
     },
-  ] as const)('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+  ])('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -1262,6 +1262,89 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('options.pathToClaudeCodeExecutable')
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
+  it.each(
+    [
+      {
+        label: 'executable',
+        options: { executable: 'node' },
+        expected: 'options.executable',
+      },
+      {
+        label: 'executableArgs',
+        options: { executableArgs: ['--trace-warnings'] },
+        expected: 'options.executableArgs',
+      },
+      {
+        label: 'extraArgs',
+        options: { extraArgs: { '--danger': null } },
+        expected: 'options.extraArgs',
+      },
+      {
+        label: 'betas',
+        options: { betas: ['context-1m-2025-08-07'] },
+        expected: 'options.betas',
+      },
+    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
+  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'cli option unsupported',
+      options,
+    })
+
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain(expected)
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
+  it('fails fast on unsupported executable option before draining async prompt stream', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    let nextCalls = 0
+
+    const promptStream: AsyncIterable<SDKUserMessage> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => {
+            nextCalls += 1
+            return {
+              value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
+              done: false,
+            }
+          },
+        }
+      },
+    }
+
+    const messages = await collectMessages({
+      prompt: promptStream,
+      options: {
+        executable: 'node',
+      },
+    })
+
+    expect(nextCalls).toBe(0)
+    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.executable')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

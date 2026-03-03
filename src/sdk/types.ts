@@ -71,6 +71,10 @@ export type QueryOptions = {
   stderr?: (data: string) => void
   pathToClaudeCodeExecutable?: string
   spawnClaudeCodeProcess?: (...args: unknown[]) => unknown
+  executable?: 'bun' | 'deno' | 'node'
+  executableArgs?: string[]
+  extraArgs?: Record<string, string | null>
+  betas?: string[]
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

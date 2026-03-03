@@ -257,6 +257,30 @@ function assertProcessSpawnOptionsSupported(args: {
   }
 }
 
+function assertCliExecutionOptionsSupported(args: {
+  executable?: 'bun' | 'deno' | 'node'
+  executableArgs?: string[]
+  extraArgs?: Record<string, string | null>
+  betas?: string[]
+}): void {
+  if (args.executable !== undefined) {
+    throw new Error(
+      `options.executable (${args.executable}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.executableArgs !== undefined) {
+    throw new Error(
+      'options.executableArgs is not supported in Formax SDK yet',
+    )
+  }
+  if (args.extraArgs !== undefined) {
+    throw new Error('options.extraArgs is not supported in Formax SDK yet')
+  }
+  if (args.betas !== undefined) {
+    throw new Error('options.betas is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -660,6 +684,12 @@ async function* runQuery(
       assertProcessSpawnOptionsSupported({
         pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
         spawnClaudeCodeProcess: options.spawnClaudeCodeProcess,
+      })
+      assertCliExecutionOptionsSupported({
+        executable: options.executable,
+        executableArgs: options.executableArgs,
+        extraArgs: options.extraArgs,
+        betas: options.betas,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
