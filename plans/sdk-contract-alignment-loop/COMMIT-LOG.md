@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `6b1597a` `feat(sdk): support query persistSession option`
+  - 切片：`QRY-43`
+  - 说明：`query` 正式支持 `options.persistSession=true`（新会话写入或在 `resume/continue` 文件上追加）；`forkSession/enableFileCheckpointing` 仍显式报“暂不支持”。
+
 - `35bffaa` `feat(sdk): support query tools option`
   - 切片：`QRY-42`
   - 说明：`query` 正式支持 `options.tools`（数组子集过滤 + `preset` 默认集）；`mcpServers` 仍显式报“暂不支持”。
