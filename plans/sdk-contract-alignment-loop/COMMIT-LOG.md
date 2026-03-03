@@ -168,6 +168,10 @@
   - 切片：`SDK-02`
   - 说明：新增 `AbortError` 导出，并在 query 中断相关路径统一使用该错误类型。
 
-- `[pending]` `feat(sdk): align EXIT_REASONS constant export`
+- `8fdc555` `feat(sdk): align EXIT_REASONS constant export`
   - 切片：`SDK-03`
   - 说明：新增 `EXIT_REASONS` 常量导出，并补测试与文档。
+
+- `[pending]` `feat(sdk): align HookEvent and ExitReason types`
+  - 切片：`SDK-04`
+  - 说明：新增 `HookEvent/ExitReason` 类型导出，并确保与常量导出保持一致。

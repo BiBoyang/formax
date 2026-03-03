@@ -92,6 +92,7 @@ Implemented and available now:
 - SDK boundary validation for untrusted external input
 - SDK hook constants export (`HOOK_EVENTS`)
 - SDK exit-reason constants export (`EXIT_REASONS`)
+- SDK literal type exports (`HookEvent`, `ExitReason`)
 - SDK abort error export (`AbortError`)
 
 ## Planned

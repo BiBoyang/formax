@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-04`：对齐 SDK 类型导出 `HookEvent/ExitReason`（基于 `HOOK_EVENTS/EXIT_REASONS` 推导字面量联合类型，补测试/文档）。
+- [ ] `SDK-05`：补齐 SDK 导出对齐文档（增加“官方导出 -> Formax 支持状态”索引页并链接 README）。
 
 ## 再生规则（当“当前待办”为空时）
 

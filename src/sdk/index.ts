@@ -19,6 +19,8 @@ export type {
   ThinkingEnabled,
   ThinkingDisabled,
   ThinkingConfig,
+  HookEvent,
+  ExitReason,
   PermissionMode,
   QueryOptions,
   QueryArgs,

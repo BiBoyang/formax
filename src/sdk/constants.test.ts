@@ -4,6 +4,7 @@ import {
   HOOK_EVENTS as exportedHookEvents,
 } from './index.js'
 import { EXIT_REASONS, HOOK_EVENTS } from './constants.js'
+import type { ExitReason, HookEvent } from './types.js'
 
 describe('sdk constants', () => {
   it('exports HOOK_EVENTS with the current supported hook-event subset', () => {
@@ -29,5 +30,10 @@ describe('sdk constants', () => {
     ])
     expect(new Set(EXIT_REASONS).size).toBe(EXIT_REASONS.length)
     expect(exportedExitReasons).toBe(EXIT_REASONS)
+
+    const hookEvent: HookEvent = HOOK_EVENTS[0]
+    const exitReason: ExitReason = EXIT_REASONS[0]
+    expect(HOOK_EVENTS).toContain(hookEvent)
+    expect(EXIT_REASONS).toContain(exitReason)
   })
 })

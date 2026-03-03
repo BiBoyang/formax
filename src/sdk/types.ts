@@ -4,6 +4,9 @@ import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ReplMode } from '../tools/executor/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 
+export type HookEvent = (typeof import('./constants.js').HOOK_EVENTS)[number]
+export type ExitReason = (typeof import('./constants.js').EXIT_REASONS)[number]
+
 export type SystemPromptPresetInput = {
   type: 'preset'
   preset: 'claude_code'
