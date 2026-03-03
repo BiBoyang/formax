@@ -7,6 +7,9 @@ Public entrypoint:
 
 Primary API:
 - `query(args): AsyncGenerator<QueryMessage, void, unknown>`
+- `unstable_v2_createSession(options): SDKSession`
+- `unstable_v2_resumeSession(sessionId, options): SDKSession`
+- `unstable_v2_prompt(message, options): Promise<ResultMessage>`
 
 ## Quick Start
 
@@ -80,3 +83,44 @@ When `subtype` is not `success`, `result.error` contains details.
 - `result` (terminal message for the call)
 
 Callers should consume until the terminal `result` message.
+
+## V2 Session API (`unstable_v2_*`)
+
+The SDK also provides a session-style API aligned with Claude Agent SDK naming.
+
+```ts
+import { unstable_v2_createSession } from './src/sdk/index.js'
+
+await using session = unstable_v2_createSession({ model: 'claude-sonnet-4-6' })
+await session.send('Hello')
+
+for await (const message of session.stream()) {
+  if (message.type === 'assistant') {
+    console.log(message.text)
+  }
+}
+```
+
+One-shot convenience:
+
+```ts
+import { unstable_v2_prompt } from './src/sdk/index.js'
+
+const result = await unstable_v2_prompt('What is 2 + 2?', { model: 'claude-sonnet-4-6' })
+console.log(result.subtype, result.result)
+```
+
+Resume:
+
+```ts
+import { unstable_v2_resumeSession } from './src/sdk/index.js'
+
+const resumed = unstable_v2_resumeSession(existingSessionId, {})
+await resumed.send('continue')
+for await (const message of resumed.stream()) {
+  // ...
+}
+```
+
+Current limitation (explicit):
+- `unstable_v2_resumeSession` is currently in-process only. The session ID must come from a session created in the same Node.js process.

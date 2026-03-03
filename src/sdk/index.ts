@@ -1,4 +1,9 @@
 export { query } from './query.js'
+export {
+  unstable_v2_createSession,
+  unstable_v2_prompt,
+  unstable_v2_resumeSession,
+} from './v2.js'
 
 export type {
   SystemPromptInput,
@@ -19,4 +24,8 @@ export type {
   AskUserQuestionInputResponse,
   InputRequestResponse,
   QueryMessage,
+  SDKUserTextBlock,
+  SDKUserMessage,
+  SDKSessionOptions,
+  SDKSession,
 } from './types.js'

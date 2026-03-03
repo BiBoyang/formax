@@ -146,3 +146,23 @@ export type QueryMessage =
   | InputRequestMessage
   | AssistantMessage
   | ResultMessage
+
+export type SDKUserTextBlock = {
+  type: 'text'
+  text: string
+}
+
+export type SDKUserMessage = {
+  role: 'user'
+  content: SDKUserTextBlock[]
+}
+
+export type SDKSessionOptions = QueryOptions
+
+export interface SDKSession {
+  readonly sessionId: string
+  send(message: string | SDKUserMessage): Promise<void>
+  stream(): AsyncGenerator<QueryMessage, void>
+  close(): void
+  [Symbol.asyncDispose](): Promise<void>
+}
