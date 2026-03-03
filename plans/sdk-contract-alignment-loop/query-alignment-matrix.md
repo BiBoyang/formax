@@ -48,7 +48,7 @@
 | `effort` | `options.effort` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |
 | `hooks` | `options.hooks` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `canUseTool` | `options.canUseTool` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `canUseTool` | `options.canUseTool` | Partial | 已支持：作为统一权限/用户输入回调处理 `approval_request` 与 `ask_user_question`；当前能力子集不支持直接改写底层工具入参执行。 |
 | `mcpServers` | `options.mcpServers` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `plugins` | `options.plugins` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `settingSources` | `options.settingSources` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
@@ -57,7 +57,7 @@
 | `tools`（preset 语义） | `options.tools` | Partial | 已支持：可作为 base-tool 过滤（数组子集 + `preset` 默认集）；`default` 不能与显式列表混用。 |
 | `sandbox` | `options.sandbox` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `additionalDirectories` | `options.additionalDirectories` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
-| `onElicitation` | `options.onElicitation` | Partial | 已支持：`ask_user_question` 事件可通过 `onElicitation` 回调应答（`onInputRequest` 仍优先）。 |
+| `onElicitation` | `options.onElicitation` | Partial | 已支持：在未提供 `canUseTool` 时，`ask_user_question` 事件可通过 `onElicitation` 回调应答。 |
 | `continue` | `options.continue` | Partial | 已支持：读取当前 cwd 最新本地会话并恢复历史；如无历史则按新会话继续。 |
 | `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 已支持：`persistSession=true` 可将 query turn 落盘到本地会话；`forkSession=true` 可将 `resume/continue` 历史重绑定到新 session；`enableFileCheckpointing=true` 触发持久化并写入历史快照。 |
 | `fallbackModel` | `options.fallbackModel` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
@@ -79,7 +79,6 @@
 | `appendSystemPrompt` | 在 system prompt 末尾附加额外块。 |
 | `signal` | 直接传入 `AbortSignal`。 |
 | `interactive` | 控制是否允许交互输入请求。 |
-| `onInputRequest` | 处理 `approval_request` 与 `ask_user_question`。 |
 | `onMessage` | 每条 SDK 消息回调。 |
 | `promptProfile` | Formax system prompt profile。 |
 | `thinkingEnabled` | Formax 布尔 thinking 开关。 |

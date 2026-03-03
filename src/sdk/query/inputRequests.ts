@@ -1,18 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import type { StreamEvent } from '../../streaming/types.js'
 import type {
+  CanUseTool,
   ElicitationRequest,
   ElicitationResult,
   InputRequestMessage,
-  InputRequestResponse,
+  PermissionResult,
+  PermissionUpdate,
+  PermissionUpdateDestination,
   QueryMessage,
 } from '../types.js'
 import {
   asValidationError,
-  parseApprovalInputResponse,
-  parseAskUserQuestionInputResponse,
   parseElicitationRequestInput,
   parseElicitationResultOutput,
+  parsePermissionResultOutput,
 } from '../validation.js'
 
 type UserInputManagerLike = {
@@ -24,9 +26,7 @@ type HandleInputRequestEventArgs = {
   event: StreamEvent
   sessionId: string
   emitMessage: (message: QueryMessage) => void
-  onInputRequest?: (
-    request: InputRequestMessage,
-  ) => Promise<InputRequestResponse> | InputRequestResponse
+  canUseTool?: CanUseTool
   onElicitation?: (
     request: ElicitationRequest,
     options: { signal: AbortSignal },
@@ -36,35 +36,74 @@ type HandleInputRequestEventArgs = {
   addPendingResolution: (task: Promise<void>) => void
 }
 
-function toApprovalAnswers(
-  response: ReturnType<typeof parseApprovalInputResponse>,
-): Record<string, string> {
-  if (!response) {
-    return { decision: 'deny' }
-  }
+type AskUserQuestionEvent = Extract<StreamEvent, { type: 'ask_user_question' }>
+type ApprovalRequestEvent = Extract<StreamEvent, { type: 'approval_request' }>
 
-  const out: Record<string, string> = {
-    decision: response.decision,
-  }
-
-  if (response.scope) {
-    out.scope = response.scope
-  }
-
-  if (typeof response.feedback === 'string' && response.feedback.trim()) {
-    out.feedback = response.feedback
-  }
-
-  return out
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function toAskUserAnswers(
-  response: ReturnType<typeof parseAskUserQuestionInputResponse>,
-): Record<string, string> {
-  if (!response) return {}
+function mapPermissionDestinationToScope(destination: PermissionUpdateDestination): 'session' | 'project' | 'global' {
+  if (destination === 'userSettings') return 'global'
+  if (destination === 'projectSettings' || destination === 'localSettings') return 'project'
+  return 'session'
+}
+
+function resolveRememberScopeFromPermissionUpdates(
+  updates: PermissionUpdate[] | undefined,
+): 'session' | 'project' | 'global' | null {
+  if (!updates || updates.length === 0) return null
+  for (const update of updates) {
+    if (!update || typeof update !== 'object') continue
+    if (!('destination' in update)) continue
+    const destination = update.destination
+    if (!destination) continue
+    return mapPermissionDestinationToScope(destination)
+  }
+  return 'session'
+}
+
+function toApprovalAnswersFromPermissionResult(result: PermissionResult): Record<string, string> {
+  if (result.behavior === 'deny') {
+    const message = String(result.message ?? '').trim()
+    if (!message) return { decision: 'deny' }
+    return {
+      decision: 'feedback',
+      feedback: message,
+    }
+  }
+
+  const rememberScope = resolveRememberScopeFromPermissionUpdates(result.updatedPermissions)
+  if (rememberScope) {
+    return {
+      decision: 'approve_remember',
+      scope: rememberScope,
+    }
+  }
+
+  return { decision: 'approve' }
+}
+
+function toAskUserAnswersFromPermissionResult(result: PermissionResult): Record<string, string> {
+  if (result.behavior !== 'allow') {
+    throw new Error('AskUserQuestion canUseTool response must be allow with updatedInput.answers')
+  }
+
+  if (!result.updatedInput || !isRecord(result.updatedInput)) {
+    throw new Error('AskUserQuestion canUseTool allow response must include updatedInput object')
+  }
+
+  const answersRaw = result.updatedInput.answers
+  if (!isRecord(answersRaw)) {
+    throw new Error('AskUserQuestion canUseTool allow response must include updatedInput.answers object')
+  }
 
   const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(response.answers)) {
+  for (const [key, value] of Object.entries(answersRaw)) {
+    if (Array.isArray(value)) {
+      out[String(key)] = value.map((item) => String(item ?? '')).join(',')
+      continue
+    }
     out[String(key)] = String(value ?? '')
   }
   return out
@@ -83,7 +122,7 @@ function resolveQuestionFieldId(
   return `question_${index + 1}`
 }
 
-function buildElicitationRequest(event: Extract<StreamEvent, { type: 'ask_user_question' }>): ElicitationRequest {
+function buildElicitationRequest(event: AskUserQuestionEvent): ElicitationRequest {
   const message = event.questions
     .map((question) => {
       const header = String(question.header ?? '').trim()
@@ -140,7 +179,7 @@ function buildElicitationRequest(event: Extract<StreamEvent, { type: 'ask_user_q
 }
 
 function toAskUserAnswersFromElicitation(args: {
-  event: Extract<StreamEvent, { type: 'ask_user_question' }>
+  event: AskUserQuestionEvent
   response: ElicitationResult
 }): Record<string, string> {
   if (args.response.action !== 'accept') return {}
@@ -159,8 +198,99 @@ function toAskUserAnswersFromElicitation(args: {
   return out
 }
 
+function toCanUseToolInputFromApprovalEvent(event: ApprovalRequestEvent): Record<string, unknown> {
+  if (isRecord(event.action)) {
+    return { ...event.action }
+  }
+  return { action: event.action }
+}
+
+function buildPermissionRuleSuggestion(args: {
+  toolName: string
+  ruleContent: unknown
+}): PermissionUpdate | null {
+  const ruleContent = String(args.ruleContent ?? '').trim()
+  if (!ruleContent) return null
+  return {
+    type: 'addRules',
+    rules: [{ toolName: args.toolName, ruleContent }],
+    behavior: 'allow',
+    destination: 'session',
+  }
+}
+
+function buildPermissionSuggestionsFromApprovalEvent(
+  event: ApprovalRequestEvent,
+): PermissionUpdate[] | undefined {
+  const updates: PermissionUpdate[] = []
+  if (event.blockedPath) {
+    updates.push({
+      type: 'addDirectories',
+      directories: [event.blockedPath],
+      destination: 'session',
+    })
+  } else if (event.workspaceRequest?.dir) {
+    updates.push({
+      type: 'addDirectories',
+      directories: [event.workspaceRequest.dir],
+      destination: 'session',
+    })
+  }
+
+  if (!isRecord(event.action)) {
+    return updates.length > 0 ? updates : undefined
+  }
+
+  const kind = String(event.action.kind ?? '').trim()
+  if (!kind) return updates.length > 0 ? updates : undefined
+
+  if (kind === 'fs.write') {
+    updates.push({
+      type: 'setMode',
+      mode: 'acceptEdits',
+      destination: 'session',
+    })
+    const writePathRule = buildPermissionRuleSuggestion({
+      toolName: event.toolName,
+      ruleContent: event.action.path,
+    })
+    if (writePathRule) updates.push(writePathRule)
+    return updates.length > 0 ? updates : undefined
+  }
+
+  const ruleContentByKind: Record<string, unknown> = {
+    'fs.read': event.action.path,
+    'bash.exec': event.action.command,
+    'net.fetch': event.action.url,
+    'net.search': event.action.query,
+    'tool.install': event.action.tool,
+  }
+  const fallbackRule = buildPermissionRuleSuggestion({
+    toolName: event.toolName,
+    ruleContent: ruleContentByKind[kind],
+  })
+  if (fallbackRule) updates.push(fallbackRule)
+  return updates.length > 0 ? updates : undefined
+}
+
+function resolveApprovalDecisionReason(event: ApprovalRequestEvent): string | undefined {
+  const explicit = String(event.decisionReason ?? '').trim()
+  if (explicit) return explicit
+
+  if (typeof event.effectiveDecision === 'string' && event.effectiveDecision.trim()) {
+    return `effectiveDecision=${event.effectiveDecision.trim()}`
+  }
+
+  if (Array.isArray(event.suggestions) && event.suggestions.length > 0) {
+    const joined = event.suggestions.map((item) => String(item)).filter(Boolean).join('\n')
+    if (joined) return joined
+  }
+
+  return undefined
+}
+
 function handleApprovalRequest(args: Omit<HandleInputRequestEventArgs, 'event'> & {
-  event: Extract<StreamEvent, { type: 'approval_request' }>
+  event: ApprovalRequestEvent
 }): void {
   const requestMessage: InputRequestMessage = {
     type: 'input_request',
@@ -175,6 +305,9 @@ function handleApprovalRequest(args: Omit<HandleInputRequestEventArgs, 'event'> 
     ...(args.event.workspaceRequest !== undefined
       ? { workspace_request: args.event.workspaceRequest }
       : {}),
+    ...(args.event.blockedPath ? { blocked_path: args.event.blockedPath } : {}),
+    ...(args.event.decisionReason ? { decision_reason: args.event.decisionReason } : {}),
+    ...(args.event.agentID ? { agent_id: args.event.agentID } : {}),
   }
 
   args.emitMessage(requestMessage)
@@ -183,18 +316,32 @@ function handleApprovalRequest(args: Omit<HandleInputRequestEventArgs, 'event'> 
 
   const task = (async () => {
     try {
-      const response = args.onInputRequest
-        ? await args.onInputRequest(requestMessage)
-        : null
-      const parsedResponse = parseApprovalInputResponse(response)
+      let answers: Record<string, string> = { decision: 'deny' }
+      if (args.canUseTool) {
+        const response = await args.canUseTool(
+          args.event.toolName,
+          toCanUseToolInputFromApprovalEvent(args.event),
+          {
+            signal: args.signal,
+            suggestions: buildPermissionSuggestionsFromApprovalEvent(args.event),
+            blockedPath: args.event.blockedPath ?? args.event.workspaceRequest?.dir,
+            decisionReason: resolveApprovalDecisionReason(args.event),
+            toolUseID: args.event.toolUseId,
+            agentID: args.event.agentID,
+          },
+        )
+        const parsedResponse = parsePermissionResultOutput(response)
+        answers = toApprovalAnswersFromPermissionResult(parsedResponse)
+      }
+
       args.userInputManager.submitAnswers(
         args.event.toolUseId,
-        toApprovalAnswers(parsedResponse),
+        answers,
       )
     } catch (error) {
       args.userInputManager.reject(
         args.event.toolUseId,
-        asValidationError(error, 'Invalid approval input response'),
+        asValidationError(error, 'Invalid canUseTool response for approval_request'),
       )
     }
   })()
@@ -203,7 +350,7 @@ function handleApprovalRequest(args: Omit<HandleInputRequestEventArgs, 'event'> 
 }
 
 function handleAskUserQuestionRequest(args: Omit<HandleInputRequestEventArgs, 'event'> & {
-  event: Extract<StreamEvent, { type: 'ask_user_question' }>
+  event: AskUserQuestionEvent
 }): void {
   const requestMessage: InputRequestMessage = {
     type: 'input_request',
@@ -219,14 +366,28 @@ function handleAskUserQuestionRequest(args: Omit<HandleInputRequestEventArgs, 'e
   if (!args.userInputManager) return
 
   const task = (async () => {
-    let errorContext = 'Invalid ask_user_question input response'
+    let errorContext = 'Invalid canUseTool response for ask_user_question'
     try {
       let answers: Record<string, string>
 
-      if (args.onInputRequest) {
-        const response = await args.onInputRequest(requestMessage)
-        const parsedResponse = parseAskUserQuestionInputResponse(response)
-        answers = toAskUserAnswers(parsedResponse)
+      if (args.canUseTool) {
+        const response = await args.canUseTool(
+          'AskUserQuestion',
+          { questions: args.event.questions },
+          {
+            signal: args.signal,
+            toolUseID: args.event.toolUseId,
+          },
+        )
+        const parsedResponse = parsePermissionResultOutput(response)
+        if (parsedResponse.behavior === 'deny') {
+          args.userInputManager.reject(
+            args.event.toolUseId,
+            new Error(parsedResponse.message),
+          )
+          return
+        }
+        answers = toAskUserAnswersFromPermissionResult(parsedResponse)
       } else if (args.onElicitation) {
         errorContext = 'Invalid elicitation response'
         const elicitationRequest = buildElicitationRequest(args.event)
@@ -261,7 +422,7 @@ export function handleInputRequestEvent(args: HandleInputRequestEventArgs): bool
       event: args.event,
       sessionId: args.sessionId,
       emitMessage: args.emitMessage,
-      onInputRequest: args.onInputRequest,
+      canUseTool: args.canUseTool,
       onElicitation: args.onElicitation,
       userInputManager: args.userInputManager,
       signal: args.signal,
@@ -275,7 +436,7 @@ export function handleInputRequestEvent(args: HandleInputRequestEventArgs): bool
       event: args.event,
       sessionId: args.sessionId,
       emitMessage: args.emitMessage,
-      onInputRequest: args.onInputRequest,
+      canUseTool: args.canUseTool,
       onElicitation: args.onElicitation,
       userInputManager: args.userInputManager,
       signal: args.signal,

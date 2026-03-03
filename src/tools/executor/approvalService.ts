@@ -140,6 +140,7 @@ export function createApprovalService(args: {
       effectiveDecision: args2.effectiveDecision,
       explained: args2.explained,
     })
+    const decisionReason = args2.explained.matchedRule?.reason?.trim()
     ctx.onEvent?.({
       type: 'approval_request',
       toolUseId: call.id,
@@ -147,6 +148,8 @@ export function createApprovalService(args: {
       action: args2.action,
       effectiveDecision: args2.effectiveDecision,
       suggestions,
+      ...(decisionReason ? { decisionReason } : {}),
+      ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
       ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
     })
 

@@ -2889,11 +2889,6 @@ describe('sdk query()', () => {
         options: { hooks: { PreToolUse: [] } },
         expected: 'options.hooks',
       },
-      {
-        label: 'canUseTool',
-        options: { canUseTool: () => true },
-        expected: 'options.canUseTool',
-      },
     ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
   )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
@@ -3578,7 +3573,7 @@ describe('sdk query()', () => {
     }
   })
 
-  it('handles approval input requests via onInputRequest callback', async () => {
+  it('handles approval input requests via canUseTool callback', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'approval_request',
@@ -3593,35 +3588,37 @@ describe('sdk query()', () => {
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
 
-    const onInputRequest = vi.fn(async (request: any) => {
-      if (request.subtype === 'approval_request') {
-        return {
-          decision: 'approve_remember' as const,
-          scope: 'project' as const,
-        }
-      }
-      return null
-    })
+    const canUseTool = vi.fn(async () => ({
+      behavior: 'allow' as const,
+      updatedPermissions: [
+        {
+          type: 'addRules' as const,
+          rules: [{ toolName: 'Write', ruleContent: '/tmp/a.txt' }],
+          behavior: 'allow' as const,
+          destination: 'projectSettings' as const,
+        },
+      ],
+    }))
 
     const messages = await collectMessages({
       prompt: 'write file',
       options: {
         interactive: true,
-        onInputRequest,
+        canUseTool,
       },
     })
 
     expect(
       messages.some((message) => message.type === 'input_request' && message.subtype === 'approval_request'),
     ).toBe(true)
-    expect(onInputRequest).toHaveBeenCalledTimes(1)
+    expect(canUseTool).toHaveBeenCalledTimes(1)
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-1', {
       decision: 'approve_remember',
       scope: 'project',
     })
   })
 
-  it('drops whitespace-only feedback in approval responses', async () => {
+  it('maps canUseTool deny messages to approval feedback answers', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'approval_request',
@@ -3639,19 +3636,46 @@ describe('sdk query()', () => {
       prompt: 'approval with blank feedback',
       options: {
         interactive: true,
-        onInputRequest: async () => ({
-          decision: 'feedback',
-          feedback: '   ',
+        canUseTool: async () => ({
+          behavior: 'deny',
+          message: 'Use project-local write only',
         }),
       },
     })
 
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-feedback', {
       decision: 'feedback',
+      feedback: 'Use project-local write only',
     })
   })
 
-  it('handles ask_user_question input requests via onInputRequest callback', async () => {
+  it('falls back to deny approval when canUseTool callback is not provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-2',
+        toolName: 'Write',
+        action: { kind: 'fs.write', path: '/tmp/b.txt' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'denied' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'write file without handler',
+      options: {
+        interactive: true,
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-2', {
+      decision: 'deny',
+    })
+  })
+
+  it('handles ask_user_question input requests via canUseTool callback', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'ask_user_question',
@@ -3670,32 +3694,75 @@ describe('sdk query()', () => {
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
 
-    const onInputRequest = vi.fn(async (request: any) => {
-      if (request.subtype === 'ask_user_question') {
-        return {
-          answers: {
-            choice: 'A',
-          },
-        }
-      }
-      return null
-    })
+    const canUseTool = vi.fn(async () => ({
+      behavior: 'allow' as const,
+      updatedInput: {
+        answers: {
+          choice: 'A',
+        },
+      },
+    }))
 
     const messages = await collectMessages({
       prompt: 'ask user',
       options: {
         interactive: true,
-        onInputRequest,
+        canUseTool,
       },
     })
 
     expect(
       messages.some((message) => message.type === 'input_request' && message.subtype === 'ask_user_question'),
     ).toBe(true)
-    expect(onInputRequest).toHaveBeenCalledTimes(1)
+    expect(canUseTool).toHaveBeenCalledTimes(1)
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-question-1', {
       choice: 'A',
     })
+  })
+
+  it('passes approval context fields into canUseTool callback', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-context',
+        toolName: 'Write',
+        action: { kind: 'fs.write', path: '/tmp/context.txt' },
+        effectiveDecision: 'prompt',
+        workspaceRequest: { dir: '/outside/workspace' },
+        blockedPath: '/outside/workspace',
+        decisionReason: 'Path is outside workspace roots',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const canUseTool = vi.fn(async () => ({
+      behavior: 'allow' as const,
+    }))
+
+    await collectMessages({
+      prompt: 'approval context',
+      options: {
+        interactive: true,
+        canUseTool,
+      },
+    })
+
+    expect(canUseTool).toHaveBeenCalledWith(
+      'Write',
+      expect.objectContaining({
+        kind: 'fs.write',
+        path: '/tmp/context.txt',
+      }),
+      expect.objectContaining({
+        signal: expect.any(Object),
+        toolUseID: 'tool-approval-context',
+        blockedPath: '/outside/workspace',
+        decisionReason: 'Path is outside workspace roots',
+        suggestions: expect.any(Array),
+      }),
+    )
   })
 
   it('handles ask_user_question input requests via onElicitation callback', async () => {
@@ -3755,7 +3822,7 @@ describe('sdk query()', () => {
     })
   })
 
-  it('prefers onInputRequest over onElicitation for ask_user_question callbacks', async () => {
+  it('prefers canUseTool over onElicitation for ask_user_question callbacks', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'ask_user_question',
@@ -3775,8 +3842,9 @@ describe('sdk query()', () => {
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
 
-    const onInputRequest = vi.fn(async () => ({
-      answers: { choice: 'B' },
+    const canUseTool = vi.fn(async () => ({
+      behavior: 'allow' as const,
+      updatedInput: { answers: { choice: 'B' } },
     }))
     const onElicitation = vi.fn(async () => ({
       action: 'accept' as const,
@@ -3787,84 +3855,19 @@ describe('sdk query()', () => {
       prompt: 'ask user callback priority',
       options: {
         interactive: true,
-        onInputRequest,
+        canUseTool,
         onElicitation,
       },
     })
 
-    expect(onInputRequest).toHaveBeenCalledTimes(1)
+    expect(canUseTool).toHaveBeenCalledTimes(1)
     expect(onElicitation).not.toHaveBeenCalled()
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-question-priority', {
       choice: 'B',
     })
   })
 
-  it('keeps ask_user_question validation error context when onInputRequest and onElicitation are both set', async () => {
-    const runTurn = vi.fn(async (turnArgs: any) => {
-      turnArgs.onEvent({
-        type: 'ask_user_question',
-        toolUseId: 'tool-question-priority-invalid',
-        questions: [
-          {
-            question: 'Choose one',
-            header: 'choice',
-            fieldId: 'choice',
-            options: [{ label: 'A', description: 'option A' }],
-            multiSelect: false,
-          },
-        ],
-      })
-      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
-    })
-    const runtime = createRuntimeFixture({ runTurn })
-    state.createRuntime.mockResolvedValue(runtime)
-
-    await collectMessages({
-      prompt: 'ask user callback invalid priority',
-      options: {
-        interactive: true,
-        onInputRequest: async () => ({ answers: 'not-an-object' as any }),
-        onElicitation: async () => ({
-          action: 'accept',
-          content: { choice: 'A' },
-        }),
-      },
-    })
-
-    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
-    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
-    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
-      'Invalid ask_user_question input response',
-    )
-  })
-
-  it('falls back to deny approval when callback is not provided', async () => {
-    const runTurn = vi.fn(async (turnArgs: any) => {
-      turnArgs.onEvent({
-        type: 'approval_request',
-        toolUseId: 'tool-approval-2',
-        toolName: 'Write',
-        action: { kind: 'fs.write', path: '/tmp/b.txt' },
-        effectiveDecision: 'prompt',
-      })
-      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'denied' }] }]
-    })
-    const runtime = createRuntimeFixture({ runTurn })
-    state.createRuntime.mockResolvedValue(runtime)
-
-    await collectMessages({
-      prompt: 'write file without handler',
-      options: {
-        interactive: true,
-      },
-    })
-
-    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-2', {
-      decision: 'deny',
-    })
-  })
-
-  it('does not block shutdown when input callback never resolves', async () => {
+  it('does not block shutdown when canUseTool callback never resolves', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'approval_request',
@@ -3893,8 +3896,8 @@ describe('sdk query()', () => {
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
 
-    const onInputRequest = vi.fn(async () => {
-      await new Promise<never>(() => {})
+    const canUseTool = vi.fn(async () => {
+      return await new Promise<never>(() => {})
     })
 
     const consumeAndBreak = async () => {
@@ -3902,7 +3905,7 @@ describe('sdk query()', () => {
         prompt: 'cancel while waiting',
         options: {
           interactive: true,
-          onInputRequest,
+          canUseTool,
         },
       })) {
         if (message.type === 'input_request') break
@@ -3918,11 +3921,11 @@ describe('sdk query()', () => {
       ]),
     ).resolves.toBeUndefined()
 
-    expect(onInputRequest).toHaveBeenCalledTimes(1)
+    expect(canUseTool).toHaveBeenCalledTimes(1)
     expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
   })
 
-  it('rejects approval input when callback response fails validation', async () => {
+  it('rejects approval input when canUseTool response fails validation', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'approval_request',
@@ -3940,7 +3943,7 @@ describe('sdk query()', () => {
       prompt: 'invalid approval callback',
       options: {
         interactive: true,
-        onInputRequest: async () => ({ decision: 'not-a-valid-decision' as any }),
+        canUseTool: async () => ({ behavior: 'unknown' as any }),
       },
     })
 
@@ -3948,11 +3951,11 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
     expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-approval-invalid')
     expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
-      'Invalid approval input response',
+      'Invalid canUseTool response for approval_request',
     )
   })
 
-  it('rejects ask_user_question input when callback response fails validation', async () => {
+  it('rejects ask_user_question input when canUseTool allow response omits updatedInput.answers', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
         type: 'ask_user_question',
@@ -3976,7 +3979,7 @@ describe('sdk query()', () => {
       prompt: 'invalid question callback',
       options: {
         interactive: true,
-        onInputRequest: async () => ({ answers: 'not-an-object' as any }),
+        canUseTool: async () => ({ behavior: 'allow' as const, updatedInput: {} }),
       },
     })
 
@@ -3984,7 +3987,43 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
     expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-question-invalid')
     expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
-      'Invalid ask_user_question input response',
+      'updatedInput.answers',
+    )
+  })
+
+  it('rejects ask_user_question input when canUseTool denies', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-denied',
+        questions: [
+          {
+            question: 'Pick one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'denied question callback',
+      options: {
+        interactive: true,
+        canUseTool: async () => ({ behavior: 'deny', message: 'need manual answer' }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
+    expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-question-denied')
+    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
+      'need manual answer',
     )
   })
 

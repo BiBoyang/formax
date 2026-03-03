@@ -46,6 +46,11 @@
   - commit message
   - 对应切片 ID（如 `QRY-01`）
 
+## Commit Message 约束（新增）
+
+- 当一个切片修改范围包含 `src/sdk` 之外的目录时，commit message 必须明确体现“影响了 SDK 外模块”。
+- 建议通过 scope 或摘要直接表达（例如 `feat(sdk,tools): ...`、`refactor(sdk,streaming): ...`）。
+
 ## 执行循环（固定）
 
 - 每个切片：实现 -> 定向测试 -> `codex review` -> 提交。

@@ -86,6 +86,82 @@ export type PermissionMode =
   | 'dontAsk'
   | 'bypassPermissions'
 
+export type PermissionBehavior = 'allow' | 'deny' | 'ask'
+
+export type PermissionRuleValue = {
+  toolName: string
+  ruleContent?: string
+}
+
+export type PermissionUpdateDestination =
+  | 'userSettings'
+  | 'projectSettings'
+  | 'localSettings'
+  | 'session'
+  | 'cliArg'
+
+export type PermissionUpdate =
+  | {
+      type: 'addRules'
+      rules: PermissionRuleValue[]
+      behavior: PermissionBehavior
+      destination: PermissionUpdateDestination
+    }
+  | {
+      type: 'replaceRules'
+      rules: PermissionRuleValue[]
+      behavior: PermissionBehavior
+      destination: PermissionUpdateDestination
+    }
+  | {
+      type: 'removeRules'
+      rules: PermissionRuleValue[]
+      behavior: PermissionBehavior
+      destination: PermissionUpdateDestination
+    }
+  | {
+      type: 'setMode'
+      mode: PermissionMode
+      destination: PermissionUpdateDestination
+    }
+  | {
+      type: 'addDirectories'
+      directories: string[]
+      destination: PermissionUpdateDestination
+    }
+  | {
+      type: 'removeDirectories'
+      directories: string[]
+      destination: PermissionUpdateDestination
+    }
+
+export type PermissionResult =
+  | {
+      behavior: 'allow'
+      updatedInput?: Record<string, unknown>
+      updatedPermissions?: PermissionUpdate[]
+      toolUseID?: string
+    }
+  | {
+      behavior: 'deny'
+      message: string
+      interrupt?: boolean
+      toolUseID?: string
+    }
+
+export type CanUseTool = (
+  toolName: string,
+  input: Record<string, unknown>,
+  options: {
+    signal: AbortSignal
+    suggestions?: PermissionUpdate[]
+    blockedPath?: string
+    decisionReason?: string
+    toolUseID: string
+    agentID?: string
+  },
+) => Promise<PermissionResult>
+
 export type QueryOptions = {
   cwd?: string
   env?: NodeJS.ProcessEnv
@@ -132,7 +208,7 @@ export type QueryOptions = {
   tools?: string[] | ToolsPresetInput
   mcpServers?: Record<string, unknown>
   hooks?: Record<string, unknown>
-  canUseTool?: (...args: unknown[]) => unknown
+  canUseTool?: CanUseTool
   plugins?: unknown[]
   settingSources?: Array<'user' | 'project' | 'local'>
   onElicitation?: OnElicitation
@@ -140,9 +216,6 @@ export type QueryOptions = {
   outputFormat?: OutputFormat
   signal?: AbortSignal
   abortController?: AbortController
-  onInputRequest?: (
-    request: InputRequestMessage,
-  ) => Promise<InputRequestResponse> | InputRequestResponse
   onMessage?: (message: QueryMessage) => void
 }
 
@@ -228,6 +301,9 @@ export type ApprovalInputRequestMessage = {
   effective_decision: unknown
   suggestions?: string[]
   workspace_request?: { dir: string } | null
+  blocked_path?: string
+  decision_reason?: string
+  agent_id?: string
 }
 
 export type AskUserQuestionInputRequestMessage = {
@@ -241,19 +317,11 @@ export type AskUserQuestionInputRequestMessage = {
 
 export type InputRequestMessage = ApprovalInputRequestMessage | AskUserQuestionInputRequestMessage
 
-export type ApprovalInputResponse = {
-  decision: 'approve' | 'approve_remember' | 'deny' | 'feedback'
-  feedback?: string
-  scope?: 'session' | 'project' | 'global'
-}
-
 export type AskUserQuestionInputResponse = {
   answers: Record<string, string>
 }
 
 export type PromptResponse = AskUserQuestionInputResponse
-
-export type InputRequestResponse = ApprovalInputResponse | AskUserQuestionInputResponse | null | void
 
 export type QueryMessage =
   | SystemMessage

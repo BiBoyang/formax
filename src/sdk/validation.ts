@@ -5,8 +5,9 @@ import type { ToolDefinition } from '../tools/types.js'
 import type {
   AccountInfo,
   AgentInfo,
-  ApprovalInputResponse,
-  AskUserQuestionInputResponse,
+  PermissionBehavior,
+  PermissionResult,
+  PermissionUpdateDestination,
   ElicitationRequest,
   ElicitationResult,
   GetSessionMessagesOptions,
@@ -191,9 +192,6 @@ const queryOptionsSchema = z
     abortController: z.custom<AbortController>(isAbortControllerLike, {
       message: 'Expected AbortController-compatible object',
     }).optional(),
-    onInputRequest: z.custom<(...args: any[]) => unknown>((value) => typeof value === 'function', {
-      message: 'Expected function',
-    }).optional(),
     onMessage: z.custom<(...args: any[]) => unknown>((value) => typeof value === 'function', {
       message: 'Expected function',
     }).optional(),
@@ -344,6 +342,9 @@ const approvalRequestEventSchema = z
     effectiveDecision: z.unknown(),
     suggestions: z.array(z.string()).optional(),
     workspaceRequest: workspaceRequestSchema.optional(),
+    blockedPath: z.string().optional(),
+    decisionReason: z.string().optional(),
+    agentID: z.string().optional(),
   })
   .strict()
 
@@ -372,20 +373,6 @@ const askUserQuestionEventSchema = z
   })
   .strict()
 
-const approvalInputResponseSchema = z
-  .object({
-    decision: z.enum(['approve', 'approve_remember', 'deny', 'feedback']),
-    feedback: z.string().optional(),
-    scope: z.enum(['session', 'project', 'global']).optional(),
-  })
-  .strict()
-
-const askUserQuestionInputResponseSchema = z
-  .object({
-    answers: z.record(z.string(), z.string()),
-  })
-  .strict()
-
 const elicitationRequestSchema = z
   .object({
     serverName: z.string(),
@@ -406,6 +393,89 @@ const elicitationResultSchema = z.discriminatedUnion('action', [
     .strict(),
   z.object({ action: z.literal('decline') }).strict(),
   z.object({ action: z.literal('cancel') }).strict(),
+])
+
+const permissionBehaviorSchema = z.enum(['allow', 'deny', 'ask'] satisfies [PermissionBehavior, ...PermissionBehavior[]])
+
+const permissionUpdateDestinationSchema = z.enum(
+  ['userSettings', 'projectSettings', 'localSettings', 'session', 'cliArg'] satisfies [
+    PermissionUpdateDestination,
+    ...PermissionUpdateDestination[],
+  ],
+)
+
+const permissionRuleValueSchema = z
+  .object({
+    toolName: z.string(),
+    ruleContent: z.string().optional(),
+  })
+  .strict()
+
+const permissionUpdateSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('addRules'),
+      rules: z.array(permissionRuleValueSchema),
+      behavior: permissionBehaviorSchema,
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('replaceRules'),
+      rules: z.array(permissionRuleValueSchema),
+      behavior: permissionBehaviorSchema,
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('removeRules'),
+      rules: z.array(permissionRuleValueSchema),
+      behavior: permissionBehaviorSchema,
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('setMode'),
+      mode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']),
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('addDirectories'),
+      directories: z.array(z.string()),
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('removeDirectories'),
+      directories: z.array(z.string()),
+      destination: permissionUpdateDestinationSchema,
+    })
+    .strict(),
+])
+
+const permissionResultSchema = z.discriminatedUnion('behavior', [
+  z
+    .object({
+      behavior: z.literal('allow'),
+      updatedInput: z.record(z.string(), z.unknown()).optional(),
+      updatedPermissions: z.array(permissionUpdateSchema).optional(),
+      toolUseID: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      behavior: z.literal('deny'),
+      message: z.string(),
+      interrupt: z.boolean().optional(),
+      toolUseID: z.string().optional(),
+    })
+    .strict(),
 ])
 
 function isErrorLike(value: unknown): boolean {
@@ -574,22 +644,16 @@ export function parseStopReason(input: unknown): StopReason {
   return stopReasonSchema.parse(input) as StopReason
 }
 
-export function parseApprovalInputResponse(input: unknown): ApprovalInputResponse | null {
-  if (input == null) return null
-  return approvalInputResponseSchema.parse(input) as ApprovalInputResponse
-}
-
-export function parseAskUserQuestionInputResponse(input: unknown): AskUserQuestionInputResponse | null {
-  if (input == null) return null
-  return askUserQuestionInputResponseSchema.parse(input) as AskUserQuestionInputResponse
-}
-
 export function parseElicitationRequestInput(input: unknown): ElicitationRequest {
   return elicitationRequestSchema.parse(input) as ElicitationRequest
 }
 
 export function parseElicitationResultOutput(input: unknown): ElicitationResult {
   return elicitationResultSchema.parse(input) as ElicitationResult
+}
+
+export function parsePermissionResultOutput(input: unknown): PermissionResult {
+  return permissionResultSchema.parse(input) as PermissionResult
 }
 
 export function asValidationError(error: unknown, context: string): Error {

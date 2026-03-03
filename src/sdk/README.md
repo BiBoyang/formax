@@ -82,8 +82,8 @@ Implemented and available now:
 - Query filesystem-sandbox alignment (`additionalDirectories` supported as an in-process compatibility no-op option; `sandbox` remains explicit unsupported)
 - Query agent alignment (`agent/agents` supported as in-process compatibility no-op options)
 - Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
-- Query hook-permission alignment (`hooks/canUseTool` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query extension alignment (`plugins/settingSources` supported as in-process compatibility no-op options; `onElicitation` supported for `ask_user_question` fallback handling when `onInputRequest` is not provided)
+- Query hook-permission alignment (`hooks` remains explicit unsupported; `canUseTool` is supported as the primary approval/user-input callback)
+- Query extension alignment (`plugins/settingSources` supported as in-process compatibility no-op options; `onElicitation` supported for `ask_user_question` fallback handling when `canUseTool` is not provided)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)
@@ -94,7 +94,7 @@ Implemented and available now:
 - SDK hook constants export (`HOOK_EVENTS`)
 - SDK exit-reason constants export (`EXIT_REASONS`)
 - SDK literal type exports (`HookEvent`, `ExitReason`)
-- SDK official-aligned type aliases (`Options`, `SDKMessage`, `SDKSystemMessage`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKResultSuccess`, `SDKResultError`, `McpSetServersResult`, `RewindFilesResult`, `PromptRequest`, `PromptRequestOption`, `PromptResponse`, `OutputFormatType`, `BaseOutputFormat`, `ElicitationRequest`, `ElicitationResult`, `OnElicitation`)
+- SDK official-aligned type aliases (`Options`, `SDKMessage`, `SDKSystemMessage`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKResultSuccess`, `SDKResultError`, `McpSetServersResult`, `RewindFilesResult`, `PromptRequest`, `PromptRequestOption`, `PromptResponse`, `OutputFormatType`, `BaseOutputFormat`, `ElicitationRequest`, `ElicitationResult`, `OnElicitation`, `PermissionBehavior`, `PermissionRuleValue`, `PermissionUpdateDestination`, `PermissionUpdate`, `PermissionResult`, `CanUseTool`)
 - SDK abort error export (`AbortError`)
 
 ## Planned
@@ -116,7 +116,6 @@ These remain out of scope for SDK phase-1:
 - `query(...).streamInput()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).rewindFiles()` capability data (method exists but currently returns `canRewind=false` unsupported result)
 - `hooks`
-- `canUseTool`
 
 ## Query Alignment Reference
 

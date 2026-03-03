@@ -42,6 +42,9 @@ export type StreamEvent =
       effectiveDecision: unknown
       suggestions?: string[]
       workspaceRequest?: { dir: string } | null
+      blockedPath?: string
+      decisionReason?: string
+      agentID?: string
     }
   | {
       type: 'ask_user_question'

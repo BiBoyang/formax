@@ -521,6 +521,46 @@ describe('ApprovalService', () => {
     expect(requestEvent.toolUseId).toBe('t-defaults')
   })
 
+  it('emits blockedPath and decisionReason in approval_request event when available', async () => {
+    const onEvent = vi.fn()
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve' }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-reason', name: 'Write', input: { file_path: '/tmp/x.txt', content: 'x' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
+      action: { kind: 'fs.write', path: '/tmp/x.txt' },
+      effectiveDecision: 'prompt',
+      explained: {
+        decision: 'prompt',
+        matchedRule: {
+          ruleId: 'rule-1',
+          scope: 'project',
+          decision: 'prompt',
+          reason: 'Path escaped workspace',
+        },
+        suggestions: [],
+      } as any,
+      loaded: {} as any,
+      workspaceRequest: { dir: '/outside/project' },
+    })
+
+    expect(res.ok).toBe(true)
+    const requestEvent = onEvent.mock.calls.find((call) => call[0]?.type === 'approval_request')?.[0]
+    expect(requestEvent).toEqual(
+      expect.objectContaining({
+        type: 'approval_request',
+        toolUseId: 't-reason',
+        blockedPath: '/outside/project',
+        decisionReason: 'Path escaped workspace',
+      }),
+    )
+  })
+
   it('approve decision succeeds without audit logger', async () => {
     const approval = createApprovalService({
       fileStore: createNodeFileStore(),

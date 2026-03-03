@@ -1,6 +1,6 @@
 # TODO-INDEX：sdk-contract-alignment-loop（Rolling）
 
-更新时间：2026-03-03
+更新时间：2026-03-04
 任务来源（唯一）：
 - `plans/sdk-contract-alignment-loop/README.md`
 
@@ -8,6 +8,8 @@
 
 ## 当前待办
 
+- [ ] `QRY-68`：增强 `canUseTool.updatedInput` 在 `approval_request` 下的语义（支持受控地回写工具入参，而非仅 decision 映射）。
+- [ ] `QRY-69`：增强 `canUseTool.updatedPermissions` 映射精度（减少 `approve_remember` 简化映射，补齐更多 destination/type 语义）。
 - [ ] `SDK-14`：增强 `accountInfo()` 输出契约（补齐官方常用兼容字段子集并保持现有字段兼容）。
 
 ## 再生规则（当“当前待办”为空时）

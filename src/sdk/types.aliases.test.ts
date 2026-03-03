@@ -1,6 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
   AssistantMessage,
+  CanUseTool,
   Options,
   PromptRequest,
   PromptRequestOption,
@@ -11,6 +12,8 @@ import type {
   OutputFormat,
   OutputFormatType,
   BaseOutputFormat,
+  PermissionResult,
+  PermissionUpdate,
   PartialAssistantMessage,
   QueryMessage,
   QueryOptions,
@@ -71,5 +74,12 @@ describe('SDK type alias alignment', () => {
     expectTypeOf<QueryOptions['onElicitation']>().toEqualTypeOf<OnElicitation | undefined>()
     expectTypeOf<Parameters<OnElicitation>[0]>().toEqualTypeOf<ElicitationRequest>()
     expectTypeOf<Awaited<ReturnType<OnElicitation>>>().toEqualTypeOf<ElicitationResult>()
+  })
+
+  it('aligns permission callback type aliases', () => {
+    expectTypeOf<QueryOptions['canUseTool']>().toEqualTypeOf<CanUseTool | undefined>()
+    expectTypeOf<Awaited<ReturnType<CanUseTool>>>().toEqualTypeOf<PermissionResult>()
+    expectTypeOf<NonNullable<Extract<PermissionResult, { behavior: 'allow' }>['updatedPermissions']>>()
+      .toEqualTypeOf<PermissionUpdate[]>()
   })
 })
