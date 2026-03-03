@@ -20,6 +20,9 @@ export type QueryOptions = {
   interactive?: boolean
   thinkingEnabled?: boolean
   signal?: AbortSignal
+  onInputRequest?: (
+    request: InputRequestMessage,
+  ) => Promise<InputRequestResponse> | InputRequestResponse
   onMessage?: (message: QueryMessage) => void
 }
 
@@ -73,5 +76,56 @@ export type ResultMessage = {
   error?: string
 }
 
-export type QueryMessage = SystemMessage | PartialAssistantMessage | AssistantMessage | ResultMessage
+export type AskUserQuestionRequest = {
+  question: string
+  header: string
+  fieldId?: string
+  options: Array<{
+    label: string
+    description: string
+  }>
+  multiSelect: boolean
+}
 
+export type ApprovalInputRequestMessage = {
+  type: 'input_request'
+  subtype: 'approval_request'
+  session_id: string
+  uuid: string
+  tool_use_id: string
+  tool_name: string
+  action: unknown
+  effective_decision: unknown
+  suggestions?: string[]
+  workspace_request?: { dir: string } | null
+}
+
+export type AskUserQuestionInputRequestMessage = {
+  type: 'input_request'
+  subtype: 'ask_user_question'
+  session_id: string
+  uuid: string
+  tool_use_id: string
+  questions: AskUserQuestionRequest[]
+}
+
+export type InputRequestMessage = ApprovalInputRequestMessage | AskUserQuestionInputRequestMessage
+
+export type ApprovalInputResponse = {
+  decision: 'approve' | 'approve_remember' | 'deny' | 'feedback'
+  feedback?: string
+  scope?: 'session' | 'project' | 'global'
+}
+
+export type AskUserQuestionInputResponse = {
+  answers: Record<string, string>
+}
+
+export type InputRequestResponse = ApprovalInputResponse | AskUserQuestionInputResponse | null | void
+
+export type QueryMessage =
+  | SystemMessage
+  | PartialAssistantMessage
+  | InputRequestMessage
+  | AssistantMessage
+  | ResultMessage

@@ -7,7 +7,18 @@ import type { PromptBlock, PromptMessage } from '../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
 import type { ToolDefinition } from '../tools/types.js'
-import type { AssistantMessage, QueryArgs, QueryMessage, ResultMessage, SystemPromptInput } from './types.js'
+import type {
+  ApprovalInputResponse,
+  AskUserQuestionInputResponse,
+  AskUserQuestionRequest,
+  AssistantMessage,
+  InputRequestMessage,
+  InputRequestResponse,
+  QueryArgs,
+  QueryMessage,
+  ResultMessage,
+  SystemPromptInput,
+} from './types.js'
 
 type QueueResolver<T> = (value: IteratorResult<T>) => void
 
@@ -215,6 +226,87 @@ function emitMessage(args: {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isApprovalInputResponse(value: unknown): value is ApprovalInputResponse {
+  return isRecord(value) && typeof value.decision === 'string'
+}
+
+function isAskUserQuestionInputResponse(value: unknown): value is AskUserQuestionInputResponse {
+  return isRecord(value) && isRecord(value.answers)
+}
+
+function toApprovalAnswers(
+  response: InputRequestResponse,
+): Record<string, string> {
+  if (!isApprovalInputResponse(response)) {
+    return { decision: 'deny' }
+  }
+
+  const decisionRaw = String(response.decision || '').trim().toLowerCase()
+  const decision =
+    decisionRaw === 'approve' ||
+    decisionRaw === 'approve_remember' ||
+    decisionRaw === 'feedback' ||
+    decisionRaw === 'deny'
+      ? decisionRaw
+      : 'deny'
+
+  const out: Record<string, string> = {
+    decision,
+  }
+
+  const scopeRaw = typeof response.scope === 'string' ? response.scope.trim().toLowerCase() : ''
+  if (scopeRaw === 'session' || scopeRaw === 'project' || scopeRaw === 'global') {
+    out.scope = scopeRaw
+  }
+
+  if (typeof response.feedback === 'string' && response.feedback.trim()) {
+    out.feedback = response.feedback
+  }
+
+  return out
+}
+
+function toAskUserAnswers(
+  response: InputRequestResponse,
+): Record<string, string> {
+  if (!isAskUserQuestionInputResponse(response)) return {}
+
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(response.answers)) {
+    out[String(key)] = String(value ?? '')
+  }
+  return out
+}
+
+function normalizeAskUserQuestions(raw: unknown): AskUserQuestionRequest[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw.map((entry) => {
+    const record = isRecord(entry) ? entry : {}
+    const optionsRaw = Array.isArray(record.options) ? record.options : []
+    const options = optionsRaw.map((opt) => {
+      const optRecord = isRecord(opt) ? opt : {}
+      return {
+        label: String(optRecord.label ?? ''),
+        description: String(optRecord.description ?? ''),
+      }
+    })
+
+    const fieldId = typeof record.fieldId === 'string' && record.fieldId.trim() ? record.fieldId.trim() : undefined
+    return {
+      question: String(record.question ?? ''),
+      header: String(record.header ?? ''),
+      ...(fieldId ? { fieldId } : {}),
+      options,
+      multiSelect: Boolean(record.multiSelect),
+    }
+  })
+}
+
 export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void, unknown> {
   const options = args.options ?? {}
   const cwd = path.resolve(options.cwd ?? process.cwd())
@@ -233,7 +325,9 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
   const signal = combineSignals(options.signal, controller.signal)
 
   const run = (async () => {
+    let runtime: Awaited<ReturnType<typeof createRuntime>> | null = null
     let restorePatchedStreamOnce: (() => void) | null = null
+    const pendingInputResolutions = new Set<Promise<void>>()
     let nextHistory: PromptMessage[] = history
     let lastStopReason: StopReason = null
     let usageModel: string | undefined
@@ -244,7 +338,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
     let lastStepUsage: TokenUsage | undefined
 
     try {
-      const runtime = await createRuntime({ cwd, env })
+      runtime = await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
 
@@ -294,6 +388,92 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           mergeUsageTotals(eventUsageTotals, event.usage)
           lastStepUsage = event.usage
           if (event.model) usageModel = event.model
+        }
+
+        if (event.type === 'approval_request') {
+          const requestMessage: InputRequestMessage = {
+            type: 'input_request',
+            subtype: 'approval_request',
+            session_id: sessionId,
+            uuid: randomUUID(),
+            tool_use_id: event.toolUseId,
+            tool_name: event.toolName,
+            action: event.action,
+            effective_decision: event.effectiveDecision,
+            ...(event.suggestions ? { suggestions: event.suggestions } : {}),
+            ...(event.workspaceRequest !== undefined ? { workspace_request: event.workspaceRequest } : {}),
+          }
+
+          emitMessage({
+            emit: queue.push,
+            callback: options.onMessage,
+            message: requestMessage,
+          })
+
+          if (runtime?.userInputManager) {
+            const task = (async () => {
+              try {
+                const response = options.onInputRequest
+                  ? await options.onInputRequest(requestMessage)
+                  : null
+                runtime.userInputManager.submitAnswers(
+                  event.toolUseId,
+                  toApprovalAnswers(response),
+                )
+              } catch (error) {
+                runtime.userInputManager.reject(
+                  event.toolUseId,
+                  error instanceof Error ? error : new Error(String(error)),
+                )
+              }
+            })()
+
+            pendingInputResolutions.add(task)
+            void task.finally(() => {
+              pendingInputResolutions.delete(task)
+            })
+          }
+        }
+
+        if (event.type === 'ask_user_question') {
+          const requestMessage: InputRequestMessage = {
+            type: 'input_request',
+            subtype: 'ask_user_question',
+            session_id: sessionId,
+            uuid: randomUUID(),
+            tool_use_id: event.toolUseId,
+            questions: normalizeAskUserQuestions(event.questions),
+          }
+
+          emitMessage({
+            emit: queue.push,
+            callback: options.onMessage,
+            message: requestMessage,
+          })
+
+          if (runtime?.userInputManager) {
+            const task = (async () => {
+              try {
+                const response = options.onInputRequest
+                  ? await options.onInputRequest(requestMessage)
+                  : null
+                runtime.userInputManager.submitAnswers(
+                  event.toolUseId,
+                  toAskUserAnswers(response),
+                )
+              } catch (error) {
+                runtime.userInputManager.reject(
+                  event.toolUseId,
+                  error instanceof Error ? error : new Error(String(error)),
+                )
+              }
+            })()
+
+            pendingInputResolutions.add(task)
+            void task.finally(() => {
+              pendingInputResolutions.delete(task)
+            })
+          }
         }
 
         if (!options.includePartialMessages) return
@@ -403,6 +583,9 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         },
       })
     } finally {
+      if (!signal.aborted && pendingInputResolutions.size > 0) {
+        await Promise.allSettled(Array.from(pendingInputResolutions))
+      }
       restorePatchedStreamOnce?.()
     }
   })()
@@ -422,4 +605,3 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
     await run
   }
 }
-
