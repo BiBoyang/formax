@@ -268,8 +268,7 @@ function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
 }
 
 function assertEffortOptionSupported(effort?: 'low' | 'medium' | 'high' | 'max'): void {
-  if (effort === undefined) return
-  throw new Error(`options.effort (${effort}) is not supported in Formax SDK yet`)
+  void effort
 }
 
 function assertDebugOptionsSupported(args: {

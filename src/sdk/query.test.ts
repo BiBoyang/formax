@@ -1481,7 +1481,7 @@ describe('sdk query()', () => {
     }
   })
 
-  it('returns explicit unsupported error when effort is provided', async () => {
+  it('accepts effort as compatibility no-op option', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -1489,32 +1489,41 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'effort unsupported',
+      prompt: 'effort compatibility',
       options: {
         effort: 'high',
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.effort')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
-  it('fails fast on unsupported effort option before draining async prompt stream', async () => {
-    const runtime = createRuntimeFixture()
+  it('accepts effort with async prompt stream input', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
 
     const promptStream: AsyncIterable<SDKUserMessage> = {
       [Symbol.asyncIterator]() {
+        let emitted = false
         return {
           next: async () => {
             nextCalls += 1
+            if (emitted) {
+              return {
+                done: true,
+                value: undefined,
+              }
+            }
+            emitted = true
             return {
               value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
               done: false,
@@ -1531,15 +1540,12 @@ describe('sdk query()', () => {
       },
     })
 
-    expect(nextCalls).toBe(0)
-    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(nextCalls).toBeGreaterThan(0)
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.effort')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

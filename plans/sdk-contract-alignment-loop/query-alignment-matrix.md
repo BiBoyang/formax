@@ -45,7 +45,7 @@
 | `maxTurns` | `options.maxTurns` | Partial | 兼容入口已支持：`1` 通过，`>1` 显式报当前不支持。 |
 | `maxBudgetUsd` | `options.maxBudgetUsd` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `thinking` | `options.thinking` | Partial | 支持 `adaptive/enabled/disabled`；`budgetTokens` 仅校验，不做预算控制。 |
-| `effort` | `options.effort` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `effort` | `options.effort` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |
 | `hooks` | `options.hooks` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `canUseTool` | `options.canUseTool` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

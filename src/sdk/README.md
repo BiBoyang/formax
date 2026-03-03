@@ -66,7 +66,7 @@ Implemented and available now:
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
 - Query system prompt alignment (`systemPrompt` supports official `preset` object shape)
 - Query thinking alignment (`thinking` supports adaptive/enabled/disabled subset)
-- Query effort alignment (`effort` accepted as contract input; currently fails explicitly as unsupported)
+- Query effort alignment (`effort` supported as an in-process compatibility no-op option)
 - Query token-thinking alignment (`maxThinkingTokens` accepted for legacy compatibility)
 - Query turn-limit alignment (`maxTurns=1` accepted; larger values fail explicitly)
 - Query budget alignment (`maxBudgetUsd` accepted as contract input; currently fails explicitly as unsupported)
