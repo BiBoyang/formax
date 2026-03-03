@@ -379,12 +379,7 @@ function assertAgentOptionsSupported(args: {
   agent?: string
   agents?: Record<string, unknown>
 }): void {
-  if (args.agent !== undefined) {
-    throw new Error(`options.agent (${args.agent}) is not supported in Formax SDK yet`)
-  }
-  if (args.agents !== undefined) {
-    throw new Error('options.agents is not supported in Formax SDK yet')
-  }
+  void args
 }
 
 function assertToolsAndMcpOptionsSupported(args: {
