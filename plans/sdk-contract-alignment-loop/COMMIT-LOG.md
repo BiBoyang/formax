@@ -152,6 +152,10 @@
   - 切片：`QRY-37`
   - 说明：为 `Query` 增加 `setMcpServers/reconnectMcpServer/toggleMcpServer()`，当前能力下返回显式“不支持”错误语义。
 
-- `[pending]` `feat(sdk): align query task control methods`
+- `18cec9e` `feat(sdk): align query task control methods`
   - 切片：`QRY-38`
   - 说明：为 `Query` 增加 `streamInput()/stopTask()`，当前能力下返回显式“不支持”错误语义。
+
+- `[pending]` `feat(sdk): align query rewindFiles method`
+  - 切片：`QRY-39`
+  - 说明：为 `Query` 增加 `rewindFiles()`，当前能力下返回显式“不支持”错误语义。

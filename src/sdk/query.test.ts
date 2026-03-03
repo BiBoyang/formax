@@ -1038,6 +1038,16 @@ describe('sdk query()', () => {
     )
   })
 
+  it('exposes rewindFiles() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'rewind files',
+    })
+
+    await expect(queryIterator.rewindFiles('user-msg-1', { dryRun: true })).rejects.toThrow(
+      'query.rewindFiles is not supported in Formax SDK yet',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)
