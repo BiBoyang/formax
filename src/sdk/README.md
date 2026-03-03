@@ -128,6 +128,7 @@ These remain out of scope for SDK phase-1:
   - `src/sdk/EXPORTS-ALIGNMENT.md`
 - Exports source reference:
   - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
+- `supportedCommands()` now returns both official-compatible fields (`name` / `argumentHint`) and Formax compatibility fields (`command` / `argHint`).
 
 ## Structured Output (`outputFormat`)
 

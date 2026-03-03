@@ -180,6 +180,10 @@
   - 切片：`SDK-05`
   - 说明：新增 SDK 导出对齐索引文档，并在 README 增加入口链接。
 
-- `[pending]` `feat(sdk): add official-aligned type aliases`
+- `61b70dc` `feat(sdk): add official-aligned type aliases`
   - 切片：`SDK-06`
   - 说明：新增 `Options` 与 `SDK*Message` 系列官方同名类型别名导出，并补类型回归测试。
+
+- `[pending]` `feat(sdk): align supportedCommands shape fields`
+  - 切片：`SDK-07`
+  - 说明：`supportedCommands()` 补齐官方同名 `name/argumentHint` 字段，并保留 `command/argHint` 兼容字段。

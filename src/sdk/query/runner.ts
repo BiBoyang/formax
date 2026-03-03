@@ -828,10 +828,16 @@ async function listSupportedCommands(args: QueryArgs, state: QueryControlState):
     const commands = createSlashCommandRegistry({ cwd })
       .list()
       .map((spec) => ({
+        name: spec.command,
         command: spec.command,
         description: spec.description,
         source: spec.source,
-        ...(spec.argHint ? { argHint: spec.argHint } : {}),
+        ...(spec.argHint
+          ? {
+              argumentHint: spec.argHint,
+              argHint: spec.argHint,
+            }
+          : {}),
         ...(spec.implemented === undefined ? {} : { implemented: spec.implemented }),
       }))
     return parseSlashCommandListOutput(commands)

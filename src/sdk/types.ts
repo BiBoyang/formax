@@ -238,9 +238,11 @@ export type SDKMessage = QueryMessage
 export type QueryInitializationResult = SystemMessage
 
 export type SlashCommand = {
+  name: string
   command: string
   description: string
   source: 'builtin' | 'user' | 'project'
+  argumentHint?: string
   argHint?: string
   implemented?: boolean
 }

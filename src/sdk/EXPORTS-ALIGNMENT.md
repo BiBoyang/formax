@@ -34,7 +34,7 @@
 | `setModel` | `setModel` | Supported | 启动前覆盖。 |
 | `setPermissionMode` | `setPermissionMode` | Supported | 启动前覆盖。 |
 | `setMaxThinkingTokens` | `setMaxThinkingTokens` | Supported | 启动前覆盖。 |
-| `supportedCommands` | `supportedCommands` | Supported | 返回当前 slash command 子集。 |
+| `supportedCommands` | `supportedCommands` | Supported | 返回当前 slash command 子集，包含 `name/argumentHint` 与 `command/argHint` 兼容字段。 |
 | `supportedAgents` | `supportedAgents` | Supported | 返回当前子代理子集。 |
 | `supportedModels` | `supportedModels` | Supported | 返回 provider 可用模型子集。 |
 | `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集。 |

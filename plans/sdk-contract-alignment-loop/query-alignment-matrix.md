@@ -19,6 +19,7 @@
 说明：
 - 当前已支持 `AsyncIterable<SDKUserMessage>`（user/text 子集）。
 - `Query` 已支持 `interrupt()`、`close()`、`initializationResult()`、`supportedCommands()`、`supportedAgents()`、`supportedModels()`、`accountInfo()`、`mcpServerStatus()/setMcpServers()/reconnectMcpServer()/toggleMcpServer()/streamInput()/stopTask()/rewindFiles()`（当前显式报未支持）、`setModel()`、`setPermissionMode()`、`setMaxThinkingTokens()`；其余 `Query` 对象方法（`supported*`/`mcp*` 等）暂不纳入一期范围。
+- `supportedCommands()` 返回命令项同时包含 `name/argumentHint`（官方同名）与 `command/argHint`（Formax 兼容）字段。
 
 ## Options 对齐矩阵（官方 -> Formax）
 

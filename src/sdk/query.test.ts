@@ -793,9 +793,13 @@ describe('sdk query()', () => {
 
     const commands = await queryIterator.supportedCommands()
     expect(commands.length).toBeGreaterThan(0)
+    expect(commands.some((command) => command.name === '/help')).toBe(true)
     expect(commands.some((command) => command.command === '/help')).toBe(true)
     const helpCommand = commands.find((command) => command.command === '/help')
     expect(helpCommand?.source).toBe('builtin')
+    const modelCommand = commands.find((command) => command.command === '/model')
+    expect(modelCommand?.argumentHint).toBe('[model]')
+    expect(modelCommand?.argHint).toBe('[model]')
     expect(state.createRuntime).not.toHaveBeenCalled()
   })
 

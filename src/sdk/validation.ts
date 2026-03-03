@@ -279,9 +279,11 @@ const sdkSessionInfoListSchema = z.array(sdkSessionInfoSchema)
 
 const slashCommandSchema = z
   .object({
+    name: z.string(),
     command: z.string(),
     description: z.string(),
     source: z.enum(['builtin', 'user', 'project']),
+    argumentHint: z.string().optional(),
     argHint: z.string().optional(),
     implemented: z.boolean().optional(),
   })
