@@ -1,4 +1,6 @@
 export {
+  getSessionMessages,
+  listSessions,
   query,
   unstable_v2_createSession,
   unstable_v2_prompt,
@@ -24,6 +26,10 @@ export type {
   AskUserQuestionInputResponse,
   InputRequestResponse,
   QueryMessage,
+  ListSessionsOptions,
+  GetSessionMessagesOptions,
+  SessionMessage,
+  SDKSessionInfo,
   SDKUserTextBlock,
   SDKUserMessage,
   SDKSessionOptions,

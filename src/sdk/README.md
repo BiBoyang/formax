@@ -12,6 +12,8 @@ Package-level re-export entry:
 
 Exported function set:
 - `query(args): AsyncGenerator<QueryMessage, void, unknown>`
+- `listSessions(options?): Promise<SDKSessionInfo[]>`
+- `getSessionMessages(sessionId, options?): Promise<SessionMessage[]>`
 - `unstable_v2_createSession(options): SDKSession`
 - `unstable_v2_resumeSession(sessionId, options): SDKSession`
 - `unstable_v2_prompt(message, options): Promise<ResultMessage>`
@@ -20,6 +22,8 @@ Exported function set:
 
 ```ts
 import {
+  getSessionMessages,
+  listSessions,
   query,
   unstable_v2_createSession,
   unstable_v2_prompt,
@@ -41,26 +45,42 @@ for await (const message of session.stream()) {
 
 const oneShot = await unstable_v2_prompt('What is 2 + 2?', { model: 'claude-sonnet-4-6' })
 console.log(oneShot.subtype, oneShot.result)
+
+const sessions = await listSessions({ limit: 5 })
+if (sessions.length > 0) {
+  const recentMessages = await getSessionMessages(sessions[0].sessionId, { limit: 4 })
+  console.log(recentMessages.map((m) => m.type))
+}
 ```
 
-## Supported Capabilities
+## Supported Now
 
 Implemented and available now:
 - Query streaming (`query`)
+- Session discovery (`listSessions`)
+- Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)
 - In-process session resume (`unstable_v2_resumeSession`)
 - Interactive input handling (`approval_request`, `ask_user_question`)
 - Structured output (`outputFormat` + `structured_output`)
 - SDK boundary validation for untrusted external input
 
-## Not Yet Supported (Planned)
+## Planned
 
 These are intentionally not implemented in this phase:
 - Cross-process session resume
 - `settingSources`
+- Other official Agent SDK options not yet mapped in Formax SDK
+
+## Not Supported In This Phase
+
+These remain out of scope for SDK phase-1:
+- `createSdkMcpServer`
+- `tool` (SDK MCP helper)
 - `mcpServers`
+- `hooks`
+- `canUseTool`
 - `plugins`
-- Other official Agent SDK-only options not yet mapped in Formax SDK
 
 ## Structured Output (`outputFormat`)
 
@@ -107,11 +127,21 @@ Result subtypes:
 - `unstable_v2_resumeSession` currently supports in-process resume only.
 - The `sessionId` must come from a session created in the same Node.js process.
 
+## Session Query Notes
+
+- `listSessions` and `getSessionMessages` reuse Formax local session storage reader behavior.
+- `listSessions` is scoped by `options.dir` (or current working directory when omitted).
+- `getSessionMessages` resolves `sessionId` within the same `options.dir` scope.
+- `getSessionMessages` currently returns user/assistant prompt history messages.
+- `SDKSessionInfo.firstPrompt` is currently not populated in this phase.
+- `SDKSessionInfo.fileSize` is currently `0` in this phase (metadata-only mapping).
+
 ## Internal Layout (for contributors)
 
 - Unified API: `src/sdk/api.ts`
 - Query facade: `src/sdk/query.ts`
 - Query runtime implementation: `src/sdk/query/runner.ts`
+- Session query facade: `src/sdk/sessions.ts`
 - Session facade: `src/sdk/v2.ts`
 - Session runtime implementation: `src/sdk/session/core.ts`
 - Validation: `src/sdk/validation.ts`

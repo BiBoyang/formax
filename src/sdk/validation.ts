@@ -5,7 +5,11 @@ import type { ToolDefinition } from '../tools/types.js'
 import type {
   ApprovalInputResponse,
   AskUserQuestionInputResponse,
+  GetSessionMessagesOptions,
+  ListSessionsOptions,
   QueryArgs,
+  SDKSessionInfo,
+  SessionMessage,
 } from './types.js'
 
 const promptBlockSchema = z.record(z.string(), z.unknown())
@@ -94,6 +98,72 @@ const queryArgsSchema = z
     options: queryOptionsSchema.optional(),
   })
   .strict()
+
+const listSessionsOptionsSchema = z
+  .object({
+    dir: z.string().optional(),
+    limit: z.number().int().positive().optional(),
+  })
+  .strict()
+
+const getSessionMessagesOptionsSchema = z
+  .object({
+    dir: z.string().optional(),
+    limit: z.number().int().positive().optional(),
+    offset: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+
+const sessionIdSchema = z.string().trim().min(1, 'Expected non-empty session id')
+
+const sessionMetaSchema = z.object({
+  sessionId: z.string(),
+  cwd: z.string(),
+  gitBranch: z.string().optional(),
+})
+
+const rawSessionSummarySchema = z.object({
+  filePath: z.string(),
+  meta: sessionMetaSchema,
+  updatedAt: z.date(),
+  messageCount: z.number().int().nullable(),
+  lastUserPrompt: z.string().nullable(),
+  label: z.string().nullable(),
+})
+
+const rawSessionSummaryListSchema = z.array(rawSessionSummarySchema)
+
+const rawSessionReplaySchema = z.object({
+  meta: sessionMetaSchema,
+  history: promptHistorySchema,
+})
+
+const sessionMessageSchema = z
+  .object({
+    type: z.enum(['user', 'assistant']),
+    uuid: z.string(),
+    session_id: z.string(),
+    message: promptMessageSchema,
+    parent_tool_use_id: z.null(),
+  })
+  .strict()
+
+const sessionMessageListSchema = z.array(sessionMessageSchema)
+
+const sdkSessionInfoSchema = z
+  .object({
+    sessionId: z.string(),
+    summary: z.string(),
+    lastModified: z.number().int().nonnegative(),
+    fileSize: z.number().int().nonnegative(),
+    customTitle: z.string().optional(),
+    firstPrompt: z.string().optional(),
+    gitBranch: z.string().optional(),
+    cwd: z.string().optional(),
+  })
+  .strict()
+
+const sdkSessionInfoListSchema = z.array(sdkSessionInfoSchema)
 
 const workspaceRequestSchema = z.object({ dir: z.string() }).strict().nullable()
 
@@ -212,6 +282,65 @@ const streamEventSchema = z.discriminatedUnion('type', [
 
 export function parseQueryArgsInput(input: unknown): QueryArgs {
   return queryArgsSchema.parse(input) as QueryArgs
+}
+
+export function parseListSessionsOptionsInput(input: unknown): ListSessionsOptions {
+  if (input == null) return {}
+  return listSessionsOptionsSchema.parse(input) as ListSessionsOptions
+}
+
+export function parseGetSessionMessagesOptionsInput(input: unknown): GetSessionMessagesOptions {
+  if (input == null) return {}
+  return getSessionMessagesOptionsSchema.parse(input) as GetSessionMessagesOptions
+}
+
+export function parseSessionIdInput(input: unknown): string {
+  return sessionIdSchema.parse(input)
+}
+
+export function parseRawSessionSummaryListOutput(input: unknown): Array<{
+  filePath: string
+  meta: {
+    sessionId: string
+    cwd: string
+    gitBranch?: string
+  }
+  updatedAt: Date
+  messageCount: number | null
+  lastUserPrompt: string | null
+  label: string | null
+}> {
+  return rawSessionSummaryListSchema.parse(input) as Array<{
+    filePath: string
+    meta: {
+      sessionId: string
+      cwd: string
+      gitBranch?: string
+    }
+    updatedAt: Date
+    messageCount: number | null
+    lastUserPrompt: string | null
+    label: string | null
+  }>
+}
+
+export function parseRawSessionReplayOutput(input: unknown): {
+  sessionId: string
+  history: PromptMessage[]
+} {
+  const parsed = rawSessionReplaySchema.parse(input)
+  return {
+    sessionId: parsed.meta.sessionId,
+    history: parsed.history as PromptMessage[],
+  }
+}
+
+export function parseSDKSessionInfoListOutput(input: unknown): SDKSessionInfo[] {
+  return sdkSessionInfoListSchema.parse(input) as SDKSessionInfo[]
+}
+
+export function parseSessionMessageListOutput(input: unknown): SessionMessage[] {
+  return sessionMessageListSchema.parse(input) as SessionMessage[]
 }
 
 export function parsePromptHistory(input: unknown): PromptMessage[] {

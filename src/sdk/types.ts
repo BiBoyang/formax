@@ -147,6 +147,36 @@ export type QueryMessage =
   | AssistantMessage
   | ResultMessage
 
+export type ListSessionsOptions = {
+  dir?: string
+  limit?: number
+}
+
+export type GetSessionMessagesOptions = {
+  dir?: string
+  limit?: number
+  offset?: number
+}
+
+export type SessionMessage = {
+  type: 'user' | 'assistant'
+  uuid: string
+  session_id: string
+  message: PromptMessage
+  parent_tool_use_id: null
+}
+
+export type SDKSessionInfo = {
+  sessionId: string
+  summary: string
+  lastModified: number
+  fileSize: number
+  customTitle?: string
+  firstPrompt?: string
+  gitBranch?: string
+  cwd?: string
+}
+
 export type SDKUserTextBlock = {
   type: 'text'
   text: string
