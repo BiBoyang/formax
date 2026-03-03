@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `b1f424c` `feat(sdk): accept query resumeSessionAt compatibility`
+  - 切片：`QRY-59`
+  - 说明：`query` 接收 `resumeSessionAt` 并在 in-process SDK 模式下按兼容 no-op 处理；`resume/sessionId/continue` 既有恢复语义保持不变。
+
 - `41960c3` `feat(sdk): accept query budget compatibility`
   - 切片：`QRY-58`
   - 说明：`query` 接收 `maxBudgetUsd` 并在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
