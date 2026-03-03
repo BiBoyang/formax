@@ -517,6 +517,36 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it('keeps enableFileCheckpointing compatibility behavior via persisted snapshots', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    const writer = createSessionWriterFixture()
+    state.createSessionWriter.mockResolvedValue({
+      writer,
+      meta: { sessionId: 'checkpointed-session-id' },
+      filePath: '/tmp/checkpointed-session.jsonl',
+    })
+
+    const messages = await collectMessages({
+      prompt: 'enableFileCheckpointing compatibility',
+      options: {
+        enableFileCheckpointing: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(state.createSessionWriter).toHaveBeenCalledTimes(1)
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('checkpointed-session-id')
+    }
+  })
+
   it('keeps forkSession compatibility behavior via resumed-history rebinding', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.history).toHaveLength(2)

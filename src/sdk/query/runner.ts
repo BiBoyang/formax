@@ -371,18 +371,6 @@ function assertStrictMcpConfigSupported(strictMcpConfig?: boolean): void {
   )
 }
 
-function assertSessionPersistenceOptionsSupported(args: {
-  persistSession?: boolean
-  forkSession?: boolean
-  enableFileCheckpointing?: boolean
-}): void {
-  if (args.enableFileCheckpointing !== undefined) {
-    throw new Error(
-      `options.enableFileCheckpointing (${args.enableFileCheckpointing}) is not supported in Formax SDK yet`,
-    )
-  }
-}
-
 function assertFilesystemSandboxOptionsSupported(args: {
   additionalDirectories?: string[]
   sandbox?: unknown
@@ -1133,11 +1121,6 @@ async function* runQuery(
         fallbackModel: options.fallbackModel,
       })
       assertStrictMcpConfigSupported(options.strictMcpConfig)
-      assertSessionPersistenceOptionsSupported({
-        persistSession: options.persistSession,
-        forkSession: options.forkSession,
-        enableFileCheckpointing: options.enableFileCheckpointing,
-      })
       assertFilesystemSandboxOptionsSupported({
         additionalDirectories: options.additionalDirectories,
         sandbox: options.sandbox,
@@ -1203,7 +1186,8 @@ async function* runQuery(
       runtime = runtime ?? await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
-      const shouldPersistSession = options.persistSession === true
+      const shouldPersistSession =
+        options.persistSession === true || options.enableFileCheckpointing === true
 
       sessionPersistence = await initializeQuerySessionPersistence({
         enabled: shouldPersistSession,
