@@ -156,6 +156,28 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it('keeps maxThinkingTokens compatibility behavior', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'maxThinkingTokens compatibility',
+      options: {
+        thinking: { type: 'disabled' },
+        maxThinkingTokens: 1200,
+      },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
   it('keeps multi-option alignment stable in a single call', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.exec?.replMode).toBe('normal')

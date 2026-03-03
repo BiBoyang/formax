@@ -42,7 +42,7 @@
 | `maxTurns` | - | Backlog | 当前未提供 query 多轮上限参数。 |
 | `maxBudgetUsd` | - | Backlog | 当前未支持。 |
 | `thinking` | `options.thinking` | Partial | 支持 `adaptive/enabled/disabled`；`budgetTokens` 仅校验，不做预算控制。 |
-| `maxThinkingTokens` | - | Backlog | 当前未支持。 |
+| `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |
 | `hooks` | - | Backlog | 当前不暴露。 |
 | `canUseTool` | - | Backlog | 当前不暴露。 |
 | `mcpServers` | - | Backlog | 当前不支持。 |

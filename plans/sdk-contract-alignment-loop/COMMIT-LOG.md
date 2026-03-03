@@ -32,9 +32,13 @@
   - 切片：`QRY-08`、`QRY-09`
   - 说明：支持 `query` 的 `prompt: AsyncIterable<SDKUserMessage>` 子集输入，并补齐空流/非法结构/中断清理等边界测试。
 
-- `[pending]` `feat(sdk): align full permissionMode input set`
+- `86e7553` `feat(sdk): align full permissionMode input set`
   - 切片：`QRY-10`
   - 说明：对齐官方 `permissionMode` 输入全集，并为当前未支持值提供显式一致错误。
+
+- `[pending]` `feat(sdk): align maxThinkingTokens option`
+  - 切片：`QRY-11`
+  - 说明：增加 `maxThinkingTokens` 输入对齐，并与 `thinking`/`thinkingEnabled` 做一致性约束。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

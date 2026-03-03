@@ -126,6 +126,7 @@ const queryOptionsSchema = z
     permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']).optional(),
     interactive: z.boolean().optional(),
     thinking: thinkingConfigSchema.optional(),
+    maxThinkingTokens: z.number().int().nonnegative().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

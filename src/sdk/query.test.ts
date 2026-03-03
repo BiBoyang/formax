@@ -566,6 +566,31 @@ describe('sdk query()', () => {
     }
   })
 
+  it('lets thinking=adaptive take precedence over maxThinkingTokens', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(true)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    runtime.cfg.llm.thinkingMode = true
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'adaptive takes precedence',
+      options: {
+        thinking: { type: 'adaptive' },
+        maxThinkingTokens: 0,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
   it('returns error when thinking and thinkingEnabled conflict', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
@@ -587,6 +612,100 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('options.thinkingEnabled')
+    }
+  })
+
+  it('maps maxThinkingTokens to execution thinkingEnabled=true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(true)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'max thinking tokens',
+      options: {
+        maxThinkingTokens: 1200,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('treats maxThinkingTokens=0 as thinking disabled', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'max tokens zero',
+      options: {
+        maxThinkingTokens: 0,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('lets thinking=disabled take precedence over maxThinkingTokens', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'max tokens with thinking disabled',
+      options: {
+        thinking: { type: 'disabled' },
+        maxThinkingTokens: 100,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('lets thinkingEnabled=false take precedence over maxThinkingTokens', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'max tokens with thinkingEnabled false',
+      options: {
+        thinkingEnabled: false,
+        maxThinkingTokens: 100,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
     }
   })
 
@@ -1463,6 +1582,25 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('thinking')
+    }
+  })
+
+  it('returns error result when maxThinkingTokens is invalid', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    const messages = await collectMessages({
+      prompt: 'invalid maxThinkingTokens',
+      options: {
+        maxThinkingTokens: -1 as any,
+      },
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('maxThinkingTokens')
     }
   })
 

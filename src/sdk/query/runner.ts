@@ -160,9 +160,15 @@ function mapThinkingConfigToEnabled(thinking?: ThinkingConfig): boolean | undefi
 
 function resolveThinkingEnabled(args: {
   thinking?: ThinkingConfig
+  maxThinkingTokens?: number
   thinkingEnabled?: boolean
 }): boolean | undefined {
   const mappedThinking = mapThinkingConfigToEnabled(args.thinking)
+  const hasThinkingOption = args.thinking !== undefined
+  const mappedMaxThinkingTokens =
+    args.maxThinkingTokens === undefined || hasThinkingOption
+      ? undefined
+      : args.maxThinkingTokens > 0
   if (
     mappedThinking !== undefined &&
     args.thinkingEnabled !== undefined &&
@@ -172,7 +178,7 @@ function resolveThinkingEnabled(args: {
       `options.thinkingEnabled (${String(args.thinkingEnabled)}) conflicts with options.thinking (${args.thinking?.type ?? 'unknown'})`,
     )
   }
-  return args.thinkingEnabled ?? mappedThinking
+  return args.thinkingEnabled ?? mappedThinking ?? mappedMaxThinkingTokens
 }
 
 function toUserPromptMessage(prompt: string): PromptMessage {
@@ -546,6 +552,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
+        maxThinkingTokens: options.maxThinkingTokens,
         thinkingEnabled: options.thinkingEnabled,
       })
       const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)

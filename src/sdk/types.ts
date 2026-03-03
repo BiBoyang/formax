@@ -60,6 +60,7 @@ export type QueryOptions = {
   permissionMode?: PermissionMode
   interactive?: boolean
   thinking?: ThinkingConfig
+  maxThinkingTokens?: number
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
