@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `41960c3` `feat(sdk): accept query budget compatibility`
+  - 切片：`QRY-58`
+  - 说明：`query` 接收 `maxBudgetUsd` 并在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
+
 - `0bbb0ca` `feat(sdk): accept query effort compatibility`
   - 切片：`QRY-57`
   - 说明：`query` 接收 `effort` 并在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
