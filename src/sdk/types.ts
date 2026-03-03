@@ -68,6 +68,7 @@ export type QueryOptions = {
   resumeSessionAt?: string
   debug?: boolean
   debugFile?: string
+  stderr?: (data: string) => void
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

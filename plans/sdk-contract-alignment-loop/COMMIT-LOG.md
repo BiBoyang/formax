@@ -60,9 +60,13 @@
   - 切片：`QRY-16`
   - 说明：接收 `resume/sessionId/resumeSessionAt` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query debug option inputs`
+- `11c7d79` `feat(sdk): align query debug option inputs`
   - 切片：`QRY-17`
   - 说明：接收 `debug/debugFile` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query stderr option input`
+  - 切片：`QRY-18`
+  - 说明：接收 `stderr` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

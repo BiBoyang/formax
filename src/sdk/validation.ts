@@ -134,6 +134,9 @@ const queryOptionsSchema = z
     resumeSessionAt: z.string().optional(),
     debug: z.boolean().optional(),
     debugFile: z.string().optional(),
+    stderr: z.custom<(data: string) => void>((value) => typeof value === 'function', {
+      message: 'Expected function',
+    }).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

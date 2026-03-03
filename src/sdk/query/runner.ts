@@ -236,6 +236,11 @@ function assertDebugOptionsSupported(args: {
   }
 }
 
+function assertStderrOptionSupported(stderr?: (data: string) => void): void {
+  if (stderr === undefined) return
+  throw new Error('options.stderr is not supported in Formax SDK yet')
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -635,6 +640,7 @@ async function* runQuery(
         debug: options.debug,
         debugFile: options.debugFile,
       })
+      assertStderrOptionSupported(options.stderr)
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,
