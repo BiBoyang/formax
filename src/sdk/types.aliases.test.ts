@@ -1,5 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
+  AccountInfo,
+  ApiKeySource,
   AssistantMessage,
   CanUseTool,
   Options,
@@ -81,5 +83,9 @@ describe('SDK type alias alignment', () => {
     expectTypeOf<Awaited<ReturnType<CanUseTool>>>().toEqualTypeOf<PermissionResult>()
     expectTypeOf<NonNullable<Extract<PermissionResult, { behavior: 'allow' }>['updatedPermissions']>>()
       .toEqualTypeOf<PermissionUpdate[]>()
+  })
+
+  it('aligns account api-key source compatibility type', () => {
+    expectTypeOf<NonNullable<AccountInfo['apiKeySource']>>().toEqualTypeOf<ApiKeySource | 'env' | 'config'>()
   })
 })

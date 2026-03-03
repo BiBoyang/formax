@@ -8,8 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-15`：收紧 `accountInfo.apiKeySource` 语义（尝试映射到官方 `ApiKeySource` 兼容值，同时保持当前字段兼容）。
-- [ ] `TYP-01`：补齐 `ApiKeySource` 类型导出，并将 `AccountInfo.apiKeySource` 与该类型建立兼容关联。
+- [ ] `MOD-01`：增强 `supportedModels()` 的 `supportsAdaptiveThinking` 兼容字段输出（基于现有模型能力信息推导，不新增底层能力）。
 
 ## 再生规则（当“当前待办”为空时）
 

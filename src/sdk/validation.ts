@@ -332,7 +332,9 @@ const accountInfoSchema = z
     organization: z.string().optional(),
     subscriptionType: z.string().optional(),
     tokenSource: z.string().optional(),
-    apiKeySource: z.string().optional(),
+    apiKeySource: z
+      .enum(['user', 'project', 'org', 'temporary', 'oauth', 'env', 'config'])
+      .optional(),
   })
   .strict()
 

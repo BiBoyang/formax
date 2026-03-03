@@ -86,6 +86,8 @@ export type PermissionMode =
   | 'dontAsk'
   | 'bypassPermissions'
 
+export type ApiKeySource = 'user' | 'project' | 'org' | 'temporary' | 'oauth'
+
 export type PermissionBehavior = 'allow' | 'deny' | 'ask'
 
 export type PermissionRuleValue = {
@@ -384,7 +386,7 @@ export type AccountInfo = {
   organization?: string
   subscriptionType?: string
   tokenSource?: string
-  apiKeySource?: string
+  apiKeySource?: ApiKeySource | 'env' | 'config'
 }
 
 export type McpServerStatus = {

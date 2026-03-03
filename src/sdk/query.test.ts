@@ -978,7 +978,7 @@ describe('sdk query()', () => {
       model: 'gpt-4o',
       baseUrl: 'https://api.openai.com/v1',
       hasApiKey: true,
-      apiKeySource: 'config',
+      apiKeySource: 'user',
       tokenSource: 'config',
     })
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
@@ -999,7 +999,7 @@ describe('sdk query()', () => {
     })
 
     const account = await queryIterator.accountInfo()
-    expect(account.apiKeySource).toBe('env')
+    expect(account.apiKeySource).toBe('temporary')
     expect(account.tokenSource).toBe('env')
   })
 

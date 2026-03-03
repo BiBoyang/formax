@@ -61,7 +61,7 @@ if (sessions.length > 0) {
 Implemented and available now:
 - Query streaming (`query`)
 - Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput` (currently explicit unsupported) + `rewindFiles` (structured unsupported result) + `stopTask` (abort-compatible) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
-- Query account-info alignment (`accountInfo` keeps existing `provider/model/baseUrl/hasApiKey` fields and now includes official-compatible optional `tokenSource/apiKeySource` fields)
+- Query account-info alignment (`accountInfo` keeps existing `provider/model/baseUrl/hasApiKey` fields and includes optional `tokenSource/apiKeySource`; `apiKeySource` follows official-compatible values, while `tokenSource` preserves Formax source detail)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; `default/acceptEdits/plan` map to runtime modes, `dontAsk/bypassPermissions` are accepted as compatibility no-op inputs)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
@@ -95,7 +95,7 @@ Implemented and available now:
 - SDK hook constants export (`HOOK_EVENTS`)
 - SDK exit-reason constants export (`EXIT_REASONS`)
 - SDK literal type exports (`HookEvent`, `ExitReason`)
-- SDK official-aligned type aliases (`Options`, `SDKMessage`, `SDKSystemMessage`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKResultSuccess`, `SDKResultError`, `McpSetServersResult`, `RewindFilesResult`, `PromptRequest`, `PromptRequestOption`, `PromptResponse`, `OutputFormatType`, `BaseOutputFormat`, `ElicitationRequest`, `ElicitationResult`, `OnElicitation`, `PermissionBehavior`, `PermissionRuleValue`, `PermissionUpdateDestination`, `PermissionUpdate`, `PermissionResult`, `CanUseTool`)
+- SDK official-aligned type aliases (`Options`, `SDKMessage`, `SDKSystemMessage`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKResultSuccess`, `SDKResultError`, `McpSetServersResult`, `RewindFilesResult`, `PromptRequest`, `PromptRequestOption`, `PromptResponse`, `OutputFormatType`, `BaseOutputFormat`, `ElicitationRequest`, `ElicitationResult`, `OnElicitation`, `PermissionBehavior`, `PermissionRuleValue`, `PermissionUpdateDestination`, `PermissionUpdate`, `PermissionResult`, `CanUseTool`, `ApiKeySource`)
 - SDK abort error export (`AbortError`)
 
 ## Planned

@@ -895,19 +895,21 @@ async function queryAccountInfo(args: QueryArgs, state: QueryControlState): Prom
     const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
     const apiKey = String(runtime.cfg.llm.apiKey || '').trim()
     const hasApiKey = apiKey.length > 0
-    const inferApiKeySource = (): string | undefined => {
+    const inferTokenSource = (): 'env' | 'config' | undefined => {
       if (!hasApiKey) return undefined
       const configuredEnvApiKey = String(env.FORMAX_API_KEY || '').trim()
       if (configuredEnvApiKey && configuredEnvApiKey === apiKey) return 'env'
       return 'config'
     }
-    const apiKeySource = inferApiKeySource()
+    const tokenSource = inferTokenSource()
+    const apiKeySource = tokenSource ? (tokenSource === 'env' ? 'temporary' : 'user') : undefined
     return parseAccountInfoOutput({
       provider: runtime.cfg.llm.provider,
       model,
       ...(runtime.cfg.llm.baseUrl ? { baseUrl: runtime.cfg.llm.baseUrl } : {}),
       hasApiKey,
-      ...(apiKeySource ? { apiKeySource, tokenSource: apiKeySource } : {}),
+      ...(tokenSource ? { tokenSource } : {}),
+      ...(apiKeySource ? { apiKeySource } : {}),
     })
   } catch (error) {
     throw asValidationError(
