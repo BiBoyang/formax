@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `2c05b4e` `feat(sdk): accept query maxTurns compatibility`
+  - 切片：`QRY-61`
+  - 说明：`query` 接收 `maxTurns` 并在 in-process SDK 模式下按兼容 no-op 处理（包含 `>1` 输入），不再直接报“不支持”。
+
 - `3f3b235` `feat(sdk): support query onElicitation fallback`
   - 切片：`QRY-60`
   - 说明：`query` 支持 `onElicitation` 作为 `ask_user_question` 的 fallback 回调（`onInputRequest` 优先），并补齐请求/结果校验与回归测试。
