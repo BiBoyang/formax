@@ -154,6 +154,8 @@ const queryOptionsSchema = z
     persistSession: z.boolean().optional(),
     forkSession: z.boolean().optional(),
     enableFileCheckpointing: z.boolean().optional(),
+    additionalDirectories: z.array(z.string()).optional(),
+    sandbox: z.unknown().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

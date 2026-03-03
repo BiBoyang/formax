@@ -88,9 +88,13 @@
   - 切片：`QRY-23`
   - 说明：接收 `strictMcpConfig` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query session persistence option inputs`
+- `3379599` `feat(sdk): align query session persistence option inputs`
   - 切片：`QRY-24`
   - 说明：接收 `persistSession/forkSession/enableFileCheckpointing` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query filesystem sandbox option inputs`
+  - 切片：`QRY-25`
+  - 说明：接收 `additionalDirectories/sandbox` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

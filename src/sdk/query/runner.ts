@@ -348,6 +348,20 @@ function assertSessionPersistenceOptionsSupported(args: {
   }
 }
 
+function assertFilesystemSandboxOptionsSupported(args: {
+  additionalDirectories?: string[]
+  sandbox?: unknown
+}): void {
+  if (args.additionalDirectories !== undefined) {
+    throw new Error(
+      'options.additionalDirectories is not supported in Formax SDK yet',
+    )
+  }
+  if (args.sandbox !== undefined) {
+    throw new Error('options.sandbox is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -772,6 +786,10 @@ async function* runQuery(
         persistSession: options.persistSession,
         forkSession: options.forkSession,
         enableFileCheckpointing: options.enableFileCheckpointing,
+      })
+      assertFilesystemSandboxOptionsSupported({
+        additionalDirectories: options.additionalDirectories,
+        sandbox: options.sandbox,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,

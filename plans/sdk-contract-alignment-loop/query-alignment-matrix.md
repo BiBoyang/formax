@@ -51,8 +51,8 @@
 | `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `agent`/`agents` | - | Backlog | 当前不支持。 |
 | `tools`（preset 语义） | - | Backlog | 当前不支持官方 preset 形态。 |
-| `sandbox` | - | Backlog | 当前不支持。 |
-| `additionalDirectories` | - | Backlog | 当前不支持。 |
+| `sandbox` | `options.sandbox` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `additionalDirectories` | `options.additionalDirectories` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `onElicitation` | - | Backlog | 当前仅提供 `onInputRequest`（Formax 语义）。 |
 | `continue` | `options.continue` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

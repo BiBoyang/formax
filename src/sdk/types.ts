@@ -84,6 +84,8 @@ export type QueryOptions = {
   persistSession?: boolean
   forkSession?: boolean
   enableFileCheckpointing?: boolean
+  additionalDirectories?: string[]
+  sandbox?: unknown
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
