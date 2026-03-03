@@ -73,12 +73,6 @@ export async function resolveQueryResumeResolution(args: {
   }
 
   if (continueConversation) {
-    if (requestedSessionId !== null && !forkSession) {
-      throw new Error(
-        `options.sessionId (${requestedSessionId}) conflicts with options.continue (${args.options.continue}) unless options.forkSession is true`,
-      )
-    }
-
     let latestFilePath: string | null
     try {
       latestFilePath = await findLatestSessionFile({
@@ -101,6 +95,17 @@ export async function resolveQueryResumeResolution(args: {
       filePath: latestFilePath,
       context: 'continued',
     })
+
+    if (
+      requestedSessionId !== null &&
+      !forkSession &&
+      requestedSessionId !== continued.sessionId
+    ) {
+      throw new Error(
+        `options.sessionId (${requestedSessionId}) conflicts with options.continue (${args.options.continue}); latest session is (${continued.sessionId}) unless options.forkSession is true`,
+      )
+    }
+
     return {
       sessionId: forkSession ? requestedSessionId : requestedSessionId ?? continued.sessionId,
       history: continued.history,

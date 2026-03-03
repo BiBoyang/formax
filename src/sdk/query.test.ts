@@ -2098,6 +2098,71 @@ describe('sdk query()', () => {
     }
   })
 
+  it('allows continue when sessionId matches latest session', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'continued user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'continued assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue with explicit matching session',
+      options: {
+        continue: true,
+        sessionId: 'continued-session-id',
+      },
+    })
+
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.session_id).toBe('continued-session-id')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('continued-session-id')
+    }
+  })
+
+  it('returns conflict when continue sessionId differs from latest without forkSession', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'continued user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'continued assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue with conflicting session',
+      options: {
+        continue: true,
+        sessionId: 'different-session-id',
+      },
+    })
+
+    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.sessionId')
+      expect(result.error).toContain('latest session is')
+      expect(result.error).toContain('unless options.forkSession is true')
+    }
+  })
+
   it('continues as a new session when no previous session exists', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
