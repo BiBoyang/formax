@@ -48,7 +48,7 @@
 | `mcpServers` | - | Backlog | 当前不支持。 |
 | `plugins` | - | Backlog | 当前不支持。 |
 | `settingSources` | - | Backlog | 当前不支持。 |
-| `resume`/`sessionId`/`resumeSessionAt` | - | Backlog | 当前 query 不支持官方会话恢复参数。 |
+| `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `agent`/`agents` | - | Backlog | 当前不支持。 |
 | `tools`（preset 语义） | - | Backlog | 当前不支持官方 preset 形态。 |
 | `sandbox` | - | Backlog | 当前不支持。 |

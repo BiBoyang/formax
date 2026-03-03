@@ -198,6 +198,28 @@ function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
   )
 }
 
+function assertResumeOptionsSupported(args: {
+  resume?: string
+  sessionId?: string
+  resumeSessionAt?: string
+}): void {
+  if (args.resume !== undefined) {
+    throw new Error(
+      `options.resume (${args.resume}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.sessionId !== undefined) {
+    throw new Error(
+      `options.sessionId (${args.sessionId}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.resumeSessionAt !== undefined) {
+    throw new Error(
+      `options.resumeSessionAt (${args.resumeSessionAt}) is not supported in Formax SDK yet`,
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -588,6 +610,11 @@ async function* runQuery(
       })
       assertMaxTurnsSupported(options.maxTurns)
       assertMaxBudgetUsdSupported(options.maxBudgetUsd)
+      assertResumeOptionsSupported({
+        resume: options.resume,
+        sessionId: options.sessionId,
+        resumeSessionAt: options.resumeSessionAt,
+      })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

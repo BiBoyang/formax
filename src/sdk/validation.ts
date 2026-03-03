@@ -129,6 +129,9 @@ const queryOptionsSchema = z
     maxThinkingTokens: z.number().int().nonnegative().optional(),
     maxTurns: z.number().int().positive().optional(),
     maxBudgetUsd: z.number().nonnegative().optional(),
+    resume: z.string().optional(),
+    sessionId: z.string().optional(),
+    resumeSessionAt: z.string().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

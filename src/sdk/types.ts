@@ -63,6 +63,9 @@ export type QueryOptions = {
   maxThinkingTokens?: number
   maxTurns?: number
   maxBudgetUsd?: number
+  resume?: string
+  sessionId?: string
+  resumeSessionAt?: string
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

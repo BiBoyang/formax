@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-16`：对齐 `query` 的 `resume/sessionId/resumeSessionAt` 输入契约（接收字段并统一显式报暂不支持）。
+- [ ] `QRY-17`：对齐 `query` 的 `debug/debugFile` 输入契约（接收字段并统一显式报暂不支持）。
 
 ## 再生规则（当“当前待办”为空时）
 

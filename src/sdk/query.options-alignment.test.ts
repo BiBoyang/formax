@@ -222,6 +222,29 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it('keeps resume compatibility behavior via explicit unsupported error', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'resume compatibility',
+      options: {
+        resume: 'session-abc',
+      },
+    })
+
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.resume')
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
   it('keeps multi-option alignment stable in a single call', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.exec?.replMode).toBe('normal')
