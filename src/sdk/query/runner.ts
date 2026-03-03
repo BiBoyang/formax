@@ -190,6 +190,13 @@ function assertMaxTurnsSupported(maxTurns?: number): void {
   }
 }
 
+function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
+  if (maxBudgetUsd === undefined) return
+  throw new Error(
+    `options.maxBudgetUsd (${maxBudgetUsd}) is not supported in Formax SDK yet`,
+  )
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -560,6 +567,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         permissionMode: options.permissionMode,
       })
       assertMaxTurnsSupported(options.maxTurns)
+      assertMaxBudgetUsdSupported(options.maxBudgetUsd)
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

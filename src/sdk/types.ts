@@ -62,6 +62,7 @@ export type QueryOptions = {
   thinking?: ThinkingConfig
   maxThinkingTokens?: number
   maxTurns?: number
+  maxBudgetUsd?: number
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
