@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `6cbcabf` `feat(sdk): return structured rewindFiles fallback`
+  - 切片：`QRY-64`
+  - 说明：`query.rewindFiles()` 从抛错改为返回结构化不支持结果（`canRewind=false` + `error`），以稳定方法契约并保持当前能力边界。
+
 - `29c5e3c` `feat(sdk): support query stopTask compatibility`
   - 切片：`QRY-63`
   - 说明：`query.stopTask()` 从显式不支持改为中止式兼容语义（复用 query abort 路径），并更新测试与文档标注。
