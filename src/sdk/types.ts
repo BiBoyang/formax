@@ -251,6 +251,11 @@ export type AccountInfo = {
   hasApiKey: boolean
 }
 
+export type McpServerStatus = {
+  name: string
+  status: 'connected' | 'disconnected'
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
@@ -259,6 +264,7 @@ export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   supportedAgents(): Promise<AgentInfo[]>
   supportedModels(): Promise<ModelInfo[]>
   accountInfo(): Promise<AccountInfo>
+  mcpServerStatus(): Promise<McpServerStatus[]>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

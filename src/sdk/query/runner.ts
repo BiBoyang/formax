@@ -963,6 +963,9 @@ export function query(args: QueryArgs): Query {
   queryIterator.supportedAgents = async () => listSupportedAgents(args, controlState)
   queryIterator.supportedModels = async () => listSupportedModels(args, controlState)
   queryIterator.accountInfo = async () => queryAccountInfo(args, controlState)
+  queryIterator.mcpServerStatus = async () => {
+    throw new Error('query.mcpServerStatus is not supported in Formax SDK yet')
+  }
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true

@@ -14,11 +14,11 @@
 | 官方导出 | 官方形态 | Formax SDK 现状 | 状态 |
 |---|---|---|---|
 | `query(params)` | `prompt: string \| AsyncIterable<SDKUserMessage>` | `query({ prompt: string \| AsyncIterable<SDKUserMessage>, options? })` | Partial |
-| `Query` 返回对象 | `AsyncGenerator + interrupt/setModel/...` 方法集 | 返回 `Query`（`AsyncGenerator<QueryMessage>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `setModel()/setPermissionMode()/setMaxThinkingTokens()` 启动前覆盖） | Partial |
+| `Query` 返回对象 | `AsyncGenerator + interrupt/setModel/...` 方法集 | 返回 `Query`（`AsyncGenerator<QueryMessage>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setModel()/setPermissionMode()/setMaxThinkingTokens()` 启动前覆盖） | Partial |
 
 说明：
 - 当前已支持 `AsyncIterable<SDKUserMessage>`（user/text 子集）。
-- `Query` 已支持 `interrupt()`、`close()`、`initializationResult()`、`supportedCommands()`、`supportedAgents()`、`supportedModels()`、`accountInfo()`、`setModel()`、`setPermissionMode()`、`setMaxThinkingTokens()`；其余 `Query` 对象方法（`supported*`/`mcp*` 等）暂不纳入一期范围。
+- `Query` 已支持 `interrupt()`、`close()`、`initializationResult()`、`supportedCommands()`、`supportedAgents()`、`supportedModels()`、`accountInfo()`、`mcpServerStatus()`（当前显式报未支持）、`setModel()`、`setPermissionMode()`、`setMaxThinkingTokens()`；其余 `Query` 对象方法（`supported*`/`mcp*` 等）暂不纳入一期范围。
 
 ## Options 对齐矩阵（官方 -> Formax）
 

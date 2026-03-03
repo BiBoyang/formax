@@ -11,7 +11,7 @@ Package-level re-export entry:
 - `src/sdk/index.ts`
 
 Exported function set:
-- `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + control methods)
+- `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + control methods)
 - `listSessions(options?): Promise<SDKSessionInfo[]>`
 - `getSessionMessages(sessionId, options?): Promise<SessionMessage[]>`
 - `unstable_v2_createSession(options): SDKSession`
@@ -57,7 +57,7 @@ if (sessions.length > 0) {
 
 Implemented and available now:
 - Query streaming (`query`)
-- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
+- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; unsupported ones fail explicitly)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
@@ -101,6 +101,7 @@ These remain out of scope for SDK phase-1:
 - `createSdkMcpServer`
 - `tool` (SDK MCP helper)
 - `mcpServers`
+- `query(...).mcpServerStatus()` capability data (method exists but currently returns explicit unsupported error)
 - `hooks`
 - `canUseTool`
 - `plugins`

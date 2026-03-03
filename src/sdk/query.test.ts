@@ -974,6 +974,16 @@ describe('sdk query()', () => {
     )
   })
 
+  it('exposes mcpServerStatus() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'mcp status',
+    })
+
+    await expect(queryIterator.mcpServerStatus()).rejects.toThrow(
+      'query.mcpServerStatus is not supported in Formax SDK yet',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

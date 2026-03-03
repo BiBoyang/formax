@@ -38,6 +38,7 @@ export type {
   AgentInfo,
   ModelInfo,
   AccountInfo,
+  McpServerStatus,
   Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,

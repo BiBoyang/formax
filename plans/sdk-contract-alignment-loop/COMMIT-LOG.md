@@ -140,6 +140,10 @@
   - 切片：`QRY-34`
   - 说明：为 `Query` 增加 `supportedModels()`，返回当前 provider 的可用模型子集并做输出校验。
 
-- `[pending]` `feat(sdk): align query accountInfo method`
+- `47c7f3e` `feat(sdk): align query accountInfo method`
   - 切片：`QRY-35`
   - 说明：为 `Query` 增加 `accountInfo()`，返回当前账号配置子集并做输出校验。
+
+- `[pending]` `feat(sdk): align query mcpServerStatus method`
+  - 切片：`QRY-36`
+  - 说明：为 `Query` 增加 `mcpServerStatus()`，当前能力下返回显式“不支持”错误语义。
