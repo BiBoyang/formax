@@ -362,6 +362,18 @@ function assertFilesystemSandboxOptionsSupported(args: {
   }
 }
 
+function assertAgentOptionsSupported(args: {
+  agent?: string
+  agents?: Record<string, unknown>
+}): void {
+  if (args.agent !== undefined) {
+    throw new Error(`options.agent (${args.agent}) is not supported in Formax SDK yet`)
+  }
+  if (args.agents !== undefined) {
+    throw new Error('options.agents is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -790,6 +802,10 @@ async function* runQuery(
       assertFilesystemSandboxOptionsSupported({
         additionalDirectories: options.additionalDirectories,
         sandbox: options.sandbox,
+      })
+      assertAgentOptionsSupported({
+        agent: options.agent,
+        agents: options.agents,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,

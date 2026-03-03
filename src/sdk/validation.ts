@@ -156,6 +156,8 @@ const queryOptionsSchema = z
     enableFileCheckpointing: z.boolean().optional(),
     additionalDirectories: z.array(z.string()).optional(),
     sandbox: z.unknown().optional(),
+    agent: z.string().optional(),
+    agents: z.record(z.string(), z.unknown()).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

@@ -86,6 +86,8 @@ export type QueryOptions = {
   enableFileCheckpointing?: boolean
   additionalDirectories?: string[]
   sandbox?: unknown
+  agent?: string
+  agents?: Record<string, unknown>
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
