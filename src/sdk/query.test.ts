@@ -858,6 +858,40 @@ describe('sdk query()', () => {
     )
   })
 
+  it('supports supportedModels() before iteration starts', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'anthropic'
+    runtime.cfg.llm.model = 'claude-sonnet-4-6'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'list supported models',
+    })
+
+    const models = await queryIterator.supportedModels()
+    expect(models.length).toBeGreaterThan(0)
+    expect(models[0]).toEqual({
+      model: 'claude-sonnet-4-6',
+      provider: 'anthropic',
+    })
+    expect(models.some((model) => model.model === 'claude-3-5-sonnet-latest')).toBe(true)
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('validates supportedModels() input options', async () => {
+    const queryIterator = query({
+      prompt: 'invalid supported models input',
+      options: {
+        cwd: 123 as any,
+      },
+    })
+
+    await expect(queryIterator.supportedModels()).rejects.toThrow(
+      'Invalid query arguments or model output for query.supportedModels',
+    )
+    expect(state.createRuntime).not.toHaveBeenCalled()
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

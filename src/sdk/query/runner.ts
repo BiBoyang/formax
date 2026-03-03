@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createSlashCommandRegistry } from '../../features/commands/registry.js'
+import { getDefaultModels } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import { buildSystemPrompt } from '../../prompts/system.js'
@@ -18,6 +19,7 @@ import type {
   QueryOptions,
   QueryMessage,
   SlashCommand,
+  ModelInfo,
   ResultMessage,
   SystemMessage,
   ThinkingConfig,
@@ -27,6 +29,7 @@ import type {
 import {
   asValidationError,
   parseAgentInfoListOutput,
+  parseModelInfoListOutput,
   parsePromptHistory,
   parseQueryArgsInput,
   parseSlashCommandListOutput,
@@ -851,6 +854,45 @@ async function listSupportedAgents(args: QueryArgs, state: QueryControlState): P
   }
 }
 
+async function listSupportedModels(args: QueryArgs, state: QueryControlState): Promise<ModelInfo[]> {
+  try {
+    const parsedArgs = parseQueryArgsInput(args)
+    const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
+    const cwd = path.resolve(options.cwd ?? process.cwd())
+    const env = options.env ?? process.env
+    const runtime = await createRuntime({ cwd, env })
+    const provider = String(runtime.cfg.llm.provider)
+    const activeModel = String(runtime.cfg.llm.model || '').trim()
+    const defaultModels = getDefaultModels(provider).map((model) => ({
+      model: model.model,
+      provider: model.provider,
+      ...(model.max_tokens === undefined ? {} : { max_tokens: model.max_tokens }),
+      ...(model.contextWindowTokens === undefined
+        ? {}
+        : { contextWindowTokens: model.contextWindowTokens }),
+      ...(model.supports_reasoning_effort === undefined
+        ? {}
+        : { supports_reasoning_effort: model.supports_reasoning_effort }),
+      ...(model.supports_vision === undefined ? {} : { supports_vision: model.supports_vision }),
+      ...(model.supports_function_calling === undefined
+        ? {}
+        : { supports_function_calling: model.supports_function_calling }),
+    }))
+    if (activeModel.length > 0 && !defaultModels.some((model) => model.model === activeModel)) {
+      defaultModels.unshift({
+        model: activeModel,
+        provider,
+      })
+    }
+    return parseModelInfoListOutput(defaultModels)
+  } catch (error) {
+    throw asValidationError(
+      error,
+      'Invalid query arguments or model output for query.supportedModels',
+    )
+  }
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
   let resolveInitialization: (value: SystemMessage) => void = () => {}
@@ -895,6 +937,7 @@ export function query(args: QueryArgs): Query {
   queryIterator.initializationResult = async () => controlState.initializationPromise
   queryIterator.supportedCommands = async () => listSupportedCommands(args, controlState)
   queryIterator.supportedAgents = async () => listSupportedAgents(args, controlState)
+  queryIterator.supportedModels = async () => listSupportedModels(args, controlState)
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true

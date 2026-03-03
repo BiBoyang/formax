@@ -132,6 +132,10 @@
   - 切片：`QRY-32`
   - 说明：为 `Query` 增加 `supportedCommands()`，返回已支持 slash command 清单并做输出校验。
 
-- `[pending]` `feat(sdk): align query supportedAgents method`
+- `17fba5d` `feat(sdk): align query supportedAgents method`
   - 切片：`QRY-33`
   - 说明：为 `Query` 增加 `supportedAgents()`，返回当前可用子代理清单并做输出校验。
+
+- `[pending]` `feat(sdk): align query supportedModels method`
+  - 切片：`QRY-34`
+  - 说明：为 `Query` 增加 `supportedModels()`，返回当前 provider 的可用模型子集并做输出校验。

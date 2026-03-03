@@ -234,12 +234,23 @@ export type AgentInfo = {
   model?: string
 }
 
+export type ModelInfo = {
+  model: string
+  provider: string
+  max_tokens?: number
+  contextWindowTokens?: number
+  supports_reasoning_effort?: boolean
+  supports_vision?: boolean
+  supports_function_calling?: boolean
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
   initializationResult(): Promise<QueryInitializationResult>
   supportedCommands(): Promise<SlashCommand[]>
   supportedAgents(): Promise<AgentInfo[]>
+  supportedModels(): Promise<ModelInfo[]>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

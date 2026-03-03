@@ -7,6 +7,7 @@ import type {
   ApprovalInputResponse,
   AskUserQuestionInputResponse,
   GetSessionMessagesOptions,
+  ModelInfo,
   ListSessionsOptions,
   QueryArgs,
   SlashCommand,
@@ -297,6 +298,20 @@ const agentInfoSchema = z
 
 const agentInfoListSchema = z.array(agentInfoSchema)
 
+const modelInfoSchema = z
+  .object({
+    model: z.string(),
+    provider: z.string(),
+    max_tokens: z.number().int().positive().optional(),
+    contextWindowTokens: z.number().int().positive().optional(),
+    supports_reasoning_effort: z.boolean().optional(),
+    supports_vision: z.boolean().optional(),
+    supports_function_calling: z.boolean().optional(),
+  })
+  .strict()
+
+const modelInfoListSchema = z.array(modelInfoSchema)
+
 const workspaceRequestSchema = z.object({ dir: z.string() }).strict().nullable()
 
 const approvalRequestEventSchema = z
@@ -481,6 +496,10 @@ export function parseSlashCommandListOutput(input: unknown): SlashCommand[] {
 
 export function parseAgentInfoListOutput(input: unknown): AgentInfo[] {
   return agentInfoListSchema.parse(input) as AgentInfo[]
+}
+
+export function parseModelInfoListOutput(input: unknown): ModelInfo[] {
+  return modelInfoListSchema.parse(input) as ModelInfo[]
 }
 
 export function parseSessionMessageListOutput(input: unknown): SessionMessage[] {
