@@ -35,6 +35,7 @@ export type {
   QueryMessage,
   QueryInitializationResult,
   SlashCommand,
+  AgentInfo,
   Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,

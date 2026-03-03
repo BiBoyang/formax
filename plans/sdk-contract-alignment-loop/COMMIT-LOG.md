@@ -128,6 +128,10 @@
   - 切片：`QRY-31`
   - 说明：为 `Query` 增加 `initializationResult()`（含 pre-start close 中止路径），并补测试与文档。
 
-- `[pending]` `feat(sdk): align query supportedCommands method`
+- `9573b1c` `feat(sdk): align query supportedCommands method`
   - 切片：`QRY-32`
   - 说明：为 `Query` 增加 `supportedCommands()`，返回已支持 slash command 清单并做输出校验。
+
+- `[pending]` `feat(sdk): align query supportedAgents method`
+  - 切片：`QRY-33`
+  - 说明：为 `Query` 增加 `supportedAgents()`，返回当前可用子代理清单并做输出校验。

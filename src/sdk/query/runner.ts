@@ -10,6 +10,7 @@ import { buildSkillToolSpecForCwd } from '../../tools/modules/skill/index.js'
 import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import type {
+  AgentInfo,
   AssistantMessage,
   PermissionMode,
   Query,
@@ -25,6 +26,7 @@ import type {
 } from '../types.js'
 import {
   asValidationError,
+  parseAgentInfoListOutput,
   parsePromptHistory,
   parseQueryArgsInput,
   parseSlashCommandListOutput,
@@ -829,6 +831,26 @@ async function listSupportedCommands(args: QueryArgs, state: QueryControlState):
   }
 }
 
+async function listSupportedAgents(args: QueryArgs, state: QueryControlState): Promise<AgentInfo[]> {
+  try {
+    const parsedArgs = parseQueryArgsInput(args)
+    const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
+    const cwd = path.resolve(options.cwd ?? process.cwd())
+    const env = options.env ?? process.env
+    const runtime = await createRuntime({ cwd, env })
+    const agents = runtime.allowedSubagents.map((agent) => ({
+      name: agent.name,
+      description: agent.description,
+    }))
+    return parseAgentInfoListOutput(agents)
+  } catch (error) {
+    throw asValidationError(
+      error,
+      'Invalid query arguments or agent output for query.supportedAgents',
+    )
+  }
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
   let resolveInitialization: (value: SystemMessage) => void = () => {}
@@ -872,6 +894,7 @@ export function query(args: QueryArgs): Query {
   }
   queryIterator.initializationResult = async () => controlState.initializationPromise
   queryIterator.supportedCommands = async () => listSupportedCommands(args, controlState)
+  queryIterator.supportedAgents = async () => listSupportedAgents(args, controlState)
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true

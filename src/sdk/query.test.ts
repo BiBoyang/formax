@@ -810,6 +810,54 @@ describe('sdk query()', () => {
     )
   })
 
+  it('supports supportedAgents() before iteration starts', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.allowedSubagents = [
+      { name: 'Plan', description: 'Design implementation plans' },
+      { name: 'Explore', description: 'Explore large codebases quickly' },
+    ]
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'list supported agents',
+    })
+
+    const agents = await queryIterator.supportedAgents()
+    expect(agents).toEqual([
+      { name: 'Plan', description: 'Design implementation plans' },
+      { name: 'Explore', description: 'Explore large codebases quickly' },
+    ])
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('validates supportedAgents() input options', async () => {
+    const queryIterator = query({
+      prompt: 'invalid supported agents input',
+      options: {
+        cwd: 123 as any,
+      },
+    })
+
+    await expect(queryIterator.supportedAgents()).rejects.toThrow(
+      'Invalid query arguments or agent output for query.supportedAgents',
+    )
+    expect(state.createRuntime).not.toHaveBeenCalled()
+  })
+
+  it('validates supportedAgents() output shape', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.allowedSubagents = [{ name: 123, description: 'invalid' }] as any
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'invalid supported agents output',
+    })
+
+    await expect(queryIterator.supportedAgents()).rejects.toThrow(
+      'Invalid query arguments or agent output for query.supportedAgents',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

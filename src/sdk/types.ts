@@ -228,11 +228,18 @@ export type SlashCommand = {
   implemented?: boolean
 }
 
+export type AgentInfo = {
+  name: string
+  description: string
+  model?: string
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
   initializationResult(): Promise<QueryInitializationResult>
   supportedCommands(): Promise<SlashCommand[]>
+  supportedAgents(): Promise<AgentInfo[]>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

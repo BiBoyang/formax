@@ -3,6 +3,7 @@ import type { PromptMessage } from '../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type {
+  AgentInfo,
   ApprovalInputResponse,
   AskUserQuestionInputResponse,
   GetSessionMessagesOptions,
@@ -286,6 +287,16 @@ const slashCommandSchema = z
 
 const slashCommandListSchema = z.array(slashCommandSchema)
 
+const agentInfoSchema = z
+  .object({
+    name: z.string(),
+    description: z.string(),
+    model: z.string().optional(),
+  })
+  .strict()
+
+const agentInfoListSchema = z.array(agentInfoSchema)
+
 const workspaceRequestSchema = z.object({ dir: z.string() }).strict().nullable()
 
 const approvalRequestEventSchema = z
@@ -466,6 +477,10 @@ export function parseSDKSessionInfoListOutput(input: unknown): SDKSessionInfo[] 
 
 export function parseSlashCommandListOutput(input: unknown): SlashCommand[] {
   return slashCommandListSchema.parse(input) as SlashCommand[]
+}
+
+export function parseAgentInfoListOutput(input: unknown): AgentInfo[] {
+  return agentInfoListSchema.parse(input) as AgentInfo[]
 }
 
 export function parseSessionMessageListOutput(input: unknown): SessionMessage[] {
