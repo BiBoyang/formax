@@ -1,9 +1,9 @@
-export { query } from './query.js'
 export {
+  query,
   unstable_v2_createSession,
   unstable_v2_prompt,
   unstable_v2_resumeSession,
-} from './v2.js'
+} from './api.js'
 
 export type {
   SystemPromptInput,

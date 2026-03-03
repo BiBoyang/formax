@@ -8,8 +8,9 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Legacy REPL bootstrap orchestration: `src/runtime/bootstrap/runLegacyCli.tsx`
   - Runtime assembly slices: `src/runtime/bootstrap/*`
 - App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
-- In-process SDK query API (`query()`): `src/sdk/query.ts` (public types: `src/sdk/types.ts`)
-- In-process SDK v2 session API (`unstable_v2_*`): `src/sdk/v2.ts`
+- In-process SDK unified API entry (`query()` + `unstable_v2_*`): `src/sdk/api.ts` (public re-export: `src/sdk/index.ts`)
+- SDK query facade (`query()`): `src/sdk/query.ts` (runtime implementation: `src/sdk/query/runner.ts`)
+- SDK v2 session facade (`unstable_v2_*`): `src/sdk/v2.ts` (runtime implementation: `src/sdk/session/core.ts`)
 - SDK local usage guide: `src/sdk/README.md`
 - Serve runtime launcher (`formax serve`, WebSocket bridge): `src/runtime/serve/localServer.ts`
 - Web UI runtime launcher (`formax web`, bridge + static host): `src/runtime/web/localUi.ts`

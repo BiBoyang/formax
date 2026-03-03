@@ -1,11 +1,16 @@
 # Formax SDK (TypeScript)
 
-This folder exposes the in-process SDK surface used by TypeScript callers.
+`src/sdk` provides a unified in-process SDK surface for TypeScript callers.
 
-Public entrypoint:
+## Unified Entry
+
+Primary unified entry module:
+- `src/sdk/api.ts`
+
+Package-level re-export entry:
 - `src/sdk/index.ts`
 
-Primary API:
+Exported function set:
 - `query(args): AsyncGenerator<QueryMessage, void, unknown>`
 - `unstable_v2_createSession(options): SDKSession`
 - `unstable_v2_resumeSession(sessionId, options): SDKSession`
@@ -14,25 +19,53 @@ Primary API:
 ## Quick Start
 
 ```ts
-import { query } from './src/sdk/index.js'
+import {
+  query,
+  unstable_v2_createSession,
+  unstable_v2_prompt,
+} from './src/sdk/api.js'
 
 for await (const message of query({ prompt: 'Summarize this repository' })) {
   if (message.type === 'assistant') {
     console.log(message.text)
   }
+}
 
-  if (message.type === 'result') {
-    console.log('done:', message.subtype, message.stop_reason)
+await using session = unstable_v2_createSession({ model: 'claude-sonnet-4-6' })
+await session.send('hello')
+for await (const message of session.stream()) {
+  if (message.type === 'assistant') {
+    console.log(message.text)
   }
 }
+
+const oneShot = await unstable_v2_prompt('What is 2 + 2?', { model: 'claude-sonnet-4-6' })
+console.log(oneShot.subtype, oneShot.result)
 ```
+
+## Supported Capabilities
+
+Implemented and available now:
+- Query streaming (`query`)
+- Multi-turn session flow (`unstable_v2_*`)
+- In-process session resume (`unstable_v2_resumeSession`)
+- Interactive input handling (`approval_request`, `ask_user_question`)
+- Structured output (`outputFormat` + `structured_output`)
+- SDK boundary validation for untrusted external input
+
+## Not Yet Supported (Planned)
+
+These are intentionally not implemented in this phase:
+- Cross-process session resume
+- `settingSources`
+- `mcpServers`
+- `plugins`
+- Other official Agent SDK-only options not yet mapped in Formax SDK
 
 ## Structured Output (`outputFormat`)
 
-Use `outputFormat` to request JSON output validated against a JSON Schema.
-
 ```ts
-import { query, type QueryMessage } from './src/sdk/index.js'
+import { query, type QueryMessage } from './src/sdk/api.js'
 
 const messages: QueryMessage[] = []
 
@@ -64,63 +97,22 @@ if (result?.type === 'result') {
 }
 ```
 
-### Result Subtypes
+Result subtypes:
+- `success`
+- `error_max_structured_output_retries`
+- `error_during_execution`
 
-Structured output paths can end with:
-- `success`: schema validation succeeded.
-- `error_max_structured_output_retries`: schema validation failed after retry budget was exhausted.
-- `error_during_execution`: runtime-level error while executing a turn.
+## Session Resume Limitation
 
-When `subtype` is not `success`, `result.error` contains details.
+- `unstable_v2_resumeSession` currently supports in-process resume only.
+- The `sessionId` must come from a session created in the same Node.js process.
 
-## Message Stream Shape
+## Internal Layout (for contributors)
 
-`query()` can emit these message types in order:
-- `system` (init metadata)
-- `stream_event` (optional, when partial events are enabled)
-- `input_request` (approval or ask-user-question prompts)
-- `assistant` (final assistant text/blocks for the turn)
-- `result` (terminal message for the call)
-
-Callers should consume until the terminal `result` message.
-
-## V2 Session API (`unstable_v2_*`)
-
-The SDK also provides a session-style API aligned with Claude Agent SDK naming.
-
-```ts
-import { unstable_v2_createSession } from './src/sdk/index.js'
-
-await using session = unstable_v2_createSession({ model: 'claude-sonnet-4-6' })
-await session.send('Hello')
-
-for await (const message of session.stream()) {
-  if (message.type === 'assistant') {
-    console.log(message.text)
-  }
-}
-```
-
-One-shot convenience:
-
-```ts
-import { unstable_v2_prompt } from './src/sdk/index.js'
-
-const result = await unstable_v2_prompt('What is 2 + 2?', { model: 'claude-sonnet-4-6' })
-console.log(result.subtype, result.result)
-```
-
-Resume:
-
-```ts
-import { unstable_v2_resumeSession } from './src/sdk/index.js'
-
-const resumed = unstable_v2_resumeSession(existingSessionId, {})
-await resumed.send('continue')
-for await (const message of resumed.stream()) {
-  // ...
-}
-```
-
-Current limitation (explicit):
-- `unstable_v2_resumeSession` is currently in-process only. The session ID must come from a session created in the same Node.js process.
+- Unified API: `src/sdk/api.ts`
+- Query facade: `src/sdk/query.ts`
+- Query runtime implementation: `src/sdk/query/runner.ts`
+- Session facade: `src/sdk/v2.ts`
+- Session runtime implementation: `src/sdk/session/core.ts`
+- Validation: `src/sdk/validation.ts`
+- Structured output helpers: `src/sdk/structuredOutput.ts`

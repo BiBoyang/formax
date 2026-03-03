@@ -1,5 +1,6 @@
+export { query } from './query.js'
 export {
   unstable_v2_createSession,
   unstable_v2_prompt,
   unstable_v2_resumeSession,
-} from './session/core.js'
+} from './v2.js'
