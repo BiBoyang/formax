@@ -12,9 +12,13 @@
   - 切片：`QRY-03`
   - 说明：将 approval/ask_user_question 处理分支从 `query/runner` 抽离为独立模块，保持行为不变。
 
-- `[pending]` `docs(sdk): add query contract alignment matrix`
+- `0c96a72` `docs(sdk): add query contract alignment matrix`
   - 切片：`QRY-04`
   - 说明：新增 query 对齐矩阵文档，并在 SDK README 建立引用。
+
+- `[pending]` `feat(sdk): align systemPrompt preset option`
+  - 切片：`QRY-05`
+  - 说明：支持 `systemPrompt` 官方 preset 形态子集（`claude_code` + `append`），并补充校验与测试。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

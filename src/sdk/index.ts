@@ -8,6 +8,7 @@ export {
 } from './api.js'
 
 export type {
+  SystemPromptPresetInput,
   SystemPromptInput,
   JsonSchemaOutputFormat,
   OutputFormat,

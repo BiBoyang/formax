@@ -23,7 +23,19 @@ const promptMessageSchema = z
 
 const promptHistorySchema = z.array(promptMessageSchema)
 
-const systemPromptInputSchema = z.union([z.string(), z.array(promptBlockSchema)])
+const systemPromptPresetSchema = z
+  .object({
+    type: z.literal('preset'),
+    preset: z.literal('claude_code'),
+    append: z.string().optional(),
+  })
+  .strict()
+
+const systemPromptInputSchema = z.union([
+  z.string(),
+  z.array(promptBlockSchema),
+  systemPromptPresetSchema,
+])
 
 const toolDefinitionSchema = z
   .object({

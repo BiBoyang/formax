@@ -14,6 +14,7 @@ import type {
   QueryArgs,
   QueryMessage,
   ResultMessage,
+  SystemPromptPresetInput,
   SystemPromptInput,
 } from '../types.js'
 import {
@@ -90,7 +91,16 @@ function mergeUsageTotals(target: TokenUsage, incoming: TokenUsage | undefined):
 function normalizePromptInput(input?: SystemPromptInput): PromptBlock[] {
   if (!input) return []
   if (Array.isArray(input)) return input
+  if (isSystemPromptPresetInput(input)) {
+    return normalizePromptInput(input.append)
+  }
   return [{ type: 'text', text: String(input), cache_control: { type: 'ephemeral' } }]
+}
+
+function isSystemPromptPresetInput(input: unknown): input is SystemPromptPresetInput {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false
+  const record = input as Record<string, unknown>
+  return record.type === 'preset' && record.preset === 'claude_code'
 }
 
 function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
@@ -473,9 +483,18 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         model,
         profile: promptProfile,
       })
-      const systemOverride = normalizePromptInput(options.systemPrompt)
+      const systemOverride = isSystemPromptPresetInput(options.systemPrompt)
+        ? []
+        : normalizePromptInput(options.systemPrompt)
+      const presetAppend = isSystemPromptPresetInput(options.systemPrompt)
+        ? normalizePromptInput(options.systemPrompt)
+        : []
       const appendSystem = normalizePromptInput(options.appendSystemPrompt)
-      const system = [...(systemOverride.length > 0 ? systemOverride : defaultSystem), ...appendSystem]
+      const system = [
+        ...(systemOverride.length > 0 ? systemOverride : defaultSystem),
+        ...presetAppend,
+        ...appendSystem,
+      ]
       if (outputFormat?.type === 'json_schema') {
         system.push({
           type: 'text',

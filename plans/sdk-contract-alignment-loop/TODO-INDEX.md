@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] `QRY-05`：为 `query.options.systemPrompt` 增加官方 preset 形态子集对齐（`{ type: 'preset', preset: 'claude_code', append? }`），并保持既有 string/blocks 兼容。
 - [ ] `QRY-06`：为 `query.options.thinking` 增加 `ThinkingConfig` 子集对齐（`adaptive/enabled/disabled`），映射到现有执行开关，不实现预算控制。
 - [ ] `QRY-07`：补齐 query 选项对齐回归测试组（聚焦 `permissionMode`/`abortController`/`systemPrompt preset`/`thinking`）。
 

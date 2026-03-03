@@ -319,6 +319,41 @@ describe('sdk query()', () => {
     }
   })
 
+  it('supports systemPrompt preset object with append text', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const systemTextBlocks = turnArgs.system
+        .filter((block: any) => block?.type === 'text')
+        .map((block: any) => String(block.text))
+
+      expect(systemTextBlocks).toContain('preset append text')
+      expect(systemTextBlocks).toContain('additional append text')
+      expect(systemTextBlocks.includes('[object Object]')).toBe(false)
+
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'check preset prompt',
+      options: {
+        systemPrompt: {
+          type: 'preset',
+          preset: 'claude_code',
+          append: 'preset append text',
+        },
+        appendSystemPrompt: 'additional append text',
+      },
+    })
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.result).toBe('done')
+    }
+  })
+
   it('returns structured_output when outputFormat schema validation succeeds', async () => {
     const schema = {
       type: 'object',
@@ -1067,6 +1102,28 @@ describe('sdk query()', () => {
     }
     expect(onMessage).toHaveBeenCalledTimes(1)
     expect(onMessage.mock.calls[0]?.[0]?.type).toBe('result')
+  })
+
+  it('returns error result when systemPrompt preset is invalid', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    const messages = await collectMessages({
+      prompt: 'invalid preset',
+      options: {
+        systemPrompt: {
+          type: 'preset',
+          preset: 'unknown',
+        } as any,
+      },
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('systemPrompt')
+    }
   })
 
   it('returns error result when abortController option is invalid', async () => {

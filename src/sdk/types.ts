@@ -4,7 +4,13 @@ import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ReplMode } from '../tools/executor/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 
-export type SystemPromptInput = string | PromptBlock[]
+export type SystemPromptPresetInput = {
+  type: 'preset'
+  preset: 'claude_code'
+  append?: string
+}
+
+export type SystemPromptInput = string | PromptBlock[] | SystemPromptPresetInput
 
 export type JsonSchemaOutputFormat = {
   type: 'json_schema'
