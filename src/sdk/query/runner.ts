@@ -355,11 +355,7 @@ function assertPermissionPromptOptionsSupported(args: {
 function assertContinuationOptionsSupported(args: {
   fallbackModel?: string
 }): void {
-  if (args.fallbackModel !== undefined) {
-    throw new Error(
-      `options.fallbackModel (${args.fallbackModel}) is not supported in Formax SDK yet`,
-    )
-  }
+  void args
 }
 
 function assertStrictMcpConfigSupported(strictMcpConfig?: boolean): void {

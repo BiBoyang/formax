@@ -2052,10 +2052,9 @@ describe('sdk query()', () => {
       {
         label: 'fallbackModel',
         options: { fallbackModel: 'claude-fallback' },
-        expected: 'options.fallbackModel',
       },
-    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
-  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    ] satisfies Array<{ label: string; options: QueryOptions }>,
+  )('accepts $label as compatibility no-op option', async ({ options }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -2063,17 +2062,15 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'continuation option unsupported',
+      prompt: 'continuation option compatibility',
       options,
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

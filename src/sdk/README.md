@@ -76,7 +76,7 @@ Implemented and available now:
 - Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` supported as compatibility no-op options in in-process SDK mode)
 - Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` supported as compatibility no-op options in in-process SDK mode)
 - Query permission-prompt alignment (`permissionPromptToolName/promptSuggestions` supported as compatibility no-op options; `allowDangerouslySkipPermissions=false` no-op, `true` remains explicit unsupported to preserve permission safety)
-- Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` currently fails explicitly as unsupported)
+- Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` is accepted as an in-process compatibility no-op option)
 - Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)
 - Query persistence alignment (`persistSession` supported via local session persistence; `forkSession` supported for resume/continue history rebinding; `enableFileCheckpointing` supported via persisted history snapshots)
 - Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
