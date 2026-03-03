@@ -74,7 +74,7 @@ Implemented and available now:
 - Query debug-option alignment (`debug` supported via hook-debug env wiring; `debugFile` supported as a debug log file sink)
 - Query stderr alignment (`stderr` supported as an optional SDK error sink callback)
 - Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` supported as compatibility no-op options in in-process SDK mode)
 - Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` currently fails explicitly as unsupported)
 - Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)

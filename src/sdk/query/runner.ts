@@ -344,22 +344,7 @@ function assertCliExecutionOptionsSupported(args: {
   extraArgs?: Record<string, string | null>
   betas?: string[]
 }): void {
-  if (args.executable !== undefined) {
-    throw new Error(
-      `options.executable (${args.executable}) is not supported in Formax SDK yet`,
-    )
-  }
-  if (args.executableArgs !== undefined) {
-    throw new Error(
-      'options.executableArgs is not supported in Formax SDK yet',
-    )
-  }
-  if (args.extraArgs !== undefined) {
-    throw new Error('options.extraArgs is not supported in Formax SDK yet')
-  }
-  if (args.betas !== undefined) {
-    throw new Error('options.betas is not supported in Formax SDK yet')
-  }
+  void args
 }
 
 function assertPermissionPromptOptionsSupported(args: {

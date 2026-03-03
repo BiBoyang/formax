@@ -1870,25 +1870,21 @@ describe('sdk query()', () => {
       {
         label: 'executable',
         options: { executable: 'node' },
-        expected: 'options.executable',
       },
       {
         label: 'executableArgs',
         options: { executableArgs: ['--trace-warnings'] },
-        expected: 'options.executableArgs',
       },
       {
         label: 'extraArgs',
         options: { extraArgs: { '--danger': null } },
-        expected: 'options.extraArgs',
       },
       {
         label: 'betas',
         options: { betas: ['context-1m-2025-08-07'] },
-        expected: 'options.betas',
       },
-    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
-  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    ] satisfies Array<{ label: string; options: QueryOptions }>,
+  )('accepts $label as compatibility no-op option', async ({ options }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -1900,26 +1896,32 @@ describe('sdk query()', () => {
       options,
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
-  it('fails fast on unsupported executable option before draining async prompt stream', async () => {
+  it('does not fail fast on executable option before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
 
     const promptStream: AsyncIterable<SDKUserMessage> = {
       [Symbol.asyncIterator]() {
+        let emitted = false
         return {
           next: async () => {
             nextCalls += 1
+            if (emitted) {
+              return {
+                value: undefined,
+                done: true,
+              }
+            }
+            emitted = true
             return {
               value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
               done: false,
@@ -1936,15 +1938,13 @@ describe('sdk query()', () => {
       },
     })
 
-    expect(nextCalls).toBe(0)
-    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(nextCalls).toBeGreaterThan(0)
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(1)
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.executable')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
