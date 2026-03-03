@@ -66,6 +66,17 @@ const outputFormatSchema = z
   })
   .strict()
 
+const thinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('adaptive') }).strict(),
+  z
+    .object({
+      type: z.literal('enabled'),
+      budgetTokens: z.number().int().positive().optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal('disabled') }).strict(),
+])
+
 function isAbortSignalLike(value: unknown): value is AbortSignal {
   if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
@@ -99,6 +110,7 @@ const queryOptionsSchema = z
     replMode: z.enum(['normal', 'acceptEdits', 'plan']).optional(),
     permissionMode: z.enum(['default', 'acceptEdits', 'plan']).optional(),
     interactive: z.boolean().optional(),
+    thinking: thinkingConfigSchema.optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

@@ -24,6 +24,21 @@ export type JsonSchemaOutputFormat = {
 
 export type OutputFormat = JsonSchemaOutputFormat
 
+export type ThinkingAdaptive = {
+  type: 'adaptive'
+}
+
+export type ThinkingEnabled = {
+  type: 'enabled'
+  budgetTokens?: number
+}
+
+export type ThinkingDisabled = {
+  type: 'disabled'
+}
+
+export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabled
+
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan'
 
 export type QueryOptions = {
@@ -39,6 +54,7 @@ export type QueryOptions = {
   replMode?: ReplMode
   permissionMode?: PermissionMode
   interactive?: boolean
+  thinking?: ThinkingConfig
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

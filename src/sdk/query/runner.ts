@@ -14,6 +14,7 @@ import type {
   QueryArgs,
   QueryMessage,
   ResultMessage,
+  ThinkingConfig,
   SystemPromptPresetInput,
   SystemPromptInput,
 } from '../types.js'
@@ -140,6 +141,31 @@ function resolveExecutionReplMode(args: {
   }
 
   return args.replMode ?? mappedPermissionMode
+}
+
+function mapThinkingConfigToEnabled(thinking?: ThinkingConfig): boolean | undefined {
+  if (!thinking) return undefined
+  if (thinking.type === 'enabled') return true
+  if (thinking.type === 'disabled') return false
+  // `adaptive` keeps runtime default behavior.
+  return undefined
+}
+
+function resolveThinkingEnabled(args: {
+  thinking?: ThinkingConfig
+  thinkingEnabled?: boolean
+}): boolean | undefined {
+  const mappedThinking = mapThinkingConfigToEnabled(args.thinking)
+  if (
+    mappedThinking !== undefined &&
+    args.thinkingEnabled !== undefined &&
+    args.thinkingEnabled !== mappedThinking
+  ) {
+    throw new Error(
+      `options.thinkingEnabled (${String(args.thinkingEnabled)}) conflicts with options.thinking (${args.thinking?.type ?? 'unknown'})`,
+    )
+  }
+  return args.thinkingEnabled ?? mappedThinking
 }
 
 function toUserPromptMessage(prompt: string): PromptMessage {
@@ -415,6 +441,10 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         replMode: options.replMode,
         permissionMode: options.permissionMode,
       })
+      const thinkingEnabled = resolveThinkingEnabled({
+        thinking: options.thinking,
+        thinkingEnabled: options.thinkingEnabled,
+      })
       const allowTools = normalizeAllowedTools({
         allowedTools: options.allowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',
@@ -567,7 +597,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           cwd,
           signal: runSignal,
           model,
-          thinkingEnabled: options.thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
+          thinkingEnabled: thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
           exec: {
             interactive,
             replMode,

@@ -291,6 +291,100 @@ describe('sdk query()', () => {
     }
   })
 
+  it('maps thinking enabled config to execution thinkingEnabled', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(true)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'thinking enabled',
+      options: {
+        thinking: { type: 'enabled' },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('maps thinking disabled config to execution thinkingEnabled false', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'thinking disabled',
+      options: {
+        thinking: { type: 'disabled' },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps runtime default when thinking config is adaptive', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    runtime.cfg.llm.thinkingMode = false
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'thinking adaptive',
+      options: {
+        thinking: { type: 'adaptive' },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('returns error when thinking and thinkingEnabled conflict', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'thinking conflict',
+      options: {
+        thinking: { type: 'enabled' },
+        thinkingEnabled: false,
+      },
+    })
+
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.thinkingEnabled')
+    }
+  })
+
   it('supports overriding and appending system prompt blocks', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       const systemTextBlocks = turnArgs.system
@@ -1142,6 +1236,28 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('abortController')
+    }
+  })
+
+  it('returns error result when thinking option is invalid', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    const messages = await collectMessages({
+      prompt: 'invalid thinking',
+      options: {
+        thinking: {
+          type: 'enabled',
+          budgetTokens: -1,
+        } as any,
+      },
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('thinking')
     }
   })
 

@@ -16,9 +16,13 @@
   - 切片：`QRY-04`
   - 说明：新增 query 对齐矩阵文档，并在 SDK README 建立引用。
 
-- `[pending]` `feat(sdk): align systemPrompt preset option`
+- `4d6d9e4` `feat(sdk): align systemPrompt preset option`
   - 切片：`QRY-05`
   - 说明：支持 `systemPrompt` 官方 preset 形态子集（`claude_code` + `append`），并补充校验与测试。
+
+- `[pending]` `feat(sdk): align thinking config option`
+  - 切片：`QRY-06`
+  - 说明：支持 `thinking` 子集对齐（`adaptive/enabled/disabled`）并映射现有执行开关。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

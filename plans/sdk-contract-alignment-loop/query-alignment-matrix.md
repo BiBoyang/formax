@@ -41,7 +41,7 @@
 | `systemPrompt` | `options.systemPrompt` | Supported | 支持字符串与官方 preset 对象（`claude_code` + `append`）；另外扩展支持 PromptBlock 数组。 |
 | `maxTurns` | - | Backlog | 当前未提供 query 多轮上限参数。 |
 | `maxBudgetUsd` | - | Backlog | 当前未支持。 |
-| `thinking` | - | Backlog | 当前使用 `thinkingEnabled` 布尔开关（非官方字段）。 |
+| `thinking` | `options.thinking` | Partial | 支持 `adaptive/enabled/disabled`；`budgetTokens` 仅校验，不做预算控制。 |
 | `maxThinkingTokens` | - | Backlog | 当前未支持。 |
 | `hooks` | - | Backlog | 当前不暴露。 |
 | `canUseTool` | - | Backlog | 当前不暴露。 |
