@@ -976,7 +976,10 @@ export function query(args: QueryArgs): Query {
     abortQuery('query.stopTask')
   }
   queryIterator.rewindFiles = async () => {
-    throw new Error('query.rewindFiles is not supported in Formax SDK yet')
+    return {
+      canRewind: false,
+      error: 'query.rewindFiles is not supported in Formax SDK yet',
+    }
   }
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')

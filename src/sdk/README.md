@@ -60,7 +60,7 @@ if (sessions.length > 0) {
 
 Implemented and available now:
 - Query streaming (`query`)
-- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput/rewindFiles` (currently explicit unsupported) + `stopTask` (abort-compatible) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
+- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput` (currently explicit unsupported) + `rewindFiles` (structured unsupported result) + `stopTask` (abort-compatible) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; `default/acceptEdits/plan` map to runtime modes, `dontAsk/bypassPermissions` are accepted as compatibility no-op inputs)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
@@ -114,7 +114,7 @@ These remain out of scope for SDK phase-1:
 - `query(...).reconnectMcpServer()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).toggleMcpServer()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).streamInput()` capability data (method exists but currently returns explicit unsupported error)
-- `query(...).rewindFiles()` capability data (method exists but currently returns explicit unsupported error)
+- `query(...).rewindFiles()` capability data (method exists but currently returns `canRewind=false` unsupported result)
 - `hooks`
 - `canUseTool`
 

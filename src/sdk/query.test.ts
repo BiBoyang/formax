@@ -1104,14 +1104,15 @@ describe('sdk query()', () => {
     )
   })
 
-  it('exposes rewindFiles() with explicit unsupported error', async () => {
+  it('exposes rewindFiles() with structured unsupported result', async () => {
     const queryIterator = query({
       prompt: 'rewind files',
     })
 
-    await expect(queryIterator.rewindFiles('user-msg-1', { dryRun: true })).rejects.toThrow(
-      'query.rewindFiles is not supported in Formax SDK yet',
-    )
+    await expect(queryIterator.rewindFiles('user-msg-1', { dryRun: true })).resolves.toEqual({
+      canRewind: false,
+      error: 'query.rewindFiles is not supported in Formax SDK yet',
+    })
   })
 
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
