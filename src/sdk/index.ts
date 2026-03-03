@@ -7,6 +7,7 @@ export {
   unstable_v2_resumeSession,
 } from './api.js'
 export { HOOK_EVENTS } from './constants.js'
+export { AbortError } from './errors.js'
 
 export type {
   SystemPromptPresetInput,

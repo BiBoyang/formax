@@ -160,6 +160,10 @@
   - 切片：`QRY-39`
   - 说明：为 `Query` 增加 `rewindFiles()`，当前能力下返回显式“不支持”错误语义。
 
-- `[pending]` `feat(sdk): align HOOK_EVENTS constant export`
+- `b4603c0` `feat(sdk): align HOOK_EVENTS constant export`
   - 切片：`SDK-01`
   - 说明：新增 `HOOK_EVENTS` 常量导出（基于现有 hooks 事件能力），并补测试与文档。
+
+- `[pending]` `feat(sdk): align AbortError export`
+  - 切片：`SDK-02`
+  - 说明：新增 `AbortError` 导出，并在 query 中断相关路径统一使用该错误类型。

@@ -10,6 +10,7 @@ import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.
 import { buildSkillToolSpecForCwd } from '../../tools/modules/skill/index.js'
 import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
+import { AbortError } from '../errors.js'
 import type {
   AccountInfo,
   AgentInfo,
@@ -813,6 +814,12 @@ function rejectInitializationOnce(state: QueryControlState, error: unknown): voi
   state.rejectInitialization(error)
 }
 
+function toAbortError(error: unknown, fallbackMessage: string): AbortError {
+  if (error instanceof AbortError) return error
+  if (error instanceof Error && error.message) return new AbortError(error.message)
+  return new AbortError(fallbackMessage)
+}
+
 async function listSupportedCommands(args: QueryArgs, state: QueryControlState): Promise<SlashCommand[]> {
   try {
     const parsedArgs = parseQueryArgsInput(args)
@@ -948,7 +955,7 @@ export function query(args: QueryArgs): Query {
     if (!controlState.started) {
       rejectInitializationOnce(
         controlState,
-        new Error(`${methodName} was called before query iteration started`),
+        new AbortError(`${methodName} was called before query iteration started`),
       )
     }
   }
@@ -1404,7 +1411,9 @@ async function* runQuery(
         message: resultMessage,
       })
     } catch (error) {
-      const validationError = asValidationError(error, 'Invalid query arguments or runtime event')
+      const validationError = runSignal.aborted
+        ? toAbortError(error, 'Query execution aborted')
+        : asValidationError(error, 'Invalid query arguments or runtime event')
       rejectInitializationOnce(controlState, validationError)
       const message = validationError.message
       const safeHistory = (() => {

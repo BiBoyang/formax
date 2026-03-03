@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
+import { AbortError } from './errors.js'
 import { query } from './query.js'
 import type { QueryArgs, QueryMessage, QueryOptions, SDKUserMessage } from './types.js'
 
@@ -780,6 +781,7 @@ describe('sdk query()', () => {
     const initPromise = queryIterator.initializationResult()
     queryIterator.close()
 
+    await expect(initPromise).rejects.toBeInstanceOf(AbortError)
     await expect(initPromise).rejects.toThrow('query.close was called before query iteration started')
     expect(state.createRuntime).not.toHaveBeenCalled()
   })
