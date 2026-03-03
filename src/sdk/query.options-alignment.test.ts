@@ -719,7 +719,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps additionalDirectories compatibility behavior via explicit unsupported error', async () => {
+  it('keeps additionalDirectories compatibility behavior via compatibility no-op handling', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -732,12 +732,33 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps sandbox compatibility behavior via explicit unsupported error', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'sandbox compatibility',
+      options: {
+        sandbox: { mode: 'workspace-write' },
+      },
+    })
+
     expect(runTurn).not.toHaveBeenCalled()
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.additionalDirectories')
+      expect(result.error).toContain('options.sandbox')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

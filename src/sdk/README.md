@@ -79,7 +79,7 @@ Implemented and available now:
 - Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` is accepted as an in-process compatibility no-op option)
 - Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)
 - Query persistence alignment (`persistSession` supported via local session persistence; `forkSession` supported for resume/continue history rebinding; `enableFileCheckpointing` supported via persisted history snapshots)
-- Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query filesystem-sandbox alignment (`additionalDirectories` supported as an in-process compatibility no-op option; `sandbox` remains explicit unsupported)
 - Query agent alignment (`agent/agents` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
 - Query hook-permission alignment (`hooks/canUseTool` accepted as contract inputs; currently fail explicitly as unsupported)

@@ -2514,8 +2514,30 @@ describe('sdk query()', () => {
       {
         label: 'additionalDirectories',
         options: { additionalDirectories: ['/tmp/workspace'] },
-        expected: 'options.additionalDirectories',
       },
+    ] satisfies Array<{ label: string; options: QueryOptions }>,
+  )('accepts $label as compatibility no-op option', async ({ options }) => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'filesystem sandbox option compatibility',
+      options,
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it.each(
+    [
       {
         label: 'sandbox',
         options: { sandbox: { mode: 'workspace-write' } },
@@ -2544,7 +2566,7 @@ describe('sdk query()', () => {
     }
   })
 
-  it('fails fast on unsupported additionalDirectories before draining async prompt stream', async () => {
+  it('fails fast on unsupported sandbox before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
@@ -2566,7 +2588,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        additionalDirectories: ['/tmp/workspace'],
+        sandbox: { mode: 'workspace-write' },
       },
     })
 
@@ -2577,7 +2599,7 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.additionalDirectories')
+      expect(result.error).toContain('options.sandbox')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

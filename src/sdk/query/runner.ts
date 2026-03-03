@@ -369,11 +369,7 @@ function assertFilesystemSandboxOptionsSupported(args: {
   additionalDirectories?: string[]
   sandbox?: unknown
 }): void {
-  if (args.additionalDirectories !== undefined) {
-    throw new Error(
-      'options.additionalDirectories is not supported in Formax SDK yet',
-    )
-  }
+  void args.additionalDirectories
   if (args.sandbox !== undefined) {
     throw new Error('options.sandbox is not supported in Formax SDK yet')
   }
