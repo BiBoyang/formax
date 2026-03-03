@@ -148,6 +148,8 @@ const queryOptionsSchema = z
     allowDangerouslySkipPermissions: z.boolean().optional(),
     permissionPromptToolName: z.string().optional(),
     promptSuggestions: z.boolean().optional(),
+    continue: z.boolean().optional(),
+    fallbackModel: z.string().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

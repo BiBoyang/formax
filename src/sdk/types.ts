@@ -78,6 +78,8 @@ export type QueryOptions = {
   allowDangerouslySkipPermissions?: boolean
   permissionPromptToolName?: string
   promptSuggestions?: boolean
+  continue?: boolean
+  fallbackModel?: string
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
