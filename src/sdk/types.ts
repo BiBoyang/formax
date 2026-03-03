@@ -53,8 +53,27 @@ export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabl
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max'
 
-export type ElicitationRequest = Record<string, unknown>
-export type ElicitationResult = Record<string, unknown>
+export type ElicitationRequest = {
+  serverName: string
+  message: string
+  mode?: 'form' | 'url'
+  url?: string
+  elicitationId?: string
+  requestedSchema?: Record<string, unknown>
+}
+
+export type ElicitationResult =
+  | {
+      action: 'accept'
+      content: Record<string, unknown>
+    }
+  | {
+      action: 'decline'
+    }
+  | {
+      action: 'cancel'
+    }
+
 export type OnElicitation = (
   request: ElicitationRequest,
   options: { signal: AbortSignal },

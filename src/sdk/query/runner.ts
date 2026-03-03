@@ -405,9 +405,7 @@ function assertPluginAndElicitationOptionsSupported(args: {
 }): void {
   void args.plugins
   void args.settingSources
-  if (args.onElicitation !== undefined) {
-    throw new Error('options.onElicitation is not supported in Formax SDK yet')
-  }
+  void args.onElicitation
 }
 
 function toUserPromptMessage(prompt: string): PromptMessage {
@@ -1294,7 +1292,9 @@ async function* runQuery(
               message,
             }),
           onInputRequest: options.onInputRequest,
+          onElicitation: options.onElicitation,
           userInputManager: runtime?.userInputManager,
+          signal: runSignal,
           addPendingResolution: (task) => {
             pendingInputResolutions.add(task)
             void task.finally(() => {

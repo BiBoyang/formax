@@ -7,6 +7,8 @@ import type {
   AgentInfo,
   ApprovalInputResponse,
   AskUserQuestionInputResponse,
+  ElicitationRequest,
+  ElicitationResult,
   GetSessionMessagesOptions,
   ModelInfo,
   ListSessionsOptions,
@@ -384,6 +386,28 @@ const askUserQuestionInputResponseSchema = z
   })
   .strict()
 
+const elicitationRequestSchema = z
+  .object({
+    serverName: z.string(),
+    message: z.string(),
+    mode: z.enum(['form', 'url']).optional(),
+    url: z.string().optional(),
+    elicitationId: z.string().optional(),
+    requestedSchema: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict()
+
+const elicitationResultSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('accept'),
+      content: z.record(z.string(), z.unknown()),
+    })
+    .strict(),
+  z.object({ action: z.literal('decline') }).strict(),
+  z.object({ action: z.literal('cancel') }).strict(),
+])
+
 function isErrorLike(value: unknown): boolean {
   if (value instanceof Error) return true
   if (!value || typeof value !== 'object') return false
@@ -558,6 +582,14 @@ export function parseApprovalInputResponse(input: unknown): ApprovalInputRespons
 export function parseAskUserQuestionInputResponse(input: unknown): AskUserQuestionInputResponse | null {
   if (input == null) return null
   return askUserQuestionInputResponseSchema.parse(input) as AskUserQuestionInputResponse
+}
+
+export function parseElicitationRequestInput(input: unknown): ElicitationRequest {
+  return elicitationRequestSchema.parse(input) as ElicitationRequest
+}
+
+export function parseElicitationResultOutput(input: unknown): ElicitationResult {
+  return elicitationResultSchema.parse(input) as ElicitationResult
 }
 
 export function asValidationError(error: unknown, context: string): Error {

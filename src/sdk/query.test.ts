@@ -2966,7 +2966,7 @@ describe('sdk query()', () => {
     }
   })
 
-  it('returns explicit unsupported error when onElicitation is provided', async () => {
+  it('accepts onElicitation as compatibility option', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -2974,24 +2974,25 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'onElicitation unsupported',
+      prompt: 'onElicitation compatibility',
       options: {
-        onElicitation: async () => ({ action: 'continue' }),
+        onElicitation: async () => ({ action: 'decline' }),
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.onElicitation')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
-  it('fails fast on unsupported onElicitation option before draining async prompt stream', async () => {
-    const runtime = createRuntimeFixture()
+  it('accepts onElicitation with async prompt stream input', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
 
@@ -3020,19 +3021,16 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        onElicitation: async () => ({ action: 'continue' }),
+        onElicitation: async () => ({ action: 'decline' }),
       },
     })
 
-    expect(nextCalls).toBe(0)
-    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(nextCalls).toBeGreaterThan(0)
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.onElicitation')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
@@ -3642,7 +3640,6 @@ describe('sdk query()', () => {
           {
             question: 'Choose one',
             header: 'choice',
-            fieldId: 'choice',
             options: [{ label: 'A', description: 'option A' }],
             multiSelect: false,
           },
@@ -3679,6 +3676,146 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-question-1', {
       choice: 'A',
     })
+  })
+
+  it('handles ask_user_question input requests via onElicitation callback', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-elicitation',
+        questions: [
+          {
+            question: 'Choose one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const onElicitation = vi.fn(async () => ({
+      action: 'accept' as const,
+      content: { choice: 'A' },
+    }))
+
+    const messages = await collectMessages({
+      prompt: 'ask user via elicitation',
+      options: {
+        interactive: true,
+        onElicitation,
+      },
+    })
+
+    expect(
+      messages.some((message) => message.type === 'input_request' && message.subtype === 'ask_user_question'),
+    ).toBe(true)
+    expect(onElicitation).toHaveBeenCalledTimes(1)
+    expect(onElicitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serverName: 'formax',
+        mode: 'form',
+        elicitationId: 'tool-question-elicitation',
+        requestedSchema: expect.objectContaining({
+          properties: expect.objectContaining({
+            choice: expect.any(Object),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        signal: expect.any(Object),
+      }),
+    )
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-question-elicitation', {
+      choice: 'A',
+    })
+  })
+
+  it('prefers onInputRequest over onElicitation for ask_user_question callbacks', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-priority',
+        questions: [
+          {
+            question: 'Choose one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const onInputRequest = vi.fn(async () => ({
+      answers: { choice: 'B' },
+    }))
+    const onElicitation = vi.fn(async () => ({
+      action: 'accept' as const,
+      content: { choice: 'A' },
+    }))
+
+    await collectMessages({
+      prompt: 'ask user callback priority',
+      options: {
+        interactive: true,
+        onInputRequest,
+        onElicitation,
+      },
+    })
+
+    expect(onInputRequest).toHaveBeenCalledTimes(1)
+    expect(onElicitation).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-question-priority', {
+      choice: 'B',
+    })
+  })
+
+  it('keeps ask_user_question validation error context when onInputRequest and onElicitation are both set', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-priority-invalid',
+        questions: [
+          {
+            question: 'Choose one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'ask user callback invalid priority',
+      options: {
+        interactive: true,
+        onInputRequest: async () => ({ answers: 'not-an-object' as any }),
+        onElicitation: async () => ({
+          action: 'accept',
+          content: { choice: 'A' },
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
+    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
+      'Invalid ask_user_question input response',
+    )
   })
 
   it('falls back to deny approval when callback is not provided', async () => {
@@ -3828,6 +3965,42 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-question-invalid')
     expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
       'Invalid ask_user_question input response',
+    )
+  })
+
+  it('rejects ask_user_question input when elicitation response fails validation', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-elicitation-invalid',
+        questions: [
+          {
+            question: 'Choose one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'answered' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'ask user invalid elicitation',
+      options: {
+        interactive: true,
+        onElicitation: async () => ({ action: 'accept', content: 'not-an-object' as any }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
+    expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-question-elicitation-invalid')
+    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
+      'Invalid elicitation response',
     )
   })
 

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { StreamEvent } from '../../streaming/types.js'
 import type {
+  ElicitationRequest,
+  ElicitationResult,
   InputRequestMessage,
   InputRequestResponse,
   QueryMessage,
@@ -9,6 +11,8 @@ import {
   asValidationError,
   parseApprovalInputResponse,
   parseAskUserQuestionInputResponse,
+  parseElicitationRequestInput,
+  parseElicitationResultOutput,
 } from '../validation.js'
 
 type UserInputManagerLike = {
@@ -23,7 +27,12 @@ type HandleInputRequestEventArgs = {
   onInputRequest?: (
     request: InputRequestMessage,
   ) => Promise<InputRequestResponse> | InputRequestResponse
+  onElicitation?: (
+    request: ElicitationRequest,
+    options: { signal: AbortSignal },
+  ) => Promise<ElicitationResult>
   userInputManager?: UserInputManagerLike | null
+  signal: AbortSignal
   addPendingResolution: (task: Promise<void>) => void
 }
 
@@ -57,6 +66,95 @@ function toAskUserAnswers(
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(response.answers)) {
     out[String(key)] = String(value ?? '')
+  }
+  return out
+}
+
+function resolveQuestionFieldId(
+  question: { fieldId?: string; header?: string; question?: string },
+  index: number,
+): string {
+  const fieldId = String(question.fieldId ?? '').trim()
+  if (fieldId) return fieldId
+  const header = String(question.header ?? '').trim()
+  if (header) return header
+  const text = String(question.question ?? '').trim()
+  if (text) return text
+  return `question_${index + 1}`
+}
+
+function buildElicitationRequest(event: Extract<StreamEvent, { type: 'ask_user_question' }>): ElicitationRequest {
+  const message = event.questions
+    .map((question) => {
+      const header = String(question.header ?? '').trim()
+      const body = String(question.question ?? '').trim()
+      if (!header) return body
+      if (!body) return header
+      return `${header}: ${body}`
+    })
+    .filter(Boolean)
+    .join('\n')
+
+  const properties: Record<string, unknown> = {}
+  const required: string[] = []
+
+  for (const [index, question] of event.questions.entries()) {
+    const fieldId = resolveQuestionFieldId(question, index)
+    const labels = question.options.map((option) => String(option.label))
+    const property: Record<string, unknown> = {
+      type: question.multiSelect ? 'array' : 'string',
+      title: question.header,
+      description: question.question,
+    }
+
+    if (labels.length > 0) {
+      if (question.multiSelect) {
+        property.items = {
+          type: 'string',
+          enum: labels,
+        }
+      } else {
+        property.enum = labels
+      }
+    }
+
+    properties[fieldId] = property
+    required.push(fieldId)
+  }
+
+  const requestedSchema: Record<string, unknown> = {
+    type: 'object',
+    properties,
+  }
+  if (required.length > 0) {
+    requestedSchema.required = required
+  }
+
+  return parseElicitationRequestInput({
+    serverName: 'formax',
+    message,
+    mode: 'form',
+    elicitationId: event.toolUseId,
+    requestedSchema,
+  })
+}
+
+function toAskUserAnswersFromElicitation(args: {
+  event: Extract<StreamEvent, { type: 'ask_user_question' }>
+  response: ElicitationResult
+}): Record<string, string> {
+  if (args.response.action !== 'accept') return {}
+
+  const out: Record<string, string> = {}
+  for (const [index, question] of args.event.questions.entries()) {
+    const fieldId = resolveQuestionFieldId(question, index)
+    if (!Object.prototype.hasOwnProperty.call(args.response.content, fieldId)) continue
+    const value = args.response.content[fieldId]
+    if (Array.isArray(value)) {
+      out[fieldId] = value.map((item) => String(item ?? '')).join(',')
+      continue
+    }
+    out[fieldId] = String(value ?? '')
   }
   return out
 }
@@ -121,19 +219,35 @@ function handleAskUserQuestionRequest(args: Omit<HandleInputRequestEventArgs, 'e
   if (!args.userInputManager) return
 
   const task = (async () => {
+    let errorContext = 'Invalid ask_user_question input response'
     try {
-      const response = args.onInputRequest
-        ? await args.onInputRequest(requestMessage)
-        : null
-      const parsedResponse = parseAskUserQuestionInputResponse(response)
+      let answers: Record<string, string>
+
+      if (args.onInputRequest) {
+        const response = await args.onInputRequest(requestMessage)
+        const parsedResponse = parseAskUserQuestionInputResponse(response)
+        answers = toAskUserAnswers(parsedResponse)
+      } else if (args.onElicitation) {
+        errorContext = 'Invalid elicitation response'
+        const elicitationRequest = buildElicitationRequest(args.event)
+        const response = await args.onElicitation(elicitationRequest, { signal: args.signal })
+        const parsedResponse = parseElicitationResultOutput(response)
+        answers = toAskUserAnswersFromElicitation({
+          event: args.event,
+          response: parsedResponse,
+        })
+      } else {
+        answers = {}
+      }
+
       args.userInputManager.submitAnswers(
         args.event.toolUseId,
-        toAskUserAnswers(parsedResponse),
+        answers,
       )
     } catch (error) {
       args.userInputManager.reject(
         args.event.toolUseId,
-        asValidationError(error, 'Invalid ask_user_question input response'),
+        asValidationError(error, errorContext),
       )
     }
   })()
@@ -148,7 +262,9 @@ export function handleInputRequestEvent(args: HandleInputRequestEventArgs): bool
       sessionId: args.sessionId,
       emitMessage: args.emitMessage,
       onInputRequest: args.onInputRequest,
+      onElicitation: args.onElicitation,
       userInputManager: args.userInputManager,
+      signal: args.signal,
       addPendingResolution: args.addPendingResolution,
     })
     return true
@@ -160,7 +276,9 @@ export function handleInputRequestEvent(args: HandleInputRequestEventArgs): bool
       sessionId: args.sessionId,
       emitMessage: args.emitMessage,
       onInputRequest: args.onInputRequest,
+      onElicitation: args.onElicitation,
       userInputManager: args.userInputManager,
+      signal: args.signal,
       addPendingResolution: args.addPendingResolution,
     })
     return true

@@ -894,7 +894,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps onElicitation compatibility behavior via explicit unsupported error', async () => {
+  it('keeps onElicitation compatibility behavior via compatibility handling', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -903,17 +903,15 @@ describe('sdk query option alignment regressions', () => {
     const messages = await collectMessages({
       prompt: 'onElicitation compatibility',
       options: {
-        onElicitation: async () => ({ action: 'continue' }),
+        onElicitation: async () => ({ action: 'decline' }),
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.onElicitation')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
