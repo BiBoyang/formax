@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `765a479` `feat(sdk): expand accountInfo compatibility fields`
+  - 切片：`SDK-14`
+  - 说明：`query.accountInfo()` 在保留既有 `provider/model/baseUrl/hasApiKey` 字段的基础上，补齐官方常用兼容字段子集（`tokenSource/apiKeySource`）并扩展类型与输出校验，附带回归测试与对齐文档更新。
+
 - `4d6657c` `feat(sdk): refine canUseTool updatedPermissions mapping`
   - 切片：`QRY-69`
   - 说明：收紧 `updatedPermissions -> approval answers` 映射：仅对当前可表达更新类型触发 `approve_remember`，并按 destination 映射 scope；遇到不可表达更新或 mixed-destination 时降级为一次性 `approve`，避免 scope 放大。
