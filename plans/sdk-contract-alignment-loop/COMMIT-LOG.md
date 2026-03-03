@@ -56,9 +56,13 @@
   - 切片：`QRY-15`
   - 说明：为 `query` 增加 `close()`，复用中断语义实现进程内关闭控制。
 
-- `[pending]` `feat(sdk): align query resume option inputs`
+- `6555043` `feat(sdk): align query resume option inputs`
   - 切片：`QRY-16`
   - 说明：接收 `resume/sessionId/resumeSessionAt` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query debug option inputs`
+  - 切片：`QRY-17`
+  - 说明：接收 `debug/debugFile` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

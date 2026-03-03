@@ -132,6 +132,8 @@ const queryOptionsSchema = z
     resume: z.string().optional(),
     sessionId: z.string().optional(),
     resumeSessionAt: z.string().optional(),
+    debug: z.boolean().optional(),
+    debugFile: z.string().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

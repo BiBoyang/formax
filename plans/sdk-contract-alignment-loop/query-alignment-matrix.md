@@ -61,7 +61,7 @@
 | `allowDangerouslySkipPermissions` | - | Backlog | 当前不支持。 |
 | `promptSuggestions` | - | Backlog | 当前不支持。 |
 | `strictMcpConfig` | - | Backlog | 当前不支持。 |
-| `debug`/`debugFile` | - | Backlog | 当前不支持官方 debug 字段。 |
+| `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `stderr` | - | Backlog | 当前不支持。 |
 | `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | - | Backlog | 当前不支持（Formax 为进程内实现）。 |
 | `extraArgs`/`executable`/`executableArgs`/`betas` | - | Backlog | 当前不支持。 |

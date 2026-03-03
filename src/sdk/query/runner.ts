@@ -220,6 +220,22 @@ function assertResumeOptionsSupported(args: {
   }
 }
 
+function assertDebugOptionsSupported(args: {
+  debug?: boolean
+  debugFile?: string
+}): void {
+  if (args.debug !== undefined) {
+    throw new Error(
+      `options.debug (${args.debug}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.debugFile !== undefined) {
+    throw new Error(
+      `options.debugFile (${args.debugFile}) is not supported in Formax SDK yet`,
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -614,6 +630,10 @@ async function* runQuery(
         resume: options.resume,
         sessionId: options.sessionId,
         resumeSessionAt: options.resumeSessionAt,
+      })
+      assertDebugOptionsSupported({
+        debug: options.debug,
+        debugFile: options.debugFile,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,

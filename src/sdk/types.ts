@@ -66,6 +66,8 @@ export type QueryOptions = {
   resume?: string
   sessionId?: string
   resumeSessionAt?: string
+  debug?: boolean
+  debugFile?: string
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
