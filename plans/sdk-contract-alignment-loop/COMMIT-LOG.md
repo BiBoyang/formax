@@ -84,9 +84,13 @@
   - 切片：`QRY-22`
   - 说明：接收 `continue/fallbackModel` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query strict MCP option input`
+- `46d939d` `feat(sdk): align query strict MCP option input`
   - 切片：`QRY-23`
   - 说明：接收 `strictMcpConfig` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query session persistence option inputs`
+  - 切片：`QRY-24`
+  - 说明：接收 `persistSession/forkSession/enableFileCheckpointing` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

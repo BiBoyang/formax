@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-24`：对齐 `query` 的 `persistSession/forkSession/enableFileCheckpointing` 输入契约（接收字段并统一显式报暂不支持）。
+- [ ] `QRY-25`：对齐 `query` 的 `additionalDirectories/sandbox` 输入契约（接收字段并统一显式报暂不支持）。
 
 ## 再生规则（当“当前待办”为空时）
 

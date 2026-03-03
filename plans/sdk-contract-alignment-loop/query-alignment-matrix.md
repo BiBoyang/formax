@@ -55,7 +55,7 @@
 | `additionalDirectories` | - | Backlog | 当前不支持。 |
 | `onElicitation` | - | Backlog | 当前仅提供 `onInputRequest`（Formax 语义）。 |
 | `continue` | `options.continue` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `persistSession`/`forkSession`/`enableFileCheckpointing` | - | Backlog | 当前不支持。 |
+| `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `fallbackModel` | `options.fallbackModel` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

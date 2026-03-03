@@ -326,6 +326,28 @@ function assertStrictMcpConfigSupported(strictMcpConfig?: boolean): void {
   )
 }
 
+function assertSessionPersistenceOptionsSupported(args: {
+  persistSession?: boolean
+  forkSession?: boolean
+  enableFileCheckpointing?: boolean
+}): void {
+  if (args.persistSession !== undefined) {
+    throw new Error(
+      `options.persistSession (${args.persistSession}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.forkSession !== undefined) {
+    throw new Error(
+      `options.forkSession (${args.forkSession}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.enableFileCheckpointing !== undefined) {
+    throw new Error(
+      `options.enableFileCheckpointing (${args.enableFileCheckpointing}) is not supported in Formax SDK yet`,
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -746,6 +768,11 @@ async function* runQuery(
         fallbackModel: options.fallbackModel,
       })
       assertStrictMcpConfigSupported(options.strictMcpConfig)
+      assertSessionPersistenceOptionsSupported({
+        persistSession: options.persistSession,
+        forkSession: options.forkSession,
+        enableFileCheckpointing: options.enableFileCheckpointing,
+      })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

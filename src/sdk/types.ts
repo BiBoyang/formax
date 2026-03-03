@@ -81,6 +81,9 @@ export type QueryOptions = {
   continue?: boolean
   fallbackModel?: string
   strictMcpConfig?: boolean
+  persistSession?: boolean
+  forkSession?: boolean
+  enableFileCheckpointing?: boolean
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
