@@ -5,7 +5,10 @@ import type {
   PartialAssistantMessage,
   QueryMessage,
   QueryOptions,
+  Query,
   ResultMessage,
+  McpSetServersResult,
+  RewindFilesResult,
   SDKAssistantMessage,
   SDKMessage,
   SDKPartialAssistantMessage,
@@ -34,5 +37,10 @@ describe('SDK type alias alignment', () => {
     expectTypeOf<SDKResultError['subtype']>().toEqualTypeOf<
       Exclude<ResultMessage['subtype'], 'success'>
     >()
+  })
+
+  it('aligns Query control method return type aliases', () => {
+    expectTypeOf<Awaited<ReturnType<Query['setMcpServers']>>>().toEqualTypeOf<McpSetServersResult>()
+    expectTypeOf<Awaited<ReturnType<Query['rewindFiles']>>>().toEqualTypeOf<RewindFilesResult>()
   })
 })

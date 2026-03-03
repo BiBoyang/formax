@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-08`：增强 `supportedModels()` 输出契约（补齐官方常用 `value/displayName/supportsEffort` 字段并保持兼容）。
+- [ ] `SDK-09`：补齐 MCP/rewind 控制方法的官方同名返回类型（类型层对齐，运行时语义不变）。
 
 ## 再生规则（当“当前待办”为空时）
 

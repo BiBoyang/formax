@@ -21,6 +21,7 @@
 - `Query` 已支持 `interrupt()`、`close()`、`initializationResult()`、`supportedCommands()`、`supportedAgents()`、`supportedModels()`、`accountInfo()`、`mcpServerStatus()/setMcpServers()/reconnectMcpServer()/toggleMcpServer()/streamInput()/stopTask()/rewindFiles()`（当前显式报未支持）、`setModel()`、`setPermissionMode()`、`setMaxThinkingTokens()`；其余 `Query` 对象方法（`supported*`/`mcp*` 等）暂不纳入一期范围。
 - `supportedCommands()` 返回命令项同时包含 `name/argumentHint`（官方同名）与 `command/argHint`（Formax 兼容）字段。
 - `supportedModels()` 返回模型项同时包含 `value/displayName/supportsEffort`（官方常用）与 `model/provider/supports_reasoning_effort`（Formax 兼容）字段。
+- `setMcpServers()/rewindFiles()` 在当前能力下仍显式报未支持，但返回类型已与官方同名结果类型对齐。
 
 ## Options 对齐矩阵（官方 -> Formax）
 

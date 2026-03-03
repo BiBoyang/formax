@@ -39,12 +39,12 @@
 | `supportedModels` | `supportedModels` | Supported | 返回 provider 可用模型子集，包含 `value/displayName/supportsEffort` 等官方常用兼容字段。 |
 | `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集。 |
 | `mcpServerStatus` | `mcpServerStatus` | Partial | 显式未支持。 |
-| `setMcpServers` | `setMcpServers` | Partial | 显式未支持。 |
+| `setMcpServers` | `setMcpServers` | Partial | 显式未支持；返回类型已对齐为 `McpSetServersResult`。 |
 | `reconnectMcpServer` | `reconnectMcpServer` | Partial | 显式未支持。 |
 | `toggleMcpServer` | `toggleMcpServer` | Partial | 显式未支持。 |
 | `streamInput` | `streamInput` | Partial | 显式未支持。 |
 | `stopTask` | `stopTask` | Partial | 显式未支持。 |
-| `rewindFiles` | `rewindFiles` | Partial | 显式未支持。 |
+| `rewindFiles` | `rewindFiles` | Partial | 显式未支持；返回类型已对齐为 `RewindFilesResult`。 |
 
 ## Type Exports (Supported Subset)
 
@@ -58,6 +58,8 @@
 | `SDKResultMessage` | `SDKResultMessage` | Supported | `ResultMessage` 的官方同名别名。 |
 | `SDKResultSuccess` | `SDKResultSuccess` | Supported | `subtype='success'` 的结果类型别名。 |
 | `SDKResultError` | `SDKResultError` | Supported | 非 success 子类型的结果类型别名。 |
+| `McpSetServersResult` | `McpSetServersResult` | Supported | MCP server set 控制结果的官方同名类型别名。 |
+| `RewindFilesResult` | `RewindFilesResult` | Supported | rewind 控制结果的官方同名类型子集。 |
 
 ## Note
 

@@ -281,6 +281,17 @@ export type McpServerStatus = {
   status: 'connected' | 'disconnected'
 }
 
+export type McpSetServersResult = Record<string, unknown>
+
+export type RewindFilesResult = {
+  canRewind?: boolean
+  error?: string
+  filesChanged?: string[]
+  insertions?: number
+  deletions?: number
+  [key: string]: unknown
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
@@ -290,12 +301,12 @@ export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   supportedModels(): Promise<ModelInfo[]>
   accountInfo(): Promise<AccountInfo>
   mcpServerStatus(): Promise<McpServerStatus[]>
-  setMcpServers(servers: Record<string, unknown>): Promise<void>
+  setMcpServers(servers: Record<string, unknown>): Promise<McpSetServersResult>
   reconnectMcpServer(serverName: string): Promise<void>
   toggleMcpServer(serverName: string, enabled: boolean): Promise<void>
   streamInput(stream: AsyncIterable<SDKUserMessage>): Promise<void>
   stopTask(taskId: string): Promise<void>
-  rewindFiles(userMessageId: string, options?: { dryRun?: boolean }): Promise<void>
+  rewindFiles(userMessageId: string, options?: { dryRun?: boolean }): Promise<RewindFilesResult>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

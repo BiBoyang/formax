@@ -51,6 +51,8 @@ export type {
   ModelInfo,
   AccountInfo,
   McpServerStatus,
+  McpSetServersResult,
+  RewindFilesResult,
   Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,

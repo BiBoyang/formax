@@ -188,6 +188,10 @@
   - 切片：`SDK-07`
   - 说明：`supportedCommands()` 补齐官方同名 `name/argumentHint` 字段，并保留 `command/argHint` 兼容字段。
 
-- `[pending]` `feat(sdk): align supportedModels shape fields`
+- `3506c80` `feat(sdk): align supportedModels shape fields`
   - 切片：`SDK-08`
   - 说明：`supportedModels()` 补齐官方常用 `value/displayName/supportsEffort` 字段，并保留 `model/provider` 兼容字段。
+
+- `[pending]` `feat(sdk): align MCP control return types`
+  - 切片：`SDK-09`
+  - 说明：补齐 `setMcpServers()/rewindFiles()` 等控制方法的官方同名返回类型（仅类型层对齐）。
