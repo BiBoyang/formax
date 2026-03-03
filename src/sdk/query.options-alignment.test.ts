@@ -339,26 +339,26 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps stderr compatibility behavior via explicit unsupported error', async () => {
+  it('keeps stderr compatibility behavior via optional error sink callback', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    const stderr = vi.fn()
 
     const messages = await collectMessages({
       prompt: 'stderr compatibility',
       options: {
-        stderr: () => {},
+        stderr,
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(stderr).not.toHaveBeenCalled()
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.stderr')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

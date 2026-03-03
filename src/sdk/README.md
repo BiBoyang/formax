@@ -72,7 +72,7 @@ Implemented and available now:
 - Query budget alignment (`maxBudgetUsd` accepted as contract input; currently fails explicitly as unsupported)
 - Query resume-option alignment (`resume/sessionId` supported via persisted session history; `resumeSessionAt` currently fails explicitly as unsupported)
 - Query debug-option alignment (`debug/debugFile` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query stderr alignment (`stderr` accepted as contract input; currently fails explicitly as unsupported)
+- Query stderr alignment (`stderr` supported as an optional SDK error sink callback)
 - Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)

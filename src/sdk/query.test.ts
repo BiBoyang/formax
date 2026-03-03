@@ -1755,64 +1755,52 @@ describe('sdk query()', () => {
     }
   })
 
-  it('returns explicit unsupported error when stderr is provided', async () => {
+  it('allows stderr callback option on successful runs', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
+    const stderr = vi.fn()
 
     const messages = await collectMessages({
-      prompt: 'stderr option unsupported',
+      prompt: 'stderr option supported',
       options: {
-        stderr: () => {},
+        stderr,
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(stderr).not.toHaveBeenCalled()
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.stderr')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
-  it('fails fast on unsupported stderr option before draining async prompt stream', async () => {
+  it('forwards execution errors to stderr callback', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
-    let nextCalls = 0
-
-    const promptStream: AsyncIterable<SDKUserMessage> = {
-      [Symbol.asyncIterator]() {
-        return {
-          next: async () => {
-            nextCalls += 1
-            return {
-              value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
-              done: false,
-            }
-          },
-        }
-      },
-    }
+    const stderr = vi.fn()
 
     const messages = await collectMessages({
-      prompt: promptStream,
+      prompt: 'stderr callback on error',
       options: {
-        stderr: () => {},
+        debug: true,
+        stderr,
       },
     })
 
-    expect(nextCalls).toBe(0)
     expect(runtime.engine.runTurn).not.toHaveBeenCalled()
     expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(stderr).toHaveBeenCalledTimes(1)
+    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.debug')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.stderr')
+      expect(result.error).toContain('options.debug')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

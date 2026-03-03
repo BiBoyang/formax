@@ -287,9 +287,13 @@ function assertDebugOptionsSupported(args: {
   }
 }
 
-function assertStderrOptionSupported(stderr?: (data: string) => void): void {
-  if (stderr === undefined) return
-  throw new Error('options.stderr is not supported in Formax SDK yet')
+function emitStderr(stderr: ((data: string) => void) | undefined, data: string): void {
+  if (!stderr) return
+  try {
+    stderr(data)
+  } catch {
+    // Ignore stderr callback failures to keep query execution stable.
+  }
 }
 
 function assertProcessSpawnOptionsSupported(args: {
@@ -1060,6 +1064,7 @@ async function* runQuery(
     let restorePatchedStreamOnce: (() => void) | null = null
     let sessionPersistence: QuerySessionPersistence | null = null
     let messageCallback: ((message: QueryMessage) => void) | undefined
+    let stderrCallback: ((data: string) => void) | undefined
     const pendingInputResolutions = new Set<Promise<void>>()
     let nextHistory: PromptMessage[] = []
     let lastStopReason: StopReason = null
@@ -1083,11 +1088,20 @@ async function* runQuery(
       ) {
         messageCallback = (rawOptions as { onMessage: (message: QueryMessage) => void }).onMessage
       }
+      if (
+        rawOptions &&
+        typeof rawOptions === 'object' &&
+        !Array.isArray(rawOptions) &&
+        typeof (rawOptions as { stderr?: unknown }).stderr === 'function'
+      ) {
+        stderrCallback = (rawOptions as { stderr: (data: string) => void }).stderr
+      }
 
       const parsedArgs = parseQueryArgsInput(args)
       const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, controlState)
       const outputFormat = options.outputFormat
       messageCallback = options.onMessage
+      stderrCallback = options.stderr
       const cwd = path.resolve(options.cwd ?? process.cwd())
       const env = options.env ?? process.env
       const replMode = resolveExecutionReplMode({
@@ -1101,7 +1115,6 @@ async function* runQuery(
         debug: options.debug,
         debugFile: options.debugFile,
       })
-      assertStderrOptionSupported(options.stderr)
       assertProcessSpawnOptionsSupported({
         pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
         spawnClaudeCodeProcess: options.spawnClaudeCodeProcess,
@@ -1469,6 +1482,7 @@ async function* runQuery(
         : asValidationError(error, 'Invalid query arguments or runtime event')
       rejectInitializationOnce(controlState, validationError)
       const message = validationError.message
+      emitStderr(stderrCallback, `${message}\n`)
       const safeHistory = (() => {
         try {
           return parsePromptHistory(nextHistory)
