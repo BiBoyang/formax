@@ -69,6 +69,7 @@ Implemented and available now:
 - Query resume-option alignment (`resume/sessionId/resumeSessionAt` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query debug-option alignment (`debug/debugFile` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query stderr alignment (`stderr` accepted as contract input; currently fails explicitly as unsupported)
+- Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` accepted as contract inputs; currently fail explicitly as unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

@@ -241,6 +241,22 @@ function assertStderrOptionSupported(stderr?: (data: string) => void): void {
   throw new Error('options.stderr is not supported in Formax SDK yet')
 }
 
+function assertProcessSpawnOptionsSupported(args: {
+  pathToClaudeCodeExecutable?: string
+  spawnClaudeCodeProcess?: (...spawnArgs: unknown[]) => unknown
+}): void {
+  if (args.pathToClaudeCodeExecutable !== undefined) {
+    throw new Error(
+      `options.pathToClaudeCodeExecutable (${args.pathToClaudeCodeExecutable}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.spawnClaudeCodeProcess !== undefined) {
+    throw new Error(
+      'options.spawnClaudeCodeProcess is not supported in Formax SDK yet',
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -641,6 +657,10 @@ async function* runQuery(
         debugFile: options.debugFile,
       })
       assertStderrOptionSupported(options.stderr)
+      assertProcessSpawnOptionsSupported({
+        pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
+        spawnClaudeCodeProcess: options.spawnClaudeCodeProcess,
+      })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

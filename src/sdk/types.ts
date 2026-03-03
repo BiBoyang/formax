@@ -69,6 +69,8 @@ export type QueryOptions = {
   debug?: boolean
   debugFile?: string
   stderr?: (data: string) => void
+  pathToClaudeCodeExecutable?: string
+  spawnClaudeCodeProcess?: (...args: unknown[]) => unknown
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

@@ -137,6 +137,10 @@ const queryOptionsSchema = z
     stderr: z.custom<(data: string) => void>((value) => typeof value === 'function', {
       message: 'Expected function',
     }).optional(),
+    pathToClaudeCodeExecutable: z.string().optional(),
+    spawnClaudeCodeProcess: z.custom<(...args: unknown[]) => unknown>((value) => typeof value === 'function', {
+      message: 'Expected function',
+    }).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

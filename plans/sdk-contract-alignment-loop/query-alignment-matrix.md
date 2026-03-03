@@ -63,7 +63,7 @@
 | `strictMcpConfig` | - | Backlog | 当前不支持。 |
 | `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `stderr` | `options.stderr` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | - | Backlog | 当前不支持（Formax 为进程内实现）。 |
+| `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | `options.pathToClaudeCodeExecutable` / `options.spawnClaudeCodeProcess` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `extraArgs`/`executable`/`executableArgs`/`betas` | - | Backlog | 当前不支持。 |
 
 ## Formax 扩展字段（非官方同名）

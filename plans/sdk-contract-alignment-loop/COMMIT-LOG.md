@@ -64,9 +64,13 @@
   - 切片：`QRY-17`
   - 说明：接收 `debug/debugFile` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query stderr option input`
+- `e023b5f` `feat(sdk): align query stderr option input`
   - 切片：`QRY-18`
   - 说明：接收 `stderr` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query process spawn option inputs`
+  - 切片：`QRY-19`
+  - 说明：接收 `pathToClaudeCodeExecutable/spawnClaudeCodeProcess` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

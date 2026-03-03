@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-19`：对齐 `query` 的 `pathToClaudeCodeExecutable/spawnClaudeCodeProcess` 输入契约（接收字段并统一显式报暂不支持）。
+- [ ] `QRY-20`：对齐 `query` 的 `extraArgs/executable/executableArgs/betas` 输入契约（接收字段并统一显式报暂不支持）。
 
 ## 再生规则（当“当前待办”为空时）
 
