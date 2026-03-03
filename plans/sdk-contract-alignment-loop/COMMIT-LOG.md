@@ -72,9 +72,13 @@
   - 切片：`QRY-19`
   - 说明：接收 `pathToClaudeCodeExecutable/spawnClaudeCodeProcess` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query cli execution option inputs`
+- `0a88cad` `feat(sdk): align query cli execution option inputs`
   - 切片：`QRY-20`
   - 说明：接收 `extraArgs/executable/executableArgs/betas` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query permission prompt option inputs`
+  - 切片：`QRY-21`
+  - 说明：接收 `allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

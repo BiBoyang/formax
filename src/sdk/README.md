@@ -71,6 +71,7 @@ Implemented and available now:
 - Query stderr alignment (`stderr` accepted as contract input; currently fails explicitly as unsupported)
 - Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

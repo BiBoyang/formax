@@ -145,6 +145,9 @@ const queryOptionsSchema = z
     executableArgs: z.array(z.string()).optional(),
     extraArgs: z.record(z.string(), z.union([z.string(), z.null()])).optional(),
     betas: z.array(z.string()).optional(),
+    allowDangerouslySkipPermissions: z.boolean().optional(),
+    permissionPromptToolName: z.string().optional(),
+    promptSuggestions: z.boolean().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

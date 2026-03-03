@@ -75,6 +75,9 @@ export type QueryOptions = {
   executableArgs?: string[]
   extraArgs?: Record<string, string | null>
   betas?: string[]
+  allowDangerouslySkipPermissions?: boolean
+  permissionPromptToolName?: string
+  promptSuggestions?: boolean
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

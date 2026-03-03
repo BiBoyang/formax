@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-21`：对齐 `query` 的 `allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` 输入契约（接收字段并统一显式报暂不支持）。
+- [ ] `QRY-22`：对齐 `query` 的 `continue/fallbackModel` 输入契约（接收字段并统一显式报暂不支持）。
 
 ## 再生规则（当“当前待办”为空时）
 

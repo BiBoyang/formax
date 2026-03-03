@@ -57,9 +57,9 @@
 | `continue` | - | Backlog | 当前不支持。 |
 | `persistSession`/`forkSession`/`enableFileCheckpointing` | - | Backlog | 当前不支持。 |
 | `fallbackModel` | - | Backlog | 当前不支持。 |
-| `permissionPromptToolName` | - | Backlog | 当前不支持。 |
-| `allowDangerouslySkipPermissions` | - | Backlog | 当前不支持。 |
-| `promptSuggestions` | - | Backlog | 当前不支持。 |
+| `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `promptSuggestions` | `options.promptSuggestions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `strictMcpConfig` | - | Backlog | 当前不支持。 |
 | `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `stderr` | `options.stderr` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

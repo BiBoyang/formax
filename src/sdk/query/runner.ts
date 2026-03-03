@@ -281,6 +281,28 @@ function assertCliExecutionOptionsSupported(args: {
   }
 }
 
+function assertPermissionPromptOptionsSupported(args: {
+  allowDangerouslySkipPermissions?: boolean
+  permissionPromptToolName?: string
+  promptSuggestions?: boolean
+}): void {
+  if (args.allowDangerouslySkipPermissions !== undefined) {
+    throw new Error(
+      `options.allowDangerouslySkipPermissions (${args.allowDangerouslySkipPermissions}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.permissionPromptToolName !== undefined) {
+    throw new Error(
+      `options.permissionPromptToolName (${args.permissionPromptToolName}) is not supported in Formax SDK yet`,
+    )
+  }
+  if (args.promptSuggestions !== undefined) {
+    throw new Error(
+      `options.promptSuggestions (${args.promptSuggestions}) is not supported in Formax SDK yet`,
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -690,6 +712,11 @@ async function* runQuery(
         executableArgs: options.executableArgs,
         extraArgs: options.extraArgs,
         betas: options.betas,
+      })
+      assertPermissionPromptOptionsSupported({
+        allowDangerouslySkipPermissions: options.allowDangerouslySkipPermissions,
+        permissionPromptToolName: options.permissionPromptToolName,
+        promptSuggestions: options.promptSuggestions,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
