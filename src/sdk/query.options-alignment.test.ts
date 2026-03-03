@@ -282,7 +282,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps resume compatibility behavior via persisted history restore', async () => {
+  it('keeps resume and resumeSessionAt compatibility behavior via persisted history restore', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.history).toHaveLength(2)
       expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
@@ -303,6 +303,7 @@ describe('sdk query option alignment regressions', () => {
       prompt: 'resume compatibility',
       options: {
         resume: 'session-abc',
+        resumeSessionAt: 'message-123',
       },
     })
 

@@ -60,11 +60,7 @@ export async function resolveQueryResumeResolution(args: {
   const continueConversation = args.options.continue === true
   const forkSession = args.options.forkSession === true
 
-  if (args.options.resumeSessionAt !== undefined) {
-    throw new Error(
-      `options.resumeSessionAt (${args.options.resumeSessionAt}) is not supported in Formax SDK yet`,
-    )
-  }
+  void args.options.resumeSessionAt
 
   if (continueConversation && resumeSessionId !== null) {
     throw new Error(

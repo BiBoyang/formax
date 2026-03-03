@@ -1616,25 +1616,35 @@ describe('sdk query()', () => {
     }
   })
 
-  it('returns explicit unsupported error when resumeSessionAt is provided', async () => {
+  it('accepts resumeSessionAt as compatibility no-op option', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('persisted assistant')
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
-
-    const messages = await collectMessages({
-      prompt: 'resumeSessionAt unsupported',
-      options: { resumeSessionAt: 'message-123' },
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    const messages = await collectMessages({
+      prompt: 'resumeSessionAt compatibility',
+      options: { resume: 'session-abc', resumeSessionAt: 'message-123' },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.resumeSessionAt')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('session-abc')
     }
   })
 
