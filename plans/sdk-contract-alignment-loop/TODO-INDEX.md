@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-12`：补齐 `OutputFormatType/BaseOutputFormat` 官方同名类型别名（仅当前 `json_schema` 子集）。
+- [ ] `SDK-13`：补齐 `ElicitationRequest/ElicitationResult/OnElicitation` 官方同名类型别名（仅类型层）。
 
 ## 再生规则（当“当前待办”为空时）
 

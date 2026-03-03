@@ -53,6 +53,13 @@ export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabl
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max'
 
+export type ElicitationRequest = Record<string, unknown>
+export type ElicitationResult = Record<string, unknown>
+export type OnElicitation = (
+  request: ElicitationRequest,
+  options: { signal: AbortSignal },
+) => Promise<ElicitationResult>
+
 export type PermissionMode =
   | 'default'
   | 'acceptEdits'
@@ -109,7 +116,7 @@ export type QueryOptions = {
   canUseTool?: (...args: unknown[]) => unknown
   plugins?: unknown[]
   settingSources?: Array<'user' | 'project' | 'local'>
-  onElicitation?: (...args: unknown[]) => unknown
+  onElicitation?: OnElicitation
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

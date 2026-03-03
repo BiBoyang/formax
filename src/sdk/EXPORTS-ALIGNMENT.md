@@ -65,6 +65,9 @@
 | `PromptResponse` | `PromptResponse` | Supported | 对齐到当前 `ask_user_question` 回答结果类型子集。 |
 | `OutputFormatType` | `OutputFormatType` | Supported | 对齐到当前 `outputFormat.type` 子集（`json_schema`）。 |
 | `BaseOutputFormat` | `BaseOutputFormat` | Supported | 对齐到当前 `outputFormat` 基础类型子集。 |
+| `ElicitationRequest` | `ElicitationRequest` | Supported | 对齐到当前 elicitation 请求类型子集。 |
+| `ElicitationResult` | `ElicitationResult` | Supported | 对齐到当前 elicitation 结果类型子集。 |
+| `OnElicitation` | `OnElicitation` | Supported | 对齐到当前 `options.onElicitation` 回调签名子集。 |
 
 ## Note
 

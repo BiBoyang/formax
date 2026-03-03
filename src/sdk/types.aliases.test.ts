@@ -5,6 +5,9 @@ import type {
   PromptRequest,
   PromptRequestOption,
   PromptResponse,
+  ElicitationRequest,
+  ElicitationResult,
+  OnElicitation,
   OutputFormat,
   OutputFormatType,
   BaseOutputFormat,
@@ -62,5 +65,11 @@ describe('SDK type alias alignment', () => {
     expectTypeOf<OutputFormatType>().toEqualTypeOf<'json_schema'>()
     expectTypeOf<OutputFormat['type']>().toEqualTypeOf<OutputFormatType>()
     expectTypeOf<BaseOutputFormat>().toEqualTypeOf<{ type: OutputFormatType }>()
+  })
+
+  it('aligns elicitation type aliases', () => {
+    expectTypeOf<QueryOptions['onElicitation']>().toEqualTypeOf<OnElicitation | undefined>()
+    expectTypeOf<Parameters<OnElicitation>[0]>().toEqualTypeOf<ElicitationRequest>()
+    expectTypeOf<Awaited<ReturnType<OnElicitation>>>().toEqualTypeOf<ElicitationResult>()
   })
 })

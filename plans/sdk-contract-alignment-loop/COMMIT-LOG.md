@@ -204,6 +204,10 @@
   - 切片：`SDK-11`
   - 说明：新增 `PromptRequest/PromptRequestOption/PromptResponse` 官方同名类型别名（已支持交互子集）。
 
-- `[pending]` `feat(sdk): add output format type aliases`
+- `e34210a` `feat(sdk): add output format type aliases`
   - 切片：`SDK-12`
   - 说明：新增 `OutputFormatType/BaseOutputFormat` 官方同名类型别名（当前 `json_schema` 子集）。
+
+- `[pending]` `feat(sdk): add elicitation type aliases`
+  - 切片：`SDK-13`
+  - 说明：新增 `ElicitationRequest/ElicitationResult/OnElicitation` 官方同名类型别名（类型层对齐）。

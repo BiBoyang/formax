@@ -2467,7 +2467,7 @@ describe('sdk query()', () => {
       },
       {
         label: 'onElicitation',
-        options: { onElicitation: () => ({ action: 'continue' }) },
+        options: { onElicitation: async () => ({ action: 'continue' }) },
         expected: 'options.onElicitation',
       },
     ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
