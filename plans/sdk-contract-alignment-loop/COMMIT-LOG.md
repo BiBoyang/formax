@@ -36,9 +36,13 @@
   - 切片：`QRY-10`
   - 说明：对齐官方 `permissionMode` 输入全集，并为当前未支持值提供显式一致错误。
 
-- `[pending]` `feat(sdk): align maxThinkingTokens option`
+- `9483220` `feat(sdk): align maxThinkingTokens option`
   - 切片：`QRY-11`
   - 说明：增加 `maxThinkingTokens` 输入对齐，并与 `thinking`/`thinkingEnabled` 做一致性约束。
+
+- `[pending]` `feat(sdk): align maxTurns option`
+  - 切片：`QRY-12`
+  - 说明：增加 `maxTurns` 对齐入口，当前仅支持 `1` 并对更大值显式报不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

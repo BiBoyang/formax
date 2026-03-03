@@ -63,6 +63,7 @@ Implemented and available now:
 - Query system prompt alignment (`systemPrompt` supports official `preset` object shape)
 - Query thinking alignment (`thinking` supports adaptive/enabled/disabled subset)
 - Query token-thinking alignment (`maxThinkingTokens` accepted for legacy compatibility)
+- Query turn-limit alignment (`maxTurns=1` accepted; larger values fail explicitly)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

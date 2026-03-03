@@ -39,7 +39,7 @@
 | `outputFormat` | `options.outputFormat` | Partial | 目前仅 `json_schema` 子集。 |
 | `permissionMode` | `options.permissionMode` | Partial | 接受官方全集；`default`/`acceptEdits`/`plan` 已落地，`dontAsk`/`bypassPermissions` 显式报“暂不支持”。 |
 | `systemPrompt` | `options.systemPrompt` | Supported | 支持字符串与官方 preset 对象（`claude_code` + `append`）；另外扩展支持 PromptBlock 数组。 |
-| `maxTurns` | - | Backlog | 当前未提供 query 多轮上限参数。 |
+| `maxTurns` | `options.maxTurns` | Partial | 兼容入口已支持：`1` 通过，`>1` 显式报当前不支持。 |
 | `maxBudgetUsd` | - | Backlog | 当前未支持。 |
 | `thinking` | `options.thinking` | Partial | 支持 `adaptive/enabled/disabled`；`budgetTokens` 仅校验，不做预算控制。 |
 | `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |

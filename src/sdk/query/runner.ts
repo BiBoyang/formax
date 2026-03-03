@@ -181,6 +181,15 @@ function resolveThinkingEnabled(args: {
   return args.thinkingEnabled ?? mappedThinking ?? mappedMaxThinkingTokens
 }
 
+function assertMaxTurnsSupported(maxTurns?: number): void {
+  if (maxTurns === undefined) return
+  if (maxTurns > 1) {
+    throw new Error(
+      `options.maxTurns (${maxTurns}) is not supported in Formax SDK yet (only maxTurns=1 is currently supported)`,
+    )
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -550,6 +559,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         replMode: options.replMode,
         permissionMode: options.permissionMode,
       })
+      assertMaxTurnsSupported(options.maxTurns)
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,

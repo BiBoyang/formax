@@ -61,6 +61,7 @@ export type QueryOptions = {
   interactive?: boolean
   thinking?: ThinkingConfig
   maxThinkingTokens?: number
+  maxTurns?: number
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
