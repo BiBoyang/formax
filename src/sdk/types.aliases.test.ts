@@ -2,6 +2,9 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type {
   AssistantMessage,
   Options,
+  PromptRequest,
+  PromptRequestOption,
+  PromptResponse,
   PartialAssistantMessage,
   QueryMessage,
   QueryOptions,
@@ -9,6 +12,8 @@ import type {
   ResultMessage,
   McpSetServersResult,
   RewindFilesResult,
+  AskUserQuestionRequest,
+  AskUserQuestionInputResponse,
   SDKAssistantMessage,
   SDKMessage,
   SDKPartialAssistantMessage,
@@ -42,5 +47,11 @@ describe('SDK type alias alignment', () => {
   it('aligns Query control method return type aliases', () => {
     expectTypeOf<Awaited<ReturnType<Query['setMcpServers']>>>().toEqualTypeOf<McpSetServersResult>()
     expectTypeOf<Awaited<ReturnType<Query['rewindFiles']>>>().toEqualTypeOf<RewindFilesResult>()
+  })
+
+  it('aligns prompt interaction type aliases', () => {
+    expectTypeOf<PromptRequest>().toEqualTypeOf<AskUserQuestionRequest>()
+    expectTypeOf<PromptRequestOption>().toEqualTypeOf<AskUserQuestionRequest['options'][number]>()
+    expectTypeOf<PromptResponse>().toEqualTypeOf<AskUserQuestionInputResponse>()
   })
 })

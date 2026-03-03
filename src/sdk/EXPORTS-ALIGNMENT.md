@@ -60,6 +60,9 @@
 | `SDKResultError` | `SDKResultError` | Supported | 非 success 子类型的结果类型别名。 |
 | `McpSetServersResult` | `McpSetServersResult` | Supported | MCP server set 控制结果的官方同名类型别名。 |
 | `RewindFilesResult` | `RewindFilesResult` | Supported | rewind 控制结果的官方同名类型子集。 |
+| `PromptRequest` | `PromptRequest` | Supported | 对齐到当前 `ask_user_question` 请求类型子集。 |
+| `PromptRequestOption` | `PromptRequestOption` | Supported | 对齐到当前 `ask_user_question.options` 选项类型子集。 |
+| `PromptResponse` | `PromptResponse` | Supported | 对齐到当前 `ask_user_question` 回答结果类型子集。 |
 
 ## Note
 

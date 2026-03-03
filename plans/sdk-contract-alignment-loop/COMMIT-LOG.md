@@ -196,6 +196,10 @@
   - 切片：`SDK-09`
   - 说明：补齐 `setMcpServers()/rewindFiles()` 等控制方法的官方同名返回类型（仅类型层对齐）。
 
-- `[pending]` `feat(sdk): align options.effort input contract`
+- `c8e7c60` `feat(sdk): align options effort input contract`
   - 切片：`SDK-10`
   - 说明：新增 `options.effort` 官方值输入校验，并保持当前显式“暂不支持”语义。
+
+- `[pending]` `feat(sdk): add prompt request type aliases`
+  - 切片：`SDK-11`
+  - 说明：新增 `PromptRequest/PromptRequestOption/PromptResponse` 官方同名类型别名（已支持交互子集）。

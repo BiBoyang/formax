@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-10`：补齐 `options.effort` 输入契约（接受官方值并保持当前“显式未支持”语义）。
+- [ ] `SDK-11`：补齐 `PromptRequest/PromptRequestOption/PromptResponse` 官方同名类型别名（仅已支持交互子集）。
 
 ## 再生规则（当“当前待办”为空时）
 

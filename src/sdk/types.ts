@@ -184,6 +184,9 @@ export type AskUserQuestionRequest = {
   multiSelect: boolean
 }
 
+export type PromptRequest = AskUserQuestionRequest
+export type PromptRequestOption = AskUserQuestionRequest['options'][number]
+
 export type ApprovalInputRequestMessage = {
   type: 'input_request'
   subtype: 'approval_request'
@@ -217,6 +220,8 @@ export type ApprovalInputResponse = {
 export type AskUserQuestionInputResponse = {
   answers: Record<string, string>
 }
+
+export type PromptResponse = AskUserQuestionInputResponse
 
 export type InputRequestResponse = ApprovalInputResponse | AskUserQuestionInputResponse | null | void
 
