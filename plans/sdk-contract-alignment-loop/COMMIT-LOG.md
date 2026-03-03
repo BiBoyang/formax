@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `4dc3053` `feat(sdk): accept query fallbackModel compatibility`
+  - 切片：`QRY-53`
+  - 说明：`query` 接收 `fallbackModel`，在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
+
 - `9e4e8f8` `feat(sdk): relax query permission-prompt compatibility`
   - 切片：`QRY-52`
   - 说明：`permissionPromptToolName/promptSuggestions` 在 in-process SDK 模式下改为兼容 no-op；`allowDangerouslySkipPermissions=true` 继续显式不支持（保持权限安全语义）。
