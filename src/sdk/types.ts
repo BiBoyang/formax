@@ -119,6 +119,9 @@ export type QueryArgs = {
   options?: QueryOptions
 }
 
+// Official-aligned alias for query options (supported subset).
+export type Options = QueryOptions
+
 export type SystemMessage = {
   type: 'system'
   subtype: 'init'
@@ -220,6 +223,17 @@ export type QueryMessage =
   | InputRequestMessage
   | AssistantMessage
   | ResultMessage
+
+// Official-aligned SDK message aliases (supported subset).
+export type SDKSystemMessage = SystemMessage
+export type SDKPartialAssistantMessage = PartialAssistantMessage
+export type SDKAssistantMessage = AssistantMessage
+export type SDKResultMessage = ResultMessage
+export type SDKResultSuccess = ResultMessage & { subtype: 'success' }
+export type SDKResultError = ResultMessage & {
+  subtype: Exclude<ResultMessageSubtype, 'success'>
+}
+export type SDKMessage = QueryMessage
 
 export type QueryInitializationResult = SystemMessage
 

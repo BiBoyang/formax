@@ -93,6 +93,7 @@ Implemented and available now:
 - SDK hook constants export (`HOOK_EVENTS`)
 - SDK exit-reason constants export (`EXIT_REASONS`)
 - SDK literal type exports (`HookEvent`, `ExitReason`)
+- SDK official-aligned type aliases (`Options`, `SDKMessage`, `SDKSystemMessage`, `SDKAssistantMessage`, `SDKResultMessage`, `SDKResultSuccess`, `SDKResultError`)
 - SDK abort error export (`AbortError`)
 
 ## Planned

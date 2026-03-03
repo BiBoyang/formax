@@ -46,6 +46,19 @@
 | `stopTask` | `stopTask` | Partial | 显式未支持。 |
 | `rewindFiles` | `rewindFiles` | Partial | 显式未支持。 |
 
+## Type Exports (Supported Subset)
+
+| 官方类型导出 | Formax SDK | 状态 | 备注 |
+|---|---|---|---|
+| `Options` | `Options` | Supported | `QueryOptions` 的官方同名别名。 |
+| `SDKMessage` | `SDKMessage` | Supported | `QueryMessage` 的官方同名别名。 |
+| `SDKSystemMessage` | `SDKSystemMessage` | Supported | `SystemMessage` 的官方同名别名。 |
+| `SDKPartialAssistantMessage` | `SDKPartialAssistantMessage` | Supported | `PartialAssistantMessage` 的官方同名别名。 |
+| `SDKAssistantMessage` | `SDKAssistantMessage` | Supported | `AssistantMessage` 的官方同名别名。 |
+| `SDKResultMessage` | `SDKResultMessage` | Supported | `ResultMessage` 的官方同名别名。 |
+| `SDKResultSuccess` | `SDKResultSuccess` | Supported | `subtype='success'` 的结果类型别名。 |
+| `SDKResultError` | `SDKResultError` | Supported | 非 success 子类型的结果类型别名。 |
+
 ## Note
 
 - 更完整的 options 字段对齐请参考：

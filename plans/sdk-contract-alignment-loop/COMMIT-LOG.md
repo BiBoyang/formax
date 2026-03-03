@@ -176,6 +176,10 @@
   - 切片：`SDK-04`
   - 说明：新增 `HookEvent/ExitReason` 类型导出，并确保与常量导出保持一致。
 
-- `[pending]` `docs(sdk): add exports alignment index`
+- `e6c6372` `docs(sdk): add exports alignment index`
   - 切片：`SDK-05`
   - 说明：新增 SDK 导出对齐索引文档，并在 README 增加入口链接。
+
+- `[pending]` `feat(sdk): add official-aligned type aliases`
+  - 切片：`SDK-06`
+  - 说明：新增 `Options` 与 `SDK*Message` 系列官方同名类型别名导出，并补类型回归测试。
