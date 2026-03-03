@@ -84,6 +84,13 @@ These remain out of scope for SDK phase-1:
 - `canUseTool`
 - `plugins`
 
+## Query Alignment Reference
+
+- Query contract alignment matrix:
+  - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`
+- Exports source reference:
+  - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
+
 ## Structured Output (`outputFormat`)
 
 ```ts
