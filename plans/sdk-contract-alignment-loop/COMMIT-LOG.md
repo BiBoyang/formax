@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `c9b28b6` `feat(sdk): accept query cli-exec compatibility options`
+  - 切片：`QRY-50`
+  - 说明：`query` 接收 `executable/executableArgs/extraArgs/betas`，在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
+
 - `bc5f0d6` `feat(sdk): align query continue and sessionId`
   - 切片：`QRY-49`
   - 说明：`continue+sessionId` 对齐增强：当 `sessionId` 与最新会话一致时允许继续，不匹配时保留显式冲突错误（除非 `forkSession=true`）。
