@@ -1776,7 +1776,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: 'stderr callback on error',
       options: {
-        pathToClaudeCodeExecutable: '/usr/local/bin/claude',
+        maxBudgetUsd: 1,
         stderr,
       },
     })
@@ -1784,12 +1784,12 @@ describe('sdk query()', () => {
     expect(runtime.engine.runTurn).not.toHaveBeenCalled()
     expect(state.createRuntime).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledTimes(1)
-    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.pathToClaudeCodeExecutable')
+    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.maxBudgetUsd')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.pathToClaudeCodeExecutable')
+      expect(result.error).toContain('options.maxBudgetUsd')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })
@@ -1798,14 +1798,12 @@ describe('sdk query()', () => {
     {
       label: 'pathToClaudeCodeExecutable',
       options: { pathToClaudeCodeExecutable: '/usr/local/bin/claude' },
-      expected: 'options.pathToClaudeCodeExecutable',
     },
     {
       label: 'spawnClaudeCodeProcess',
       options: { spawnClaudeCodeProcess: () => ({}) },
-      expected: 'options.spawnClaudeCodeProcess',
     },
-  ] as const)('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+  ] as const)('accepts $label as compatibility no-op option', async ({ options }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -1813,30 +1811,36 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'process option unsupported',
+      prompt: 'process option compatibility',
       options,
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
-  it('fails fast on unsupported pathToClaudeCodeExecutable before draining async prompt stream', async () => {
+  it('does not fail fast on pathToClaudeCodeExecutable before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
 
     const promptStream: AsyncIterable<SDKUserMessage> = {
       [Symbol.asyncIterator]() {
+        let emitted = false
         return {
           next: async () => {
             nextCalls += 1
+            if (emitted) {
+              return {
+                value: undefined,
+                done: true,
+              }
+            }
+            emitted = true
             return {
               value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
               done: false,
@@ -1853,15 +1857,13 @@ describe('sdk query()', () => {
       },
     })
 
-    expect(nextCalls).toBe(0)
-    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(nextCalls).toBeGreaterThan(0)
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(1)
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.pathToClaudeCodeExecutable')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

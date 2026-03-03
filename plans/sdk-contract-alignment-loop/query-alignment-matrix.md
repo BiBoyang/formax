@@ -67,7 +67,7 @@
 | `strictMcpConfig` | `options.strictMcpConfig` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 已支持：`debug=true` 通过环境变量开启 hook debug 路径；`debugFile` 作为调试日志文件输出路径。 |
 | `stderr` | `options.stderr` | Partial | 已支持：作为 SDK 错误输出回调（在 query 错误路径写入）。 |
-| `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | `options.pathToClaudeCodeExecutable` / `options.spawnClaudeCodeProcess` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | `options.pathToClaudeCodeExecutable` / `options.spawnClaudeCodeProcess` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `extraArgs`/`executable`/`executableArgs`/`betas` | `options.extraArgs` / `options.executable` / `options.executableArgs` / `options.betas` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 
 ## Formax 扩展字段（非官方同名）

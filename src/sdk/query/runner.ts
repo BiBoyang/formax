@@ -326,16 +326,7 @@ function assertProcessSpawnOptionsSupported(args: {
   pathToClaudeCodeExecutable?: string
   spawnClaudeCodeProcess?: (...spawnArgs: unknown[]) => unknown
 }): void {
-  if (args.pathToClaudeCodeExecutable !== undefined) {
-    throw new Error(
-      `options.pathToClaudeCodeExecutable (${args.pathToClaudeCodeExecutable}) is not supported in Formax SDK yet`,
-    )
-  }
-  if (args.spawnClaudeCodeProcess !== undefined) {
-    throw new Error(
-      'options.spawnClaudeCodeProcess is not supported in Formax SDK yet',
-    )
-  }
+  void args
 }
 
 function assertCliExecutionOptionsSupported(args: {
