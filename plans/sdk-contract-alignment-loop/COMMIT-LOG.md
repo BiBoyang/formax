@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `35bffaa` `feat(sdk): support query tools option`
+  - 切片：`QRY-42`
+  - 说明：`query` 正式支持 `options.tools`（数组子集过滤 + `preset` 默认集）；`mcpServers` 仍显式报“暂不支持”。
+
 - `1cb305c` `feat(sdk): support query continue option`
   - 切片：`QRY-41`
   - 说明：`query` 正式支持 `options.continue`（恢复当前 cwd 最近本地会话历史；无历史则按新会话继续）；`fallbackModel` 仍显式报“暂不支持”。
