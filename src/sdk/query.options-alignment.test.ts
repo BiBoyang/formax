@@ -240,7 +240,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps maxBudgetUsd compatibility behavior via explicit unsupported error', async () => {
+  it('keeps maxBudgetUsd compatibility behavior via compatibility no-op handling', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -253,13 +253,11 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.maxBudgetUsd')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

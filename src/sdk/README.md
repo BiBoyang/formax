@@ -69,7 +69,7 @@ Implemented and available now:
 - Query effort alignment (`effort` supported as an in-process compatibility no-op option)
 - Query token-thinking alignment (`maxThinkingTokens` accepted for legacy compatibility)
 - Query turn-limit alignment (`maxTurns=1` accepted; larger values fail explicitly)
-- Query budget alignment (`maxBudgetUsd` accepted as contract input; currently fails explicitly as unsupported)
+- Query budget alignment (`maxBudgetUsd` supported as an in-process compatibility no-op option)
 - Query resume-option alignment (`resume/sessionId` supported via persisted session history; `continue+sessionId` works when matching latest session or with `forkSession=true`; `resumeSessionAt` currently fails explicitly as unsupported)
 - Query debug-option alignment (`debug` supported via hook-debug env wiring; `debugFile` supported as a debug log file sink)
 - Query stderr alignment (`stderr` supported as an optional SDK error sink callback)

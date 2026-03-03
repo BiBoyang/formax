@@ -261,10 +261,7 @@ function assertMaxTurnsSupported(maxTurns?: number): void {
 }
 
 function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
-  if (maxBudgetUsd === undefined) return
-  throw new Error(
-    `options.maxBudgetUsd (${maxBudgetUsd}) is not supported in Formax SDK yet`,
-  )
+  void maxBudgetUsd
 }
 
 function assertEffortOptionSupported(effort?: 'low' | 'medium' | 'high' | 'max'): void {
