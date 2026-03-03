@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `d3975eb` `feat(sdk): relax query permissionMode compatibility`
+  - 切片：`QRY-62`
+  - 说明：`query` 对 `permissionMode=dontAsk/bypassPermissions` 从显式报错调整为兼容 no-op 接受；`default/acceptEdits/plan` 映射语义保持不变。
+
 - `2c05b4e` `feat(sdk): accept query maxTurns compatibility`
   - 切片：`QRY-61`
   - 说明：`query` 接收 `maxTurns` 并在 in-process SDK 模式下按兼容 no-op 处理（包含 `>1` 输入），不再直接报“不支持”。
