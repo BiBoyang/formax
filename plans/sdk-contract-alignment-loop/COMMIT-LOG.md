@@ -164,6 +164,10 @@
   - 切片：`SDK-01`
   - 说明：新增 `HOOK_EVENTS` 常量导出（基于现有 hooks 事件能力），并补测试与文档。
 
-- `[pending]` `feat(sdk): align AbortError export`
+- `abc263c` `feat(sdk): align AbortError export`
   - 切片：`SDK-02`
   - 说明：新增 `AbortError` 导出，并在 query 中断相关路径统一使用该错误类型。
+
+- `[pending]` `feat(sdk): align EXIT_REASONS constant export`
+  - 切片：`SDK-03`
+  - 说明：新增 `EXIT_REASONS` 常量导出，并补测试与文档。

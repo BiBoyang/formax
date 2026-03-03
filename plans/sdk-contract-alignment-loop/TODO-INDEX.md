@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-03`：对齐 SDK 常量导出 `EXIT_REASONS`（基于现有退出语义导出只读数组，补类型/测试/文档）。
+- [ ] `SDK-04`：对齐 SDK 类型导出 `HookEvent/ExitReason`（基于 `HOOK_EVENTS/EXIT_REASONS` 推导字面量联合类型，补测试/文档）。
 
 ## 再生规则（当“当前待办”为空时）
 

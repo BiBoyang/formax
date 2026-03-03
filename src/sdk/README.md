@@ -18,6 +18,7 @@ Exported function set:
 - `unstable_v2_resumeSession(sessionId, options): SDKSession`
 - `unstable_v2_prompt(message, options): Promise<ResultMessage>`
 - `HOOK_EVENTS` (SDK 当前支持的 hook 事件常量子集)
+- `EXIT_REASONS` (SDK 当前支持的退出原因常量子集)
 - `AbortError`（中断相关统一错误类型）
 
 ## Quick Start
@@ -90,6 +91,7 @@ Implemented and available now:
 - Structured output (`outputFormat` + `structured_output`)
 - SDK boundary validation for untrusted external input
 - SDK hook constants export (`HOOK_EVENTS`)
+- SDK exit-reason constants export (`EXIT_REASONS`)
 - SDK abort error export (`AbortError`)
 
 ## Planned

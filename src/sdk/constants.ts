@@ -8,3 +8,11 @@ export const HOOK_EVENTS = [
   'SessionStart',
   'Stop',
 ] as const satisfies readonly HookEventName[]
+
+export const EXIT_REASONS = [
+  'clear',
+  'logout',
+  'prompt_input_exit',
+  'other',
+  'bypass_permissions_disabled',
+] as const
