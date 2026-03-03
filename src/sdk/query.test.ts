@@ -2917,20 +2917,13 @@ describe('sdk query()', () => {
       {
         label: 'plugins',
         options: { plugins: [{ name: 'sample' }] },
-        expected: 'options.plugins',
       },
       {
         label: 'settingSources',
         options: { settingSources: ['project'] },
-        expected: 'options.settingSources',
       },
-      {
-        label: 'onElicitation',
-        options: { onElicitation: async () => ({ action: 'continue' }) },
-        expected: 'options.onElicitation',
-      },
-    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
-  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    ] satisfies Array<{ label: string; options: QueryOptions }>,
+  )('accepts $label as compatibility no-op option', async ({ options }) => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -2938,8 +2931,30 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'plugin elicitation option unsupported',
+      prompt: 'plugin elicitation option compatibility',
       options,
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('returns explicit unsupported error when onElicitation is provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'onElicitation unsupported',
+      options: {
+        onElicitation: async () => ({ action: 'continue' }),
+      },
     })
 
     expect(runTurn).not.toHaveBeenCalled()
@@ -2947,21 +2962,29 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
+      expect(result.error).toContain('options.onElicitation')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })
 
-  it('fails fast on unsupported plugins option before draining async prompt stream', async () => {
+  it('fails fast on unsupported onElicitation option before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
 
     const promptStream: AsyncIterable<SDKUserMessage> = {
       [Symbol.asyncIterator]() {
+        let emitted = false
         return {
           next: async () => {
             nextCalls += 1
+            if (emitted) {
+              return {
+                value: undefined,
+                done: true,
+              }
+            }
+            emitted = true
             return {
               value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
               done: false,
@@ -2974,7 +2997,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        plugins: [{ name: 'sample' }],
+        onElicitation: async () => ({ action: 'continue' }),
       },
     })
 
@@ -2985,7 +3008,7 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.plugins')
+      expect(result.error).toContain('options.onElicitation')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

@@ -83,7 +83,7 @@ Implemented and available now:
 - Query agent alignment (`agent/agents` supported as in-process compatibility no-op options)
 - Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
 - Query hook-permission alignment (`hooks/canUseTool` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query extension alignment (`plugins/settingSources/onElicitation` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query extension alignment (`plugins/settingSources` supported as in-process compatibility no-op options; `onElicitation` currently remains explicit unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)
@@ -101,7 +101,6 @@ Implemented and available now:
 
 These are intentionally not implemented in this phase:
 - Cross-process `unstable_v2_resumeSession`
-- `settingSources`
 - Other official Agent SDK options not yet mapped in Formax SDK
 
 ## Not Supported In This Phase
@@ -119,7 +118,7 @@ These remain out of scope for SDK phase-1:
 - `query(...).rewindFiles()` capability data (method exists but currently returns explicit unsupported error)
 - `hooks`
 - `canUseTool`
-- `plugins`
+- `onElicitation`
 
 ## Query Alignment Reference
 

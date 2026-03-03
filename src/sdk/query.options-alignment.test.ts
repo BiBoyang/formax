@@ -855,7 +855,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps plugins compatibility behavior via explicit unsupported error', async () => {
+  it('keeps plugins compatibility behavior via compatibility no-op handling', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -868,12 +868,54 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps settingSources compatibility behavior via compatibility no-op handling', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'settingSources compatibility',
+      options: {
+        settingSources: ['project'],
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps onElicitation compatibility behavior via explicit unsupported error', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'onElicitation compatibility',
+      options: {
+        onElicitation: async () => ({ action: 'continue' }),
+      },
+    })
+
     expect(runTurn).not.toHaveBeenCalled()
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.plugins')
+      expect(result.error).toContain('options.onElicitation')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

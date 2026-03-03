@@ -407,12 +407,8 @@ function assertPluginAndElicitationOptionsSupported(args: {
   settingSources?: Array<'user' | 'project' | 'local'>
   onElicitation?: (...elicitationArgs: unknown[]) => unknown
 }): void {
-  if (args.plugins !== undefined) {
-    throw new Error('options.plugins is not supported in Formax SDK yet')
-  }
-  if (args.settingSources !== undefined) {
-    throw new Error('options.settingSources is not supported in Formax SDK yet')
-  }
+  void args.plugins
+  void args.settingSources
   if (args.onElicitation !== undefined) {
     throw new Error('options.onElicitation is not supported in Formax SDK yet')
   }
