@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `f5ab7cb` `feat(sdk): accept query process-spawn compatibility options`
+  - 切片：`QRY-51`
+  - 说明：`query` 接收 `pathToClaudeCodeExecutable/spawnClaudeCodeProcess`，在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
+
 - `c9b28b6` `feat(sdk): accept query cli-exec compatibility options`
   - 切片：`QRY-50`
   - 说明：`query` 接收 `executable/executableArgs/extraArgs/betas`，在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
