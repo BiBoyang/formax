@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `71cc050` `feat(sdk): support query forkSession option`
+  - 切片：`QRY-44`
+  - 说明：`query` 正式支持 `options.forkSession=true`（将 `resume/continue` 历史重绑定到新 session，并在持久化时写入新文件）；`enableFileCheckpointing` 仍显式报“暂不支持”。
+
 - `6b1597a` `feat(sdk): support query persistSession option`
   - 切片：`QRY-43`
   - 说明：`query` 正式支持 `options.persistSession=true`（新会话写入或在 `resume/continue` 文件上追加）；`forkSession/enableFileCheckpointing` 仍显式报“暂不支持”。
