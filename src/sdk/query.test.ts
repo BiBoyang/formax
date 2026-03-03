@@ -496,6 +496,62 @@ describe('sdk query()', () => {
     }
   })
 
+  it('exposes interrupt() and aborts an in-flight query', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      await new Promise<void>((_resolve, reject) => {
+        if (turnArgs.signal?.aborted) {
+          reject(new Error('Request aborted'))
+          return
+        }
+
+        turnArgs.signal?.addEventListener(
+          'abort',
+          () => {
+            reject(new Error('Request aborted'))
+          },
+          { once: true },
+        )
+      })
+
+      return [...turnArgs.history, turnArgs.user]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'interrupt me',
+    })
+    expect(typeof queryIterator.interrupt).toBe('function')
+
+    const messagesPromise = (async () => {
+      const out: QueryMessage[] = []
+      for await (const message of queryIterator) {
+        out.push(message)
+      }
+      return out
+    })()
+
+    const interruptTimer = setTimeout(() => {
+      void queryIterator.interrupt()
+    }, 10)
+
+    const messages = await Promise.race([
+      messagesPromise,
+      new Promise<QueryMessage[]>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('interrupt timeout')), 1000)
+      }),
+    ])
+    clearTimeout(interruptTimer)
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Request aborted')
+    }
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

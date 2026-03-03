@@ -181,6 +181,10 @@ export type QueryMessage =
   | AssistantMessage
   | ResultMessage
 
+export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
+  interrupt(): Promise<void>
+}
+
 export type ListSessionsOptions = {
   dir?: string
   limit?: number

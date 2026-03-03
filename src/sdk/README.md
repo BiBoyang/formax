@@ -11,7 +11,7 @@ Package-level re-export entry:
 - `src/sdk/index.ts`
 
 Exported function set:
-- `query(args): AsyncGenerator<QueryMessage, void, unknown>`
+- `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()`)
 - `listSessions(options?): Promise<SDKSessionInfo[]>`
 - `getSessionMessages(sessionId, options?): Promise<SessionMessage[]>`
 - `unstable_v2_createSession(options): SDKSession`
@@ -57,6 +57,7 @@ if (sessions.length > 0) {
 
 Implemented and available now:
 - Query streaming (`query`)
+- Query control handle (`query(...).interrupt()` in-process cancellation)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; unsupported ones fail explicitly)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)

@@ -32,6 +32,7 @@ export type {
   AskUserQuestionInputResponse,
   InputRequestResponse,
   QueryMessage,
+  Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,
   SessionMessage,

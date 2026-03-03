@@ -11,6 +11,7 @@ import type { ToolDefinition } from '../../tools/types.js'
 import type {
   AssistantMessage,
   PermissionMode,
+  Query,
   QueryArgs,
   QueryMessage,
   ResultMessage,
@@ -521,11 +522,24 @@ function emitMessage(args: {
   }
 }
 
-export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void, unknown> {
+export function query(args: QueryArgs): Query {
+  const interruptController = new AbortController()
+  const iterator = runQuery(args, interruptController)
+  const queryIterator = iterator as Query
+  queryIterator.interrupt = async () => {
+    interruptController.abort()
+  }
+  return queryIterator
+}
+
+async function* runQuery(
+  args: QueryArgs,
+  interruptController: AbortController,
+): AsyncGenerator<QueryMessage, void, unknown> {
   const sessionId = randomUUID()
   const startedAt = Date.now()
   const queue = createAsyncIteratorQueue<QueryMessage>()
-  const controller = new AbortController()
+  const controller = interruptController
   let runSignal: AbortSignal = controller.signal
 
   const run = (async () => {
