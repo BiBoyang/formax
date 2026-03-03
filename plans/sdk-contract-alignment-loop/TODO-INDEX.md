@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-13`：补齐 `ElicitationRequest/ElicitationResult/OnElicitation` 官方同名类型别名（仅类型层）。
+- [ ] `SDK-14`：增强 `accountInfo()` 输出契约（补齐官方常用兼容字段子集并保持现有字段兼容）。
 
 ## 再生规则（当“当前待办”为空时）
 

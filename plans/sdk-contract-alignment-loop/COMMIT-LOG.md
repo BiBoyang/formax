@@ -208,6 +208,10 @@
   - 切片：`SDK-12`
   - 说明：新增 `OutputFormatType/BaseOutputFormat` 官方同名类型别名（当前 `json_schema` 子集）。
 
-- `[pending]` `feat(sdk): add elicitation type aliases`
+- `c49372a` `feat(sdk): add elicitation type aliases`
   - 切片：`SDK-13`
   - 说明：新增 `ElicitationRequest/ElicitationResult/OnElicitation` 官方同名类型别名（类型层对齐）。
+
+- `[pending]` `feat(sdk): align accountInfo shape fields`
+  - 切片：`SDK-14`
+  - 说明：计划补齐 `accountInfo()` 官方常用兼容字段子集，并保持现有字段向后兼容。
