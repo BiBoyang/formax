@@ -975,6 +975,12 @@ export function query(args: QueryArgs): Query {
   queryIterator.toggleMcpServer = async () => {
     throw new Error('query.toggleMcpServer is not supported in Formax SDK yet')
   }
+  queryIterator.streamInput = async () => {
+    throw new Error('query.streamInput is not supported in Formax SDK yet')
+  }
+  queryIterator.stopTask = async () => {
+    throw new Error('query.stopTask is not supported in Formax SDK yet')
+  }
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true

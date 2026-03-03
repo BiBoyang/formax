@@ -11,7 +11,7 @@ Package-level re-export entry:
 - `src/sdk/index.ts`
 
 Exported function set:
-- `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + MCP control methods + control methods)
+- `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + MCP control methods + task control methods + control methods)
 - `listSessions(options?): Promise<SDKSessionInfo[]>`
 - `getSessionMessages(sessionId, options?): Promise<SessionMessage[]>`
 - `unstable_v2_createSession(options): SDKSession`
@@ -57,7 +57,7 @@ if (sessions.length > 0) {
 
 Implemented and available now:
 - Query streaming (`query`)
-- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
+- Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput/stopTask` (currently explicit unsupported) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; unsupported ones fail explicitly)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
@@ -105,6 +105,8 @@ These remain out of scope for SDK phase-1:
 - `query(...).setMcpServers()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).reconnectMcpServer()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).toggleMcpServer()` capability data (method exists but currently returns explicit unsupported error)
+- `query(...).streamInput()` capability data (method exists but currently returns explicit unsupported error)
+- `query(...).stopTask()` capability data (method exists but currently returns explicit unsupported error)
 - `hooks`
 - `canUseTool`
 - `plugins`

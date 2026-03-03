@@ -268,6 +268,8 @@ export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   setMcpServers(servers: Record<string, unknown>): Promise<void>
   reconnectMcpServer(serverName: string): Promise<void>
   toggleMcpServer(serverName: string, enabled: boolean): Promise<void>
+  streamInput(stream: AsyncIterable<SDKUserMessage>): Promise<void>
+  stopTask(taskId: string): Promise<void>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

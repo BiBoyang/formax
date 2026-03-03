@@ -148,6 +148,10 @@
   - 切片：`QRY-36`
   - 说明：为 `Query` 增加 `mcpServerStatus()`，当前能力下返回显式“不支持”错误语义。
 
-- `[pending]` `feat(sdk): align query MCP control methods`
+- `7bca16c` `feat(sdk): align query MCP control methods`
   - 切片：`QRY-37`
   - 说明：为 `Query` 增加 `setMcpServers/reconnectMcpServer/toggleMcpServer()`，当前能力下返回显式“不支持”错误语义。
+
+- `[pending]` `feat(sdk): align query task control methods`
+  - 切片：`QRY-38`
+  - 说明：为 `Query` 增加 `streamInput()/stopTask()`，当前能力下返回显式“不支持”错误语义。

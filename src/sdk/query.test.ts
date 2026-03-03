@@ -1014,6 +1014,30 @@ describe('sdk query()', () => {
     )
   })
 
+  it('exposes streamInput() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'stream input',
+    })
+
+    async function* inputStream() {
+      yield { role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] }
+    }
+
+    await expect(queryIterator.streamInput(inputStream())).rejects.toThrow(
+      'query.streamInput is not supported in Formax SDK yet',
+    )
+  })
+
+  it('exposes stopTask() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'stop task',
+    })
+
+    await expect(queryIterator.stopTask('task-1')).rejects.toThrow(
+      'query.stopTask is not supported in Formax SDK yet',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)
