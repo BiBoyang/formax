@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `0fce229` `feat(sdk): align accountInfo apiKeySource semantics`
+  - 切片：`SDK-15`、`TYP-01`
+  - 说明：将 `accountInfo.apiKeySource` 收紧到官方兼容语义（`env -> temporary`、`config -> user`），保留 `tokenSource` 作为 Formax 来源细节；新增 `ApiKeySource` 类型并将 `AccountInfo.apiKeySource` 与其建立兼容关联，补齐类型/校验/测试与导出文档。
+
 - `765a479` `feat(sdk): expand accountInfo compatibility fields`
   - 切片：`SDK-14`
   - 说明：`query.accountInfo()` 在保留既有 `provider/model/baseUrl/hasApiKey` 字段的基础上，补齐官方常用兼容字段子集（`tokenSource/apiKeySource`）并扩展类型与输出校验，附带回归测试与对齐文档更新。
