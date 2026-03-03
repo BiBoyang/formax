@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-31`：对齐 Query 控制方法 `initializationResult()`（先支持返回 init 快照，补测试与文档）。
+- [ ] `QRY-32`：对齐 Query 能力探测方法 `supportedCommands()`（仅返回已支持命令清单，补类型/校验/测试/文档）。
 
 ## 再生规则（当“当前待办”为空时）
 

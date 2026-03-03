@@ -112,10 +112,9 @@
   - 切片：`QRY-29`
   - 说明：接收 `plugins/settingSources/onElicitation` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query pre-start control methods`
+- `34f3d3d` `feat(sdk): align query pre-start control methods`
   - 切片：`QRY-30`
   - 说明：为 `Query` 增加 `setModel/setPermissionMode/setMaxThinkingTokens` 启动前覆盖能力，并在启动后拒绝修改。
-  - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`
   - 切片：`SES-01`
@@ -124,3 +123,7 @@
 - `ca4c333` `feat(sdk): enrich session list metadata safely`
   - 切片：`SES-02`
   - 说明：补齐 `firstPrompt/fileSize` 元数据与容错，并更新测试与文档。
+
+- `[pending]` `feat(sdk): align query initializationResult method`
+  - 切片：`QRY-31`
+  - 说明：为 `Query` 增加 `initializationResult()`（含 pre-start close 中止路径），并补测试与文档。

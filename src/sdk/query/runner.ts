@@ -16,6 +16,7 @@ import type {
   QueryOptions,
   QueryMessage,
   ResultMessage,
+  SystemMessage,
   ThinkingConfig,
   SystemPromptPresetInput,
   SystemPromptInput,
@@ -748,6 +749,10 @@ function emitMessage(args: {
 
 type QueryControlState = {
   started: boolean
+  initSettled: boolean
+  initializationPromise: Promise<SystemMessage>
+  resolveInitialization: (value: SystemMessage) => void
+  rejectInitialization: (reason: unknown) => void
   hasModelOverride: boolean
   modelOverride?: string
   hasPermissionModeOverride: boolean
@@ -786,10 +791,35 @@ function applyQueryControlOverrides(
   return next
 }
 
+function resolveInitializationOnce(state: QueryControlState, message: SystemMessage): void {
+  if (state.initSettled) return
+  state.initSettled = true
+  state.resolveInitialization(message)
+}
+
+function rejectInitializationOnce(state: QueryControlState, error: unknown): void {
+  if (state.initSettled) return
+  state.initSettled = true
+  state.rejectInitialization(error)
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
+  let resolveInitialization: (value: SystemMessage) => void = () => {}
+  let rejectInitialization: (reason: unknown) => void = () => {}
+  const initializationPromise = new Promise<SystemMessage>((resolve, reject) => {
+    resolveInitialization = resolve
+    rejectInitialization = reject
+  })
+  // Most callers do not consume initializationResult(); prevent unhandled rejection noise
+  // while preserving rejection semantics for explicit awaiters.
+  void initializationPromise.catch(() => {})
   const controlState: QueryControlState = {
     started: false,
+    initSettled: false,
+    initializationPromise,
+    resolveInitialization,
+    rejectInitialization,
     hasModelOverride: false,
     modelOverride: undefined,
     hasPermissionModeOverride: false,
@@ -799,15 +829,22 @@ export function query(args: QueryArgs): Query {
   }
   const iterator = runQuery(args, interruptController, controlState)
   const queryIterator = iterator as Query
-  const abortQuery = () => {
+  const abortQuery = (methodName: 'query.close' | 'query.interrupt') => {
     interruptController.abort()
+    if (!controlState.started) {
+      rejectInitializationOnce(
+        controlState,
+        new Error(`${methodName} was called before query iteration started`),
+      )
+    }
   }
   queryIterator.interrupt = async () => {
-    abortQuery()
+    abortQuery('query.interrupt')
   }
   queryIterator.close = () => {
-    abortQuery()
+    abortQuery('query.close')
   }
+  queryIterator.initializationResult = async () => controlState.initializationPromise
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true
@@ -1012,17 +1049,19 @@ async function* runQuery(
           : filteredTools,
       )
 
+      const initMessage: SystemMessage = {
+        type: 'system',
+        subtype: 'init',
+        session_id: sessionId,
+        cwd,
+        model,
+        tools,
+      }
+      resolveInitializationOnce(controlState, initMessage)
       emitMessage({
         emit: queue.push,
         callback: options.onMessage,
-        message: {
-          type: 'system',
-          subtype: 'init',
-          session_id: sessionId,
-          cwd,
-          model,
-          tools,
-        },
+        message: initMessage,
       })
 
       const defaultSystem = buildSystemPrompt({
@@ -1226,7 +1265,9 @@ async function* runQuery(
         message: resultMessage,
       })
     } catch (error) {
-      const message = asValidationError(error, 'Invalid query arguments or runtime event').message
+      const validationError = asValidationError(error, 'Invalid query arguments or runtime event')
+      rejectInitializationOnce(controlState, validationError)
+      const message = validationError.message
       const safeHistory = (() => {
         try {
           return parsePromptHistory(nextHistory)

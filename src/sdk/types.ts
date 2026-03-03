@@ -218,9 +218,12 @@ export type QueryMessage =
   | AssistantMessage
   | ResultMessage
 
+export type QueryInitializationResult = SystemMessage
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
+  initializationResult(): Promise<QueryInitializationResult>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

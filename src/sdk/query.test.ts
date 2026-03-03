@@ -725,6 +725,65 @@ describe('sdk query()', () => {
     }
   })
 
+  it('supports initializationResult() with init snapshot', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'init snapshot',
+    })
+    const initPromise = queryIterator.initializationResult()
+    const messages = await collectFromIterator(queryIterator)
+    const init = await initPromise
+
+    expect(init.type).toBe('system')
+    expect(init.subtype).toBe('init')
+    expect(typeof init.session_id).toBe('string')
+    expect(init.cwd.length).toBeGreaterThan(0)
+    expect(init.tools.length).toBeGreaterThan(0)
+
+    const first = messages[0]
+    expect(first?.type).toBe('system')
+    if (first?.type === 'system') {
+      expect(first.session_id).toBe(init.session_id)
+      expect(first.model).toBe(init.model)
+      expect(first.cwd).toBe(init.cwd)
+    }
+  })
+
+  it('rejects initializationResult() when query fails before init', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'invalid init request',
+      options: {
+        maxTurns: 0 as any,
+      },
+    })
+    const initPromise = queryIterator.initializationResult()
+    const messages = await collectFromIterator(queryIterator)
+
+    await expect(initPromise).rejects.toThrow('Invalid query arguments or runtime event')
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+    }
+  })
+
+  it('rejects initializationResult() when query is closed before iteration starts', async () => {
+    const queryIterator = query({
+      prompt: 'close before start',
+    })
+
+    const initPromise = queryIterator.initializationResult()
+    queryIterator.close()
+
+    await expect(initPromise).rejects.toThrow('query.close was called before query iteration started')
+    expect(state.createRuntime).not.toHaveBeenCalled()
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)
