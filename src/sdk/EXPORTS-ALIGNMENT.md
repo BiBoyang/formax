@@ -1,0 +1,52 @@
+# Formax SDK Exports Alignment (Phase 1)
+
+需求来源：
+- `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
+
+说明：
+- 本文档仅记录“当前已对齐/已暴露”的 SDK 导出状态。
+- 不做 `@anthropic-ai/claude-agent-sdk` 全量 1:1 映射。
+- 未支持能力不做占位实现；若已暴露同名方法，则应明确“显式未支持”语义。
+
+## Top-level Exports
+
+| 官方导出 | Formax SDK | 状态 | 备注 |
+|---|---|---|---|
+| `query` | `query` | Supported | Query 句柄方法已收口，部分高级方法为显式未支持语义。 |
+| `getSessionMessages` | `getSessionMessages` | Supported | 复用本地 session reader 能力。 |
+| `listSessions` | `listSessions` | Supported | 复用本地 session reader 能力。 |
+| `unstable_v2_createSession` | `unstable_v2_createSession` | Supported | in-process session。 |
+| `unstable_v2_resumeSession` | `unstable_v2_resumeSession` | Supported | in-process resume 语义。 |
+| `unstable_v2_prompt` | `unstable_v2_prompt` | Supported | 单次 prompt facade。 |
+| `HOOK_EVENTS` | `HOOK_EVENTS` | Supported | 按当前 hooks 能力导出子集。 |
+| `EXIT_REASONS` | `EXIT_REASONS` | Supported | 常量子集导出。 |
+| `AbortError` | `AbortError` | Supported | SDK 统一中断错误类型。 |
+| `createSdkMcpServer` | - | Not Supported | 本期不实现。 |
+| `tool` | - | Not Supported | 本期不实现。 |
+
+## Query Handle Methods
+
+| 官方 Query 方法 | Formax SDK | 状态 | 备注 |
+|---|---|---|---|
+| `interrupt` | `interrupt` | Supported | 已支持。 |
+| `close` | `close` | Supported | 已支持。 |
+| `initializationResult` | `initializationResult` | Supported | 已支持。 |
+| `setModel` | `setModel` | Supported | 启动前覆盖。 |
+| `setPermissionMode` | `setPermissionMode` | Supported | 启动前覆盖。 |
+| `setMaxThinkingTokens` | `setMaxThinkingTokens` | Supported | 启动前覆盖。 |
+| `supportedCommands` | `supportedCommands` | Supported | 返回当前 slash command 子集。 |
+| `supportedAgents` | `supportedAgents` | Supported | 返回当前子代理子集。 |
+| `supportedModels` | `supportedModels` | Supported | 返回 provider 可用模型子集。 |
+| `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集。 |
+| `mcpServerStatus` | `mcpServerStatus` | Partial | 显式未支持。 |
+| `setMcpServers` | `setMcpServers` | Partial | 显式未支持。 |
+| `reconnectMcpServer` | `reconnectMcpServer` | Partial | 显式未支持。 |
+| `toggleMcpServer` | `toggleMcpServer` | Partial | 显式未支持。 |
+| `streamInput` | `streamInput` | Partial | 显式未支持。 |
+| `stopTask` | `stopTask` | Partial | 显式未支持。 |
+| `rewindFiles` | `rewindFiles` | Partial | 显式未支持。 |
+
+## Note
+
+- 更完整的 options 字段对齐请参考：
+  - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`

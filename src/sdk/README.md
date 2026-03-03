@@ -123,6 +123,8 @@ These remain out of scope for SDK phase-1:
 
 - Query contract alignment matrix:
   - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`
+- SDK exports alignment index:
+  - `src/sdk/EXPORTS-ALIGNMENT.md`
 - Exports source reference:
   - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
 

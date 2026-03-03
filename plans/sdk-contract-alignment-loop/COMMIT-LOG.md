@@ -172,6 +172,10 @@
   - 切片：`SDK-03`
   - 说明：新增 `EXIT_REASONS` 常量导出，并补测试与文档。
 
-- `[pending]` `feat(sdk): align HookEvent and ExitReason types`
+- `a3887eb` `feat(sdk): align HookEvent and ExitReason types`
   - 切片：`SDK-04`
   - 说明：新增 `HookEvent/ExitReason` 类型导出，并确保与常量导出保持一致。
+
+- `[pending]` `docs(sdk): add exports alignment index`
+  - 切片：`SDK-05`
+  - 说明：新增 SDK 导出对齐索引文档，并在 README 增加入口链接。
