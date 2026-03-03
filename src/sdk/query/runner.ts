@@ -43,6 +43,7 @@ import {
   parseToolDefinitions,
 } from '../validation.js'
 import { handleInputRequestEvent } from './inputRequests.js'
+import { resolveQueryResumeResolution } from './resume.js'
 import {
   buildStructuredOutputRetryPrompt,
   buildStructuredOutputSystemPrompt,
@@ -221,28 +222,6 @@ function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
 function assertEffortOptionSupported(effort?: 'low' | 'medium' | 'high' | 'max'): void {
   if (effort === undefined) return
   throw new Error(`options.effort (${effort}) is not supported in Formax SDK yet`)
-}
-
-function assertResumeOptionsSupported(args: {
-  resume?: string
-  sessionId?: string
-  resumeSessionAt?: string
-}): void {
-  if (args.resume !== undefined) {
-    throw new Error(
-      `options.resume (${args.resume}) is not supported in Formax SDK yet`,
-    )
-  }
-  if (args.sessionId !== undefined) {
-    throw new Error(
-      `options.sessionId (${args.sessionId}) is not supported in Formax SDK yet`,
-    )
-  }
-  if (args.resumeSessionAt !== undefined) {
-    throw new Error(
-      `options.resumeSessionAt (${args.resumeSessionAt}) is not supported in Formax SDK yet`,
-    )
-  }
 }
 
 function assertDebugOptionsSupported(args: {
@@ -1054,7 +1033,7 @@ async function* runQuery(
   interruptController: AbortController,
   controlState: QueryControlState,
 ): AsyncGenerator<QueryMessage, void, unknown> {
-  const sessionId = randomUUID()
+  let sessionId: string = randomUUID()
   const startedAt = Date.now()
   const queue = createAsyncIteratorQueue<QueryMessage>()
   const controller = interruptController
@@ -1102,11 +1081,6 @@ async function* runQuery(
       assertEffortOptionSupported(options.effort)
       assertMaxTurnsSupported(options.maxTurns)
       assertMaxBudgetUsdSupported(options.maxBudgetUsd)
-      assertResumeOptionsSupported({
-        resume: options.resume,
-        sessionId: options.sessionId,
-        resumeSessionAt: options.resumeSessionAt,
-      })
       assertDebugOptionsSupported({
         debug: options.debug,
         debugFile: options.debugFile,
@@ -1158,6 +1132,14 @@ async function* runQuery(
         settingSources: options.settingSources,
         onElicitation: options.onElicitation,
       })
+      const resumeResolution = await resolveQueryResumeResolution({
+        options,
+        cwd,
+        env,
+      })
+      if (resumeResolution.sessionId !== null) {
+        sessionId = resumeResolution.sessionId
+      }
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
         maxThinkingTokens: options.maxThinkingTokens,
@@ -1165,7 +1147,7 @@ async function* runQuery(
       })
       const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
       runSignal = combineSignals(externalSignal, controller.signal)
-      const baseHistory = cloneHistory(parsedArgs.history)
+      const baseHistory = [...resumeResolution.history, ...cloneHistory(parsedArgs.history)]
       const normalizedPrompt = await resolvePromptInput({
         prompt: parsedArgs.prompt,
         history: baseHistory,

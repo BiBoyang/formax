@@ -1,6 +1,6 @@
 # Query Contract Alignment Matrix
 
-更新时间：2026-03-03  
+更新时间：2026-03-04  
 需求来源：`plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`（`query` 与 `Options` 章节）
 
 ## 目标与边界
@@ -52,7 +52,7 @@
 | `mcpServers` | `options.mcpServers` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `plugins` | `options.plugins` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `settingSources` | `options.settingSources` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | `resume/sessionId` 已支持（基于本地持久化会话恢复历史）；`resumeSessionAt` 仍显式报“暂不支持”。 |
 | `agent`/`agents` | `options.agent` / `options.agents` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `tools`（preset 语义） | `options.tools` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `sandbox` | `options.sandbox` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

@@ -8,11 +8,18 @@ import type { QueryArgs, QueryMessage, QueryOptions, SDKUserMessage } from './ty
 const { state } = vi.hoisted(() => ({
   state: {
     createRuntime: vi.fn(),
+    findSessionFileBySessionId: vi.fn(),
+    readSessionFile: vi.fn(),
   },
 }))
 
 vi.mock('../runtime/createRuntime.js', () => ({
   createRuntime: (args: unknown) => state.createRuntime(args),
+}))
+
+vi.mock('../features/repl/sessionSave/reader.js', () => ({
+  findSessionFileBySessionId: (args: unknown) => state.findSessionFileBySessionId(args),
+  readSessionFile: (args: unknown) => state.readSessionFile(args),
 }))
 
 function createTool(name: string): ToolDefinition {
@@ -96,6 +103,8 @@ async function collectFromIterator(iterator: AsyncGenerator<QueryMessage, void, 
 describe('sdk query()', () => {
   beforeEach(() => {
     state.createRuntime.mockReset()
+    state.findSessionFileBySessionId.mockReset()
+    state.readSessionFile.mockReset()
   })
 
   it('emits init, stream events, assistant, and success result with aggregated usage', async () => {
@@ -1502,23 +1511,68 @@ describe('sdk query()', () => {
     }
   })
 
-  it.each([
-    {
-      label: 'resume',
+  it('restores persisted history when options.resume is provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.role).toBe('user')
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
+      expect(turnArgs.history[1]?.role).toBe('assistant')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('persisted assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'resume prompt',
       options: { resume: 'session-abc' },
-      expected: 'options.resume',
-    },
-    {
-      label: 'sessionId',
-      options: { sessionId: 'session-abc' },
-      expected: 'options.sessionId',
-    },
-    {
-      label: 'resumeSessionAt',
-      options: { resumeSessionAt: 'session-abc' },
-      expected: 'options.resumeSessionAt',
-    },
-  ])('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    })
+
+    expect(state.findSessionFileBySessionId).toHaveBeenCalledTimes(1)
+    expect(state.readSessionFile).toHaveBeenCalledTimes(1)
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(messages[0]?.type).toBe('system')
+    if (messages[0]?.type === 'system') {
+      expect(messages[0].session_id).toBe('session-abc')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('session-abc')
+    }
+  })
+
+  it('uses options.sessionId when resume is not provided', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'custom session id',
+      options: { sessionId: 'custom-session-id' },
+    })
+
+    expect(state.findSessionFileBySessionId).not.toHaveBeenCalled()
+    expect(messages[0]?.type).toBe('system')
+    if (messages[0]?.type === 'system') {
+      expect(messages[0].session_id).toBe('custom-session-id')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('custom-session-id')
+    }
+  })
+
+  it('returns explicit unsupported error when resumeSessionAt is provided', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -1526,8 +1580,8 @@ describe('sdk query()', () => {
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'resume-like option unsupported',
-      options,
+      prompt: 'resumeSessionAt unsupported',
+      options: { resumeSessionAt: 'message-123' },
     })
 
     expect(runTurn).not.toHaveBeenCalled()
@@ -1535,14 +1589,15 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
+      expect(result.error).toContain('options.resumeSessionAt')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })
 
-  it('fails fast on unsupported resume option before draining async prompt stream', async () => {
+  it('fails fast when options.resume session is missing before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue(null)
     let nextCalls = 0
 
     const promptStream: AsyncIterable<SDKUserMessage> = {
@@ -1574,7 +1629,29 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('options.resume')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.error).toContain('is not available in local session storage')
+    }
+  })
+
+  it('returns explicit error when options.resume and options.sessionId conflict', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'resume conflict',
+      options: {
+        resume: 'session-a',
+        sessionId: 'session-b',
+      },
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.sessionId')
+      expect(result.error).toContain('conflicts with options.resume')
     }
   })
 

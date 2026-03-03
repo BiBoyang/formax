@@ -7,11 +7,18 @@ import type { QueryArgs, QueryMessage } from './types.js'
 const { state } = vi.hoisted(() => ({
   state: {
     createRuntime: vi.fn(),
+    findSessionFileBySessionId: vi.fn(),
+    readSessionFile: vi.fn(),
   },
 }))
 
 vi.mock('../runtime/createRuntime.js', () => ({
   createRuntime: (args: unknown) => state.createRuntime(args),
+}))
+
+vi.mock('../features/repl/sessionSave/reader.js', () => ({
+  findSessionFileBySessionId: (args: unknown) => state.findSessionFileBySessionId(args),
+  readSessionFile: (args: unknown) => state.readSessionFile(args),
 }))
 
 function createTool(name: string): ToolDefinition {
@@ -62,6 +69,8 @@ async function collectMessages(args: QueryArgs): Promise<QueryMessage[]> {
 describe('sdk query option alignment regressions', () => {
   beforeEach(() => {
     state.createRuntime.mockReset()
+    state.findSessionFileBySessionId.mockReset()
+    state.readSessionFile.mockReset()
   })
 
   it('keeps permissionMode mapping to replMode', async () => {
@@ -245,11 +254,22 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps resume compatibility behavior via explicit unsupported error', async () => {
+  it('keeps resume compatibility behavior via persisted history restore', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('persisted user')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('persisted assistant')
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
 
     const messages = await collectMessages({
       prompt: 'resume compatibility',
@@ -258,13 +278,12 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.resume')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('session-abc')
     }
   })
 
