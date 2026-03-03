@@ -252,12 +252,7 @@ function resolveThinkingEnabled(args: {
 }
 
 function assertMaxTurnsSupported(maxTurns?: number): void {
-  if (maxTurns === undefined) return
-  if (maxTurns > 1) {
-    throw new Error(
-      `options.maxTurns (${maxTurns}) is not supported in Formax SDK yet (only maxTurns=1 is currently supported)`,
-    )
-  }
+  void maxTurns
 }
 
 function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {

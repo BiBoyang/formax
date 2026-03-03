@@ -219,7 +219,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps maxTurns compatibility behavior for maxTurns=1', async () => {
+  it('keeps maxTurns compatibility behavior via compatibility no-op handling', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -228,7 +228,7 @@ describe('sdk query option alignment regressions', () => {
     const messages = await collectMessages({
       prompt: 'maxTurns compatibility',
       options: {
-        maxTurns: 1,
+        maxTurns: 3,
       },
     })
 
