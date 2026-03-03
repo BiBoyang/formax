@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `37da31b` `feat(sdk,tools,streaming): support canUseTool input handling`
+  - 切片：`QRY-65`、`QRY-66`、`QRY-67`
+  - 说明：`query` 正式支持 `options.canUseTool`（统一处理 `approval_request` 与 `ask_user_question`），并移除 SDK 对外 `onInputRequest`；补齐 `PermissionResult/PermissionUpdate/CanUseTool` 类型与返回校验；扩展 `approval_request` 事件上下文（`blockedPath`/`decisionReason`）并补测试、文档与对齐矩阵。
+
 - `6cbcabf` `feat(sdk): return structured rewindFiles fallback`
   - 切片：`QRY-64`
   - 说明：`query.rewindFiles()` 从抛错改为返回结构化不支持结果（`canRewind=false` + `error`），以稳定方法契约并保持当前能力边界。
