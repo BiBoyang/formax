@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fsp from 'node:fs/promises'
 import {
   listRecentSessions,
   readSessionFile,
@@ -26,8 +27,93 @@ function resolveLookupCwd(dir?: string): string {
 }
 
 const SESSION_LOOKUP_LIMIT = 800
+const LIST_SESSIONS_ENRICH_CONCURRENCY = 8
+const FIRST_PROMPT_TAIL_BYTES = 256 * 1024
 
-function toSDKSessionInfo(summary: {
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return []
+  const results = new Array<R>(items.length)
+  const concurrency = Math.max(1, Math.min(limit, items.length))
+  let cursor = 0
+
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (true) {
+      const index = cursor
+      cursor += 1
+      if (index >= items.length) return
+      results[index] = await mapper(items[index], index)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
+async function resolveSessionFileSize(filePath: string): Promise<number> {
+  const stat = await fsp.stat(filePath)
+  const size = Number((stat as { size?: unknown }).size)
+  if (!Number.isFinite(size) || size < 0) return 0
+  return Math.floor(size)
+}
+
+async function readTailText(filePath: string, maxBytes: number): Promise<string> {
+  const handle = await fsp.open(filePath, 'r')
+  try {
+    const stat = await handle.stat()
+    const size = Number((stat as { size?: unknown }).size)
+    if (!Number.isFinite(size) || size <= 0) return ''
+    const start = Math.max(0, size - maxBytes)
+    const len = size - start
+    const buf = Buffer.alloc(len)
+    await handle.read(buf, 0, len, start)
+    return buf.toString('utf8')
+  } finally {
+    await handle.close().catch(() => undefined)
+  }
+}
+
+function readFirstUserPromptFromTail(tail: string): string | undefined {
+  if (!tail) return undefined
+
+  const lines = tail
+    .split('\n')
+    .map((line) => String(line).trimEnd())
+    .filter(Boolean)
+  for (let idx = lines.length - 1; idx >= 0; idx -= 1) {
+    const line = lines[idx]
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (!parsed || typeof parsed !== 'object') continue
+    const type = (parsed as { type?: unknown }).type
+    if (type !== 'event') continue
+    const name = (parsed as { name?: unknown }).name
+    if (name !== 'ui_stats') continue
+    const data = (parsed as { data?: unknown }).data
+    if (!data || typeof data !== 'object') continue
+    const firstUserPrompt = (data as { firstUserPrompt?: unknown }).firstUserPrompt
+    if (typeof firstUserPrompt !== 'string') continue
+    const normalized = firstUserPrompt.trim()
+    if (normalized) return normalized
+  }
+
+  return undefined
+}
+
+async function resolveFirstUserPrompt(filePath: string): Promise<string | undefined> {
+  const tail = await readTailText(filePath, FIRST_PROMPT_TAIL_BYTES)
+  return readFirstUserPromptFromTail(tail)
+}
+
+function toBaseSDKSessionInfo(summary: {
+  filePath: string
   meta: { sessionId: string; cwd: string; gitBranch?: string }
   updatedAt: Date
   lastUserPrompt: string | null
@@ -36,17 +122,34 @@ function toSDKSessionInfo(summary: {
   const promptSummary = summary.lastUserPrompt?.trim() ?? ''
   const label = summary.label?.trim() ?? ''
   const title = label || promptSummary
+
   const out: SDKSessionInfo = {
     sessionId: summary.meta.sessionId,
     summary: title,
     lastModified: summary.updatedAt.getTime(),
-    // Current session reader does not provide file size directly.
     fileSize: 0,
   }
 
   if (label) out.customTitle = label
   if (summary.meta.gitBranch) out.gitBranch = summary.meta.gitBranch
   if (summary.meta.cwd) out.cwd = summary.meta.cwd
+  return out
+}
+
+async function enrichSDKSessionInfo(args: {
+  summary: {
+    filePath: string
+    meta: { sessionId: string; cwd: string; gitBranch?: string }
+    updatedAt: Date
+    lastUserPrompt: string | null
+    label: string | null
+  }
+  base: SDKSessionInfo
+}): Promise<SDKSessionInfo> {
+  const out: SDKSessionInfo = { ...args.base }
+  out.fileSize = await resolveSessionFileSize(args.summary.filePath)
+  const firstPrompt = await resolveFirstUserPrompt(args.summary.filePath)
+  if (firstPrompt) out.firstPrompt = firstPrompt
   return out
 }
 
@@ -85,7 +188,19 @@ export async function listSessions(options: ListSessionsOptions = {}): Promise<S
 
   try {
     const parsedSummaries = parseRawSessionSummaryListOutput(rawSummaries)
-    const mapped = parsedSummaries.map((summary) => toSDKSessionInfo(summary))
+    const mapped = await mapWithConcurrency(
+      parsedSummaries,
+      LIST_SESSIONS_ENRICH_CONCURRENCY,
+      async (summary) => {
+        const base = toBaseSDKSessionInfo(summary)
+        try {
+          return await enrichSDKSessionInfo({ summary, base })
+        } catch {
+          // Keep listSessions resilient: one damaged/stale session file should not hide others.
+          return base
+        }
+      },
+    )
     return parseSDKSessionInfoListOutput(mapped)
   } catch (error) {
     throw asValidationError(error, 'Invalid listSessions output')

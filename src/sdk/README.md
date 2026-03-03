@@ -133,8 +133,9 @@ Result subtypes:
 - `listSessions` is scoped by `options.dir` (or current working directory when omitted).
 - `getSessionMessages` resolves `sessionId` within the same `options.dir` scope.
 - `getSessionMessages` currently returns user/assistant prompt history messages.
-- `SDKSessionInfo.firstPrompt` is currently not populated in this phase.
-- `SDKSessionInfo.fileSize` is currently `0` in this phase (metadata-only mapping).
+- `SDKSessionInfo.firstPrompt` is derived from `ui_stats.firstUserPrompt` in session tail events.
+- `SDKSessionInfo.fileSize` uses filesystem bytes from the session file.
+- If a session file cannot be read during enrichment, `listSessions` keeps the entry with base fields.
 
 ## Internal Layout (for contributors)
 
