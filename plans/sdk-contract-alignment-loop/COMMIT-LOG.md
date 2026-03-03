@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `4d6657c` `feat(sdk): refine canUseTool updatedPermissions mapping`
+  - 切片：`QRY-69`
+  - 说明：收紧 `updatedPermissions -> approval answers` 映射：仅对当前可表达更新类型触发 `approve_remember`，并按 destination 映射 scope；遇到不可表达更新或 mixed-destination 时降级为一次性 `approve`，避免 scope 放大。
+
 - `0765a28` `feat(sdk,tools): apply safe updatedInput flow for canUseTool`
   - 切片：`QRY-68`
   - 说明：`canUseTool.updatedInput` 在 `approval_request` 下可受控回写执行入参；SDK 侧新增 `updated_input_json` 映射，执行侧补齐策略重校验（policy deny / permission deny / bash deny + fs 路径变更约束），并修复审计日志动作与最终执行动作一致性。
