@@ -10,6 +10,8 @@ const { state } = vi.hoisted(() => ({
     findLatestSessionFile: vi.fn(),
     findSessionFileBySessionId: vi.fn(),
     readSessionFile: vi.fn(),
+    createSessionWriter: vi.fn(),
+    openSessionWriter: vi.fn(),
   },
 }))
 
@@ -23,11 +25,27 @@ vi.mock('../features/repl/sessionSave/reader.js', () => ({
   readSessionFile: (args: unknown) => state.readSessionFile(args),
 }))
 
+vi.mock('../features/repl/sessionSave/writer.js', () => ({
+  SessionWriter: {
+    createNew: (args: unknown) => state.createSessionWriter(args),
+    openExisting: (args: unknown) => state.openSessionWriter(args),
+  },
+}))
+
 function createTool(name: string): ToolDefinition {
   return {
     name,
     description: `${name} tool`,
     input_schema: { type: 'object' },
+  }
+}
+
+function createSessionWriterFixture() {
+  return {
+    appendEvent: vi.fn(async () => {}),
+    appendHistorySnapshot: vi.fn(async () => {}),
+    appendStableMsg: vi.fn(async () => {}),
+    shutdown: vi.fn(async () => {}),
   }
 }
 
@@ -74,6 +92,14 @@ describe('sdk query option alignment regressions', () => {
     state.findLatestSessionFile.mockReset()
     state.findSessionFileBySessionId.mockReset()
     state.readSessionFile.mockReset()
+    state.createSessionWriter.mockReset()
+    state.openSessionWriter.mockReset()
+    state.createSessionWriter.mockImplementation(async (args: any) => ({
+      writer: createSessionWriterFixture(),
+      meta: { sessionId: String(args?.sessionId ?? 'sdk-session') },
+      filePath: '/tmp/sdk-session.jsonl',
+    }))
+    state.openSessionWriter.mockImplementation(async () => createSessionWriterFixture())
   })
 
   it('keeps permissionMode mapping to replMode', async () => {
@@ -461,11 +487,17 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps persistSession compatibility behavior via explicit unsupported error', async () => {
+  it('keeps persistSession compatibility behavior via session persistence', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    const writer = createSessionWriterFixture()
+    state.createSessionWriter.mockResolvedValue({
+      writer,
+      meta: { sessionId: 'persisted-session-id' },
+      filePath: '/tmp/persisted-session.jsonl',
+    })
 
     const messages = await collectMessages({
       prompt: 'persistSession compatibility',
@@ -474,13 +506,14 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(state.createSessionWriter).toHaveBeenCalledTimes(1)
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.persistSession')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('persisted-session-id')
     }
   })
 

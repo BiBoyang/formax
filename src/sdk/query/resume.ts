@@ -14,6 +14,7 @@ import {
 type QueryResumeResolution = {
   sessionId: string | null
   history: PromptMessage[]
+  sessionFilePath: string | null
 }
 
 function parseOptionalSessionId(value: string | undefined): string | null {
@@ -42,6 +43,7 @@ async function loadReplayFromFile(args: { filePath: string; context: string }): 
     return {
       sessionId: replay.sessionId,
       history: clonePromptHistory(replay.history),
+      sessionFilePath: args.filePath,
     }
   } catch (error) {
     throw asValidationError(error, `Invalid ${args.context} session data in ${args.filePath}`)
@@ -90,6 +92,7 @@ export async function resolveQueryResumeResolution(args: {
       return {
         sessionId: null,
         history: [],
+        sessionFilePath: null,
       }
     }
 
@@ -103,6 +106,7 @@ export async function resolveQueryResumeResolution(args: {
     return {
       sessionId: requestedSessionId,
       history: [],
+      sessionFilePath: null,
     }
   }
 
@@ -139,5 +143,6 @@ export async function resolveQueryResumeResolution(args: {
   return {
     sessionId: requestedSessionId ?? resumeSessionId,
     history: resumed.history,
+    sessionFilePath: resumed.sessionFilePath,
   }
 }

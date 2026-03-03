@@ -78,7 +78,7 @@ Implemented and available now:
 - Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` currently fails explicitly as unsupported)
 - Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)
-- Query persistence alignment (`persistSession/forkSession/enableFileCheckpointing` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query persistence alignment (`persistSession` supported via local session persistence; `forkSession/enableFileCheckpointing` accepted as contract inputs and currently fail explicitly as unsupported)
 - Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query agent alignment (`agent/agents` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)

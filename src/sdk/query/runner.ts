@@ -45,6 +45,12 @@ import {
 import { handleInputRequestEvent } from './inputRequests.js'
 import { resolveQueryResumeResolution } from './resume.js'
 import {
+  initializeQuerySessionPersistence,
+  persistQueryTurn,
+  shutdownQuerySessionPersistence,
+  type QuerySessionPersistence,
+} from './persistence.js'
+import {
   buildStructuredOutputRetryPrompt,
   buildStructuredOutputSystemPrompt,
   parseAndValidateStructuredOutput,
@@ -370,11 +376,6 @@ function assertSessionPersistenceOptionsSupported(args: {
   forkSession?: boolean
   enableFileCheckpointing?: boolean
 }): void {
-  if (args.persistSession !== undefined) {
-    throw new Error(
-      `options.persistSession (${args.persistSession}) is not supported in Formax SDK yet`,
-    )
-  }
   if (args.forkSession !== undefined) {
     throw new Error(
       `options.forkSession (${args.forkSession}) is not supported in Formax SDK yet`,
@@ -1074,6 +1075,7 @@ async function* runQuery(
     controlState.started = true
     let runtime: Awaited<ReturnType<typeof createRuntime>> | null = null
     let restorePatchedStreamOnce: (() => void) | null = null
+    let sessionPersistence: QuerySessionPersistence | null = null
     let messageCallback: ((message: QueryMessage) => void) | undefined
     const pendingInputResolutions = new Set<Promise<void>>()
     let nextHistory: PromptMessage[] = []
@@ -1206,6 +1208,19 @@ async function* runQuery(
       runtime = runtime ?? await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
+      const shouldPersistSession = options.persistSession === true
+
+      sessionPersistence = await initializeQuerySessionPersistence({
+        enabled: shouldPersistSession,
+        sessionId,
+        sessionFilePath: resumeResolution.sessionFilePath,
+        cwd,
+        env,
+        model,
+      })
+      if (sessionPersistence) {
+        sessionId = sessionPersistence.sessionId
+      }
 
       restorePatchedStreamOnce = patchClientStreamOnce({
         runtime,
@@ -1454,6 +1469,16 @@ async function* runQuery(
           : {}),
       }
 
+      if (sessionPersistence) {
+        await persistQueryTurn({
+          persistence: sessionPersistence,
+          cwd,
+          prompt: normalizedPrompt.prompt,
+          assistantText: assistantMessage?.text ?? '',
+          history: nextHistory,
+        })
+      }
+
       emitMessage({
         emit: queue.push,
         callback: options.onMessage,
@@ -1501,6 +1526,7 @@ async function* runQuery(
       if (!runSignal.aborted && pendingInputResolutions.size > 0) {
         await Promise.allSettled(Array.from(pendingInputResolutions))
       }
+      await shutdownQuerySessionPersistence(sessionPersistence)
       restorePatchedStreamOnce?.()
     }
   })()

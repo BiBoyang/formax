@@ -11,6 +11,8 @@ const { state } = vi.hoisted(() => ({
     findLatestSessionFile: vi.fn(),
     findSessionFileBySessionId: vi.fn(),
     readSessionFile: vi.fn(),
+    createSessionWriter: vi.fn(),
+    openSessionWriter: vi.fn(),
   },
 }))
 
@@ -24,11 +26,27 @@ vi.mock('../features/repl/sessionSave/reader.js', () => ({
   readSessionFile: (args: unknown) => state.readSessionFile(args),
 }))
 
+vi.mock('../features/repl/sessionSave/writer.js', () => ({
+  SessionWriter: {
+    createNew: (args: unknown) => state.createSessionWriter(args),
+    openExisting: (args: unknown) => state.openSessionWriter(args),
+  },
+}))
+
 function createTool(name: string): ToolDefinition {
   return {
     name,
     description: `${name} tool`,
     input_schema: { type: 'object' },
+  }
+}
+
+function createSessionWriterFixture() {
+  return {
+    appendEvent: vi.fn(async () => {}),
+    appendHistorySnapshot: vi.fn(async () => {}),
+    appendStableMsg: vi.fn(async () => {}),
+    shutdown: vi.fn(async () => {}),
   }
 }
 
@@ -108,6 +126,14 @@ describe('sdk query()', () => {
     state.findLatestSessionFile.mockReset()
     state.findSessionFileBySessionId.mockReset()
     state.readSessionFile.mockReset()
+    state.createSessionWriter.mockReset()
+    state.openSessionWriter.mockReset()
+    state.createSessionWriter.mockImplementation(async (args: any) => ({
+      writer: createSessionWriterFixture(),
+      meta: { sessionId: String(args?.sessionId ?? 'sdk-session') },
+      filePath: '/tmp/sdk-session.jsonl',
+    }))
+    state.openSessionWriter.mockImplementation(async () => createSessionWriterFixture())
   })
 
   it('emits init, stream events, assistant, and success result with aggregated usage', async () => {
@@ -2225,11 +2251,6 @@ describe('sdk query()', () => {
   it.each(
     [
       {
-        label: 'persistSession',
-        options: { persistSession: true },
-        expected: 'options.persistSession',
-      },
-      {
         label: 'forkSession',
         options: { forkSession: true },
         expected: 'options.forkSession',
@@ -2262,7 +2283,93 @@ describe('sdk query()', () => {
     }
   })
 
-  it('fails fast on unsupported persistSession before draining async prompt stream', async () => {
+  it('persists query turn when persistSession is true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'persisted ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    const writer = createSessionWriterFixture()
+    state.createSessionWriter.mockResolvedValue({
+      writer,
+      meta: { sessionId: 'persisted-session-id' },
+      filePath: '/tmp/persisted-session.jsonl',
+    })
+
+    const messages = await collectMessages({
+      prompt: 'persist this turn',
+      options: {
+        persistSession: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(state.createSessionWriter).toHaveBeenCalledTimes(1)
+    expect(state.openSessionWriter).not.toHaveBeenCalled()
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
+    expect(writer.appendEvent).toHaveBeenCalledWith(
+      'ui_stats',
+      expect.objectContaining({
+        uiMsgCount: 2,
+        firstUserPrompt: 'persist this turn',
+        lastUserPrompt: 'persist this turn',
+      }),
+    )
+    expect(writer.shutdown).toHaveBeenCalledTimes(1)
+
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.session_id).toBe('persisted-session-id')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('persisted-session-id')
+    }
+  })
+
+  it('appends to resumed session file when persistSession is true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'resume persisted' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+      ],
+    })
+    const writer = createSessionWriterFixture()
+    state.openSessionWriter.mockResolvedValue(writer)
+
+    const messages = await collectMessages({
+      prompt: 'resume and persist',
+      options: {
+        resume: 'session-abc',
+        persistSession: true,
+      },
+    })
+
+    expect(state.openSessionWriter).toHaveBeenCalledWith({
+      filePath: '/tmp/resume-session.jsonl',
+    })
+    expect(state.createSessionWriter).not.toHaveBeenCalled()
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
+    expect(writer.shutdown).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('session-abc')
+    }
+  })
+
+  it('fails fast on unsupported forkSession before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
@@ -2284,7 +2391,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        persistSession: true,
+        forkSession: true,
       },
     })
 
@@ -2295,7 +2402,7 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.persistSession')
+      expect(result.error).toContain('options.forkSession')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })
