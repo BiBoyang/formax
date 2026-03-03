@@ -10,7 +10,6 @@ import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import type {
   AssistantMessage,
-  InputRequestMessage,
   PermissionMode,
   QueryArgs,
   QueryMessage,
@@ -19,8 +18,6 @@ import type {
 } from '../types.js'
 import {
   asValidationError,
-  parseApprovalInputResponse,
-  parseAskUserQuestionInputResponse,
   parsePromptHistory,
   parseQueryArgsInput,
   parseStopReason,
@@ -28,6 +25,7 @@ import {
   parseTokenUsage,
   parseToolDefinitions,
 } from '../validation.js'
+import { handleInputRequestEvent } from './inputRequests.js'
 import {
   buildStructuredOutputRetryPrompt,
   buildStructuredOutputSystemPrompt,
@@ -359,35 +357,6 @@ function emitMessage(args: {
   }
 }
 
-function toApprovalAnswers(
-  response: ReturnType<typeof parseApprovalInputResponse>,
-): Record<string, string> {
-  if (!response) {
-    return { decision: 'deny' }
-  }
-  const out: Record<string, string> = {
-    decision: response.decision,
-  }
-  if (response.scope) out.scope = response.scope
-  if (typeof response.feedback === 'string' && response.feedback.trim()) {
-    out.feedback = response.feedback
-  }
-
-  return out
-}
-
-function toAskUserAnswers(
-  response: ReturnType<typeof parseAskUserQuestionInputResponse>,
-): Record<string, string> {
-  if (!response) return {}
-
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(response.answers)) {
-    out[String(key)] = String(value ?? '')
-  }
-  return out
-}
-
 export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void, unknown> {
   const sessionId = randomUUID()
   const startedAt = Date.now()
@@ -525,95 +494,24 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           if (parsedEvent.model) usageModel = parsedEvent.model
         }
 
-        if (parsedEvent.type === 'approval_request') {
-          const requestMessage: InputRequestMessage = {
-            type: 'input_request',
-            subtype: 'approval_request',
-            session_id: sessionId,
-            uuid: randomUUID(),
-            tool_use_id: parsedEvent.toolUseId,
-            tool_name: parsedEvent.toolName,
-            action: parsedEvent.action,
-            effective_decision: parsedEvent.effectiveDecision,
-            ...(parsedEvent.suggestions ? { suggestions: parsedEvent.suggestions } : {}),
-            ...(parsedEvent.workspaceRequest !== undefined
-              ? { workspace_request: parsedEvent.workspaceRequest }
-              : {}),
-          }
-
-          emitMessage({
-            emit: queue.push,
-            callback: options.onMessage,
-            message: requestMessage,
-          })
-
-          if (runtime?.userInputManager) {
-            const task = (async () => {
-              try {
-                const response = options.onInputRequest
-                  ? await options.onInputRequest(requestMessage)
-                  : null
-                const parsedResponse = parseApprovalInputResponse(response)
-                runtime.userInputManager.submitAnswers(
-                  parsedEvent.toolUseId,
-                  toApprovalAnswers(parsedResponse),
-                )
-              } catch (error) {
-                runtime.userInputManager.reject(
-                  parsedEvent.toolUseId,
-                  asValidationError(error, 'Invalid approval input response'),
-                )
-              }
-            })()
-
+        handleInputRequestEvent({
+          event: parsedEvent,
+          sessionId,
+          emitMessage: (message) =>
+            emitMessage({
+              emit: queue.push,
+              callback: options.onMessage,
+              message,
+            }),
+          onInputRequest: options.onInputRequest,
+          userInputManager: runtime?.userInputManager,
+          addPendingResolution: (task) => {
             pendingInputResolutions.add(task)
             void task.finally(() => {
               pendingInputResolutions.delete(task)
             })
-          }
-        }
-
-        if (parsedEvent.type === 'ask_user_question') {
-          const requestMessage: InputRequestMessage = {
-            type: 'input_request',
-            subtype: 'ask_user_question',
-            session_id: sessionId,
-            uuid: randomUUID(),
-            tool_use_id: parsedEvent.toolUseId,
-            questions: parsedEvent.questions,
-          }
-
-          emitMessage({
-            emit: queue.push,
-            callback: options.onMessage,
-            message: requestMessage,
-          })
-
-          if (runtime?.userInputManager) {
-            const task = (async () => {
-              try {
-                const response = options.onInputRequest
-                  ? await options.onInputRequest(requestMessage)
-                  : null
-                const parsedResponse = parseAskUserQuestionInputResponse(response)
-                runtime.userInputManager.submitAnswers(
-                  parsedEvent.toolUseId,
-                  toAskUserAnswers(parsedResponse),
-                )
-              } catch (error) {
-                runtime.userInputManager.reject(
-                  parsedEvent.toolUseId,
-                  asValidationError(error, 'Invalid ask_user_question input response'),
-                )
-              }
-            })()
-
-            pendingInputResolutions.add(task)
-            void task.finally(() => {
-              pendingInputResolutions.delete(task)
-            })
-          }
-        }
+          },
+        })
 
         if (!options.includePartialMessages) return
 

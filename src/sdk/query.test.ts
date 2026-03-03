@@ -823,6 +823,36 @@ describe('sdk query()', () => {
     })
   })
 
+  it('drops whitespace-only feedback in approval responses', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-feedback',
+        toolName: 'Write',
+        action: { kind: 'fs.write', path: '/tmp/feedback.txt' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'handled' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'approval with blank feedback',
+      options: {
+        interactive: true,
+        onInputRequest: async () => ({
+          decision: 'feedback',
+          feedback: '   ',
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-feedback', {
+      decision: 'feedback',
+    })
+  })
+
   it('handles ask_user_question input requests via onInputRequest callback', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({

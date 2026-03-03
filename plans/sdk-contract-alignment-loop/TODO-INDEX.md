@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] `QRY-03`：抽离 `query` 的 input-request 事件处理分支（approval/ask_user_question）为独立模块，行为不变。
 - [ ] `QRY-04`：补一份 `query` 对齐矩阵文档（已支持/未支持/暂缓），与 exports 参考建立一对一映射索引。
 
 ## 再生规则（当“当前待办”为空时）

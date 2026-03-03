@@ -4,9 +4,13 @@
 
 ## 2026-03-03
 
-- `[pending]` `feat(sdk): align query permission and abort inputs`
+- `110149e` `feat(sdk): align query permission and abort inputs`
   - 切片：`QRY-01`、`QRY-02`
   - 说明：新增 `permissionMode` 与 `abortController` 对齐入口，补类型/校验/测试/文档。
+
+- `[pending]` `refactor(sdk): extract query input request handlers`
+  - 切片：`QRY-03`
+  - 说明：将 approval/ask_user_question 处理分支从 `query/runner` 抽离为独立模块，保持行为不变。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`
