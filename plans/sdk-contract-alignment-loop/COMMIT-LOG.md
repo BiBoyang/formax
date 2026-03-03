@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `0bbb0ca` `feat(sdk): accept query effort compatibility`
+  - 切片：`QRY-57`
+  - 说明：`query` 接收 `effort` 并在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
+
 - `e2f4c9a` `feat(sdk): accept query extension compatibility options`
   - 切片：`QRY-56`
   - 说明：`query` 接收 `plugins/settingSources` 并在 in-process SDK 模式下按兼容 no-op 处理；`onElicitation` 继续显式不支持。
