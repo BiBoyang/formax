@@ -192,6 +192,10 @@
   - 切片：`SDK-08`
   - 说明：`supportedModels()` 补齐官方常用 `value/displayName/supportsEffort` 字段，并保留 `model/provider` 兼容字段。
 
-- `[pending]` `feat(sdk): align MCP control return types`
+- `0f8c3fd` `feat(sdk): align MCP control return types`
   - 切片：`SDK-09`
   - 说明：补齐 `setMcpServers()/rewindFiles()` 等控制方法的官方同名返回类型（仅类型层对齐）。
+
+- `[pending]` `feat(sdk): align options.effort input contract`
+  - 切片：`SDK-10`
+  - 说明：新增 `options.effort` 官方值输入校验，并保持当前显式“暂不支持”语义。

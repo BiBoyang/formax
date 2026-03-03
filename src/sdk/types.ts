@@ -47,6 +47,8 @@ export type ThinkingDisabled = {
 
 export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabled
 
+export type EffortLevel = 'low' | 'medium' | 'high' | 'max'
+
 export type PermissionMode =
   | 'default'
   | 'acceptEdits'
@@ -68,6 +70,7 @@ export type QueryOptions = {
   permissionMode?: PermissionMode
   interactive?: boolean
   thinking?: ThinkingConfig
+  effort?: EffortLevel
   maxThinkingTokens?: number
   maxTurns?: number
   maxBudgetUsd?: number

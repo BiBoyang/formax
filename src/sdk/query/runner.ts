@@ -218,6 +218,11 @@ function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
   )
 }
 
+function assertEffortOptionSupported(effort?: 'low' | 'medium' | 'high' | 'max'): void {
+  if (effort === undefined) return
+  throw new Error(`options.effort (${effort}) is not supported in Formax SDK yet`)
+}
+
 function assertResumeOptionsSupported(args: {
   resume?: string
   sessionId?: string
@@ -1094,6 +1099,7 @@ async function* runQuery(
         replMode: options.replMode,
         permissionMode: options.permissionMode,
       })
+      assertEffortOptionSupported(options.effort)
       assertMaxTurnsSupported(options.maxTurns)
       assertMaxBudgetUsdSupported(options.maxBudgetUsd)
       assertResumeOptionsSupported({

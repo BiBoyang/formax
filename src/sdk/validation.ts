@@ -138,6 +138,7 @@ const queryOptionsSchema = z
     permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']).optional(),
     interactive: z.boolean().optional(),
     thinking: thinkingConfigSchema.optional(),
+    effort: z.enum(['low', 'medium', 'high', 'max']).optional(),
     maxThinkingTokens: z.number().int().nonnegative().optional(),
     maxTurns: z.number().int().positive().optional(),
     maxBudgetUsd: z.number().nonnegative().optional(),

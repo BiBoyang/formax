@@ -19,6 +19,7 @@ export type {
   ThinkingEnabled,
   ThinkingDisabled,
   ThinkingConfig,
+  EffortLevel,
   HookEvent,
   ExitReason,
   PermissionMode,
