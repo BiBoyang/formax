@@ -144,6 +144,10 @@
   - 切片：`QRY-35`
   - 说明：为 `Query` 增加 `accountInfo()`，返回当前账号配置子集并做输出校验。
 
-- `[pending]` `feat(sdk): align query mcpServerStatus method`
+- `f54f859` `feat(sdk): align query mcpServerStatus method`
   - 切片：`QRY-36`
   - 说明：为 `Query` 增加 `mcpServerStatus()`，当前能力下返回显式“不支持”错误语义。
+
+- `[pending]` `feat(sdk): align query MCP control methods`
+  - 切片：`QRY-37`
+  - 说明：为 `Query` 增加 `setMcpServers/reconnectMcpServer/toggleMcpServer()`，当前能力下返回显式“不支持”错误语义。

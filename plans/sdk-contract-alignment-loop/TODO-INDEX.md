@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-37`：对齐 Query MCP 控制方法 `setMcpServers()/reconnectMcpServer()/toggleMcpServer()`（当前能力下先做显式“不支持”错误语义，补类型/测试/文档）。
+- [ ] `QRY-38`：对齐 Query 任务控制方法 `streamInput()/stopTask()`（当前能力下先做显式“不支持”错误语义，补类型/测试/文档）。
 
 ## 再生规则（当“当前待办”为空时）
 

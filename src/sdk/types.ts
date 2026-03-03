@@ -265,6 +265,9 @@ export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   supportedModels(): Promise<ModelInfo[]>
   accountInfo(): Promise<AccountInfo>
   mcpServerStatus(): Promise<McpServerStatus[]>
+  setMcpServers(servers: Record<string, unknown>): Promise<void>
+  reconnectMcpServer(serverName: string): Promise<void>
+  toggleMcpServer(serverName: string, enabled: boolean): Promise<void>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

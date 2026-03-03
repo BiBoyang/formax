@@ -984,6 +984,36 @@ describe('sdk query()', () => {
     )
   })
 
+  it('exposes setMcpServers() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'set mcp servers',
+    })
+
+    await expect(queryIterator.setMcpServers({ local: {} })).rejects.toThrow(
+      'query.setMcpServers is not supported in Formax SDK yet',
+    )
+  })
+
+  it('exposes reconnectMcpServer() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'reconnect mcp server',
+    })
+
+    await expect(queryIterator.reconnectMcpServer('local')).rejects.toThrow(
+      'query.reconnectMcpServer is not supported in Formax SDK yet',
+    )
+  })
+
+  it('exposes toggleMcpServer() with explicit unsupported error', async () => {
+    const queryIterator = query({
+      prompt: 'toggle mcp server',
+    })
+
+    await expect(queryIterator.toggleMcpServer('local', true)).rejects.toThrow(
+      'query.toggleMcpServer is not supported in Formax SDK yet',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)
