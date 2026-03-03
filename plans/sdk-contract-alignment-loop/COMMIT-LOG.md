@@ -104,9 +104,13 @@
   - 切片：`QRY-27`
   - 说明：接收 `tools/mcpServers` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query hook permission option inputs`
+- `70ac09f` `feat(sdk): align query hook permission option inputs`
   - 切片：`QRY-28`
   - 说明：接收 `hooks/canUseTool` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query extension option inputs`
+  - 切片：`QRY-29`
+  - 说明：接收 `plugins/settingSources/onElicitation` 输入字段，并统一显式报当前不支持。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

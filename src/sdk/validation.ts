@@ -171,6 +171,11 @@ const queryOptionsSchema = z
     canUseTool: z.custom<(...args: unknown[]) => unknown>((value) => typeof value === 'function', {
       message: 'Expected function',
     }).optional(),
+    plugins: z.array(z.unknown()).optional(),
+    settingSources: z.array(z.enum(['user', 'project', 'local'])).optional(),
+    onElicitation: z.custom<(...args: unknown[]) => unknown>((value) => typeof value === 'function', {
+      message: 'Expected function',
+    }).optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {

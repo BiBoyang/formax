@@ -79,6 +79,7 @@ Implemented and available now:
 - Query agent alignment (`agent/agents` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query tools/MCP alignment (`tools/mcpServers` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query hook-permission alignment (`hooks/canUseTool` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query extension alignment (`plugins/settingSources/onElicitation` accepted as contract inputs; currently fail explicitly as unsupported)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)
 - Multi-turn session flow (`unstable_v2_*`)

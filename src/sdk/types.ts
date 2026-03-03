@@ -97,6 +97,9 @@ export type QueryOptions = {
   mcpServers?: Record<string, unknown>
   hooks?: Record<string, unknown>
   canUseTool?: (...args: unknown[]) => unknown
+  plugins?: unknown[]
+  settingSources?: Array<'user' | 'project' | 'local'>
+  onElicitation?: (...args: unknown[]) => unknown
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal

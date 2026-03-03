@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-29`：对齐 `query` 的 `plugins/settingSources/onElicitation` 输入契约（接收字段并统一显式报暂不支持）。
+- [ ] `QRY-30`：对齐 Query 控制方法 `setModel/setPermissionMode/setMaxThinkingTokens`（先支持“启动前覆盖”语义，并补测试）。
 
 ## 再生规则（当“当前待办”为空时）
 

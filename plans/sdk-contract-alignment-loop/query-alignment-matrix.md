@@ -46,14 +46,14 @@
 | `hooks` | `options.hooks` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `canUseTool` | `options.canUseTool` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `mcpServers` | `options.mcpServers` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `plugins` | - | Backlog | 当前不支持。 |
-| `settingSources` | - | Backlog | 当前不支持。 |
+| `plugins` | `options.plugins` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `settingSources` | `options.settingSources` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `agent`/`agents` | `options.agent` / `options.agents` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `tools`（preset 语义） | `options.tools` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `sandbox` | `options.sandbox` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `additionalDirectories` | `options.additionalDirectories` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `onElicitation` | - | Backlog | 当前仅提供 `onInputRequest`（Formax 语义）。 |
+| `onElicitation` | `options.onElicitation` | Partial | 输入契约已支持；当前统一显式报“暂不支持”（继续使用 Formax `onInputRequest` 语义）。 |
 | `continue` | `options.continue` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `fallbackModel` | `options.fallbackModel` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |

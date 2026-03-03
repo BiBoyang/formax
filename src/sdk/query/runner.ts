@@ -398,6 +398,22 @@ function assertHookAndToolPermissionOptionsSupported(args: {
   }
 }
 
+function assertPluginAndElicitationOptionsSupported(args: {
+  plugins?: unknown[]
+  settingSources?: Array<'user' | 'project' | 'local'>
+  onElicitation?: (...elicitationArgs: unknown[]) => unknown
+}): void {
+  if (args.plugins !== undefined) {
+    throw new Error('options.plugins is not supported in Formax SDK yet')
+  }
+  if (args.settingSources !== undefined) {
+    throw new Error('options.settingSources is not supported in Formax SDK yet')
+  }
+  if (args.onElicitation !== undefined) {
+    throw new Error('options.onElicitation is not supported in Formax SDK yet')
+  }
+}
+
 function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
@@ -838,6 +854,11 @@ async function* runQuery(
       assertHookAndToolPermissionOptionsSupported({
         hooks: options.hooks,
         canUseTool: options.canUseTool,
+      })
+      assertPluginAndElicitationOptionsSupported({
+        plugins: options.plugins,
+        settingSources: options.settingSources,
+        onElicitation: options.onElicitation,
       })
       const thinkingEnabled = resolveThinkingEnabled({
         thinking: options.thinking,
