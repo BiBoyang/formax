@@ -18,6 +18,8 @@ export type JsonSchemaOutputFormat = {
 
 export type OutputFormat = JsonSchemaOutputFormat
 
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan'
+
 export type QueryOptions = {
   cwd?: string
   env?: NodeJS.ProcessEnv
@@ -29,10 +31,12 @@ export type QueryOptions = {
   allowedTools?: string[]
   disallowedTools?: string[]
   replMode?: ReplMode
+  permissionMode?: PermissionMode
   interactive?: boolean
   thinkingEnabled?: boolean
   outputFormat?: OutputFormat
   signal?: AbortSignal
+  abortController?: AbortController
   onInputRequest?: (
     request: InputRequestMessage,
   ) => Promise<InputRequestResponse> | InputRequestResponse

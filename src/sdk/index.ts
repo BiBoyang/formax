@@ -11,6 +11,7 @@ export type {
   SystemPromptInput,
   JsonSchemaOutputFormat,
   OutputFormat,
+  PermissionMode,
   QueryOptions,
   QueryArgs,
   SystemMessage,

@@ -17,6 +17,7 @@
 - `plans/ui/BACKLOG-command-subline-output.md`：Slash command 子行输出（扩展范围 / 后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 后置增强项（不作为执行清单）
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
+- `plans/sdk-contract-alignment-loop/TODO-INDEX.md`：SDK 对齐滚动循环（原则：外部契约对齐 + 内部实现解耦，未支持能力不做）
 - `plans/system-reminder/TODO.md`：TodoWrite reminders（不走 hooks，优先控 token）
 - `plans/hooks/TODO.md`：Hooks 事件清单 & matcher 规则（哪些已实现/待接线）
 

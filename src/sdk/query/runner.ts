@@ -6,10 +6,12 @@ import { buildSystemPrompt } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
 import { buildSkillToolSpecForCwd } from '../../tools/modules/skill/index.js'
+import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import type {
   AssistantMessage,
   InputRequestMessage,
+  PermissionMode,
   QueryArgs,
   QueryMessage,
   ResultMessage,
@@ -45,6 +47,12 @@ const USAGE_KEYS: Array<keyof TokenUsage> = [
 const STRUCTURED_OUTPUT_TOOL_NAME = 'StructuredOutput'
 const STRUCTURED_OUTPUT_TOOL_DESCRIPTION =
   'Use this tool to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response to provide the structured output.'
+
+const PERMISSION_MODE_TO_REPL_MODE: Record<PermissionMode, ReplMode> = {
+  default: 'normal',
+  acceptEdits: 'acceptEdits',
+  plan: 'plan',
+}
 
 function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): ToolDefinition {
   // Match official SDK behavior: StructuredOutput.input_schema is derived directly
@@ -107,6 +115,23 @@ function filterToolsForQuery(args: {
     if (allowAll) return true
     return allowed.has(tool.name)
   })
+}
+
+function resolveExecutionReplMode(args: {
+  replMode?: ReplMode
+  permissionMode?: PermissionMode
+}): ReplMode | undefined {
+  const mappedPermissionMode = args.permissionMode
+    ? PERMISSION_MODE_TO_REPL_MODE[args.permissionMode]
+    : undefined
+
+  if (args.replMode && mappedPermissionMode && args.replMode !== mappedPermissionMode) {
+    throw new Error(
+      `options.replMode (${args.replMode}) conflicts with options.permissionMode (${args.permissionMode} -> ${mappedPermissionMode})`,
+    )
+  }
+
+  return args.replMode ?? mappedPermissionMode
 }
 
 function toUserPromptMessage(prompt: string): PromptMessage {
@@ -225,6 +250,14 @@ function combineSignals(signalA: AbortSignal | undefined, signalB: AbortSignal):
   signalA.addEventListener('abort', onAbort, { once: true })
   signalB.addEventListener('abort', onAbort, { once: true })
   return combined.signal
+}
+
+function combineOptionalSignals(
+  signalA: AbortSignal | undefined,
+  signalB: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (signalA && signalB) return combineSignals(signalA, signalB)
+  return signalA ?? signalB
 }
 
 function buildFinalUsage(args: {
@@ -399,6 +432,10 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       const history = cloneHistory(parsedArgs.history)
       nextHistory = history
       const interactive = options.interactive === true
+      const replMode = resolveExecutionReplMode({
+        replMode: options.replMode,
+        permissionMode: options.permissionMode,
+      })
       const allowTools = normalizeAllowedTools({
         allowedTools: options.allowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',
@@ -408,7 +445,8 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         disallowedTools: options.disallowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
-      runSignal = combineSignals(options.signal, controller.signal)
+      const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
+      runSignal = combineSignals(externalSignal, controller.signal)
 
       runtime = await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
@@ -615,7 +653,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           thinkingEnabled: options.thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
           exec: {
             interactive,
-            replMode: options.replMode,
+            replMode,
             ...(allowTools ? { allowTools } : {}),
             ...(disallowedTools ? { denyTools: disallowedTools } : {}),
           },

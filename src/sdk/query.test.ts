@@ -170,6 +170,127 @@ describe('sdk query()', () => {
     }
   })
 
+  it('maps permissionMode to execution replMode', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.exec?.replMode).toBe('normal')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'use default permission mode',
+      options: {
+        permissionMode: 'default',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.result).toBe('ok')
+    }
+  })
+
+  it('returns error when replMode and permissionMode conflict', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'conflicting modes',
+      options: {
+        replMode: 'plan',
+        permissionMode: 'default',
+      },
+    })
+
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('conflicts with options.permissionMode')
+    }
+  })
+
+  it('accepts abortController and forwards its signal to runTurn', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.signal).toBeDefined()
+      expect(turnArgs.signal.aborted).toBe(true)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const abortController = new AbortController()
+    abortController.abort()
+
+    const messages = await collectMessages({
+      prompt: 'aborted before run',
+      options: {
+        abortController,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.result).toBe('ok')
+    }
+  })
+
+  it('combines signal and abortController so either one can cancel the turn', async () => {
+    const signalController = new AbortController()
+    const abortController = new AbortController()
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      await new Promise<void>((_resolve, reject) => {
+        if (turnArgs.signal?.aborted) {
+          reject(new Error('Request aborted'))
+          return
+        }
+
+        turnArgs.signal?.addEventListener(
+          'abort',
+          () => {
+            reject(new Error('Request aborted'))
+          },
+          { once: true },
+        )
+      })
+
+      return [...turnArgs.history, turnArgs.user]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const abortTimer = setTimeout(() => {
+      abortController.abort()
+    }, 10)
+    const messages = await collectMessages({
+      prompt: 'cancel via abortController',
+      options: {
+        signal: signalController.signal,
+        abortController,
+      },
+    })
+    clearTimeout(abortTimer)
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Request aborted')
+    }
+  })
+
   it('supports overriding and appending system prompt blocks', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       const systemTextBlocks = turnArgs.system
@@ -916,6 +1037,25 @@ describe('sdk query()', () => {
     }
     expect(onMessage).toHaveBeenCalledTimes(1)
     expect(onMessage.mock.calls[0]?.[0]?.type).toBe('result')
+  })
+
+  it('returns error result when abortController option is invalid', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    const messages = await collectMessages({
+      prompt: 'invalid abortController',
+      options: {
+        abortController: {} as any,
+      },
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('abortController')
+    }
   })
 
   it('returns error result when stream event payload is invalid', async () => {

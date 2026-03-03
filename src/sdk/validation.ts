@@ -64,6 +64,15 @@ function isAbortSignalLike(value: unknown): value is AbortSignal {
   )
 }
 
+function isAbortControllerLike(value: unknown): value is AbortController {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.abort === 'function' &&
+    isAbortSignalLike(record.signal)
+  )
+}
+
 const queryOptionsSchema = z
   .object({
     cwd: z.string().optional(),
@@ -76,11 +85,15 @@ const queryOptionsSchema = z
     allowedTools: z.array(z.string()).optional(),
     disallowedTools: z.array(z.string()).optional(),
     replMode: z.enum(['normal', 'acceptEdits', 'plan']).optional(),
+    permissionMode: z.enum(['default', 'acceptEdits', 'plan']).optional(),
     interactive: z.boolean().optional(),
     thinkingEnabled: z.boolean().optional(),
     outputFormat: outputFormatSchema.optional(),
     signal: z.custom<AbortSignal>(isAbortSignalLike, {
       message: 'Expected AbortSignal-compatible object',
+    }).optional(),
+    abortController: z.custom<AbortController>(isAbortControllerLike, {
+      message: 'Expected AbortController-compatible object',
     }).optional(),
     onInputRequest: z.custom<(...args: any[]) => unknown>((value) => typeof value === 'function', {
       message: 'Expected function',
