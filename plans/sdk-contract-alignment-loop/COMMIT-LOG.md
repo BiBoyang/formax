@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `0da1b3c` `feat(sdk): support query enableFileCheckpointing`
+  - 切片：`QRY-45`
+  - 说明：`query` 正式支持 `options.enableFileCheckpointing=true`（复用现有会话持久化路径并写入历史快照），不再作为“不支持”参数报错。
+
 - `71cc050` `feat(sdk): support query forkSession option`
   - 切片：`QRY-44`
   - 说明：`query` 正式支持 `options.forkSession=true`（将 `resume/continue` 历史重绑定到新 session，并在持久化时写入新文件）；`enableFileCheckpointing` 仍显式报“暂不支持”。
