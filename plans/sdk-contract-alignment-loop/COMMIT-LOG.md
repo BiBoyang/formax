@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `0765a28` `feat(sdk,tools): apply safe updatedInput flow for canUseTool`
+  - 切片：`QRY-68`
+  - 说明：`canUseTool.updatedInput` 在 `approval_request` 下可受控回写执行入参；SDK 侧新增 `updated_input_json` 映射，执行侧补齐策略重校验（policy deny / permission deny / bash deny + fs 路径变更约束），并修复审计日志动作与最终执行动作一致性。
+
 - `37da31b` `feat(sdk,tools,streaming): support canUseTool input handling`
   - 切片：`QRY-65`、`QRY-66`、`QRY-67`
   - 说明：`query` 正式支持 `options.canUseTool`（统一处理 `approval_request` 与 `ask_user_question`），并移除 SDK 对外 `onInputRequest`；补齐 `PermissionResult/PermissionUpdate/CanUseTool` 类型与返回校验；扩展 `approval_request` 事件上下文（`blockedPath`/`decisionReason`）并补测试、文档与对齐矩阵。
