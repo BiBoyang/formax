@@ -37,7 +37,7 @@
 | `supportedCommands` | `supportedCommands` | Supported | 返回当前 slash command 子集，包含 `name/argumentHint` 与 `command/argHint` 兼容字段。 |
 | `supportedAgents` | `supportedAgents` | Supported | 返回当前子代理子集。 |
 | `supportedModels` | `supportedModels` | Supported | 返回 provider 可用模型子集，包含 `value/displayName/supportsEffort` 等官方常用兼容字段。 |
-| `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集。 |
+| `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集，并补齐 `tokenSource/apiKeySource` 官方常用兼容字段（保持既有字段不变）。 |
 | `mcpServerStatus` | `mcpServerStatus` | Partial | 显式未支持。 |
 | `setMcpServers` | `setMcpServers` | Partial | 显式未支持；返回类型已对齐为 `McpSetServersResult`。 |
 | `reconnectMcpServer` | `reconnectMcpServer` | Partial | 显式未支持。 |

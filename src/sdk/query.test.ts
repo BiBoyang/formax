@@ -967,6 +967,9 @@ describe('sdk query()', () => {
 
     const queryIterator = query({
       prompt: 'account info',
+      options: {
+        env: { ...process.env, FORMAX_API_KEY: '' },
+      },
     })
 
     const account = await queryIterator.accountInfo()
@@ -975,8 +978,29 @@ describe('sdk query()', () => {
       model: 'gpt-4o',
       baseUrl: 'https://api.openai.com/v1',
       hasApiKey: true,
+      apiKeySource: 'config',
+      tokenSource: 'config',
     })
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('derives accountInfo token/api key source from explicit options.env', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'anthropic'
+    runtime.cfg.llm.model = 'claude-sonnet'
+    runtime.cfg.llm.apiKey = 'sk-env'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'account info env source',
+      options: {
+        env: { ...process.env, FORMAX_API_KEY: 'sk-env' },
+      },
+    })
+
+    const account = await queryIterator.accountInfo()
+    expect(account.apiKeySource).toBe('env')
+    expect(account.tokenSource).toBe('env')
   })
 
   it('uses options.model override in accountInfo()', async () => {

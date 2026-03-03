@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- [ ] `SDK-14`：增强 `accountInfo()` 输出契约（补齐官方常用兼容字段子集并保持现有字段兼容）。
+- [ ] `SDK-15`：收紧 `accountInfo.apiKeySource` 语义（尝试映射到官方 `ApiKeySource` 兼容值，同时保持当前字段兼容）。
+- [ ] `TYP-01`：补齐 `ApiKeySource` 类型导出，并将 `AccountInfo.apiKeySource` 与该类型建立兼容关联。
 
 ## 再生规则（当“当前待办”为空时）
 

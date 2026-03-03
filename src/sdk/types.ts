@@ -380,6 +380,11 @@ export type AccountInfo = {
   model: string
   baseUrl?: string
   hasApiKey: boolean
+  email?: string
+  organization?: string
+  subscriptionType?: string
+  tokenSource?: string
+  apiKeySource?: string
 }
 
 export type McpServerStatus = {

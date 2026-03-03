@@ -328,6 +328,11 @@ const accountInfoSchema = z
     model: z.string(),
     baseUrl: z.string().optional(),
     hasApiKey: z.boolean(),
+    email: z.string().optional(),
+    organization: z.string().optional(),
+    subscriptionType: z.string().optional(),
+    tokenSource: z.string().optional(),
+    apiKeySource: z.string().optional(),
   })
   .strict()
 

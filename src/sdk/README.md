@@ -61,6 +61,7 @@ if (sessions.length > 0) {
 Implemented and available now:
 - Query streaming (`query`)
 - Query control handle (`query(...).interrupt()` / `query(...).close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + `setMcpServers/reconnectMcpServer/toggleMcpServer` (currently explicit unsupported) + `streamInput` (currently explicit unsupported) + `rewindFiles` (structured unsupported result) + `stopTask` (abort-compatible) + `setModel/setPermissionMode/setMaxThinkingTokens` pre-start overrides)
+- Query account-info alignment (`accountInfo` keeps existing `provider/model/baseUrl/hasApiKey` fields and now includes official-compatible optional `tokenSource/apiKeySource` fields)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
 - Query mode alignment (`permissionMode` official values accepted; `default/acceptEdits/plan` map to runtime modes, `dontAsk/bypassPermissions` are accepted as compatibility no-op inputs)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
