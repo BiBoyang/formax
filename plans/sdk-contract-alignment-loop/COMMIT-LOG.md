@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `72a52fc` `feat(sdk): support query debug option`
+  - 切片：`QRY-47`
+  - 说明：`query` 正式支持 `options.debug=true`（通过 `FORMAX_HOOKS_DEBUG=1` 接入现有 hook debug 路径）；`debugFile` 仍显式报“暂不支持”。
+
 - `943f873` `feat(sdk): support query stderr callback`
   - 切片：`QRY-46`
   - 说明：`query` 正式支持 `options.stderr`（作为可选错误输出回调）；不再因传入 `stderr` 参数而直接报“不支持”。
