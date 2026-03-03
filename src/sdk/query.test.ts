@@ -373,6 +373,110 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
   })
 
+  it('rejects approval input when callback response fails validation', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-invalid',
+        toolName: 'Write',
+        action: { kind: 'fs.write', path: '/tmp/d.txt' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'invalid approval callback',
+      options: {
+        interactive: true,
+        onInputRequest: async () => ({ decision: 'not-a-valid-decision' as any }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
+    expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-approval-invalid')
+    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
+      'Invalid approval input response',
+    )
+  })
+
+  it('rejects ask_user_question input when callback response fails validation', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'ask_user_question',
+        toolUseId: 'tool-question-invalid',
+        questions: [
+          {
+            question: 'Pick one',
+            header: 'choice',
+            fieldId: 'choice',
+            options: [{ label: 'A', description: 'option A' }],
+            multiSelect: false,
+          },
+        ],
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'invalid question callback',
+      options: {
+        interactive: true,
+        onInputRequest: async () => ({ answers: 'not-an-object' as any }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).not.toHaveBeenCalled()
+    expect(runtime.userInputManager.reject).toHaveBeenCalledTimes(1)
+    expect(runtime.userInputManager.reject.mock.calls[0][0]).toBe('tool-question-invalid')
+    expect(String(runtime.userInputManager.reject.mock.calls[0][1]?.message ?? '')).toContain(
+      'Invalid ask_user_question input response',
+    )
+  })
+
+  it('returns error result when query args are invalid', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+    const onMessage = vi.fn()
+
+    const messages = await collectMessages({ prompt: 123 as any, options: { onMessage } } as any)
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(messages).toHaveLength(1)
+    const result = messages[0]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Invalid query arguments or runtime event')
+    }
+    expect(onMessage).toHaveBeenCalledTimes(1)
+    expect(onMessage.mock.calls[0]?.[0]?.type).toBe('result')
+  })
+
+  it('returns error result when stream event payload is invalid', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'usage',
+        usage: { input_tokens: '1' },
+      })
+      return [...turnArgs.history, turnArgs.user]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({ prompt: 'invalid event payload' })
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Invalid query arguments or runtime event')
+    }
+  })
+
   it('returns an error result message when execution fails', async () => {
     const runtime = createRuntimeFixture({
       runTurn: async () => {

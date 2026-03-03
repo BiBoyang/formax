@@ -8,17 +8,24 @@ import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type {
-  ApprovalInputResponse,
-  AskUserQuestionInputResponse,
-  AskUserQuestionRequest,
   AssistantMessage,
   InputRequestMessage,
-  InputRequestResponse,
   QueryArgs,
   QueryMessage,
   ResultMessage,
   SystemPromptInput,
 } from './types.js'
+import {
+  asValidationError,
+  parseApprovalInputResponse,
+  parseAskUserQuestionInputResponse,
+  parsePromptHistory,
+  parseQueryArgsInput,
+  parseStopReason,
+  parseStreamEvent,
+  parseTokenUsage,
+  parseToolDefinitions,
+} from './validation.js'
 
 type QueueResolver<T> = (value: IteratorResult<T>) => void
 
@@ -188,10 +195,9 @@ function patchClientStreamOnce(args: {
 
   ;(client as { streamOnce: unknown }).streamOnce = async (...streamArgs: unknown[]) => {
     const out = await (original as (...methodArgs: unknown[]) => Promise<any>).call(client, ...streamArgs)
-    args.onStopReason((out?.stopReason ?? null) as StopReason)
-    if (out?.usage && typeof out.usage === 'object') {
-      args.onUsage(out.usage as TokenUsage)
-    }
+    args.onStopReason(parseStopReason(out?.stopReason ?? null))
+    const usage = parseTokenUsage(out?.usage)
+    if (usage) args.onUsage(usage)
     return out
   }
 
@@ -226,43 +232,16 @@ function emitMessage(args: {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isApprovalInputResponse(value: unknown): value is ApprovalInputResponse {
-  return isRecord(value) && typeof value.decision === 'string'
-}
-
-function isAskUserQuestionInputResponse(value: unknown): value is AskUserQuestionInputResponse {
-  return isRecord(value) && isRecord(value.answers)
-}
-
 function toApprovalAnswers(
-  response: InputRequestResponse,
+  response: ReturnType<typeof parseApprovalInputResponse>,
 ): Record<string, string> {
-  if (!isApprovalInputResponse(response)) {
+  if (!response) {
     return { decision: 'deny' }
   }
-
-  const decisionRaw = String(response.decision || '').trim().toLowerCase()
-  const decision =
-    decisionRaw === 'approve' ||
-    decisionRaw === 'approve_remember' ||
-    decisionRaw === 'feedback' ||
-    decisionRaw === 'deny'
-      ? decisionRaw
-      : 'deny'
-
   const out: Record<string, string> = {
-    decision,
+    decision: response.decision,
   }
-
-  const scopeRaw = typeof response.scope === 'string' ? response.scope.trim().toLowerCase() : ''
-  if (scopeRaw === 'session' || scopeRaw === 'project' || scopeRaw === 'global') {
-    out.scope = scopeRaw
-  }
-
+  if (response.scope) out.scope = response.scope
   if (typeof response.feedback === 'string' && response.feedback.trim()) {
     out.feedback = response.feedback
   }
@@ -271,9 +250,9 @@ function toApprovalAnswers(
 }
 
 function toAskUserAnswers(
-  response: InputRequestResponse,
+  response: ReturnType<typeof parseAskUserQuestionInputResponse>,
 ): Record<string, string> {
-  if (!isAskUserQuestionInputResponse(response)) return {}
+  if (!response) return {}
 
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(response.answers)) {
@@ -282,53 +261,19 @@ function toAskUserAnswers(
   return out
 }
 
-function normalizeAskUserQuestions(raw: unknown): AskUserQuestionRequest[] {
-  if (!Array.isArray(raw)) return []
-
-  return raw.map((entry) => {
-    const record = isRecord(entry) ? entry : {}
-    const optionsRaw = Array.isArray(record.options) ? record.options : []
-    const options = optionsRaw.map((opt) => {
-      const optRecord = isRecord(opt) ? opt : {}
-      return {
-        label: String(optRecord.label ?? ''),
-        description: String(optRecord.description ?? ''),
-      }
-    })
-
-    const fieldId = typeof record.fieldId === 'string' && record.fieldId.trim() ? record.fieldId.trim() : undefined
-    return {
-      question: String(record.question ?? ''),
-      header: String(record.header ?? ''),
-      ...(fieldId ? { fieldId } : {}),
-      options,
-      multiSelect: Boolean(record.multiSelect),
-    }
-  })
-}
-
 export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void, unknown> {
-  const options = args.options ?? {}
-  const cwd = path.resolve(options.cwd ?? process.cwd())
-  const env = options.env ?? process.env
-  const history = cloneHistory(args.history)
-  const interactive = options.interactive === true
-  const disallowedTools = normalizeDisallowedTools({
-    interactive,
-    disallowedTools: options.disallowedTools,
-  })
-
   const sessionId = randomUUID()
   const startedAt = Date.now()
   const queue = createAsyncIteratorQueue<QueryMessage>()
   const controller = new AbortController()
-  const signal = combineSignals(options.signal, controller.signal)
+  let runSignal: AbortSignal = controller.signal
 
   const run = (async () => {
     let runtime: Awaited<ReturnType<typeof createRuntime>> | null = null
     let restorePatchedStreamOnce: (() => void) | null = null
+    let messageCallback: ((message: QueryMessage) => void) | undefined
     const pendingInputResolutions = new Set<Promise<void>>()
-    let nextHistory: PromptMessage[] = history
+    let nextHistory: PromptMessage[] = []
     let lastStopReason: StopReason = null
     let usageModel: string | undefined
     let streamUsageCount = 0
@@ -338,6 +283,33 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
     let lastStepUsage: TokenUsage | undefined
 
     try {
+      const rawOptions =
+        args && typeof args === 'object' && !Array.isArray(args) && (args as { options?: unknown }).options
+          ? ((args as { options?: unknown }).options as unknown)
+          : undefined
+      if (
+        rawOptions &&
+        typeof rawOptions === 'object' &&
+        !Array.isArray(rawOptions) &&
+        typeof (rawOptions as { onMessage?: unknown }).onMessage === 'function'
+      ) {
+        messageCallback = (rawOptions as { onMessage: (message: QueryMessage) => void }).onMessage
+      }
+
+      const parsedArgs = parseQueryArgsInput(args)
+      const options = parsedArgs.options ?? {}
+      messageCallback = options.onMessage
+      const cwd = path.resolve(options.cwd ?? process.cwd())
+      const env = options.env ?? process.env
+      const history = cloneHistory(parsedArgs.history)
+      nextHistory = history
+      const interactive = options.interactive === true
+      const disallowedTools = normalizeDisallowedTools({
+        interactive,
+        disallowedTools: options.disallowedTools,
+      })
+      runSignal = combineSignals(options.signal, controller.signal)
+
       runtime = await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
@@ -353,11 +325,13 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         },
       })
 
-      const tools = filterToolsForQuery({
-        tools: patchToolsForTurn(runtime.tools, cwd),
-        allowedTools: options.allowedTools,
-        disallowedTools,
-      })
+      const tools = parseToolDefinitions(
+        filterToolsForQuery({
+          tools: patchToolsForTurn(runtime.tools, cwd),
+          allowedTools: options.allowedTools,
+          disallowedTools,
+        }),
+      )
 
       emitMessage({
         emit: queue.push,
@@ -383,25 +357,29 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       const system = [...(systemOverride.length > 0 ? systemOverride : defaultSystem), ...appendSystem]
 
       const onEvent = (event: StreamEvent) => {
-        if (event.type === 'usage') {
+        const parsedEvent = parseStreamEvent(event)
+
+        if (parsedEvent.type === 'usage') {
           usageEventCount += 1
-          mergeUsageTotals(eventUsageTotals, event.usage)
-          lastStepUsage = event.usage
-          if (event.model) usageModel = event.model
+          mergeUsageTotals(eventUsageTotals, parsedEvent.usage)
+          lastStepUsage = parsedEvent.usage
+          if (parsedEvent.model) usageModel = parsedEvent.model
         }
 
-        if (event.type === 'approval_request') {
+        if (parsedEvent.type === 'approval_request') {
           const requestMessage: InputRequestMessage = {
             type: 'input_request',
             subtype: 'approval_request',
             session_id: sessionId,
             uuid: randomUUID(),
-            tool_use_id: event.toolUseId,
-            tool_name: event.toolName,
-            action: event.action,
-            effective_decision: event.effectiveDecision,
-            ...(event.suggestions ? { suggestions: event.suggestions } : {}),
-            ...(event.workspaceRequest !== undefined ? { workspace_request: event.workspaceRequest } : {}),
+            tool_use_id: parsedEvent.toolUseId,
+            tool_name: parsedEvent.toolName,
+            action: parsedEvent.action,
+            effective_decision: parsedEvent.effectiveDecision,
+            ...(parsedEvent.suggestions ? { suggestions: parsedEvent.suggestions } : {}),
+            ...(parsedEvent.workspaceRequest !== undefined
+              ? { workspace_request: parsedEvent.workspaceRequest }
+              : {}),
           }
 
           emitMessage({
@@ -416,14 +394,15 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
                 const response = options.onInputRequest
                   ? await options.onInputRequest(requestMessage)
                   : null
+                const parsedResponse = parseApprovalInputResponse(response)
                 runtime.userInputManager.submitAnswers(
-                  event.toolUseId,
-                  toApprovalAnswers(response),
+                  parsedEvent.toolUseId,
+                  toApprovalAnswers(parsedResponse),
                 )
               } catch (error) {
                 runtime.userInputManager.reject(
-                  event.toolUseId,
-                  error instanceof Error ? error : new Error(String(error)),
+                  parsedEvent.toolUseId,
+                  asValidationError(error, 'Invalid approval input response'),
                 )
               }
             })()
@@ -435,14 +414,14 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           }
         }
 
-        if (event.type === 'ask_user_question') {
+        if (parsedEvent.type === 'ask_user_question') {
           const requestMessage: InputRequestMessage = {
             type: 'input_request',
             subtype: 'ask_user_question',
             session_id: sessionId,
             uuid: randomUUID(),
-            tool_use_id: event.toolUseId,
-            questions: normalizeAskUserQuestions(event.questions),
+            tool_use_id: parsedEvent.toolUseId,
+            questions: parsedEvent.questions,
           }
 
           emitMessage({
@@ -457,14 +436,15 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
                 const response = options.onInputRequest
                   ? await options.onInputRequest(requestMessage)
                   : null
+                const parsedResponse = parseAskUserQuestionInputResponse(response)
                 runtime.userInputManager.submitAnswers(
-                  event.toolUseId,
-                  toAskUserAnswers(response),
+                  parsedEvent.toolUseId,
+                  toAskUserAnswers(parsedResponse),
                 )
               } catch (error) {
                 runtime.userInputManager.reject(
-                  event.toolUseId,
-                  error instanceof Error ? error : new Error(String(error)),
+                  parsedEvent.toolUseId,
+                  asValidationError(error, 'Invalid ask_user_question input response'),
                 )
               }
             })()
@@ -486,19 +466,19 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
             session_id: sessionId,
             uuid: randomUUID(),
             parent_tool_use_id: null,
-            event,
+            event: parsedEvent,
           },
         })
       }
 
       nextHistory = await runtime.engine.runTurn({
         history,
-        user: toUserPromptMessage(args.prompt),
+        user: toUserPromptMessage(parsedArgs.prompt),
         system,
         tools,
         onEvent,
         cwd,
-        signal,
+        signal: runSignal,
         model,
         thinkingEnabled: options.thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
         exec: {
@@ -509,6 +489,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         },
       })
 
+      nextHistory = parsePromptHistory(nextHistory)
       const assistantBlocks = extractLastAssistantMessage(nextHistory)
       let assistantMessage: AssistantMessage | null = null
 
@@ -556,7 +537,14 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         message: resultMessage,
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = asValidationError(error, 'Invalid query arguments or runtime event').message
+      const safeHistory = (() => {
+        try {
+          return parsePromptHistory(nextHistory)
+        } catch {
+          return [] as PromptMessage[]
+        }
+      })()
       const usage = buildFinalUsage({
         eventTotals: eventUsageTotals,
         eventCount: usageEventCount,
@@ -566,7 +554,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
 
       emitMessage({
         emit: queue.push,
-        callback: options.onMessage,
+        callback: messageCallback,
         message: {
           type: 'result',
           session_id: sessionId,
@@ -577,13 +565,13 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
           usage,
           ...(usageModel ? { model: usageModel } : {}),
           assistant: null,
-          history: nextHistory,
+          history: safeHistory,
           duration_ms: Math.max(0, Date.now() - startedAt),
           error: message,
         },
       })
     } finally {
-      if (!signal.aborted && pendingInputResolutions.size > 0) {
+      if (!runSignal.aborted && pendingInputResolutions.size > 0) {
         await Promise.allSettled(Array.from(pendingInputResolutions))
       }
       restorePatchedStreamOnce?.()
