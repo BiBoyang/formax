@@ -8,6 +8,7 @@ import type { QueryArgs, QueryMessage, QueryOptions, SDKUserMessage } from './ty
 const { state } = vi.hoisted(() => ({
   state: {
     createRuntime: vi.fn(),
+    findLatestSessionFile: vi.fn(),
     findSessionFileBySessionId: vi.fn(),
     readSessionFile: vi.fn(),
   },
@@ -18,6 +19,7 @@ vi.mock('../runtime/createRuntime.js', () => ({
 }))
 
 vi.mock('../features/repl/sessionSave/reader.js', () => ({
+  findLatestSessionFile: (args: unknown) => state.findLatestSessionFile(args),
   findSessionFileBySessionId: (args: unknown) => state.findSessionFileBySessionId(args),
   readSessionFile: (args: unknown) => state.readSessionFile(args),
 }))
@@ -103,6 +105,7 @@ async function collectFromIterator(iterator: AsyncGenerator<QueryMessage, void, 
 describe('sdk query()', () => {
   beforeEach(() => {
     state.createRuntime.mockReset()
+    state.findLatestSessionFile.mockReset()
     state.findSessionFileBySessionId.mockReset()
     state.readSessionFile.mockReset()
   })
@@ -2023,11 +2026,6 @@ describe('sdk query()', () => {
   it.each(
     [
       {
-        label: 'continue',
-        options: { continue: true },
-        expected: 'options.continue',
-      },
-      {
         label: 'fallbackModel',
         options: { fallbackModel: 'claude-fallback' },
         expected: 'options.fallbackModel',
@@ -2055,7 +2053,75 @@ describe('sdk query()', () => {
     }
   })
 
-  it('fails fast on unsupported continue option before draining async prompt stream', async () => {
+  it('restores latest persisted history when options.continue is true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.role).toBe('user')
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('continued user')
+      expect(turnArgs.history[1]?.role).toBe('assistant')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('continued assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'continued user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'continued assistant' }] },
+      ],
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue prompt',
+      options: {
+        continue: true,
+      },
+    })
+
+    expect(state.findLatestSessionFile).toHaveBeenCalledTimes(1)
+    expect(state.findSessionFileBySessionId).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(messages[0]?.type).toBe('system')
+    if (messages[0]?.type === 'system') {
+      expect(messages[0].session_id).toBe('continued-session-id')
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id).toBe('continued-session-id')
+    }
+  })
+
+  it('continues as a new session when no previous session exists', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findLatestSessionFile.mockResolvedValue(null)
+
+    const messages = await collectMessages({
+      prompt: 'continue without prior session',
+      options: {
+        continue: true,
+      },
+    })
+
+    expect(state.findLatestSessionFile).toHaveBeenCalledTimes(1)
+    expect(runtime.engine.runTurn).toHaveBeenCalledTimes(1)
+    expect(messages[0]?.type).toBe('system')
+    if (messages[0]?.type === 'system') {
+      expect(messages[0].session_id.length).toBeGreaterThan(0)
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.session_id.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('fails fast on continue+resume conflict before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
@@ -2078,6 +2144,7 @@ describe('sdk query()', () => {
       prompt: promptStream,
       options: {
         continue: true,
+        resume: 'session-abc',
       },
     })
 
@@ -2089,7 +2156,7 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('options.continue')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.error).toContain('cannot be used with options.resume')
     }
   })
 

@@ -308,14 +308,8 @@ function assertPermissionPromptOptionsSupported(args: {
 }
 
 function assertContinuationOptionsSupported(args: {
-  continue?: boolean
   fallbackModel?: string
 }): void {
-  if (args.continue !== undefined) {
-    throw new Error(
-      `options.continue (${args.continue}) is not supported in Formax SDK yet`,
-    )
-  }
   if (args.fallbackModel !== undefined) {
     throw new Error(
       `options.fallbackModel (${args.fallbackModel}) is not supported in Formax SDK yet`,
@@ -1102,7 +1096,6 @@ async function* runQuery(
         promptSuggestions: options.promptSuggestions,
       })
       assertContinuationOptionsSupported({
-        continue: options.continue,
         fallbackModel: options.fallbackModel,
       })
       assertStrictMcpConfigSupported(options.strictMcpConfig)

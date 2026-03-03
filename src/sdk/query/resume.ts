@@ -1,4 +1,5 @@
 import {
+  findLatestSessionFile,
   findSessionFileBySessionId,
   readSessionFile,
 } from '../../features/repl/sessionSave/reader.js'
@@ -28,6 +29,25 @@ function clonePromptHistory(history: PromptMessage[]): PromptMessage[] {
   }))
 }
 
+async function loadReplayFromFile(args: { filePath: string; context: string }): Promise<QueryResumeResolution> {
+  let rawReplay: unknown
+  try {
+    rawReplay = await readSessionFile(args.filePath)
+  } catch (error) {
+    throw asValidationError(error, `Failed to read ${args.context} session file (${args.filePath})`)
+  }
+
+  try {
+    const replay = parseRawSessionReplayOutput(rawReplay)
+    return {
+      sessionId: replay.sessionId,
+      history: clonePromptHistory(replay.history),
+    }
+  } catch (error) {
+    throw asValidationError(error, `Invalid ${args.context} session data in ${args.filePath}`)
+  }
+}
+
 export async function resolveQueryResumeResolution(args: {
   options: QueryOptions
   cwd: string
@@ -35,11 +55,48 @@ export async function resolveQueryResumeResolution(args: {
 }): Promise<QueryResumeResolution> {
   const resumeSessionId = parseOptionalSessionId(args.options.resume)
   const requestedSessionId = parseOptionalSessionId(args.options.sessionId)
+  const continueConversation = args.options.continue === true
 
   if (args.options.resumeSessionAt !== undefined) {
     throw new Error(
       `options.resumeSessionAt (${args.options.resumeSessionAt}) is not supported in Formax SDK yet`,
     )
+  }
+
+  if (continueConversation && resumeSessionId !== null) {
+    throw new Error(
+      `options.continue (${args.options.continue}) cannot be used with options.resume (${resumeSessionId})`,
+    )
+  }
+
+  if (continueConversation) {
+    if (requestedSessionId !== null) {
+      throw new Error(
+        `options.sessionId (${requestedSessionId}) conflicts with options.continue (${args.options.continue}) because options.forkSession is not supported in Formax SDK yet`,
+      )
+    }
+
+    let latestFilePath: string | null
+    try {
+      latestFilePath = await findLatestSessionFile({
+        cwd: args.cwd,
+        env: args.env,
+      })
+    } catch (error) {
+      throw asValidationError(error, 'Failed to resolve options.continue from local session storage')
+    }
+
+    if (!latestFilePath) {
+      return {
+        sessionId: null,
+        history: [],
+      }
+    }
+
+    return loadReplayFromFile({
+      filePath: latestFilePath,
+      context: 'continued',
+    })
   }
 
   if (resumeSessionId === null) {
@@ -75,20 +132,12 @@ export async function resolveQueryResumeResolution(args: {
     )
   }
 
-  let rawReplay: unknown
-  try {
-    rawReplay = await readSessionFile(filePath)
-  } catch (error) {
-    throw asValidationError(error, `Failed to read resumed session file (${filePath})`)
-  }
-
-  try {
-    const replay = parseRawSessionReplayOutput(rawReplay)
-    return {
-      sessionId: requestedSessionId ?? resumeSessionId,
-      history: clonePromptHistory(replay.history),
-    }
-  } catch (error) {
-    throw asValidationError(error, `Invalid resumed session data in ${filePath}`)
+  const resumed = await loadReplayFromFile({
+    filePath,
+    context: 'resumed',
+  })
+  return {
+    sessionId: requestedSessionId ?? resumeSessionId,
+    history: resumed.history,
   }
 }

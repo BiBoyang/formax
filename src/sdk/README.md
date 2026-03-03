@@ -76,7 +76,7 @@ Implemented and available now:
 - Query process-spawn alignment (`pathToClaudeCodeExecutable/spawnClaudeCodeProcess` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query cli-exec alignment (`extraArgs/executable/executableArgs/betas` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query permission-prompt alignment (`allowDangerouslySkipPermissions/permissionPromptToolName/promptSuggestions` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query continuation alignment (`continue/fallbackModel` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query continuation alignment (`continue` restores latest persisted session history when available; `fallbackModel` currently fails explicitly as unsupported)
 - Query strict MCP alignment (`strictMcpConfig` accepted as contract input; currently fails explicitly as unsupported)
 - Query persistence alignment (`persistSession/forkSession/enableFileCheckpointing` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
