@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `QRY-30`：对齐 Query 控制方法 `setModel/setPermissionMode/setMaxThinkingTokens`（先支持“启动前覆盖”语义，并补测试）。
+- [ ] `QRY-31`：对齐 Query 控制方法 `initializationResult()`（先支持返回 init 快照，补测试与文档）。
 
 ## 再生规则（当“当前待办”为空时）
 

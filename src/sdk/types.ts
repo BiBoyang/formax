@@ -221,6 +221,9 @@ export type QueryMessage =
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
+  setModel(model?: string): Promise<void>
+  setPermissionMode(mode: PermissionMode): Promise<void>
+  setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>
 }
 
 export type ListSessionsOptions = {

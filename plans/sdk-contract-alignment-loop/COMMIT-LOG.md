@@ -108,9 +108,13 @@
   - 切片：`QRY-28`
   - 说明：接收 `hooks/canUseTool` 输入字段，并统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query extension option inputs`
+- `dc5e9c2` `feat(sdk): align query extension option inputs`
   - 切片：`QRY-29`
   - 说明：接收 `plugins/settingSources/onElicitation` 输入字段，并统一显式报当前不支持。
+
+- `[pending]` `feat(sdk): align query pre-start control methods`
+  - 切片：`QRY-30`
+  - 说明：为 `Query` 增加 `setModel/setPermissionMode/setMaxThinkingTokens` 启动前覆盖能力，并在启动后拒绝修改。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

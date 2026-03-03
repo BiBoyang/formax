@@ -81,8 +81,12 @@ function createRuntimeFixture(args?: {
 }
 
 async function collectMessages(args: QueryArgs): Promise<QueryMessage[]> {
+  return collectFromIterator(query(args))
+}
+
+async function collectFromIterator(iterator: AsyncGenerator<QueryMessage, void, unknown>): Promise<QueryMessage[]> {
   const messages: QueryMessage[] = []
-  for await (const message of query(args)) {
+  for await (const message of iterator) {
     messages.push(message)
   }
   return messages
@@ -605,6 +609,119 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
       expect(result.error).toContain('Request aborted')
+    }
+  })
+
+  it('supports setModel() before iteration starts', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.model).toBe('claude-override')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'set model before start',
+    })
+    await queryIterator.setModel('claude-override')
+
+    const messages = await collectFromIterator(queryIterator)
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('supports setPermissionMode() before iteration starts', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.exec?.replMode).toBe('plan')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'set permission mode before start',
+    })
+    await queryIterator.setPermissionMode('plan')
+
+    const messages = await collectFromIterator(queryIterator)
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('validates setPermissionMode() input before iteration starts', async () => {
+    const queryIterator = query({
+      prompt: 'invalid permission mode',
+    })
+
+    await expect(queryIterator.setPermissionMode('invalid-mode' as any)).rejects.toThrow(
+      'query.setPermissionMode expects one of',
+    )
+  })
+
+  it('supports setMaxThinkingTokens() before iteration starts', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    runtime.cfg.llm.thinkingMode = true
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'set max thinking tokens before start',
+    })
+    await queryIterator.setMaxThinkingTokens(0)
+
+    const messages = await collectFromIterator(queryIterator)
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('validates setMaxThinkingTokens() input before iteration starts', async () => {
+    const queryIterator = query({
+      prompt: 'invalid max thinking tokens',
+    })
+
+    await expect(queryIterator.setMaxThinkingTokens(-1)).rejects.toThrow(
+      'query.setMaxThinkingTokens expects a non-negative integer or null',
+    )
+  })
+
+  it('rejects control mutations after iteration has started', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'start then mutate',
+    })
+
+    const firstMessage = await queryIterator.next()
+    expect(firstMessage.done).toBe(false)
+
+    await expect(queryIterator.setModel('late-model')).rejects.toThrow(
+      'query.setModel is only supported before query iteration starts',
+    )
+    await expect(queryIterator.setPermissionMode('plan')).rejects.toThrow(
+      'query.setPermissionMode is only supported before query iteration starts',
+    )
+    await expect(queryIterator.setMaxThinkingTokens(10)).rejects.toThrow(
+      'query.setMaxThinkingTokens is only supported before query iteration starts',
+    )
+
+    for await (const _message of queryIterator) {
+      // Drain remaining messages to allow clean shutdown.
     }
   })
 

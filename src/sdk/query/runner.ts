@@ -13,6 +13,7 @@ import type {
   PermissionMode,
   Query,
   QueryArgs,
+  QueryOptions,
   QueryMessage,
   ResultMessage,
   ThinkingConfig,
@@ -55,6 +56,13 @@ const SUPPORTED_PERMISSION_MODE_TO_REPL_MODE: Record<'default' | 'acceptEdits' |
   acceptEdits: 'acceptEdits',
   plan: 'plan',
 }
+const VALID_PERMISSION_MODES = new Set<PermissionMode>([
+  'default',
+  'acceptEdits',
+  'plan',
+  'dontAsk',
+  'bypassPermissions',
+])
 
 function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): ToolDefinition {
   // Match official SDK behavior: StructuredOutput.input_schema is derived directly
@@ -738,9 +746,58 @@ function emitMessage(args: {
   }
 }
 
+type QueryControlState = {
+  started: boolean
+  hasModelOverride: boolean
+  modelOverride?: string
+  hasPermissionModeOverride: boolean
+  permissionModeOverride?: PermissionMode
+  hasMaxThinkingTokensOverride: boolean
+  maxThinkingTokensOverride: number | null
+}
+
+function assertCanMutateQueryControls(state: QueryControlState, methodName: string): void {
+  if (!state.started) return
+  throw new Error(`${methodName} is only supported before query iteration starts in Formax SDK`)
+}
+
+function applyQueryControlOverrides(
+  options: QueryOptions,
+  state: QueryControlState,
+): QueryOptions {
+  const next: QueryOptions = { ...options }
+  if (state.hasModelOverride) {
+    if (state.modelOverride === undefined) {
+      delete next.model
+    } else {
+      next.model = state.modelOverride
+    }
+  }
+  if (state.hasPermissionModeOverride) {
+    next.permissionMode = state.permissionModeOverride
+  }
+  if (state.hasMaxThinkingTokensOverride) {
+    if (state.maxThinkingTokensOverride === null) {
+      delete next.maxThinkingTokens
+    } else {
+      next.maxThinkingTokens = state.maxThinkingTokensOverride
+    }
+  }
+  return next
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
-  const iterator = runQuery(args, interruptController)
+  const controlState: QueryControlState = {
+    started: false,
+    hasModelOverride: false,
+    modelOverride: undefined,
+    hasPermissionModeOverride: false,
+    permissionModeOverride: undefined,
+    hasMaxThinkingTokensOverride: false,
+    maxThinkingTokensOverride: null,
+  }
+  const iterator = runQuery(args, interruptController, controlState)
   const queryIterator = iterator as Query
   const abortQuery = () => {
     interruptController.abort()
@@ -751,12 +808,43 @@ export function query(args: QueryArgs): Query {
   queryIterator.close = () => {
     abortQuery()
   }
+  queryIterator.setModel = async (model?: string) => {
+    assertCanMutateQueryControls(controlState, 'query.setModel')
+    controlState.hasModelOverride = true
+    controlState.modelOverride = model
+  }
+  queryIterator.setPermissionMode = async (mode: PermissionMode) => {
+    assertCanMutateQueryControls(controlState, 'query.setPermissionMode')
+    if (!VALID_PERMISSION_MODES.has(mode)) {
+      throw new Error(
+        `query.setPermissionMode expects one of ${Array.from(VALID_PERMISSION_MODES).join(', ')} (received ${String(mode)})`,
+      )
+    }
+    controlState.hasPermissionModeOverride = true
+    controlState.permissionModeOverride = mode
+  }
+  queryIterator.setMaxThinkingTokens = async (maxThinkingTokens: number | null) => {
+    assertCanMutateQueryControls(controlState, 'query.setMaxThinkingTokens')
+    if (
+      maxThinkingTokens !== null &&
+      (!Number.isFinite(maxThinkingTokens) ||
+        !Number.isInteger(maxThinkingTokens) ||
+        maxThinkingTokens < 0)
+    ) {
+      throw new Error(
+        `query.setMaxThinkingTokens expects a non-negative integer or null (received ${String(maxThinkingTokens)})`,
+      )
+    }
+    controlState.hasMaxThinkingTokensOverride = true
+    controlState.maxThinkingTokensOverride = maxThinkingTokens
+  }
   return queryIterator
 }
 
 async function* runQuery(
   args: QueryArgs,
   interruptController: AbortController,
+  controlState: QueryControlState,
 ): AsyncGenerator<QueryMessage, void, unknown> {
   const sessionId = randomUUID()
   const startedAt = Date.now()
@@ -765,6 +853,7 @@ async function* runQuery(
   let runSignal: AbortSignal = controller.signal
 
   const run = (async () => {
+    controlState.started = true
     let runtime: Awaited<ReturnType<typeof createRuntime>> | null = null
     let restorePatchedStreamOnce: (() => void) | null = null
     let messageCallback: ((message: QueryMessage) => void) | undefined
@@ -793,7 +882,7 @@ async function* runQuery(
       }
 
       const parsedArgs = parseQueryArgsInput(args)
-      const options = parsedArgs.options ?? {}
+      const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, controlState)
       const outputFormat = options.outputFormat
       messageCallback = options.onMessage
       const cwd = path.resolve(options.cwd ?? process.cwd())
