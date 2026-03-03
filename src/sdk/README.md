@@ -81,7 +81,7 @@ Implemented and available now:
 - Query persistence alignment (`persistSession/forkSession/enableFileCheckpointing` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query filesystem-sandbox alignment (`additionalDirectories/sandbox` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query agent alignment (`agent/agents` accepted as contract inputs; currently fail explicitly as unsupported)
-- Query tools/MCP alignment (`tools/mcpServers` accepted as contract inputs; currently fail explicitly as unsupported)
+- Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
 - Query hook-permission alignment (`hooks/canUseTool` accepted as contract inputs; currently fail explicitly as unsupported)
 - Query extension alignment (`plugins/settingSources/onElicitation` accepted as contract inputs; currently fail explicitly as unsupported)
 - Session discovery (`listSessions`)

@@ -2446,25 +2446,84 @@ describe('sdk query()', () => {
     }
   })
 
-  it.each(
-    [
-      {
-        label: 'tools list',
-        options: { tools: ['Read', 'Write'] },
-        expected: 'options.tools',
+  it('applies options.tools list as the base available tools', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const toolNames = (turnArgs.tools as ToolDefinition[]).map((tool) => tool.name)
+      expect(toolNames).toEqual(['Read'])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'tools list supported',
+      options: {
+        tools: ['Read', 'Read'],
       },
-      {
-        label: 'tools preset',
-        options: { tools: { type: 'preset', preset: 'claude_code' as const } },
-        expected: 'options.tools',
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(messages[0]?.type).toBe('system')
+    if (messages[0]?.type === 'system') {
+      expect(messages[0].tools.map((tool) => tool.name)).toEqual(['Read'])
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps default tool set when options.tools preset is provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const toolNames = (turnArgs.tools as ToolDefinition[]).map((tool) => tool.name)
+      expect(toolNames).toEqual(['Read', 'Write'])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'tools preset supported',
+      options: {
+        tools: { type: 'preset', preset: 'claude_code' as const },
       },
-      {
-        label: 'mcpServers',
-        options: { mcpServers: { local: { type: 'stdio', command: 'mcp-server' } } },
-        expected: 'options.mcpServers',
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('returns explicit error when options.tools contains unknown tool names', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'tools unknown',
+      options: {
+        tools: ['Read', 'NoSuchTool'],
       },
-    ] satisfies Array<{ label: string; options: QueryOptions; expected: string }>,
-  )('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+    })
+
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+    expect(runTurn).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('options.tools includes unsupported tool(s)')
+      expect(result.error).toContain('NoSuchTool')
+    }
+  })
+
+  it('returns explicit unsupported error when mcpServers is provided', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -2473,7 +2532,7 @@ describe('sdk query()', () => {
 
     const messages = await collectMessages({
       prompt: 'tools mcp option unsupported',
-      options,
+      options: { mcpServers: { local: { type: 'stdio', command: 'mcp-server' } } },
     })
 
     expect(runTurn).not.toHaveBeenCalled()
@@ -2481,12 +2540,12 @@ describe('sdk query()', () => {
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
+      expect(result.error).toContain('options.mcpServers')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })
 
-  it('fails fast on unsupported tools option before draining async prompt stream', async () => {
+  it('fails fast on invalid options.tools before draining async prompt stream', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
     let nextCalls = 0
@@ -2508,19 +2567,42 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: promptStream,
       options: {
-        tools: ['Read'],
+        tools: ['default', 'Read'],
       },
     })
 
     expect(nextCalls).toBe(0)
     expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.tools')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.error).toContain('options.tools cannot combine "default"')
+    }
+  })
+
+  it('accepts duplicated "default" values in options.tools', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const toolNames = (turnArgs.tools as ToolDefinition[]).map((tool) => tool.name)
+      expect(toolNames).toEqual(['Read', 'Write'])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'tools duplicated default',
+      options: {
+        tools: ['default', 'default'],
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
     }
   })
 

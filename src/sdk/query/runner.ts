@@ -149,6 +149,47 @@ function filterToolsForQuery(args: {
   })
 }
 
+function selectToolsForQuery(args: {
+  tools: ToolDefinition[]
+  toolsOption?: QueryOptions['tools']
+}): ToolDefinition[] {
+  if (args.toolsOption === undefined) return args.tools
+  if (!Array.isArray(args.toolsOption)) return args.tools
+  if (args.toolsOption.length === 0) return []
+
+  const requestedNames = Array.from(
+    new Set(args.toolsOption.map((value) => String(value).trim()).filter(Boolean)),
+  )
+  if (requestedNames.length === 0) return []
+
+  if (requestedNames.includes('default')) {
+    if (requestedNames.length !== 1) {
+      throw new Error(
+        `options.tools cannot combine "default" with explicit tool names (${requestedNames.join(', ')})`,
+      )
+    }
+    return args.tools
+  }
+
+  const availableByName = new Map(args.tools.map((tool) => [tool.name, tool] as const))
+  const selected: ToolDefinition[] = []
+  const unknown: string[] = []
+  for (const name of requestedNames) {
+    const found = availableByName.get(name)
+    if (!found) {
+      unknown.push(name)
+      continue
+    }
+    if (selected.some((tool) => tool.name === name)) continue
+    selected.push(found)
+  }
+
+  if (unknown.length > 0) {
+    throw new Error(`options.tools includes unsupported tool(s): ${unknown.join(', ')}`)
+  }
+  return selected
+}
+
 function resolveExecutionReplMode(args: {
   replMode?: ReplMode
   permissionMode?: PermissionMode
@@ -373,12 +414,8 @@ function assertAgentOptionsSupported(args: {
 }
 
 function assertToolsAndMcpOptionsSupported(args: {
-  tools?: string[] | { type: 'preset'; preset: 'claude_code' }
   mcpServers?: Record<string, unknown>
 }): void {
-  if (args.tools !== undefined) {
-    throw new Error('options.tools is not supported in Formax SDK yet')
-  }
   if (args.mcpServers !== undefined) {
     throw new Error('options.mcpServers is not supported in Formax SDK yet')
   }
@@ -1113,7 +1150,6 @@ async function* runQuery(
         agents: options.agents,
       })
       assertToolsAndMcpOptionsSupported({
-        tools: options.tools,
         mcpServers: options.mcpServers,
       })
       assertHookAndToolPermissionOptionsSupported({
@@ -1140,6 +1176,14 @@ async function* runQuery(
       })
       const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
       runSignal = combineSignals(externalSignal, controller.signal)
+      if (Array.isArray(options.tools) && options.tools.length > 0) {
+        runtime = await createRuntime({ cwd, env })
+        // Validate tools early so invalid tool lists fail before async prompt stream consumption.
+        void selectToolsForQuery({
+          tools: patchToolsForTurn(runtime.tools, cwd),
+          toolsOption: options.tools,
+        })
+      }
       const baseHistory = [...resumeResolution.history, ...cloneHistory(parsedArgs.history)]
       const normalizedPrompt = await resolvePromptInput({
         prompt: parsedArgs.prompt,
@@ -1159,7 +1203,7 @@ async function* runQuery(
         outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
 
-      runtime = await createRuntime({ cwd, env })
+      runtime = runtime ?? await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
 
@@ -1185,8 +1229,12 @@ async function* runQuery(
             : undefined,
       })
 
-      const filteredTools = filterToolsForQuery({
+      const selectedTools = selectToolsForQuery({
         tools: patchToolsForTurn(runtime.tools, cwd),
+        toolsOption: options.tools,
+      })
+      const filteredTools = filterToolsForQuery({
+        tools: selectedTools,
         allowedTools: allowTools,
         disallowedTools,
       })

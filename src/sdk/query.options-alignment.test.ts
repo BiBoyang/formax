@@ -530,8 +530,10 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps tools compatibility behavior via explicit unsupported error', async () => {
+  it('keeps tools compatibility behavior via base-tool filtering', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
+      const toolNames = (turnArgs.tools as Array<{ name: string }>).map((tool) => tool.name)
+      expect(toolNames).toEqual(['Read'])
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
@@ -543,13 +545,11 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.tools')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

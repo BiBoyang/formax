@@ -54,7 +54,7 @@
 | `settingSources` | `options.settingSources` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | `resume/sessionId` 已支持（基于本地持久化会话恢复历史）；`resumeSessionAt` 仍显式报“暂不支持”。 |
 | `agent`/`agents` | `options.agent` / `options.agents` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `tools`（preset 语义） | `options.tools` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `tools`（preset 语义） | `options.tools` | Partial | 已支持：可作为 base-tool 过滤（数组子集 + `preset` 默认集）；`default` 不能与显式列表混用。 |
 | `sandbox` | `options.sandbox` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `additionalDirectories` | `options.additionalDirectories` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `onElicitation` | `options.onElicitation` | Partial | 输入契约已支持；当前统一显式报“暂不支持”（继续使用 Formax `onInputRequest` 语义）。 |
