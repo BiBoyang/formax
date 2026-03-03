@@ -124,6 +124,10 @@
   - 切片：`SES-02`
   - 说明：补齐 `firstPrompt/fileSize` 元数据与容错，并更新测试与文档。
 
-- `[pending]` `feat(sdk): align query initializationResult method`
+- `4b81f4d` `feat(sdk): align query initializationResult method`
   - 切片：`QRY-31`
   - 说明：为 `Query` 增加 `initializationResult()`（含 pre-start close 中止路径），并补测试与文档。
+
+- `[pending]` `feat(sdk): align query supportedCommands method`
+  - 切片：`QRY-32`
+  - 说明：为 `Query` 增加 `supportedCommands()`，返回已支持 slash command 清单并做输出校验。

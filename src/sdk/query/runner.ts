@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { createSlashCommandRegistry } from '../../features/commands/registry.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import { buildSystemPrompt } from '../../prompts/system.js'
@@ -15,6 +16,7 @@ import type {
   QueryArgs,
   QueryOptions,
   QueryMessage,
+  SlashCommand,
   ResultMessage,
   SystemMessage,
   ThinkingConfig,
@@ -25,6 +27,7 @@ import {
   asValidationError,
   parsePromptHistory,
   parseQueryArgsInput,
+  parseSlashCommandListOutput,
   parseSDKUserMessageInput,
   parseStopReason,
   parseStreamEvent,
@@ -803,6 +806,29 @@ function rejectInitializationOnce(state: QueryControlState, error: unknown): voi
   state.rejectInitialization(error)
 }
 
+async function listSupportedCommands(args: QueryArgs, state: QueryControlState): Promise<SlashCommand[]> {
+  try {
+    const parsedArgs = parseQueryArgsInput(args)
+    const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
+    const cwd = path.resolve(options.cwd ?? process.cwd())
+    const commands = createSlashCommandRegistry({ cwd })
+      .list()
+      .map((spec) => ({
+        command: spec.command,
+        description: spec.description,
+        source: spec.source,
+        ...(spec.argHint ? { argHint: spec.argHint } : {}),
+        ...(spec.implemented === undefined ? {} : { implemented: spec.implemented }),
+      }))
+    return parseSlashCommandListOutput(commands)
+  } catch (error) {
+    throw asValidationError(
+      error,
+      'Invalid query arguments or command output for query.supportedCommands',
+    )
+  }
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
   let resolveInitialization: (value: SystemMessage) => void = () => {}
@@ -845,6 +871,7 @@ export function query(args: QueryArgs): Query {
     abortQuery('query.close')
   }
   queryIterator.initializationResult = async () => controlState.initializationPromise
+  queryIterator.supportedCommands = async () => listSupportedCommands(args, controlState)
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true

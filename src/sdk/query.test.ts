@@ -784,6 +784,32 @@ describe('sdk query()', () => {
     expect(state.createRuntime).not.toHaveBeenCalled()
   })
 
+  it('supports supportedCommands() before iteration starts', async () => {
+    const queryIterator = query({
+      prompt: 'list supported commands',
+    })
+
+    const commands = await queryIterator.supportedCommands()
+    expect(commands.length).toBeGreaterThan(0)
+    expect(commands.some((command) => command.command === '/help')).toBe(true)
+    const helpCommand = commands.find((command) => command.command === '/help')
+    expect(helpCommand?.source).toBe('builtin')
+    expect(state.createRuntime).not.toHaveBeenCalled()
+  })
+
+  it('validates supportedCommands() input options', async () => {
+    const queryIterator = query({
+      prompt: 'invalid supported commands input',
+      options: {
+        cwd: 123 as any,
+      },
+    })
+
+    await expect(queryIterator.supportedCommands()).rejects.toThrow(
+      'Invalid query arguments or command output for query.supportedCommands',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

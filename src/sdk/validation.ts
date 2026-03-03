@@ -8,6 +8,7 @@ import type {
   GetSessionMessagesOptions,
   ListSessionsOptions,
   QueryArgs,
+  SlashCommand,
   SDKUserMessage,
   SDKSessionInfo,
   SessionMessage,
@@ -273,6 +274,18 @@ const sdkSessionInfoSchema = z
 
 const sdkSessionInfoListSchema = z.array(sdkSessionInfoSchema)
 
+const slashCommandSchema = z
+  .object({
+    command: z.string(),
+    description: z.string(),
+    source: z.enum(['builtin', 'user', 'project']),
+    argHint: z.string().optional(),
+    implemented: z.boolean().optional(),
+  })
+  .strict()
+
+const slashCommandListSchema = z.array(slashCommandSchema)
+
 const workspaceRequestSchema = z.object({ dir: z.string() }).strict().nullable()
 
 const approvalRequestEventSchema = z
@@ -449,6 +462,10 @@ export function parseRawSessionReplayOutput(input: unknown): {
 
 export function parseSDKSessionInfoListOutput(input: unknown): SDKSessionInfo[] {
   return sdkSessionInfoListSchema.parse(input) as SDKSessionInfo[]
+}
+
+export function parseSlashCommandListOutput(input: unknown): SlashCommand[] {
+  return slashCommandListSchema.parse(input) as SlashCommand[]
 }
 
 export function parseSessionMessageListOutput(input: unknown): SessionMessage[] {

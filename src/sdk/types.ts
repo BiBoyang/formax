@@ -220,10 +220,19 @@ export type QueryMessage =
 
 export type QueryInitializationResult = SystemMessage
 
+export type SlashCommand = {
+  command: string
+  description: string
+  source: 'builtin' | 'user' | 'project'
+  argHint?: string
+  implemented?: boolean
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
   initializationResult(): Promise<QueryInitializationResult>
+  supportedCommands(): Promise<SlashCommand[]>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

@@ -34,6 +34,7 @@ export type {
   InputRequestResponse,
   QueryMessage,
   QueryInitializationResult,
+  SlashCommand,
   Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,
