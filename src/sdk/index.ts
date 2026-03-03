@@ -15,6 +15,8 @@ export type {
   ToolsPresetInput,
   JsonSchemaOutputFormat,
   OutputFormat,
+  OutputFormatType,
+  BaseOutputFormat,
   ThinkingAdaptive,
   ThinkingEnabled,
   ThinkingDisabled,

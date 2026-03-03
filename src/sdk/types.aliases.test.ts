@@ -5,6 +5,9 @@ import type {
   PromptRequest,
   PromptRequestOption,
   PromptResponse,
+  OutputFormat,
+  OutputFormatType,
+  BaseOutputFormat,
   PartialAssistantMessage,
   QueryMessage,
   QueryOptions,
@@ -53,5 +56,11 @@ describe('SDK type alias alignment', () => {
     expectTypeOf<PromptRequest>().toEqualTypeOf<AskUserQuestionRequest>()
     expectTypeOf<PromptRequestOption>().toEqualTypeOf<AskUserQuestionRequest['options'][number]>()
     expectTypeOf<PromptResponse>().toEqualTypeOf<AskUserQuestionInputResponse>()
+  })
+
+  it('aligns output format type aliases', () => {
+    expectTypeOf<OutputFormatType>().toEqualTypeOf<'json_schema'>()
+    expectTypeOf<OutputFormat['type']>().toEqualTypeOf<OutputFormatType>()
+    expectTypeOf<BaseOutputFormat>().toEqualTypeOf<{ type: OutputFormatType }>()
   })
 })

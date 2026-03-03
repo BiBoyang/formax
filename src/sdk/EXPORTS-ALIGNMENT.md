@@ -63,6 +63,8 @@
 | `PromptRequest` | `PromptRequest` | Supported | 对齐到当前 `ask_user_question` 请求类型子集。 |
 | `PromptRequestOption` | `PromptRequestOption` | Supported | 对齐到当前 `ask_user_question.options` 选项类型子集。 |
 | `PromptResponse` | `PromptResponse` | Supported | 对齐到当前 `ask_user_question` 回答结果类型子集。 |
+| `OutputFormatType` | `OutputFormatType` | Supported | 对齐到当前 `outputFormat.type` 子集（`json_schema`）。 |
+| `BaseOutputFormat` | `BaseOutputFormat` | Supported | 对齐到当前 `outputFormat` 基础类型子集。 |
 
 ## Note
 

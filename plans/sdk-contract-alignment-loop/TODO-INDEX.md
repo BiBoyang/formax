@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `SDK-11`：补齐 `PromptRequest/PromptRequestOption/PromptResponse` 官方同名类型别名（仅已支持交互子集）。
+- [ ] `SDK-12`：补齐 `OutputFormatType/BaseOutputFormat` 官方同名类型别名（仅当前 `json_schema` 子集）。
 
 ## 再生规则（当“当前待办”为空时）
 

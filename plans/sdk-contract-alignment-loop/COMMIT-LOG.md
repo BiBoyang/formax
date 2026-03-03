@@ -200,6 +200,10 @@
   - 切片：`SDK-10`
   - 说明：新增 `options.effort` 官方值输入校验，并保持当前显式“暂不支持”语义。
 
-- `[pending]` `feat(sdk): add prompt request type aliases`
+- `e463e4a` `feat(sdk): add prompt request type aliases`
   - 切片：`SDK-11`
   - 说明：新增 `PromptRequest/PromptRequestOption/PromptResponse` 官方同名类型别名（已支持交互子集）。
+
+- `[pending]` `feat(sdk): add output format type aliases`
+  - 切片：`SDK-12`
+  - 说明：新增 `OutputFormatType/BaseOutputFormat` 官方同名类型别名（当前 `json_schema` 子集）。

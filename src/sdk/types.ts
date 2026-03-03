@@ -31,6 +31,10 @@ export type JsonSchemaOutputFormat = {
 }
 
 export type OutputFormat = JsonSchemaOutputFormat
+export type OutputFormatType = OutputFormat['type']
+export type BaseOutputFormat = {
+  type: OutputFormatType
+}
 
 export type ThinkingAdaptive = {
   type: 'adaptive'
