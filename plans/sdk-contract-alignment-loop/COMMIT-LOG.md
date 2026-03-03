@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `e2f4c9a` `feat(sdk): accept query extension compatibility options`
+  - 切片：`QRY-56`
+  - 说明：`query` 接收 `plugins/settingSources` 并在 in-process SDK 模式下按兼容 no-op 处理；`onElicitation` 继续显式不支持。
+
 - `9795590` `feat(sdk): accept query agent compatibility options`
   - 切片：`QRY-55`
   - 说明：`query` 接收 `agent/agents` 并在 in-process SDK 模式下按兼容 no-op 处理，不再直接报“不支持”。
