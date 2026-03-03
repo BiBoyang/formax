@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `1cb305c` `feat(sdk): support query continue option`
+  - 切片：`QRY-41`
+  - 说明：`query` 正式支持 `options.continue`（恢复当前 cwd 最近本地会话历史；无历史则按新会话继续）；`fallbackModel` 仍显式报“暂不支持”。
+
 - `13dc31f` `feat(sdk): support query resume and sessionId`
   - 切片：`QRY-40`
   - 说明：`query` 正式支持 `options.resume/options.sessionId`（基于本地持久化会话恢复历史）；`resumeSessionAt` 仍显式报“暂不支持”。
