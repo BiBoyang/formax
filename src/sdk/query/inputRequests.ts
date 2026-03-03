@@ -64,6 +64,16 @@ function resolveRememberScopeFromPermissionUpdates(
 }
 
 function toApprovalAnswersFromPermissionResult(result: PermissionResult): Record<string, string> {
+  const serializeUpdatedInput = (): string | null => {
+    if (result.behavior !== 'allow') return null
+    if (!result.updatedInput || !isRecord(result.updatedInput)) return null
+    try {
+      return JSON.stringify(result.updatedInput)
+    } catch {
+      return null
+    }
+  }
+
   if (result.behavior === 'deny') {
     const message = String(result.message ?? '').trim()
     if (!message) return { decision: 'deny' }
@@ -75,13 +85,19 @@ function toApprovalAnswersFromPermissionResult(result: PermissionResult): Record
 
   const rememberScope = resolveRememberScopeFromPermissionUpdates(result.updatedPermissions)
   if (rememberScope) {
-    return {
+    const out: Record<string, string> = {
       decision: 'approve_remember',
       scope: rememberScope,
     }
+    const updatedInputJson = serializeUpdatedInput()
+    if (updatedInputJson) out.updated_input_json = updatedInputJson
+    return out
   }
 
-  return { decision: 'approve' }
+  const out: Record<string, string> = { decision: 'approve' }
+  const updatedInputJson = serializeUpdatedInput()
+  if (updatedInputJson) out.updated_input_json = updatedInputJson
+  return out
 }
 
 function toAskUserAnswersFromPermissionResult(result: PermissionResult): Record<string, string> {

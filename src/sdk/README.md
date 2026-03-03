@@ -82,7 +82,7 @@ Implemented and available now:
 - Query filesystem-sandbox alignment (`additionalDirectories` supported as an in-process compatibility no-op option; `sandbox` remains explicit unsupported)
 - Query agent alignment (`agent/agents` supported as in-process compatibility no-op options)
 - Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
-- Query hook-permission alignment (`hooks` remains explicit unsupported; `canUseTool` is supported as the primary approval/user-input callback)
+- Query hook-permission alignment (`hooks` remains explicit unsupported; `canUseTool` is supported as the primary approval/user-input callback, including `approval_request` `updatedInput` forwarding via controlled mapping with execution-side policy revalidation)
 - Query extension alignment (`plugins/settingSources` supported as in-process compatibility no-op options; `onElicitation` supported for `ask_user_question` fallback handling when `canUseTool` is not provided)
 - Session discovery (`listSessions`)
 - Session transcript read (`getSessionMessages`)

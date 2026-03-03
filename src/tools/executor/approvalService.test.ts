@@ -86,6 +86,36 @@ describe('ApprovalService', () => {
     )
   })
 
+  it('logs patched action in approval.result when updated_input_json is accepted', async () => {
+    const auditEntries: any[] = []
+    const audit: AuditLog = { append: async (e) => void auditEntries.push(e) }
+
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ command: 'echo patched' }),
+        }),
+      } as any,
+      audit,
+    })
+
+    const call: ToolCall = { id: 't-audit-updated', name: 'Bash', input: { command: 'echo old' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo old' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+    const resultAudit = auditEntries.find((entry) => entry.kind === 'approval.result')
+    expect(resultAudit?.action).toEqual({ kind: 'bash.exec', command: 'echo patched' })
+  })
+
   it('approve_remember + fs.write switches REPL to acceptEdits (no policy persistence)', async () => {
     const setReplMode = vi.fn()
     const approval = createApprovalService({
@@ -134,6 +164,36 @@ describe('ApprovalService', () => {
     const settingsPath = path.join(tmp, '.formax', 'settings.local.json')
     const settings = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as any
     expect(settings?.permissions?.allow).toEqual(['Bash(echo hi)'])
+  })
+
+  it('approve_remember + updated_input_json persists allow key from patched bash command', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-approval-updated-'))
+    const store = createNodeFileStore()
+
+    const approval = createApprovalService({
+      fileStore: store,
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve_remember',
+          updated_input_json: JSON.stringify({ command: 'echo patched' }),
+        }),
+      } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-updated-remember', name: 'Bash', input: { command: 'echo old' } },
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo old' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+
+    const settingsPath = path.join(tmp, '.formax', 'settings.local.json')
+    const settings = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as any
+    expect(settings?.permissions?.allow).toEqual(['Bash(echo patched)'])
   })
 
   it('approve_remember + scope=session adds a conservative policy allow into sessionRules', async () => {
@@ -559,6 +619,179 @@ describe('ApprovalService', () => {
         decisionReason: 'Path escaped workspace',
       }),
     )
+  })
+
+  it('applies updated_input_json to tool call input on approve', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ command: 'echo patched', timeout: 2000 }),
+        }),
+      } as any,
+    })
+
+    const call: ToolCall = { id: 't-updated-input', name: 'Bash', input: { command: 'echo old' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo old' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+    expect(call.input).toEqual({ command: 'echo patched', timeout: 2000 })
+  })
+
+  it('rejects updated_input_json that changes fs.write target path', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ file_path: '/tmp/new.txt', content: 'patched' }),
+        }),
+      } as any,
+    })
+
+    const call: ToolCall = { id: 't-updated-fs-path', name: 'Write', input: { file_path: '/tmp/original.txt', content: 'x' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'fs.write', path: '/tmp/original.txt' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('cannot change fs.write path')
+    expect(call.input).toEqual({ file_path: '/tmp/original.txt', content: 'x' })
+  })
+
+  it('rejects updated_input_json when patched bash command hits deny policy', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ command: 'sudo rm -rf /' }),
+        }),
+      } as any,
+    })
+
+    const call: ToolCall = { id: 't-updated-deny', name: 'Bash', input: { command: 'echo old' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo old' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('updated_input_json denied')
+    expect(call.input).toEqual({ command: 'echo old' })
+  })
+
+  it('rejects updated_input_json for WebFetch when patched URL matches deny permission rule', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-approval-web-deny-'))
+    await fs.mkdir(path.join(tmp, '.formax'), { recursive: true })
+    await fs.writeFile(
+      path.join(tmp, '.formax', 'settings.local.json'),
+      JSON.stringify({
+        version: 1,
+        permissions: {
+          allow: [],
+          ask: [],
+          deny: ['WebFetch(https://blocked.example/)'],
+          workspace: { additionalDirectories: [] },
+        },
+      }),
+      'utf8',
+    )
+    const loaded: LoadedPolicyRules = {
+      paths: {
+        globalRulesPath: path.join(tmp, 'global', 'rules.json'),
+        projectRulesPath: path.join(tmp, '.formax', 'rules.json'),
+      },
+      globalRules: null,
+      projectRules: null,
+      mergedRules: [
+        {
+          ruleId: 'prompt-all-net-fetch',
+          enabled: true,
+          createdAt: new Date().toISOString(),
+          scope: 'project',
+          decision: 'prompt',
+          reason: '',
+          template: '',
+          match: { kind: 'net.fetch', urlPrefix: 'https://' },
+        },
+      ],
+      warnings: [],
+    }
+
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ url: 'https://blocked.example' }),
+        }),
+      } as any,
+    })
+
+    const call: ToolCall = { id: 't-updated-web-deny', name: 'WebFetch', input: { url: 'https://safe.example' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'net.fetch', url: 'https://safe.example/' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('permission rule for WebFetch')
+    expect(call.input).toEqual({ url: 'https://safe.example' })
+  })
+
+  it('returns error when updated_input_json is invalid', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: '{not-json',
+        }),
+      } as any,
+    })
+
+    const call: ToolCall = { id: 't-invalid-updated-input', name: 'Bash', input: { command: 'echo old' } } as any
+    const res = await approval.ensureApproved({
+      call,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'bash.exec', command: 'echo old' },
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('invalid updated_input_json')
   })
 
   it('approve decision succeeds without audit logger', async () => {

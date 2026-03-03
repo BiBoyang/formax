@@ -3618,6 +3618,37 @@ describe('sdk query()', () => {
     })
   })
 
+  it('forwards canUseTool approval updatedInput via updated_input_json answer', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-updated-input',
+        toolName: 'Bash',
+        action: { kind: 'bash.exec', command: 'echo old' },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'approved' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    await collectMessages({
+      prompt: 'patch tool input',
+      options: {
+        interactive: true,
+        canUseTool: async () => ({
+          behavior: 'allow',
+          updatedInput: { command: 'echo patched' },
+        }),
+      },
+    })
+
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-updated-input', {
+      decision: 'approve',
+      updated_input_json: JSON.stringify({ command: 'echo patched' }),
+    })
+  })
+
   it('maps canUseTool deny messages to approval feedback answers', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       turnArgs.onEvent({
