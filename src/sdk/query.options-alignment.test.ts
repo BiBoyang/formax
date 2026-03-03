@@ -1,0 +1,189 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PromptMessage } from '../prompts/index.js'
+import type { ToolDefinition } from '../tools/types.js'
+import { query } from './query.js'
+import type { QueryArgs, QueryMessage } from './types.js'
+
+const { state } = vi.hoisted(() => ({
+  state: {
+    createRuntime: vi.fn(),
+  },
+}))
+
+vi.mock('../runtime/createRuntime.js', () => ({
+  createRuntime: (args: unknown) => state.createRuntime(args),
+}))
+
+function createTool(name: string): ToolDefinition {
+  return {
+    name,
+    description: `${name} tool`,
+    input_schema: { type: 'object' },
+  }
+}
+
+function createRuntimeFixture(runTurn?: (turnArgs: any) => Promise<PromptMessage[]>) {
+  const runtime: any = {
+    cfg: {
+      llm: { model: 'claude-default', thinkingMode: true },
+      ui: { promptProfile: 'full' },
+    },
+    allowedSubagents: [],
+    tools: [createTool('Read'), createTool('Write'), createTool('AskUserQuestion')],
+    client: {},
+    userInputManager: {
+      submitAnswers: vi.fn(() => true),
+      reject: vi.fn(() => true),
+    },
+    engine: {
+      runTurn: vi.fn(),
+    },
+  }
+
+  runtime.engine.runTurn =
+    runTurn ??
+    vi.fn(async (turnArgs: any) => [
+      ...turnArgs.history,
+      turnArgs.user,
+      { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+    ])
+
+  return runtime
+}
+
+async function collectMessages(args: QueryArgs): Promise<QueryMessage[]> {
+  const messages: QueryMessage[] = []
+  for await (const message of query(args)) {
+    messages.push(message)
+  }
+  return messages
+}
+
+describe('sdk query option alignment regressions', () => {
+  beforeEach(() => {
+    state.createRuntime.mockReset()
+  })
+
+  it('keeps permissionMode mapping to replMode', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.exec?.replMode).toBe('normal')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'permission mode',
+      options: { permissionMode: 'default' },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps abortController cancellation wiring', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.signal).toBeDefined()
+      expect(turnArgs.signal.aborted).toBe(true)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const abortController = new AbortController()
+    abortController.abort()
+
+    const messages = await collectMessages({
+      prompt: 'abort controller',
+      options: { abortController },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps systemPrompt preset append behavior', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const textBlocks = (turnArgs.system as Array<{ type?: string; text?: string }>)
+        .filter((block) => block?.type === 'text')
+        .map((block) => String(block.text))
+
+      expect(textBlocks).toContain('preset append')
+      expect(textBlocks).toContain('normal append')
+      expect(textBlocks.includes('[object Object]')).toBe(false)
+
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'system preset',
+      options: {
+        systemPrompt: { type: 'preset', preset: 'claude_code', append: 'preset append' },
+        appendSystemPrompt: 'normal append',
+      },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps thinking config mapping behavior', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(false)
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'thinking mapping',
+      options: {
+        thinking: { type: 'disabled' },
+      },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps multi-option alignment stable in a single call', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.exec?.replMode).toBe('normal')
+      expect(turnArgs.thinkingEnabled).toBe(true)
+      expect(turnArgs.signal).toBeDefined()
+      const textBlocks = (turnArgs.system as Array<{ type?: string; text?: string }>)
+        .filter((block) => block?.type === 'text')
+        .map((block) => String(block.text))
+      expect(textBlocks).toContain('preset append multi')
+
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'multi option alignment',
+      options: {
+        permissionMode: 'default',
+        thinking: { type: 'enabled' },
+        abortController: new AbortController(),
+        systemPrompt: { type: 'preset', preset: 'claude_code', append: 'preset append multi' },
+      },
+    })
+
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+})

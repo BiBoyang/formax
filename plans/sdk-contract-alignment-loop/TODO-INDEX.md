@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- [ ] `QRY-07`：补齐 query 选项对齐回归测试组（聚焦 `permissionMode`/`abortController`/`systemPrompt preset`/`thinking`）。
+- [ ] `QRY-08`：为 `query` 增加 `prompt: AsyncIterable<SDKUserMessage>` 子集对齐（仅 user/text），并与现有 `history + prompt` 编排兼容。
+- [ ] `QRY-09`：补齐 AsyncIterable prompt 的边界校验与错误路径测试（空流、非法消息结构、混合 history）。
 
 ## 再生规则（当“当前待办”为空时）
 
