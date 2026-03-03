@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `29c5e3c` `feat(sdk): support query stopTask compatibility`
+  - 切片：`QRY-63`
+  - 说明：`query.stopTask()` 从显式不支持改为中止式兼容语义（复用 query abort 路径），并更新测试与文档标注。
+
 - `d3975eb` `feat(sdk): relax query permissionMode compatibility`
   - 切片：`QRY-62`
   - 说明：`query` 对 `permissionMode=dontAsk/bypassPermissions` 从显式报错调整为兼容 no-op 接受；`default/acceptEdits/plan` 映射语义保持不变。
