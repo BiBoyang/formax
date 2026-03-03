@@ -244,6 +244,13 @@ export type ModelInfo = {
   supports_function_calling?: boolean
 }
 
+export type AccountInfo = {
+  provider: string
+  model: string
+  baseUrl?: string
+  hasApiKey: boolean
+}
+
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
   close(): void
@@ -251,6 +258,7 @@ export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   supportedCommands(): Promise<SlashCommand[]>
   supportedAgents(): Promise<AgentInfo[]>
   supportedModels(): Promise<ModelInfo[]>
+  accountInfo(): Promise<AccountInfo>
   setModel(model?: string): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>

@@ -892,6 +892,88 @@ describe('sdk query()', () => {
     expect(state.createRuntime).not.toHaveBeenCalled()
   })
 
+  it('supports accountInfo() before iteration starts', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'openai'
+    runtime.cfg.llm.model = 'gpt-4o'
+    runtime.cfg.llm.baseUrl = 'https://api.openai.com/v1'
+    runtime.cfg.llm.apiKey = 'sk-test'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'account info',
+    })
+
+    const account = await queryIterator.accountInfo()
+    expect(account).toEqual({
+      provider: 'openai',
+      model: 'gpt-4o',
+      baseUrl: 'https://api.openai.com/v1',
+      hasApiKey: true,
+    })
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses options.model override in accountInfo()', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'anthropic'
+    runtime.cfg.llm.model = 'claude-default'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'account info model override',
+      options: {
+        model: 'claude-override',
+      },
+    })
+
+    const account = await queryIterator.accountInfo()
+    expect(account.model).toBe('claude-override')
+  })
+
+  it('uses setModel() pre-start override in accountInfo()', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'anthropic'
+    runtime.cfg.llm.model = 'claude-default'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'account info setModel override',
+    })
+    await queryIterator.setModel('claude-set-model')
+
+    const account = await queryIterator.accountInfo()
+    expect(account.model).toBe('claude-set-model')
+  })
+
+  it('validates accountInfo() input options', async () => {
+    const queryIterator = query({
+      prompt: 'invalid account info input',
+      options: {
+        cwd: 123 as any,
+      },
+    })
+
+    await expect(queryIterator.accountInfo()).rejects.toThrow(
+      'Invalid query arguments or account output for query.accountInfo',
+    )
+    expect(state.createRuntime).not.toHaveBeenCalled()
+  })
+
+  it('validates accountInfo() output shape', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.model = 123 as any
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'invalid account info output',
+    })
+
+    await expect(queryIterator.accountInfo()).rejects.toThrow(
+      'Invalid query arguments or account output for query.accountInfo',
+    )
+  })
+
   it('maps thinking enabled config to execution thinkingEnabled', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

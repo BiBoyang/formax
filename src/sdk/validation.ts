@@ -3,6 +3,7 @@ import type { PromptMessage } from '../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type {
+  AccountInfo,
   AgentInfo,
   ApprovalInputResponse,
   AskUserQuestionInputResponse,
@@ -312,6 +313,15 @@ const modelInfoSchema = z
 
 const modelInfoListSchema = z.array(modelInfoSchema)
 
+const accountInfoSchema = z
+  .object({
+    provider: z.string(),
+    model: z.string(),
+    baseUrl: z.string().optional(),
+    hasApiKey: z.boolean(),
+  })
+  .strict()
+
 const workspaceRequestSchema = z.object({ dir: z.string() }).strict().nullable()
 
 const approvalRequestEventSchema = z
@@ -500,6 +510,10 @@ export function parseAgentInfoListOutput(input: unknown): AgentInfo[] {
 
 export function parseModelInfoListOutput(input: unknown): ModelInfo[] {
   return modelInfoListSchema.parse(input) as ModelInfo[]
+}
+
+export function parseAccountInfoOutput(input: unknown): AccountInfo {
+  return accountInfoSchema.parse(input) as AccountInfo
 }
 
 export function parseSessionMessageListOutput(input: unknown): SessionMessage[] {

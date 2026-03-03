@@ -37,6 +37,7 @@ export type {
   SlashCommand,
   AgentInfo,
   ModelInfo,
+  AccountInfo,
   Query,
   ListSessionsOptions,
   GetSessionMessagesOptions,

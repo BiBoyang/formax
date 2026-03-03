@@ -11,6 +11,7 @@ import { buildSkillToolSpecForCwd } from '../../tools/modules/skill/index.js'
 import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import type {
+  AccountInfo,
   AgentInfo,
   AssistantMessage,
   PermissionMode,
@@ -28,6 +29,7 @@ import type {
 } from '../types.js'
 import {
   asValidationError,
+  parseAccountInfoOutput,
   parseAgentInfoListOutput,
   parseModelInfoListOutput,
   parsePromptHistory,
@@ -893,6 +895,28 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
   }
 }
 
+async function queryAccountInfo(args: QueryArgs, state: QueryControlState): Promise<AccountInfo> {
+  try {
+    const parsedArgs = parseQueryArgsInput(args)
+    const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
+    const cwd = path.resolve(options.cwd ?? process.cwd())
+    const env = options.env ?? process.env
+    const runtime = await createRuntime({ cwd, env })
+    const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
+    return parseAccountInfoOutput({
+      provider: runtime.cfg.llm.provider,
+      model,
+      ...(runtime.cfg.llm.baseUrl ? { baseUrl: runtime.cfg.llm.baseUrl } : {}),
+      hasApiKey: String(runtime.cfg.llm.apiKey || '').trim().length > 0,
+    })
+  } catch (error) {
+    throw asValidationError(
+      error,
+      'Invalid query arguments or account output for query.accountInfo',
+    )
+  }
+}
+
 export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
   let resolveInitialization: (value: SystemMessage) => void = () => {}
@@ -938,6 +962,7 @@ export function query(args: QueryArgs): Query {
   queryIterator.supportedCommands = async () => listSupportedCommands(args, controlState)
   queryIterator.supportedAgents = async () => listSupportedAgents(args, controlState)
   queryIterator.supportedModels = async () => listSupportedModels(args, controlState)
+  queryIterator.accountInfo = async () => queryAccountInfo(args, controlState)
   queryIterator.setModel = async (model?: string) => {
     assertCanMutateQueryControls(controlState, 'query.setModel')
     controlState.hasModelOverride = true
