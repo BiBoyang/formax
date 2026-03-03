@@ -8,6 +8,7 @@ import type {
   GetSessionMessagesOptions,
   ListSessionsOptions,
   QueryArgs,
+  SDKUserMessage,
   SDKSessionInfo,
   SessionMessage,
 } from './types.js'
@@ -22,6 +23,20 @@ const promptMessageSchema = z
   .strict()
 
 const promptHistorySchema = z.array(promptMessageSchema)
+
+const sdkUserTextBlockSchema = z
+  .object({
+    type: z.literal('text'),
+    text: z.string(),
+  })
+  .strict()
+
+const sdkUserMessageSchema = z
+  .object({
+    role: z.literal('user'),
+    content: z.array(sdkUserTextBlockSchema),
+  })
+  .strict()
 
 const systemPromptPresetSchema = z
   .object({
@@ -130,7 +145,13 @@ const queryOptionsSchema = z
 
 const queryArgsSchema = z
   .object({
-    prompt: z.string(),
+    prompt: z.union([
+      z.string(),
+      z.custom<AsyncIterable<unknown>>((value) => {
+        if (!value || (typeof value !== 'object' && typeof value !== 'function')) return false
+        return typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function'
+      }, { message: 'Expected string or AsyncIterable<SDKUserMessage>' }),
+    ]),
     history: z.array(promptMessageSchema).optional(),
     options: queryOptionsSchema.optional(),
   })
@@ -319,6 +340,10 @@ const streamEventSchema = z.discriminatedUnion('type', [
 
 export function parseQueryArgsInput(input: unknown): QueryArgs {
   return queryArgsSchema.parse(input) as QueryArgs
+}
+
+export function parseSDKUserMessageInput(input: unknown): SDKUserMessage {
+  return sdkUserMessageSchema.parse(input) as SDKUserMessage
 }
 
 export function parseListSessionsOptionsInput(input: unknown): ListSessionsOptions {

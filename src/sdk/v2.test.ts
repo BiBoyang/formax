@@ -57,6 +57,13 @@ async function collectMessages(stream: AsyncGenerator<QueryMessage, void>): Prom
   return out
 }
 
+function asPromptString(prompt: QueryArgs['prompt']): string {
+  if (typeof prompt !== 'string') {
+    throw new Error('v2 tests expect string prompt input')
+  }
+  return prompt
+}
+
 describe('sdk v2 session api', () => {
   beforeEach(() => {
     state.query.mockReset()
@@ -68,7 +75,7 @@ describe('sdk v2 session api', () => {
         ...(args.history ?? []),
         {
           role: 'user' as const,
-          content: [{ type: 'text', text: args.prompt }],
+          content: [{ type: 'text', text: asPromptString(args.prompt) }],
         },
       ]
       return toGenerator([
@@ -142,13 +149,13 @@ describe('sdk v2 session api', () => {
     state.query.mockImplementation((args: QueryArgs) => {
       const history = [
         ...(args.history ?? []),
-        { role: 'user' as const, content: [{ type: 'text', text: args.prompt }] },
-        { role: 'assistant' as const, content: [{ type: 'text', text: `echo:${args.prompt}` }] },
+        { role: 'user' as const, content: [{ type: 'text', text: asPromptString(args.prompt) }] },
+        { role: 'assistant' as const, content: [{ type: 'text', text: `echo:${asPromptString(args.prompt)}` }] },
       ]
       return toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: `echo:${args.prompt}`,
+          result: `echo:${asPromptString(args.prompt)}`,
           history,
         }),
       ])
@@ -173,13 +180,13 @@ describe('sdk v2 session api', () => {
     state.query.mockImplementation((args: QueryArgs) => {
       const history = [
         ...(args.history ?? []),
-        { role: 'user' as const, content: [{ type: 'text', text: args.prompt }] },
-        { role: 'assistant' as const, content: [{ type: 'text', text: `ok:${args.prompt}` }] },
+        { role: 'user' as const, content: [{ type: 'text', text: asPromptString(args.prompt) }] },
+        { role: 'assistant' as const, content: [{ type: 'text', text: `ok:${asPromptString(args.prompt)}` }] },
       ]
       return toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: `ok:${args.prompt}`,
+          result: `ok:${asPromptString(args.prompt)}`,
           history,
         }),
       ])
@@ -208,7 +215,7 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: `answer:${args.prompt}`,
+          result: `answer:${asPromptString(args.prompt)}`,
         }),
       ]),
     )
@@ -237,7 +244,7 @@ describe('sdk v2 session api', () => {
         createResultMessage({
           sessionId: 'turn-session-id',
           result: 'ok',
-          history: [{ role: 'user', content: [{ type: 'text', text: args.prompt }] }],
+          history: [{ role: 'user', content: [{ type: 'text', text: asPromptString(args.prompt) }] }],
         }),
       ]
 
@@ -265,7 +272,7 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: args.prompt,
+          result: asPromptString(args.prompt),
         }),
       ]),
     )
@@ -292,7 +299,7 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: args.prompt,
+          result: asPromptString(args.prompt),
         }),
       ]),
     )
@@ -334,8 +341,8 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: args.prompt,
-          history: [{ role: 'user', content: [{ type: 'text', text: args.prompt }] }],
+          result: asPromptString(args.prompt),
+          history: [{ role: 'user', content: [{ type: 'text', text: asPromptString(args.prompt) }] }],
         }),
       ]),
     )
@@ -356,8 +363,8 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: args.prompt,
-          history: [{ role: 'user', content: [{ type: 'text', text: args.prompt }] }],
+          result: asPromptString(args.prompt),
+          history: [{ role: 'user', content: [{ type: 'text', text: asPromptString(args.prompt) }] }],
         }),
       ]),
     )
@@ -380,8 +387,8 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: args.prompt,
-          history: [{ role: 'user', content: [{ type: 'text', text: args.prompt }] }],
+          result: asPromptString(args.prompt),
+          history: [{ role: 'user', content: [{ type: 'text', text: asPromptString(args.prompt) }] }],
         }),
       ]),
     )
@@ -400,8 +407,8 @@ describe('sdk v2 session api', () => {
       toGenerator([
         createResultMessage({
           sessionId: 'turn-session-id',
-          result: `echo:${args.prompt}`,
-          history: [{ role: 'user', content: [{ type: 'text', text: args.prompt }] }],
+          result: `echo:${asPromptString(args.prompt)}`,
+          history: [{ role: 'user', content: [{ type: 'text', text: asPromptString(args.prompt) }] }],
         }),
       ]),
     )

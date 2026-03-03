@@ -22,6 +22,7 @@ import {
   asValidationError,
   parsePromptHistory,
   parseQueryArgsInput,
+  parseSDKUserMessageInput,
   parseStopReason,
   parseStreamEvent,
   parseTokenUsage,
@@ -172,6 +173,105 @@ function toUserPromptMessage(prompt: string): PromptMessage {
   return {
     role: 'user',
     content: [{ type: 'text', text: prompt }],
+  }
+}
+
+function promptMessageToText(message: PromptMessage): string {
+  if (!Array.isArray(message.content)) return ''
+  return message.content
+    .map((block) => {
+      if (!block || typeof block !== 'object') return ''
+      if ((block as { type?: unknown }).type !== 'text') return ''
+      const text = (block as { text?: unknown }).text
+      return typeof text === 'string' ? text : ''
+    })
+    .join('')
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new Error('Request aborted')
+  }
+}
+
+async function nextAsyncIteratorWithAbort<T>(
+  iterator: AsyncIterator<T>,
+  signal: AbortSignal,
+): Promise<IteratorResult<T>> {
+  throwIfAborted(signal)
+
+  let onAbort: (() => void) | undefined
+  try {
+    return await Promise.race([
+      iterator.next(),
+      new Promise<IteratorResult<T>>((_resolve, reject) => {
+        onAbort = () => reject(new Error('Request aborted'))
+        signal.addEventListener('abort', onAbort, { once: true })
+      }),
+    ])
+  } finally {
+    if (onAbort) {
+      signal.removeEventListener('abort', onAbort)
+    }
+  }
+}
+
+async function resolvePromptInput(args: {
+  prompt: QueryArgs['prompt']
+  history: PromptMessage[]
+  signal: AbortSignal
+}): Promise<{ prompt: string; history: PromptMessage[] }> {
+  if (typeof args.prompt === 'string') {
+    return {
+      prompt: args.prompt,
+      history: args.history,
+    }
+  }
+
+  const streamMessages: PromptMessage[] = []
+  const iterator = args.prompt[Symbol.asyncIterator]()
+  let completed = false
+
+  try {
+    while (true) {
+      const next = await nextAsyncIteratorWithAbort(iterator, args.signal)
+      if (next.done) {
+        completed = true
+        break
+      }
+      const rawMessage = next.value
+      const parsedMessage = parseSDKUserMessageInput(rawMessage)
+      streamMessages.push({
+        role: 'user',
+        content: parsedMessage.content.map((block) => ({
+          type: 'text',
+          text: block.text,
+        })),
+      })
+    }
+  } finally {
+    if (!completed && typeof iterator.return === 'function') {
+      try {
+        const cleanup = iterator.return()
+        if (cleanup && typeof (cleanup as Promise<unknown>).then === 'function') {
+          void (cleanup as Promise<unknown>).catch(() => {})
+        }
+      } catch {
+        // Best-effort cleanup for caller-provided async streams.
+      }
+    }
+  }
+
+  throwIfAborted(args.signal)
+
+  if (streamMessages.length === 0) {
+    throw new Error('Async prompt stream must yield at least one user message')
+  }
+
+  const lastMessage = streamMessages[streamMessages.length - 1]
+  return {
+    prompt: promptMessageToText(lastMessage),
+    history: [...args.history, ...streamMessages.slice(0, -1)],
   }
 }
 
@@ -434,7 +534,15 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       messageCallback = options.onMessage
       const cwd = path.resolve(options.cwd ?? process.cwd())
       const env = options.env ?? process.env
-      const history = cloneHistory(parsedArgs.history)
+      const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
+      runSignal = combineSignals(externalSignal, controller.signal)
+      const baseHistory = cloneHistory(parsedArgs.history)
+      const normalizedPrompt = await resolvePromptInput({
+        prompt: parsedArgs.prompt,
+        history: baseHistory,
+        signal: runSignal,
+      })
+      const history = normalizedPrompt.history
       nextHistory = history
       const interactive = options.interactive === true
       const replMode = resolveExecutionReplMode({
@@ -454,8 +562,6 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
         disallowedTools: options.disallowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
-      const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
-      runSignal = combineSignals(externalSignal, controller.signal)
 
       runtime = await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
@@ -580,7 +686,7 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       const outputMaxRetries =
         outputFormat?.type === 'json_schema' ? Math.max(0, outputFormat.maxRetries ?? 0) : 0
       let currentHistory = history
-      let currentPrompt = parsedArgs.prompt
+      let currentPrompt = normalizedPrompt.prompt
       let lastStructuredValidationError: string | null = null
       let structuredOutputValue: unknown
       let assistantBlocks: { text: string; blocks: PromptBlock[] } | null = null

@@ -66,7 +66,7 @@ export type QueryOptions = {
 }
 
 export type QueryArgs = {
-  prompt: string
+  prompt: string | AsyncIterable<SDKUserMessage>
   history?: PromptMessage[]
   options?: QueryOptions
 }

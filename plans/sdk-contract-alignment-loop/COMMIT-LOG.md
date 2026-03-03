@@ -24,9 +24,13 @@
   - 切片：`QRY-06`
   - 说明：支持 `thinking` 子集对齐（`adaptive/enabled/disabled`）并映射现有执行开关。
 
-- `[pending]` `test(sdk): add query option alignment regression suite`
+- `7ce0ef4` `test(sdk): add query option alignment regression suite`
   - 切片：`QRY-07`
   - 说明：新增 query 选项对齐回归测试组，覆盖 `permissionMode`、`abortController`、`systemPrompt preset`、`thinking`。
+
+- `[pending]` `feat(sdk): align async iterable prompt input`
+  - 切片：`QRY-08`、`QRY-09`
+  - 说明：支持 `query` 的 `prompt: AsyncIterable<SDKUserMessage>` 子集输入，并补齐空流/非法结构/中断清理等边界测试。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

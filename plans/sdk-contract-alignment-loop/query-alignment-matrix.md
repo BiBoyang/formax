@@ -13,11 +13,11 @@
 
 | 官方导出 | 官方形态 | Formax SDK 现状 | 状态 |
 |---|---|---|---|
-| `query(params)` | `prompt: string \| AsyncIterable<SDKUserMessage>` | `query({ prompt: string, options? })` | Partial |
+| `query(params)` | `prompt: string \| AsyncIterable<SDKUserMessage>` | `query({ prompt: string \| AsyncIterable<SDKUserMessage>, options? })` | Partial |
 | `Query` 返回对象 | `AsyncGenerator + interrupt/setModel/...` 方法集 | 直接返回 `AsyncGenerator<QueryMessage>`，不带方法集 | Backlog |
 
 说明：
-- 当前仅对齐“可迭代消息流”的核心能力。
+- 当前已支持 `AsyncIterable<SDKUserMessage>`（user/text 子集），`Query` 方法集仍未对齐。
 - `Query` 对象方法（`interrupt`/`setModel`/`supported*`/`mcp*` 等）暂不纳入一期范围。
 
 ## Options 对齐矩阵（官方 -> Formax）

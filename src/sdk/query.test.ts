@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { query } from './query.js'
-import type { QueryArgs, QueryMessage } from './types.js'
+import type { QueryArgs, QueryMessage, SDKUserMessage } from './types.js'
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -134,6 +134,148 @@ describe('sdk query()', () => {
       expect(result.result).toBe('hello from model')
       expect(result.usage).toEqual({ input_tokens: 2, output_tokens: 3 })
       expect(result.model).toBe('claude-test')
+    }
+  })
+
+  it('supports async iterable prompt input and folds prior streamed messages into history', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(1)
+      expect(turnArgs.history[0]?.role).toBe('user')
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('first from stream')
+      expect(turnArgs.user?.content?.[0]?.text).toBe('second from stream')
+
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    async function* promptStream(): AsyncGenerator<SDKUserMessage, void, unknown> {
+      yield { role: 'user', content: [{ type: 'text', text: 'first from stream' }] }
+      yield { role: 'user', content: [{ type: 'text', text: 'second from stream' }] }
+    }
+
+    const messages = await collectMessages({
+      prompt: promptStream(),
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.result).toBe('ok')
+    }
+  })
+
+  it('returns error when async iterable prompt stream is empty', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    async function* emptyPromptStream() {}
+
+    const messages = await collectMessages({
+      prompt: emptyPromptStream(),
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Async prompt stream must yield at least one user message')
+    }
+  })
+
+  it('aborts while draining async iterable prompt streams', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+    const abortController = new AbortController()
+
+    async function* blockedPromptStream(): AsyncGenerator<SDKUserMessage, void, unknown> {
+      await new Promise<never>(() => {})
+      yield { role: 'user', content: [{ type: 'text', text: 'never' }] }
+    }
+
+    const messagesPromise = collectMessages({
+      prompt: blockedPromptStream(),
+      options: {
+        abortController,
+      },
+    })
+
+    const abortTimer = setTimeout(() => {
+      abortController.abort()
+    }, 10)
+
+    const messages = await Promise.race([
+      messagesPromise,
+      new Promise<QueryMessage[]>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('async prompt abort timeout')), 1000)
+      }),
+    ])
+
+    clearTimeout(abortTimer)
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('Request aborted')
+    }
+  })
+
+  it('returns error when async iterable prompt yields invalid message shape', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+
+    async function* invalidPromptStream() {
+      yield { role: 'assistant', content: [{ type: 'text', text: 'invalid role' }] } as any
+    }
+
+    const messages = await collectMessages({
+      prompt: invalidPromptStream(),
+    })
+
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('role')
+    }
+  })
+
+  it('closes async iterable prompt iterator when validation fails mid-stream', async () => {
+    state.createRuntime.mockResolvedValue(createRuntimeFixture())
+    let didReturn = false
+
+    const promptStream: AsyncIterable<unknown> = {
+      [Symbol.asyncIterator]() {
+        let emitted = false
+        return {
+          next: async () => {
+            if (emitted) return { value: undefined, done: true }
+            emitted = true
+            return {
+              value: { role: 'assistant', content: [{ type: 'text', text: 'invalid role' }] },
+              done: false,
+            }
+          },
+          return: async () => {
+            didReturn = true
+            return { value: undefined, done: true }
+          },
+        }
+      },
+    }
+
+    const messages = await collectMessages({
+      prompt: promptStream as AsyncIterable<SDKUserMessage>,
+    })
+
+    expect(didReturn).toBe(true)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('role')
     }
   })
 
