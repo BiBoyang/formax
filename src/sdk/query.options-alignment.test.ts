@@ -461,6 +461,27 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
+  it('keeps permissionPromptToolName compatibility behavior via compatibility no-op handling', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'permissionPromptToolName compatibility',
+      options: {
+        permissionPromptToolName: 'MyPermissionTool',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
   it('keeps continue compatibility behavior via latest-session restore', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.history).toHaveLength(2)

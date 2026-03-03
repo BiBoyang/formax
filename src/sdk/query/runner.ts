@@ -343,21 +343,13 @@ function assertPermissionPromptOptionsSupported(args: {
   permissionPromptToolName?: string
   promptSuggestions?: boolean
 }): void {
-  if (args.allowDangerouslySkipPermissions !== undefined) {
+  if (args.allowDangerouslySkipPermissions === true) {
     throw new Error(
       `options.allowDangerouslySkipPermissions (${args.allowDangerouslySkipPermissions}) is not supported in Formax SDK yet`,
     )
   }
-  if (args.permissionPromptToolName !== undefined) {
-    throw new Error(
-      `options.permissionPromptToolName (${args.permissionPromptToolName}) is not supported in Formax SDK yet`,
-    )
-  }
-  if (args.promptSuggestions !== undefined) {
-    throw new Error(
-      `options.promptSuggestions (${args.promptSuggestions}) is not supported in Formax SDK yet`,
-    )
-  }
+  void args.permissionPromptToolName
+  void args.promptSuggestions
 }
 
 function assertContinuationOptionsSupported(args: {

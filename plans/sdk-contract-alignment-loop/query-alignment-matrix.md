@@ -61,9 +61,9 @@
 | `continue` | `options.continue` | Partial | 已支持：读取当前 cwd 最新本地会话并恢复历史；如无历史则按新会话继续。 |
 | `persistSession`/`forkSession`/`enableFileCheckpointing` | `options.persistSession` / `options.forkSession` / `options.enableFileCheckpointing` | Partial | 已支持：`persistSession=true` 可将 query turn 落盘到本地会话；`forkSession=true` 可将 `resume/continue` 历史重绑定到新 session；`enableFileCheckpointing=true` 触发持久化并写入历史快照。 |
 | `fallbackModel` | `options.fallbackModel` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
-| `promptSuggestions` | `options.promptSuggestions` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
+| `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 部分支持：`false` 作为兼容 no-op；`true` 仍显式报“暂不支持”（不降权限安全语义）。 |
+| `promptSuggestions` | `options.promptSuggestions` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `strictMcpConfig` | `options.strictMcpConfig` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 已支持：`debug=true` 通过环境变量开启 hook debug 路径；`debugFile` 作为调试日志文件输出路径。 |
 | `stderr` | `options.stderr` | Partial | 已支持：作为 SDK 错误输出回调（在 query 错误路径写入）。 |
