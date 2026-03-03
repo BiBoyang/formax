@@ -49,7 +49,7 @@ const STRUCTURED_OUTPUT_TOOL_NAME = 'StructuredOutput'
 const STRUCTURED_OUTPUT_TOOL_DESCRIPTION =
   'Use this tool to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response to provide the structured output.'
 
-const PERMISSION_MODE_TO_REPL_MODE: Record<PermissionMode, ReplMode> = {
+const SUPPORTED_PERMISSION_MODE_TO_REPL_MODE: Record<'default' | 'acceptEdits' | 'plan', ReplMode> = {
   default: 'normal',
   acceptEdits: 'acceptEdits',
   plan: 'plan',
@@ -131,9 +131,15 @@ function resolveExecutionReplMode(args: {
   replMode?: ReplMode
   permissionMode?: PermissionMode
 }): ReplMode | undefined {
-  const mappedPermissionMode = args.permissionMode
-    ? PERMISSION_MODE_TO_REPL_MODE[args.permissionMode]
-    : undefined
+  const mappedPermissionMode = (() => {
+    if (!args.permissionMode) return undefined
+    if (args.permissionMode === 'dontAsk' || args.permissionMode === 'bypassPermissions') {
+      throw new Error(
+        `options.permissionMode (${args.permissionMode}) is not supported in Formax SDK yet`,
+      )
+    }
+    return SUPPORTED_PERMISSION_MODE_TO_REPL_MODE[args.permissionMode]
+  })()
 
   if (args.replMode && mappedPermissionMode && args.replMode !== mappedPermissionMode) {
     throw new Error(
@@ -534,6 +540,14 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       messageCallback = options.onMessage
       const cwd = path.resolve(options.cwd ?? process.cwd())
       const env = options.env ?? process.env
+      const replMode = resolveExecutionReplMode({
+        replMode: options.replMode,
+        permissionMode: options.permissionMode,
+      })
+      const thinkingEnabled = resolveThinkingEnabled({
+        thinking: options.thinking,
+        thinkingEnabled: options.thinkingEnabled,
+      })
       const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
       runSignal = combineSignals(externalSignal, controller.signal)
       const baseHistory = cloneHistory(parsedArgs.history)
@@ -545,14 +559,6 @@ export async function* query(args: QueryArgs): AsyncGenerator<QueryMessage, void
       const history = normalizedPrompt.history
       nextHistory = history
       const interactive = options.interactive === true
-      const replMode = resolveExecutionReplMode({
-        replMode: options.replMode,
-        permissionMode: options.permissionMode,
-      })
-      const thinkingEnabled = resolveThinkingEnabled({
-        thinking: options.thinking,
-        thinkingEnabled: options.thinkingEnabled,
-      })
       const allowTools = normalizeAllowedTools({
         allowedTools: options.allowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',

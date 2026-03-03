@@ -39,7 +39,12 @@ export type ThinkingDisabled = {
 
 export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabled
 
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan'
+export type PermissionMode =
+  | 'default'
+  | 'acceptEdits'
+  | 'plan'
+  | 'dontAsk'
+  | 'bypassPermissions'
 
 export type QueryOptions = {
   cwd?: string

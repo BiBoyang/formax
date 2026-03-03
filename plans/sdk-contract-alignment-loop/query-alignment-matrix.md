@@ -37,7 +37,7 @@
 | `includePartialMessages` | `options.includePartialMessages` | Supported | 已对齐。 |
 | `model` | `options.model` | Supported | 已对齐。 |
 | `outputFormat` | `options.outputFormat` | Partial | 目前仅 `json_schema` 子集。 |
-| `permissionMode` | `options.permissionMode` | Partial | 目前支持 `default`/`acceptEdits`/`plan`。 |
+| `permissionMode` | `options.permissionMode` | Partial | 接受官方全集；`default`/`acceptEdits`/`plan` 已落地，`dontAsk`/`bypassPermissions` 显式报“暂不支持”。 |
 | `systemPrompt` | `options.systemPrompt` | Supported | 支持字符串与官方 preset 对象（`claude_code` + `append`）；另外扩展支持 PromptBlock 数组。 |
 | `maxTurns` | - | Backlog | 当前未提供 query 多轮上限参数。 |
 | `maxBudgetUsd` | - | Backlog | 当前未支持。 |

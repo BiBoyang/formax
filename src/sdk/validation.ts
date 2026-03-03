@@ -123,7 +123,7 @@ const queryOptionsSchema = z
     allowedTools: z.array(z.string()).optional(),
     disallowedTools: z.array(z.string()).optional(),
     replMode: z.enum(['normal', 'acceptEdits', 'plan']).optional(),
-    permissionMode: z.enum(['default', 'acceptEdits', 'plan']).optional(),
+    permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']).optional(),
     interactive: z.boolean().optional(),
     thinking: thinkingConfigSchema.optional(),
     thinkingEnabled: z.boolean().optional(),

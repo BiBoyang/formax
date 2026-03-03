@@ -360,6 +360,69 @@ describe('sdk query()', () => {
     }
   })
 
+  it.each(['dontAsk', 'bypassPermissions'] as const)(
+    'returns explicit unsupported error for permissionMode=%s',
+    async (permissionMode) => {
+      const runTurn = vi.fn(async (turnArgs: any) => {
+        return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+      })
+      const runtime = createRuntimeFixture({ runTurn })
+      state.createRuntime.mockResolvedValue(runtime)
+
+      const messages = await collectMessages({
+        prompt: 'unsupported permission mode',
+        options: {
+          permissionMode,
+        },
+      })
+
+      expect(runTurn).not.toHaveBeenCalled()
+      const result = messages[messages.length - 1]
+      expect(result?.type).toBe('result')
+      if (result?.type === 'result') {
+        expect(result.subtype).toBe('error_during_execution')
+        expect(result.error).toContain('is not supported in Formax SDK yet')
+      }
+    },
+  )
+
+  it('fails fast on unsupported permissionMode before draining async prompt stream', async () => {
+    const runtime = createRuntimeFixture()
+    state.createRuntime.mockResolvedValue(runtime)
+    let nextCalls = 0
+
+    const promptStream: AsyncIterable<SDKUserMessage> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => {
+            nextCalls += 1
+            return {
+              value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
+              done: false,
+            }
+          },
+        }
+      },
+    }
+
+    const messages = await collectMessages({
+      prompt: promptStream,
+      options: {
+        permissionMode: 'dontAsk',
+      },
+    })
+
+    expect(nextCalls).toBe(0)
+    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
+    expect(state.createRuntime).not.toHaveBeenCalled()
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('error_during_execution')
+      expect(result.error).toContain('is not supported in Formax SDK yet')
+    }
+  })
+
   it('accepts abortController and forwards its signal to runTurn', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.signal).toBeDefined()

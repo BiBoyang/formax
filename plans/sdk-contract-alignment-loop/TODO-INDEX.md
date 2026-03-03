@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] `QRY-10`：扩展 `permissionMode` 输入对齐到官方全集（含 `dontAsk`/`bypassPermissions`），对当前不支持语义给出显式一致错误。
 - [ ] `QRY-11`：增加 `maxThinkingTokens` 对齐入口（与 `thinking`/`thinkingEnabled` 协同），当前仅做输入契约与语义落地，不引入预算控制。
 
 ## 再生规则（当“当前待办”为空时）

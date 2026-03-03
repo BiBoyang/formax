@@ -58,7 +58,7 @@ if (sessions.length > 0) {
 Implemented and available now:
 - Query streaming (`query`)
 - Query prompt stream alignment (`prompt` supports `AsyncIterable<SDKUserMessage>` user/text subset)
-- Query mode alignment (`permissionMode` mapped to internal execution mode)
+- Query mode alignment (`permissionMode` official values accepted; unsupported ones fail explicitly)
 - Query cancellation alignment (`abortController`, compatible with existing `signal`)
 - Query system prompt alignment (`systemPrompt` supports official `preset` object shape)
 - Query thinking alignment (`thinking` supports adaptive/enabled/disabled subset)
