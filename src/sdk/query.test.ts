@@ -1686,11 +1686,6 @@ describe('sdk query()', () => {
 
   it.each([
     {
-      label: 'debug',
-      options: { debug: true },
-      expected: 'options.debug',
-    },
-    {
       label: 'debugFile',
       options: { debugFile: '/tmp/formax-debug.log' },
       expected: 'options.debugFile',
@@ -1717,41 +1712,33 @@ describe('sdk query()', () => {
     }
   })
 
-  it('fails fast on unsupported debug option before draining async prompt stream', async () => {
-    const runtime = createRuntimeFixture()
+  it('enables hook debug env when options.debug is true', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
-    let nextCalls = 0
-
-    const promptStream: AsyncIterable<SDKUserMessage> = {
-      [Symbol.asyncIterator]() {
-        return {
-          next: async () => {
-            nextCalls += 1
-            return {
-              value: { role: 'user', content: [{ type: 'text', text: 'stream value' }] },
-              done: false,
-            }
-          },
-        }
-      },
-    }
 
     const messages = await collectMessages({
-      prompt: promptStream,
+      prompt: 'debug option supported',
       options: {
         debug: true,
       },
     })
 
-    expect(nextCalls).toBe(0)
-    expect(runtime.engine.runTurn).not.toHaveBeenCalled()
-    expect(state.createRuntime).not.toHaveBeenCalled()
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+    expect(state.createRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          FORMAX_HOOKS_DEBUG: '1',
+        }),
+      }),
+    )
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.debug')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
@@ -1787,7 +1774,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: 'stderr callback on error',
       options: {
-        debug: true,
+        debugFile: '/tmp/formax-debug.log',
         stderr,
       },
     })
@@ -1795,12 +1782,12 @@ describe('sdk query()', () => {
     expect(runtime.engine.runTurn).not.toHaveBeenCalled()
     expect(state.createRuntime).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledTimes(1)
-    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.debug')
+    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.debugFile')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.debug')
+      expect(result.error).toContain('options.debugFile')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

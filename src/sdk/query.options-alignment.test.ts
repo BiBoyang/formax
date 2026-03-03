@@ -316,7 +316,7 @@ describe('sdk query option alignment regressions', () => {
     }
   })
 
-  it('keeps debug compatibility behavior via explicit unsupported error', async () => {
+  it('keeps debug compatibility behavior via hook-debug env wiring', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
@@ -329,13 +329,18 @@ describe('sdk query option alignment regressions', () => {
       },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(state.createRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          FORMAX_HOOKS_DEBUG: '1',
+        }),
+      }),
+    )
+    expect(runTurn).toHaveBeenCalledTimes(1)
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.debug')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 

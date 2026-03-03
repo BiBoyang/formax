@@ -275,15 +275,21 @@ function assertDebugOptionsSupported(args: {
   debug?: boolean
   debugFile?: string
 }): void {
-  if (args.debug !== undefined) {
-    throw new Error(
-      `options.debug (${args.debug}) is not supported in Formax SDK yet`,
-    )
-  }
   if (args.debugFile !== undefined) {
     throw new Error(
       `options.debugFile (${args.debugFile}) is not supported in Formax SDK yet`,
     )
+  }
+}
+
+function resolveRuntimeEnv(args: {
+  env: NodeJS.ProcessEnv
+  debug?: boolean
+}): NodeJS.ProcessEnv {
+  if (args.debug !== true) return args.env
+  return {
+    ...args.env,
+    FORMAX_HOOKS_DEBUG: '1',
   }
 }
 
@@ -1103,7 +1109,10 @@ async function* runQuery(
       messageCallback = options.onMessage
       stderrCallback = options.stderr
       const cwd = path.resolve(options.cwd ?? process.cwd())
-      const env = options.env ?? process.env
+      const env = resolveRuntimeEnv({
+        env: options.env ?? process.env,
+        debug: options.debug,
+      })
       const replMode = resolveExecutionReplMode({
         replMode: options.replMode,
         permissionMode: options.permissionMode,
