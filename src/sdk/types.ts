@@ -183,6 +183,7 @@ export type QueryMessage =
 
 export interface Query extends AsyncGenerator<QueryMessage, void, unknown> {
   interrupt(): Promise<void>
+  close(): void
 }
 
 export type ListSessionsOptions = {

@@ -48,9 +48,13 @@
   - 切片：`QRY-13`
   - 说明：增加 `maxBudgetUsd` 对齐入口，输入通过后统一显式报当前不支持。
 
-- `[pending]` `feat(sdk): align query interrupt handle`
+- `6a2887a` `feat(sdk): align query interrupt handle`
   - 切片：`QRY-14`
   - 说明：将 `query` 返回值升级为带 `interrupt()` 的 Query 对象，并保持 `for await` 兼容。
+
+- `[pending]` `feat(sdk): align query close handle`
+  - 切片：`QRY-15`
+  - 说明：为 `query` 增加 `close()`，复用中断语义实现进程内关闭控制。
   - 备注：本条 hash 在下一次提交中回填。
 
 - `44396d3` `feat(sdk): add session query APIs with validated outputs`

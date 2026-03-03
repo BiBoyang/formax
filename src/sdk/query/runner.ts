@@ -526,8 +526,14 @@ export function query(args: QueryArgs): Query {
   const interruptController = new AbortController()
   const iterator = runQuery(args, interruptController)
   const queryIterator = iterator as Query
-  queryIterator.interrupt = async () => {
+  const abortQuery = () => {
     interruptController.abort()
+  }
+  queryIterator.interrupt = async () => {
+    abortQuery()
+  }
+  queryIterator.close = () => {
+    abortQuery()
   }
   return queryIterator
 }
