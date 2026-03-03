@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `bc5f0d6` `feat(sdk): align query continue and sessionId`
+  - 切片：`QRY-49`
+  - 说明：`continue+sessionId` 对齐增强：当 `sessionId` 与最新会话一致时允许继续，不匹配时保留显式冲突错误（除非 `forkSession=true`）。
+
 - `45ba95a` `feat(sdk): support query debugFile option`
   - 切片：`QRY-48`
   - 说明：`query` 正式支持 `options.debugFile`（作为非阻塞调试日志文件输出）；与 `debug/stderr` 一起可形成本地调试观测路径。
