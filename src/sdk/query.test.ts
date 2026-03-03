@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
@@ -1684,31 +1687,30 @@ describe('sdk query()', () => {
     }
   })
 
-  it.each([
-    {
-      label: 'debugFile',
-      options: { debugFile: '/tmp/formax-debug.log' },
-      expected: 'options.debugFile',
-    },
-  ] as const)('returns explicit unsupported error when $label is provided', async ({ options, expected }) => {
+  it('writes lifecycle lines when options.debugFile is provided', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
     const runtime = createRuntimeFixture({ runTurn })
     state.createRuntime.mockResolvedValue(runtime)
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-sdk-debugfile-'))
+    const debugFile = path.join(dir, 'query.log')
 
     const messages = await collectMessages({
-      prompt: 'debug option unsupported',
-      options,
+      prompt: 'debug file supported',
+      options: {
+        debugFile,
+      },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const content = await fs.readFile(debugFile, 'utf8')
+    expect(content).toContain('query.start')
+    expect(content).toContain('query.success')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain(expected)
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
@@ -1774,7 +1776,7 @@ describe('sdk query()', () => {
     const messages = await collectMessages({
       prompt: 'stderr callback on error',
       options: {
-        debugFile: '/tmp/formax-debug.log',
+        pathToClaudeCodeExecutable: '/usr/local/bin/claude',
         stderr,
       },
     })
@@ -1782,12 +1784,12 @@ describe('sdk query()', () => {
     expect(runtime.engine.runTurn).not.toHaveBeenCalled()
     expect(state.createRuntime).not.toHaveBeenCalled()
     expect(stderr).toHaveBeenCalledTimes(1)
-    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.debugFile')
+    expect(String(stderr.mock.calls[0]?.[0] ?? '')).toContain('options.pathToClaudeCodeExecutable')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
       expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.debugFile')
+      expect(result.error).toContain('options.pathToClaudeCodeExecutable')
       expect(result.error).toContain('is not supported in Formax SDK yet')
     }
   })

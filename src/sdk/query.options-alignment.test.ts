@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
@@ -337,6 +340,32 @@ describe('sdk query option alignment regressions', () => {
       }),
     )
     expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.at(-1)
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('keeps debugFile compatibility behavior via debug log file sink', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-sdk-debugfile-align-'))
+    const debugFile = path.join(dir, 'query.log')
+
+    const messages = await collectMessages({
+      prompt: 'debugFile compatibility',
+      options: {
+        debugFile,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const content = await fs.readFile(debugFile, 'utf8')
+    expect(content).toContain('query.start')
+    expect(content).toContain('query.success')
     const result = messages.at(-1)
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {

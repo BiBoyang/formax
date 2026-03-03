@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
 import { createSlashCommandRegistry } from '../../features/commands/registry.js'
 import { getDefaultModels } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
@@ -275,11 +276,7 @@ function assertDebugOptionsSupported(args: {
   debug?: boolean
   debugFile?: string
 }): void {
-  if (args.debugFile !== undefined) {
-    throw new Error(
-      `options.debugFile (${args.debugFile}) is not supported in Formax SDK yet`,
-    )
-  }
+  void args
 }
 
 function resolveRuntimeEnv(args: {
@@ -290,6 +287,29 @@ function resolveRuntimeEnv(args: {
   return {
     ...args.env,
     FORMAX_HOOKS_DEBUG: '1',
+  }
+}
+
+function resolveDebugFilePath(args: {
+  cwd: string
+  debugFile?: string
+}): string | null {
+  const raw = String(args.debugFile ?? '').trim()
+  if (!raw) return null
+  return path.resolve(args.cwd, raw)
+}
+
+async function appendDebugFileLine(debugFilePath: string | null, line: string): Promise<void> {
+  if (!debugFilePath) return
+  try {
+    await fs.mkdir(path.dirname(debugFilePath), { recursive: true })
+    await fs.appendFile(
+      debugFilePath,
+      `${new Date().toISOString()} ${line}\n`,
+      'utf8',
+    )
+  } catch {
+    // Debug-file logging should never break query execution.
   }
 }
 
@@ -1071,6 +1091,7 @@ async function* runQuery(
     let sessionPersistence: QuerySessionPersistence | null = null
     let messageCallback: ((message: QueryMessage) => void) | undefined
     let stderrCallback: ((data: string) => void) | undefined
+    let debugFilePath: string | null = null
     const pendingInputResolutions = new Set<Promise<void>>()
     let nextHistory: PromptMessage[] = []
     let lastStopReason: StopReason = null
@@ -1109,6 +1130,10 @@ async function* runQuery(
       messageCallback = options.onMessage
       stderrCallback = options.stderr
       const cwd = path.resolve(options.cwd ?? process.cwd())
+      debugFilePath = resolveDebugFilePath({
+        cwd,
+        debugFile: options.debugFile,
+      })
       const env = resolveRuntimeEnv({
         env: options.env ?? process.env,
         debug: options.debug,
@@ -1124,6 +1149,7 @@ async function* runQuery(
         debug: options.debug,
         debugFile: options.debugFile,
       })
+      await appendDebugFileLine(debugFilePath, `query.start cwd=${cwd}`)
       assertProcessSpawnOptionsSupported({
         pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
         spawnClaudeCodeProcess: options.spawnClaudeCodeProcess,
@@ -1479,6 +1505,10 @@ async function* runQuery(
           history: nextHistory,
         })
       }
+      await appendDebugFileLine(
+        debugFilePath,
+        `query.success session_id=${sessionId} subtype=${resultMessage.subtype}`,
+      )
 
       emitMessage({
         emit: queue.push,
@@ -1491,6 +1521,7 @@ async function* runQuery(
         : asValidationError(error, 'Invalid query arguments or runtime event')
       rejectInitializationOnce(controlState, validationError)
       const message = validationError.message
+      await appendDebugFileLine(debugFilePath, `query.error ${message}`)
       emitStderr(stderrCallback, `${message}\n`)
       const safeHistory = (() => {
         try {
