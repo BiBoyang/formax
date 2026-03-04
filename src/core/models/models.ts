@@ -37,13 +37,26 @@ function getOpenAIModelMetadata(model: string): OpenAIModelMetadata | undefined 
   return metadataKey ? OPENAI_MODEL_METADATA_BY_PREFIX[metadataKey] : undefined
 }
 
+export function inferModelMetadata(args: {
+  provider: string
+  model: string
+}): Pick<ModelInfo, 'max_tokens' | 'contextWindowTokens' | 'supports_reasoning_effort'> | undefined {
+  const provider = String(args.provider || '').trim().toLowerCase()
+  if (provider !== 'openai') return undefined
+  const metadata = getOpenAIModelMetadata(args.model)
+  if (!metadata) return undefined
+  return {
+    max_tokens: metadata.max_tokens,
+    contextWindowTokens: metadata.contextWindowTokens,
+    supports_reasoning_effort: metadata.supports_reasoning_effort,
+  }
+}
+
 export function inferModelReasoningEffortSupport(args: {
   provider: string
   model: string
 }): boolean | undefined {
-  const provider = String(args.provider || '').trim().toLowerCase()
-  if (provider !== 'openai') return undefined
-  return getOpenAIModelMetadata(args.model)?.supports_reasoning_effort
+  return inferModelMetadata(args)?.supports_reasoning_effort
 }
 
 /**
@@ -212,8 +225,7 @@ export async function fetchOpenAIModels(
       })
       .map((model) => {
         const modelId = model.id
-        const metadata = getOpenAIModelMetadata(modelId)
-        const supportsReasoningEffort = inferModelReasoningEffortSupport({
+        const metadata = inferModelMetadata({
           provider: 'openai',
           model: modelId,
         })
@@ -223,7 +235,7 @@ export async function fetchOpenAIModels(
           provider: 'openai',
           max_tokens: metadata?.max_tokens ?? 8192,
           contextWindowTokens: metadata?.contextWindowTokens,
-          supports_reasoning_effort: supportsReasoningEffort ?? false,
+          supports_reasoning_effort: metadata?.supports_reasoning_effort ?? false,
           supports_vision: modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo'),
           supports_function_calling: true,
         }

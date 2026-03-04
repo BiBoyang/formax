@@ -4,6 +4,7 @@ import {
   fetchCustomModels,
   fetchOpenAIModels,
   getDefaultModels,
+  inferModelMetadata,
   inferModelReasoningEffortSupport,
 } from './models'
 
@@ -387,6 +388,26 @@ describe('inferModelReasoningEffortSupport', () => {
   it('returns undefined for unsupported providers or unknown models', () => {
     expect(inferModelReasoningEffortSupport({ provider: 'anthropic', model: 'claude-3-5-sonnet-latest' })).toBeUndefined()
     expect(inferModelReasoningEffortSupport({ provider: 'openai', model: 'unknown-model' })).toBeUndefined()
+  })
+})
+
+describe('inferModelMetadata', () => {
+  it('returns inferred metadata for known openai model prefixes', () => {
+    expect(inferModelMetadata({ provider: 'openai', model: 'o3-mini-high' })).toEqual({
+      max_tokens: 100000,
+      contextWindowTokens: undefined,
+      supports_reasoning_effort: true,
+    })
+    expect(inferModelMetadata({ provider: 'openai', model: 'gpt-4o-mini' })).toEqual({
+      max_tokens: 16384,
+      contextWindowTokens: 128000,
+      supports_reasoning_effort: false,
+    })
+  })
+
+  it('returns undefined for unsupported providers or unknown models', () => {
+    expect(inferModelMetadata({ provider: 'anthropic', model: 'claude-3-5-sonnet-latest' })).toBeUndefined()
+    expect(inferModelMetadata({ provider: 'openai', model: 'unknown-model' })).toBeUndefined()
   })
 })
 

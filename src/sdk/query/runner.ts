@@ -2,7 +2,7 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createSlashCommandRegistry } from '../../features/commands/registry.js'
-import { getDefaultModels, inferModelReasoningEffortSupport } from '../../core/models/models.js'
+import { getDefaultModels, inferModelMetadata } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import { buildSystemPrompt } from '../../prompts/system.js'
@@ -872,16 +872,23 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
         : { supports_function_calling: model.supports_function_calling }),
     }))
     if (activeModel.length > 0 && !defaultModels.some((model) => model.model === activeModel)) {
-      const inferredSupportsReasoningEffort = inferModelReasoningEffortSupport({
+      const inferredModelMetadata = inferModelMetadata({
         provider,
         model: activeModel,
       })
+      const inferredSupportsReasoningEffort = inferredModelMetadata?.supports_reasoning_effort
       defaultModels.unshift({
         model: activeModel,
         provider,
         value: activeModel,
         displayName: activeModel,
         description: `${provider} model`,
+        ...(inferredModelMetadata?.max_tokens === undefined
+          ? {}
+          : { max_tokens: inferredModelMetadata.max_tokens }),
+        ...(inferredModelMetadata?.contextWindowTokens === undefined
+          ? {}
+          : { contextWindowTokens: inferredModelMetadata.contextWindowTokens }),
         ...(inferredSupportsReasoningEffort === undefined
           ? {}
           : {

@@ -127,7 +127,8 @@ These remain out of scope for SDK phase-1:
 - Exports source reference:
   - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
 - `supportedCommands()` now returns both official-compatible fields (`name` / `argumentHint`) and Formax compatibility fields (`command` / `argHint`).
-- `supportedModels()` now returns both official-compatible fields (`value` / `displayName` / `supportsEffort`) and Formax compatibility fields (`model` / `provider` / `supports_reasoning_effort`).
+- `supportedAgents()` returns `name`/`description`, and includes `model` when subagent configuration provides it.
+- `supportedModels()` now returns both official-compatible fields (`value` / `displayName` / `supportsEffort` / `supportsAdaptiveThinking`) and Formax compatibility fields (`model` / `provider` / `supports_reasoning_effort`); active-model fallback items also fill `max_tokens/contextWindowTokens` when metadata is inferable.
 
 ## Structured Output (`outputFormat`)
 

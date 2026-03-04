@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-04`：增强 `supportedModels()` 活动模型回填项的 metadata 补全（在可推导时补齐 `max_tokens/contextWindowTokens`）。
+- [ ] `MOD-05`：增强 `supportedModels()` 活动模型回填项的能力字段补全（在可推导时补齐 `supports_vision/supports_function_calling`）。
 
 ## 再生规则（当“当前待办”为空时）
 

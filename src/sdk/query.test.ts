@@ -959,10 +959,12 @@ describe('sdk query()', () => {
     expect(models[0]).toMatchObject({
       model: 'o3-mini-high',
       provider: 'openai',
+      max_tokens: 100000,
       supportsEffort: true,
       supportsAdaptiveThinking: true,
       supports_reasoning_effort: true,
     })
+    expect(models[0]?.contextWindowTokens).toBeUndefined()
     expect(models[0]?.supportedEffortLevels).toEqual(['low', 'medium', 'high', 'max'])
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
   })
@@ -981,6 +983,8 @@ describe('sdk query()', () => {
     expect(models[0]).toMatchObject({
       model: 'gpt-4o-mini',
       provider: 'openai',
+      max_tokens: 16384,
+      contextWindowTokens: 128000,
       supportsEffort: false,
       supportsAdaptiveThinking: false,
       supports_reasoning_effort: false,
