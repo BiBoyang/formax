@@ -129,18 +129,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'set_active_thread':
+      if (state.activeThreadId === action.threadId && state.transcriptProjection === null) return state
       return { ...state, activeThreadId: action.threadId, transcriptProjection: null }
 
     case 'set_active_turn':
+      if (state.activeTurnId === action.turnId) return state
       return { ...state, activeTurnId: action.turnId }
 
     case 'replace_logs':
+      if (state.logs === action.logs && state.transcriptProjection === null) return state
       return { ...state, logs: action.logs, transcriptProjection: null }
 
     case 'prepend_logs':
+      if (action.logs.length === 0) return state
       return { ...state, logs: [...action.logs, ...state.logs] }
 
     case 'clear_pending_inputs':
+      if (state.selectedInputId === null && Object.keys(state.pendingInputs).length === 0) return state
       return { ...state, pendingInputs: {}, selectedInputId: null }
 
     case 'push_log': {
@@ -188,6 +193,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'input_resolved': {
+      const hasInput = Object.prototype.hasOwnProperty.call(state.pendingInputs, action.inputId)
+      if (!hasInput && state.selectedInputId !== action.inputId) {
+        return state
+      }
       const nextPending = { ...state.pendingInputs }
       delete nextPending[action.inputId]
       const nextSelected =
@@ -200,6 +209,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'set_selected_input':
+      if (state.selectedInputId === action.inputId) return state
       return { ...state, selectedInputId: action.inputId }
 
     case 'hydrate_projection_tool_names': {

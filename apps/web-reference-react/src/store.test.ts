@@ -124,6 +124,69 @@ describe('appReducer', () => {
     expect(next.threads[1]).toBe(threadB)
   })
 
+  it('keeps state stable for no-op active turn updates', () => {
+    const state = {
+      ...initialAppState,
+      activeTurnId: 'turn-1',
+    }
+    const next = appReducer(state, {
+      type: 'set_active_turn',
+      turnId: 'turn-1',
+    })
+    expect(next).toBe(state)
+  })
+
+  it('keeps state stable for no-op selected input updates', () => {
+    const state = {
+      ...initialAppState,
+      selectedInputId: 'input-1',
+    }
+    const next = appReducer(state, {
+      type: 'set_selected_input',
+      inputId: 'input-1',
+    })
+    expect(next).toBe(state)
+  })
+
+  it('keeps state stable when clearing already-empty pending inputs', () => {
+    const state = {
+      ...initialAppState,
+      pendingInputs: {},
+      selectedInputId: null,
+    }
+    const next = appReducer(state, {
+      type: 'clear_pending_inputs',
+    })
+    expect(next).toBe(state)
+  })
+
+  it('keeps state stable when resolving an unknown input id', () => {
+    const state = {
+      ...initialAppState,
+      pendingInputs: {},
+      selectedInputId: null,
+    }
+    const next = appReducer(state, {
+      type: 'input_resolved',
+      inputId: 'missing-input',
+    })
+    expect(next).toBe(state)
+  })
+
+  it('keeps state stable when replacing logs with the same reference and null projection', () => {
+    const logs = [{ id: 'l1', kind: 'message', role: 'assistant', text: 'same logs' }] as typeof initialAppState.logs
+    const state = {
+      ...initialAppState,
+      logs,
+      transcriptProjection: null,
+    }
+    const next = appReducer(state, {
+      type: 'replace_logs',
+      logs: state.logs,
+    })
+    expect(next).toBe(state)
+  })
+
   it('updates ordering but reuses stable thread entries when only order changes', () => {
     const threadA = createThreadSummary({ id: 'thread-a', updatedAt: '2026-02-10T01:00:00.000Z' })
     const threadB = createThreadSummary({ id: 'thread-b', updatedAt: '2026-02-10T02:00:00.000Z' })

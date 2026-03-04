@@ -2,11 +2,11 @@
 
 目标：在不改变现有语义和交互的前提下，完成一轮“不过度”的前端稳态优化，优先降低渲染开销与维护负担。
 
-最后更新时间：2026-02-21
+最后更新时间：2026-03-04
 
 ## 执行状态（Active）
 
-- 进行中：Chat 展示对接准备回合（已完成，待再生）
+- 进行中：运行时状态更新去抖回合（Slice A 已完成，继续 Slice B/C）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,8 @@
 
 ## 当前任务清单（唯一来源）
 
-- 当前无待办（已按 `TODO-INDEX` 完成本轮任务）
+- Slice B：thread cache/history cursor 写入去重（避免重复 state set）
+- Slice C：LeftRail 分组派生稳定化（降低线程列表刷新抖动）
 
 ## 执行循环（固定）
 

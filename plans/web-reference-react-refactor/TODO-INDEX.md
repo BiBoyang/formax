@@ -1,6 +1,6 @@
 # TODO-INDEX：web-reference-react-refactor（Rolling）
 
-更新时间：2026-02-21
+更新时间：2026-03-04
 任务来源（唯一）：
 - `plans/web-reference-react-refactor/README.md`
 
@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- 无（等待按再生规则派生下一批）
+- [ ] Slice B：thread cache/history cursor 写入去重（`threadDataOps.ts` + 对应 test）
+- [ ] Slice C：LeftRail 分组派生稳定化（`LeftRail.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 
