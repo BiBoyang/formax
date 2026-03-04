@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `d435cd5` `feat(sdk,plans): add supportedModels adaptive-thinking compatibility`
+  - 切片：`MOD-01`
+  - 说明：`supportedModels()` 在可推导能力时新增官方兼容字段 `supportsAdaptiveThinking`，并补齐测试与对齐文档；同时更新滚动计划 TODO 到下一切片 `MOD-02`。
+
 - `0fce229` `feat(sdk): align accountInfo apiKeySource semantics`
   - 切片：`SDK-15`、`TYP-01`
   - 说明：将 `accountInfo.apiKeySource` 收紧到官方兼容语义（`env -> temporary`、`config -> user`），保留 `tokenSource` 作为 Formax 来源细节；新增 `ApiKeySource` 类型并将 `AccountInfo.apiKeySource` 与其建立兼容关联，补齐类型/校验/测试与导出文档。
@@ -333,7 +337,3 @@
 - `c49372a` `feat(sdk): add elicitation type aliases`
   - 切片：`SDK-13`
   - 说明：新增 `ElicitationRequest/ElicitationResult/OnElicitation` 官方同名类型别名（类型层对齐）。
-
-- `[pending]` `feat(sdk): align accountInfo shape fields`
-  - 切片：`SDK-14`
-  - 说明：计划补齐 `accountInfo()` 官方常用兼容字段子集，并保持现有字段向后兼容。
