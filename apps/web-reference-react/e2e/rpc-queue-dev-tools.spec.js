@@ -89,4 +89,68 @@ test.describe('rpc queue dev tools', () => {
     )
     expect(afterCount - beforeCount).toBe(12)
   })
+
+  test('captures overload and dropped-inbound regressions under constrained queue capacities', async ({ page }) => {
+    const updatedAt = recentIso()
+    await installMockRpc(page, {
+      rpcQueueConfig: {
+        outboundQueueCapacity: 2,
+        inboundNotificationQueueCapacity: 1,
+      },
+      threads: [
+        {
+          id: 'thread-rpc-guard',
+          cwd: '/tmp/formax-rpc-guard',
+          createdAt: updatedAt,
+          updatedAt,
+          messageCount: 1,
+          lastUserPrompt: 'rpc guard',
+          label: 'Thread RPC Guard',
+        },
+      ],
+      threadMessages: {
+        'thread-rpc-guard': {
+          __null__: {
+            data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'ready for rpc guard' }],
+            nextCursor: null,
+          },
+        },
+      },
+      notificationsByRequestMethod: {
+        'dev/ping': [
+          { method: 'turn/event', params: { threadId: 'thread-rpc-guard', turnId: 'turn-1', event: { type: 'tick' } }, emitMode: 'sync' },
+          { method: 'turn/event', params: { threadId: 'thread-rpc-guard', turnId: 'turn-1', event: { type: 'tick' } }, emitMode: 'sync' },
+          { method: 'turn/event', params: { threadId: 'thread-rpc-guard', turnId: 'turn-1', event: { type: 'tick' } }, emitMode: 'sync' },
+        ],
+      },
+    })
+
+    await page.goto('/')
+    await page.getByRole('button', { name: /Thread RPC Guard/i }).click()
+    await expect(page.getByText('ready for rpc guard')).toBeVisible()
+    await expect(page.getByText('connected')).toBeVisible()
+
+    const burstResult = await page.evaluate(async () => {
+      return window.__formaxDevRpcBurst?.({
+        totalRequests: 80,
+        concurrency: 32,
+        sampleEveryMs: 10,
+        method: 'dev/ping',
+        params: { source: 'e2e-rpc-overload-drop' },
+      })
+    })
+
+    expect(burstResult).toBeDefined()
+    expect(burstResult.started).toBe(80)
+    expect(burstResult.completed).toBe(80)
+    expect(burstResult.overloadErrors).toBeGreaterThan(0)
+
+    const metrics = await page.evaluate(() => window.__formaxDevRpcQueueMetrics?.() ?? null)
+    expect(metrics).not.toBeNull()
+    expect(metrics.overloadedRequests).toBeGreaterThan(0)
+    expect(metrics.droppedInboundNotifications).toBeGreaterThan(0)
+
+    await expect(page.getByText(/\[rpc\] outbound request queue overloaded/i).first()).toBeVisible()
+    await expect(page.getByText(/\[rpc\] dropped inbound notifications/i).first()).toBeVisible()
+  })
 })

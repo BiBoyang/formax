@@ -221,6 +221,33 @@ describe('RpcClient outbound queue', () => {
     expect((overload as RpcQueueOverloadedError).queue).toBe('inbound_notification')
   })
 
+  it('records exact dropped inbound count for same-tick notification bursts', async () => {
+    const handlers = {
+      onStatus: vi.fn(),
+      onNotification: vi.fn(),
+      onError: vi.fn(),
+    }
+    const client = new RpcClient({ inboundNotificationQueueCapacity: 2 })
+    client.connect('ws://127.0.0.1:3777', handlers)
+
+    const socket = getSocket()
+    socket.open()
+
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1', seq: 1, traceId: 'burst' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1', seq: 2, traceId: 'burst' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1', seq: 3, traceId: 'burst' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1', seq: 4, traceId: 'burst' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1', seq: 5, traceId: 'burst' } })
+
+    await flushMicrotasks()
+
+    expect(handlers.onNotification).toHaveBeenCalledTimes(2)
+    expect(handlers.onError).toHaveBeenCalledTimes(3)
+    const metrics = client.getQueueMetrics()
+    expect(metrics.inboundNotificationQueueDepth).toBe(0)
+    expect(metrics.droppedInboundNotifications).toBe(3)
+  })
+
   it('reports queue metrics for depth, dropped notifications, and overload counts', async () => {
     const onQueueMetrics = vi.fn()
     const handlers = {

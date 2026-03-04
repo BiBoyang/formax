@@ -11,6 +11,10 @@ export async function installMockRpc(page, scenario) {
         submissions: [],
       }
 
+      if (scenarioConfig.rpcQueueConfig && typeof scenarioConfig.rpcQueueConfig === 'object') {
+        window.__FORMAX_RPC_QUEUE__ = scenarioConfig.rpcQueueConfig
+      }
+
       const deferred = new Set()
 
       const nextTick = (fn) => {
@@ -98,6 +102,7 @@ export async function installMockRpc(page, scenario) {
         if (!Array.isArray(notifications)) return
         for (const notification of notifications) {
           const delayMs = Number(notification?.delayMs ?? 0)
+          const emitMode = notification?.emitMode === 'sync' ? 'sync' : 'nextTick'
           const payload = {
             jsonrpc: '2.0',
             method: notification?.method,
@@ -107,6 +112,10 @@ export async function installMockRpc(page, scenario) {
             if (typeof socket.onmessage === 'function') {
               socket.onmessage({ data: JSON.stringify(payload) })
             }
+          }
+          if (emitMode === 'sync') {
+            emit()
+            continue
           }
           if (delayMs > 0) {
             const timer = setTimeout(() => {
@@ -186,6 +195,7 @@ export async function installMockRpc(page, scenario) {
                 method: entry?.method,
                 params: entry?.params,
                 delayMs: entry?.delayMs,
+                emitMode: entry?.emitMode,
               })),
             )
           }
