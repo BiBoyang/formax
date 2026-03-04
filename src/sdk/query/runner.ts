@@ -851,6 +851,7 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
         ? {}
         : {
             supportsEffort: model.supports_reasoning_effort,
+            supportsAdaptiveThinking: model.supports_reasoning_effort,
             ...(model.supports_reasoning_effort
               ? { supportedEffortLevels: ['low', 'medium', 'high', 'max'] as const }
               : {}),

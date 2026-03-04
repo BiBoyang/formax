@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-01`：增强 `supportedModels()` 的 `supportsAdaptiveThinking` 兼容字段输出（基于现有模型能力信息推导，不新增底层能力）。
+- [ ] `MOD-02`：增强 `supportedModels()` 对“活动模型回填项”的兼容字段补全（在可推导时补齐 `supportsEffort/supportsAdaptiveThinking`）。
 
 ## 再生规则（当“当前待办”为空时）
 

@@ -934,11 +934,13 @@ describe('sdk query()', () => {
       displayName: 'claude-sonnet-4-6',
       description: 'anthropic model',
     })
+    expect(models[0]?.supportsAdaptiveThinking).toBeUndefined()
     const latestSonnet = models.find((model) => model.model === 'claude-3-5-sonnet-latest')
     expect(latestSonnet).toMatchObject({
       value: 'claude-3-5-sonnet-latest',
       displayName: 'claude-3-5-sonnet-latest',
       supportsEffort: false,
+      supportsAdaptiveThinking: false,
     })
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
   })
