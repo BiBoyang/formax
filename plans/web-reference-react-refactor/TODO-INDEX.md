@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice O：`useAppRuntime` 状态写入集中 no-op guard（`useAppRuntime.ts` + 对应 test）
+- （空）
 
 ## 再生规则（当“当前待办”为空时）
 

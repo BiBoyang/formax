@@ -34,6 +34,11 @@ import { createThreadActions } from './runtime/threadActions'
 import type { SelectThreadOptions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
+import { createDiffDataOps } from './runtime/diffDataOps'
+import { createThreadUiHandlers } from './runtime/threadUiHandlers'
+import { createComposerUiHandlers } from './runtime/composerUiHandlers'
+import { createDiffUiHandlers } from './runtime/diffUiHandlers'
+import { runAsyncSafely } from './runtime/runAsyncSafely'
 import { useRpcConnectionEffect } from './runtime/useRpcConnectionEffect'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
@@ -49,6 +54,7 @@ import { useThreadModeCache } from './runtime/useThreadModeCache'
 import { useInitializeHandshake } from './runtime/useInitializeHandshake'
 import { pruneThreadScopedRefs } from './runtime/threadScopedRefs'
 import { useDevRuntimeApi } from './runtime/useDevRuntimeApi'
+import { useDevLoadAllHistory } from './runtime/useDevLoadAllHistory'
 import { useTranscriptDisplayState } from './runtime/useTranscriptDisplayState'
 import { useThreadUrlSync } from './runtime/useThreadUrlSync'
 import {
@@ -98,9 +104,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [isSubmittingInput, setIsSubmittingInput] = useState(false)
   const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
-  const [devLoadAllRequested, setDevLoadAllRequested] = useState(false)
-  const [devLoadAllBootstrapAttempts, setDevLoadAllBootstrapAttempts] = useState(0)
-  const [devLoadAllSawHistoryLoading, setDevLoadAllSawHistoryLoading] = useState(false)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
     usePaneLayout()
   const [mode, setMode] = useState<ReplMode>('normal')
@@ -126,15 +129,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   }, [])
   const setIsRefreshingDiffStable = useCallback((next: boolean) => {
     setIsRefreshingDiff((previous) => (previous === next ? previous : next))
-  }, [])
-  const setDevLoadAllRequestedStable = useCallback((next: boolean) => {
-    setDevLoadAllRequested((previous) => (previous === next ? previous : next))
-  }, [])
-  const setDevLoadAllBootstrapAttemptsStable = useCallback((next: number) => {
-    setDevLoadAllBootstrapAttempts((previous) => (previous === next ? previous : next))
-  }, [])
-  const setDevLoadAllSawHistoryLoadingStable = useCallback((next: boolean) => {
-    setDevLoadAllSawHistoryLoading((previous) => (previous === next ? previous : next))
   }, [])
   const setModeStable = useCallback((next: SetStateAction<ReplMode>) => {
     setMode((previous) => {
@@ -331,8 +325,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   const {
     refreshThreads,
-    refreshWorkspaceDiff,
-    requestDiffFilePatch,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     loadThreadHistory,
@@ -353,13 +345,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         logsByThreadIdRef,
         stateLogsRef,
         seenStaleInputIdRef,
-        setIsRefreshingDiff: setIsRefreshingDiffStable,
-        setDiffSnapshot,
         setHistoryLoadingByThreadId,
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
         setLogsByThreadId,
         setHiddenGroupCwds: setHiddenGroupCwdsStable,
+      }),
+    [log, request, setHiddenGroupCwdsStable],
+  )
+
+  const { refreshWorkspaceDiff, requestDiffFilePatch } = useMemo(
+    () =>
+      createDiffDataOps({
+        request,
+        setIsRefreshingDiff: setIsRefreshingDiffStable,
+        setDiffSnapshot,
         resolveDiffCwd: () => {
           if (selectedCwdRef.current) return selectedCwdRef.current
           const activeThreadId = activeThreadIdRef.current
@@ -367,7 +367,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
           return threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
         },
       }),
-    [log, request, setHiddenGroupCwdsStable, setIsRefreshingDiffStable],
+    [request, setIsRefreshingDiffStable],
   )
 
   const hideThreadGroup = useCallback(
@@ -588,22 +588,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     return () => window.clearTimeout(timer)
   }, [noticeMessage, setNoticeMessageStable])
 
-  const resetDevLoadAllState = useCallback(() => {
-    setDevLoadAllRequestedStable(false)
-    setDevLoadAllBootstrapAttemptsStable(0)
-    setDevLoadAllSawHistoryLoadingStable(false)
-  }, [setDevLoadAllBootstrapAttemptsStable, setDevLoadAllRequestedStable, setDevLoadAllSawHistoryLoadingStable])
-
-  const startDevLoadAllState = useCallback(() => {
-    setDevLoadAllRequestedStable(true)
-    setDevLoadAllBootstrapAttemptsStable(0)
-    setDevLoadAllSawHistoryLoadingStable(false)
-  }, [setDevLoadAllBootstrapAttemptsStable, setDevLoadAllRequestedStable, setDevLoadAllSawHistoryLoadingStable])
-
-  useEffect(() => {
-    resetDevLoadAllState()
-  }, [state.activeThreadId, resetDevLoadAllState])
-
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
       createComposerActions({
@@ -657,59 +641,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     selectThread,
   })
 
-  const runDevLoadAllStep = useCallback(() => {
-    void loadEarlierHistory().catch(() => {
-      resetDevLoadAllState()
-    })
-  }, [loadEarlierHistory, resetDevLoadAllState])
-
-  useEffect(() => {
-    if (!devRuntime) return
-    if (!devLoadAllRequested) return
-
-    if (!state.activeThreadId) {
-      resetDevLoadAllState()
-      return
-    }
-
-    if (activeHistoryLoading) {
-      if (!devLoadAllSawHistoryLoading) {
-        setDevLoadAllSawHistoryLoadingStable(true)
-      }
-      return
-    }
-
-    if (historyMore) {
-      runDevLoadAllStep()
-      return
-    }
-
-    if (devLoadAllBootstrapAttempts === 0) {
-      setDevLoadAllBootstrapAttemptsStable(1)
-      runDevLoadAllStep()
-      return
-    }
-
-    if (devLoadAllBootstrapAttempts === 1 && devLoadAllSawHistoryLoading) {
-      setDevLoadAllBootstrapAttemptsStable(2)
-      runDevLoadAllStep()
-      return
-    }
-
-    resetDevLoadAllState()
-  }, [
+  const { running: devLoadAllRunning, requestStart: requestDevLoadAll } = useDevLoadAllHistory({
+    enabled: devRuntime,
+    activeThreadId: state.activeThreadId,
     activeHistoryLoading,
-    devLoadAllBootstrapAttempts,
-    devLoadAllRequested,
-    devLoadAllSawHistoryLoading,
-    devRuntime,
     historyMore,
-    runDevLoadAllStep,
-    state.activeThreadId,
-    setDevLoadAllBootstrapAttemptsStable,
-    setDevLoadAllSawHistoryLoadingStable,
-    resetDevLoadAllState,
-  ])
+    loadEarlierHistory,
+  })
 
   useDevRuntimeApi({
     dispatch,
@@ -737,35 +675,22 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     eventCursorRef,
   })
 
-  const runAsyncSafely = useCallback((task: Promise<unknown>) => {
-    void task.catch(() => undefined)
-  }, [])
-
   const threadUiHandlers = useMemo(
-    () => ({
-      onSelectCwd: selectCwd,
-      onSelectThread: selectThread,
-      onRenameThread: (threadId: string, label: string) => {
-        runAsyncSafely(renameThread(threadId, label))
-      },
-      onArchiveThread: (threadId: string) => {
-        runAsyncSafely(archiveThread(threadId))
-      },
-      onStartThread: () => {
-        runAsyncSafely(startThread())
-      },
-      onStartThreadInCwd: (cwd: string) => {
-        runAsyncSafely(startThreadInCwd(cwd))
-      },
-      onHideThreadGroup: (cwd: string) => {
-        runAsyncSafely(hideThreadGroup(cwd))
-      },
-    }),
+    () =>
+      createThreadUiHandlers({
+        selectCwd,
+        selectThread,
+        renameThread,
+        archiveThread,
+        startThread,
+        startThreadInCwd,
+        hideThreadGroup,
+        runAsyncSafely,
+      }),
     [
       archiveThread,
       hideThreadGroup,
       renameThread,
-      runAsyncSafely,
       selectCwd,
       selectThread,
       startThread,
@@ -774,49 +699,37 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   )
 
   const composerUiHandlers = useMemo(
-    () => ({
-      onModeChange: (nextMode: ReplMode) => {
-        setModeStable(nextMode)
-        cacheThreadMode(activeThreadIdRef.current, nextMode)
-      },
-      onSend,
-      onInterrupt: () => {
-        runAsyncSafely(interruptTurn())
-      },
-      onLoadEarlier: () => {
-        runAsyncSafely(loadEarlierHistory())
-      },
-      onSubmitInput: (inputId: string, answers: Record<string, string>) => {
-        runAsyncSafely(submitInputById(inputId, answers))
-      },
-      onDevLoadAllEarlier: () => {
-        if (!devRuntime) return
-        if (!state.activeThreadId) return
-        startDevLoadAllState()
-      },
-    }),
+    () =>
+      createComposerUiHandlers({
+        setMode: setModeStable,
+        cacheThreadMode,
+        activeThreadIdRef,
+        onSend,
+        interruptTurn,
+        loadEarlierHistory,
+        submitInputById,
+        requestDevLoadAll,
+        runAsyncSafely,
+      }),
     [
       cacheThreadMode,
-      devRuntime,
       interruptTurn,
       loadEarlierHistory,
       onSend,
-      runAsyncSafely,
+      requestDevLoadAll,
       setModeStable,
-      startDevLoadAllState,
-      state.activeThreadId,
       submitInputById,
     ],
   )
 
   const diffUiHandlers = useMemo(
-    () => ({
-      onRefreshDiff: () => {
-        runAsyncSafely(refreshWorkspaceDiff())
-      },
-      onRequestDiffPatch: (filePath: string) => requestDiffFilePatch(filePath),
-    }),
-    [refreshWorkspaceDiff, requestDiffFilePatch, runAsyncSafely],
+    () =>
+      createDiffUiHandlers({
+        refreshWorkspaceDiff,
+        requestDiffFilePatch,
+        runAsyncSafely,
+      }),
+    [refreshWorkspaceDiff, requestDiffFilePatch],
   )
 
   return {
@@ -855,7 +768,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyLoading: activeHistoryLoading,
     onLoadEarlier: composerUiHandlers.onLoadEarlier,
     devLoadAllEnabled: devRuntime,
-    devLoadAllRunning: devLoadAllRequested,
+    devLoadAllRunning: devLoadAllRunning,
     onDevLoadAllEarlier: composerUiHandlers.onDevLoadAllEarlier,
     isSending: isSendingTurn,
     isInterrupting: isInterruptingTurn,

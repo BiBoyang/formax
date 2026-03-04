@@ -6,7 +6,11 @@
 
 ## 执行状态（Active）
 
-- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G/H/I/J/K/L/M/N 已完成，继续 Slice O）
+- 已完成：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G/H/I/J/K/L/M/N/O）。
+- 已完成：运行时边界收口回合（Slice P）：
+  - `threadDataOps` 与 `diffDataOps` 职责拆分
+  - `useDevLoadAllHistory` 下沉 dev-only 历史加载状态机
+  - `thread/composer/diff` UI handler 组合器下沉到 `runtime/*`
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +21,7 @@
 
 ## 当前任务清单（唯一来源）
 
-- Slice O：`useAppRuntime` 状态写入集中 no-op guard（减少 runtime 编排路径重复 setState）
+- 当前无未完成切片；下一批任务由 `TODO-INDEX.md` 再生规则派生。
 
 ## 执行循环（固定）
 
