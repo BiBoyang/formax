@@ -174,4 +174,50 @@ describe('RpcClient outbound queue', () => {
     expect((handlers.onError.mock.calls[0] ?? [])[0]).toEqual(expect.objectContaining({ message: 'writer down' }))
     expect(socket.readyState).toBe(MockWebSocket.CLOSED)
   })
+
+  it('buffers inbound notifications and drains them in order', async () => {
+    const handlers = {
+      onStatus: vi.fn(),
+      onNotification: vi.fn(),
+      onError: vi.fn(),
+    }
+    const client = new RpcClient({ inboundNotificationQueueCapacity: 4 })
+    client.connect('ws://127.0.0.1:3777', handlers)
+
+    const socket = getSocket()
+    socket.open()
+
+    socket.receive({ jsonrpc: '2.0', method: 'turn/started', params: { turnId: 'turn-1' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/completed', params: { turnId: 'turn-1' } })
+
+    expect(handlers.onNotification).toHaveBeenCalledTimes(0)
+    await flushMicrotasks()
+    expect(handlers.onNotification).toHaveBeenCalledTimes(2)
+    expect(handlers.onNotification.mock.calls[0]?.[0]).toMatchObject({ method: 'turn/started' })
+    expect(handlers.onNotification.mock.calls[1]?.[0]).toMatchObject({ method: 'turn/completed' })
+  })
+
+  it('drops inbound notifications when inbound queue is saturated', async () => {
+    const handlers = {
+      onStatus: vi.fn(),
+      onNotification: vi.fn(),
+      onError: vi.fn(),
+    }
+    const client = new RpcClient({ inboundNotificationQueueCapacity: 1 })
+    client.connect('ws://127.0.0.1:3777', handlers)
+
+    const socket = getSocket()
+    socket.open()
+
+    socket.receive({ jsonrpc: '2.0', method: 'turn/started', params: { turnId: 'turn-1' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1' } })
+
+    await flushMicrotasks()
+    expect(handlers.onNotification).toHaveBeenCalledTimes(1)
+    expect(handlers.onNotification.mock.calls[0]?.[0]).toMatchObject({ method: 'turn/started' })
+    expect(handlers.onError).toHaveBeenCalledTimes(1)
+    const overload = handlers.onError.mock.calls[0]?.[0]
+    expect(overload).toBeInstanceOf(RpcQueueOverloadedError)
+    expect((overload as RpcQueueOverloadedError).queue).toBe('inbound_notification')
+  })
 })

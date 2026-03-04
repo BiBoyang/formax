@@ -3,6 +3,7 @@ import type { JsonRpcId, RpcErrorObject, RpcNotification, RpcRequest, RpcRespons
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 export const RPC_CLIENT_DEFAULT_OUTBOUND_QUEUE_CAPACITY = 128
+export const RPC_CLIENT_DEFAULT_INBOUND_NOTIFICATION_QUEUE_CAPACITY = 512
 const RPC_CLIENT_OVERLOADED_CODE = -32001
 
 export type RpcClientHandlers = {
@@ -30,13 +31,17 @@ export class RpcRequestError extends Error {
 
 export class RpcQueueOverloadedError extends Error {
   readonly code = RPC_CLIENT_OVERLOADED_CODE
-  readonly queue: 'outbound'
+  readonly queue: 'outbound' | 'inbound_notification'
   readonly messageKind: 'request' | 'notification'
 
-  constructor(args: { messageKind: 'request' | 'notification'; detail: string }) {
+  constructor(args: {
+    queue: 'outbound' | 'inbound_notification'
+    messageKind: 'request' | 'notification'
+    detail: string
+  }) {
     super(`RPC queue overloaded: ${args.detail}`)
     this.name = 'RpcQueueOverloadedError'
-    this.queue = 'outbound'
+    this.queue = args.queue
     this.messageKind = args.messageKind
   }
 }
@@ -53,18 +58,25 @@ function normalizePositiveLimit(value: unknown, fallback: number): number {
 
 export class RpcClient {
   private readonly outboundQueueCapacity: number
+  private readonly inboundNotificationQueueCapacity: number
   private socket: WebSocket | null = null
   private handlers: RpcClientHandlers | null = null
   private socketGeneration = 0
   private nextRequestId = 1
   private outboundQueue: OutboundQueueItem[] = []
+  private inboundNotificationQueue: RpcNotification[] = []
   private outboundFlushScheduled = false
+  private inboundDrainScheduled = false
   private pending = new Map<JsonRpcId, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
-  constructor(args?: { outboundQueueCapacity?: number }) {
+  constructor(args?: { outboundQueueCapacity?: number; inboundNotificationQueueCapacity?: number }) {
     this.outboundQueueCapacity = normalizePositiveLimit(
       args?.outboundQueueCapacity,
       RPC_CLIENT_DEFAULT_OUTBOUND_QUEUE_CAPACITY,
+    )
+    this.inboundNotificationQueueCapacity = normalizePositiveLimit(
+      args?.inboundNotificationQueueCapacity,
+      RPC_CLIENT_DEFAULT_INBOUND_NOTIFICATION_QUEUE_CAPACITY,
     )
   }
 
@@ -87,6 +99,7 @@ export class RpcClient {
       handlers.onStatus('disconnected')
       this.socket = null
       this.clearOutboundQueue()
+      this.clearInboundNotificationQueue()
       for (const request of this.pending.values()) {
         request.reject(new Error('Bridge disconnected'))
       }
@@ -120,7 +133,18 @@ export class RpcClient {
         return
       }
 
-      handlers.onNotification(parsed as RpcNotification)
+      const notification = parsed as RpcNotification
+      if (!this.tryEnqueueInboundNotification(notification)) {
+        handlers.onError(
+          new RpcQueueOverloadedError({
+            queue: 'inbound_notification',
+            messageKind: 'notification',
+            detail: `inbound notification queue capacity ${this.inboundNotificationQueueCapacity} reached; dropped method ${notification.method}`,
+          }),
+        )
+        return
+      }
+      this.scheduleInboundDrain(generation)
     }
   }
 
@@ -129,6 +153,7 @@ export class RpcClient {
     const socket = this.socket
     this.handlers = null
     this.clearOutboundQueue()
+    this.clearInboundNotificationQueue()
     if (!socket) return
     this.socket = null
     for (const request of this.pending.values()) {
@@ -155,6 +180,7 @@ export class RpcClient {
     const payload = JSON.stringify(request)
     if (!this.tryEnqueueOutbound({ kind: 'request', requestId: id, payload })) {
       throw new RpcQueueOverloadedError({
+        queue: 'outbound',
         messageKind: 'request',
         detail: `outbound request queue capacity ${this.outboundQueueCapacity} reached`,
       })
@@ -179,6 +205,7 @@ export class RpcClient {
     if (!this.tryEnqueueOutbound({ kind: 'notification', method, payload })) {
       this.handlers?.onError(
         new RpcQueueOverloadedError({
+          queue: 'outbound',
           messageKind: 'notification',
           detail: `outbound notification queue capacity ${this.outboundQueueCapacity} reached; dropped method ${method}`,
         }),
@@ -199,12 +226,26 @@ export class RpcClient {
     this.outboundFlushScheduled = false
   }
 
+  private clearInboundNotificationQueue(): void {
+    this.inboundNotificationQueue = []
+    this.inboundDrainScheduled = false
+  }
+
   private scheduleOutboundFlush(generation: number): void {
     if (this.outboundFlushScheduled) return
     this.outboundFlushScheduled = true
     queueMicrotask(() => {
       this.outboundFlushScheduled = false
       this.flushOutboundQueue(generation)
+    })
+  }
+
+  private scheduleInboundDrain(generation: number): void {
+    if (this.inboundDrainScheduled) return
+    this.inboundDrainScheduled = true
+    queueMicrotask(() => {
+      this.inboundDrainScheduled = false
+      this.drainInboundNotifications(generation)
     })
   }
 
@@ -229,6 +270,23 @@ export class RpcClient {
         currentSocket.close()
         return
       }
+    }
+  }
+
+  private tryEnqueueInboundNotification(notification: RpcNotification): boolean {
+    if (this.inboundNotificationQueue.length >= this.inboundNotificationQueueCapacity) return false
+    this.inboundNotificationQueue.push(notification)
+    return true
+  }
+
+  private drainInboundNotifications(generation: number): void {
+    if (this.socketGeneration !== generation) return
+    const handlers = this.handlers
+    if (!handlers) return
+
+    while (this.inboundNotificationQueue.length > 0) {
+      const notification = this.inboundNotificationQueue.shift()!
+      handlers.onNotification(notification)
     }
   }
 }
