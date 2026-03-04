@@ -2,16 +2,19 @@ import { render, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
-vi.mock('shiki', () => ({
-  bundledLanguages: {
-    text: {},
-    javascript: {},
-  },
-  createHighlighter: vi.fn(async () => ({
-    getLoadedLanguages: () => ['text', 'javascript'],
-    loadLanguage: vi.fn(async () => undefined),
-    codeToHtml: (code: string, options: { lang: string }) =>
-      `<pre><code class="language-${options.lang}">${code}</code></pre>`,
+vi.mock('../app/core/markdownShikiRuntime', () => ({
+  createMarkdownShikiRuntime: vi.fn(async () => ({
+    normalizeLanguage: (raw: string | undefined) => {
+      const normalized = (raw ?? '').trim().toLowerCase()
+      if (!normalized) return 'text'
+      if (normalized === 'js') return 'javascript'
+      return normalized
+    },
+    ensureLanguageLoaded: vi.fn(async () => undefined),
+    highlighter: {
+      codeToHtml: (code: string, options: { lang: string }) =>
+        `<pre><code class="language-${options.lang}">${code}</code></pre>`,
+    },
   })),
 }))
 

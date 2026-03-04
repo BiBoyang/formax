@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { Marked, type Tokens } from 'marked'
+import type { MarkdownShikiRuntime } from './markdownShikiRuntime'
 
 export type MarkdownCacheEntry = {
   hash: string
@@ -17,17 +18,6 @@ export type PreparedMarkdownRender = {
   safeBaseHtml: string
   initialHtml: string
   hasCodeBlocks: boolean
-}
-
-type ShikiRuntime = {
-  bundledLanguages: Record<string, unknown>
-  createHighlighter: (options: { themes: string[]; langs: string[] }) => Promise<ShikiHighlighter>
-}
-
-type ShikiHighlighter = {
-  getLoadedLanguages: () => string[]
-  loadLanguage: (lang: string) => Promise<unknown>
-  codeToHtml: (code: string, options: { lang: string; theme: string }) => string
 }
 
 type MarkdownWorkerRequest = {
@@ -55,23 +45,6 @@ const markdownCache = new Map<string, MarkdownCacheEntry>()
 const CODE_BLOCK_PATTERN = '<pre><code(?:\\s+class="language-([^"]*)")?>([\\s\\S]*?)<\\/code><\\/pre>'
 const HAS_CODE_BLOCK_REGEX = new RegExp(CODE_BLOCK_PATTERN)
 const SHIKI_THEME = 'github-light'
-const LANGUAGE_ALIASES: Record<string, string> = {
-  js: 'javascript',
-  cjs: 'javascript',
-  mjs: 'javascript',
-  ts: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  jsx: 'jsx',
-  tsx: 'tsx',
-  shell: 'bash',
-  sh: 'bash',
-  zsh: 'bash',
-  yml: 'yaml',
-  md: 'markdown',
-  plaintext: 'text',
-  txt: 'text',
-}
 
 const markedParser = new Marked({
   gfm: true,
@@ -93,8 +66,7 @@ const sanitizeConfig = {
 }
 
 let sanitizeHookInitialized = false
-let shikiRuntimePromise: Promise<ShikiRuntime> | null = null
-let highlighterPromise: Promise<ShikiHighlighter> | null = null
+let shikiRuntimePromise: Promise<MarkdownShikiRuntime> | null = null
 let sharedMarkdownWorkerClient: SharedMarkdownWorkerClient | null = null
 
 function initSanitizeHook() {
@@ -146,25 +118,14 @@ function parseMarkdown(text: string): string {
   return typeof parsed === 'string' ? parsed : ''
 }
 
-function normalizeLanguage(raw: string | undefined, bundledLanguages: Record<string, unknown>): string {
-  const normalized = (raw ?? '').trim().toLowerCase()
-  if (!normalized) return 'text'
-  const aliased = LANGUAGE_ALIASES[normalized] ?? normalized
-  if (aliased in bundledLanguages) return aliased
-  return 'text'
-}
-
 function wrapCodeBlock(codeHtml: string): string {
   return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`
 }
 
-async function getShikiRuntime(): Promise<ShikiRuntime> {
+async function getShikiRuntime(): Promise<MarkdownShikiRuntime> {
   if (!shikiRuntimePromise) {
-    shikiRuntimePromise = import('shiki')
-      .then((mod) => ({
-        bundledLanguages: mod.bundledLanguages as Record<string, unknown>,
-        createHighlighter: (options: { themes: string[]; langs: string[] }) => mod.createHighlighter(options) as Promise<ShikiHighlighter>,
-      }))
+    shikiRuntimePromise = import('./markdownShikiRuntime')
+      .then((mod) => mod.createMarkdownShikiRuntime())
       .catch((error) => {
         shikiRuntimePromise = null
         throw error
@@ -173,33 +134,14 @@ async function getShikiRuntime(): Promise<ShikiRuntime> {
   return shikiRuntimePromise
 }
 
-async function getHighlighter(): Promise<ShikiHighlighter> {
-  if (!highlighterPromise) {
-    highlighterPromise = getShikiRuntime()
-      .then((runtime) =>
-        runtime.createHighlighter({
-          themes: [SHIKI_THEME],
-          langs: ['text'],
-        }),
-      )
-      .catch((error) => {
-        highlighterPromise = null
-        throw error
-      })
-  }
-  return highlighterPromise
-}
-
 async function highlightCodeBlocks(html: string): Promise<string> {
   const codeBlockRegex = new RegExp(CODE_BLOCK_PATTERN, 'g')
   const matches = [...html.matchAll(codeBlockRegex)]
   if (matches.length === 0) return html
 
-  let runtime: ShikiRuntime
-  let highlighter: ShikiHighlighter
+  let runtime: MarkdownShikiRuntime
   try {
     runtime = await getShikiRuntime()
-    highlighter = await getHighlighter()
   } catch {
     return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full))
   }
@@ -208,7 +150,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   let cursor = 0
   for (const match of matches) {
     const full = match[0]
-    const language = normalizeLanguage(match[1], runtime.bundledLanguages)
+    const language = runtime.normalizeLanguage(match[1])
     const escapedCode = match[2] ?? ''
     const index = match.index ?? 0
 
@@ -217,10 +159,8 @@ async function highlightCodeBlocks(html: string): Promise<string> {
     const code = decodeHtmlEntities(escapedCode)
     let highlighted = ''
     try {
-      if (!highlighter.getLoadedLanguages().includes(language)) {
-        await highlighter.loadLanguage(language)
-      }
-      highlighted = highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME })
+      await runtime.ensureLanguageLoaded(language)
+      highlighted = runtime.highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME })
     } catch {
       highlighted = `<pre><code>${escapedCode}</code></pre>`
     }
@@ -239,12 +179,12 @@ function resetSharedMarkdownWorkerClient(client: SharedMarkdownWorkerClient): vo
 }
 
 function getSharedMarkdownWorkerClient(): SharedMarkdownWorkerClient {
-  if (typeof window === 'undefined' || typeof window.Worker !== 'function') {
+  if (typeof window === 'undefined' || typeof Worker !== 'function') {
     throw new Error('worker_unavailable')
   }
   if (sharedMarkdownWorkerClient) return sharedMarkdownWorkerClient
 
-  const worker = new window.Worker(new URL('../../workers/markdownRender.worker.ts', import.meta.url), {
+  const worker = new Worker(new URL('../../workers/markdownRender.worker.ts', import.meta.url), {
     type: 'module',
   })
   const client: SharedMarkdownWorkerClient = {
@@ -429,7 +369,6 @@ export async function renderHighlightedMarkdown(args: {
 export function resetMarkdownServiceForTests(): void {
   markdownCache.clear()
   shikiRuntimePromise = null
-  highlighterPromise = null
   if (sharedMarkdownWorkerClient) {
     sharedMarkdownWorkerClient.worker.terminate()
     sharedMarkdownWorkerClient = null

@@ -111,3 +111,10 @@ It prints summary + samples to the browser console.
 - browser-safe parity adapters for tool presentation logic (`src/parity/tools/*`)
 
 This client is for protocol verification, not production UI.
+
+## Markdown Highlight Runtime
+
+- Markdown code highlighting uses `shiki/core` with the JavaScript regex engine.
+- Language packs are lazy-loaded from a curated set:
+  - `bash`, `css`, `diff`, `go`, `html`, `java`, `javascript`, `json`, `jsx`, `markdown`, `python`, `rust`, `sql`, `toml`, `tsx`, `typescript`, `xml`, `yaml`
+- Unsupported code fences fall back to plain text rendering (`text`) while preserving copy behavior.

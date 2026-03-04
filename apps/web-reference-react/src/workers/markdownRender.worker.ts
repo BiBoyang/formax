@@ -1,35 +1,8 @@
 import { Marked, type Tokens } from 'marked'
+import type { MarkdownShikiRuntime } from '../app/core/markdownShikiRuntime'
 
 const CODE_BLOCK_PATTERN = '<pre><code(?:\\s+class="language-([^"]*)")?>([\\s\\S]*?)<\\/code><\\/pre>'
 const SHIKI_THEME = 'github-light'
-const LANGUAGE_ALIASES: Record<string, string> = {
-  js: 'javascript',
-  cjs: 'javascript',
-  mjs: 'javascript',
-  ts: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  jsx: 'jsx',
-  tsx: 'tsx',
-  shell: 'bash',
-  sh: 'bash',
-  zsh: 'bash',
-  yml: 'yaml',
-  md: 'markdown',
-  plaintext: 'text',
-  txt: 'text',
-}
-
-type ShikiRuntime = {
-  bundledLanguages: Record<string, unknown>
-  createHighlighter: (options: { themes: string[]; langs: string[] }) => Promise<ShikiHighlighter>
-}
-
-type ShikiHighlighter = {
-  getLoadedLanguages: () => string[]
-  loadLanguage: (lang: string) => Promise<unknown>
-  codeToHtml: (code: string, options: { lang: string; theme: string }) => string
-}
 
 type WorkerRequest = {
   id: number
@@ -52,8 +25,7 @@ markedParser.use({
   },
 })
 
-let shikiRuntimePromise: Promise<ShikiRuntime> | null = null
-let highlighterPromise: Promise<ShikiHighlighter> | null = null
+let shikiRuntimePromise: Promise<MarkdownShikiRuntime> | null = null
 
 function escapeHtml(input: string): string {
   return input
@@ -82,21 +54,10 @@ function wrapCodeBlock(codeHtml: string): string {
   return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`
 }
 
-function normalizeLanguage(raw: string | undefined, bundledLanguages: Record<string, unknown>): string {
-  const normalized = (raw ?? '').trim().toLowerCase()
-  if (!normalized) return 'text'
-  const aliased = LANGUAGE_ALIASES[normalized] ?? normalized
-  if (aliased in bundledLanguages) return aliased
-  return 'text'
-}
-
-async function getShikiRuntime(): Promise<ShikiRuntime> {
+async function getShikiRuntime(): Promise<MarkdownShikiRuntime> {
   if (!shikiRuntimePromise) {
-    shikiRuntimePromise = import('shiki')
-      .then((mod) => ({
-        bundledLanguages: mod.bundledLanguages as Record<string, unknown>,
-        createHighlighter: (options: { themes: string[]; langs: string[] }) => mod.createHighlighter(options) as Promise<ShikiHighlighter>,
-      }))
+    shikiRuntimePromise = import('../app/core/markdownShikiRuntime')
+      .then((mod) => mod.createMarkdownShikiRuntime())
       .catch((error) => {
         shikiRuntimePromise = null
         throw error
@@ -105,33 +66,14 @@ async function getShikiRuntime(): Promise<ShikiRuntime> {
   return shikiRuntimePromise
 }
 
-async function getHighlighter(): Promise<ShikiHighlighter> {
-  if (!highlighterPromise) {
-    highlighterPromise = getShikiRuntime()
-      .then((runtime) =>
-        runtime.createHighlighter({
-          themes: [SHIKI_THEME],
-          langs: ['text'],
-        }),
-      )
-      .catch((error) => {
-        highlighterPromise = null
-        throw error
-      })
-  }
-  return highlighterPromise
-}
-
 async function highlightCodeBlocks(html: string): Promise<string> {
   const codeBlockRegex = new RegExp(CODE_BLOCK_PATTERN, 'g')
   const matches = [...html.matchAll(codeBlockRegex)]
   if (matches.length === 0) return html
 
-  let runtime: ShikiRuntime
-  let highlighter: ShikiHighlighter
+  let runtime: MarkdownShikiRuntime
   try {
     runtime = await getShikiRuntime()
-    highlighter = await getHighlighter()
   } catch {
     return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full))
   }
@@ -140,7 +82,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   let cursor = 0
   for (const match of matches) {
     const full = match[0]
-    const language = normalizeLanguage(match[1], runtime.bundledLanguages)
+    const language = runtime.normalizeLanguage(match[1])
     const escapedCode = match[2] ?? ''
     const index = match.index ?? 0
 
@@ -149,10 +91,8 @@ async function highlightCodeBlocks(html: string): Promise<string> {
     const code = decodeHtmlEntities(escapedCode)
     let highlighted = ''
     try {
-      if (!highlighter.getLoadedLanguages().includes(language)) {
-        await highlighter.loadLanguage(language)
-      }
-      highlighted = highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME })
+      await runtime.ensureLanguageLoaded(language)
+      highlighted = runtime.highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME })
     } catch {
       highlighted = `<pre><code>${escapedCode}</code></pre>`
     }

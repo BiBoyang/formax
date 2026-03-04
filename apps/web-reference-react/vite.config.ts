@@ -7,6 +7,9 @@ const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 export default defineConfig({
   plugins: [tailwindcss()],
+  worker: {
+    format: 'es',
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
