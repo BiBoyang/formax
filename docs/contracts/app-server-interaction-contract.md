@@ -279,7 +279,8 @@ turn 通知到 canonical 的最小映射保证：
 - `METHOD_NOT_FOUND`（-32601）
 - `INVALID_PARAMS`（-32602）
 - `INTERNAL_ERROR`（-32603）
-- `NOT_INITIALIZED`（-32001）
+- `OVERLOADED`（-32001）
+- `NOT_INITIALIZED`（-32600，依赖 message=`Not initialized` 区分）
 - `PAYLOAD_TOO_LARGE`（-32002）
 
 错误处理原则：
@@ -287,6 +288,7 @@ turn 通知到 canonical 的最小映射保证：
 1. 参数、状态冲突、资源不存在优先归为 `INVALID_PARAMS`。
 2. 系统内部异常归为 `INTERNAL_ERROR`。
 3. 业务可识别错误（如 `INPUT_EXPIRED`）必须在 `error.data` 中提供 machine-readable 字段。
+4. 请求入口过载时返回 `OVERLOADED`，message 固定为 `Server overloaded; retry later.`，客户端应按可重试处理。
 
 ## 7. 恢复与重启合同
 
@@ -307,6 +309,7 @@ turn 通知到 canonical 的最小映射保证：
 2. 事件/响应 payload 大小不能超过 `limits.maxEventBytes`。
 3. 每线程 pending input 数量不能超过 `limits.maxPendingInputsPerThread`。
 4. input 默认 TTL 以 `limits.defaultInputTtlMs` 为准。
+5. app-server 必须使用有界队列隔离 ingress/process/outbound；当 ingress 饱和且消息为 request 时，返回 `OVERLOADED` 而不是无限排队。
 
 ## 9. 验收断言（Contract Assertions）
 
@@ -318,6 +321,7 @@ turn 通知到 canonical 的最小映射保证：
 4. 同一 input 不同答案重复提交未返回冲突状态。
 5. `thread/resume` 未返回 stale input，而后续提交又报 `INPUT_EXPIRED`。
 6. 通知缺失 envelope 元字段（`replaySeq/traceId/seq/ts/eventId/source`）或显式携带未知 `schemaVersion`。
+7. 请求突发超过 ingress 有界队列容量时，未返回 `OVERLOADED`。
 
 ## 10. 合同条目 -> 实现映射
 
@@ -341,4 +345,5 @@ turn 通知到 canonical 的最小映射保证：
 | 过期提交（`INPUT_EXPIRED`） | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts` | `src/app-server/server.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
 | envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
 | 错误码常量 | `src/app-server/jsonrpc.ts` | `src/app-server/jsonrpc.test.ts` |
+| ingress/process/outbound 有界队列与过载拒绝 | `src/app-server/index.ts`, `src/app-server/jsonrpc.ts` | `src/app-server/index.test.ts`, `src/app-server/index.coverage.test.ts` |
 | `PAYLOAD_TOO_LARGE`（request/event） | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts` | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts` |

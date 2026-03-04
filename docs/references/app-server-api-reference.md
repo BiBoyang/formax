@@ -82,7 +82,7 @@
 {"jsonrpc":"2.0","method":"turn/started","params":{"replaySeq":101,"traceId":"...","seq":1,"ts":"...","eventId":"turnId:1","source":"system","turn":{"id":"...","threadId":"...","status":"running"}}}
 ```
 
-## 2.3 大小限制
+## 2.3 大小限制与背压
 
 `initialize.result.limits` 会返回限制值：
 
@@ -97,6 +97,7 @@
 - 请求超过 `maxRequestBytes`：返回 `PAYLOAD_TOO_LARGE`（`-32002`）。
 - 响应超过 `maxEventBytes`：返回 `PAYLOAD_TOO_LARGE`（`-32002`）。
 - 通知超过 `maxEventBytes`：当前实现会发送失败并被吞掉（客户端收不到该条通知），UI 侧要做超时/兜底策略。
+- app-server 内部使用有界队列连接 ingress/process/outbound 三段；当请求 ingress 饱和时，请求会被拒绝并返回 `OVERLOADED`（`-32001`）。
 
 ## 3. 握手与会话状态
 
@@ -147,7 +148,7 @@
 除 `initialize` 外，所有请求在未初始化时返回：
 
 ```json
-{"code":-32001,"message":"Not initialized"}
+{"code":-32600,"message":"Not initialized"}
 ```
 
 ## 4. 核心数据结构
@@ -783,7 +784,8 @@ UI 建议：
 - `-32601` `METHOD_NOT_FOUND`
 - `-32602` `INVALID_PARAMS`
 - `-32603` `INTERNAL_ERROR`
-- `-32001` `NOT_INITIALIZED`
+- `-32001` `OVERLOADED`
+- `-32600` `NOT_INITIALIZED`（与 `INVALID_REQUEST` 共享 code，依赖 message 区分）
 - `-32002` `PAYLOAD_TOO_LARGE`
 
 ## 8.2 业务错误（当前实现）
@@ -834,6 +836,22 @@ UI 建议：
 - `direction = request`：裁剪 payload 后重试（例如缩短输入、减少附加字段）。
 - `direction = event`：提示“输出过大已被截断/拒绝”，允许用户改用更小粒度操作重试。
 
+### OVERLOADED
+
+当请求入站队列饱和时返回：
+
+```json
+{
+  "code": -32001,
+  "message": "Server overloaded; retry later."
+}
+```
+
+客户端建议：
+
+- 视为可重试错误，采用指数退避 + jitter；
+- 避免并发洪泛发送（尤其是批量 `turn/start` / `command/dispatch`）。
+
 ## 9. 前端对接最小实现清单
 
 1. 建立 JSONL 通道（每行 JSON）。
@@ -842,7 +860,7 @@ UI 建议：
 4. 实现通知分发（`turn/*`）。
 5. 用 `threadId + turnId + inputId` 做输入状态管理。
 6. `turn/input/submit` 携带稳定 `submissionId`（幂等）。
-7. 对 `PAYLOAD_TOO_LARGE`、`NOT_INITIALIZED`、`INPUT_EXPIRED` 做明确 UI 提示。
+7. 对 `OVERLOADED`、`PAYLOAD_TOO_LARGE`、`NOT_INITIALIZED`、`INPUT_EXPIRED` 做明确 UI 提示。
 8. 为通知丢失设计兜底：
    - turn 长时间无事件时给“连接可能异常”提示；
    - 允许用户手动 `thread/read` 或重开 turn。

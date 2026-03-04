@@ -307,4 +307,172 @@ describe('runAppServer (coverage branches)', () => {
 
     await expect(runAppServer({ cwd: '/tmp/repo', env: {} })).rejects.toThrow('event send failed')
   })
+
+  it('returns overloaded errors when request ingress queue is saturated', async () => {
+    const totalRequests = 18
+    state.transport.lines = Array.from({ length: totalRequests }, (_, index) =>
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: index + 1,
+        method: 'initialize',
+        params: { clientInfo: { name: `web-${index + 1}`, version: '1.0.0' } },
+      }),
+    )
+
+    let releaseFirst: (() => void) | null = null
+    const firstRequestGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let handled = 0
+    state.handleMessage = async (message) => {
+      handled += 1
+      if (handled === 1) {
+        await firstRequestGate
+      }
+      const req = (message as any)?.request
+      return [{ jsonrpc: '2.0', id: req?.id ?? null, result: { ok: true } }]
+    }
+    setTimeout(() => {
+      releaseFirst?.()
+    }, 20)
+
+    await runAppServer({
+      cwd: '/tmp/repo',
+      env: {},
+      ingressQueueCapacity: 1,
+      outboundQueueCapacity: 64,
+    })
+
+    const overloads = state.transport.sent.filter(
+      (message: any) =>
+        message?.error?.code === JSON_RPC_ERRORS.OVERLOADED && message?.error?.message === 'Server overloaded; retry later.',
+    )
+    expect(overloads.length).toBeGreaterThan(0)
+    expect(overloads.length).toBeLessThan(totalRequests)
+  })
+
+  it('waits for queue space instead of overloading notifications when ingress queue is saturated', async () => {
+    state.transport.lines = [
+      '{"jsonrpc":"2.0","method":"initialized"}',
+      '{"jsonrpc":"2.0","method":"initialized"}',
+      '{"jsonrpc":"2.0","method":"initialized"}',
+    ]
+
+    let releaseFirst: (() => void) | null = null
+    const firstNotificationGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let handledNotifications = 0
+    state.handleMessage = async (message) => {
+      if ((message as any)?.kind === 'notification') {
+        handledNotifications += 1
+      }
+      if (handledNotifications === 1) {
+        await firstNotificationGate
+      }
+      return []
+    }
+    setTimeout(() => {
+      releaseFirst?.()
+    }, 20)
+
+    await runAppServer({
+      cwd: '/tmp/repo',
+      env: {},
+      ingressQueueCapacity: 1,
+      outboundQueueCapacity: 8,
+    })
+
+    expect(handledNotifications).toBe(3)
+    const overloads = state.transport.sent.filter((message: any) => message?.error?.code === JSON_RPC_ERRORS.OVERLOADED)
+    expect(overloads).toEqual([])
+  })
+
+  it('aborts processing promptly when outbound writer fails under ingress pressure', async () => {
+    state.transport.lines = Array.from({ length: 30 }, (_, index) =>
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: index + 1,
+        method: 'initialize',
+        params: { clientInfo: { name: `web-${index + 1}`, version: '1.0.0' } },
+      }),
+    )
+    state.transport.send = async () => {
+      throw new Error('writer down')
+    }
+    state.handleMessage = async (message) => {
+      const req = (message as any)?.request
+      return [{ jsonrpc: '2.0', id: req?.id ?? null, result: { ok: true } }]
+    }
+
+    await expect(
+      runAppServer({
+        cwd: '/tmp/repo',
+        env: {},
+        ingressQueueCapacity: 1,
+        outboundQueueCapacity: 1,
+      }),
+    ).rejects.toThrow('writer down')
+  })
+
+  it('does not emit PAYLOAD_TOO_LARGE response when dropped notification exceeds outbound limits', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}']
+    state.transport.send = async (message: unknown) => {
+      if ((message as any)?.method === 'turn/started') {
+        throw new StdioPayloadTooLargeError({ direction: 'event', maxBytes: 64, actualBytes: 256 })
+      }
+      state.transport.sent.push(message)
+    }
+    state.handleMessage = async (_message, options) => {
+      options.emitNotification({
+        jsonrpc: '2.0',
+        method: 'turn/started',
+        params: { threadId: 'thread-1' },
+      })
+      return []
+    }
+
+    await runAppServer({ cwd: '/tmp/repo', env: {} })
+
+    expect(state.transport.sent).toEqual([])
+  })
+
+  it('keeps invalid envelopes mapped to INVALID_REQUEST under ingress saturation', async () => {
+    state.transport.lines = [
+      '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web-1","version":"1.0.0"}}}',
+      '{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"clientInfo":{"name":"web-2","version":"1.0.0"}}}',
+      '{"jsonrpc":"2.0","id":99,"method":""}',
+    ]
+
+    let releaseFirst: (() => void) | null = null
+    const firstRequestGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let handledRequests = 0
+    state.handleMessage = async (message) => {
+      if ((message as any)?.kind === 'request') {
+        handledRequests += 1
+      }
+      if (handledRequests === 1) {
+        await firstRequestGate
+      }
+      const req = (message as any)?.request
+      return req ? [{ jsonrpc: '2.0', id: req.id, result: { ok: true } }] : []
+    }
+    setTimeout(() => {
+      releaseFirst?.()
+    }, 20)
+
+    await runAppServer({
+      cwd: '/tmp/repo',
+      env: {},
+      ingressQueueCapacity: 1,
+      outboundQueueCapacity: 16,
+    })
+
+    const invalidOut = state.transport.sent.find((row: any) => row?.id === 99) as any
+    expect(invalidOut?.error?.code).toBe(JSON_RPC_ERRORS.INVALID_REQUEST)
+    expect(String(invalidOut?.error?.message || '')).toContain('method must be a non-empty string')
+    expect(invalidOut?.error?.code).not.toBe(JSON_RPC_ERRORS.OVERLOADED)
+  })
 })

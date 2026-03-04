@@ -18,7 +18,10 @@ export class StdioPayloadTooLargeError extends Error {
 }
 
 export type StdioJsonlTransport = {
-  listen: (onLine: (line: string) => Promise<void> | void) => Promise<void>
+  listen: (
+    onLine: (line: string) => Promise<void> | void,
+    options?: { signal?: AbortSignal },
+  ) => Promise<void>
   send: (message: unknown) => Promise<void>
 }
 
@@ -37,19 +40,29 @@ export function createStdioJsonlTransport(args?: {
   const output = args?.output ?? process.stdout
   const maxEventBytes = normalizePositiveLimit(args?.maxEventBytes, 1024 * 1024)
 
-  async function listen(onLine: (line: string) => Promise<void> | void): Promise<void> {
+  async function listen(
+    onLine: (line: string) => Promise<void> | void,
+    options?: { signal?: AbortSignal },
+  ): Promise<void> {
     const rl = readline.createInterface({
       input,
       crlfDelay: Infinity,
     })
+    const signal = options?.signal
+    const onAbort = () => {
+      rl.close()
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
 
     try {
       for await (const line of rl) {
+        if (signal?.aborted) break
         const trimmed = String(line).trim()
         if (!trimmed) continue
         await onLine(trimmed)
       }
     } finally {
+      signal?.removeEventListener('abort', onAbort)
       rl.close()
     }
   }

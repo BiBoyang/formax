@@ -1,18 +1,138 @@
 import pkg from '../../package.json'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { AppServer } from './server.js'
-import { classifyRpcMessage, JSON_RPC_ERRORS, makeErrorResponse, parseJsonLine } from './jsonrpc.js'
+import {
+  classifyRpcMessage,
+  JSON_RPC_ERRORS,
+  makeErrorResponse,
+  parseJsonLine,
+  type ParsedRpcMessage,
+  type JsonRpcId,
+} from './jsonrpc.js'
 import { ThreadStore } from './threadStore.js'
 import { DEFAULT_INPUT_TTL_MS, DEFAULT_MAX_PENDING_INPUTS_PER_THREAD, TurnRunner } from './turnRunner.js'
 import { createStdioJsonlTransport, StdioPayloadTooLargeError } from './transport/stdio.js'
 
 export const DEFAULT_MAX_REQUEST_BYTES = 1024 * 1024
 export const DEFAULT_MAX_EVENT_BYTES = 1024 * 1024
+export const DEFAULT_APP_SERVER_QUEUE_CAPACITY = 128
+const OVERLOADED_ERROR_MESSAGE = 'Server overloaded; retry later.'
+type OutboundQueueItem = {
+  payload: unknown
+  swallowSendErrors: boolean
+}
 
 function normalizePositiveLimit(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   const rounded = Math.floor(value)
   return rounded >= 1 ? rounded : fallback
+}
+
+function toError(value: unknown): Error {
+  if (value instanceof Error) return value
+  return new Error(String(value))
+}
+
+class BoundedAsyncQueue<T> {
+  private readonly capacity: number
+  private readonly items: T[] = []
+  private readonly pullWaiters: Array<(value: T | undefined) => void> = []
+  private readonly pushWaiters: Array<{ value: T; resolve: (enqueued: boolean) => void }> = []
+  private closed = false
+
+  constructor(capacity: number) {
+    this.capacity = normalizePositiveLimit(capacity, DEFAULT_APP_SERVER_QUEUE_CAPACITY)
+  }
+
+  tryPush(value: T): boolean {
+    if (this.closed) return false
+    const pullWaiter = this.pullWaiters.shift()
+    if (pullWaiter) {
+      pullWaiter(value)
+      return true
+    }
+    if (this.items.length >= this.capacity) return false
+    this.items.push(value)
+    return true
+  }
+
+  async push(value: T): Promise<boolean> {
+    if (this.tryPush(value)) return true
+    if (this.closed) return false
+    return new Promise((resolve) => {
+      this.pushWaiters.push({ value, resolve })
+    })
+  }
+
+  async pop(): Promise<T | undefined> {
+    if (this.items.length > 0) {
+      const value = this.items.shift()!
+      this.flushPushWaiters()
+      return value
+    }
+    if (this.closed) return undefined
+    return new Promise((resolve) => {
+      this.pullWaiters.push(resolve)
+    })
+  }
+
+  close(): void {
+    if (this.closed) return
+    this.closed = true
+    while (this.pullWaiters.length > 0) {
+      const waiter = this.pullWaiters.shift()!
+      waiter(undefined)
+    }
+    while (this.pushWaiters.length > 0) {
+      const waiter = this.pushWaiters.shift()!
+      waiter.resolve(false)
+    }
+  }
+
+  private flushPushWaiters(): void {
+    while (!this.closed && this.pushWaiters.length > 0) {
+      const pullWaiter = this.pullWaiters.shift()
+      const waiter = this.pushWaiters.shift()!
+      if (pullWaiter) {
+        pullWaiter(waiter.value)
+        waiter.resolve(true)
+        continue
+      }
+      if (this.items.length >= this.capacity) {
+        this.pushWaiters.unshift(waiter)
+        return
+      }
+      this.items.push(waiter.value)
+      waiter.resolve(true)
+    }
+  }
+}
+
+function makePayloadTooLargeError(args: {
+  id: JsonRpcId
+  direction: 'request' | 'event'
+  maxBytes: number
+  actualBytes: number
+}) {
+  return makeErrorResponse(args.id, {
+    code: JSON_RPC_ERRORS.PAYLOAD_TOO_LARGE,
+    message: 'PAYLOAD_TOO_LARGE',
+    data: {
+      kind: 'PAYLOAD_TOO_LARGE',
+      recoverable: true,
+      retryable: true,
+      direction: args.direction,
+      maxBytes: args.maxBytes,
+      actualBytes: args.actualBytes,
+    },
+  })
+}
+
+function makeOverloadedError(id: JsonRpcId) {
+  return makeErrorResponse(id, {
+    code: JSON_RPC_ERRORS.OVERLOADED,
+    message: OVERLOADED_ERROR_MESSAGE,
+  })
 }
 
 export async function runAppServer(args?: {
@@ -29,11 +149,15 @@ export async function runAppServer(args?: {
   maxEventBytes?: number
   maxPendingInputsPerThread?: number
   defaultInputTtlMs?: number
+  ingressQueueCapacity?: number
+  outboundQueueCapacity?: number
 }): Promise<void> {
   const cwd = args?.cwd ?? process.cwd()
   const env = args?.env ?? process.env
   const maxRequestBytes = normalizePositiveLimit(args?.maxRequestBytes, DEFAULT_MAX_REQUEST_BYTES)
   const maxEventBytes = normalizePositiveLimit(args?.maxEventBytes, DEFAULT_MAX_EVENT_BYTES)
+  const ingressQueueCapacity = normalizePositiveLimit(args?.ingressQueueCapacity, DEFAULT_APP_SERVER_QUEUE_CAPACITY)
+  const outboundQueueCapacity = normalizePositiveLimit(args?.outboundQueueCapacity, DEFAULT_APP_SERVER_QUEUE_CAPACITY)
   const maxPendingInputsPerThread = normalizePositiveLimit(
     args?.maxPendingInputsPerThread,
     DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
@@ -44,8 +168,9 @@ export async function runAppServer(args?: {
     output: args?.output,
     maxEventBytes,
   })
+  const transportAbortController = new AbortController()
 
-  const safeSend = async (message: unknown): Promise<void> => {
+  const transportSendSafe = async (message: unknown): Promise<void> => {
     try {
       await transport.send(message)
     } catch (err) {
@@ -61,6 +186,21 @@ export async function runAppServer(args?: {
       platform: args?.platform,
       homedir: args?.homedir,
     })
+  const ingressQueue = new BoundedAsyncQueue<ParsedRpcMessage>(ingressQueueCapacity)
+  const outboundQueue = new BoundedAsyncQueue<OutboundQueueItem>(outboundQueueCapacity)
+
+  const enqueueOutboundStrict = async (message: unknown): Promise<boolean> => {
+    return outboundQueue.push({ payload: message, swallowSendErrors: false })
+  }
+
+  const tryEnqueueOutbound = (message: unknown, swallowSendErrors: boolean): boolean => {
+    return outboundQueue.tryPush({ payload: message, swallowSendErrors })
+  }
+
+  const enqueueOverloadedError = async (id: JsonRpcId): Promise<void> => {
+    await enqueueOutboundStrict(makeOverloadedError(id))
+  }
+
   let lazyTurnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null = args?.turnRunner ?? null
   const server = new AppServer({
     info: {
@@ -103,67 +243,148 @@ export async function runAppServer(args?: {
       maxInFlightTurnsPerThread: 1,
     },
     emitNotification: (message) => {
-      void transport.send(message).catch(() => undefined)
+      if (!tryEnqueueOutbound(message, true)) {
+        process.stderr.write('[formax] dropping server notification: outbound queue is full\n')
+      }
     },
   })
 
-  await transport.listen(async (line) => {
-    const requestBytes = Buffer.byteLength(line, 'utf8')
-    if (requestBytes > maxRequestBytes) {
-      await safeSend(
-        makeErrorResponse(null, {
-          code: JSON_RPC_ERRORS.PAYLOAD_TOO_LARGE,
-          message: 'PAYLOAD_TOO_LARGE',
-          data: {
-            kind: 'PAYLOAD_TOO_LARGE',
-            recoverable: true,
-            retryable: true,
-            direction: 'request',
-            maxBytes: maxRequestBytes,
-            actualBytes: requestBytes,
-          },
-        }),
-      )
-      return
+  let abortedError: Error | null = null
+  const abortPipelines = (err?: unknown): void => {
+    if (err && !abortedError) {
+      abortedError = toError(err)
     }
+    transportAbortController.abort()
+    ingressQueue.close()
+    outboundQueue.close()
+  }
 
-    const parsed = parseJsonLine(line)
-    if (parsed.ok === false) {
-      await safeSend(
-        makeErrorResponse(null, {
-          code: JSON_RPC_ERRORS.PARSE_ERROR,
-          message: parsed.message,
-        }),
-      )
-      return
-    }
-
-    const message = classifyRpcMessage(parsed.value)
-    const responses = await server.handleMessage(message)
-    for (const response of responses) {
-      try {
-        await transport.send(response)
-      } catch (err) {
-        if (err instanceof StdioPayloadTooLargeError) {
-          const responseId = (response as any)?.id ?? null
-          await safeSend(
-            makeErrorResponse(responseId, {
-              code: JSON_RPC_ERRORS.PAYLOAD_TOO_LARGE,
-              message: 'PAYLOAD_TOO_LARGE',
-              data: {
-                kind: 'PAYLOAD_TOO_LARGE',
-                recoverable: true,
-                retryable: true,
+  const writeOutboundLoop = (async () => {
+    try {
+      while (true) {
+        const outbound = await outboundQueue.pop()
+        if (outbound === undefined) break
+        try {
+          await transport.send(outbound.payload)
+        } catch (err) {
+          if (outbound.swallowSendErrors) {
+            continue
+          }
+          if (err instanceof StdioPayloadTooLargeError) {
+            const responseId = (outbound.payload as any)?.id ?? null
+            await transportSendSafe(
+              makePayloadTooLargeError({
+                id: responseId,
                 direction: 'event',
                 maxBytes: err.maxBytes,
                 actualBytes: err.actualBytes,
-              },
-            }),
-          )
-          continue
+              }),
+            )
+            continue
+          }
+          throw err
         }
-        throw err
       }
+    } catch (err) {
+      abortPipelines(err)
+      throw err
     }
-  })
+  })()
+
+  const processIngressLoop = (async () => {
+    try {
+      while (true) {
+        const message = await ingressQueue.pop()
+        if (message === undefined) break
+        const responses = await server.handleMessage(message)
+        for (const response of responses) {
+          const enqueued = await enqueueOutboundStrict(response)
+          if (!enqueued) return
+        }
+      }
+    } catch (err) {
+      abortPipelines(err)
+      throw err
+    }
+  })()
+
+  let transportListenError: unknown = null
+  try {
+    await transport.listen(async (line) => {
+      if (abortedError) throw abortedError
+
+      const requestBytes = Buffer.byteLength(line, 'utf8')
+      if (requestBytes > maxRequestBytes) {
+        const enqueued = await enqueueOutboundStrict(
+          makePayloadTooLargeError({
+            id: null,
+            direction: 'request',
+            maxBytes: maxRequestBytes,
+            actualBytes: requestBytes,
+          }),
+        )
+        if (!enqueued) return
+        return
+      }
+
+      const parsed = parseJsonLine(line)
+      if (parsed.ok === false) {
+        const enqueued = await enqueueOutboundStrict(
+          makeErrorResponse(null, {
+            code: JSON_RPC_ERRORS.PARSE_ERROR,
+            message: parsed.message,
+          }),
+        )
+        if (!enqueued) return
+        return
+      }
+
+      const message = classifyRpcMessage(parsed.value)
+      const queued = ingressQueue.tryPush(message)
+      if (queued) return
+
+      if (message.kind === 'request') {
+        await enqueueOverloadedError(message.request.id)
+        return
+      }
+
+      if (message.kind === 'invalid') {
+        await enqueueOutboundStrict(
+          makeErrorResponse(message.id, {
+            code: JSON_RPC_ERRORS.INVALID_REQUEST,
+            message: message.message,
+          }),
+        )
+        return
+      }
+
+      await ingressQueue.push(message)
+    }, { signal: transportAbortController.signal })
+  } catch (err) {
+    transportListenError = err
+    abortPipelines(err)
+  } finally {
+    ingressQueue.close()
+  }
+
+  let processorError: unknown = null
+  try {
+    await processIngressLoop
+  } catch (err) {
+    processorError = err
+  } finally {
+    outboundQueue.close()
+  }
+
+  let writerError: unknown = null
+  try {
+    await writeOutboundLoop
+  } catch (err) {
+    writerError = err
+  }
+
+  if (transportListenError) throw toError(transportListenError)
+  if (processorError) throw toError(processorError)
+  if (writerError) throw toError(writerError)
+  if (abortedError) throw abortedError
 }

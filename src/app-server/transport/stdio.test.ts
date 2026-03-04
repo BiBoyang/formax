@@ -70,4 +70,27 @@ describe('stdio transport', () => {
     expect(typeof transport.listen).toBe('function')
     expect(typeof transport.send).toBe('function')
   })
+
+  it('stops listening when abort signal is triggered', async () => {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const transport = createStdioJsonlTransport({ input, output })
+    const controller = new AbortController()
+
+    const lines: string[] = []
+    const listenPromise = transport.listen(
+      (line) => {
+        lines.push(line)
+        if (lines.length === 1) controller.abort()
+      },
+      { signal: controller.signal },
+    )
+
+    input.write('{"a":1}\n')
+    input.write('{"b":2}\n')
+    await listenPromise
+    input.end()
+
+    expect(lines).toEqual(['{"a":1}'])
+  })
 })
