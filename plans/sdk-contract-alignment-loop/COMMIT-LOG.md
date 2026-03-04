@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `830c33d` `feat(sdk,core,plans): infer active model capability compatibility fields`
+  - 切片：`MOD-05`
+  - 说明：扩展核心 `inferModelMetadata` 输出 `supports_vision/supports_function_calling`，并复用到 `sdk/query.supportedModels()` 活动模型回填项；同步补齐 core/sdk 测试与 SDK 对齐文档说明。
+
 - `502c8eb` `feat(sdk,core,plans): fill inferred active model metadata fields`
   - 切片：`MOD-04`
   - 说明：在核心模型推导层新增 `inferModelMetadata` 并复用到 `sdk/query.supportedModels()`，对活动模型回填项在可推导时补齐 `max_tokens/contextWindowTokens`；同步补充 core/sdk 测试与对齐文档。
