@@ -22,6 +22,7 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url))
   const repoRoot = path.resolve(scriptDir, '..')
   const webRoot = path.join(repoRoot, 'apps', 'web-reference-react')
+  const webNpmLockfile = path.join(webRoot, 'package-lock.json')
   const webDist = path.join(webRoot, 'dist')
   const outDir = path.join(repoRoot, 'dist', 'web')
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
@@ -29,7 +30,17 @@ async function main() {
   // Ensure lockfile-accurate deps before building the published bundle,
   // unless caller explicitly requests a faster local rebuild path.
   if (!skipInstall) {
-    run(npmCmd, ['ci'], webRoot)
+    const hasNpmLockfile = await fs
+      .access(webNpmLockfile)
+      .then(() => true)
+      .catch(() => false)
+
+    if (hasNpmLockfile) {
+      run(npmCmd, ['ci'], webRoot)
+    } else {
+      process.stdout.write('[formax] package-lock.json missing under apps/web-reference-react; fallback to npm install (non-lockfile)\n')
+      run(npmCmd, ['install', '--no-audit', '--no-fund', '--package-lock=false'], webRoot)
+    }
   } else {
     process.stdout.write('[formax] skip install: reusing existing web dependencies\n')
   }
