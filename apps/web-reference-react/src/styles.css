@@ -134,6 +134,11 @@ body {
   .ui-button-disabled {
     background: var(--button-disabled);
   }
+
+  .ui-content-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 140px;
+  }
 }
 
 .markdown-body > * {

@@ -699,6 +699,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const onRefreshDiff = useCallback(() => {
     void refreshWorkspaceDiff().catch(() => undefined)
   }, [refreshWorkspaceDiff])
+  const onRequestDiffPatch = useCallback(
+    (filePath: string) => requestDiffFilePatch(filePath),
+    [requestDiffFilePatch],
+  )
 
   return {
     sortedThreads,
@@ -754,7 +758,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onSubmitInput,
     diffSnapshot,
     onRefreshDiff,
-    onRequestDiffPatch: (filePath) => requestDiffFilePatch(filePath),
+    onRequestDiffPatch,
     isRefreshingDiff,
     noticeMessage,
   }

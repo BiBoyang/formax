@@ -167,7 +167,7 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
     <div
       data-turn-group-start={turnGroupStart ? 'true' : undefined}
       className={cn(
-        'min-w-0',
+        'min-w-0 ui-content-auto',
         showTurnGap ? 'mt-3 pt-1' : null,
       )}
     >
@@ -226,6 +226,12 @@ type TranscriptRow = {
   item: TranscriptItem
   turnGroupStart: boolean
   showTurnGap: boolean
+}
+
+type TranscriptRenderView = {
+  visibleLogCount: number
+  hiddenInMemoryCount: number
+  renderedRows: TranscriptRow[]
 }
 
 type TranscriptFeedProps = {
@@ -483,27 +489,46 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     !isInterrupting &&
     (isSending || Boolean(activeTurnId))
 
-  const visibleLogs = useMemo(() => logs.filter(shouldRenderTranscriptItem), [logs])
-  const hiddenInMemoryCount = Math.max(0, visibleLogs.length - renderLimit)
-  const renderedLogs = useMemo(() => {
-    if (hiddenInMemoryCount <= 0) return visibleLogs
-    return visibleLogs.slice(-renderLimit)
-  }, [hiddenInMemoryCount, visibleLogs, renderLimit])
-  const renderedRows = useMemo(() => {
+  const transcriptRenderView = useMemo<TranscriptRenderView>(() => {
+    let visibleLogCount = 0
+    for (const item of logs) {
+      if (shouldRenderTranscriptItem(item)) {
+        visibleLogCount += 1
+      }
+    }
+
+    const hiddenInMemoryCount = Math.max(0, visibleLogCount - renderLimit)
+    const renderStart = Math.max(0, visibleLogCount - renderLimit)
+    const renderedRows: TranscriptRow[] = []
+
+    let visibleIndex = 0
+    let renderedIndex = 0
     let lastKnownTurnId: string | undefined
-    return renderedLogs.map((item, index) => {
-      const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
-      if (item.turnId) {
-        lastKnownTurnId = item.turnId
+
+    for (const item of logs) {
+      if (!shouldRenderTranscriptItem(item)) continue
+      if (visibleIndex >= renderStart) {
+        const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
+        if (item.turnId) {
+          lastKnownTurnId = item.turnId
+        }
+        renderedRows.push({
+          item,
+          turnGroupStart,
+          showTurnGap: turnGroupStart && renderedIndex > 0,
+        })
+        renderedIndex += 1
       }
-      return {
-        item,
-        turnGroupStart,
-        showTurnGap: turnGroupStart && index > 0,
-      }
-    })
-  }, [renderedLogs])
-  const showJumpToBottom = visibleLogs.length > 0 && !isNearBottom
+      visibleIndex += 1
+    }
+
+    return {
+      visibleLogCount,
+      hiddenInMemoryCount,
+      renderedRows,
+    }
+  }, [logs, renderLimit])
+  const showJumpToBottom = transcriptRenderView.visibleLogCount > 0 && !isNearBottom
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const viewport = viewportRef.current
@@ -631,7 +656,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       window.cancelAnimationFrame(raf)
     }
-  }, [autoStick, scrollToBottom, visibleLogs.length, showTurnLoading])
+  }, [autoStick, scrollToBottom, transcriptRenderView.visibleLogCount, showTurnLoading])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -712,28 +737,42 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [])
 
   const renderEarlierMessages = useCallback(() => {
-    if (hiddenInMemoryCount <= 0) return
-    increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
-  }, [hiddenInMemoryCount, historyBatchRenderSize, increaseRenderLimit, visibleLogs.length])
+    if (transcriptRenderView.hiddenInMemoryCount <= 0) return
+    increaseRenderLimit(historyBatchRenderSize, true, transcriptRenderView.visibleLogCount)
+  }, [
+    transcriptRenderView.hiddenInMemoryCount,
+    transcriptRenderView.visibleLogCount,
+    historyBatchRenderSize,
+    increaseRenderLimit,
+  ])
 
   useEffect(() => {
     setRenderLimit(turnInitRenderLimit)
   }, [activeThreadId, turnInitRenderLimit])
 
   const handleLoadEarlier = useCallback(() => {
-    increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
+    increaseRenderLimit(historyBatchRenderSize, true, transcriptRenderView.visibleLogCount)
     onLoadEarlier?.()
-  }, [historyBatchRenderSize, increaseRenderLimit, onLoadEarlier, visibleLogs.length])
+  }, [historyBatchRenderSize, increaseRenderLimit, onLoadEarlier, transcriptRenderView.visibleLogCount])
   const jumpToBottom = useCallback(() => {
     scrollToBottom('smooth')
   }, [scrollToBottom])
 
   useEffect(() => {
     if (!devLoadAllActive) return
-    if (hiddenInMemoryCount > 0) {
-      increaseRenderLimit(hiddenInMemoryCount, true, visibleLogs.length)
+    if (transcriptRenderView.hiddenInMemoryCount > 0) {
+      increaseRenderLimit(
+        transcriptRenderView.hiddenInMemoryCount,
+        true,
+        transcriptRenderView.visibleLogCount,
+      )
     }
-  }, [devLoadAllActive, hiddenInMemoryCount, increaseRenderLimit, visibleLogs.length])
+  }, [
+    devLoadAllActive,
+    transcriptRenderView.hiddenInMemoryCount,
+    transcriptRenderView.visibleLogCount,
+    increaseRenderLimit,
+  ])
 
   useEffect(() => {
     if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {
@@ -744,7 +783,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   useEffect(() => {
     if (!activeTurnId) return
-    const target = Math.min(visibleLogs.length, renderWindowCap)
+    const target = Math.min(transcriptRenderView.visibleLogCount, renderWindowCap)
     if (renderLimit >= target) return
     const schedule = (callback: () => void): number => {
       const withIdle = window as Window & {
@@ -771,7 +810,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       cancel(handle)
     }
-  }, [activeTurnId, autoStick, visibleLogs.length, renderLimit, renderWindowCap, turnBatchRenderSize])
+  }, [
+    activeTurnId,
+    autoStick,
+    transcriptRenderView.visibleLogCount,
+    renderLimit,
+    renderWindowCap,
+    turnBatchRenderSize,
+  ])
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
@@ -780,10 +826,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
         historyMore={historyMore}
         historyLoading={historyLoading}
         onLoadEarlier={handleLoadEarlier}
-        hiddenInMemoryCount={hiddenInMemoryCount}
+        hiddenInMemoryCount={transcriptRenderView.hiddenInMemoryCount}
         onRenderEarlierMessages={renderEarlierMessages}
-        renderedLogsCount={renderedLogs.length}
-        renderedRows={renderedRows}
+        renderedLogsCount={transcriptRenderView.renderedRows.length}
+        renderedRows={transcriptRenderView.renderedRows}
         openToolIds={openToolIds}
         onToggleTool={toggleToolOpen}
         showTurnLoading={showTurnLoading}
