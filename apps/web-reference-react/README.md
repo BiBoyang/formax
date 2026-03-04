@@ -65,6 +65,7 @@ npm run build
 npm run perf:bundle:report
 npm run perf:bundle:baseline:write
 npm run perf:bundle:baseline:compare
+npm run perf:bundle:baseline:check
 ```
 
 Optional:
@@ -72,6 +73,7 @@ Optional:
 ```bash
 npm run perf:bundle:report -- --top=20
 npm run perf:bundle:report -- --compare-baseline --baseline=../../docs/perf/web-reference-react-bundle-baseline.json
+npm run perf:bundle:report -- --enforce-baseline --max-total-bytes-growth=1024 --max-entry-bytes-growth=1024
 ```
 
 Current test coverage focus:

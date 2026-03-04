@@ -39,13 +39,25 @@ function parsePathArg(argv, key) {
   return raw.trim() || null
 }
 
+function parseNonNegativeIntArg(argv, key, fallback) {
+  const raw = parsePathArg(argv, key)
+  if (!raw) return fallback
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback
+  return parsed
+}
+
 function parseOptions(argv) {
   const baselinePathArg = parsePathArg(argv, '--baseline')
+  const enforceBaseline = parseBooleanFlag(argv, '--enforce-baseline')
   return {
     topLimit: parseTopLimit(argv),
     json: parseBooleanFlag(argv, '--json'),
     writeBaseline: parseBooleanFlag(argv, '--write-baseline'),
-    compareBaseline: parseBooleanFlag(argv, '--compare-baseline'),
+    compareBaseline: parseBooleanFlag(argv, '--compare-baseline') || enforceBaseline,
+    enforceBaseline,
+    maxTotalBytesGrowth: parseNonNegativeIntArg(argv, '--max-total-bytes-growth', 0),
+    maxEntryBytesGrowth: parseNonNegativeIntArg(argv, '--max-entry-bytes-growth', 0),
     baselinePath: baselinePathArg ? path.resolve(process.cwd(), baselinePathArg) : DEFAULT_BASELINE_PATH,
   }
 }
@@ -261,6 +273,57 @@ function printComparison(current, baseline) {
   }
 }
 
+function calculateEntryTotalBytes(entrySummary) {
+  return Object.values(entrySummary ?? {}).reduce((sum, value) => {
+    if (typeof value?.bytes !== 'number') return sum
+    return sum + value.bytes
+  }, 0)
+}
+
+function buildRegressionResult(current, baseline, options) {
+  const checks = []
+
+  const totalBytesCurrent = current.summary?.totalBytes ?? 0
+  const totalBytesBaseline = baseline.summary?.totalBytes ?? 0
+  checks.push({
+    key: 'total-bytes',
+    label: 'total bytes',
+    current: totalBytesCurrent,
+    baseline: totalBytesBaseline,
+    delta: totalBytesCurrent - totalBytesBaseline,
+    allowedGrowth: options.maxTotalBytesGrowth,
+  })
+
+  const entryBytesCurrent = calculateEntryTotalBytes(current.entrySummary)
+  const entryBytesBaseline = calculateEntryTotalBytes(baseline.entrySummary)
+  checks.push({
+    key: 'entry-bytes',
+    label: 'entry bytes',
+    current: entryBytesCurrent,
+    baseline: entryBytesBaseline,
+    delta: entryBytesCurrent - entryBytesBaseline,
+    allowedGrowth: options.maxEntryBytesGrowth,
+  })
+
+  const failures = checks.filter((check) => check.delta > check.allowedGrowth)
+  return {
+    pass: failures.length === 0,
+    checks,
+    failures,
+  }
+}
+
+function printRegressionResult(regression) {
+  console.log('')
+  console.log('Baseline Guard')
+  for (const check of regression.checks) {
+    const status = check.delta > check.allowedGrowth ? 'FAIL' : 'PASS'
+    console.log(
+      `- ${status} ${check.label}: ${formatBytes(check.current)} (baseline ${formatBytes(check.baseline)}, ${formatDelta(check.current, check.baseline)}, allowance ${formatBytes(check.allowedGrowth)})`,
+    )
+  }
+}
+
 async function main() {
   const options = parseOptions(process.argv.slice(2))
   const [rows, entryAssets] = await Promise.all([
@@ -270,6 +333,7 @@ async function main() {
 
   const report = buildReport(rows, entryAssets, options.topLimit)
   let baseline = null
+  let regression = null
 
   if (options.writeBaseline) {
     await writeBaseline(report, options.baselinePath)
@@ -277,20 +341,30 @@ async function main() {
 
   if (options.compareBaseline) {
     baseline = await readBaseline(options.baselinePath)
+    if (options.enforceBaseline) {
+      regression = buildRegressionResult(report, baseline, options)
+    }
   }
 
   if (options.json) {
     if (baseline) {
+      const payload = {
+        current: report,
+        baseline,
+      }
+      if (regression) {
+        payload.regression = regression
+      }
       console.log(
         JSON.stringify(
-          {
-            current: report,
-            baseline,
-          },
+          payload,
           null,
           2,
         ),
       )
+      if (regression && !regression.pass) {
+        process.exitCode = 1
+      }
       return
     }
     console.log(JSON.stringify(report, null, 2))
@@ -308,6 +382,15 @@ async function main() {
 
   if (baseline) {
     printComparison(report, baseline)
+  }
+
+  if (regression) {
+    printRegressionResult(regression)
+    if (!regression.pass) {
+      console.log('')
+      console.log('Bundle baseline guard failed. If this growth is intentional, update the baseline file.')
+      process.exitCode = 1
+    }
   }
 }
 

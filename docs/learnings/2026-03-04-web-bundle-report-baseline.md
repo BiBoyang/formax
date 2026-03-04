@@ -7,6 +7,7 @@
   - `npm --prefix apps/web-reference-react run perf:bundle:report`
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:write`
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:compare`
+  - `npm --prefix apps/web-reference-react run perf:bundle:baseline:check`
 
 The report reads `dist/index.html` and `dist/assets/*`, then prints:
 
@@ -23,6 +24,7 @@ npm --prefix apps/web-reference-react run build
 npm --prefix apps/web-reference-react run perf:bundle:report
 npm --prefix apps/web-reference-react run perf:bundle:baseline:write
 npm --prefix apps/web-reference-react run perf:bundle:baseline:compare
+npm --prefix apps/web-reference-react run perf:bundle:baseline:check
 ```
 
 Observed key numbers:
@@ -47,3 +49,6 @@ Observed key numbers:
 - JSON mode outputs a single valid JSON document:
   - `--json`
   - `--json --compare-baseline` returns `{ current, baseline }`.
+- CI guard mode:
+  - `--enforce-baseline` exits non-zero on growth beyond configured thresholds.
+  - defaults are strict (`0` growth) for `total bytes` and `entry bytes`.

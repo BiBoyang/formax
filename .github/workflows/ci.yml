@@ -24,6 +24,7 @@ jobs:
               - '**/*.mjs'
             web_reference:
               - 'apps/web-reference-react/**'
+              - 'docs/perf/web-reference-react-bundle-baseline.json'
 
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'
@@ -58,6 +59,14 @@ jobs:
       - name: Web reference tests
         if: steps.changes.outputs.web_reference == 'true'
         run: bun run --cwd apps/web-reference-react test
+
+      - name: Web reference build
+        if: steps.changes.outputs.web_reference == 'true'
+        run: bun run --cwd apps/web-reference-react build
+
+      - name: Web reference bundle baseline guard
+        if: steps.changes.outputs.web_reference == 'true'
+        run: bun run --cwd apps/web-reference-react perf:bundle:baseline:check
 
       - name: Upload coverage to Codecov
         if: steps.changes.outputs.code == 'true'
