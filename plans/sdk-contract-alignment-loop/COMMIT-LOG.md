@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `1e8f7f3` `test(core,plans): harden model metadata prefix priority`
+  - 切片：`MOD-07`
+  - 说明：将 metadata 前缀匹配改为按长度降序，避免 `gpt-4*` 抢占 `gpt-4o* / gpt-4-turbo*`；补充 `gpt-4-turbo-*` 回归断言防止能力字段误回退。
+
 - `72ba9cd` `refactor(core,plans): derive openai defaults from shared metadata`
   - 切片：`MOD-06`
   - 说明：将 OpenAI 默认模型列表与 fetch fallback 统一改为复用 `inferModelMetadata` 构建，消除 `getDefaultModels` 与 metadata 表重复定义，并补齐对齐回归测试。
