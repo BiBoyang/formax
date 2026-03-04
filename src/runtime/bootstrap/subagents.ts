@@ -14,8 +14,8 @@ import type { ToolPreflight } from '../../tools/executor/index.js'
 import { createToolExecutor } from '../../tools/executor/index.js'
 
 export type SubagentRuntime = {
-  allowedSubagents: { name: string; description: string }[]
-  reloadSubagents: () => Promise<{ name: string; description: string }[]>
+  allowedSubagents: { name: string; description: string; model?: string }[]
+  reloadSubagents: () => Promise<{ name: string; description: string; model?: string }[]>
   tools: Awaited<ReturnType<ToolRegistry['listSpecs']>>
 }
 

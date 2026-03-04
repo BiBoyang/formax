@@ -870,7 +870,7 @@ describe('sdk query()', () => {
   it('supports supportedAgents() before iteration starts', async () => {
     const runtime = createRuntimeFixture()
     runtime.allowedSubagents = [
-      { name: 'Plan', description: 'Design implementation plans' },
+      { name: 'Plan', description: 'Design implementation plans', model: 'sonnet' },
       { name: 'Explore', description: 'Explore large codebases quickly' },
     ]
     state.createRuntime.mockResolvedValue(runtime)
@@ -881,7 +881,7 @@ describe('sdk query()', () => {
 
     const agents = await queryIterator.supportedAgents()
     expect(agents).toEqual([
-      { name: 'Plan', description: 'Design implementation plans' },
+      { name: 'Plan', description: 'Design implementation plans', model: 'sonnet' },
       { name: 'Explore', description: 'Explore large codebases quickly' },
     ])
     expect(state.createRuntime).toHaveBeenCalledTimes(1)

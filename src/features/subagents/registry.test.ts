@@ -40,6 +40,7 @@ You are a reviewer.
     expect(registry.list()).toContainEqual({
       name: 'code-reviewer',
       description: 'Reviews code for bugs',
+      model: 'sonnet',
     })
 
     const agent = registry.get('code-reviewer')

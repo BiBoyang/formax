@@ -847,6 +847,9 @@ async function listSupportedAgents(args: QueryArgs, state: QueryControlState): P
     const agents = runtime.allowedSubagents.map((agent) => ({
       name: agent.name,
       description: agent.description,
+      ...(typeof agent.model === 'string' && agent.model.trim().length > 0
+        ? { model: agent.model.trim() }
+        : {}),
     }))
     return parseAgentInfoListOutput(agents)
   } catch (error) {

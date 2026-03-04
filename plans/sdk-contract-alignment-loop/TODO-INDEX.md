@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `AGT-01`：增强 `supportedAgents()` 的模型字段对齐（在现有子代理数据可提供时返回 `model`，无值时保持省略）。
+- [ ] `MOD-03`：抽取模型 effort 能力推导辅助函数到 `core/models` 并复用到 SDK，降低 `supportedModels()` 与核心模型元数据漂移风险。
 
 ## 再生规则（当“当前待办”为空时）
 

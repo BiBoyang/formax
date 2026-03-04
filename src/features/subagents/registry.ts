@@ -8,7 +8,7 @@ export interface SubAgentRegistry {
   loadFromDirectory(dir: string): Promise<void>
   loadFromDirectories(dirs: string[]): Promise<void>
   get(name: string): SubAgentConfig | undefined
-  list(): Array<{ name: string; description: string }>
+  list(): Array<{ name: string; description: string; model?: string }>
 }
 
 export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): SubAgentRegistry {
@@ -91,10 +91,11 @@ export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): Su
       return agents.get(name)
     },
 
-    list(): Array<{ name: string; description: string }> {
+    list(): Array<{ name: string; description: string; model?: string }> {
       return Array.from(agents.values()).map((a) => ({
         name: a.name,
         description: a.description,
+        ...(a.model ? { model: a.model } : {}),
       }))
     },
   }

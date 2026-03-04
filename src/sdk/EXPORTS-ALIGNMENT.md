@@ -35,7 +35,7 @@
 | `setPermissionMode` | `setPermissionMode` | Supported | 启动前覆盖。 |
 | `setMaxThinkingTokens` | `setMaxThinkingTokens` | Supported | 启动前覆盖。 |
 | `supportedCommands` | `supportedCommands` | Supported | 返回当前 slash command 子集，包含 `name/argumentHint` 与 `command/argHint` 兼容字段。 |
-| `supportedAgents` | `supportedAgents` | Supported | 返回当前子代理子集。 |
+| `supportedAgents` | `supportedAgents` | Supported | 返回当前子代理子集；当底层子代理配置包含模型信息时返回 `model` 字段。 |
 | `supportedModels` | `supportedModels` | Supported | 返回 provider 可用模型子集，包含 `value/displayName/supportsEffort/supportsAdaptiveThinking` 等官方常用兼容字段；活动模型回填项在可推导时补齐 effort 兼容字段。 |
 | `accountInfo` | `accountInfo` | Supported | 返回当前账号配置子集，并补齐 `tokenSource/apiKeySource` 兼容字段；`apiKeySource` 输出官方兼容值，`tokenSource` 保留 Formax 来源细节。 |
 | `mcpServerStatus` | `mcpServerStatus` | Partial | 显式未支持。 |

@@ -48,8 +48,8 @@ describe('createSubagentRuntime', () => {
       loadFromDirectories: vi.fn(async () => {}),
       list: vi
         .fn()
-        .mockReturnValueOnce([{ name: 'a', description: 'A' }])
-        .mockReturnValueOnce([{ name: 'b', description: 'B' }]),
+        .mockReturnValueOnce([{ name: 'a', description: 'A', model: 'sonnet' }])
+        .mockReturnValueOnce([{ name: 'b', description: 'B', model: 'haiku' }]),
     }
     mocks.createSubAgentRegistry.mockReturnValue(registry)
     mocks.getConfigPaths.mockReturnValue({ globalConfigDir: '/cfg' })
@@ -126,11 +126,14 @@ describe('createSubagentRuntime', () => {
     expect(addPatch).toHaveBeenCalledTimes(1)
     const patchFn = addPatch.mock.calls[0][0]
     patchFn([{ name: 'Bash' }])
-    expect(mocks.patchTaskToolForSubagents).toHaveBeenCalledWith([{ name: 'Bash' }], [{ name: 'a', description: 'A' }])
+    expect(mocks.patchTaskToolForSubagents).toHaveBeenCalledWith(
+      [{ name: 'Bash' }],
+      [{ name: 'a', description: 'A', model: 'sonnet' }],
+    )
 
-    expect(out.allowedSubagents).toEqual([{ name: 'a', description: 'A' }])
+    expect(out.allowedSubagents).toEqual([{ name: 'a', description: 'A', model: 'sonnet' }])
     expect(out.tools).toEqual(toolsAfterPatch)
-    expect(await out.reloadSubagents()).toEqual([{ name: 'b', description: 'B' }])
+    expect(await out.reloadSubagents()).toEqual([{ name: 'b', description: 'B', model: 'haiku' }])
   })
 
   it('builds local executor and uses model token lookup when runtime tokens are absent', async () => {
