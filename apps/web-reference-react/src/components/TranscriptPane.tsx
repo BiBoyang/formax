@@ -50,6 +50,58 @@ type RpcErrorLike = {
   data?: unknown
 }
 
+const RPC_ERROR_DETAILS_CACHE_LIMIT = 80
+const rpcErrorDetailsCache = new Map<string, string>()
+
+function encodeCacheKeyPart(value: string): string {
+  return `${value.length}:${value}`
+}
+
+function getRpcErrorDataCacheKey(data: unknown): string {
+  if (data === null) return 'null'
+  if (typeof data === 'undefined') return 'undefined'
+  if (typeof data === 'object') {
+    try {
+      return `obj:${JSON.stringify(data)}`
+    } catch {
+      return `obj-unserializable:${Object.prototype.toString.call(data)}`
+    }
+  }
+  if (typeof data === 'string') return `str:${data}`
+  if (typeof data === 'number') return `num:${String(data)}`
+  if (typeof data === 'boolean') return `bool:${String(data)}`
+  if (typeof data === 'bigint') return `bigint:${String(data)}`
+  return `other:${String(data)}`
+}
+
+function makeRpcErrorDetailsCacheKey(error: RpcErrorLike): string {
+  return [
+    encodeCacheKeyPart(error.at),
+    encodeCacheKeyPart(error.method),
+    encodeCacheKeyPart(error.message),
+    encodeCacheKeyPart(error.code == null ? '' : String(error.code)),
+    encodeCacheKeyPart(getRpcErrorDataCacheKey(error.data)),
+  ].join('')
+}
+
+export function formatRpcErrorDetails(error: RpcErrorLike): string {
+  const cacheKey = makeRpcErrorDetailsCacheKey(error)
+  const cached = rpcErrorDetailsCache.get(cacheKey)
+  if (cached != null) {
+    return cached
+  }
+
+  const serialized = JSON.stringify(error, null, 2)
+  if (rpcErrorDetailsCache.size >= RPC_ERROR_DETAILS_CACHE_LIMIT) {
+    const oldestKey = rpcErrorDetailsCache.keys().next().value
+    if (typeof oldestKey === 'string') {
+      rpcErrorDetailsCache.delete(oldestKey)
+    }
+  }
+  rpcErrorDetailsCache.set(cacheKey, serialized)
+  return serialized
+}
+
 type ComposerMode = 'normal' | 'acceptEdits' | 'plan'
 
 const MODE_CYCLE: ComposerMode[] = ['normal', 'acceptEdits', 'plan']
@@ -281,8 +333,14 @@ const TranscriptRowsList = memo(function TranscriptRowsList(props: TranscriptRow
 
 const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) {
   const lastRpcErrorDetails = useMemo(
-    () => (props.lastRpcError ? JSON.stringify(props.lastRpcError, null, 2) : ''),
-    [props.lastRpcError],
+    () => (props.lastRpcError ? formatRpcErrorDetails(props.lastRpcError) : ''),
+    [
+      props.lastRpcError?.at,
+      props.lastRpcError?.method,
+      props.lastRpcError?.message,
+      props.lastRpcError?.code,
+      props.lastRpcError?.data,
+    ],
   )
 
   return (

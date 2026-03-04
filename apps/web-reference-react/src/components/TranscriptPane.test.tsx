@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptPaneProps } from './TranscriptPane'
-import { TranscriptPane } from './TranscriptPane'
+import { formatRpcErrorDetails, TranscriptPane } from './TranscriptPane'
 import { shouldStopWheelPropagation } from './scrollBoundary'
 
 function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPaneProps {
@@ -21,6 +21,96 @@ function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPane
 }
 
 describe('TranscriptPane', () => {
+  it('reuses full rpc error serialization for equivalent payload objects', () => {
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+    const sharedData = { detail: 'same-data-ref' }
+
+    const fullErrorStringifyCount = () =>
+      stringifySpy.mock.calls.filter(([value]) => {
+        return (
+          typeof value === 'object' &&
+          value != null &&
+          'at' in value &&
+          'method' in value &&
+          'message' in value
+        )
+      }).length
+
+    const first = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: sharedData,
+    })
+    const fullCallsAfterFirst = fullErrorStringifyCount()
+
+    const second = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: sharedData,
+    })
+    const fullCallsAfterSecond = fullErrorStringifyCount()
+
+    expect(second).toBe(first)
+    expect(fullCallsAfterSecond).toBe(fullCallsAfterFirst)
+    stringifySpy.mockRestore()
+  })
+
+  it('invalidates rpc error details cache when payload object changes', () => {
+    const sharedData = { detail: 'before' }
+    const first = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: sharedData,
+    })
+
+    sharedData.detail = 'after'
+    const second = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: sharedData,
+    })
+
+    expect(second).not.toBe(first)
+    expect(JSON.parse(second)).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ detail: 'after' }),
+      }),
+    )
+  })
+
+  it('keeps distinct cache entries for undefined and null rpc payload data', () => {
+    const withoutData = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: undefined,
+    })
+    const withNullData = formatRpcErrorDetails({
+      at: '2026-03-05T00:00:00.000Z',
+      method: 'turn/start',
+      message: 'rpc failed',
+      code: -32000,
+      data: null,
+    })
+
+    expect(withNullData).not.toBe(withoutData)
+    expect(JSON.parse(withoutData)).not.toHaveProperty('data')
+    expect(JSON.parse(withNullData)).toEqual(
+      expect.objectContaining({
+        data: null,
+      }),
+    )
+  })
+
   it('enforces send/interrupt states with current composer behavior', () => {
     const onInputTextChange = vi.fn()
     const onSend = vi.fn((event) => event.preventDefault())

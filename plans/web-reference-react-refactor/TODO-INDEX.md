@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice I：`TranscriptPane` 错误详情字符串缓存进一步收敛（`TranscriptPane.tsx` + 对应 test）
+- [ ] Slice J：`TranscriptPane` 渲染视图计算改为单次过滤路径（`TranscriptPane.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 
