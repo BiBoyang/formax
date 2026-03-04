@@ -31,7 +31,7 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
         return
       }
     } else {
-      touchMarkdownCache(key, { hash, baseHtml: safeBaseHtml })
+      touchMarkdownCache(key, { hash, baseHtml: safeBaseHtml, rawHtml, hasCodeBlocks })
       if (!hasCodeBlocks) {
         return
       }
@@ -54,7 +54,13 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
         }
         if (cancelled) return
         const safeHighlighted = sanitizeMarkdownHtml(highlighted)
-        touchMarkdownCache(key, { hash, baseHtml: safeBaseHtml, highlightedHtml: safeHighlighted })
+        touchMarkdownCache(key, {
+          hash,
+          baseHtml: safeBaseHtml,
+          highlightedHtml: safeHighlighted,
+          rawHtml,
+          hasCodeBlocks,
+        })
         setHtml(safeHighlighted)
       })()
     })

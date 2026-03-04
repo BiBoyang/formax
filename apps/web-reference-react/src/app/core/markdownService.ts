@@ -5,6 +5,8 @@ export type MarkdownCacheEntry = {
   hash: string
   baseHtml: string
   highlightedHtml?: string
+  rawHtml?: string
+  hasCodeBlocks?: boolean
 }
 
 export type PreparedMarkdownRender = {
@@ -345,8 +347,20 @@ export function prepareMarkdownRender(args: { text: string; cacheKey?: string })
   const key = args.cacheKey ?? hash
   const entry = markdownCache.get(key)
   const cached = entry && entry.hash === hash ? entry : null
+  if (cached && typeof cached.rawHtml === 'string' && typeof cached.hasCodeBlocks === 'boolean') {
+    return {
+      key,
+      hash,
+      cached,
+      rawHtml: cached.rawHtml,
+      safeBaseHtml: cached.baseHtml,
+      initialHtml: cached.highlightedHtml ?? cached.baseHtml,
+      hasCodeBlocks: cached.hasCodeBlocks,
+    }
+  }
   const rawHtml = parseMarkdown(args.text)
   const safeBaseHtml = cached?.baseHtml ?? sanitizeMarkdownHtml(rawHtml)
+  const hasCodeBlocks = HAS_CODE_BLOCK_REGEX.test(rawHtml)
   return {
     key,
     hash,
@@ -354,7 +368,7 @@ export function prepareMarkdownRender(args: { text: string; cacheKey?: string })
     rawHtml,
     safeBaseHtml,
     initialHtml: cached?.highlightedHtml ?? cached?.baseHtml ?? safeBaseHtml,
-    hasCodeBlocks: HAS_CODE_BLOCK_REGEX.test(rawHtml),
+    hasCodeBlocks,
   }
 }
 

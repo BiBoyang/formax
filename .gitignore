@@ -22,3 +22,4 @@ snapshort/
 repomix-output/
 .tmp/
 plans/claude-agent-sdk/*
+.codex/skills/react-best-practices/*

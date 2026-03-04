@@ -222,6 +222,220 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
   )
 })
 
+type TranscriptRow = {
+  item: TranscriptItem
+  turnGroupStart: boolean
+  showTurnGap: boolean
+}
+
+type TranscriptFeedProps = {
+  activeThreadCwd?: string
+  historyMore: boolean
+  historyLoading: boolean
+  onLoadEarlier: () => void
+  hiddenInMemoryCount: number
+  onRenderEarlierMessages: () => void
+  renderedLogsCount: number
+  renderedRows: TranscriptRow[]
+  openToolIds: Set<string>
+  onToggleTool: (id: string) => void
+  showTurnLoading: boolean
+  lastRpcError: RpcErrorLike | null
+  showErrorDetails: boolean
+  onShowErrorDetailsChange: (open: boolean) => void
+  scrollAreaRef: { current: HTMLDivElement | null }
+  bottomRef: { current: HTMLDivElement | null }
+}
+
+const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) {
+  return (
+    <section className="transcript flex-1 overflow-hidden relative">
+      <ScrollArea ref={props.scrollAreaRef} className="h-full">
+        <div className="flex min-w-0 flex-col gap-3 p-4 pb-12 max-w-3xl mx-auto w-full">
+          {props.historyMore ? (
+            <div className="flex justify-center">
+              <Button type="button" variant="ghost" size="sm" disabled={props.historyLoading} onClick={props.onLoadEarlier}>
+                {props.historyLoading ? 'Loading earlier messages...' : 'Load earlier messages'}
+              </Button>
+            </div>
+          ) : null}
+
+          {props.hiddenInMemoryCount > 0 ? (
+            <div className="flex justify-center">
+              <Button type="button" variant="ghost" size="sm" onClick={props.onRenderEarlierMessages}>
+                {`Render earlier messages (${props.hiddenInMemoryCount} hidden)`}
+              </Button>
+            </div>
+          ) : null}
+
+          {props.renderedLogsCount === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
+              <MessageSquare className="h-8 w-8 text-muted-foreground/20" />
+              <span className="ui-text-base ui-text-muted">Start a thread to begin</span>
+            </div>
+          ) : null}
+
+          {props.renderedRows.map((row) => (
+            <TranscriptItemRow
+              key={row.item.id}
+              item={row.item}
+              turnGroupStart={row.turnGroupStart}
+              showTurnGap={row.showTurnGap}
+              activeThreadCwd={props.activeThreadCwd}
+              toolOpen={props.openToolIds.has(row.item.id)}
+              onToggleTool={props.onToggleTool}
+            />
+          ))}
+
+          {props.showTurnLoading ? (
+            <div data-testid="turn-loading" className="py-1">
+              <LoadingStatusLine text="Thinking" cycleWords />
+            </div>
+          ) : null}
+
+          {props.lastRpcError ? (
+            <Collapsible open={props.showErrorDetails} onOpenChange={props.onShowErrorDetailsChange}>
+              <Card className="gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none mx-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="ui-text-meta text-destructive font-medium">
+                    Rpc Error: {props.lastRpcError.message}
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="ghost" size="xs" className="h-6 px-2 ui-text-meta hover:bg-destructive/10">
+                      {props.showErrorDetails ? 'Hide' : 'Details'}
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
+                    {JSON.stringify(props.lastRpcError, null, 2)}
+                  </pre>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          ) : null}
+          <div ref={props.bottomRef} className="h-4" />
+        </div>
+      </ScrollArea>
+    </section>
+  )
+})
+
+type ComposerDockProps = {
+  showJumpToBottom: boolean
+  onJumpToBottom: () => void
+  inputText: string
+  onInputTextChange: (value: string) => void
+  mode: ComposerMode
+  onModeChange: (value: ComposerMode) => void
+  activeThreadId: string | null
+  connectionStatus: 'disconnected' | 'connecting' | 'connected'
+  isSending: boolean
+  isInterrupting: boolean
+  onInterrupt: () => void
+  onSend: (event: FormEvent) => void
+}
+
+const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
+  const [isImeComposing, setIsImeComposing] = useState(false)
+  const modeInfo = modeMeta(props.mode)
+
+  return (
+    <div data-testid="composer" className="composer p-4 pb-8">
+      <div className="max-w-3xl mx-auto relative">
+        {props.showJumpToBottom ? (
+          <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
+            <Button
+              type="button"
+              aria-label="Jump to bottom"
+              size="icon"
+              variant="outline"
+              className="pointer-events-auto h-9 w-9 rounded-full border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
+              onClick={props.onJumpToBottom}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : null}
+        <form
+          className="group relative flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm focus-within:border-ring/30 focus-within:shadow-md transition-all duration-200"
+          onSubmit={props.onSend}
+        >
+          <Textarea
+            value={props.inputText}
+            onChange={(event) => props.onInputTextChange(event.target.value)}
+            placeholder="Ask for follow-up changes"
+            className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 ui-text-base leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
+            onCompositionStart={() => setIsImeComposing(true)}
+            onCompositionEnd={() => setIsImeComposing(false)}
+            onKeyDown={(event) => {
+              if (event.key === 'Tab' && event.shiftKey) {
+                event.preventDefault()
+                props.onModeChange(nextComposerMode(props.mode))
+                return
+              }
+              if (event.key !== 'Enter' || event.shiftKey) return
+              const nativeEvent = event.nativeEvent as KeyboardEvent
+              if (isImeComposing || nativeEvent.isComposing || nativeEvent.keyCode === 229) return
+              event.preventDefault()
+              if (props.activeThreadId && props.connectionStatus === 'connected' && !props.inputText.trim()) return
+              if (props.activeThreadId && props.connectionStatus === 'connected' && !props.isSending) {
+                props.onSend(event as unknown as FormEvent)
+              }
+            }}
+          />
+
+          <div className="flex items-center justify-between px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Execution mode"
+                onClick={() => props.onModeChange(nextComposerMode(props.mode))}
+                className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
+                title="Click to cycle mode (Shift+Tab)"
+              >
+                <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
+                <span>{modeInfo.label}</span>
+              </Button>
+              <div className="hidden lg:block ui-text-base text-muted-foreground/85">
+                Shift+Tab switch mode, Enter send, Shift+Enter newline
+              </div>
+            </div>
+            <div className="flex items-center gap-1 pr-1 text-muted-foreground">
+              {props.isSending || props.isInterrupting ? (
+                <Button
+                  type="button"
+                  aria-label="Interrupt turn"
+                  size="icon"
+                  disabled={props.isInterrupting}
+                  className="h-7 w-7 rounded-full shrink-0 border-0 bg-black text-white shadow-none hover:bg-black/90"
+                  onClick={props.onInterrupt}
+                >
+                  <Square className="size-3 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  aria-label="Send message"
+                  disabled={!props.activeThreadId || props.connectionStatus !== 'connected' || !props.inputText.trim()}
+                  size="icon"
+                  className={cn(
+                    'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
+                    !props.inputText.trim() ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
+                  )}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+})
+
 export function TranscriptPane(props: TranscriptPaneProps) {
   const {
     activeThread,
@@ -252,7 +466,6 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [autoStick, setAutoStick] = useState(true)
-  const [isImeComposing, setIsImeComposing] = useState(false)
   const [renderLimit, setRenderLimit] = useState(turnInitRenderLimit)
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
@@ -292,7 +505,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [renderedLogs])
   const showJumpToBottom = visibleLogs.length > 0 && !isNearBottom
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const viewport = viewportRef.current
     if (!viewport) {
       bottomRef.current?.scrollIntoView({ behavior, block: 'end' })
@@ -312,7 +525,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     autoStickRef.current = true
     autoStickStateRef.current = true
     setIsNearBottom(true)
-  }
+  }, [])
 
   useEffect(() => {
     autoStickRef.current = autoStick
@@ -365,7 +578,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     }
   }, [])
 
-  const handleViewportScroll = () => {
+  const handleViewportScroll = useCallback(() => {
     const viewport = viewportRef.current
     if (!viewport) return
     const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
@@ -392,9 +605,9 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     scrollFallbackHandleRef.current = window.setTimeout(() => {
       flushScrollFrame()
     }, 48)
-  }
+  }, [flushScrollFrame])
 
-  const handleBoundaryWheel = (event: WheelEvent) => {
+  const handleBoundaryWheel = useCallback((event: WheelEvent) => {
     const viewport = viewportRef.current
     if (!viewport) return
     if (
@@ -407,7 +620,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     ) {
       event.stopPropagation()
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!autoStick) return
@@ -418,7 +631,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     return () => {
       window.cancelAnimationFrame(raf)
     }
-  }, [autoStick, visibleLogs.length, showTurnLoading])
+  }, [autoStick, scrollToBottom, visibleLogs.length, showTurnLoading])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -468,22 +681,20 @@ export function TranscriptPane(props: TranscriptPaneProps) {
         viewportRef.current = null
       }
     }
-  }, [activeThreadId])
+  }, [activeThreadId, handleBoundaryWheel, handleViewportScroll])
 
-  const handleSend = (event: FormEvent) => {
+  const handleSend = useCallback((event: FormEvent) => {
     autoStickRef.current = true
     autoStickStateRef.current = true
     setAutoStick(true)
     onSend(event)
-  }
+  }, [onSend])
 
   const toggleToolOpen = useCallback((id: string) => {
     dispatchOpenToolIds({ type: 'toggle', id })
   }, [])
 
-  const modeInfo = modeMeta(mode)
-
-  const increaseRenderLimit = (delta: number, preserveAnchor: boolean, maxLimit: number) => {
+  const increaseRenderLimit = useCallback((delta: number, preserveAnchor: boolean, maxLimit: number) => {
     if (delta <= 0) return
     const viewport = viewportRef.current
     const beforeTop = viewport?.scrollTop ?? 0
@@ -498,32 +709,31 @@ export function TranscriptPane(props: TranscriptPaneProps) {
       const afterHeight = viewport.scrollHeight
       viewport.scrollTop = beforeTop + Math.max(0, afterHeight - beforeHeight)
     })
-  }
+  }, [])
 
-  const renderEarlierMessages = () => {
+  const renderEarlierMessages = useCallback(() => {
     if (hiddenInMemoryCount <= 0) return
     increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
-  }
+  }, [hiddenInMemoryCount, historyBatchRenderSize, increaseRenderLimit, visibleLogs.length])
 
   useEffect(() => {
     setRenderLimit(turnInitRenderLimit)
   }, [activeThreadId, turnInitRenderLimit])
 
-  const handleLoadEarlier = () => {
+  const handleLoadEarlier = useCallback(() => {
     increaseRenderLimit(historyBatchRenderSize, true, visibleLogs.length)
     onLoadEarlier?.()
-  }
+  }, [historyBatchRenderSize, increaseRenderLimit, onLoadEarlier, visibleLogs.length])
+  const jumpToBottom = useCallback(() => {
+    scrollToBottom('smooth')
+  }, [scrollToBottom])
 
   useEffect(() => {
     if (!devLoadAllActive) return
     if (hiddenInMemoryCount > 0) {
       increaseRenderLimit(hiddenInMemoryCount, true, visibleLogs.length)
     }
-  }, [
-    devLoadAllActive,
-    hiddenInMemoryCount,
-    visibleLogs.length,
-  ])
+  }, [devLoadAllActive, hiddenInMemoryCount, increaseRenderLimit, visibleLogs.length])
 
   useEffect(() => {
     if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {
@@ -565,169 +775,40 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
-      {/* Transcript Area */}
-      <section className="transcript flex-1 overflow-hidden relative">
-        <ScrollArea ref={scrollAreaRef} className="h-full">
-          <div className="flex min-w-0 flex-col gap-3 p-4 pb-12 max-w-3xl mx-auto w-full">
-            {historyMore ? (
-              <div className="flex justify-center">
-                <Button type="button" variant="ghost" size="sm" disabled={historyLoading} onClick={handleLoadEarlier}>
-                  {historyLoading ? 'Loading earlier messages...' : 'Load earlier messages'}
-                </Button>
-              </div>
-            ) : null}
-
-            {hiddenInMemoryCount > 0 ? (
-              <div className="flex justify-center">
-                <Button type="button" variant="ghost" size="sm" onClick={renderEarlierMessages}>
-                  {`Render earlier messages (${hiddenInMemoryCount} hidden)`}
-                </Button>
-              </div>
-            ) : null}
-            
-            {renderedLogs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-                    <MessageSquare className="h-8 w-8 text-muted-foreground/20" />
-                    <span className="ui-text-base ui-text-muted">Start a thread to begin</span>
-                </div>
-            ) : null}
-
-            {renderedRows.map((row) => (
-              <TranscriptItemRow
-                key={row.item.id}
-                item={row.item}
-                turnGroupStart={row.turnGroupStart}
-                showTurnGap={row.showTurnGap}
-                activeThreadCwd={activeThread?.cwd}
-                toolOpen={openToolIds.has(row.item.id)}
-                onToggleTool={toggleToolOpen}
-              />
-            ))}
-
-            {showTurnLoading ? (
-              <div data-testid="turn-loading" className="py-1">
-                <LoadingStatusLine text="Thinking" cycleWords />
-              </div>
-            ) : null}
-
-            {lastRpcError ? (
-              <Collapsible open={showErrorDetails} onOpenChange={setShowErrorDetails}>
-                <Card className="gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none mx-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="ui-text-meta text-destructive font-medium">
-                      Rpc Error: {lastRpcError.message}
-                    </div>
-                    <CollapsibleTrigger asChild>
-                      <Button type="button" variant="ghost" size="xs" className="h-6 px-2 ui-text-meta hover:bg-destructive/10">
-                        {showErrorDetails ? 'Hide' : 'Details'}
-                      </Button>
-                    </CollapsibleTrigger>
-                  </div>
-                  <CollapsibleContent>
-                    <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
-                      {JSON.stringify(lastRpcError, null, 2)}
-                    </pre>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            ) : null}
-            <div ref={bottomRef} className="h-4" />
-          </div>
-        </ScrollArea>
-      </section>
+      <TranscriptFeed
+        activeThreadCwd={activeThread?.cwd}
+        historyMore={historyMore}
+        historyLoading={historyLoading}
+        onLoadEarlier={handleLoadEarlier}
+        hiddenInMemoryCount={hiddenInMemoryCount}
+        onRenderEarlierMessages={renderEarlierMessages}
+        renderedLogsCount={renderedLogs.length}
+        renderedRows={renderedRows}
+        openToolIds={openToolIds}
+        onToggleTool={toggleToolOpen}
+        showTurnLoading={showTurnLoading}
+        lastRpcError={lastRpcError}
+        showErrorDetails={showErrorDetails}
+        onShowErrorDetailsChange={setShowErrorDetails}
+        scrollAreaRef={scrollAreaRef}
+        bottomRef={bottomRef}
+      />
 
       {!composerLocked ? (
-        <div data-testid="composer" className="composer p-4 pb-8">
-          <div className="max-w-3xl mx-auto relative">
-            {showJumpToBottom ? (
-              <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
-                <Button
-                  type="button"
-                  aria-label="Jump to bottom"
-                  size="icon"
-                  variant="outline"
-                  className="pointer-events-auto h-9 w-9 rounded-full border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
-                  onClick={() => scrollToBottom('smooth')}
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : null}
-            <form
-              className="group relative flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm focus-within:border-ring/30 focus-within:shadow-md transition-all duration-200"
-              onSubmit={handleSend}
-            >
-              <Textarea
-                  value={inputText}
-                  onChange={(event) => onInputTextChange(event.target.value)}
-                  placeholder="Ask for follow-up changes"
-                  className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 ui-text-base leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
-                  onCompositionStart={() => setIsImeComposing(true)}
-                  onCompositionEnd={() => setIsImeComposing(false)}
-                  onKeyDown={(e) => {
-                      if (e.key === 'Tab' && e.shiftKey) {
-                          e.preventDefault()
-                          onModeChange(nextComposerMode(mode))
-                          return
-                      }
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                          const nativeEvent = e.nativeEvent as KeyboardEvent
-                          if (isImeComposing || nativeEvent.isComposing || nativeEvent.keyCode === 229) return
-                          e.preventDefault();
-                          if (activeThreadId && connectionStatus === 'connected' && !inputText.trim()) return;
-                          if (activeThreadId && connectionStatus === 'connected' && !isSending) {
-                              handleSend(e as unknown as FormEvent);
-                          }
-                      }
-                  }}
-              />
-
-              <div className="flex items-center justify-between px-3 py-2">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label="Execution mode"
-                    onClick={() => onModeChange(nextComposerMode(mode))}
-                    className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
-                    title="Click to cycle mode (Shift+Tab)"
-                  >
-                    <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
-                    <span>{modeInfo.label}</span>
-                  </Button>
-                  <div className="hidden lg:block ui-text-base text-muted-foreground/85">Shift+Tab switch mode, Enter send, Shift+Enter newline</div>
-                </div>
-                <div className="flex items-center gap-1 pr-1 text-muted-foreground">
-                  {isSending || isInterrupting ? (
-                    <Button
-                      type="button"
-                      aria-label="Interrupt turn"
-                      size="icon"
-                      disabled={isInterrupting}
-                      className="h-7 w-7 rounded-full shrink-0 border-0 bg-black text-white shadow-none hover:bg-black/90"
-                      onClick={onInterrupt}
-                    >
-                      <Square className="size-3 fill-current" />
-                    </Button>
-                  ) : (
-                    <Button
-                      type="submit"
-                      aria-label="Send message"
-                      disabled={!activeThreadId || connectionStatus !== 'connected' || !inputText.trim()}
-                      size="icon"
-                      className={cn(
-                        'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
-                        !inputText.trim() ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
-                      )}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ComposerDock
+          showJumpToBottom={showJumpToBottom}
+          onJumpToBottom={jumpToBottom}
+          inputText={inputText}
+          onInputTextChange={onInputTextChange}
+          mode={mode}
+          onModeChange={onModeChange}
+          activeThreadId={activeThreadId}
+          connectionStatus={connectionStatus}
+          isSending={isSending}
+          isInterrupting={isInterrupting}
+          onInterrupt={onInterrupt}
+          onSend={handleSend}
+        />
       ) : (
         <div data-testid="composer-locked" className="h-4" />
       )}
