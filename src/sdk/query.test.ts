@@ -945,6 +945,50 @@ describe('sdk query()', () => {
     expect(state.createRuntime).toHaveBeenCalledTimes(1)
   })
 
+  it('fills openai active model fallback effort fields when inference is available (true)', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'openai'
+    runtime.cfg.llm.model = 'o3-mini-high'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'list supported models',
+    })
+
+    const models = await queryIterator.supportedModels()
+    expect(models[0]).toMatchObject({
+      model: 'o3-mini-high',
+      provider: 'openai',
+      supportsEffort: true,
+      supportsAdaptiveThinking: true,
+      supports_reasoning_effort: true,
+    })
+    expect(models[0]?.supportedEffortLevels).toEqual(['low', 'medium', 'high', 'max'])
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
+  it('fills openai active model fallback effort fields when inference is available (false)', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.cfg.llm.provider = 'openai'
+    runtime.cfg.llm.model = 'gpt-4o-mini'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'list supported models',
+    })
+
+    const models = await queryIterator.supportedModels()
+    expect(models[0]).toMatchObject({
+      model: 'gpt-4o-mini',
+      provider: 'openai',
+      supportsEffort: false,
+      supportsAdaptiveThinking: false,
+      supports_reasoning_effort: false,
+    })
+    expect(models[0]?.supportedEffortLevels).toBeUndefined()
+    expect(state.createRuntime).toHaveBeenCalledTimes(1)
+  })
+
   it('validates supportedModels() input options', async () => {
     const queryIterator = query({
       prompt: 'invalid supported models input',

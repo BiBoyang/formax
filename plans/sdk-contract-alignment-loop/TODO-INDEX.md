@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-02`：增强 `supportedModels()` 对“活动模型回填项”的兼容字段补全（在可推导时补齐 `supportsEffort/supportsAdaptiveThinking`）。
+- [ ] `AGT-01`：增强 `supportedAgents()` 的模型字段对齐（在现有子代理数据可提供时返回 `model`，无值时保持省略）。
 
 ## 再生规则（当“当前待办”为空时）
 
