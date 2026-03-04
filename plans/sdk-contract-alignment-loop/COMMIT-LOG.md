@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `7241a30` `feat(sdk,plans): infer effort fields for active model fallback`
+  - 切片：`MOD-02`
+  - 说明：`supportedModels()` 对活动模型回填项新增高置信度 effort 能力推导（目前覆盖 OpenAI 已知前缀），在可推导时补齐 `supportsEffort/supportsAdaptiveThinking/supports_reasoning_effort`，并补齐 true/false 回归测试与对齐文档。
+
 - `d435cd5` `feat(sdk,plans): add supportedModels adaptive-thinking compatibility`
   - 切片：`MOD-01`
   - 说明：`supportedModels()` 在可推导能力时新增官方兼容字段 `supportsAdaptiveThinking`，并补齐测试与对齐文档；同时更新滚动计划 TODO 到下一切片 `MOD-02`。
