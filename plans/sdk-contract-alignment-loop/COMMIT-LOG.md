@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `a9d4a5e` `refactor(sdk,core,plans): centralize model effort inference helper`
+  - 切片：`MOD-03`
+  - 说明：将 OpenAI 模型 effort 推导规则上移到 `core/models` 单一来源（新增 `inferModelReasoningEffortSupport`），`fetchOpenAIModels` 与 `sdk/query` 共用该规则，减少能力字段漂移并补齐核心单测。
+
 - `88d1a07` `feat(sdk,runtime,subagents,plans): expose agent model in supportedAgents`
   - 切片：`AGT-01`
   - 说明：贯通 `subagents registry -> runtime -> sdk query.supportedAgents()` 的可选 `model` 字段透传；当底层代理配置含模型信息时返回 `model`，同时补齐 registry/runtime/sdk 回归测试与对齐文档。
