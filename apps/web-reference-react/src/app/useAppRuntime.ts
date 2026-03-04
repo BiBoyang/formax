@@ -555,10 +555,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         activeThreadId: state.activeThreadId,
         activeTurnId: state.activeTurnId,
         resolveRequestCwd: (threadId) => {
-          const activeThread = state.threads.find((thread) => thread.id === threadId)
-          return selectedCwd ?? activeThread?.cwd ?? null
+          const activeThread = threadsRef.current.find((thread) => thread.id === threadId)
+          return selectedCwdRef.current ?? activeThread?.cwd ?? null
         },
-        getPendingInputById: (inputId) => state.pendingInputs[inputId],
+        getPendingInputById: (inputId) => pendingInputsRef.current[inputId],
         request,
         dispatch,
         log,
@@ -580,12 +580,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       mode,
       request,
       runtimePorts.nowMs,
-      selectedCwd,
       startThread,
       state.activeThreadId,
       state.activeTurnId,
-      state.threads,
-      state.pendingInputs,
     ],
   )
 

@@ -27,3 +27,10 @@
 - `bun run --cwd apps/web-reference-react test:perf:gate`
 - `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+
+## Follow-up (same day)
+
+- Further reduced composer action closure churn in `apps/web-reference-react/src/app/useAppRuntime.ts`:
+  - `resolveRequestCwd` now reads `threadsRef` + `selectedCwdRef` instead of render-captured `state.threads`/`selectedCwd`.
+  - `getPendingInputById` now reads `pendingInputsRef` instead of render-captured `state.pendingInputs`.
+  - removed those high-churn dependencies from the `createComposerActions` memo dependency list.
