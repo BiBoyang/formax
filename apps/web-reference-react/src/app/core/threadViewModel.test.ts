@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   selectSortedThreadViewModels,
   selectThreadTitle,
@@ -41,6 +41,20 @@ describe('threadViewModel selectors', () => {
 
     expect(models.map((thread) => thread.id)).toEqual(['newer', 'older', 'fallback'])
     expect(models.map((thread) => thread.title)).toEqual(['Newest', 'Old prompt', 'New Thread'])
+  })
+
+  it('parses each updatedAt value once per thread while sorting', () => {
+    const parseSpy = vi.spyOn(Date, 'parse')
+    parseSpy.mockImplementation((value: string) => new Date(value).getTime())
+
+    selectSortedThreadViewModels([
+      { ...baseThread, id: 't1', updatedAt: '2026-02-10T00:00:00.000Z' },
+      { ...baseThread, id: 't2', updatedAt: '2026-02-11T00:00:00.000Z' },
+      { ...baseThread, id: 't3', updatedAt: '2026-02-12T00:00:00.000Z' },
+    ])
+
+    expect(parseSpy).toHaveBeenCalledTimes(3)
+    parseSpy.mockRestore()
   })
 
   it('selects a specific thread view model by id', () => {

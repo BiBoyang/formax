@@ -42,3 +42,6 @@
 - Selector/index optimization in hooks:
   - `useTranscriptDisplayState` now builds a thread index `Map` and derives active thread/title from the indexed lookup.
   - `useThreadSelection` now uses `Map` + `Set` (`threadById`, `cwdOptionSet`) to avoid repeated linear lookups in sync effect.
+
+- Thread sort parse optimization:
+  - `selectSortedThreadViewModels` now precomputes `updatedAt` timestamps once per thread before sorting, avoiding repeated `Date.parse` calls inside comparator hot loops.

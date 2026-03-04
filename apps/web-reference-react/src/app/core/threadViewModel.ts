@@ -32,7 +32,10 @@ export function selectThreadViewModelById(args: {
 }
 
 export function selectSortedThreadViewModels(threads: ThreadSummary[]): ThreadViewModel[] {
-  return [...threads]
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .map(toThreadViewModel)
+  const sortable = threads.map((thread) => ({
+    thread,
+    updatedAtMs: Date.parse(thread.updatedAt),
+  }))
+  sortable.sort((a, b) => b.updatedAtMs - a.updatedAtMs)
+  return sortable.map(({ thread }) => toThreadViewModel(thread))
 }
