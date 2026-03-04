@@ -8,6 +8,7 @@ import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
+import { resolveRpcQueueRuntimeConfig } from './core/rpcQueueConfig'
 import { parseThreadGroupHideResponse, parseThreadReplayResponse } from './core/rpcContracts'
 import {
   type ThreadTranscriptSource,
@@ -78,6 +79,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const devRuntime = useMemo(() => isDevRuntime(), [])
   const [bridgeUrl] = useState(resolveBridgeUrl)
+  const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
   const [inputText, setInputText] = useState('')
   const [diffSnapshot, setDiffSnapshot] = useState<DiffSnapshot | null>(null)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
@@ -627,6 +629,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadId: state.activeThreadId,
     activeTurnId: state.activeTurnId,
     enabled: devRuntime,
+    clientRef,
   })
 
   useRpcConnectionEffect({
@@ -642,6 +645,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     handleNotification,
     captureError,
     onQueueMetrics: onRpcQueueMetrics,
+    rpcQueueConfig,
     clientRef,
     eventCursorRef,
   })

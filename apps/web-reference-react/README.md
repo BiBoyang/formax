@@ -63,6 +63,44 @@ Current test coverage focus:
 - key component interactions (thread actions, send/interrupt states, input submit payload)
 - guard against UI refactors breaking protocol-facing behavior
 
+## Queue Tuning + Burst Benchmark
+
+Queue runtime knobs can be injected before app bootstrap:
+
+```html
+<script>
+  window.__FORMAX_RPC_QUEUE__ = {
+    outboundQueueCapacity: 128,
+    inboundNotificationQueueCapacity: 512,
+  }
+</script>
+```
+
+Put this block in `apps/web-reference-react/index.html` before:
+
+```html
+<script type="module" src="/src/main.tsx"></script>
+```
+
+In dev mode, the app exposes queue diagnostics helpers on `window`:
+
+- `window.__formaxDevRpcQueueMetrics()` -> current queue metrics snapshot
+- `window.__formaxDevRpcBurst(options)` -> runs a request burst and returns sampled metrics
+
+`__formaxDevRpcBurst` defaults:
+
+- `totalRequests = 200`
+- `concurrency = 24`
+- `sampleEveryMs = 100`
+- `method = "thread/list"`
+- `params = { limit: 20 }`
+
+Browser snippet for pressure runs:
+
+- `apps/web-reference-react/scripts/rpc-queue-burst.browser.js`
+
+It prints summary + samples to the browser console.
+
 ## Scope
 
 - JSON-RPC initialize/initialized handshake

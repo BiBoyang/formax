@@ -27,6 +27,7 @@ export interface RpcConnectionEffectDeps {
   handleNotification: ConnectRpcClientArgs['handleNotification']
   captureError: ConnectRpcClientArgs['captureError']
   onQueueMetrics?: ConnectRpcClientArgs['onQueueMetrics']
+  rpcQueueConfig?: ConnectRpcClientArgs['rpcQueueConfig']
   clientRef: ConnectRpcClientArgs['clientRef']
   eventCursorRef: ConnectRpcClientArgs['eventCursorRef']
 }
@@ -48,6 +49,7 @@ export function useRpcConnectionEffect(deps: RpcConnectionEffectDeps) {
       handleNotification: deps.handleNotification,
       captureError: deps.captureError,
       onQueueMetrics: deps.onQueueMetrics,
+      rpcQueueConfig: deps.rpcQueueConfig,
     })
   }, [
     deps.bridgeUrl,
@@ -55,6 +57,7 @@ export function useRpcConnectionEffect(deps: RpcConnectionEffectDeps) {
     deps.handleNotification,
     deps.initializeHandshake,
     deps.onQueueMetrics,
+    deps.rpcQueueConfig,
     deps.refreshThreads,
     deps.refreshWorkspaceDiff,
     deps.replayThreadEvents,

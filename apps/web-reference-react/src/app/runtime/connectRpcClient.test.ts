@@ -4,6 +4,7 @@ import { createTurnEventCursorState } from '../../turnEventCursor'
 import { REPLAY_FIXTURE_THREAD_ID } from './testFixtures/replayFixtures'
 
 const mockRpcState = vi.hoisted(() => ({
+  constructorArgs: [] as unknown[],
   handlers: null as
     | {
         onStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
@@ -16,6 +17,10 @@ const mockRpcState = vi.hoisted(() => ({
 
 vi.mock('../../rpcClient', () => {
   class MockRpcClient {
+    constructor(args?: unknown) {
+      mockRpcState.constructorArgs.push(args)
+    }
+
     connect(_url: string, handlers: typeof mockRpcState.handlers extends infer T ? NonNullable<T> : never) {
       mockRpcState.handlers = handlers
     }
@@ -32,6 +37,7 @@ import { connectRpcClient } from './connectRpcClient'
 
 describe('connectRpcClient', () => {
   beforeEach(() => {
+    mockRpcState.constructorArgs = []
     mockRpcState.handlers = null
     mockRpcState.disconnect.mockReset()
   })
@@ -175,5 +181,34 @@ describe('connectRpcClient', () => {
       expect(resumeThreadInputs).toHaveBeenCalledTimes(1)
       expect(replayThreadEvents).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('passes runtime rpc queue configuration into RpcClient constructor', () => {
+    const clientRef: { current: RpcClient | null } = { current: null }
+    const eventCursorRef = { current: createTurnEventCursorState(20) }
+    const rpcQueueConfig = {
+      outboundQueueCapacity: 64,
+      inboundNotificationQueueCapacity: 256,
+    }
+
+    connectRpcClient({
+      bridgeUrl: 'ws://localhost:3001',
+      seenEventCap: 20,
+      dispatch: vi.fn(),
+      clientRef,
+      eventCursorRef,
+      initializeHandshake: vi.fn(async () => {}),
+      refreshThreads: vi.fn(async () => {}),
+      refreshWorkspaceDiff: vi.fn(async () => {}),
+      resumeThreadInputs: vi.fn(async () => {}),
+      replayThreadEvents: vi.fn(async () => true),
+      activeThreadIdRef: { current: REPLAY_FIXTURE_THREAD_ID },
+      handleNotification: vi.fn(),
+      captureError: vi.fn((method, error) => ({ method, error })),
+      rpcQueueConfig,
+    })
+
+    expect(mockRpcState.constructorArgs).toHaveLength(1)
+    expect(mockRpcState.constructorArgs[0]).toEqual(rpcQueueConfig)
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect, type Dispatch } from 'react'
 import type { AppAction } from '../../store'
+import type { RpcClient, RpcClientQueueMetrics } from '../../rpcClient'
 
 type DevInputBaseOverrides = {
   inputId?: string
@@ -20,6 +21,8 @@ type DevApiWindow = Window & {
   __formaxDevAskUserQuestion?: (overrides?: DevInputBaseOverrides) => string
   __formaxDevApprovalInput?: (overrides?: DevApprovalOverrides) => string
   __formaxDevClearPendingInputs?: () => void
+  __formaxDevRpcQueueMetrics?: () => RpcClientQueueMetrics | null
+  __formaxDevRpcBurst?: (options?: DevRpcBurstOptions) => Promise<DevRpcBurstResult>
 }
 
 type UseDevRuntimeApiArgs = {
@@ -27,10 +30,46 @@ type UseDevRuntimeApiArgs = {
   activeThreadId: string | null
   activeTurnId: string | null
   enabled: boolean
+  clientRef?: { current: RpcClient | null }
+}
+
+type DevRpcBurstOptions = {
+  totalRequests?: number
+  concurrency?: number
+  sampleEveryMs?: number
+  method?: string
+  params?: unknown
+}
+
+type DevRpcBurstResult = {
+  method: string
+  totalRequests: number
+  concurrency: number
+  sampleEveryMs: number
+  started: number
+  completed: number
+  succeeded: number
+  failed: number
+  overloadErrors: number
+  samples: Array<{ at: string; metrics: RpcClientQueueMetrics }>
+  finalMetrics: RpcClientQueueMetrics
+}
+
+function normalizePositiveLimit(value: unknown, fallback: number): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  const rounded = Math.floor(numeric)
+  return rounded >= 1 ? rounded : fallback
+}
+
+function resolveDevRpcMethod(value: unknown): string {
+  if (typeof value !== 'string') return 'thread/list'
+  const trimmed = value.trim()
+  return trimmed ? trimmed : 'thread/list'
 }
 
 export function useDevRuntimeApi(args: UseDevRuntimeApiArgs): void {
-  const { dispatch, activeThreadId, activeTurnId, enabled } = args
+  const { dispatch, activeThreadId, activeTurnId, enabled, clientRef } = args
 
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return
@@ -136,10 +175,85 @@ export function useDevRuntimeApi(args: UseDevRuntimeApiArgs): void {
       dispatch({ type: 'clear_pending_inputs' })
     }
 
+    devWindow.__formaxDevRpcQueueMetrics = () => {
+      const client = clientRef?.current
+      if (!client) return null
+      return client.getQueueMetrics()
+    }
+
+    devWindow.__formaxDevRpcBurst = async (options) => {
+      const client = clientRef?.current
+      if (!client) throw new Error('RPC client is not ready')
+
+      const totalRequests = normalizePositiveLimit(options?.totalRequests, 200)
+      const concurrency = Math.min(totalRequests, normalizePositiveLimit(options?.concurrency, 24))
+      const sampleEveryMs = normalizePositiveLimit(options?.sampleEveryMs, 100)
+      const method = resolveDevRpcMethod(options?.method)
+      const params = options && 'params' in options ? options.params : { limit: 20 }
+
+      const samples: Array<{ at: string; metrics: RpcClientQueueMetrics }> = []
+      const sample = () => {
+        samples.push({ at: new Date().toISOString(), metrics: client.getQueueMetrics() })
+      }
+      sample()
+      const timer = window.setInterval(sample, sampleEveryMs)
+
+      let nextIndex = 0
+      let started = 0
+      let completed = 0
+      let succeeded = 0
+      let failed = 0
+      let overloadErrors = 0
+
+      const runWorker = async () => {
+        while (true) {
+          const requestIndex = nextIndex
+          if (requestIndex >= totalRequests) return
+          nextIndex += 1
+          started += 1
+          try {
+            await client.request(method, params)
+            succeeded += 1
+          } catch (error) {
+            failed += 1
+            const errorCode = Number((error as { code?: unknown } | null)?.code ?? Number.NaN)
+            if (errorCode === -32001) {
+              overloadErrors += 1
+            }
+          } finally {
+            completed += 1
+          }
+        }
+      }
+
+      try {
+        await Promise.all(Array.from({ length: concurrency }, () => runWorker()))
+      } finally {
+        window.clearInterval(timer)
+        sample()
+      }
+
+      return {
+        method,
+        totalRequests,
+        concurrency,
+        sampleEveryMs,
+        started,
+        completed,
+        succeeded,
+        failed,
+        overloadErrors,
+        samples,
+        finalMetrics: client.getQueueMetrics(),
+      }
+    }
+
     return () => {
       delete devWindow.__formaxDevAskUserQuestion
       delete devWindow.__formaxDevApprovalInput
       delete devWindow.__formaxDevClearPendingInputs
+      delete devWindow.__formaxDevRpcQueueMetrics
+      delete devWindow.__formaxDevRpcBurst
     }
-  }, [activeThreadId, activeTurnId, dispatch, enabled])
+  }, [activeThreadId, activeTurnId, clientRef, dispatch, enabled])
 }

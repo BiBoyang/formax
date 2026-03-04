@@ -22,6 +22,34 @@ type DevApiWindow = Window & {
   __formaxDevAskUserQuestion?: (overrides?: DevInputBaseOverrides) => string
   __formaxDevApprovalInput?: (overrides?: DevApprovalOverrides) => string
   __formaxDevClearPendingInputs?: () => void
+  __formaxDevRpcQueueMetrics?: () => {
+    outboundQueueDepth: number
+    outboundQueueCapacity: number
+    inboundNotificationQueueDepth: number
+    inboundNotificationQueueCapacity: number
+    droppedOutboundNotifications: number
+    droppedInboundNotifications: number
+    overloadedRequests: number
+  } | null
+  __formaxDevRpcBurst?: (options?: {
+    totalRequests?: number
+    concurrency?: number
+    sampleEveryMs?: number
+    method?: string
+    params?: unknown
+  }) => Promise<{
+    method: string
+    totalRequests: number
+    concurrency: number
+    sampleEveryMs: number
+    started: number
+    completed: number
+    succeeded: number
+    failed: number
+    overloadErrors: number
+    samples: Array<unknown>
+    finalMetrics: unknown
+  }>
 }
 
 function clearDevWindowApis(): void {
@@ -29,6 +57,8 @@ function clearDevWindowApis(): void {
   delete devWindow.__formaxDevAskUserQuestion
   delete devWindow.__formaxDevApprovalInput
   delete devWindow.__formaxDevClearPendingInputs
+  delete devWindow.__formaxDevRpcQueueMetrics
+  delete devWindow.__formaxDevRpcBurst
 }
 
 describe('useDevRuntimeApi', () => {
@@ -53,6 +83,8 @@ describe('useDevRuntimeApi', () => {
     expect(typeof devWindow.__formaxDevAskUserQuestion).toBe('function')
     expect(typeof devWindow.__formaxDevApprovalInput).toBe('function')
     expect(typeof devWindow.__formaxDevClearPendingInputs).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcQueueMetrics).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcBurst).toBe('function')
   })
 
   it('does not register any helper when disabled', () => {
@@ -71,7 +103,90 @@ describe('useDevRuntimeApi', () => {
     expect(devWindow.__formaxDevAskUserQuestion).toBeUndefined()
     expect(devWindow.__formaxDevApprovalInput).toBeUndefined()
     expect(devWindow.__formaxDevClearPendingInputs).toBeUndefined()
+    expect(devWindow.__formaxDevRpcQueueMetrics).toBeUndefined()
+    expect(devWindow.__formaxDevRpcBurst).toBeUndefined()
     expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('returns rpc queue metrics via dev helper when client is available', () => {
+    const dispatch = vi.fn<(action: AppAction) => void>()
+    const metrics = {
+      outboundQueueDepth: 2,
+      outboundQueueCapacity: 16,
+      inboundNotificationQueueDepth: 1,
+      inboundNotificationQueueCapacity: 32,
+      droppedOutboundNotifications: 0,
+      droppedInboundNotifications: 1,
+      overloadedRequests: 3,
+    }
+    const clientRef = {
+      current: {
+        getQueueMetrics: vi.fn(() => metrics),
+      },
+    }
+
+    renderHook(() =>
+      useDevRuntimeApi({
+        dispatch,
+        activeThreadId: 'thread-1',
+        activeTurnId: 'turn-1',
+        enabled: true,
+        clientRef: clientRef as any,
+      }),
+    )
+
+    const devWindow = window as DevApiWindow
+    expect(devWindow.__formaxDevRpcQueueMetrics?.()).toEqual(metrics)
+  })
+
+  it('runs rpc burst helper and reports sampled results', async () => {
+    const dispatch = vi.fn<(action: AppAction) => void>()
+    const request = vi.fn(async (_method: string, _params: unknown) => ({ ok: true }))
+    const getQueueMetrics = vi
+      .fn()
+      .mockReturnValue({
+        outboundQueueDepth: 0,
+        outboundQueueCapacity: 8,
+        inboundNotificationQueueDepth: 0,
+        inboundNotificationQueueCapacity: 8,
+        droppedOutboundNotifications: 0,
+        droppedInboundNotifications: 0,
+        overloadedRequests: 0,
+      })
+    const clientRef = {
+      current: {
+        request,
+        getQueueMetrics,
+      },
+    }
+
+    renderHook(() =>
+      useDevRuntimeApi({
+        dispatch,
+        activeThreadId: 'thread-1',
+        activeTurnId: 'turn-1',
+        enabled: true,
+        clientRef: clientRef as any,
+      }),
+    )
+
+    const devWindow = window as DevApiWindow
+    const burst = await devWindow.__formaxDevRpcBurst?.({
+      totalRequests: 6,
+      concurrency: 3,
+      sampleEveryMs: 1,
+      method: 'thread/list',
+      params: { limit: 2 },
+    })
+
+    expect(burst).toBeDefined()
+    expect(request).toHaveBeenCalledTimes(6)
+    expect(burst?.started).toBe(6)
+    expect(burst?.completed).toBe(6)
+    expect(burst?.succeeded).toBe(6)
+    expect(burst?.failed).toBe(0)
+    expect(Array.isArray(burst?.samples)).toBe(true)
+    expect((burst?.samples.length ?? 0) >= 2).toBe(true)
   })
 
   it('dispatches ask helper default payload with active thread/turn', () => {
@@ -353,6 +468,8 @@ describe('useDevRuntimeApi', () => {
     expect(devWindow.__formaxDevAskUserQuestion).toBeUndefined()
     expect(devWindow.__formaxDevApprovalInput).toBeUndefined()
     expect(devWindow.__formaxDevClearPendingInputs).toBeUndefined()
+    expect(devWindow.__formaxDevRpcQueueMetrics).toBeUndefined()
+    expect(devWindow.__formaxDevRpcBurst).toBeUndefined()
   })
 
   it('unregisters and re-registers helpers when enabled toggles true -> false -> true', () => {
@@ -379,18 +496,24 @@ describe('useDevRuntimeApi', () => {
     expect(typeof devWindow.__formaxDevAskUserQuestion).toBe('function')
     expect(typeof devWindow.__formaxDevApprovalInput).toBe('function')
     expect(typeof devWindow.__formaxDevClearPendingInputs).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcQueueMetrics).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcBurst).toBe('function')
 
     rerender({ activeThreadId: 'thread-a', activeTurnId: 'turn-a', enabled: false })
 
     expect(devWindow.__formaxDevAskUserQuestion).toBeUndefined()
     expect(devWindow.__formaxDevApprovalInput).toBeUndefined()
     expect(devWindow.__formaxDevClearPendingInputs).toBeUndefined()
+    expect(devWindow.__formaxDevRpcQueueMetrics).toBeUndefined()
+    expect(devWindow.__formaxDevRpcBurst).toBeUndefined()
 
     rerender({ activeThreadId: 'thread-c', activeTurnId: 'turn-c', enabled: true })
 
     expect(typeof devWindow.__formaxDevAskUserQuestion).toBe('function')
     expect(typeof devWindow.__formaxDevApprovalInput).toBe('function')
     expect(typeof devWindow.__formaxDevClearPendingInputs).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcQueueMetrics).toBe('function')
+    expect(typeof devWindow.__formaxDevRpcBurst).toBe('function')
 
     devWindow.__formaxDevAskUserQuestion?.({ inputId: 'ask-c' })
 

@@ -2,6 +2,7 @@ import { RpcClient, type RpcClientQueueMetrics } from '../../rpcClient'
 import type { AppAction } from '../../store'
 import type { RpcNotification } from '../../types'
 import { createTurnEventCursorState } from '../../turnEventCursor'
+import type { RpcQueueRuntimeConfig } from '../core/rpcQueueConfig'
 import { initializeRuntime } from './initializeRuntime'
 import { createConnectionInitOrchestrator } from './orchestrator/connectionInitOrchestrator'
 
@@ -20,10 +21,11 @@ export type ConnectRpcClientArgs = {
   handleNotification: (notification: RpcNotification) => void
   captureError: (method: string, error: unknown) => unknown
   onQueueMetrics?: (metrics: RpcClientQueueMetrics) => void
+  rpcQueueConfig?: RpcQueueRuntimeConfig
 }
 
 export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
-  const client = new RpcClient()
+  const client = new RpcClient(args.rpcQueueConfig)
   args.clientRef.current = client
   const initializeOrchestrator = createConnectionInitOrchestrator({
     seenEventCap: args.seenEventCap,
