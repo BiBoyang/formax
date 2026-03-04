@@ -6,7 +6,7 @@
 
 ## 执行状态（Active）
 
-- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G/H/I/J/K 已完成，继续 Slice L）
+- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G/H/I/J/K/L 已完成，继续 Slice M）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,7 @@
 
 ## 当前任务清单（唯一来源）
 
-- Slice L：`useAppRuntime` 通知/动作回调分区稳定化（减少上层 props identity 扩散）
+- Slice M：`AppShell` props 分区 + handler 聚合传递（降低壳层重渲染扩散）
 
 ## 执行循环（固定）
 

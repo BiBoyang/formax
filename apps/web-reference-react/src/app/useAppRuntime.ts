@@ -541,15 +541,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     return () => window.clearTimeout(timer)
   }, [noticeMessage])
 
-  const stopDevLoadAll = useCallback(() => {
-    setDevLoadAllRequested(false)
-    setDevLoadAllBootstrapAttempts(0)
-    setDevLoadAllSawHistoryLoading(false)
+  const resetDevLoadAllState = useCallback(() => {
+    setDevLoadAllRequested((previous) => (previous ? false : previous))
+    setDevLoadAllBootstrapAttempts((previous) => (previous === 0 ? previous : 0))
+    setDevLoadAllSawHistoryLoading((previous) => (previous ? false : previous))
+  }, [])
+
+  const startDevLoadAllState = useCallback(() => {
+    setDevLoadAllRequested((previous) => (previous ? previous : true))
+    setDevLoadAllBootstrapAttempts((previous) => (previous === 0 ? previous : 0))
+    setDevLoadAllSawHistoryLoading((previous) => (previous ? false : previous))
   }, [])
 
   useEffect(() => {
-    stopDevLoadAll()
-  }, [state.activeThreadId, stopDevLoadAll])
+    resetDevLoadAllState()
+  }, [state.activeThreadId, resetDevLoadAllState])
 
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
@@ -603,23 +609,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const onDevLoadAllEarlier = useCallback(() => {
     if (!devRuntime) return
     if (!state.activeThreadId) return
-    setDevLoadAllRequested(true)
-    setDevLoadAllBootstrapAttempts(0)
-    setDevLoadAllSawHistoryLoading(false)
-  }, [devRuntime, state.activeThreadId])
+    startDevLoadAllState()
+  }, [devRuntime, startDevLoadAllState, state.activeThreadId])
 
   const runDevLoadAllStep = useCallback(() => {
     void loadEarlierHistory().catch(() => {
-      stopDevLoadAll()
+      resetDevLoadAllState()
     })
-  }, [loadEarlierHistory, stopDevLoadAll])
+  }, [loadEarlierHistory, resetDevLoadAllState])
 
   useEffect(() => {
     if (!devRuntime) return
     if (!devLoadAllRequested) return
 
     if (!state.activeThreadId) {
-      stopDevLoadAll()
+      resetDevLoadAllState()
       return
     }
 
@@ -647,7 +651,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       return
     }
 
-    stopDevLoadAll()
+    resetDevLoadAllState()
   }, [
     activeHistoryLoading,
     devLoadAllBootstrapAttempts,
@@ -657,7 +661,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyMore,
     runDevLoadAllStep,
     state.activeThreadId,
-    stopDevLoadAll,
+    resetDevLoadAllState,
   ])
 
   useDevRuntimeApi({

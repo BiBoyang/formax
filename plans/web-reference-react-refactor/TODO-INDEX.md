@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice L：`useAppRuntime` 通知/动作回调分区稳定化（`useAppRuntime.ts` + `App.test.tsx`）
+- [ ] Slice M：`AppShell` props 分区 + handler 聚合传递（`AppShell.tsx` + `App.test.tsx`）
 
 ## 再生规则（当“当前待办”为空时）
 

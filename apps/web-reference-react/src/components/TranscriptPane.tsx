@@ -615,11 +615,6 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [logs, renderLimit])
   const showJumpToBottom = transcriptRenderView.visibleLogCount > 0 && !isNearBottom
 
-  useEffect(() => {
-    autoStickRef.current = autoStick
-    autoStickStateRef.current = autoStick
-  }, [autoStick])
-
   const setAutoStickState = useCallback((next: boolean) => {
     autoStickRef.current = next
     if (autoStickStateRef.current === next) return
