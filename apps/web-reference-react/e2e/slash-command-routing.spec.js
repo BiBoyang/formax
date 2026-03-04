@@ -56,7 +56,7 @@ test.describe('slash command routing', () => {
 
     await input.fill('/init')
     await send.click()
-    await expect(page.getByText('/init')).toBeVisible()
+    await expect(page.getByText('ready')).toBeVisible()
 
     await input.fill('/todos')
     await send.click()

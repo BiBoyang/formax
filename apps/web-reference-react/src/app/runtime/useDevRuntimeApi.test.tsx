@@ -139,6 +139,22 @@ describe('useDevRuntimeApi', () => {
     expect(devWindow.__formaxDevRpcQueueMetrics?.()).toEqual(metrics)
   })
 
+  it('returns null rpc queue metrics when client is missing', () => {
+    const dispatch = vi.fn<(action: AppAction) => void>()
+
+    renderHook(() =>
+      useDevRuntimeApi({
+        dispatch,
+        activeThreadId: 'thread-1',
+        activeTurnId: 'turn-1',
+        enabled: true,
+      }),
+    )
+
+    const devWindow = window as DevApiWindow
+    expect(devWindow.__formaxDevRpcQueueMetrics?.()).toBeNull()
+  })
+
   it('runs rpc burst helper and reports sampled results', async () => {
     const dispatch = vi.fn<(action: AppAction) => void>()
     const request = vi.fn(async (_method: string, _params: unknown) => ({ ok: true }))
@@ -187,6 +203,90 @@ describe('useDevRuntimeApi', () => {
     expect(burst?.failed).toBe(0)
     expect(Array.isArray(burst?.samples)).toBe(true)
     expect((burst?.samples.length ?? 0) >= 2).toBe(true)
+  })
+
+  it('throws for rpc burst helper when client is missing', async () => {
+    const dispatch = vi.fn<(action: AppAction) => void>()
+
+    renderHook(() =>
+      useDevRuntimeApi({
+        dispatch,
+        activeThreadId: 'thread-1',
+        activeTurnId: 'turn-1',
+        enabled: true,
+      }),
+    )
+
+    const devWindow = window as DevApiWindow
+    await expect(devWindow.__formaxDevRpcBurst?.()).rejects.toThrow('RPC client is not ready')
+  })
+
+  it('counts overload failures and normalizes burst options', async () => {
+    const dispatch = vi.fn<(action: AppAction) => void>()
+    let requestCount = 0
+    const request = vi.fn(async (_method: string, _params: unknown) => {
+      requestCount += 1
+      if (requestCount <= 2) {
+        const overloadError = new Error('overloaded') as Error & { code?: number }
+        overloadError.code = -32001
+        throw overloadError
+      }
+      if (requestCount === 3) {
+        throw new Error('generic failure')
+      }
+      return { ok: true }
+    })
+    const metrics = {
+      outboundQueueDepth: 0,
+      outboundQueueCapacity: 8,
+      inboundNotificationQueueDepth: 0,
+      inboundNotificationQueueCapacity: 8,
+      droppedOutboundNotifications: 0,
+      droppedInboundNotifications: 0,
+      overloadedRequests: 2,
+    }
+    const getQueueMetrics = vi.fn(() => metrics)
+    const clientRef = {
+      current: {
+        request,
+        getQueueMetrics,
+      },
+    }
+
+    renderHook(() =>
+      useDevRuntimeApi({
+        dispatch,
+        activeThreadId: 'thread-1',
+        activeTurnId: 'turn-1',
+        enabled: true,
+        clientRef: clientRef as any,
+      }),
+    )
+
+    const devWindow = window as DevApiWindow
+    const burst = await devWindow.__formaxDevRpcBurst?.({
+      totalRequests: 4.8 as unknown as number,
+      concurrency: 99,
+      sampleEveryMs: 0 as unknown as number,
+      method: '   ',
+    })
+
+    expect(burst).toBeDefined()
+    expect(burst?.method).toBe('thread/list')
+    expect(burst?.totalRequests).toBe(4)
+    expect(burst?.concurrency).toBe(4)
+    expect(burst?.sampleEveryMs).toBe(100)
+    expect(burst?.started).toBe(4)
+    expect(burst?.completed).toBe(4)
+    expect(burst?.succeeded).toBe(1)
+    expect(burst?.failed).toBe(3)
+    expect(burst?.overloadErrors).toBe(2)
+    expect(burst?.finalMetrics).toEqual(metrics)
+    expect(request).toHaveBeenCalledTimes(4)
+    for (const [method, params] of request.mock.calls) {
+      expect(method).toBe('thread/list')
+      expect(params).toEqual({ limit: 20 })
+    }
   })
 
   it('dispatches ask helper default payload with active thread/turn', () => {

@@ -46,7 +46,7 @@ test.describe('tool row toggle stress', () => {
     await page.goto('/')
     await page.getByRole('button', { name: /Thread Tools Stress/i }).click()
 
-    const toolRowButton = page.getByRole('button', { name: 'Bash npm run type-check' })
+    const toolRowButton = page.getByRole('button', { name: /^Bash$/ })
     await expect(toolRowButton).toBeVisible()
 
     for (let index = 0; index < 50; index += 1) {

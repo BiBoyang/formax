@@ -45,14 +45,14 @@ test.describe('tool history persistence on refresh', () => {
 
     await page.goto('/')
     await page.getByRole('button', { name: /Thread Tools/i }).click()
-    await expect(page.getByRole('button', { name: 'Bash npm run type-check' })).toBeVisible()
-    await page.getByRole('button', { name: 'Bash npm run type-check' }).click()
+    await expect(page.getByRole('button', { name: /^Bash$/ })).toBeVisible()
+    await page.getByRole('button', { name: /^Bash$/ }).click()
     await expect(page.getByText('> tsc --noEmit')).toBeVisible()
 
     await page.reload()
     await page.getByRole('button', { name: /Thread Tools/i }).click()
-    await expect(page.getByRole('button', { name: 'Bash npm run type-check' })).toBeVisible()
-    await page.getByRole('button', { name: 'Bash npm run type-check' }).click()
+    await expect(page.getByRole('button', { name: /^Bash$/ })).toBeVisible()
+    await page.getByRole('button', { name: /^Bash$/ }).click()
     await expect(page.getByText('> tsc --noEmit')).toBeVisible()
   })
 })

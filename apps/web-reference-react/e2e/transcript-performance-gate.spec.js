@@ -80,11 +80,11 @@ test.describe('transcript performance gate', () => {
     await expect(input).toHaveValue('perf gate input')
     expect(inputDuration).toBeLessThan(1200)
 
-    const toolRowButton = page.getByRole('button', { name: 'Bash npm run type-check' })
+    const toolRowButton = page.getByRole('button', { name: /^Bash$/ })
     await expect(toolRowButton).toBeVisible()
     const toggleDuration = await page.evaluate(async () => {
       const resolveToolRow = () =>
-        Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Bash npm run type-check')
+        Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Bash')
       const toolButton = resolveToolRow()
       if (!(toolButton instanceof HTMLButtonElement)) return Number.POSITIVE_INFINITY
 
