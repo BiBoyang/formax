@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `502c8eb` `feat(sdk,core,plans): fill inferred active model metadata fields`
+  - 切片：`MOD-04`
+  - 说明：在核心模型推导层新增 `inferModelMetadata` 并复用到 `sdk/query.supportedModels()`，对活动模型回填项在可推导时补齐 `max_tokens/contextWindowTokens`；同步补充 core/sdk 测试与对齐文档。
+
 - `a9d4a5e` `refactor(sdk,core,plans): centralize model effort inference helper`
   - 切片：`MOD-03`
   - 说明：将 OpenAI 模型 effort 推导规则上移到 `core/models` 单一来源（新增 `inferModelReasoningEffortSupport`），`fetchOpenAIModels` 与 `sdk/query` 共用该规则，减少能力字段漂移并补齐核心单测。
