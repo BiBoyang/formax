@@ -154,6 +154,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const rpcQueueMetricsRef = useRef<RpcClientQueueMetrics | null>(null)
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
+  const activeTurnIdRef = useRef<string | null>(state.activeTurnId)
+  const pendingInputsRef = useRef(state.pendingInputs)
   const transcriptVirtualizationEnabled = useMemo(
     () => isTranscriptVirtualizationEnabled({ isDevRuntime: devRuntime }),
     [devRuntime],
@@ -429,28 +431,64 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setLogsByThreadId,
   })
 
+  useEffect(() => {
+    activeTurnIdRef.current = state.activeTurnId
+  }, [state.activeTurnId])
+
+  useEffect(() => {
+    pendingInputsRef.current = state.pendingInputs
+  }, [state.pendingInputs])
+
   const { sortedThreads } = useThreadSelection({
     threads: state.threads,
     activeThreadId: state.activeThreadId,
     selectedCwd,
     setSelectedCwd,
   })
+  const sortedThreadsRef = useRef(sortedThreads)
+
+  useEffect(() => {
+    sortedThreadsRef.current = sortedThreads
+  }, [sortedThreads])
+
+  const threadActionsState = useMemo(
+    () => ({
+      get activeThreadId() {
+        return activeThreadIdRef.current
+      },
+      get activeTurnId() {
+        return activeTurnIdRef.current
+      },
+      get selectedInputId() {
+        return selectedInputIdRef.current
+      },
+      get pendingInputs() {
+        return pendingInputsRef.current
+      },
+      get logs() {
+        return stateLogsRef.current
+      },
+      get threads() {
+        return threadsRef.current
+      },
+    }),
+    [],
+  )
 
   const { startThread, startThreadInCwd, selectThread, selectCwd, renameThread, archiveThread, loadEarlierHistory } = useMemo(
     () =>
       createThreadActions({
-        selectedCwd,
-        setSelectedCwd,
-        state: {
-          activeThreadId: state.activeThreadId,
-          activeTurnId: state.activeTurnId,
-          selectedInputId: state.selectedInputId,
-          pendingInputs: state.pendingInputs,
-          logs: state.logs,
-          threads: state.threads,
+        get selectedCwd() {
+          return selectedCwdRef.current
         },
-        sortedThreads,
-        logsByThreadId,
+        setSelectedCwd,
+        state: threadActionsState,
+        get sortedThreads() {
+          return sortedThreadsRef.current
+        },
+        get logsByThreadId() {
+          return logsByThreadIdRef.current
+        },
         request,
         dispatch,
         log,
@@ -474,21 +512,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       }),
     [
       log,
-      logsByThreadId,
       refreshThreads,
       refreshWorkspaceDiff,
       replayThreadEvents,
       request,
       resumeThreadInputs,
-      selectedCwd,
       pruneThreadScopedRuntimeRefs,
-      sortedThreads,
-      state.activeThreadId,
-      state.activeTurnId,
-      state.selectedInputId,
-      state.logs,
-      state.pendingInputs,
-      state.threads,
+      loadEarlierHistoryAction,
+      threadActionsState,
     ],
   )
 

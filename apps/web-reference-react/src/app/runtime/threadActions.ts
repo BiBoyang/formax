@@ -45,11 +45,19 @@ export type ThreadActionsContext = {
 
 export function createThreadActions(ctx: ThreadActionsContext) {
   const transactions = createThreadTransactions({
-    selectedCwd: ctx.selectedCwd,
+    get selectedCwd() {
+      return ctx.selectedCwd
+    },
     setSelectedCwd: ctx.setSelectedCwd,
-    state: ctx.state,
-    sortedThreads: ctx.sortedThreads,
-    logsByThreadId: ctx.logsByThreadId,
+    get state() {
+      return ctx.state
+    },
+    get sortedThreads() {
+      return ctx.sortedThreads
+    },
+    get logsByThreadId() {
+      return ctx.logsByThreadId
+    },
     request: ctx.request,
     dispatch: ctx.dispatch,
     log: ctx.log,

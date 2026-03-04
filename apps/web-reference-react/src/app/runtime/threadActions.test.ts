@@ -194,6 +194,39 @@ describe('threadActions', () => {
     })
   })
 
+  it('uses latest thread ordering when context snapshots are replaced after actions creation', async () => {
+    const firstFallback = { id: 'next-thread-a', cwd: '/repo-b', updatedAt: '2026-02-13T00:00:01Z', label: 'Next A' }
+    const promotedFallback = { id: 'next-thread-b', cwd: '/repo-c', updatedAt: '2026-02-13T00:00:02Z', label: 'Next B' }
+    const activeThread = { id: 'active-thread', cwd: '/repo-a', updatedAt: '2026-02-13T00:00:00Z', label: 'Active' }
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ thread: { id: activeThread.id } }),
+      replayThreadEvents: vi.fn().mockResolvedValue(true),
+      state: {
+        activeThreadId: activeThread.id,
+        activeTurnId: 'turn-prev',
+        logs: [{ id: 'l-prev', kind: 'message', role: 'assistant', text: 'prev' }],
+        threads: [activeThread, firstFallback],
+      },
+      sortedThreads: [activeThread, firstFallback],
+    })
+    const actions = createThreadActions(ctx)
+
+    ctx.state = {
+      ...ctx.state,
+      threads: [activeThread, promotedFallback, firstFallback],
+    }
+    ctx.sortedThreads = [activeThread, promotedFallback, firstFallback]
+
+    await actions.archiveThread(activeThread.id)
+
+    await vi.waitFor(() => {
+      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_thread', threadId: promotedFallback.id })
+    })
+    await vi.waitFor(() => {
+      expect(ctx.replayThreadEvents).toHaveBeenCalledWith(promotedFallback.id, { fromStart: true })
+    })
+  })
+
   it('keeps fallback selection when fallback replay fails during archive switch', async () => {
     const archiveFixture = createArchiveSwitchThreadsFixture()
     const ctx = createBaseContext({
