@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
@@ -7,6 +7,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(scriptDir, '../dist')
 const assetsDir = path.join(distDir, 'assets')
 const TOP_LIMIT = 12
+const DEFAULT_BASELINE_PATH = path.resolve(scriptDir, '../../../docs/perf/web-reference-react-bundle-baseline.json')
+const DIST_DIR_LABEL = path.relative(path.resolve(scriptDir, '..'), distDir) || 'dist'
 
 function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB']
@@ -25,6 +27,27 @@ function parseTopLimit(argv) {
   const parsed = Number.parseInt(raw, 10)
   if (!Number.isFinite(parsed) || parsed <= 0) return TOP_LIMIT
   return parsed
+}
+
+function parseBooleanFlag(argv, name) {
+  return argv.includes(name)
+}
+
+function parsePathArg(argv, key) {
+  const raw = argv.find((value) => value.startsWith(`${key}=`))?.slice(`${key}=`.length)
+  if (!raw) return null
+  return raw.trim() || null
+}
+
+function parseOptions(argv) {
+  const baselinePathArg = parsePathArg(argv, '--baseline')
+  return {
+    topLimit: parseTopLimit(argv),
+    json: parseBooleanFlag(argv, '--json'),
+    writeBaseline: parseBooleanFlag(argv, '--write-baseline'),
+    compareBaseline: parseBooleanFlag(argv, '--compare-baseline'),
+    baselinePath: baselinePathArg ? path.resolve(process.cwd(), baselinePathArg) : DEFAULT_BASELINE_PATH,
+  }
 }
 
 async function listEntryAssets(indexHtmlPath) {
@@ -84,49 +107,208 @@ function summarize(rows) {
   return summary
 }
 
-function printEntryAssets(rows, entryAssets) {
-  console.log('Entry Assets (from dist/index.html)')
-  for (const asset of entryAssets) {
-    const info = rows.find((row) => row.file === asset)
+function buildEntryAssetRows(rows, entryAssets) {
+  return entryAssets.map((file) => {
+    const info = rows.find((row) => row.file === file)
     if (!info) {
-      console.log(`- ${asset}: missing`)
+      return {
+        file,
+        kind: null,
+        bytes: null,
+        gzipBytes: null,
+      }
+    }
+    return {
+      file,
+      kind: info.kind,
+      bytes: info.bytes,
+      gzipBytes: info.gzipBytes,
+    }
+  })
+}
+
+function classifyEntryAsset(file) {
+  if (file.startsWith('index-') && file.endsWith('.js')) return 'entry-index-js'
+  if (file.startsWith('index-') && file.endsWith('.css')) return 'entry-css'
+  if (file.startsWith('vendor-react-')) return 'vendor-react'
+  if (file.startsWith('vendor-radix-')) return 'vendor-radix'
+  if (file.startsWith('vendor-markdown-')) return 'vendor-markdown'
+  if (file.startsWith('vendor-icons-')) return 'vendor-icons'
+  return 'entry-other'
+}
+
+function summarizeEntryAssets(entryRows) {
+  const buckets = {
+    'entry-index-js': { bytes: 0, gzipBytes: 0 },
+    'entry-css': { bytes: 0, gzipBytes: 0 },
+    'vendor-react': { bytes: 0, gzipBytes: 0 },
+    'vendor-radix': { bytes: 0, gzipBytes: 0 },
+    'vendor-markdown': { bytes: 0, gzipBytes: 0 },
+    'vendor-icons': { bytes: 0, gzipBytes: 0 },
+    'entry-other': { bytes: 0, gzipBytes: 0 },
+  }
+
+  for (const row of entryRows) {
+    if (typeof row.bytes !== 'number' || typeof row.gzipBytes !== 'number') continue
+    const key = classifyEntryAsset(row.file)
+    buckets[key].bytes += row.bytes
+    buckets[key].gzipBytes += row.gzipBytes
+  }
+
+  return buckets
+}
+
+function buildReport(rows, entryAssets, topLimit) {
+  const summary = summarize(rows)
+  const entryRows = buildEntryAssetRows(rows, entryAssets)
+  const entrySummary = summarizeEntryAssets(entryRows)
+  return {
+    generatedAt: new Date().toISOString(),
+    distDir: DIST_DIR_LABEL,
+    assetsCount: rows.length,
+    topLimit,
+    summary,
+    entryAssets: entryRows,
+    entrySummary,
+    topAssets: rows.slice(0, topLimit),
+  }
+}
+
+function printEntryAssets(report) {
+  console.log('Entry Assets (from dist/index.html)')
+  for (const row of report.entryAssets) {
+    if (typeof row.bytes !== 'number' || typeof row.gzipBytes !== 'number') {
+      console.log(`- ${row.file}: missing`)
       continue
     }
-    console.log(`- ${asset}: ${formatBytes(info.bytes)} (gzip ${formatBytes(info.gzipBytes)})`)
+    console.log(`- ${row.file}: ${formatBytes(row.bytes)} (gzip ${formatBytes(row.gzipBytes)})`)
   }
-  if (entryAssets.length === 0) {
+  if (report.entryAssets.length === 0) {
     console.log('- (none)')
   }
   console.log('')
 }
 
-function printTop(rows, topLimit) {
-  console.log(`Top ${topLimit} Assets by Raw Size`)
-  for (const row of rows.slice(0, topLimit)) {
+function printTop(report) {
+  console.log(`Top ${report.topLimit} Assets by Raw Size`)
+  for (const row of report.topAssets) {
     console.log(`- ${row.file}: ${formatBytes(row.bytes)} (gzip ${formatBytes(row.gzipBytes)})`)
   }
   console.log('')
 }
 
-function printSummary(summary, totalCount) {
+function printSummary(report) {
   console.log('Bundle Summary')
-  console.log(`- assets counted: ${totalCount}`)
-  console.log(`- total: ${formatBytes(summary.totalBytes)} (gzip ${formatBytes(summary.totalGzipBytes)})`)
-  console.log(`- js: ${formatBytes(summary.jsBytes)} (gzip ${formatBytes(summary.jsGzipBytes)})`)
-  console.log(`- css: ${formatBytes(summary.cssBytes)} (gzip ${formatBytes(summary.cssGzipBytes)})`)
+  console.log(`- assets counted: ${report.assetsCount}`)
+  console.log(`- total: ${formatBytes(report.summary.totalBytes)} (gzip ${formatBytes(report.summary.totalGzipBytes)})`)
+  console.log(`- js: ${formatBytes(report.summary.jsBytes)} (gzip ${formatBytes(report.summary.jsGzipBytes)})`)
+  console.log(`- css: ${formatBytes(report.summary.cssBytes)} (gzip ${formatBytes(report.summary.cssGzipBytes)})`)
+}
+
+function formatDelta(current, baseline) {
+  const delta = current - baseline
+  const sign = delta >= 0 ? '+' : '-'
+  return `${sign}${formatBytes(Math.abs(delta))}`
+}
+
+function formatPercentDelta(current, baseline) {
+  if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return 'n/a'
+  const ratio = ((current - baseline) / baseline) * 100
+  const sign = ratio >= 0 ? '+' : ''
+  return `${sign}${ratio.toFixed(2)}%`
+}
+
+async function writeBaseline(report, baselinePath) {
+  await mkdir(path.dirname(baselinePath), { recursive: true })
+  await writeFile(baselinePath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+}
+
+async function readBaseline(baselinePath) {
+  const raw = await readFile(baselinePath, 'utf8')
+  return JSON.parse(raw)
+}
+
+function printMetricDelta(label, current, baseline) {
+  console.log(`- ${label}: ${formatBytes(current)} (baseline ${formatBytes(baseline)}, ${formatDelta(current, baseline)}, ${formatPercentDelta(current, baseline)})`)
+}
+
+function printComparison(current, baseline) {
+  console.log('')
+  console.log(`Baseline Compare (${baseline.generatedAt ?? 'unknown'})`)
+  printMetricDelta('total', current.summary.totalBytes, baseline.summary.totalBytes)
+  printMetricDelta('total gzip', current.summary.totalGzipBytes, baseline.summary.totalGzipBytes)
+  printMetricDelta('js', current.summary.jsBytes, baseline.summary.jsBytes)
+  printMetricDelta('js gzip', current.summary.jsGzipBytes, baseline.summary.jsGzipBytes)
+  printMetricDelta('css', current.summary.cssBytes, baseline.summary.cssBytes)
+  printMetricDelta('css gzip', current.summary.cssGzipBytes, baseline.summary.cssGzipBytes)
+
+  console.log('')
+  console.log('Entry Bucket Compare')
+  const keys = Array.from(
+    new Set([
+      ...Object.keys(current.entrySummary ?? {}),
+      ...Object.keys(baseline.entrySummary ?? {}),
+    ]),
+  ).sort()
+
+  for (const key of keys) {
+    const currentValue = current.entrySummary?.[key]?.bytes ?? 0
+    const baselineValue = baseline.entrySummary?.[key]?.bytes ?? 0
+    const currentGzip = current.entrySummary?.[key]?.gzipBytes ?? 0
+    const baselineGzip = baseline.entrySummary?.[key]?.gzipBytes ?? 0
+    console.log(`- ${key}: ${formatBytes(currentValue)} (baseline ${formatBytes(baselineValue)}, ${formatDelta(currentValue, baselineValue)})`)
+    console.log(`  gzip: ${formatBytes(currentGzip)} (baseline ${formatBytes(baselineGzip)}, ${formatDelta(currentGzip, baselineGzip)})`)
+  }
 }
 
 async function main() {
-  const topLimit = parseTopLimit(process.argv.slice(2))
+  const options = parseOptions(process.argv.slice(2))
   const [rows, entryAssets] = await Promise.all([
     collectAssetsInfo(),
     listEntryAssets(path.join(distDir, 'index.html')),
   ])
 
-  const summary = summarize(rows)
-  printEntryAssets(rows, entryAssets)
-  printTop(rows, topLimit)
-  printSummary(summary, rows.length)
+  const report = buildReport(rows, entryAssets, options.topLimit)
+  let baseline = null
+
+  if (options.writeBaseline) {
+    await writeBaseline(report, options.baselinePath)
+  }
+
+  if (options.compareBaseline) {
+    baseline = await readBaseline(options.baselinePath)
+  }
+
+  if (options.json) {
+    if (baseline) {
+      console.log(
+        JSON.stringify(
+          {
+            current: report,
+            baseline,
+          },
+          null,
+          2,
+        ),
+      )
+      return
+    }
+    console.log(JSON.stringify(report, null, 2))
+    return
+  }
+
+  printEntryAssets(report)
+  printTop(report)
+  printSummary(report)
+
+  if (options.writeBaseline) {
+    console.log('')
+    console.log(`Baseline written: ${options.baselinePath}`)
+  }
+
+  if (baseline) {
+    printComparison(report, baseline)
+  }
 }
 
 main().catch((error) => {

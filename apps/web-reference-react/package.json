@@ -17,7 +17,9 @@
     "test:e2e:install": "playwright install chromium",
     "test:perf:gate": "playwright test e2e/transcript-performance-gate.spec.js --project=chromium",
     "test:perf:gate:external": "PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test e2e/transcript-performance-gate.spec.js --project=chromium",
-    "perf:bundle:report": "node scripts/report-bundle.mjs"
+    "perf:bundle:report": "node scripts/report-bundle.mjs",
+    "perf:bundle:baseline:write": "node scripts/report-bundle.mjs --write-baseline",
+    "perf:bundle:baseline:compare": "node scripts/report-bundle.mjs --compare-baseline"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",

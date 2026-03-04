@@ -5,6 +5,8 @@
 - New script: `apps/web-reference-react/scripts/report-bundle.mjs`
 - New npm script:
   - `npm --prefix apps/web-reference-react run perf:bundle:report`
+  - `npm --prefix apps/web-reference-react run perf:bundle:baseline:write`
+  - `npm --prefix apps/web-reference-react run perf:bundle:baseline:compare`
 
 The report reads `dist/index.html` and `dist/assets/*`, then prints:
 
@@ -19,6 +21,8 @@ Command:
 ```bash
 npm --prefix apps/web-reference-react run build
 npm --prefix apps/web-reference-react run perf:bundle:report
+npm --prefix apps/web-reference-react run perf:bundle:baseline:write
+npm --prefix apps/web-reference-react run perf:bundle:baseline:compare
 ```
 
 Observed key numbers:
@@ -39,3 +43,7 @@ Observed key numbers:
 - The assets list includes chunks emitted for both main app graph and markdown worker graph.
 - This is expected after introducing worker-side markdown rendering.
 - For startup performance tracking, prioritize `Entry Assets` section; for overall payload monitoring, use `Bundle Summary`.
+- Baseline file path defaults to `docs/perf/web-reference-react-bundle-baseline.json` (repo root).
+- JSON mode outputs a single valid JSON document:
+  - `--json`
+  - `--json --compare-baseline` returns `{ current, baseline }`.

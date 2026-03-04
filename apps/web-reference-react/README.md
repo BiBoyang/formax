@@ -63,12 +63,15 @@ Bundle report (run after build):
 ```bash
 npm run build
 npm run perf:bundle:report
+npm run perf:bundle:baseline:write
+npm run perf:bundle:baseline:compare
 ```
 
 Optional:
 
 ```bash
 npm run perf:bundle:report -- --top=20
+npm run perf:bundle:report -- --compare-baseline --baseline=../../docs/perf/web-reference-react-bundle-baseline.json
 ```
 
 Current test coverage focus:

@@ -1,0 +1,156 @@
+{
+  "generatedAt": "2026-03-04T13:49:20.788Z",
+  "distDir": "dist",
+  "assetsCount": 50,
+  "topLimit": 12,
+  "summary": {
+    "totalBytes": 3313751,
+    "totalGzipBytes": 588466,
+    "jsBytes": 3239117,
+    "jsGzipBytes": 575517,
+    "cssBytes": 74634,
+    "cssGzipBytes": 12949
+  },
+  "entryAssets": [
+    {
+      "file": "index-BlZ27F-P.js",
+      "kind": "js",
+      "bytes": 254507,
+      "gzipBytes": 73041
+    },
+    {
+      "file": "vendor-react-CQQa2IEE.js",
+      "kind": "js",
+      "bytes": 215967,
+      "gzipBytes": 68643
+    },
+    {
+      "file": "vendor-radix-0KTvlxSs.js",
+      "kind": "js",
+      "bytes": 79487,
+      "gzipBytes": 23444
+    },
+    {
+      "file": "vendor-icons-DANNjcYp.js",
+      "kind": "js",
+      "bytes": 8670,
+      "gzipBytes": 2034
+    },
+    {
+      "file": "vendor-markdown-Ch6Is1F6.js",
+      "kind": "js",
+      "bytes": 64777,
+      "gzipBytes": 21323
+    },
+    {
+      "file": "index-CqVpv_gx.css",
+      "kind": "css",
+      "bytes": 74634,
+      "gzipBytes": 12949
+    }
+  ],
+  "entrySummary": {
+    "entry-index-js": {
+      "bytes": 254507,
+      "gzipBytes": 73041
+    },
+    "entry-css": {
+      "bytes": 74634,
+      "gzipBytes": 12949
+    },
+    "vendor-react": {
+      "bytes": 215967,
+      "gzipBytes": 68643
+    },
+    "vendor-radix": {
+      "bytes": 79487,
+      "gzipBytes": 23444
+    },
+    "vendor-markdown": {
+      "bytes": 64777,
+      "gzipBytes": 21323
+    },
+    "vendor-icons": {
+      "bytes": 8670,
+      "gzipBytes": 2034
+    },
+    "entry-other": {
+      "bytes": 0,
+      "gzipBytes": 0
+    }
+  },
+  "topAssets": [
+    {
+      "file": "index-BlZ27F-P.js",
+      "kind": "js",
+      "bytes": 254507,
+      "gzipBytes": 73041
+    },
+    {
+      "file": "vendor-react-CQQa2IEE.js",
+      "kind": "js",
+      "bytes": 215967,
+      "gzipBytes": 68643
+    },
+    {
+      "file": "typescript-BqvgUolh.js",
+      "kind": "js",
+      "bytes": 181084,
+      "gzipBytes": 16112
+    },
+    {
+      "file": "typescript-BPQ3VLAy.js",
+      "kind": "js",
+      "bytes": 181080,
+      "gzipBytes": 16109
+    },
+    {
+      "file": "jsx-8cLv2Six.js",
+      "kind": "js",
+      "bytes": 177796,
+      "gzipBytes": 16722
+    },
+    {
+      "file": "jsx-g9-lgVsj.js",
+      "kind": "js",
+      "bytes": 177792,
+      "gzipBytes": 16719
+    },
+    {
+      "file": "tsx-D6116Ycy.js",
+      "kind": "js",
+      "bytes": 175540,
+      "gzipBytes": 16594
+    },
+    {
+      "file": "tsx-COt5Ahok.js",
+      "kind": "js",
+      "bytes": 175536,
+      "gzipBytes": 16590
+    },
+    {
+      "file": "javascript-WyGyM1wV.js",
+      "kind": "js",
+      "bytes": 174831,
+      "gzipBytes": 16602
+    },
+    {
+      "file": "javascript-wDzz0qaB.js",
+      "kind": "js",
+      "bytes": 174827,
+      "gzipBytes": 16598
+    },
+    {
+      "file": "core-DMbzhGQ8.js",
+      "kind": "js",
+      "bytes": 115904,
+      "gzipBytes": 36457
+    },
+    {
+      "file": "core-C94I3qcw.js",
+      "kind": "js",
+      "bytes": 115849,
+      "gzipBytes": 36427
+    }
+  ]
+}
