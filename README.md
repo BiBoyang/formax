@@ -79,8 +79,12 @@ Run from repository root:
 bun run desktop:electron:dev
 bun run desktop:electron:debug
 bun run desktop:electron:preview
+bun run desktop:electron:build:runtime
 bun run desktop:electron:build
+bun run desktop:electron:build:mac
 ```
+
+Packaged mac app (`build:mac`) auto-starts embedded local runtime on launch, so users do not need to manually run `app-server`.
 
 ## Command Reference
 

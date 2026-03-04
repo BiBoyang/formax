@@ -127,6 +127,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Desktop Electron Shell
 - Package root (isolated desktop-shell deps/scripts): `apps/desktop-electron/package.json`
 - Runtime orchestrator (dev/debug/preview process lifecycle): `apps/desktop-electron/scripts/run.mjs`
+- Runtime bundle builder (copies root CLI/web artifacts into embedded runtime): `apps/desktop-electron/scripts/build-runtime.mjs`
+- Embedded packaged runtime artifacts (generated): `apps/desktop-electron/runtime/{cli.mjs,web/*}`
 - Main process window/security lifecycle: `apps/desktop-electron/src/main.ts`
 - Preload bridge (minimal read-only runtime metadata): `apps/desktop-electron/src/preload.ts`
 - Local usage guide: `apps/desktop-electron/README.md`

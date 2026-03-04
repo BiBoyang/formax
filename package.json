@@ -17,6 +17,8 @@
     "desktop:electron:dev": "npm --prefix apps/desktop-electron run dev",
     "desktop:electron:debug": "npm --prefix apps/desktop-electron run debug",
     "desktop:electron:preview": "npm --prefix apps/desktop-electron run preview",
+    "desktop:electron:build:runtime": "npm --prefix apps/desktop-electron run build:runtime",
+    "desktop:electron:build:mac": "npm --prefix apps/desktop-electron run build:mac",
     "desktop:electron:build": "npm --prefix apps/desktop-electron run build",
     "toole": "tsx ./src/entrypoints/tool-examples.tsx",
     "loade": "tsx ./src/entrypoints/loading-examples.tsx",
