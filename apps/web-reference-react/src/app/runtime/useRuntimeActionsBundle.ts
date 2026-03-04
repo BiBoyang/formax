@@ -9,10 +9,13 @@ import {
 } from './threadActions'
 import type { ThreadListItem } from './orchestrator/threadTransactions'
 
-type UseRuntimeActionsBundleArgs = {
+type CoreDeps = {
   request: ThreadActionsContext['request']
   dispatch: ThreadActionsContext['dispatch']
   log: ThreadActionsContext['log']
+}
+
+type ThreadDeps = {
   selectedCwdRef: { current: string | null }
   setSelectedCwd: ThreadActionsContext['setSelectedCwd']
   activeThreadIdRef: ThreadActionsContext['activeThreadIdRef']
@@ -35,6 +38,9 @@ type UseRuntimeActionsBundleArgs = {
   pruneThreadScopedRuntimeRefs: (threads: Array<{ id: string }>) => void
   loadEarlierHistoryAction: ThreadActionsContext['loadEarlierHistoryAction']
   selectThreadRef: { current: (threadId: string, options?: SelectThreadOptions) => void }
+}
+
+type ComposerDeps = {
   inputText: ComposerActionsContext['inputText']
   setInputText: ComposerActionsContext['setInputText']
   isSendingTurn: ComposerActionsContext['isSendingTurn']
@@ -52,35 +58,43 @@ type UseRuntimeActionsBundleArgs = {
   nowMs: ComposerActionsContext['nowMs']
 }
 
+type UseRuntimeActionsBundleArgs = {
+  core: CoreDeps
+  thread: ThreadDeps
+  composer: ComposerDeps
+}
+
 export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
+  const { core, thread, composer } = args
+
   const threadActionsState = useMemo(
     () => ({
       get activeThreadId() {
-        return args.activeThreadIdRef.current
+        return thread.activeThreadIdRef.current
       },
       get activeTurnId() {
-        return args.activeTurnIdRef.current
+        return thread.activeTurnIdRef.current
       },
       get selectedInputId() {
-        return args.selectedInputIdRef.current
+        return thread.selectedInputIdRef.current
       },
       get pendingInputs() {
-        return args.pendingInputsRef.current
+        return thread.pendingInputsRef.current
       },
       get logs() {
-        return args.stateLogsRef.current
+        return thread.stateLogsRef.current
       },
       get threads() {
-        return args.threadsRef.current
+        return thread.threadsRef.current
       },
     }),
     [
-      args.activeThreadIdRef,
-      args.activeTurnIdRef,
-      args.pendingInputsRef,
-      args.selectedInputIdRef,
-      args.stateLogsRef,
-      args.threadsRef,
+      thread.activeThreadIdRef,
+      thread.activeTurnIdRef,
+      thread.pendingInputsRef,
+      thread.selectedInputIdRef,
+      thread.stateLogsRef,
+      thread.threadsRef,
     ],
   )
 
@@ -96,117 +110,117 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
     () =>
       createThreadActions({
         get selectedCwd() {
-          return args.selectedCwdRef.current
+          return thread.selectedCwdRef.current
         },
-        setSelectedCwd: args.setSelectedCwd,
+        setSelectedCwd: thread.setSelectedCwd,
         state: threadActionsState,
         get sortedThreads() {
-          return args.sortedThreadsRef.current
+          return thread.sortedThreadsRef.current
         },
         get logsByThreadId() {
-          return args.logsByThreadIdRef.current
+          return thread.logsByThreadIdRef.current
         },
-        request: args.request,
-        dispatch: args.dispatch,
-        log: args.log,
-        setMode: args.setMode,
-        runtimeStateByThreadRef: args.runtimeStateByThreadRef,
-        replayCursorByThreadRef: args.replayCursorByThreadRef,
-        activeThreadIdRef: args.activeThreadIdRef,
-        setIsThreadActionBusy: args.setIsThreadActionBusy,
-        replayThreadEvents: args.replayThreadEvents,
-        resumeThreadInputs: args.resumeThreadInputs,
-        refreshThreads: args.refreshThreads,
-        refreshWorkspaceDiff: args.refreshWorkspaceDiff,
-        trackArchiveOp: ({ opId, threadId, thread }) => {
-          args.pendingArchiveOpsRef.current.set(opId, { threadId, thread: thread ?? null })
-          args.pruneThreadScopedRuntimeRefs(args.threadsRef.current)
+        request: core.request,
+        dispatch: core.dispatch,
+        log: core.log,
+        setMode: thread.setMode,
+        runtimeStateByThreadRef: thread.runtimeStateByThreadRef,
+        replayCursorByThreadRef: thread.replayCursorByThreadRef,
+        activeThreadIdRef: thread.activeThreadIdRef,
+        setIsThreadActionBusy: thread.setIsThreadActionBusy,
+        replayThreadEvents: thread.replayThreadEvents,
+        resumeThreadInputs: thread.resumeThreadInputs,
+        refreshThreads: thread.refreshThreads,
+        refreshWorkspaceDiff: thread.refreshWorkspaceDiff,
+        trackArchiveOp: ({ opId, threadId, thread: archivedThread }) => {
+          thread.pendingArchiveOpsRef.current.set(opId, { threadId, thread: archivedThread ?? null })
+          thread.pruneThreadScopedRuntimeRefs(thread.threadsRef.current)
         },
         clearArchiveOp: (opId) => {
-          return args.pendingArchiveOpsRef.current.delete(opId)
+          return thread.pendingArchiveOpsRef.current.delete(opId)
         },
-        loadEarlierHistoryAction: args.loadEarlierHistoryAction,
+        loadEarlierHistoryAction: thread.loadEarlierHistoryAction,
       }),
     [
-      args.activeThreadIdRef,
-      args.dispatch,
-      args.loadEarlierHistoryAction,
-      args.log,
-      args.logsByThreadIdRef,
-      args.pendingArchiveOpsRef,
-      args.pruneThreadScopedRuntimeRefs,
-      args.refreshThreads,
-      args.refreshWorkspaceDiff,
-      args.replayCursorByThreadRef,
-      args.replayThreadEvents,
-      args.request,
-      args.resumeThreadInputs,
-      args.runtimeStateByThreadRef,
-      args.selectedCwdRef,
-      args.setIsThreadActionBusy,
-      args.setMode,
-      args.setSelectedCwd,
-      args.sortedThreadsRef,
-      args.threadsRef,
+      core.dispatch,
+      core.log,
+      core.request,
       threadActionsState,
+      thread.activeThreadIdRef,
+      thread.loadEarlierHistoryAction,
+      thread.logsByThreadIdRef,
+      thread.pendingArchiveOpsRef,
+      thread.pruneThreadScopedRuntimeRefs,
+      thread.refreshThreads,
+      thread.refreshWorkspaceDiff,
+      thread.replayCursorByThreadRef,
+      thread.replayThreadEvents,
+      thread.resumeThreadInputs,
+      thread.runtimeStateByThreadRef,
+      thread.selectedCwdRef,
+      thread.setIsThreadActionBusy,
+      thread.setMode,
+      thread.setSelectedCwd,
+      thread.sortedThreadsRef,
+      thread.threadsRef,
     ],
   )
 
   useEffect(() => {
-    args.selectThreadRef.current = selectThread
-  }, [args.selectThreadRef, selectThread])
+    thread.selectThreadRef.current = selectThread
+  }, [thread.selectThreadRef, selectThread])
 
   const { interruptTurn, submitInputById, onSend } = useMemo(
     () =>
       createComposerActions({
-        inputText: args.inputText,
-        setInputText: args.setInputText,
-        isSendingTurn: args.isSendingTurn,
-        isInterruptingTurn: args.isInterruptingTurn,
-        isSubmittingInput: args.isSubmittingInput,
-        mode: args.mode,
-        activeThreadId: args.activeThreadId,
-        activeTurnId: args.activeTurnId,
+        inputText: composer.inputText,
+        setInputText: composer.setInputText,
+        isSendingTurn: composer.isSendingTurn,
+        isInterruptingTurn: composer.isInterruptingTurn,
+        isSubmittingInput: composer.isSubmittingInput,
+        mode: composer.mode,
+        activeThreadId: composer.activeThreadId,
+        activeTurnId: composer.activeTurnId,
         resolveRequestCwd: (threadId) => {
-          const activeThread = args.threadsRef.current.find((thread) => thread.id === threadId)
-          return args.selectedCwdRef.current ?? activeThread?.cwd ?? null
+          const activeThread = thread.threadsRef.current.find((threadItem) => threadItem.id === threadId)
+          return thread.selectedCwdRef.current ?? activeThread?.cwd ?? null
         },
-        getPendingInputById: (inputId) => args.pendingInputsRef.current[inputId],
-        request: args.request,
-        dispatch: args.dispatch,
-        log: args.log,
-        commandByTurnRef: args.commandByTurnRef,
-        setIsSendingTurn: args.setIsSendingTurn,
-        setIsInterruptingTurn: args.setIsInterruptingTurn,
-        setIsSubmittingInput: args.setIsSubmittingInput,
-        setSubmitStatusByInputId: args.setSubmitStatusByInputId,
-        toRpcError: args.toRpcError,
-        nowMs: args.nowMs,
+        getPendingInputById: (inputId) => thread.pendingInputsRef.current[inputId],
+        request: core.request,
+        dispatch: core.dispatch,
+        log: core.log,
+        commandByTurnRef: composer.commandByTurnRef,
+        setIsSendingTurn: composer.setIsSendingTurn,
+        setIsInterruptingTurn: composer.setIsInterruptingTurn,
+        setIsSubmittingInput: composer.setIsSubmittingInput,
+        setSubmitStatusByInputId: composer.setSubmitStatusByInputId,
+        toRpcError: composer.toRpcError,
+        nowMs: composer.nowMs,
         startThread,
       }),
     [
-      args.activeThreadId,
-      args.activeTurnId,
-      args.commandByTurnRef,
-      args.dispatch,
-      args.inputText,
-      args.isInterruptingTurn,
-      args.isSendingTurn,
-      args.isSubmittingInput,
-      args.log,
-      args.mode,
-      args.nowMs,
-      args.pendingInputsRef,
-      args.request,
-      args.selectedCwdRef,
-      args.setInputText,
-      args.setIsInterruptingTurn,
-      args.setIsSendingTurn,
-      args.setIsSubmittingInput,
-      args.setSubmitStatusByInputId,
-      args.threadsRef,
-      args.toRpcError,
+      core.dispatch,
+      core.log,
+      core.request,
+      composer.activeThreadId,
+      composer.activeTurnId,
+      composer.commandByTurnRef,
+      composer.inputText,
+      composer.isInterruptingTurn,
+      composer.isSendingTurn,
+      composer.isSubmittingInput,
+      composer.mode,
+      composer.nowMs,
+      composer.setInputText,
+      composer.setIsInterruptingTurn,
+      composer.setIsSendingTurn,
+      composer.setIsSubmittingInput,
+      composer.setSubmitStatusByInputId,
+      composer.toRpcError,
       startThread,
+      thread.pendingInputsRef,
+      thread.selectedCwdRef,
+      thread.threadsRef,
     ],
   )
 

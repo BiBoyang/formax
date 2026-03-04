@@ -1,4 +1,4 @@
-import { useCallback, useState, type SetStateAction } from 'react'
+import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import type { ReplMode } from '../../semantics'
 import type { TranscriptItem } from '../../types'
@@ -17,6 +17,8 @@ function areStringArraysEqual(a: string[], b: string[]): boolean {
   }
   return true
 }
+
+const NOTICE_AUTO_DISMISS_MS = 2600
 
 export type RuntimeViewState = {
   inputText: string
@@ -157,6 +159,14 @@ export function useRuntimeViewState(): RuntimeViewState {
     },
     [],
   )
+
+  useEffect(() => {
+    if (!noticeMessage) return
+    const timer = window.setTimeout(() => {
+      setNoticeMessage((previous) => (previous === null ? previous : null))
+    }, NOTICE_AUTO_DISMISS_MS)
+    return () => window.clearTimeout(timer)
+  }, [noticeMessage])
 
   return {
     inputText,

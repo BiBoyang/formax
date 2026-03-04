@@ -17,6 +17,10 @@
   - `useRuntimeActionsBundle` 抽离 thread/composer action 组装
   - `buildAppShellProps` 抽离 AppShell props 组装映射
   - `rpcQueueMetrics` 抽离队列指标日志策略
+- 已完成：组合根细节优化回合（Slice R）：
+  - `useRuntimeActionsBundle` 参数按 `core/thread/composer` 分组，移除 25+ 平铺参数签名
+  - `useRuntimeRefSync` 扩展为统一同步 `activeTurnId/pendingInputs/sortedThreads` refs
+  - notice auto-dismiss 从 `useAppRuntime` 下沉到 `useRuntimeViewState`
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）

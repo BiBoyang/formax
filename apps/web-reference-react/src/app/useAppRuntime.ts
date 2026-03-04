@@ -321,22 +321,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     },
   })
 
-  useRuntimeRefSync({
-    activeThreadId: state.activeThreadId,
-    logs: state.logs,
-    logsByThreadId,
-    logsByThreadIdRef,
-    setLogsByThreadId,
-  })
-
-  useEffect(() => {
-    activeTurnIdRef.current = state.activeTurnId
-  }, [state.activeTurnId])
-
-  useEffect(() => {
-    pendingInputsRef.current = state.pendingInputs
-  }, [state.pendingInputs])
-
   const { sortedThreads } = useThreadSelection({
     threads: state.threads,
     activeThreadId: state.activeThreadId,
@@ -345,15 +329,19 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   })
   const sortedThreadsRef = useRef(sortedThreads)
 
-  useEffect(() => {
-    sortedThreadsRef.current = sortedThreads
-  }, [sortedThreads])
-
-  useEffect(() => {
-    if (!noticeMessage) return
-    const timer = window.setTimeout(() => setNoticeMessageStable(null), 2600)
-    return () => window.clearTimeout(timer)
-  }, [noticeMessage, setNoticeMessageStable])
+  useRuntimeRefSync({
+    activeThreadId: state.activeThreadId,
+    activeTurnId: state.activeTurnId,
+    activeTurnIdRef,
+    pendingInputs: state.pendingInputs,
+    pendingInputsRef,
+    sortedThreads,
+    sortedThreadsRef,
+    logs: state.logs,
+    logsByThreadId,
+    logsByThreadIdRef,
+    setLogsByThreadId,
+  })
 
   const {
     startThread,
@@ -367,46 +355,52 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     submitInputById,
     onSend,
   } = useRuntimeActionsBundle({
-    request,
-    dispatch,
-    log,
-    selectedCwdRef,
-    setSelectedCwd: setSelectedCwdStable,
-    activeThreadIdRef,
-    activeTurnIdRef,
-    selectedInputIdRef,
-    pendingInputsRef,
-    stateLogsRef,
-    threadsRef,
-    sortedThreadsRef,
-    logsByThreadIdRef,
-    runtimeStateByThreadRef,
-    replayCursorByThreadRef,
-    setMode: setModeStable,
-    setIsThreadActionBusy: setIsThreadActionBusyStable,
-    replayThreadEvents,
-    resumeThreadInputs,
-    refreshThreads,
-    refreshWorkspaceDiff,
-    pendingArchiveOpsRef,
-    pruneThreadScopedRuntimeRefs,
-    loadEarlierHistoryAction,
-    selectThreadRef,
-    inputText,
-    setInputText: setInputTextStable,
-    isSendingTurn,
-    isInterruptingTurn,
-    isSubmittingInput,
-    mode,
-    activeThreadId: state.activeThreadId,
-    activeTurnId: state.activeTurnId,
-    commandByTurnRef,
-    setIsSendingTurn: setIsSendingTurnStable,
-    setIsInterruptingTurn: setIsInterruptingTurnStable,
-    setIsSubmittingInput: setIsSubmittingInputStable,
-    setSubmitStatusByInputId,
-    toRpcError,
-    nowMs: runtimePorts.nowMs,
+    core: {
+      request,
+      dispatch,
+      log,
+    },
+    thread: {
+      selectedCwdRef,
+      setSelectedCwd: setSelectedCwdStable,
+      activeThreadIdRef,
+      activeTurnIdRef,
+      selectedInputIdRef,
+      pendingInputsRef,
+      stateLogsRef,
+      threadsRef,
+      sortedThreadsRef,
+      logsByThreadIdRef,
+      runtimeStateByThreadRef,
+      replayCursorByThreadRef,
+      setMode: setModeStable,
+      setIsThreadActionBusy: setIsThreadActionBusyStable,
+      replayThreadEvents,
+      resumeThreadInputs,
+      refreshThreads,
+      refreshWorkspaceDiff,
+      pendingArchiveOpsRef,
+      pruneThreadScopedRuntimeRefs,
+      loadEarlierHistoryAction,
+      selectThreadRef,
+    },
+    composer: {
+      inputText,
+      setInputText: setInputTextStable,
+      isSendingTurn,
+      isInterruptingTurn,
+      isSubmittingInput,
+      mode,
+      activeThreadId: state.activeThreadId,
+      activeTurnId: state.activeTurnId,
+      commandByTurnRef,
+      setIsSendingTurn: setIsSendingTurnStable,
+      setIsInterruptingTurn: setIsInterruptingTurnStable,
+      setIsSubmittingInput: setIsSubmittingInputStable,
+      setSubmitStatusByInputId,
+      toRpcError,
+      nowMs: runtimePorts.nowMs,
+    },
   })
 
   useThreadUrlSync({
