@@ -397,11 +397,15 @@ describe('inferModelMetadata', () => {
       max_tokens: 100000,
       contextWindowTokens: undefined,
       supports_reasoning_effort: true,
+      supports_vision: false,
+      supports_function_calling: true,
     })
     expect(inferModelMetadata({ provider: 'openai', model: 'gpt-4o-mini' })).toEqual({
       max_tokens: 16384,
       contextWindowTokens: 128000,
       supports_reasoning_effort: false,
+      supports_vision: true,
+      supports_function_calling: true,
     })
   })
 

@@ -15,17 +15,63 @@ type OpenAIModelMetadata = {
   max_tokens: number
   supports_reasoning_effort: boolean
   contextWindowTokens?: number
+  supports_vision: boolean
+  supports_function_calling: boolean
 }
 
 const OPENAI_MODEL_METADATA_BY_PREFIX: Readonly<Record<string, OpenAIModelMetadata>> = {
-  'gpt-4o': { max_tokens: 16384, supports_reasoning_effort: false, contextWindowTokens: 128000 },
-  'gpt-4-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 128000 },
-  'gpt-4': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 8192 },
-  'gpt-3.5-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 16385 },
-  'o1': { max_tokens: 100000, supports_reasoning_effort: true },
-  'o1-preview': { max_tokens: 100000, supports_reasoning_effort: true },
-  'o1-mini': { max_tokens: 100000, supports_reasoning_effort: true },
-  'o3-mini': { max_tokens: 100000, supports_reasoning_effort: true },
+  'gpt-4o': {
+    max_tokens: 16384,
+    supports_reasoning_effort: false,
+    contextWindowTokens: 128000,
+    supports_vision: true,
+    supports_function_calling: true,
+  },
+  'gpt-4-turbo': {
+    max_tokens: 4096,
+    supports_reasoning_effort: false,
+    contextWindowTokens: 128000,
+    supports_vision: true,
+    supports_function_calling: true,
+  },
+  'gpt-4': {
+    max_tokens: 4096,
+    supports_reasoning_effort: false,
+    contextWindowTokens: 8192,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
+  'gpt-3.5-turbo': {
+    max_tokens: 4096,
+    supports_reasoning_effort: false,
+    contextWindowTokens: 16385,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
+  'o1': {
+    max_tokens: 100000,
+    supports_reasoning_effort: true,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
+  'o1-preview': {
+    max_tokens: 100000,
+    supports_reasoning_effort: true,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
+  'o1-mini': {
+    max_tokens: 100000,
+    supports_reasoning_effort: true,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
+  'o3-mini': {
+    max_tokens: 100000,
+    supports_reasoning_effort: true,
+    supports_vision: false,
+    supports_function_calling: true,
+  },
 }
 
 const OPENAI_MODEL_METADATA_PREFIXES = Object.keys(OPENAI_MODEL_METADATA_BY_PREFIX)
@@ -40,7 +86,14 @@ function getOpenAIModelMetadata(model: string): OpenAIModelMetadata | undefined 
 export function inferModelMetadata(args: {
   provider: string
   model: string
-}): Pick<ModelInfo, 'max_tokens' | 'contextWindowTokens' | 'supports_reasoning_effort'> | undefined {
+}): Pick<
+  ModelInfo,
+  | 'max_tokens'
+  | 'contextWindowTokens'
+  | 'supports_reasoning_effort'
+  | 'supports_vision'
+  | 'supports_function_calling'
+> | undefined {
   const provider = String(args.provider || '').trim().toLowerCase()
   if (provider !== 'openai') return undefined
   const metadata = getOpenAIModelMetadata(args.model)
@@ -49,6 +102,8 @@ export function inferModelMetadata(args: {
     max_tokens: metadata.max_tokens,
     contextWindowTokens: metadata.contextWindowTokens,
     supports_reasoning_effort: metadata.supports_reasoning_effort,
+    supports_vision: metadata.supports_vision,
+    supports_function_calling: metadata.supports_function_calling,
   }
 }
 
@@ -236,8 +291,8 @@ export async function fetchOpenAIModels(
           max_tokens: metadata?.max_tokens ?? 8192,
           contextWindowTokens: metadata?.contextWindowTokens,
           supports_reasoning_effort: metadata?.supports_reasoning_effort ?? false,
-          supports_vision: modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo'),
-          supports_function_calling: true,
+          supports_vision: metadata?.supports_vision ?? (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')),
+          supports_function_calling: metadata?.supports_function_calling ?? true,
         }
       })
 

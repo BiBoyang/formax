@@ -889,6 +889,12 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
         ...(inferredModelMetadata?.contextWindowTokens === undefined
           ? {}
           : { contextWindowTokens: inferredModelMetadata.contextWindowTokens }),
+        ...(inferredModelMetadata?.supports_vision === undefined
+          ? {}
+          : { supports_vision: inferredModelMetadata.supports_vision }),
+        ...(inferredModelMetadata?.supports_function_calling === undefined
+          ? {}
+          : { supports_function_calling: inferredModelMetadata.supports_function_calling }),
         ...(inferredSupportsReasoningEffort === undefined
           ? {}
           : {

@@ -21,7 +21,7 @@
 - `Query` 已支持 `interrupt()`、`close()`、`initializationResult()`、`supportedCommands()`、`supportedAgents()`、`supportedModels()`、`accountInfo()`（含 `tokenSource/apiKeySource` 兼容字段）、`stopTask()`（中止当前 query）与 `setModel()`、`setPermissionMode()`、`setMaxThinkingTokens()`；`mcpServerStatus()/setMcpServers()/reconnectMcpServer()/toggleMcpServer()/streamInput()` 当前仍显式报未支持，`rewindFiles()` 返回结构化不支持结果；其余 `Query` 对象方法（`supported*`/`mcp*` 等）暂不纳入一期范围。
 - `supportedCommands()` 返回命令项同时包含 `name/argumentHint`（官方同名）与 `command/argHint`（Formax 兼容）字段。
 - `supportedAgents()` 返回代理项在 `name/description` 之外，会在底层配置可提供时附带 `model` 字段。
-- `supportedModels()` 返回模型项同时包含 `value/displayName/supportsEffort/supportsAdaptiveThinking`（官方常用）与 `model/provider/supports_reasoning_effort`（Formax 兼容）字段；活动模型回填项在能力可推导时会补齐 effort 与 `max_tokens/contextWindowTokens` 兼容字段。
+- `supportedModels()` 返回模型项同时包含 `value/displayName/supportsEffort/supportsAdaptiveThinking`（官方常用）与 `model/provider/supports_reasoning_effort`（Formax 兼容）字段；活动模型回填项在能力可推导时会补齐 effort、`max_tokens/contextWindowTokens` 与 `supports_vision/supports_function_calling` 兼容字段。
 - `setMcpServers()` 在当前能力下仍显式报未支持；`rewindFiles()` 返回 `canRewind=false` 的结构化不支持结果；两者返回类型已与官方同名结果类型对齐；`stopTask()` 当前对齐为中止式兼容语义。
 
 ## Options 对齐矩阵（官方 -> Formax）

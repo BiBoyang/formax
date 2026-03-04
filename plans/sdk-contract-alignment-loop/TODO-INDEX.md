@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-05`：增强 `supportedModels()` 活动模型回填项的能力字段补全（在可推导时补齐 `supports_vision/supports_function_calling`）。
+- [ ] `MOD-06`：复用核心 metadata 推导构建 OpenAI 默认模型列表，收敛 `getDefaultModels` 与 metadata 映射重复定义。
 
 ## 再生规则（当“当前待办”为空时）
 
