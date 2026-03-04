@@ -63,6 +63,25 @@ Default config directory: `~/.formax/`
 | `formax serve` | Start standalone WebSocket bridge | `ws://127.0.0.1:3777` |
 | `formax app-server` | Start JSON-RPC app server for GUI/IDE clients | `stdio + JSONL + JSON-RPC 2.0` |
 
+## Desktop Electron (MVP)
+
+The desktop shell lives in `apps/desktop-electron` and reuses the existing web runtime (`apps/web-reference-react`).
+
+Install desktop-shell dependencies once:
+
+```bash
+npm --prefix apps/desktop-electron install
+```
+
+Run from repository root:
+
+```bash
+bun run desktop:electron:dev
+bun run desktop:electron:debug
+bun run desktop:electron:preview
+bun run desktop:electron:build
+```
+
 ## Command Reference
 
 All commands below are implemented in [`src/runtime/cli/help.ts`](src/runtime/cli/help.ts) and dispatched in [`src/runtime/cli/main.ts`](src/runtime/cli/main.ts).

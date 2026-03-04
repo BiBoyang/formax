@@ -17,6 +17,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Web UI runtime launcher (`formax web`, bridge + static host): `src/runtime/web/localUi.ts`
 - App-server dev bridge entrypoint (WebSocket -> stdio loop): `src/entrypoints/app-server-bridge.ts`
 - App-server web reference entrypoint (bridge + React UI dev server): `src/entrypoints/app-server-web-reference.ts`
+- Desktop Electron shell (orchestrator + main/preload): `apps/desktop-electron/{scripts/run.mjs,src/main.ts,src/preload.ts}`
 - Tool examples playground: `src/entrypoints/tool-examples.tsx`
 - Loading examples: `src/entrypoints/loading-examples.tsx`
 - Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
@@ -122,6 +123,13 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Pending-input/approval UI: `apps/web-reference-react/src/components/InputApprovalDock.tsx`, `apps/web-reference-react/src/components/approval/*`
 - Web parity adapters + reducers: `apps/web-reference-react/src/toolEventNormalizer.ts`, `apps/web-reference-react/src/turnEventCursor.ts`, `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/parity/*`
 - E2E protocol/UI specs + rpc mock: `apps/web-reference-react/e2e/*.spec.js`, `apps/web-reference-react/e2e/helpers/mockRpc.js`
+
+## Desktop Electron Shell
+- Package root (isolated desktop-shell deps/scripts): `apps/desktop-electron/package.json`
+- Runtime orchestrator (dev/debug/preview process lifecycle): `apps/desktop-electron/scripts/run.mjs`
+- Main process window/security lifecycle: `apps/desktop-electron/src/main.ts`
+- Preload bridge (minimal read-only runtime metadata): `apps/desktop-electron/src/preload.ts`
+- Local usage guide: `apps/desktop-electron/README.md`
 
 ## Permissions / Approvals (Claude Code-style)
 - Permissions store (read/merge/write settings): `src/adapters/permissions/permissionsStore.ts`

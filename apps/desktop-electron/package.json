@@ -1,0 +1,34 @@
+{
+  "name": "formax-desktop-electron",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Electron desktop shell for Formax web runtime",
+  "main": "dist/main.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.json",
+    "electron:start": "electron .",
+    "electron:start:debug": "electron --inspect=9229 .",
+    "dev": "npm run build:main && node ./scripts/run.mjs --mode dev",
+    "debug": "npm run build:main && node ./scripts/run.mjs --mode debug",
+    "preview": "npm run build:main && node ./scripts/run.mjs --mode preview",
+    "build": "npm run build:main && electron-builder --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.9.2"
+  },
+  "build": {
+    "appId": "com.yusifeng.formax.desktop",
+    "productName": "Formax Desktop",
+    "directories": {
+      "output": "out"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asar": true
+  }
+}
