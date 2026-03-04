@@ -10,6 +10,21 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+            return 'vendor-react'
+          }
+          if (id.includes('/@radix-ui/')) return 'vendor-radix'
+          if (id.includes('/lucide-react/')) return 'vendor-icons'
+          if (id.includes('/marked/') || id.includes('/dompurify/')) return 'vendor-markdown'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
