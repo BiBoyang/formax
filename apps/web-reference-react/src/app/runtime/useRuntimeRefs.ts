@@ -66,26 +66,14 @@ export function useThreadSnapshotRefs(
   const selectedInputIdRef = useRef(selectedInputId)
   const stateLogsRef = useRef(logs)
 
-  // 同步逻辑封装在 hook 内
+  // Keep snapshot refs synchronized in one effect to reduce per-render effect churn.
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId
-  }, [activeThreadId])
-
-  useEffect(() => {
     threadsRef.current = threads
-  }, [threads])
-
-  useEffect(() => {
     selectedCwdRef.current = selectedCwd
-  }, [selectedCwd])
-
-  useEffect(() => {
     selectedInputIdRef.current = selectedInputId
-  }, [selectedInputId])
-
-  useEffect(() => {
     stateLogsRef.current = logs
-  }, [logs])
+  }, [activeThreadId, threads, selectedCwd, selectedInputId, logs])
 
   return {
     activeThreadIdRef,
@@ -149,13 +137,11 @@ export function useThreadCacheRefs(
   const logsByThreadIdRef = useRef(logsByThreadId)
   const transcriptSourceByThreadRef = useRef(transcriptSourceByThreadId)
 
+  // Keep cache refs synchronized together to avoid redundant effect scheduling.
   useEffect(() => {
     logsByThreadIdRef.current = logsByThreadId
-  }, [logsByThreadId])
-
-  useEffect(() => {
     transcriptSourceByThreadRef.current = transcriptSourceByThreadId
-  }, [transcriptSourceByThreadId])
+  }, [logsByThreadId, transcriptSourceByThreadId])
 
   return {
     logsByThreadIdRef,
