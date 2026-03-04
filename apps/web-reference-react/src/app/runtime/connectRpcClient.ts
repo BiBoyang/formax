@@ -1,4 +1,4 @@
-import { RpcClient } from '../../rpcClient'
+import { RpcClient, type RpcClientQueueMetrics } from '../../rpcClient'
 import type { AppAction } from '../../store'
 import type { RpcNotification } from '../../types'
 import { createTurnEventCursorState } from '../../turnEventCursor'
@@ -19,6 +19,7 @@ export type ConnectRpcClientArgs = {
   activeThreadIdRef: { current: string | null }
   handleNotification: (notification: RpcNotification) => void
   captureError: (method: string, error: unknown) => unknown
+  onQueueMetrics?: (metrics: RpcClientQueueMetrics) => void
 }
 
 export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
@@ -50,6 +51,7 @@ export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
     onError: (error) => {
       args.captureError('transport', error)
     },
+    onQueueMetrics: args.onQueueMetrics,
   })
 
   return () => {

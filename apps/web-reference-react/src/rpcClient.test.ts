@@ -220,4 +220,43 @@ describe('RpcClient outbound queue', () => {
     expect(overload).toBeInstanceOf(RpcQueueOverloadedError)
     expect((overload as RpcQueueOverloadedError).queue).toBe('inbound_notification')
   })
+
+  it('reports queue metrics for depth, dropped notifications, and overload counts', async () => {
+    const onQueueMetrics = vi.fn()
+    const handlers = {
+      onStatus: vi.fn(),
+      onNotification: vi.fn(),
+      onError: vi.fn(),
+      onQueueMetrics,
+    }
+    const client = new RpcClient({
+      outboundQueueCapacity: 1,
+      inboundNotificationQueueCapacity: 1,
+    })
+    client.connect('ws://127.0.0.1:3777', handlers)
+
+    const socket = getSocket()
+    socket.open()
+
+    const firstRequest = client.request('thread/list', { limit: 1 })
+    const secondRequest = client.request('thread/read', { threadId: 'thread-1' })
+    client.notify('initialized')
+    socket.receive({ jsonrpc: '2.0', method: 'turn/started', params: { turnId: 'turn-1' } })
+    socket.receive({ jsonrpc: '2.0', method: 'turn/event', params: { turnId: 'turn-1' } })
+
+    await expect(secondRequest).rejects.toBeInstanceOf(RpcQueueOverloadedError)
+    await flushMicrotasks()
+    socket.receive({ jsonrpc: '2.0', id: 1, result: { ok: true } })
+    await expect(firstRequest).resolves.toEqual({ ok: true })
+
+    const metrics = client.getQueueMetrics()
+    expect(metrics.outboundQueueDepth).toBe(0)
+    expect(metrics.inboundNotificationQueueDepth).toBe(0)
+    expect(metrics.overloadedRequests).toBe(1)
+    expect(metrics.droppedOutboundNotifications).toBe(1)
+    expect(metrics.droppedInboundNotifications).toBe(1)
+
+    expect(onQueueMetrics).toHaveBeenCalled()
+    expect(onQueueMetrics.mock.calls[onQueueMetrics.mock.calls.length - 1]?.[0]).toEqual(metrics)
+  })
 })

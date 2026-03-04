@@ -26,6 +26,7 @@ export interface RpcConnectionEffectDeps {
   activeThreadIdRef: ConnectRpcClientArgs['activeThreadIdRef']
   handleNotification: ConnectRpcClientArgs['handleNotification']
   captureError: ConnectRpcClientArgs['captureError']
+  onQueueMetrics?: ConnectRpcClientArgs['onQueueMetrics']
   clientRef: ConnectRpcClientArgs['clientRef']
   eventCursorRef: ConnectRpcClientArgs['eventCursorRef']
 }
@@ -46,12 +47,14 @@ export function useRpcConnectionEffect(deps: RpcConnectionEffectDeps) {
       activeThreadIdRef: deps.activeThreadIdRef,
       handleNotification: deps.handleNotification,
       captureError: deps.captureError,
+      onQueueMetrics: deps.onQueueMetrics,
     })
   }, [
     deps.bridgeUrl,
     deps.captureError,
     deps.handleNotification,
     deps.initializeHandshake,
+    deps.onQueueMetrics,
     deps.refreshThreads,
     deps.refreshWorkspaceDiff,
     deps.replayThreadEvents,

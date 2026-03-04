@@ -10,6 +10,17 @@ export type RpcClientHandlers = {
   onStatus: (status: ConnectionStatus) => void
   onNotification: (notification: RpcNotification) => void
   onError: (error: Error) => void
+  onQueueMetrics?: (metrics: RpcClientQueueMetrics) => void
+}
+
+export type RpcClientQueueMetrics = {
+  outboundQueueDepth: number
+  outboundQueueCapacity: number
+  inboundNotificationQueueDepth: number
+  inboundNotificationQueueCapacity: number
+  droppedOutboundNotifications: number
+  droppedInboundNotifications: number
+  overloadedRequests: number
 }
 
 function isRpcResponse(value: unknown): value is RpcResponse {
@@ -67,6 +78,10 @@ export class RpcClient {
   private inboundNotificationQueue: RpcNotification[] = []
   private outboundFlushScheduled = false
   private inboundDrainScheduled = false
+  private droppedOutboundNotifications = 0
+  private droppedInboundNotifications = 0
+  private overloadedRequests = 0
+  private lastMetricsSignature = ''
   private pending = new Map<JsonRpcId, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
 
   constructor(args?: { outboundQueueCapacity?: number; inboundNotificationQueueCapacity?: number }) {
@@ -83,6 +98,8 @@ export class RpcClient {
   connect(url: string, handlers: RpcClientHandlers): void {
     this.disconnect()
     this.handlers = handlers
+    this.lastMetricsSignature = ''
+    this.emitQueueMetrics()
     handlers.onStatus('connecting')
 
     const generation = ++this.socketGeneration
@@ -100,6 +117,7 @@ export class RpcClient {
       this.socket = null
       this.clearOutboundQueue()
       this.clearInboundNotificationQueue()
+      this.emitQueueMetrics()
       for (const request of this.pending.values()) {
         request.reject(new Error('Bridge disconnected'))
       }
@@ -135,6 +153,8 @@ export class RpcClient {
 
       const notification = parsed as RpcNotification
       if (!this.tryEnqueueInboundNotification(notification)) {
+        this.droppedInboundNotifications += 1
+        this.emitQueueMetrics()
         handlers.onError(
           new RpcQueueOverloadedError({
             queue: 'inbound_notification',
@@ -179,6 +199,8 @@ export class RpcClient {
     }
     const payload = JSON.stringify(request)
     if (!this.tryEnqueueOutbound({ kind: 'request', requestId: id, payload })) {
+      this.overloadedRequests += 1
+      this.emitQueueMetrics()
       throw new RpcQueueOverloadedError({
         queue: 'outbound',
         messageKind: 'request',
@@ -203,6 +225,8 @@ export class RpcClient {
     }
     const payload = JSON.stringify(notification)
     if (!this.tryEnqueueOutbound({ kind: 'notification', method, payload })) {
+      this.droppedOutboundNotifications += 1
+      this.emitQueueMetrics()
       this.handlers?.onError(
         new RpcQueueOverloadedError({
           queue: 'outbound',
@@ -218,6 +242,7 @@ export class RpcClient {
   private tryEnqueueOutbound(item: OutboundQueueItem): boolean {
     if (this.outboundQueue.length >= this.outboundQueueCapacity) return false
     this.outboundQueue.push(item)
+    this.emitQueueMetrics()
     return true
   }
 
@@ -258,6 +283,7 @@ export class RpcClient {
       const currentSocket = this.socket
       if (!currentSocket || currentSocket.readyState !== WebSocket.OPEN) return
       const item = this.outboundQueue.shift()!
+      this.emitQueueMetrics()
       try {
         currentSocket.send(item.payload)
       } catch (error) {
@@ -276,6 +302,7 @@ export class RpcClient {
   private tryEnqueueInboundNotification(notification: RpcNotification): boolean {
     if (this.inboundNotificationQueue.length >= this.inboundNotificationQueueCapacity) return false
     this.inboundNotificationQueue.push(notification)
+    this.emitQueueMetrics()
     return true
   }
 
@@ -286,7 +313,38 @@ export class RpcClient {
 
     while (this.inboundNotificationQueue.length > 0) {
       const notification = this.inboundNotificationQueue.shift()!
+      this.emitQueueMetrics()
       handlers.onNotification(notification)
     }
+  }
+
+  getQueueMetrics(): RpcClientQueueMetrics {
+    return {
+      outboundQueueDepth: this.outboundQueue.length,
+      outboundQueueCapacity: this.outboundQueueCapacity,
+      inboundNotificationQueueDepth: this.inboundNotificationQueue.length,
+      inboundNotificationQueueCapacity: this.inboundNotificationQueueCapacity,
+      droppedOutboundNotifications: this.droppedOutboundNotifications,
+      droppedInboundNotifications: this.droppedInboundNotifications,
+      overloadedRequests: this.overloadedRequests,
+    }
+  }
+
+  private emitQueueMetrics(): void {
+    const handlers = this.handlers
+    if (!handlers?.onQueueMetrics) return
+    const metrics = this.getQueueMetrics()
+    const signature = [
+      metrics.outboundQueueDepth,
+      metrics.outboundQueueCapacity,
+      metrics.inboundNotificationQueueDepth,
+      metrics.inboundNotificationQueueCapacity,
+      metrics.droppedOutboundNotifications,
+      metrics.droppedInboundNotifications,
+      metrics.overloadedRequests,
+    ].join(':')
+    if (signature === this.lastMetricsSignature) return
+    this.lastMetricsSignature = signature
+    handlers.onQueueMetrics(metrics)
   }
 }

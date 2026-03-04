@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
+import type { RpcClientQueueMetrics } from '../rpcClient'
 import { shouldAcceptSequencedNotification } from '../turnEventCursor'
 import { type DiffSnapshot } from '../components/WorktreeDiffPane'
 import {
@@ -148,6 +149,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   // 其他 Refs（不在分组中）
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
+  const rpcQueueMetricsRef = useRef<RpcClientQueueMetrics | null>(null)
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const transcriptVirtualizationEnabled = useMemo(
@@ -199,6 +201,38 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
   }, [])
+  const onRpcQueueMetrics = useCallback(
+    (metrics: RpcClientQueueMetrics) => {
+      const previous = rpcQueueMetricsRef.current
+      rpcQueueMetricsRef.current = metrics
+      if (!previous) return
+
+      const overloadedDelta = metrics.overloadedRequests - previous.overloadedRequests
+      if (overloadedDelta > 0) {
+        log(
+          `[rpc] outbound request queue overloaded (+${overloadedDelta}, depth ${metrics.outboundQueueDepth}/${metrics.outboundQueueCapacity})`,
+          'warn',
+        )
+      }
+
+      const droppedOutboundDelta = metrics.droppedOutboundNotifications - previous.droppedOutboundNotifications
+      if (droppedOutboundDelta > 0) {
+        log(
+          `[rpc] dropped outbound notifications (+${droppedOutboundDelta}, depth ${metrics.outboundQueueDepth}/${metrics.outboundQueueCapacity})`,
+          'warn',
+        )
+      }
+
+      const droppedInboundDelta = metrics.droppedInboundNotifications - previous.droppedInboundNotifications
+      if (droppedInboundDelta > 0) {
+        log(
+          `[rpc] dropped inbound notifications (+${droppedInboundDelta}, depth ${metrics.inboundNotificationQueueDepth}/${metrics.inboundNotificationQueueCapacity})`,
+          'warn',
+        )
+      }
+    },
+    [log],
+  )
   const { lastRpcError, captureError, request } = useRpcRequest({ clientRef, log })
   const { cacheThreadMode } = useThreadModeCache({
     runtimeStateByThreadRef,
@@ -607,6 +641,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadIdRef,
     handleNotification,
     captureError,
+    onQueueMetrics: onRpcQueueMetrics,
     clientRef,
     eventCursorRef,
   })
