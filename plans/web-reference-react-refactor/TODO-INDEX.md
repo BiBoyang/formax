@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice J：`TranscriptPane` 渲染视图计算改为单次过滤路径（`TranscriptPane.tsx` + 对应 test）
+- [ ] Slice K：`TranscriptPane` render-limit 重置路径增加 no-op guard（`TranscriptPane.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 

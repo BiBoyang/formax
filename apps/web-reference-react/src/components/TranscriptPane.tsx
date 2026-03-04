@@ -574,36 +574,32 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     (isSending || Boolean(activeTurnId))
 
   const transcriptRenderView = useMemo<TranscriptRenderView>(() => {
-    let visibleLogCount = 0
+    const visibleItems: TranscriptItem[] = []
     for (const item of logs) {
       if (shouldRenderTranscriptItem(item)) {
-        visibleLogCount += 1
+        visibleItems.push(item)
       }
     }
 
+    const visibleLogCount = visibleItems.length
     const hiddenInMemoryCount = Math.max(0, visibleLogCount - renderLimit)
     const renderStart = Math.max(0, visibleLogCount - renderLimit)
     const renderedRows: TranscriptRow[] = []
 
-    let visibleIndex = 0
-    let renderedIndex = 0
     let lastKnownTurnId: string | undefined
 
-    for (const item of logs) {
-      if (!shouldRenderTranscriptItem(item)) continue
-      if (visibleIndex >= renderStart) {
-        const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
-        if (item.turnId) {
-          lastKnownTurnId = item.turnId
-        }
-        renderedRows.push({
-          item,
-          turnGroupStart,
-          showTurnGap: turnGroupStart && renderedIndex > 0,
-        })
-        renderedIndex += 1
+    for (let visibleIndex = renderStart; visibleIndex < visibleItems.length; visibleIndex += 1) {
+      const item = visibleItems[visibleIndex]
+      if (!item) continue
+      const turnGroupStart = Boolean(item.turnId) && item.turnId !== lastKnownTurnId
+      if (item.turnId) {
+        lastKnownTurnId = item.turnId
       }
-      visibleIndex += 1
+      renderedRows.push({
+        item,
+        turnGroupStart,
+        showTurnGap: turnGroupStart && renderedRows.length > 0,
+      })
     }
 
     return {
