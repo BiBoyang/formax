@@ -75,6 +75,15 @@ function isDevRuntime(): boolean {
   return import.meta.env.DEV
 }
 
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const devRuntime = useMemo(() => isDevRuntime(), [])
@@ -97,6 +106,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
   const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
+  const setHiddenGroupCwdsStable = useCallback((next: string[]) => {
+    setHiddenGroupCwds((previous) => (areStringArraysEqual(previous, next) ? previous : next))
+  }, [])
   const [threadCache, setThreadCache] = useState<ThreadCacheState>(INITIAL_THREAD_CACHE_STATE)
   const logsByThreadId = threadCache.logsByThreadId
   const historyCursorByThreadId = threadCache.historyCursorByThreadId
@@ -305,7 +317,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
         setLogsByThreadId,
-        setHiddenGroupCwds,
+        setHiddenGroupCwds: setHiddenGroupCwdsStable,
         resolveDiffCwd: () => {
           if (selectedCwdRef.current) return selectedCwdRef.current
           const activeThreadId = activeThreadIdRef.current
@@ -313,7 +325,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
           return threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
         },
       }),
-    [log, request],
+    [log, request, setHiddenGroupCwdsStable],
   )
 
   const hideThreadGroup = useCallback(
@@ -321,9 +333,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       const nextCwd = cwd.trim()
       if (!nextCwd) return
       const result = await request('thread/group/hide', { cwd: nextCwd })
-      setHiddenGroupCwds(parseThreadGroupHideResponse(result))
+      setHiddenGroupCwdsStable(parseThreadGroupHideResponse(result))
     },
-    [request],
+    [request, setHiddenGroupCwdsStable],
   )
 
   const handleThreadArchivedNotification = useMemo(

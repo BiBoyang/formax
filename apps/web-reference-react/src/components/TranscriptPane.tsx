@@ -21,6 +21,7 @@ const VIRTUALIZED_TURN_INIT_RENDER_LIMIT = 20
 const VIRTUALIZED_TURN_BATCH_RENDER_SIZE = 16
 const VIRTUALIZED_HISTORY_BATCH_RENDER_SIZE = 40
 const VIRTUALIZED_RENDER_WINDOW_CAP = 120
+const NEAR_BOTTOM_THRESHOLD_PX = 32
 
 type OpenIdsAction =
   | { type: 'toggle'; id: string }
@@ -29,6 +30,10 @@ type OpenIdsAction =
 function shouldRenderTranscriptItem(item: TranscriptItem): boolean {
   if (item.kind !== 'thinking') return true
   return item.status === 'running'
+}
+
+function isViewportNearBottom(viewport: HTMLElement): boolean {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= NEAR_BOTTOM_THRESHOLD_PX
 }
 
 function openIdsReducer(state: Set<string>, action: OpenIdsAction): Set<string> {
@@ -610,32 +615,29 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   }, [logs, renderLimit])
   const showJumpToBottom = transcriptRenderView.visibleLogCount > 0 && !isNearBottom
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      bottomRef.current?.scrollIntoView({ behavior, block: 'end' })
-      setAutoStick(true)
-      autoStickRef.current = true
-      autoStickStateRef.current = true
-      setIsNearBottom(true)
-      return
-    }
-    viewport.style.overflowAnchor = 'auto'
-    if (typeof viewport.scrollTo === 'function') {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior })
-    } else {
-      viewport.scrollTop = viewport.scrollHeight
-    }
-    setAutoStick(true)
-    autoStickRef.current = true
-    autoStickStateRef.current = true
-    setIsNearBottom(true)
-  }, [])
-
   useEffect(() => {
     autoStickRef.current = autoStick
     autoStickStateRef.current = autoStick
   }, [autoStick])
+
+  const setAutoStickState = useCallback((next: boolean) => {
+    autoStickRef.current = next
+    if (autoStickStateRef.current === next) return
+    autoStickStateRef.current = next
+    setAutoStick(next)
+  }, [])
+
+  const setNearBottomState = useCallback((next: boolean) => {
+    setIsNearBottom((previous) => (previous === next ? previous : next))
+  }, [])
+
+  const syncViewportScrollState = useCallback((viewport: HTMLElement, nearBottom: boolean, syncNearBottom = true) => {
+    viewport.style.overflowAnchor = nearBottom ? 'auto' : 'none'
+    if (syncNearBottom) {
+      setNearBottomState(nearBottom)
+    }
+    setAutoStickState(nearBottom)
+  }, [setAutoStickState, setNearBottomState])
 
   useEffect(() => {
     return () => {
@@ -650,6 +652,24 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     }
   }, [])
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' })
+      setAutoStickState(true)
+      setNearBottomState(true)
+      return
+    }
+    viewport.style.overflowAnchor = 'auto'
+    if (typeof viewport.scrollTo === 'function') {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+    } else {
+      viewport.scrollTop = viewport.scrollHeight
+    }
+    setAutoStickState(true)
+    setNearBottomState(true)
+  }, [setAutoStickState, setNearBottomState])
+
   const flushScrollFrame = useCallback(() => {
     if (scrollRafHandleRef.current != null) {
       window.cancelAnimationFrame(scrollRafHandleRef.current)
@@ -661,47 +681,15 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     }
     const nextViewport = viewportRef.current
     if (!nextViewport) return
-    const bottomDistance = nextViewport.scrollHeight - nextViewport.scrollTop - nextViewport.clientHeight
-    const nearBottom = bottomDistance <= 32
-    setIsNearBottom((previous) => (previous === nearBottom ? previous : nearBottom))
-
-    if (nearBottom) {
-      nextViewport.style.overflowAnchor = 'auto'
-      if (!autoStickStateRef.current) {
-        autoStickRef.current = true
-        autoStickStateRef.current = true
-        setAutoStick(true)
-      }
-      return
-    }
-
-    nextViewport.style.overflowAnchor = 'none'
-    if (autoStickStateRef.current) {
-      autoStickRef.current = false
-      autoStickStateRef.current = false
-      setAutoStick(false)
-    }
-  }, [])
+    const nearBottom = isViewportNearBottom(nextViewport)
+    syncViewportScrollState(nextViewport, nearBottom)
+  }, [syncViewportScrollState])
 
   const handleViewportScroll = useCallback(() => {
     const viewport = viewportRef.current
     if (!viewport) return
-    const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
-    const nearBottom = bottomDistance <= 32
-    viewport.style.overflowAnchor = nearBottom ? 'auto' : 'none'
-    if (nearBottom) {
-      autoStickRef.current = true
-      if (!autoStickStateRef.current) {
-        autoStickStateRef.current = true
-        setAutoStick(true)
-      }
-    } else {
-      autoStickRef.current = false
-      if (autoStickStateRef.current) {
-        autoStickStateRef.current = false
-        setAutoStick(false)
-      }
-    }
+    const nearBottom = isViewportNearBottom(viewport)
+    syncViewportScrollState(viewport, nearBottom, false)
     if (scrollRafHandleRef.current != null || scrollFallbackHandleRef.current != null) return
     scrollRafHandleRef.current = window.requestAnimationFrame(() => {
       flushScrollFrame()
@@ -710,7 +698,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     scrollFallbackHandleRef.current = window.setTimeout(() => {
       flushScrollFrame()
     }, 48)
-  }, [flushScrollFrame])
+  }, [flushScrollFrame, syncViewportScrollState])
 
   const handleBoundaryWheel = useCallback((event: WheelEvent) => {
     const viewport = viewportRef.current
@@ -750,27 +738,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     const viewport = root.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')
     if (!viewport) return
     viewportRef.current = viewport
-    viewport.style.overflowAnchor = autoStickRef.current ? 'auto' : 'none'
+    viewport.style.overflowAnchor = autoStickStateRef.current ? 'auto' : 'none'
     viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
     viewport.addEventListener('wheel', handleBoundaryWheel, { passive: true })
-    const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
-    const nearBottom = bottomDistance <= 32
-    setIsNearBottom((previous) => (previous === nearBottom ? previous : nearBottom))
-    if (nearBottom) {
-      if (!autoStickStateRef.current) {
-        autoStickRef.current = true
-        autoStickStateRef.current = true
-        setAutoStick(true)
-      }
-      viewport.style.overflowAnchor = 'auto'
-    } else {
-      if (autoStickStateRef.current) {
-        autoStickRef.current = false
-        autoStickStateRef.current = false
-        setAutoStick(false)
-      }
-      viewport.style.overflowAnchor = 'none'
-    }
+    syncViewportScrollState(viewport, isViewportNearBottom(viewport))
     return () => {
       if (scrollRafHandleRef.current != null) {
         window.cancelAnimationFrame(scrollRafHandleRef.current)
@@ -786,14 +757,12 @@ export function TranscriptPane(props: TranscriptPaneProps) {
         viewportRef.current = null
       }
     }
-  }, [activeThreadId, handleBoundaryWheel, handleViewportScroll])
+  }, [activeThreadId, handleBoundaryWheel, handleViewportScroll, syncViewportScrollState])
 
   const handleSend = useCallback((event: FormEvent) => {
-    autoStickRef.current = true
-    autoStickStateRef.current = true
-    setAutoStick(true)
+    setAutoStickState(true)
     onSend(event)
-  }, [onSend])
+  }, [onSend, setAutoStickState])
 
   const toggleToolOpen = useCallback((id: string) => {
     dispatchOpenToolIds({ type: 'toggle', id })
@@ -826,9 +795,13 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     increaseRenderLimit,
   ])
 
+  const resetRenderLimit = useCallback(() => {
+    setRenderLimit((previous) => (previous === turnInitRenderLimit ? previous : turnInitRenderLimit))
+  }, [turnInitRenderLimit])
+
   useEffect(() => {
-    setRenderLimit(turnInitRenderLimit)
-  }, [activeThreadId, turnInitRenderLimit])
+    resetRenderLimit()
+  }, [activeThreadId, resetRenderLimit])
 
   const handleLoadEarlier = useCallback(() => {
     increaseRenderLimit(historyBatchRenderSize, true, transcriptRenderView.visibleLogCount)
@@ -856,10 +829,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
 
   useEffect(() => {
     if (activeTurnId && activeTurnId !== previousActiveTurnIdRef.current) {
-      setRenderLimit(turnInitRenderLimit)
+      resetRenderLimit()
     }
     previousActiveTurnIdRef.current = activeTurnId
-  }, [activeTurnId, turnInitRenderLimit])
+  }, [activeTurnId, resetRenderLimit])
 
   useEffect(() => {
     if (!activeTurnId) return

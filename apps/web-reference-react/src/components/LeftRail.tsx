@@ -353,7 +353,10 @@ export function LeftRail(props: LeftRailProps) {
   } = props
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
-  const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
+  const activeThread = useMemo(
+    () => (activeThreadId ? threads.find((thread) => thread.id === activeThreadId) ?? null : null),
+    [threads, activeThreadId],
+  )
   const activeThreadCwd = activeThread?.cwd ?? null
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>(() => readOpenByCwdFromStorage())
   const persistedOpenByCwdRef = useRef(JSON.stringify(openByCwd))
@@ -391,13 +394,14 @@ export function LeftRail(props: LeftRailProps) {
 
   const closeRenameDialog = useCallback(() => {
     if (isRenaming) return
-    setRenameThreadTarget(null)
-    setRenameValue('')
+    setRenameThreadTarget((previous) => (previous === null ? previous : null))
+    setRenameValue((previous) => (previous === '' ? previous : ''))
   }, [isRenaming])
 
   const openRenameDialog = useCallback((thread: ThreadViewModel) => {
-    setRenameThreadTarget(thread)
-    setRenameValue(thread.label?.trim() || thread.title)
+    const nextRenameValue = thread.label?.trim() || thread.title
+    setRenameThreadTarget((previous) => (previous?.id === thread.id ? previous : thread))
+    setRenameValue((previous) => (previous === nextRenameValue ? previous : nextRenameValue))
   }, [])
 
   const handleRenameFromContextMenu = useCallback((thread: ThreadViewModel) => {
@@ -453,8 +457,8 @@ export function LeftRail(props: LeftRailProps) {
     setIsRenaming(true)
     try {
       await onRenameThread(renameThreadTarget.id, nextLabel)
-      setRenameThreadTarget(null)
-      setRenameValue('')
+      setRenameThreadTarget((previous) => (previous === null ? previous : null))
+      setRenameValue((previous) => (previous === '' ? previous : ''))
     } catch {
       // Keep dialog open so users can retry after transient RPC failures.
     } finally {

@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice K：`TranscriptPane` render-limit 重置路径增加 no-op guard（`TranscriptPane.tsx` + 对应 test）
+- [ ] Slice L：`useAppRuntime` 通知/动作回调分区稳定化（`useAppRuntime.ts` + `App.test.tsx`）
 
 ## 再生规则（当“当前待办”为空时）
 
