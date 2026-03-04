@@ -2,11 +2,11 @@
 
 目标：在不改变现有语义和交互的前提下，完成一轮“不过度”的前端稳态优化，优先降低渲染开销与维护负担。
 
-最后更新时间：2026-03-04
+最后更新时间：2026-03-05
 
 ## 执行状态（Active）
 
-- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F 已完成，继续 Slice G）
+- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G 已完成，已再生 Slice H/I）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,8 @@
 
 ## 当前任务清单（唯一来源）
 
-- Slice G：`LeftRail` 行级渲染拆分（Folder/Thread row memo 化验证）
+- Slice H：`useThreadSelection` 派生结果结构复用（降低 sidebar 线程列表 props 变化频率）
+- Slice I：`TranscriptPane` 错误详情字符串缓存进一步收敛（避免重复 JSON stringify）
 
 ## 执行循环（固定）
 

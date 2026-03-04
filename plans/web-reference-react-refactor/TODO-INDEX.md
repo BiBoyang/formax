@@ -1,6 +1,6 @@
 # TODO-INDEX：web-reference-react-refactor（Rolling）
 
-更新时间：2026-03-04
+更新时间：2026-03-05
 任务来源（唯一）：
 - `plans/web-reference-react-refactor/README.md`
 
@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- [ ] Slice G：`LeftRail` 行级渲染拆分（`LeftRail.tsx` + 对应 test）
+- [ ] Slice H：`useThreadSelection` 派生结果结构复用（`useThreadSelection.ts` + 对应 test）
+- [ ] Slice I：`TranscriptPane` 错误详情字符串缓存进一步收敛（`TranscriptPane.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 

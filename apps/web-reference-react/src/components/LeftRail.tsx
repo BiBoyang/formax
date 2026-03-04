@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import { ChevronDown, Folder, FolderOpen, MoreHorizontal, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
@@ -136,6 +136,205 @@ async function copyToClipboard(text: string): Promise<void> {
   await navigator.clipboard.writeText(text)
 }
 
+type SuppressInteractionEvent = {
+  preventDefault: () => void
+  stopPropagation: () => void
+}
+
+type FolderHeaderRowProps = ComponentPropsWithoutRef<'div'> & {
+  cwd: string
+  folderName: string
+  isSelectedGroup: boolean
+  isExpanded: boolean
+  canRemoveGroup: boolean
+  isBusy: boolean
+  onSelectCwd: (cwd: string) => void
+  onMarkFolderRemoved: (cwd: string) => void
+  onStartThreadInFolder: (cwd: string) => void
+  suppressFolderAction: (event: SuppressInteractionEvent) => void
+}
+
+const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(function FolderHeaderRow(props, ref) {
+  const {
+    cwd,
+    folderName,
+    isSelectedGroup,
+    isExpanded,
+    canRemoveGroup,
+    isBusy,
+    onSelectCwd,
+    onMarkFolderRemoved,
+    onStartThreadInFolder,
+    suppressFolderAction,
+    className,
+    ...rest
+  } = props
+
+  return (
+    <div
+      ref={ref}
+      {...rest}
+      className={cn(
+        'group/folder flex h-9 items-center rounded-md transition-colors',
+        isSelectedGroup ? 'ui-surface-subtle ui-text-secondary' : 'ui-text-muted hover:bg-muted/30',
+        className,
+      )}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-9 min-w-0 flex-1 justify-start px-3 ui-text-base font-normal transition-none hover:bg-transparent"
+        onClick={() => onSelectCwd(cwd)}
+        title={cwd}
+      >
+        <span className="relative mr-2 h-3.5 w-3.5">
+          <ChevronDown className="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover/folder:opacity-70" />
+          {isExpanded ? (
+            <FolderOpen className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
+          ) : (
+            <Folder className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
+          )}
+        </span>
+        <span className="truncate flex-1 text-left">{folderName}</span>
+      </Button>
+      <div className="pointer-events-none mr-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/folder:opacity-100 group-focus-within/folder:opacity-100">
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={`Folder actions for ${folderName}`}
+              className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
+              onClick={suppressFolderAction}
+              onContextMenu={(event) => {
+                event.stopPropagation()
+              }}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </Button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem disabled>Create permanent worktree</ContextMenuItem>
+            <ContextMenuItem disabled>Edit name</ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              disabled={!canRemoveGroup}
+              onSelect={(event) => {
+                event.preventDefault()
+                onMarkFolderRemoved(cwd)
+              }}
+            >
+              Remove session folder
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={`Start new thread in ${folderName}`}
+          title={`Start new thread in ${folderName}`}
+          disabled={isBusy}
+          className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
+          onClick={(event) => {
+            suppressFolderAction(event)
+            onStartThreadInFolder(cwd)
+          }}
+        >
+          <SquarePen className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+})
+
+const MemoFolderHeaderRow = memo(FolderHeaderRow)
+
+type ThreadRowProps = {
+  thread: ThreadViewModel
+  isActive: boolean
+  isBusy: boolean
+  nowMsSnapshot: number
+  canRenameThread: boolean
+  canArchiveThread: boolean
+  onSelectThread: (threadId: string) => void
+  onRenameFromContextMenu: (thread: ThreadViewModel) => void
+  onArchiveFromContextMenu: (thread: ThreadViewModel) => void
+  onCopyContextCwd: (thread: ThreadViewModel) => void
+  onCopyContextThreadId: (thread: ThreadViewModel) => void
+}
+
+const MemoThreadRow = memo(function ThreadRow(props: ThreadRowProps) {
+  const {
+    thread,
+    isActive,
+    isBusy,
+    nowMsSnapshot,
+    canRenameThread,
+    canArchiveThread,
+    onSelectThread,
+    onRenameFromContextMenu,
+    onArchiveFromContextMenu,
+    onCopyContextCwd,
+    onCopyContextThreadId,
+  } = props
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className={cn(
+            'relative w-full h-9 flex items-center rounded-md transition-colors group/thread',
+            isActive
+              ? 'ui-surface-selected text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
+              : 'ui-text-secondary hover:bg-[var(--surface-subtle)]',
+          )}
+        >
+          <Button
+            variant="ghost"
+            className={cn(
+              'h-9 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent',
+              isActive ? 'ui-text-primary' : 'ui-text-secondary',
+            )}
+            onClick={() => onSelectThread(thread.id)}
+          >
+            <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
+            <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
+              {relativeTime(thread.updatedAt, nowMsSnapshot)}
+            </span>
+          </Button>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          disabled={!canRenameThread}
+          onSelect={() => onRenameFromContextMenu(thread)}
+        >
+          Rename thread
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={!canArchiveThread || isBusy}
+          onSelect={() => onArchiveFromContextMenu(thread)}
+        >
+          Archive thread
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() => onCopyContextCwd(thread)}
+        >
+          Copy working directory
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => onCopyContextThreadId(thread)}
+        >
+          Copy session ID
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+})
+
 export function LeftRail(props: LeftRailProps) {
   const {
     threads,
@@ -161,7 +360,10 @@ export function LeftRail(props: LeftRailProps) {
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
-  const nowMs = Date.now()
+  const nowMinuteBucket = Math.floor(Date.now() / 60_000)
+  const nowMsSnapshot = useMemo(() => Date.now(), [nowMinuteBucket])
+  const canRenameThread = Boolean(onRenameThread)
+  const canArchiveThread = Boolean(onArchiveThread)
   const visibleGroupedThreads = useMemo(
     () => groupedThreads.filter((group) => !hiddenGroupCwdSet.has(group.cwd)),
     [groupedThreads, hiddenGroupCwdSet],
@@ -187,45 +389,45 @@ export function LeftRail(props: LeftRailProps) {
     writeOpenByCwdToStorage(openByCwd)
   }, [openByCwd])
 
-  const closeRenameDialog = () => {
+  const closeRenameDialog = useCallback(() => {
     if (isRenaming) return
     setRenameThreadTarget(null)
     setRenameValue('')
-  }
+  }, [isRenaming])
 
-  const openRenameDialog = (thread: ThreadViewModel) => {
+  const openRenameDialog = useCallback((thread: ThreadViewModel) => {
     setRenameThreadTarget(thread)
     setRenameValue(thread.label?.trim() || thread.title)
-  }
+  }, [])
 
-  const handleRenameFromContextMenu = (thread: ThreadViewModel) => {
+  const handleRenameFromContextMenu = useCallback((thread: ThreadViewModel) => {
     if (!onRenameThread) return
     openRenameDialog(thread)
-  }
+  }, [onRenameThread, openRenameDialog])
 
-  const handleCopyContextCwd = (thread: ThreadViewModel) => {
+  const handleCopyContextCwd = useCallback((thread: ThreadViewModel) => {
     void copyToClipboard(thread.cwd).catch(() => undefined)
-  }
+  }, [])
 
-  const handleCopyContextThreadId = (thread: ThreadViewModel) => {
+  const handleCopyContextThreadId = useCallback((thread: ThreadViewModel) => {
     void copyToClipboard(thread.id).catch(() => undefined)
-  }
+  }, [])
 
-  const handleArchiveFromContextMenu = (thread: ThreadViewModel) => {
+  const handleArchiveFromContextMenu = useCallback((thread: ThreadViewModel) => {
     if (!onArchiveThread) return
     void onArchiveThread(thread.id)
-  }
+  }, [onArchiveThread])
 
-  const suppressFolderAction = (event: { preventDefault: () => void; stopPropagation: () => void }) => {
+  const suppressFolderAction = useCallback((event: SuppressInteractionEvent) => {
     event.preventDefault()
     event.stopPropagation()
-  }
+  }, [])
 
-  const handleStartThreadInFolder = (cwd: string) => {
+  const handleStartThreadInFolder = useCallback((cwd: string) => {
     onStartThreadInCwd(cwd)
-  }
+  }, [onStartThreadInCwd])
 
-  const markFolderRemoved = (cwd: string) => {
+  const markFolderRemoved = useCallback((cwd: string) => {
     if (hiddenGroupCwdSet.has(cwd)) return
     const isCurrentGroup = selectedCwd === cwd || (!selectedCwd && activeThreadCwd === cwd)
     const fallback = groupedThreads.find((group) => group.cwd !== cwd && !hiddenGroupCwdSet.has(group.cwd))?.cwd
@@ -235,9 +437,16 @@ export function LeftRail(props: LeftRailProps) {
       onSelectCwd(fallback)
     }
     onHideThreadGroup(cwd)
-  }
+  }, [activeThreadCwd, groupedThreads, hiddenGroupCwdSet, onHideThreadGroup, onSelectCwd, selectedCwd])
 
-  const submitRename = async () => {
+  const handleFolderOpenChange = useCallback((cwd: string, open: boolean) => {
+    setOpenByCwd((previous) => {
+      if (previous[cwd] === open) return previous
+      return { ...previous, [cwd]: open }
+    })
+  }, [])
+
+  const submitRename = useCallback(async () => {
     if (!renameThreadTarget || !onRenameThread) return
     const nextLabel = renameValue.trim()
     if (!nextLabel) return
@@ -251,7 +460,7 @@ export function LeftRail(props: LeftRailProps) {
     } finally {
       setIsRenaming(false)
     }
-  }
+  }, [onRenameThread, renameThreadTarget, renameValue])
 
   return (
     <aside className="flex flex-col h-screen flex-none w-full bg-sidebar overflow-hidden">
@@ -278,145 +487,46 @@ export function LeftRail(props: LeftRailProps) {
               {visibleGroupedThreads.map((group) => {
                 const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
-                const folderName = group.folderName
                 const canRemoveGroup = !isSelectedGroup || visibleGroupedThreads.length > 1
                 return (
                   <Collapsible
                     key={group.cwd}
                     open={isExpanded}
-                    onOpenChange={(open) => setOpenByCwd((previous) => ({ ...previous, [group.cwd]: open }))}
+                    onOpenChange={(open) => handleFolderOpenChange(group.cwd, open)}
                     className="space-y-0.5"
                   >
                     <CollapsibleTrigger asChild>
-                      <div
-                        className={cn(
-                          'group/folder flex h-9 items-center rounded-md transition-colors',
-                          isSelectedGroup ? 'ui-surface-subtle ui-text-secondary' : 'ui-text-muted hover:bg-muted/30',
-                        )}
-                      >
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-9 min-w-0 flex-1 justify-start px-3 ui-text-base font-normal transition-none hover:bg-transparent"
-                          onClick={() => onSelectCwd(group.cwd)}
-                          title={group.cwd}
-                        >
-                          <span className="relative mr-2 h-3.5 w-3.5">
-                            <ChevronDown className="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover/folder:opacity-70" />
-                            {isExpanded ? (
-                              <FolderOpen className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
-                            ) : (
-                              <Folder className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
-                            )}
-                          </span>
-                          <span className="truncate flex-1 text-left">{folderName}</span>
-                        </Button>
-                        <div className="pointer-events-none mr-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/folder:opacity-100 group-focus-within/folder:opacity-100">
-                          <ContextMenu>
-                            <ContextMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                aria-label={`Folder actions for ${folderName}`}
-                                className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
-                                onClick={suppressFolderAction}
-                                onContextMenu={(event) => {
-                                  event.stopPropagation()
-                                }}
-                              >
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </Button>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                              <ContextMenuItem disabled>Create permanent worktree</ContextMenuItem>
-                              <ContextMenuItem disabled>Edit name</ContextMenuItem>
-                              <ContextMenuSeparator />
-                              <ContextMenuItem
-                                disabled={!canRemoveGroup}
-                                onSelect={(event) => {
-                                  event.preventDefault()
-                                  markFolderRemoved(group.cwd)
-                                }}
-                              >
-                                Remove session folder
-                              </ContextMenuItem>
-                            </ContextMenuContent>
-                          </ContextMenu>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`Start new thread in ${folderName}`}
-                            title={`Start new thread in ${folderName}`}
-                            disabled={isBusy}
-                            className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
-                            onClick={(event) => {
-                              suppressFolderAction(event)
-                              handleStartThreadInFolder(group.cwd)
-                            }}
-                          >
-                            <SquarePen className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
+                      <MemoFolderHeaderRow
+                        cwd={group.cwd}
+                        folderName={group.folderName}
+                        isSelectedGroup={isSelectedGroup}
+                        isExpanded={isExpanded}
+                        canRemoveGroup={canRemoveGroup}
+                        isBusy={isBusy}
+                        onSelectCwd={onSelectCwd}
+                        onMarkFolderRemoved={markFolderRemoved}
+                        onStartThreadInFolder={handleStartThreadInFolder}
+                        suppressFolderAction={suppressFolderAction}
+                      />
                     </CollapsibleTrigger>
 
                     <CollapsibleContent>
                       {group.threads.map((thread) => {
-                        const isActive = activeThreadId === thread.id
                         return (
-                          <ContextMenu key={thread.id}>
-                            <ContextMenuTrigger asChild>
-                              <div
-                                className={cn(
-                                  'relative w-full h-9 flex items-center rounded-md transition-colors group/thread',
-                                  isActive
-                                    ? 'ui-surface-selected text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-                                    : 'ui-text-secondary hover:bg-[var(--surface-subtle)]',
-                                )}
-                              >
-                              <Button
-                                variant="ghost"
-                                className={cn(
-                                  'h-9 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent',
-                                  isActive ? 'ui-text-primary' : 'ui-text-secondary',
-                                )}
-                                onClick={() => onSelectThread(thread.id)}
-                              >
-                                <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
-                                <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
-                                  {relativeTime(thread.updatedAt, nowMs)}
-                                </span>
-                              </Button>
-                              </div>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                                <ContextMenuItem
-                                  disabled={!onRenameThread}
-                                  onSelect={() => handleRenameFromContextMenu(thread)}
-                                >
-                                  Rename thread
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  disabled={!onArchiveThread || isBusy}
-                                  onSelect={() => handleArchiveFromContextMenu(thread)}
-                                >
-                                  Archive thread
-                                </ContextMenuItem>
-                                <ContextMenuSeparator />
-                                <ContextMenuItem
-                                  onSelect={() => handleCopyContextCwd(thread)}
-                                >
-                                  Copy working directory
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  onSelect={() => handleCopyContextThreadId(thread)}
-                                >
-                                  Copy session ID
-                                </ContextMenuItem>
-                              </ContextMenuContent>
-                          </ContextMenu>
+                          <MemoThreadRow
+                            key={thread.id}
+                            thread={thread}
+                            isActive={activeThreadId === thread.id}
+                            isBusy={isBusy}
+                            nowMsSnapshot={nowMsSnapshot}
+                            canRenameThread={canRenameThread}
+                            canArchiveThread={canArchiveThread}
+                            onSelectThread={onSelectThread}
+                            onRenameFromContextMenu={handleRenameFromContextMenu}
+                            onArchiveFromContextMenu={handleArchiveFromContextMenu}
+                            onCopyContextCwd={handleCopyContextCwd}
+                            onCopyContextThreadId={handleCopyContextThreadId}
+                          />
                         )
                       })}
                     </CollapsibleContent>
