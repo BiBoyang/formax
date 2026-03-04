@@ -58,6 +58,33 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
 }
 
 describe('threadDataOps', () => {
+  it('skips history cursor/source writes when values are unchanged', () => {
+    const ctx = createBaseContext({
+      historyCursorByThreadIdRef: { current: { 'thread-1': 'cursor-same' } },
+      transcriptSourceByThreadRef: { current: { 'thread-1': 'history' } },
+    })
+    const ops = createThreadDataOps(ctx)
+
+    ops.setThreadTranscriptSource('thread-1', 'history')
+    expect(ctx.setTranscriptSourceByThreadId).not.toHaveBeenCalled()
+
+    ops.setThreadHistoryLoading('thread-1', false)
+    expect(ctx.setHistoryLoadingByThreadId).not.toHaveBeenCalled()
+  })
+
+  it('skips history clear writes when no history state exists for the thread', () => {
+    const ctx = createBaseContext({
+      historyLoadingRef: { current: {} },
+      historyCursorByThreadIdRef: { current: {} },
+    })
+    const ops = createThreadDataOps(ctx)
+
+    ops.clearThreadHistoryCursor('thread-missing')
+
+    expect(ctx.setHistoryLoadingByThreadId).not.toHaveBeenCalled()
+    expect(ctx.setHistoryCursorByThreadId).not.toHaveBeenCalled()
+  })
+
   it('refreshes workspace diff with loading state transitions', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {

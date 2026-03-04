@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] Slice B：thread cache/history cursor 写入去重（`threadDataOps.ts` + 对应 test）
 - [ ] Slice C：LeftRail 分组派生稳定化（`LeftRail.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）

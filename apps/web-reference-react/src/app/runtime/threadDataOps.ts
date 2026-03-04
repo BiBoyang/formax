@@ -149,6 +149,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   }
 
   const setThreadHistoryLoading = (threadId: string, loading: boolean) => {
+    const currentLoading = Boolean(ctx.historyLoadingRef.current[threadId])
+    if (currentLoading === loading) return
+
     ctx.historyLoadingRef.current = loading
       ? withRecordValue(ctx.historyLoadingRef.current, threadId, true)
       : withoutRecordKey(ctx.historyLoadingRef.current, threadId)
@@ -161,6 +164,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   }
 
   const setThreadHistoryCursor = (threadId: string, cursor: string | null) => {
+    if ((ctx.historyCursorByThreadIdRef.current[threadId] ?? null) === cursor) {
+      return
+    }
     ctx.historyCursorByThreadIdRef.current = withRecordValue(
       ctx.historyCursorByThreadIdRef.current,
       threadId,
@@ -170,6 +176,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   }
 
   const setThreadTranscriptSource = (threadId: string, source: ThreadTranscriptSource) => {
+    if (ctx.transcriptSourceByThreadRef.current[threadId] === source) {
+      return
+    }
     ctx.transcriptSourceByThreadRef.current = withRecordValue(ctx.transcriptSourceByThreadRef.current, threadId, source)
     ctx.setTranscriptSourceByThreadId((prev) => {
       return withRecordValue(prev, threadId, source)
@@ -177,16 +186,23 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   }
 
   const clearThreadHistoryCursor = (threadId: string) => {
-    ctx.historyLoadingRef.current = withoutRecordKey(ctx.historyLoadingRef.current, threadId)
-    ctx.historyCursorByThreadIdRef.current = withoutRecordKey(ctx.historyCursorByThreadIdRef.current, threadId)
+    const hadLoading = Object.prototype.hasOwnProperty.call(ctx.historyLoadingRef.current, threadId)
+    const hadCursor = Object.prototype.hasOwnProperty.call(ctx.historyCursorByThreadIdRef.current, threadId)
+    if (!hadLoading && !hadCursor) return
 
-    ctx.setHistoryLoadingByThreadId((prev) => {
-      return withoutRecordKey(prev, threadId)
-    })
+    if (hadLoading) {
+      ctx.historyLoadingRef.current = withoutRecordKey(ctx.historyLoadingRef.current, threadId)
+      ctx.setHistoryLoadingByThreadId((prev) => {
+        return withoutRecordKey(prev, threadId)
+      })
+    }
 
-    ctx.setHistoryCursorByThreadId((prev) => {
-      return withoutRecordKey(prev, threadId)
-    })
+    if (hadCursor) {
+      ctx.historyCursorByThreadIdRef.current = withoutRecordKey(ctx.historyCursorByThreadIdRef.current, threadId)
+      ctx.setHistoryCursorByThreadId((prev) => {
+        return withoutRecordKey(prev, threadId)
+      })
+    }
   }
 
   const beginThreadHistoryRequest = (threadId: string) => {
