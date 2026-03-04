@@ -5,6 +5,7 @@ import type { MarkdownShikiRuntime } from './markdownShikiRuntime'
 export type MarkdownCacheEntry = {
   hash: string
   baseHtml: string
+  sourceText?: string
   highlightedHtml?: string
   rawHtml?: string
   hasCodeBlocks?: boolean
@@ -282,12 +283,36 @@ export function touchMarkdownCache(key: string, value: MarkdownCacheEntry): void
   markdownCache.delete(first)
 }
 
+function isSourceTextCompatible(entry: MarkdownCacheEntry, text: string): boolean {
+  if (typeof entry.sourceText === 'string') {
+    return entry.sourceText === text
+  }
+  return true
+}
+
+function findCachedEntryByHash(hash: string, text: string): MarkdownCacheEntry | null {
+  for (const entry of markdownCache.values()) {
+    if (entry.hash === hash && typeof entry.sourceText === 'string' && entry.sourceText === text) {
+      return entry
+    }
+  }
+  return null
+}
+
+function hasReusableMarkdownPayload(
+  entry: MarkdownCacheEntry | null,
+): entry is MarkdownCacheEntry & { rawHtml: string; hasCodeBlocks: boolean } {
+  return Boolean(entry && typeof entry.rawHtml === 'string' && typeof entry.hasCodeBlocks === 'boolean')
+}
+
 export function prepareMarkdownRender(args: { text: string; cacheKey?: string }): PreparedMarkdownRender {
   const hash = checksum(args.text)
   const key = args.cacheKey ?? hash
-  const entry = markdownCache.get(key)
-  const cached = entry && entry.hash === hash ? entry : null
-  if (cached && typeof cached.rawHtml === 'string' && typeof cached.hasCodeBlocks === 'boolean') {
+  const keyEntry = markdownCache.get(key)
+  const keyCached =
+    keyEntry && keyEntry.hash === hash && isSourceTextCompatible(keyEntry, args.text) ? keyEntry : null
+  const cached = keyCached ?? findCachedEntryByHash(hash, args.text)
+  if (hasReusableMarkdownPayload(cached)) {
     return {
       key,
       hash,
@@ -298,9 +323,11 @@ export function prepareMarkdownRender(args: { text: string; cacheKey?: string })
       hasCodeBlocks: cached.hasCodeBlocks,
     }
   }
+
   const rawHtml = parseMarkdown(args.text)
   const safeBaseHtml = cached?.baseHtml ?? sanitizeMarkdownHtml(rawHtml)
-  const hasCodeBlocks = HAS_CODE_BLOCK_REGEX.test(rawHtml)
+  const hasCodeBlocks =
+    typeof cached?.hasCodeBlocks === 'boolean' ? cached.hasCodeBlocks : HAS_CODE_BLOCK_REGEX.test(rawHtml)
   return {
     key,
     hash,

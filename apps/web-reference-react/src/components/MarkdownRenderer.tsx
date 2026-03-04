@@ -15,11 +15,12 @@ type MarkdownRendererProps = Omit<HTMLAttributes<HTMLDivElement>, 'dangerouslySe
 
 export function MarkdownRenderer({ text, cacheKey, className, ...rest }: MarkdownRendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const copyTimeoutsRef = useRef(new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>())
   const prepared = useMemo(() => prepareMarkdownRender({ text, cacheKey }), [cacheKey, text])
   const [html, setHtml] = useState<string>(prepared.initialHtml)
 
   useEffect(() => {
-    setHtml(prepared.initialHtml)
+    setHtml((previous) => (previous === prepared.initialHtml ? previous : prepared.initialHtml))
   }, [prepared])
 
   useEffect(() => {
@@ -31,7 +32,13 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
         return
       }
     } else {
-      touchMarkdownCache(key, { hash, baseHtml: safeBaseHtml, rawHtml, hasCodeBlocks })
+      touchMarkdownCache(key, {
+        hash,
+        sourceText: text,
+        baseHtml: safeBaseHtml,
+        rawHtml,
+        hasCodeBlocks,
+      })
       if (!hasCodeBlocks) {
         return
       }
@@ -56,12 +63,13 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
         const safeHighlighted = sanitizeMarkdownHtml(highlighted)
         touchMarkdownCache(key, {
           hash,
+          sourceText: text,
           baseHtml: safeBaseHtml,
           highlightedHtml: safeHighlighted,
           rawHtml,
           hasCodeBlocks,
         })
-        setHtml(safeHighlighted)
+        setHtml((previous) => (previous === safeHighlighted ? previous : safeHighlighted))
       })()
     })
 
@@ -76,7 +84,6 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
     const root = rootRef.current
     if (!root) return
 
-    const timeouts = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>()
     const onClick = async (event: MouseEvent) => {
       const target = event.target
       if (!(target instanceof Element)) return
@@ -98,7 +105,7 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
       button.setAttribute('aria-label', 'Copied')
       button.setAttribute('title', 'Copied')
 
-      const existing = timeouts.get(button)
+      const existing = copyTimeoutsRef.current.get(button)
       if (existing) clearTimeout(existing)
       const timeout = setTimeout(() => {
         button.dataset.copied = 'false'
@@ -106,17 +113,18 @@ export function MarkdownRenderer({ text, cacheKey, className, ...rest }: Markdow
         button.setAttribute('aria-label', 'Copy code')
         button.setAttribute('title', 'Copy code')
       }, 2000)
-      timeouts.set(button, timeout)
+      copyTimeoutsRef.current.set(button, timeout)
     }
 
     root.addEventListener('click', onClick)
     return () => {
       root.removeEventListener('click', onClick)
-      for (const timeout of timeouts.values()) {
+      for (const timeout of copyTimeoutsRef.current.values()) {
         clearTimeout(timeout)
       }
+      copyTimeoutsRef.current.clear()
     }
-  }, [html])
+  }, [])
 
   return (
     <div

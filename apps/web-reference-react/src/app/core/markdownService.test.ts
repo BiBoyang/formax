@@ -31,6 +31,7 @@ describe('markdownService', () => {
     const first = prepareMarkdownRender({ text: 'hello', cacheKey: 'cache-key' })
     touchMarkdownCache(first.key, {
       hash: first.hash,
+      sourceText: 'hello',
       baseHtml: first.safeBaseHtml,
       highlightedHtml: '<p>highlighted</p>',
     })
@@ -39,6 +40,25 @@ describe('markdownService', () => {
 
     expect(second.cached).not.toBeNull()
     expect(second.initialHtml).toBe('<p>highlighted</p>')
+  })
+
+  it('reuses hash-matched cache entry across different cache keys', () => {
+    const first = prepareMarkdownRender({ text: '```js\nconst x = 1\n```', cacheKey: 'cache-key-a' })
+    touchMarkdownCache(first.key, {
+      hash: first.hash,
+      sourceText: '```js\nconst x = 1\n```',
+      baseHtml: first.safeBaseHtml,
+      highlightedHtml: '<p>highlighted-by-hash</p>',
+      rawHtml: first.rawHtml,
+      hasCodeBlocks: first.hasCodeBlocks,
+    })
+
+    const second = prepareMarkdownRender({ text: '```js\nconst x = 1\n```', cacheKey: 'cache-key-b' })
+
+    expect(second.cached).not.toBeNull()
+    expect(second.initialHtml).toBe('<p>highlighted-by-hash</p>')
+    expect(second.rawHtml).toBe(first.rawHtml)
+    expect(second.hasCodeBlocks).toBe(true)
   })
 
   it('falls back to main-thread highlighting when worker errors', async () => {

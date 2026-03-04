@@ -119,7 +119,8 @@ describe('MarkdownRenderer', () => {
 
       shouldFailWorkerRender = true
       const fallbackCacheKey = `markdown-worker-fallback-${Math.random().toString(36).slice(2)}`
-      const fallbackView = render(<MarkdownRenderer text={markdown} cacheKey={fallbackCacheKey} />)
+      const fallbackMarkdown = '```js\nconsole.log(\"worker-fallback\")\n```'
+      const fallbackView = render(<MarkdownRenderer text={fallbackMarkdown} cacheKey={fallbackCacheKey} />)
       await waitFor(() => {
         expect(fallbackView.container.querySelector('[data-copy-code]')).not.toBeNull()
         expect(fallbackView.container.querySelector('code.language-javascript')).not.toBeNull()
