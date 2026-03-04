@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] Slice D：LeftRail open-state 落盘去重（`LeftRail.tsx` + 对应 test）
 - [ ] Slice E：runtime refs 同步职责收敛（`useRuntimeRefs.ts` / `useRuntimeRefSync.ts` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）

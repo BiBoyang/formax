@@ -14,6 +14,14 @@
 - Precomputing sort metadata and folder labels reduces repeated string processing during thread-group rendering.
 - Sharing a single `nowMs` per render avoids repeated `Date.now()` calls for each thread row.
 
+## Follow-up (same day)
+
+- Added localStorage write dedup in `LeftRail`:
+  - `openByCwd` persistence now compares serialized payload with last persisted value and skips redundant writes.
+  - this avoids mount-time write-back when restored state is already in sync with storage.
+- Added regression coverage in `LeftRail.test.tsx`:
+  - restore-from-cache path now asserts no extra `localStorage.setItem` write occurs.
+
 ## Validation
 
 - `npm --prefix apps/web-reference-react run test -- src/components/LeftRail.test.tsx`

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Folder, FolderOpen, MoreHorizontal, SquarePen } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
@@ -157,6 +157,7 @@ export function LeftRail(props: LeftRailProps) {
   const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
   const activeThreadCwd = activeThread?.cwd ?? null
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>(() => readOpenByCwdFromStorage())
+  const persistedOpenByCwdRef = useRef(JSON.stringify(openByCwd))
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
@@ -180,6 +181,9 @@ export function LeftRail(props: LeftRailProps) {
   }, [visibleGroupedThreads])
 
   useEffect(() => {
+    const serialized = JSON.stringify(openByCwd)
+    if (serialized === persistedOpenByCwdRef.current) return
+    persistedOpenByCwdRef.current = serialized
     writeOpenByCwdToStorage(openByCwd)
   }, [openByCwd])
 

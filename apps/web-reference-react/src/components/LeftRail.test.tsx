@@ -349,6 +349,7 @@ describe('LeftRail', () => {
 
   it('restores folder open state from localStorage cache', () => {
     window.localStorage.setItem(OPEN_BY_CWD_STORAGE_KEY, JSON.stringify({ '/repo': false, '/repo-b': true }))
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
     render(
       <LeftRail
         threads={threads}
@@ -363,8 +364,10 @@ describe('LeftRail', () => {
       />,
     )
 
+    expect(setItemSpy).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /hello/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /world/i })).toBeInTheDocument()
+    setItemSpy.mockRestore()
   })
 
   it('persists folder open state to localStorage after toggle', async () => {
