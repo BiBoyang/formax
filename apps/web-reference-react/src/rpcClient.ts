@@ -2,6 +2,9 @@ import type { JsonRpcId, RpcErrorObject, RpcNotification, RpcRequest, RpcRespons
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
+export const RPC_CLIENT_DEFAULT_OUTBOUND_QUEUE_CAPACITY = 128
+const RPC_CLIENT_OVERLOADED_CODE = -32001
+
 export type RpcClientHandlers = {
   onStatus: (status: ConnectionStatus) => void
   onNotification: (notification: RpcNotification) => void
@@ -25,14 +28,49 @@ export class RpcRequestError extends Error {
   }
 }
 
+export class RpcQueueOverloadedError extends Error {
+  readonly code = RPC_CLIENT_OVERLOADED_CODE
+  readonly queue: 'outbound'
+  readonly messageKind: 'request' | 'notification'
+
+  constructor(args: { messageKind: 'request' | 'notification'; detail: string }) {
+    super(`RPC queue overloaded: ${args.detail}`)
+    this.name = 'RpcQueueOverloadedError'
+    this.queue = 'outbound'
+    this.messageKind = args.messageKind
+  }
+}
+
+type OutboundQueueItem =
+  | { kind: 'request'; requestId: JsonRpcId; payload: string }
+  | { kind: 'notification'; method: string; payload: string }
+
+function normalizePositiveLimit(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const rounded = Math.floor(value)
+  return rounded >= 1 ? rounded : fallback
+}
+
 export class RpcClient {
+  private readonly outboundQueueCapacity: number
   private socket: WebSocket | null = null
+  private handlers: RpcClientHandlers | null = null
   private socketGeneration = 0
   private nextRequestId = 1
+  private outboundQueue: OutboundQueueItem[] = []
+  private outboundFlushScheduled = false
   private pending = new Map<JsonRpcId, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+
+  constructor(args?: { outboundQueueCapacity?: number }) {
+    this.outboundQueueCapacity = normalizePositiveLimit(
+      args?.outboundQueueCapacity,
+      RPC_CLIENT_DEFAULT_OUTBOUND_QUEUE_CAPACITY,
+    )
+  }
 
   connect(url: string, handlers: RpcClientHandlers): void {
     this.disconnect()
+    this.handlers = handlers
     handlers.onStatus('connecting')
 
     const generation = ++this.socketGeneration
@@ -48,6 +86,7 @@ export class RpcClient {
       if (this.socketGeneration !== generation) return
       handlers.onStatus('disconnected')
       this.socket = null
+      this.clearOutboundQueue()
       for (const request of this.pending.values()) {
         request.reject(new Error('Bridge disconnected'))
       }
@@ -88,6 +127,8 @@ export class RpcClient {
   disconnect(): void {
     this.socketGeneration += 1
     const socket = this.socket
+    this.handlers = null
+    this.clearOutboundQueue()
     if (!socket) return
     this.socket = null
     for (const request of this.pending.values()) {
@@ -111,7 +152,14 @@ export class RpcClient {
       method,
       ...(params === undefined ? {} : { params }),
     }
-    socket.send(JSON.stringify(request))
+    const payload = JSON.stringify(request)
+    if (!this.tryEnqueueOutbound({ kind: 'request', requestId: id, payload })) {
+      throw new RpcQueueOverloadedError({
+        messageKind: 'request',
+        detail: `outbound request queue capacity ${this.outboundQueueCapacity} reached`,
+      })
+    }
+    this.scheduleOutboundFlush(this.socketGeneration)
 
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
@@ -127,6 +175,60 @@ export class RpcClient {
       method,
       ...(params === undefined ? {} : { params }),
     }
-    socket.send(JSON.stringify(notification))
+    const payload = JSON.stringify(notification)
+    if (!this.tryEnqueueOutbound({ kind: 'notification', method, payload })) {
+      this.handlers?.onError(
+        new RpcQueueOverloadedError({
+          messageKind: 'notification',
+          detail: `outbound notification queue capacity ${this.outboundQueueCapacity} reached; dropped method ${method}`,
+        }),
+      )
+      return
+    }
+    this.scheduleOutboundFlush(this.socketGeneration)
+  }
+
+  private tryEnqueueOutbound(item: OutboundQueueItem): boolean {
+    if (this.outboundQueue.length >= this.outboundQueueCapacity) return false
+    this.outboundQueue.push(item)
+    return true
+  }
+
+  private clearOutboundQueue(): void {
+    this.outboundQueue = []
+    this.outboundFlushScheduled = false
+  }
+
+  private scheduleOutboundFlush(generation: number): void {
+    if (this.outboundFlushScheduled) return
+    this.outboundFlushScheduled = true
+    queueMicrotask(() => {
+      this.outboundFlushScheduled = false
+      this.flushOutboundQueue(generation)
+    })
+  }
+
+  private flushOutboundQueue(generation: number): void {
+    if (this.socketGeneration !== generation) return
+    const socket = this.socket
+    if (!socket || socket.readyState !== WebSocket.OPEN) return
+
+    while (this.outboundQueue.length > 0) {
+      const currentSocket = this.socket
+      if (!currentSocket || currentSocket.readyState !== WebSocket.OPEN) return
+      const item = this.outboundQueue.shift()!
+      try {
+        currentSocket.send(item.payload)
+      } catch (error) {
+        if (item.kind === 'request') {
+          const pending = this.pending.get(item.requestId)
+          this.pending.delete(item.requestId)
+          pending?.reject(error instanceof Error ? error : new Error(String(error)))
+        }
+        this.handlers?.onError(error instanceof Error ? error : new Error(String(error)))
+        currentSocket.close()
+        return
+      }
+    }
   }
 }
