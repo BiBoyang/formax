@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-03`：抽取模型 effort 能力推导辅助函数到 `core/models` 并复用到 SDK，降低 `supportedModels()` 与核心模型元数据漂移风险。
+- [ ] `MOD-04`：增强 `supportedModels()` 活动模型回填项的 metadata 补全（在可推导时补齐 `max_tokens/contextWindowTokens`）。
 
 ## 再生规则（当“当前待办”为空时）
 

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAnthropicModels, fetchCustomModels, fetchOpenAIModels, getDefaultModels } from './models'
+import {
+  fetchAnthropicModels,
+  fetchCustomModels,
+  fetchOpenAIModels,
+  getDefaultModels,
+  inferModelReasoningEffortSupport,
+} from './models'
 
 const { anthropicMessagesCreate, openaiModelsList } = vi.hoisted(() => ({
   anthropicMessagesCreate: vi.fn(),
@@ -369,6 +375,18 @@ describe('getDefaultModels', () => {
 
   it('returns an empty array for unknown provider', () => {
     expect(getDefaultModels('unknown')).toEqual([])
+  })
+})
+
+describe('inferModelReasoningEffortSupport', () => {
+  it('returns inferred values for known openai model prefixes', () => {
+    expect(inferModelReasoningEffortSupport({ provider: 'openai', model: 'o3-mini-high' })).toBe(true)
+    expect(inferModelReasoningEffortSupport({ provider: 'openai', model: 'gpt-4o-mini' })).toBe(false)
+  })
+
+  it('returns undefined for unsupported providers or unknown models', () => {
+    expect(inferModelReasoningEffortSupport({ provider: 'anthropic', model: 'claude-3-5-sonnet-latest' })).toBeUndefined()
+    expect(inferModelReasoningEffortSupport({ provider: 'openai', model: 'unknown-model' })).toBeUndefined()
   })
 })
 

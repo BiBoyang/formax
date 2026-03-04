@@ -2,7 +2,7 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createSlashCommandRegistry } from '../../features/commands/registry.js'
-import { getDefaultModels } from '../../core/models/models.js'
+import { getDefaultModels, inferModelReasoningEffortSupport } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import { buildSystemPrompt } from '../../prompts/system.js'
@@ -84,20 +84,6 @@ const VALID_PERMISSION_MODES = new Set<PermissionMode>([
   'bypassPermissions',
 ])
 
-const OPENAI_REASONING_EFFORT_HINTS: ReadonlyArray<{
-  prefix: string
-  supported: boolean
-}> = [
-  { prefix: 'gpt-4o', supported: false },
-  { prefix: 'gpt-4-turbo', supported: false },
-  { prefix: 'gpt-4', supported: false },
-  { prefix: 'gpt-3.5-turbo', supported: false },
-  { prefix: 'o1', supported: true },
-  { prefix: 'o1-preview', supported: true },
-  { prefix: 'o1-mini', supported: true },
-  { prefix: 'o3-mini', supported: true },
-]
-
 function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): ToolDefinition {
   // Match official SDK behavior: StructuredOutput.input_schema is derived directly
   // from outputFormat.schema on each query invocation.
@@ -106,17 +92,6 @@ function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): T
     description: STRUCTURED_OUTPUT_TOOL_DESCRIPTION,
     input_schema: schema,
   }
-}
-
-function inferActiveModelSupportsReasoningEffort(args: {
-  provider: string
-  model: string
-}): boolean | undefined {
-  const provider = String(args.provider || '').trim().toLowerCase()
-  const model = String(args.model || '').trim().toLowerCase()
-  if (provider !== 'openai' || model.length === 0) return undefined
-  const match = OPENAI_REASONING_EFFORT_HINTS.find((hint) => model.startsWith(hint.prefix))
-  return match?.supported
 }
 
 function isStructuredOutputToolCall(
@@ -897,7 +872,7 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
         : { supports_function_calling: model.supports_function_calling }),
     }))
     if (activeModel.length > 0 && !defaultModels.some((model) => model.model === activeModel)) {
-      const inferredSupportsReasoningEffort = inferActiveModelSupportsReasoningEffort({
+      const inferredSupportsReasoningEffort = inferModelReasoningEffortSupport({
         provider,
         model: activeModel,
       })

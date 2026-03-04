@@ -11,6 +11,41 @@ export type ModelInfo = {
   supports_function_calling?: boolean
 }
 
+type OpenAIModelMetadata = {
+  max_tokens: number
+  supports_reasoning_effort: boolean
+  contextWindowTokens?: number
+}
+
+const OPENAI_MODEL_METADATA_BY_PREFIX: Readonly<Record<string, OpenAIModelMetadata>> = {
+  'gpt-4o': { max_tokens: 16384, supports_reasoning_effort: false, contextWindowTokens: 128000 },
+  'gpt-4-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 128000 },
+  'gpt-4': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 8192 },
+  'gpt-3.5-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 16385 },
+  'o1': { max_tokens: 100000, supports_reasoning_effort: true },
+  'o1-preview': { max_tokens: 100000, supports_reasoning_effort: true },
+  'o1-mini': { max_tokens: 100000, supports_reasoning_effort: true },
+  'o3-mini': { max_tokens: 100000, supports_reasoning_effort: true },
+}
+
+const OPENAI_MODEL_METADATA_PREFIXES = Object.keys(OPENAI_MODEL_METADATA_BY_PREFIX)
+
+function getOpenAIModelMetadata(model: string): OpenAIModelMetadata | undefined {
+  const modelId = String(model || '').trim().toLowerCase()
+  if (modelId.length === 0) return undefined
+  const metadataKey = OPENAI_MODEL_METADATA_PREFIXES.find((key) => modelId.startsWith(key))
+  return metadataKey ? OPENAI_MODEL_METADATA_BY_PREFIX[metadataKey] : undefined
+}
+
+export function inferModelReasoningEffortSupport(args: {
+  provider: string
+  model: string
+}): boolean | undefined {
+  const provider = String(args.provider || '').trim().toLowerCase()
+  if (provider !== 'openai') return undefined
+  return getOpenAIModelMetadata(args.model)?.supports_reasoning_effort
+}
+
 /**
  * Fetch available models from Anthropic API
  */
@@ -165,25 +200,6 @@ export async function fetchOpenAIModels(
 
     const response = await openai.models.list()
 
-    // Reference model metadata from Kode-cli's models.ts
-    const modelMetadata: Record<
-      string,
-      {
-        max_tokens: number
-        supports_reasoning_effort: boolean
-        contextWindowTokens?: number
-      }
-    > = {
-      'gpt-4o': { max_tokens: 16384, supports_reasoning_effort: false, contextWindowTokens: 128000 },
-      'gpt-4-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 128000 },
-      'gpt-4': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 8192 },
-      'gpt-3.5-turbo': { max_tokens: 4096, supports_reasoning_effort: false, contextWindowTokens: 16385 },
-      'o1': { max_tokens: 100000, supports_reasoning_effort: true },
-      'o1-preview': { max_tokens: 100000, supports_reasoning_effort: true },
-      'o1-mini': { max_tokens: 100000, supports_reasoning_effort: true },
-      'o3-mini': { max_tokens: 100000, supports_reasoning_effort: true },
-    }
-
     const models: ModelInfo[] = response.data
       .filter((model) => {
         // Filter to only include chat models
@@ -196,18 +212,18 @@ export async function fetchOpenAIModels(
       })
       .map((model) => {
         const modelId = model.id
-        // Find matching metadata (check if modelId starts with any key)
-        const metadataKey = Object.keys(modelMetadata).find((key) =>
-          modelId.startsWith(key),
-        )
-        const metadata = metadataKey ? modelMetadata[metadataKey] : null
+        const metadata = getOpenAIModelMetadata(modelId)
+        const supportsReasoningEffort = inferModelReasoningEffortSupport({
+          provider: 'openai',
+          model: modelId,
+        })
 
         return {
           model: modelId,
           provider: 'openai',
-          max_tokens: metadata?.max_tokens || 8192,
+          max_tokens: metadata?.max_tokens ?? 8192,
           contextWindowTokens: metadata?.contextWindowTokens,
-          supports_reasoning_effort: metadata?.supports_reasoning_effort || false,
+          supports_reasoning_effort: supportsReasoningEffort ?? false,
           supports_vision: modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo'),
           supports_function_calling: true,
         }
