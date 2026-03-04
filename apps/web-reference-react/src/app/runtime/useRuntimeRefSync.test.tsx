@@ -31,6 +31,12 @@ describe('useRuntimeRefSync', () => {
 
     const args: RuntimeRefSyncArgs = {
       activeThreadId: 'thread-1',
+      activeTurnId: null,
+      activeTurnIdRef: { current: null },
+      pendingInputs: {},
+      pendingInputsRef: { current: {} },
+      sortedThreads: [],
+      sortedThreadsRef: { current: [] },
       logs: activeLogs,
       logsByThreadId,
       logsByThreadIdRef,
@@ -61,6 +67,12 @@ describe('useRuntimeRefSync', () => {
     renderHook(() =>
       useRuntimeRefSync({
         activeThreadId: null,
+        activeTurnId: null,
+        activeTurnIdRef: { current: null },
+        pendingInputs: {},
+        pendingInputsRef: { current: {} },
+        sortedThreads: [],
+        sortedThreadsRef: { current: [] },
         logs: [createMessageLog('log-1', 'inactive')],
         logsByThreadId: {},
         logsByThreadIdRef,

@@ -5,28 +5,28 @@ import type { ThreadViewModel } from '../core/threadViewModel'
 
 export function useRuntimeRefSync(args: {
   activeThreadId: string | null
+  activeTurnId: string | null
+  activeTurnIdRef: { current: string | null }
+  pendingInputs: Record<string, PendingInput>
+  pendingInputsRef: { current: Record<string, PendingInput> }
+  sortedThreads: ThreadViewModel[]
+  sortedThreadsRef: { current: ThreadViewModel[] }
   logs: TranscriptItem[]
   logsByThreadId: Record<string, TranscriptItem[]>
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
-  activeTurnId?: string | null
-  activeTurnIdRef?: { current: string | null }
-  pendingInputs?: Record<string, PendingInput>
-  pendingInputsRef?: { current: Record<string, PendingInput> }
-  sortedThreads?: ThreadViewModel[]
-  sortedThreadsRef?: { current: ThreadViewModel[] }
   setLogsByThreadId: (updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>) => void
 }) {
   const {
     activeThreadId,
     activeTurnId,
     activeTurnIdRef,
-    logs,
-    logsByThreadId,
-    logsByThreadIdRef,
     pendingInputs,
     pendingInputsRef,
     sortedThreads,
     sortedThreadsRef,
+    logs,
+    logsByThreadId,
+    logsByThreadIdRef,
     setLogsByThreadId,
   } = args
 
@@ -35,17 +35,9 @@ export function useRuntimeRefSync(args: {
   }, [logsByThreadId, logsByThreadIdRef])
 
   useEffect(() => {
-    if (activeTurnIdRef && activeTurnId !== undefined) {
-      activeTurnIdRef.current = activeTurnId
-    }
-
-    if (pendingInputsRef && pendingInputs) {
-      pendingInputsRef.current = pendingInputs
-    }
-
-    if (sortedThreadsRef && sortedThreads) {
-      sortedThreadsRef.current = sortedThreads
-    }
+    activeTurnIdRef.current = activeTurnId
+    pendingInputsRef.current = pendingInputs
+    sortedThreadsRef.current = sortedThreads
   }, [
     activeTurnId,
     activeTurnIdRef,

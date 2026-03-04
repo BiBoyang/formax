@@ -27,7 +27,7 @@ import { runAsyncSafely } from './runtime/runAsyncSafely'
 import { useRuntimeViewState } from './runtime/useRuntimeViewState'
 import { useRuntimeEventOrchestrator } from './runtime/useRuntimeEventOrchestrator'
 import { useRuntimeActionsBundle } from './runtime/useRuntimeActionsBundle'
-import { buildAppShellProps } from './runtime/buildAppShellProps'
+import { buildAppShellProps, type BuildAppShellPropsArgs } from './runtime/buildAppShellProps'
 import { useRpcConnectionEffect } from './runtime/useRpcConnectionEffect'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
@@ -500,8 +500,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [refreshWorkspaceDiff, requestDiffFilePatch],
   )
 
-  return buildAppShellProps({
-    thread: {
+  const threadSection = useMemo<BuildAppShellPropsArgs['thread']>(
+    () => ({
       sortedThreads,
       selectedCwd,
       onSelectCwd: threadUiHandlers.onSelectCwd,
@@ -514,16 +514,24 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       hiddenGroupCwds,
       onHideThreadGroup: threadUiHandlers.onHideThreadGroup,
       isThreadActionBusy,
-    },
-    layout: {
+    }),
+    [hiddenGroupCwds, isThreadActionBusy, selectedCwd, sortedThreads, state.activeThreadId, threadUiHandlers],
+  )
+
+  const layoutSection = useMemo<BuildAppShellPropsArgs['layout']>(
+    () => ({
       isSidebarOpen,
       setIsSidebarOpen,
       sidebarWidth,
       rightRailWidth,
       setSidebarWidth,
       setRightRailWidth,
-    },
-    transcript: {
+    }),
+    [isSidebarOpen, rightRailWidth, setIsSidebarOpen, setRightRailWidth, setSidebarWidth, sidebarWidth],
+  )
+
+  const transcriptSection = useMemo<BuildAppShellPropsArgs['transcript']>(
+    () => ({
       activeThreadTitle,
       activeTurnId: state.activeTurnId,
       connectionStatus: state.connectionStatus,
@@ -546,8 +554,31 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       isSending: isSendingTurn,
       isInterrupting: isInterruptingTurn,
       lastRpcError,
-    },
-    approval: {
+    }),
+    [
+      activeHistoryLoading,
+      activeLogs,
+      activeThread,
+      activeThreadTitle,
+      composerLocked,
+      composerUiHandlers,
+      devLoadAllRunning,
+      devRuntime,
+      historyMore,
+      inputText,
+      isInterruptingTurn,
+      isSendingTurn,
+      lastRpcError,
+      mode,
+      setInputTextStable,
+      state.activeTurnId,
+      state.connectionStatus,
+      transcriptVirtualizationEnabled,
+    ],
+  )
+
+  const approvalSection = useMemo<BuildAppShellPropsArgs['approval']>(
+    () => ({
       selectedInput,
       isSelectedAskOpen,
       selectedAskPageIndex,
@@ -559,15 +590,54 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       onAskPageChange,
       onAskDraftChange,
       onSubmitInput: composerUiHandlers.onSubmitInput,
-    },
-    diff: {
+    }),
+    [
+      composerUiHandlers,
+      isSelectedAskOpen,
+      isSubmittingInput,
+      onAskDismiss,
+      onAskDraftChange,
+      onAskOpen,
+      onAskPageChange,
+      selectedAskDraft,
+      selectedAskPageIndex,
+      selectedInput,
+      submitStatus,
+    ],
+  )
+
+  const diffSection = useMemo<BuildAppShellPropsArgs['diff']>(
+    () => ({
       diffSnapshot,
       onRefreshDiff: diffUiHandlers.onRefreshDiff,
       onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
       isRefreshingDiff,
-    },
-    feedback: {
-      noticeMessage,
-    },
-  })
+    }),
+    [diffSnapshot, diffUiHandlers, isRefreshingDiff],
+  )
+
+  const feedbackSection = useMemo<BuildAppShellPropsArgs['feedback']>(
+    () => ({ noticeMessage }),
+    [noticeMessage],
+  )
+
+  return useMemo(
+    () =>
+      buildAppShellProps({
+        thread: threadSection,
+        layout: layoutSection,
+        transcript: transcriptSection,
+        approval: approvalSection,
+        diff: diffSection,
+        feedback: feedbackSection,
+      }),
+    [
+      approvalSection,
+      diffSection,
+      feedbackSection,
+      layoutSection,
+      threadSection,
+      transcriptSection,
+    ],
+  )
 }
