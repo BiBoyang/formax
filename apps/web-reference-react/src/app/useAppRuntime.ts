@@ -1,36 +1,21 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { appReducer, initialAppState } from '../store'
-import type { RpcNotification, TranscriptItem } from '../types'
 import type { RpcClientQueueMetrics } from '../rpcClient'
 import { shouldAcceptSequencedNotification } from '../turnEventCursor'
-import { type DiffSnapshot } from '../components/WorktreeDiffPane'
 import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
 } from './core/constants'
 import { resolveRpcQueueRuntimeConfig } from './core/rpcQueueConfig'
-import { parseThreadGroupHideResponse, parseThreadReplayResponse } from './core/rpcContracts'
-import {
-  type ThreadTranscriptSource,
-} from './core/replayMachine'
-import {
-  INITIAL_THREAD_CACHE_STATE,
-  withThreadCacheSlice,
-  type ThreadCacheState,
-} from './core/threadCache'
+import { parseThreadGroupHideResponse } from './core/rpcContracts'
 import {
   toRpcError,
-  toRuntimePendingInputsById,
 } from './core/threadTransforms'
 import { isTranscriptVirtualizationEnabled } from './core/transcriptVirtualization'
 import type { AppShellProps } from './ui/AppShell'
 import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
-import { processNotification } from './runtime/processNotification'
-import { replayThreadEvents as runReplayThreadEvents } from './runtime/replayThreadEvents'
-import { createThreadArchivedHandler } from './runtime/notifications/handleThreadArchived'
-import { createComposerActions } from './runtime/composerActions'
-import { createThreadActions } from './runtime/threadActions'
+import { applyRpcQueueMetricsDelta } from './runtime/rpcQueueMetrics'
 import type { SelectThreadOptions } from './runtime/threadActions'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
@@ -39,6 +24,10 @@ import { createThreadUiHandlers } from './runtime/threadUiHandlers'
 import { createComposerUiHandlers } from './runtime/composerUiHandlers'
 import { createDiffUiHandlers } from './runtime/diffUiHandlers'
 import { runAsyncSafely } from './runtime/runAsyncSafely'
+import { useRuntimeViewState } from './runtime/useRuntimeViewState'
+import { useRuntimeEventOrchestrator } from './runtime/useRuntimeEventOrchestrator'
+import { useRuntimeActionsBundle } from './runtime/useRuntimeActionsBundle'
+import { buildAppShellProps } from './runtime/buildAppShellProps'
 import { useRpcConnectionEffect } from './runtime/useRpcConnectionEffect'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
@@ -58,14 +47,10 @@ import { useDevLoadAllHistory } from './runtime/useDevLoadAllHistory'
 import { useTranscriptDisplayState } from './runtime/useTranscriptDisplayState'
 import { useThreadUrlSync } from './runtime/useThreadUrlSync'
 import {
-  createInitialThreadRuntimeState,
-  reduceThreadRuntimeState,
   type ArchiveThreadLike,
 } from '../semantics'
-import { isReplMode, type ReplMode } from '../semantics'
 import {
   isDevPerformanceEnabled,
-  withDevPerformanceSync,
 } from './core/devPerformance'
 
 function resolveBridgeUrl(): string {
@@ -81,101 +66,46 @@ function isDevRuntime(): boolean {
   return import.meta.env.DEV
 }
 
-function areStringArraysEqual(a: string[], b: string[]): boolean {
-  if (a === b) return true
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return false
-  }
-  return true
-}
-
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const devRuntime = useMemo(() => isDevRuntime(), [])
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
-  const [inputText, setInputText] = useState('')
-  const [diffSnapshot, setDiffSnapshot] = useState<DiffSnapshot | null>(null)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
-  const [isThreadActionBusy, setIsThreadActionBusy] = useState(false)
-  const [isSendingTurn, setIsSendingTurn] = useState(false)
-  const [isInterruptingTurn, setIsInterruptingTurn] = useState(false)
-  const [isSubmittingInput, setIsSubmittingInput] = useState(false)
-  const [isRefreshingDiff, setIsRefreshingDiff] = useState(false)
-  const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
     usePaneLayout()
-  const [mode, setMode] = useState<ReplMode>('normal')
-  const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
-  const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
-  const setInputTextStable = useCallback((next: SetStateAction<string>) => {
-    setInputText((previous) => {
-      const resolved = typeof next === 'function' ? next(previous) : next
-      return resolved === previous ? previous : resolved
-    })
-  }, [])
-  const setIsThreadActionBusyStable = useCallback((next: boolean) => {
-    setIsThreadActionBusy((previous) => (previous === next ? previous : next))
-  }, [])
-  const setIsSendingTurnStable = useCallback((next: boolean) => {
-    setIsSendingTurn((previous) => (previous === next ? previous : next))
-  }, [])
-  const setIsInterruptingTurnStable = useCallback((next: boolean) => {
-    setIsInterruptingTurn((previous) => (previous === next ? previous : next))
-  }, [])
-  const setIsSubmittingInputStable = useCallback((next: boolean) => {
-    setIsSubmittingInput((previous) => (previous === next ? previous : next))
-  }, [])
-  const setIsRefreshingDiffStable = useCallback((next: boolean) => {
-    setIsRefreshingDiff((previous) => (previous === next ? previous : next))
-  }, [])
-  const setModeStable = useCallback((next: SetStateAction<ReplMode>) => {
-    setMode((previous) => {
-      const resolved = typeof next === 'function' ? next(previous) : next
-      return resolved === previous ? previous : resolved
-    })
-  }, [])
-  const setSelectedCwdStable = useCallback((next: string | null) => {
-    setSelectedCwd((previous) => (previous === next ? previous : next))
-  }, [])
-  const setNoticeMessageStable = useCallback((next: string | null) => {
-    setNoticeMessage((previous) => (previous === next ? previous : next))
-  }, [])
-  const setHiddenGroupCwdsStable = useCallback((next: string[]) => {
-    setHiddenGroupCwds((previous) => (areStringArraysEqual(previous, next) ? previous : next))
-  }, [])
-  const [threadCache, setThreadCache] = useState<ThreadCacheState>(INITIAL_THREAD_CACHE_STATE)
-  const logsByThreadId = threadCache.logsByThreadId
-  const historyCursorByThreadId = threadCache.historyCursorByThreadId
-  const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
-  const transcriptSourceByThreadId = threadCache.transcriptSourceByThreadId
-  const setLogsByThreadId = useCallback(
-    (updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>) => {
-      setThreadCache((prev) => withThreadCacheSlice(prev, 'logsByThreadId', updater(prev.logsByThreadId)))
-    },
-    [],
-  )
-  const setHistoryCursorByThreadId = useCallback(
-    (updater: (prev: Record<string, string | null>) => Record<string, string | null>) => {
-      setThreadCache((prev) =>
-        withThreadCacheSlice(prev, 'historyCursorByThreadId', updater(prev.historyCursorByThreadId)),
-      )
-    },
-    [],
-  )
-  const setTranscriptSourceByThreadId = useCallback(
-    (
-      updater: (
-        prev: Record<string, ThreadTranscriptSource>,
-      ) => Record<string, ThreadTranscriptSource>,
-    ) => {
-      setThreadCache((prev) =>
-        withThreadCacheSlice(prev, 'transcriptSourceByThreadId', updater(prev.transcriptSourceByThreadId)),
-      )
-    },
-    [],
-  )
+  const {
+    inputText,
+    diffSnapshot,
+    isThreadActionBusy,
+    isSendingTurn,
+    isInterruptingTurn,
+    isSubmittingInput,
+    isRefreshingDiff,
+    noticeMessage,
+    mode,
+    selectedCwd,
+    hiddenGroupCwds,
+    logsByThreadId,
+    historyCursorByThreadId,
+    historyLoadingByThreadId,
+    transcriptSourceByThreadId,
+    setDiffSnapshot,
+    setHistoryLoadingByThreadId,
+    setInputTextStable,
+    setIsThreadActionBusyStable,
+    setIsSendingTurnStable,
+    setIsInterruptingTurnStable,
+    setIsSubmittingInputStable,
+    setIsRefreshingDiffStable,
+    setModeStable,
+    setSelectedCwdStable,
+    setNoticeMessageStable,
+    setHiddenGroupCwdsStable,
+    setLogsByThreadId,
+    setHistoryCursorByThreadId,
+    setTranscriptSourceByThreadId,
+  } = useRuntimeViewState()
 
   // Refs 分组（130+ 行 → 6 行）
   const rpcRefs = useRpcRefs()
@@ -253,35 +183,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const log = useCallback((text: string, level: 'info' | 'warn' | 'error' = 'info', turnId?: string) => {
     dispatch({ type: 'push_log', text, level, turnId })
   }, [])
+
   const onRpcQueueMetrics = useCallback(
     (metrics: RpcClientQueueMetrics) => {
-      const previous = rpcQueueMetricsRef.current
-      rpcQueueMetricsRef.current = metrics
-      if (!previous) return
-
-      const overloadedDelta = metrics.overloadedRequests - previous.overloadedRequests
-      if (overloadedDelta > 0) {
-        log(
-          `[rpc] outbound request queue overloaded (+${overloadedDelta}, depth ${metrics.outboundQueueDepth}/${metrics.outboundQueueCapacity})`,
-          'warn',
-        )
-      }
-
-      const droppedOutboundDelta = metrics.droppedOutboundNotifications - previous.droppedOutboundNotifications
-      if (droppedOutboundDelta > 0) {
-        log(
-          `[rpc] dropped outbound notifications (+${droppedOutboundDelta}, depth ${metrics.outboundQueueDepth}/${metrics.outboundQueueCapacity})`,
-          'warn',
-        )
-      }
-
-      const droppedInboundDelta = metrics.droppedInboundNotifications - previous.droppedInboundNotifications
-      if (droppedInboundDelta > 0) {
-        log(
-          `[rpc] dropped inbound notifications (+${droppedInboundDelta}, depth ${metrics.inboundNotificationQueueDepth}/${metrics.inboundNotificationQueueCapacity})`,
-          'warn',
-        )
-      }
+      applyRpcQueueMetricsDelta({ metrics, metricsRef: rpcQueueMetricsRef, log })
     },
     [log],
   )
@@ -380,100 +285,41 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [request, setHiddenGroupCwdsStable],
   )
 
-  const handleThreadArchivedNotification = useMemo(
-    () => createThreadArchivedHandler({
-      dispatch,
+  const { handleNotification, replayThreadEvents } = useRuntimeEventOrchestrator({
+    devPerfEnabled,
+    request,
+    dispatch,
+    log,
+    cacheThreadMode,
+    refreshThreads,
+    refreshWorkspaceDiff,
+    setMode: setModeStable,
+    setAskDockOpenByInputId,
+    setAskPageIndexByInputId,
+    setAskDraftByInputId,
+    setSubmitStatusByInputId,
+    shouldProcessSequencedNotification,
+    runtimeStateByThreadRef,
+    replayCursorByThreadRef,
+    replayAnomalyCountSeenByThreadRef,
+    activeThreadIdRef,
+    commandByTurnRef,
+    logsByThreadIdRef,
+    stateLogsRef,
+    transcriptSourceByThreadRef,
+    setThreadTranscriptSource,
+    clearThreadHistoryCursor,
+    syncPendingInputsFromReplayState,
+    loadThreadHistory,
+    archivedHandlerDeps: {
       pruneThreadScopedRuntimeRefs,
-      refreshWorkspaceDiff,
       setNoticeMessage: setNoticeMessageStable,
       setSelectedCwd: setSelectedCwdStable,
-      selectThreadRef, // 传 ref 本身，不是 current
-      setMode: setModeStable,
+      selectThreadRef,
       threadsRef,
-      activeThreadIdRef,
       pendingArchiveOpsRef,
-    }),
-    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setNoticeMessageStable, setSelectedCwdStable, setModeStable],
-  )
-
-  const handleNotification = useCallback(
-    (notification: RpcNotification) => {
-      withDevPerformanceSync({
-        enabled: devPerfEnabled,
-        label: `web-ref:notification:${notification.method}`,
-        run: () =>
-          processNotification(notification, {
-            runtimeStateByThreadRef,
-            replayCursorByThreadRef,
-            activeThreadIdRef,
-            commandByTurnRef,
-            createInitialThreadRuntimeState,
-            shouldProcessSequencedNotification,
-            dispatch,
-            setMode: setModeStable,
-            cacheThreadMode,
-            isReplMode,
-            refreshThreads,
-            refreshWorkspaceDiff,
-            log,
-            setAskDockOpenByInputId,
-            setAskPageIndexByInputId,
-            setAskDraftByInputId,
-            setSubmitStatusByInputId,
-            reduceThreadRuntimeState,
-            onThreadArchivedNotification: handleThreadArchivedNotification,
-          }),
-      })
     },
-    [
-      cacheThreadMode,
-      devPerfEnabled,
-      handleThreadArchivedNotification,
-      log,
-      refreshThreads,
-      refreshWorkspaceDiff,
-      setModeStable,
-      shouldProcessSequencedNotification,
-    ],
-  )
-
-  const replayThreadEvents = useCallback(
-    async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
-      return runReplayThreadEvents(threadId, options, {
-        request,
-        parseThreadReplayResponse,
-        toRuntimePendingInputsById,
-        replayCursorByThreadRef,
-        replayAnomalyCountSeenByThreadRef,
-        runtimeStateByThreadRef,
-        activeThreadIdRef,
-        logsByThreadIdRef,
-        stateLogsRef,
-        transcriptSourceByThreadRef,
-        dispatch,
-        setMode: setModeStable,
-        cacheThreadMode,
-        setThreadTranscriptSource,
-        clearThreadHistoryCursor,
-        syncPendingInputsFromReplayState,
-        loadThreadHistory,
-        handleNotification,
-        log,
-      })
-    },
-    [
-      request,
-      cacheThreadMode,
-      clearThreadHistoryCursor,
-      loadThreadHistory,
-      handleNotification,
-      log,
-      parseThreadReplayResponse,
-      setModeStable,
-      setThreadTranscriptSource,
-      syncPendingInputsFromReplayState,
-    ],
-  )
+  })
 
   useRuntimeRefSync({
     activeThreadId: state.activeThreadId,
@@ -503,137 +349,65 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     sortedThreadsRef.current = sortedThreads
   }, [sortedThreads])
 
-  const threadActionsState = useMemo(
-    () => ({
-      get activeThreadId() {
-        return activeThreadIdRef.current
-      },
-      get activeTurnId() {
-        return activeTurnIdRef.current
-      },
-      get selectedInputId() {
-        return selectedInputIdRef.current
-      },
-      get pendingInputs() {
-        return pendingInputsRef.current
-      },
-      get logs() {
-        return stateLogsRef.current
-      },
-      get threads() {
-        return threadsRef.current
-      },
-    }),
-    [],
-  )
-
-  const { startThread, startThreadInCwd, selectThread, selectCwd, renameThread, archiveThread, loadEarlierHistory } = useMemo(
-    () =>
-      createThreadActions({
-        get selectedCwd() {
-          return selectedCwdRef.current
-        },
-        setSelectedCwd: setSelectedCwdStable,
-        state: threadActionsState,
-        get sortedThreads() {
-          return sortedThreadsRef.current
-        },
-        get logsByThreadId() {
-          return logsByThreadIdRef.current
-        },
-        request,
-        dispatch,
-        log,
-        setMode: setModeStable,
-        runtimeStateByThreadRef,
-        replayCursorByThreadRef,
-        activeThreadIdRef,
-        setIsThreadActionBusy: setIsThreadActionBusyStable,
-        replayThreadEvents,
-        resumeThreadInputs,
-        refreshThreads,
-        refreshWorkspaceDiff,
-        trackArchiveOp: ({ opId, threadId, thread }) => {
-          pendingArchiveOpsRef.current.set(opId, { threadId, thread: thread ?? null })
-          pruneThreadScopedRuntimeRefs(threadsRef.current)
-        },
-        clearArchiveOp: (opId) => {
-          return pendingArchiveOpsRef.current.delete(opId)
-        },
-        loadEarlierHistoryAction,
-      }),
-    [
-      log,
-      refreshThreads,
-      refreshWorkspaceDiff,
-      replayThreadEvents,
-      request,
-      resumeThreadInputs,
-      pruneThreadScopedRuntimeRefs,
-      loadEarlierHistoryAction,
-      setIsThreadActionBusyStable,
-      setModeStable,
-      setSelectedCwdStable,
-      threadActionsState,
-    ],
-  )
-
-  useEffect(() => {
-    selectThreadRef.current = selectThread
-  }, [selectThread])
-
   useEffect(() => {
     if (!noticeMessage) return
     const timer = window.setTimeout(() => setNoticeMessageStable(null), 2600)
     return () => window.clearTimeout(timer)
   }, [noticeMessage, setNoticeMessageStable])
 
-  const { interruptTurn, submitInputById, onSend } = useMemo(
-    () =>
-      createComposerActions({
-        inputText,
-        setInputText: setInputTextStable,
-        isSendingTurn,
-        isInterruptingTurn,
-        isSubmittingInput,
-        mode,
-        activeThreadId: state.activeThreadId,
-        activeTurnId: state.activeTurnId,
-        resolveRequestCwd: (threadId) => {
-          const activeThread = threadsRef.current.find((thread) => thread.id === threadId)
-          return selectedCwdRef.current ?? activeThread?.cwd ?? null
-        },
-        getPendingInputById: (inputId) => pendingInputsRef.current[inputId],
-        request,
-        dispatch,
-        log,
-        commandByTurnRef,
-        setIsSendingTurn: setIsSendingTurnStable,
-        setIsInterruptingTurn: setIsInterruptingTurnStable,
-        setIsSubmittingInput: setIsSubmittingInputStable,
-        setSubmitStatusByInputId,
-        toRpcError,
-        nowMs: runtimePorts.nowMs,
-        startThread,
-      }),
-    [
-      inputText,
-      isInterruptingTurn,
-      isSendingTurn,
-      isSubmittingInput,
-      log,
-      mode,
-      request,
-      runtimePorts.nowMs,
-      setInputTextStable,
-      setIsInterruptingTurnStable,
-      setIsSendingTurnStable,
-      setIsSubmittingInputStable,
-      startThread,
-      state.activeThreadId,
-      state.activeTurnId,
-    ],
-  )
+  const {
+    startThread,
+    startThreadInCwd,
+    selectThread,
+    selectCwd,
+    renameThread,
+    archiveThread,
+    loadEarlierHistory,
+    interruptTurn,
+    submitInputById,
+    onSend,
+  } = useRuntimeActionsBundle({
+    request,
+    dispatch,
+    log,
+    selectedCwdRef,
+    setSelectedCwd: setSelectedCwdStable,
+    activeThreadIdRef,
+    activeTurnIdRef,
+    selectedInputIdRef,
+    pendingInputsRef,
+    stateLogsRef,
+    threadsRef,
+    sortedThreadsRef,
+    logsByThreadIdRef,
+    runtimeStateByThreadRef,
+    replayCursorByThreadRef,
+    setMode: setModeStable,
+    setIsThreadActionBusy: setIsThreadActionBusyStable,
+    replayThreadEvents,
+    resumeThreadInputs,
+    refreshThreads,
+    refreshWorkspaceDiff,
+    pendingArchiveOpsRef,
+    pruneThreadScopedRuntimeRefs,
+    loadEarlierHistoryAction,
+    selectThreadRef,
+    inputText,
+    setInputText: setInputTextStable,
+    isSendingTurn,
+    isInterruptingTurn,
+    isSubmittingInput,
+    mode,
+    activeThreadId: state.activeThreadId,
+    activeTurnId: state.activeTurnId,
+    commandByTurnRef,
+    setIsSendingTurn: setIsSendingTurnStable,
+    setIsInterruptingTurn: setIsInterruptingTurnStable,
+    setIsSubmittingInput: setIsSubmittingInputStable,
+    setSubmitStatusByInputId,
+    toRpcError,
+    nowMs: runtimePorts.nowMs,
+  })
 
   useThreadUrlSync({
     activeThreadId: state.activeThreadId,
@@ -732,62 +506,74 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [refreshWorkspaceDiff, requestDiffFilePatch],
   )
 
-  return {
-    sortedThreads,
-    selectedCwd,
-    onSelectCwd: threadUiHandlers.onSelectCwd,
-    activeThreadId: state.activeThreadId,
-    onSelectThread: threadUiHandlers.onSelectThread,
-    onRenameThread: threadUiHandlers.onRenameThread,
-    onArchiveThread: threadUiHandlers.onArchiveThread,
-    onStartThread: threadUiHandlers.onStartThread,
-    onStartThreadInCwd: threadUiHandlers.onStartThreadInCwd,
-    hiddenGroupCwds,
-    onHideThreadGroup: threadUiHandlers.onHideThreadGroup,
-    isThreadActionBusy,
-    isSidebarOpen,
-    setIsSidebarOpen,
-    sidebarWidth,
-    rightRailWidth,
-    setSidebarWidth,
-    setRightRailWidth,
-    activeThreadTitle,
-    activeTurnId: state.activeTurnId,
-    connectionStatus: state.connectionStatus,
-    activeThread,
-    transcriptVirtualizationEnabled,
-    composerLocked,
-    logs: activeLogs,
-    inputText,
-    mode,
-    onModeChange: composerUiHandlers.onModeChange,
-    onInputTextChange: setInputTextStable,
-    onSend: composerUiHandlers.onSend,
-    onInterrupt: composerUiHandlers.onInterrupt,
-    historyMore,
-    historyLoading: activeHistoryLoading,
-    onLoadEarlier: composerUiHandlers.onLoadEarlier,
-    devLoadAllEnabled: devRuntime,
-    devLoadAllRunning: devLoadAllRunning,
-    onDevLoadAllEarlier: composerUiHandlers.onDevLoadAllEarlier,
-    isSending: isSendingTurn,
-    isInterrupting: isInterruptingTurn,
-    lastRpcError,
-    selectedInput,
-    isSelectedAskOpen,
-    selectedAskPageIndex,
-    selectedAskDraft,
-    submitStatus,
-    isSubmittingInput,
-    onAskOpen,
-    onAskDismiss,
-    onAskPageChange,
-    onAskDraftChange,
-    onSubmitInput: composerUiHandlers.onSubmitInput,
-    diffSnapshot,
-    onRefreshDiff: diffUiHandlers.onRefreshDiff,
-    onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
-    isRefreshingDiff,
-    noticeMessage,
-  }
+  return buildAppShellProps({
+    thread: {
+      sortedThreads,
+      selectedCwd,
+      onSelectCwd: threadUiHandlers.onSelectCwd,
+      activeThreadId: state.activeThreadId,
+      onSelectThread: threadUiHandlers.onSelectThread,
+      onRenameThread: threadUiHandlers.onRenameThread,
+      onArchiveThread: threadUiHandlers.onArchiveThread,
+      onStartThread: threadUiHandlers.onStartThread,
+      onStartThreadInCwd: threadUiHandlers.onStartThreadInCwd,
+      hiddenGroupCwds,
+      onHideThreadGroup: threadUiHandlers.onHideThreadGroup,
+      isThreadActionBusy,
+    },
+    layout: {
+      isSidebarOpen,
+      setIsSidebarOpen,
+      sidebarWidth,
+      rightRailWidth,
+      setSidebarWidth,
+      setRightRailWidth,
+    },
+    transcript: {
+      activeThreadTitle,
+      activeTurnId: state.activeTurnId,
+      connectionStatus: state.connectionStatus,
+      activeThread,
+      transcriptVirtualizationEnabled,
+      composerLocked,
+      logs: activeLogs,
+      inputText,
+      mode,
+      onModeChange: composerUiHandlers.onModeChange,
+      onInputTextChange: setInputTextStable,
+      onSend: composerUiHandlers.onSend,
+      onInterrupt: composerUiHandlers.onInterrupt,
+      historyMore,
+      historyLoading: activeHistoryLoading,
+      onLoadEarlier: composerUiHandlers.onLoadEarlier,
+      devLoadAllEnabled: devRuntime,
+      devLoadAllRunning,
+      onDevLoadAllEarlier: composerUiHandlers.onDevLoadAllEarlier,
+      isSending: isSendingTurn,
+      isInterrupting: isInterruptingTurn,
+      lastRpcError,
+    },
+    approval: {
+      selectedInput,
+      isSelectedAskOpen,
+      selectedAskPageIndex,
+      selectedAskDraft,
+      submitStatus,
+      isSubmittingInput,
+      onAskOpen,
+      onAskDismiss,
+      onAskPageChange,
+      onAskDraftChange,
+      onSubmitInput: composerUiHandlers.onSubmitInput,
+    },
+    diff: {
+      diffSnapshot,
+      onRefreshDiff: diffUiHandlers.onRefreshDiff,
+      onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
+      isRefreshingDiff,
+    },
+    feedback: {
+      noticeMessage,
+    },
+  })
 }

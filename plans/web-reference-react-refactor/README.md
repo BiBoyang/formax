@@ -11,6 +11,12 @@
   - `threadDataOps` 与 `diffDataOps` 职责拆分
   - `useDevLoadAllHistory` 下沉 dev-only 历史加载状态机
   - `thread/composer/diff` UI handler 组合器下沉到 `runtime/*`
+- 已完成：组合根瘦身回合（Slice Q）：
+  - `useRuntimeViewState` 抽离 view state + stable setter 组
+  - `useRuntimeEventOrchestrator` 抽离 notification/replay/archive 编排
+  - `useRuntimeActionsBundle` 抽离 thread/composer action 组装
+  - `buildAppShellProps` 抽离 AppShell props 组装映射
+  - `rpcQueueMetrics` 抽离队列指标日志策略
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
