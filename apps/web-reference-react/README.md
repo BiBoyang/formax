@@ -66,6 +66,7 @@ npm run perf:bundle:report
 npm run perf:bundle:baseline:write
 npm run perf:bundle:baseline:compare
 npm run perf:bundle:baseline:check
+npm run perf:bundle:baseline:sync
 npm run perf:bundle:baseline:check:ci
 ```
 
@@ -80,6 +81,7 @@ npm run perf:bundle:report -- --enforce-baseline --max-total-bytes-growth=1024 -
 Notes:
 
 - `perf:bundle:baseline:check` is strict (`0` growth allowed).
+- `perf:bundle:baseline:sync` is strict baseline consistency (current build bytes must match committed baseline snapshot).
 - `perf:bundle:baseline:check:ci` allows small drift (`1KB` total + `1KB` entry).
 
 Current test coverage focus:

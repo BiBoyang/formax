@@ -8,6 +8,7 @@
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:write`
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:compare`
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:check`
+  - `npm --prefix apps/web-reference-react run perf:bundle:baseline:sync`
   - `npm --prefix apps/web-reference-react run perf:bundle:baseline:check:ci`
 
 The report reads `dist/index.html` and `dist/assets/*`, then prints:
@@ -54,3 +55,6 @@ Observed key numbers:
   - `--enforce-baseline` exits non-zero on growth beyond configured thresholds.
   - defaults are strict (`0` growth) for `total bytes` and `entry bytes`.
   - CI path now uses a small tolerance (`1024` bytes for `total`, `1024` bytes for `entry`).
+- Baseline sync mode:
+  - `--verify-baseline-sync` compares current build bytes against committed baseline snapshot.
+  - used as a guardrail to catch code changes that forgot to update `docs/perf/web-reference-react-bundle-baseline.json`.

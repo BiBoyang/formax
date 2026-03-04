@@ -21,6 +21,7 @@
     "perf:bundle:baseline:write": "node scripts/report-bundle.mjs --write-baseline",
     "perf:bundle:baseline:compare": "node scripts/report-bundle.mjs --compare-baseline",
     "perf:bundle:baseline:check": "node scripts/report-bundle.mjs --enforce-baseline",
+    "perf:bundle:baseline:sync": "node scripts/report-bundle.mjs --verify-baseline-sync",
     "perf:bundle:baseline:check:ci": "node scripts/report-bundle.mjs --enforce-baseline --max-total-bytes-growth=1024 --max-entry-bytes-growth=1024"
   },
   "dependencies": {

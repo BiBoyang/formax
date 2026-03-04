@@ -64,6 +64,10 @@ jobs:
         if: steps.changes.outputs.web_reference == 'true'
         run: bun run --cwd apps/web-reference-react build
 
+      - name: Web reference bundle baseline sync
+        if: steps.changes.outputs.web_reference == 'true'
+        run: bun run --cwd apps/web-reference-react perf:bundle:baseline:sync
+
       - name: Web reference bundle baseline guard
         if: steps.changes.outputs.web_reference == 'true'
         run: bun run --cwd apps/web-reference-react perf:bundle:baseline:check:ci

@@ -50,12 +50,14 @@ function parseNonNegativeIntArg(argv, key, fallback) {
 function parseOptions(argv) {
   const baselinePathArg = parsePathArg(argv, '--baseline')
   const enforceBaseline = parseBooleanFlag(argv, '--enforce-baseline')
+  const verifyBaselineSync = parseBooleanFlag(argv, '--verify-baseline-sync')
   return {
     topLimit: parseTopLimit(argv),
     json: parseBooleanFlag(argv, '--json'),
     writeBaseline: parseBooleanFlag(argv, '--write-baseline'),
-    compareBaseline: parseBooleanFlag(argv, '--compare-baseline') || enforceBaseline,
+    compareBaseline: parseBooleanFlag(argv, '--compare-baseline') || enforceBaseline || verifyBaselineSync,
     enforceBaseline,
+    verifyBaselineSync,
     maxTotalBytesGrowth: parseNonNegativeIntArg(argv, '--max-total-bytes-growth', 0),
     maxEntryBytesGrowth: parseNonNegativeIntArg(argv, '--max-entry-bytes-growth', 0),
     baselinePath: baselinePathArg ? path.resolve(process.cwd(), baselinePathArg) : DEFAULT_BASELINE_PATH,
@@ -324,6 +326,64 @@ function printRegressionResult(regression) {
   }
 }
 
+function collectBaselineSyncMismatches(current, baseline) {
+  const mismatches = []
+  const pushMismatch = (key, currentValue, baselineValue) => {
+    if (currentValue === baselineValue) return
+    mismatches.push({ key, current: currentValue, baseline: baselineValue })
+  }
+
+  pushMismatch('summary.totalBytes', current.summary?.totalBytes ?? 0, baseline.summary?.totalBytes ?? 0)
+  pushMismatch('summary.jsBytes', current.summary?.jsBytes ?? 0, baseline.summary?.jsBytes ?? 0)
+  pushMismatch('summary.cssBytes', current.summary?.cssBytes ?? 0, baseline.summary?.cssBytes ?? 0)
+
+  const entrySummaryKeys = Array.from(
+    new Set([
+      ...Object.keys(current.entrySummary ?? {}),
+      ...Object.keys(baseline.entrySummary ?? {}),
+    ]),
+  ).sort()
+  for (const key of entrySummaryKeys) {
+    const currentBytes = current.entrySummary?.[key]?.bytes ?? 0
+    const baselineBytes = baseline.entrySummary?.[key]?.bytes ?? 0
+    pushMismatch(`entrySummary.${key}.bytes`, currentBytes, baselineBytes)
+  }
+
+  const currentEntryBytes = new Map(
+    (current.entryAssets ?? []).map((entry) => [entry.file, typeof entry.bytes === 'number' ? entry.bytes : null]),
+  )
+  const baselineEntryBytes = new Map(
+    (baseline.entryAssets ?? []).map((entry) => [entry.file, typeof entry.bytes === 'number' ? entry.bytes : null]),
+  )
+  const entryFiles = Array.from(new Set([...currentEntryBytes.keys(), ...baselineEntryBytes.keys()])).sort()
+  for (const file of entryFiles) {
+    pushMismatch(`entryAsset.${file}.bytes`, currentEntryBytes.get(file) ?? null, baselineEntryBytes.get(file) ?? null)
+  }
+
+  return mismatches
+}
+
+function buildBaselineSyncResult(current, baseline) {
+  const mismatches = collectBaselineSyncMismatches(current, baseline)
+  return {
+    pass: mismatches.length === 0,
+    mismatches,
+  }
+}
+
+function printBaselineSyncResult(syncResult) {
+  console.log('')
+  console.log('Baseline Sync')
+  if (syncResult.pass) {
+    console.log('- PASS baseline snapshot matches current build bytes')
+    return
+  }
+  console.log(`- FAIL found ${syncResult.mismatches.length} mismatched metrics`)
+  for (const mismatch of syncResult.mismatches) {
+    console.log(`- ${mismatch.key}: current ${mismatch.current}, baseline ${mismatch.baseline}`)
+  }
+}
+
 async function main() {
   const options = parseOptions(process.argv.slice(2))
   const [rows, entryAssets] = await Promise.all([
@@ -334,6 +394,7 @@ async function main() {
   const report = buildReport(rows, entryAssets, options.topLimit)
   let baseline = null
   let regression = null
+  let baselineSync = null
 
   if (options.writeBaseline) {
     await writeBaseline(report, options.baselinePath)
@@ -343,6 +404,9 @@ async function main() {
     baseline = await readBaseline(options.baselinePath)
     if (options.enforceBaseline) {
       regression = buildRegressionResult(report, baseline, options)
+    }
+    if (options.verifyBaselineSync) {
+      baselineSync = buildBaselineSyncResult(report, baseline)
     }
   }
 
@@ -355,6 +419,9 @@ async function main() {
       if (regression) {
         payload.regression = regression
       }
+      if (baselineSync) {
+        payload.baselineSync = baselineSync
+      }
       console.log(
         JSON.stringify(
           payload,
@@ -363,6 +430,9 @@ async function main() {
         ),
       )
       if (regression && !regression.pass) {
+        process.exitCode = 1
+      }
+      if (baselineSync && !baselineSync.pass) {
         process.exitCode = 1
       }
       return
@@ -389,6 +459,15 @@ async function main() {
     if (!regression.pass) {
       console.log('')
       console.log('Bundle baseline guard failed. If this growth is intentional, update the baseline file.')
+      process.exitCode = 1
+    }
+  }
+
+  if (baselineSync) {
+    printBaselineSyncResult(baselineSync)
+    if (!baselineSync.pass) {
+      console.log('')
+      console.log('Bundle baseline is out of sync with current build. Run perf:bundle:baseline:write and commit the update.')
       process.exitCode = 1
     }
   }
