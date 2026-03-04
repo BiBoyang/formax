@@ -67,35 +67,72 @@ test.describe('transcript performance gate', () => {
     await expect(page.getByText('latest-msg-219')).toBeVisible()
 
     const input = page.getByPlaceholder('Ask for follow-up changes')
-    const inputDuration = await page.evaluate(async () => {
+    const inputPerf = await page.evaluate(async () => {
       const inputElement = document.querySelector('textarea[placeholder="Ask for follow-up changes"]')
-      if (!(inputElement instanceof HTMLTextAreaElement)) return Number.POSITIVE_INFINITY
+      if (!(inputElement instanceof HTMLTextAreaElement)) {
+        return { samples: [Number.POSITIVE_INFINITY], median: Number.POSITIVE_INFINITY, finalValue: '' }
+      }
 
-      const start = performance.now()
-      inputElement.value = 'perf gate input'
+      const median = (values) => {
+        const sorted = [...values].sort((left, right) => left - right)
+        return sorted[Math.floor(sorted.length / 2)]
+      }
+
+      // Warm-up one render cycle to stabilize measurements.
+      inputElement.value = ''
       inputElement.dispatchEvent(new Event('input', { bubbles: true }))
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
-      return performance.now() - start
+
+      const samples = []
+      let finalValue = ''
+      for (let index = 0; index < 3; index += 1) {
+        const value = `perf gate input ${index}`
+        const start = performance.now()
+        inputElement.value = value
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }))
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+        samples.push(performance.now() - start)
+        finalValue = value
+      }
+
+      return { samples, median: median(samples), finalValue }
     })
-    await expect(input).toHaveValue('perf gate input')
-    expect(inputDuration).toBeLessThan(1200)
+    await expect(input).toHaveValue(inputPerf.finalValue)
+    expect(inputPerf.median).toBeLessThan(1200)
 
     const toolRowButton = page.getByRole('button', { name: /^Bash$/ })
     await expect(toolRowButton).toBeVisible()
-    const toggleDuration = await page.evaluate(async () => {
+    const togglePerf = await page.evaluate(async () => {
       const resolveToolRow = () =>
         Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Bash')
       const toolButton = resolveToolRow()
-      if (!(toolButton instanceof HTMLButtonElement)) return Number.POSITIVE_INFINITY
-
-      const start = performance.now()
-      for (let index = 0; index < 40; index += 1) {
-        toolButton.click()
+      if (!(toolButton instanceof HTMLButtonElement)) {
+        return { samples: [Number.POSITIVE_INFINITY], median: Number.POSITIVE_INFINITY }
       }
+
+      const median = (values) => {
+        const sorted = [...values].sort((left, right) => left - right)
+        return sorted[Math.floor(sorted.length / 2)]
+      }
+
+      // Warm-up one quick open/close cycle for stable median sampling.
+      toolButton.click()
+      toolButton.click()
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
-      return performance.now() - start
+
+      const samples = []
+      for (let sample = 0; sample < 3; sample += 1) {
+        const start = performance.now()
+        for (let index = 0; index < 40; index += 1) {
+          toolButton.click()
+        }
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+        samples.push(performance.now() - start)
+      }
+
+      return { samples, median: median(samples) }
     })
-    expect(toggleDuration).toBeLessThan(4500)
+    expect(togglePerf.median).toBeLessThan(4500)
 
     const loadEarlierButton = page.getByRole('button', { name: 'Load earlier messages' })
     await expect(loadEarlierButton).toBeVisible()

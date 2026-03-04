@@ -38,6 +38,7 @@ E2E (Playwright):
 npm run test:e2e:install
 npm run test:e2e
 npm run test:e2e:queue:guard
+npm run test:perf:gate
 ```
 
 Notes:
@@ -52,6 +53,7 @@ Notes:
   - `e2e/tool-history-refresh.spec.js` (tool summary rows remain available after refresh)
   - `e2e/nested-scroll-boundary.spec.js` (center/right pane wheel scrolling isolation)
   - `e2e/rpc-queue-dev-tools.spec.js` (queue metrics helper + overload/drop stability guard)
+  - `e2e/transcript-performance-gate.spec.js` (long transcript interaction budget gate)
 - These tests auto-start Vite via Playwright `webServer` on `http://127.0.0.1:3781`.
 - E2E uses an in-page WebSocket mock (`e2e/helpers/mockRpc.js`) so tests do not depend on a real app-server process.
 - If you already started dev server manually, use:

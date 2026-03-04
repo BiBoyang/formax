@@ -68,6 +68,10 @@ jobs:
         if: steps.changes.outputs.web_reference == 'true'
         run: bun run --cwd apps/web-reference-react test:e2e:queue:guard
 
+      - name: Web reference transcript performance gate
+        if: steps.changes.outputs.web_reference == 'true'
+        run: bun run --cwd apps/web-reference-react test:perf:gate
+
       - name: Web reference build
         if: steps.changes.outputs.web_reference == 'true'
         run: bun run --cwd apps/web-reference-react build
