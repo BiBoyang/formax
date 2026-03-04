@@ -67,13 +67,66 @@ function itemId(): string {
   return `${Date.now()}-${Math.random()}`
 }
 
+function areThreadSummariesEqual(a: ThreadSummary, b: ThreadSummary): boolean {
+  return (
+    a.id === b.id &&
+    a.cwd === b.cwd &&
+    a.createdAt === b.createdAt &&
+    a.updatedAt === b.updatedAt &&
+    a.messageCount === b.messageCount &&
+    a.lastUserPrompt === b.lastUserPrompt &&
+    a.label === b.label &&
+    (a.archivedAt ?? null) === (b.archivedAt ?? null)
+  )
+}
+
+function reconcileThreadSummaries(prev: ThreadSummary[], next: ThreadSummary[]): ThreadSummary[] {
+  if (prev === next) return prev
+  if (prev.length === 0) return next.length === 0 ? prev : next
+  if (next.length === 0) return prev.length === 0 ? prev : next
+
+  const prevById = new Map<string, ThreadSummary>()
+  for (const thread of prev) {
+    prevById.set(thread.id, thread)
+  }
+
+  let orderAndValuesStable = prev.length === next.length
+  const reconciled: ThreadSummary[] = new Array(next.length)
+
+  for (let index = 0; index < next.length; index += 1) {
+    const nextThread = next[index]
+    const prevThreadAtIndex = prev[index]
+    if (prevThreadAtIndex && areThreadSummariesEqual(prevThreadAtIndex, nextThread)) {
+      reconciled[index] = prevThreadAtIndex
+      continue
+    }
+
+    orderAndValuesStable = false
+    const prevThreadWithSameId = prevById.get(nextThread.id)
+    if (prevThreadWithSameId && areThreadSummariesEqual(prevThreadWithSameId, nextThread)) {
+      reconciled[index] = prevThreadWithSameId
+      continue
+    }
+    reconciled[index] = nextThread
+  }
+
+  if (orderAndValuesStable) {
+    return prev
+  }
+  return reconciled
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'set_connection_status':
+      if (state.connectionStatus === action.status) return state
       return { ...state, connectionStatus: action.status }
 
-    case 'set_threads':
-      return { ...state, threads: action.threads }
+    case 'set_threads': {
+      const nextThreads = reconcileThreadSummaries(state.threads, action.threads)
+      if (nextThreads === state.threads) return state
+      return { ...state, threads: nextThreads }
+    }
 
     case 'set_active_thread':
       return { ...state, activeThreadId: action.threadId, transcriptProjection: null }

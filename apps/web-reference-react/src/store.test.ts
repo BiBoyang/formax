@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { appReducer, initialAppState } from './store'
-import type { PendingInput } from './types'
+import type { PendingInput, ThreadSummary } from './types'
 import type { CanonicalEvent } from './semantics'
 
 function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput {
@@ -36,6 +36,20 @@ function createCanonicalEvent(
   } as CanonicalEvent
 }
 
+function createThreadSummary(overrides: Partial<ThreadSummary> = {}): ThreadSummary {
+  return {
+    id: 'thread-1',
+    cwd: '/repo',
+    createdAt: '2026-02-10T00:00:00.000Z',
+    updatedAt: '2026-02-10T01:00:00.000Z',
+    messageCount: 1,
+    lastUserPrompt: 'hello',
+    label: null,
+    archivedAt: null,
+    ...overrides,
+  }
+}
+
 describe('appReducer', () => {
   it('binds turn id to the latest user message without turn id', () => {
     let state = appReducer(initialAppState, {
@@ -56,6 +70,77 @@ describe('appReducer', () => {
       text: 'hello',
       turnId: 'turn-1',
     })
+  })
+
+  it('keeps state reference stable when connection status is unchanged', () => {
+    const state = {
+      ...initialAppState,
+      connectionStatus: 'connected' as const,
+    }
+
+    const next = appReducer(state, {
+      type: 'set_connection_status',
+      status: 'connected',
+    })
+
+    expect(next).toBe(state)
+  })
+
+  it('keeps state reference stable when empty thread list is refreshed', () => {
+    const state = {
+      ...initialAppState,
+      threads: [],
+    }
+
+    const next = appReducer(state, {
+      type: 'set_threads',
+      threads: [],
+    })
+
+    expect(next).toBe(state)
+    expect(next.threads).toBe(state.threads)
+  })
+
+  it('keeps state and thread references stable when thread list payload is semantically unchanged', () => {
+    const threadA = createThreadSummary({ id: 'thread-a', updatedAt: '2026-02-10T01:00:00.000Z' })
+    const threadB = createThreadSummary({ id: 'thread-b', updatedAt: '2026-02-10T02:00:00.000Z', label: 'B' })
+    const state = {
+      ...initialAppState,
+      threads: [threadA, threadB],
+    }
+
+    const incoming = [
+      { ...threadA },
+      { ...threadB },
+    ]
+
+    const next = appReducer(state, {
+      type: 'set_threads',
+      threads: incoming,
+    })
+
+    expect(next).toBe(state)
+    expect(next.threads[0]).toBe(threadA)
+    expect(next.threads[1]).toBe(threadB)
+  })
+
+  it('updates ordering but reuses stable thread entries when only order changes', () => {
+    const threadA = createThreadSummary({ id: 'thread-a', updatedAt: '2026-02-10T01:00:00.000Z' })
+    const threadB = createThreadSummary({ id: 'thread-b', updatedAt: '2026-02-10T02:00:00.000Z' })
+    const state = {
+      ...initialAppState,
+      threads: [threadA, threadB],
+    }
+
+    const next = appReducer(state, {
+      type: 'set_threads',
+      threads: [{ ...threadB }, { ...threadA }],
+    })
+
+    expect(next).not.toBe(state)
+    expect(next.threads.map((thread) => thread.id)).toEqual(['thread-b', 'thread-a'])
+    expect(next.threads[0]).toBe(threadB)
+    expect(next.threads[1]).toBe(threadA)
   })
 
   it('tracks input requested -> resolved and clears selected input', () => {
