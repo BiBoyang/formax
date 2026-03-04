@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice N：`useAppRuntime` 回调集群按域稳定化（`useAppRuntime.ts` + `App.test.tsx`）
+- [ ] Slice O：`useAppRuntime` 状态写入集中 no-op guard（`useAppRuntime.ts` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 

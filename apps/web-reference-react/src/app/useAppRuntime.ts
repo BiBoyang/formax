@@ -106,6 +106,15 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
   const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
+  const setModeStable = useCallback((next: ReplMode) => {
+    setMode((previous) => (previous === next ? previous : next))
+  }, [])
+  const setSelectedCwdStable = useCallback((next: string | null) => {
+    setSelectedCwd((previous) => (previous === next ? previous : next))
+  }, [])
+  const setNoticeMessageStable = useCallback((next: string | null) => {
+    setNoticeMessage((previous) => (previous === next ? previous : next))
+  }, [])
   const setHiddenGroupCwdsStable = useCallback((next: string[]) => {
     setHiddenGroupCwds((previous) => (areStringArraysEqual(previous, next) ? previous : next))
   }, [])
@@ -343,15 +352,15 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       dispatch,
       pruneThreadScopedRuntimeRefs,
       refreshWorkspaceDiff,
-      setNoticeMessage,
-      setSelectedCwd,
+      setNoticeMessage: setNoticeMessageStable,
+      setSelectedCwd: setSelectedCwdStable,
       selectThreadRef, // 传 ref 本身，不是 current
-      setMode,
+      setMode: setModeStable,
       threadsRef,
       activeThreadIdRef,
       pendingArchiveOpsRef,
     }),
-    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setNoticeMessage, setSelectedCwd, setMode],
+    [dispatch, pruneThreadScopedRuntimeRefs, refreshWorkspaceDiff, setNoticeMessageStable, setSelectedCwdStable, setModeStable],
   )
 
   const handleNotification = useCallback(
@@ -451,7 +460,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     threads: state.threads,
     activeThreadId: state.activeThreadId,
     selectedCwd,
-    setSelectedCwd,
+    setSelectedCwd: setSelectedCwdStable,
   })
   const sortedThreadsRef = useRef(sortedThreads)
 
@@ -489,7 +498,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         get selectedCwd() {
           return selectedCwdRef.current
         },
-        setSelectedCwd,
+        setSelectedCwd: setSelectedCwdStable,
         state: threadActionsState,
         get sortedThreads() {
           return sortedThreadsRef.current
@@ -500,7 +509,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         request,
         dispatch,
         log,
-        setMode,
+        setMode: setModeStable,
         runtimeStateByThreadRef,
         replayCursorByThreadRef,
         activeThreadIdRef,
@@ -527,6 +536,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       resumeThreadInputs,
       pruneThreadScopedRuntimeRefs,
       loadEarlierHistoryAction,
+      setModeStable,
+      setSelectedCwdStable,
       threadActionsState,
     ],
   )
@@ -606,12 +617,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     selectThread,
   })
 
-  const onDevLoadAllEarlier = useCallback(() => {
-    if (!devRuntime) return
-    if (!state.activeThreadId) return
-    startDevLoadAllState()
-  }, [devRuntime, startDevLoadAllState, state.activeThreadId])
-
   const runDevLoadAllStep = useCallback(() => {
     void loadEarlierHistory().catch(() => {
       resetDevLoadAllState()
@@ -690,72 +695,100 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     eventCursorRef,
   })
 
-  const onRenameThread = useCallback(
-    (threadId: string, label: string) => {
-      void renameThread(threadId, label)
-    },
-    [renameThread],
+  const runAsyncSafely = useCallback((task: Promise<unknown>) => {
+    void task.catch(() => undefined)
+  }, [])
+
+  const threadUiHandlers = useMemo(
+    () => ({
+      onSelectCwd: selectCwd,
+      onSelectThread: selectThread,
+      onRenameThread: (threadId: string, label: string) => {
+        runAsyncSafely(renameThread(threadId, label))
+      },
+      onArchiveThread: (threadId: string) => {
+        runAsyncSafely(archiveThread(threadId))
+      },
+      onStartThread: () => {
+        runAsyncSafely(startThread())
+      },
+      onStartThreadInCwd: (cwd: string) => {
+        runAsyncSafely(startThreadInCwd(cwd))
+      },
+      onHideThreadGroup: (cwd: string) => {
+        runAsyncSafely(hideThreadGroup(cwd))
+      },
+    }),
+    [
+      archiveThread,
+      hideThreadGroup,
+      renameThread,
+      runAsyncSafely,
+      selectCwd,
+      selectThread,
+      startThread,
+      startThreadInCwd,
+    ],
   )
-  const onArchiveThread = useCallback(
-    (threadId: string) => {
-      void archiveThread(threadId)
-    },
-    [archiveThread],
+
+  const composerUiHandlers = useMemo(
+    () => ({
+      onModeChange: (nextMode: ReplMode) => {
+        setModeStable(nextMode)
+        cacheThreadMode(activeThreadIdRef.current, nextMode)
+      },
+      onSend,
+      onInterrupt: () => {
+        runAsyncSafely(interruptTurn())
+      },
+      onLoadEarlier: () => {
+        runAsyncSafely(loadEarlierHistory())
+      },
+      onSubmitInput: (inputId: string, answers: Record<string, string>) => {
+        runAsyncSafely(submitInputById(inputId, answers))
+      },
+      onDevLoadAllEarlier: () => {
+        if (!devRuntime) return
+        if (!state.activeThreadId) return
+        startDevLoadAllState()
+      },
+    }),
+    [
+      cacheThreadMode,
+      devRuntime,
+      interruptTurn,
+      loadEarlierHistory,
+      onSend,
+      runAsyncSafely,
+      setModeStable,
+      startDevLoadAllState,
+      state.activeThreadId,
+      submitInputById,
+    ],
   )
-  const onStartThread = useCallback(() => {
-    void startThread().catch(() => undefined)
-  }, [startThread])
-  const onStartThreadInCwd = useCallback(
-    (cwd: string) => {
-      void startThreadInCwd(cwd).catch(() => undefined)
-    },
-    [startThreadInCwd],
-  )
-  const onHideThreadGroup = useCallback(
-    (cwd: string) => {
-      void hideThreadGroup(cwd).catch(() => undefined)
-    },
-    [hideThreadGroup],
-  )
-  const onRuntimeModeChange = useCallback(
-    (nextMode: ReplMode) => {
-      setMode(nextMode)
-      cacheThreadMode(activeThreadIdRef.current, nextMode)
-    },
-    [cacheThreadMode],
-  )
-  const onInterrupt = useCallback(() => {
-    void interruptTurn().catch(() => undefined)
-  }, [interruptTurn])
-  const onLoadEarlier = useCallback(() => {
-    void loadEarlierHistory().catch(() => undefined)
-  }, [loadEarlierHistory])
-  const onSubmitInput = useCallback(
-    (inputId: string, answers: Record<string, string>) => {
-      void submitInputById(inputId, answers).catch(() => undefined)
-    },
-    [submitInputById],
-  )
-  const onRefreshDiff = useCallback(() => {
-    void refreshWorkspaceDiff().catch(() => undefined)
-  }, [refreshWorkspaceDiff])
-  const onRequestDiffPatch = useCallback(
-    (filePath: string) => requestDiffFilePatch(filePath),
-    [requestDiffFilePatch],
+
+  const diffUiHandlers = useMemo(
+    () => ({
+      onRefreshDiff: () => {
+        runAsyncSafely(refreshWorkspaceDiff())
+      },
+      onRequestDiffPatch: (filePath: string) => requestDiffFilePatch(filePath),
+    }),
+    [refreshWorkspaceDiff, requestDiffFilePatch, runAsyncSafely],
   )
 
   return {
     sortedThreads,
     selectedCwd,
-    onSelectCwd: selectCwd,
+    onSelectCwd: threadUiHandlers.onSelectCwd,
     activeThreadId: state.activeThreadId,
-    onSelectThread: selectThread,
-    onRenameThread,
-    onArchiveThread,
-    onStartThread,
-    onStartThreadInCwd,
+    onSelectThread: threadUiHandlers.onSelectThread,
+    onRenameThread: threadUiHandlers.onRenameThread,
+    onArchiveThread: threadUiHandlers.onArchiveThread,
+    onStartThread: threadUiHandlers.onStartThread,
+    onStartThreadInCwd: threadUiHandlers.onStartThreadInCwd,
     hiddenGroupCwds,
-    onHideThreadGroup,
+    onHideThreadGroup: threadUiHandlers.onHideThreadGroup,
     isThreadActionBusy,
     isSidebarOpen,
     setIsSidebarOpen,
@@ -772,16 +805,16 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     logs: activeLogs,
     inputText,
     mode,
-    onModeChange: onRuntimeModeChange,
+    onModeChange: composerUiHandlers.onModeChange,
     onInputTextChange: setInputText,
-    onSend,
-    onInterrupt,
+    onSend: composerUiHandlers.onSend,
+    onInterrupt: composerUiHandlers.onInterrupt,
     historyMore,
     historyLoading: activeHistoryLoading,
-    onLoadEarlier,
+    onLoadEarlier: composerUiHandlers.onLoadEarlier,
     devLoadAllEnabled: devRuntime,
     devLoadAllRunning: devLoadAllRequested,
-    onDevLoadAllEarlier,
+    onDevLoadAllEarlier: composerUiHandlers.onDevLoadAllEarlier,
     isSending: isSendingTurn,
     isInterrupting: isInterruptingTurn,
     lastRpcError,
@@ -795,10 +828,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onAskDismiss,
     onAskPageChange,
     onAskDraftChange,
-    onSubmitInput,
+    onSubmitInput: composerUiHandlers.onSubmitInput,
     diffSnapshot,
-    onRefreshDiff,
-    onRequestDiffPatch,
+    onRefreshDiff: diffUiHandlers.onRefreshDiff,
+    onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
     isRefreshingDiff,
     noticeMessage,
   }
