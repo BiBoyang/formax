@@ -58,6 +58,19 @@ Notes:
 PLAYWRIGHT_SKIP_WEBSERVER=1 npm run test:e2e
 ```
 
+Bundle report (run after build):
+
+```bash
+npm run build
+npm run perf:bundle:report
+```
+
+Optional:
+
+```bash
+npm run perf:bundle:report -- --top=20
+```
+
 Current test coverage focus:
 
 - state reducer transitions (`inputRequested -> inputResolved`, assistant delta merge)
