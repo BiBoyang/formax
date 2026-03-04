@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `88d1a07` `feat(sdk,runtime,subagents,plans): expose agent model in supportedAgents`
+  - 切片：`AGT-01`
+  - 说明：贯通 `subagents registry -> runtime -> sdk query.supportedAgents()` 的可选 `model` 字段透传；当底层代理配置含模型信息时返回 `model`，同时补齐 registry/runtime/sdk 回归测试与对齐文档。
+
 - `7241a30` `feat(sdk,plans): infer effort fields for active model fallback`
   - 切片：`MOD-02`
   - 说明：`supportedModels()` 对活动模型回填项新增高置信度 effort 能力推导（目前覆盖 OpenAI 已知前缀），在可推导时补齐 `supportsEffort/supportsAdaptiveThinking/supports_reasoning_effort`，并补齐 true/false 回归测试与对齐文档。
