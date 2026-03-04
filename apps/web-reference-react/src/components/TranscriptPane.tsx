@@ -253,7 +253,38 @@ type TranscriptFeedProps = {
   bottomRef: { current: HTMLDivElement | null }
 }
 
+type TranscriptRowsListProps = {
+  renderedRows: TranscriptRow[]
+  activeThreadCwd?: string
+  openToolIds: Set<string>
+  onToggleTool: (id: string) => void
+}
+
+const TranscriptRowsList = memo(function TranscriptRowsList(props: TranscriptRowsListProps) {
+  if (props.renderedRows.length === 0) return null
+  return (
+    <>
+      {props.renderedRows.map((row) => (
+        <TranscriptItemRow
+          key={row.item.id}
+          item={row.item}
+          turnGroupStart={row.turnGroupStart}
+          showTurnGap={row.showTurnGap}
+          activeThreadCwd={props.activeThreadCwd}
+          toolOpen={props.openToolIds.has(row.item.id)}
+          onToggleTool={props.onToggleTool}
+        />
+      ))}
+    </>
+  )
+})
+
 const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) {
+  const lastRpcErrorDetails = useMemo(
+    () => (props.lastRpcError ? JSON.stringify(props.lastRpcError, null, 2) : ''),
+    [props.lastRpcError],
+  )
+
   return (
     <section className="transcript flex-1 overflow-hidden relative">
       <ScrollArea ref={props.scrollAreaRef} className="h-full">
@@ -281,17 +312,12 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
             </div>
           ) : null}
 
-          {props.renderedRows.map((row) => (
-            <TranscriptItemRow
-              key={row.item.id}
-              item={row.item}
-              turnGroupStart={row.turnGroupStart}
-              showTurnGap={row.showTurnGap}
-              activeThreadCwd={props.activeThreadCwd}
-              toolOpen={props.openToolIds.has(row.item.id)}
-              onToggleTool={props.onToggleTool}
-            />
-          ))}
+          <TranscriptRowsList
+            renderedRows={props.renderedRows}
+            activeThreadCwd={props.activeThreadCwd}
+            openToolIds={props.openToolIds}
+            onToggleTool={props.onToggleTool}
+          />
 
           {props.showTurnLoading ? (
             <div data-testid="turn-loading" className="py-1">
@@ -314,7 +340,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
                 </div>
                 <CollapsibleContent>
                   <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
-                    {JSON.stringify(props.lastRpcError, null, 2)}
+                    {lastRpcErrorDetails}
                   </pre>
                 </CollapsibleContent>
               </Card>
@@ -812,7 +838,6 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     }
   }, [
     activeTurnId,
-    autoStick,
     transcriptRenderView.visibleLogCount,
     renderLimit,
     renderWindowCap,

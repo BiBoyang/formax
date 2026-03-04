@@ -26,20 +26,28 @@ export function useThreadSelection(args: {
     }
     return values
   }, [sortedThreads])
+  const cwdOptionSet = useMemo(() => new Set(cwdOptions), [cwdOptions])
+  const threadById = useMemo(() => {
+    const index = new Map<string, ThreadSummary>()
+    for (const thread of threads) {
+      index.set(thread.id, thread)
+    }
+    return index
+  }, [threads])
 
   useEffect(() => {
-    const activeThread = activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null
+    const activeThread = activeThreadId ? threadById.get(activeThreadId) ?? null : null
     if (activeThread?.cwd && activeThread.cwd !== selectedCwd) {
       setSelectedCwd(activeThread.cwd)
       return
     }
 
-    if (selectedCwd && cwdOptions.includes(selectedCwd)) return
+    if (selectedCwd && cwdOptionSet.has(selectedCwd)) return
     const fallback = cwdOptions[0] ?? null
     if (fallback !== selectedCwd) {
       setSelectedCwd(fallback)
     }
-  }, [activeThreadId, cwdOptions, selectedCwd, setSelectedCwd, threads])
+  }, [activeThreadId, cwdOptionSet, cwdOptions, selectedCwd, setSelectedCwd, threadById])
 
   return {
     sortedThreads,

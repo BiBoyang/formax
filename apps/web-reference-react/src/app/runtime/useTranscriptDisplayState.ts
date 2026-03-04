@@ -3,7 +3,7 @@ import type { ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { selectActiveTranscriptLogs, type TranscriptDisplayPolicy } from '../core/logSelectors'
 import { createTranscriptSelectorStore } from '../core/transcriptSelectorStore'
-import { selectThreadViewModelById } from '../core/threadViewModel'
+import { selectThreadTitle } from '../core/threadViewModel'
 
 type UseTranscriptDisplayStateArgs = {
   activeThreadId: string | null
@@ -48,15 +48,18 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
   const activeTranscriptSource = activeThreadId != null ? transcriptSourceByThreadId[activeThreadId] ?? null : null
   const historyMore = Boolean(activeThreadId && activeTranscriptSource === 'history' && historyCursorByThreadId[activeThreadId])
 
+  const threadById = useMemo(() => {
+    const index = new Map<string, ThreadSummary>()
+    for (const thread of threads) {
+      index.set(thread.id, thread)
+    }
+    return index
+  }, [threads])
   const activeThread = useMemo(
-    () => threads.find((thread) => thread.id === activeThreadId),
-    [activeThreadId, threads],
+    () => (activeThreadId ? threadById.get(activeThreadId) : undefined),
+    [activeThreadId, threadById],
   )
-  const activeThreadViewModel = useMemo(
-    () => selectThreadViewModelById({ threads, threadId: activeThreadId }),
-    [activeThreadId, threads],
-  )
-  const activeThreadTitle = activeThreadViewModel?.title ?? 'New Thread'
+  const activeThreadTitle = useMemo(() => selectThreadTitle(activeThread), [activeThread])
 
   return {
     activeHistoryLoading,

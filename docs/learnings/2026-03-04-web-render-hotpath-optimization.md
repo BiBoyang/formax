@@ -31,3 +31,14 @@
 
 - Existing e2e performance gate (`test:perf:gate`) is used to detect regressions after this optimization.
 - Queue and bundle guardrails remain active in CI.
+
+## Follow-up (same day)
+
+- Further render-tree decoupling in `TranscriptPane`:
+  - extracted `TranscriptRowsList` as a memoized child to isolate heavy row mapping from unrelated feed state updates.
+  - memoized serialized RPC error detail text (`JSON.stringify`) to avoid repeat serialization work on unrelated updates.
+  - removed an unused `autoStick` dependency from the active-turn expansion effect to avoid redundant scheduling.
+
+- Selector/index optimization in hooks:
+  - `useTranscriptDisplayState` now builds a thread index `Map` and derives active thread/title from the indexed lookup.
+  - `useThreadSelection` now uses `Map` + `Set` (`threadById`, `cwdOptionSet`) to avoid repeated linear lookups in sync effect.
