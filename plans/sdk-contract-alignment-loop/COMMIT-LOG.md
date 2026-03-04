@@ -4,6 +4,10 @@
 
 ## 2026-03-04
 
+- `72ba9cd` `refactor(core,plans): derive openai defaults from shared metadata`
+  - 切片：`MOD-06`
+  - 说明：将 OpenAI 默认模型列表与 fetch fallback 统一改为复用 `inferModelMetadata` 构建，消除 `getDefaultModels` 与 metadata 表重复定义，并补齐对齐回归测试。
+
 - `830c33d` `feat(sdk,core,plans): infer active model capability compatibility fields`
   - 切片：`MOD-05`
   - 说明：扩展核心 `inferModelMetadata` 输出 `supports_vision/supports_function_calling`，并复用到 `sdk/query.supportedModels()` 活动模型回填项；同步补齐 core/sdk 测试与 SDK 对齐文档说明。
