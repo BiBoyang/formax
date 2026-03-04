@@ -8,7 +8,8 @@
 
 ## 当前待办
 
-- [ ] Slice E：runtime refs 同步职责收敛（`useRuntimeRefs.ts` / `useRuntimeRefSync.ts` + 对应 test）
+- [ ] Slice F：`useThreadSnapshotRefs` effect 合并（`useRuntimeRefs.ts` + 对应 test）
+- [ ] Slice G：`LeftRail` 行级渲染拆分（`LeftRail.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）
 

@@ -6,7 +6,7 @@
 
 ## 执行状态（Active）
 
-- 进行中：运行时状态更新去抖回合（Slice A/B/C/D 已完成，继续 Slice E）
+- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E 已完成，已再生 Slice F/G）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,8 @@
 
 ## 当前任务清单（唯一来源）
 
-- Slice E：runtime refs 同步职责收敛（减少重复 ref 同步 effect）
+- Slice F：`useThreadSnapshotRefs` effect 合并（减少多 effect 同步开销）
+- Slice G：`LeftRail` 行级渲染拆分（Folder/Thread row memo 化验证）
 
 ## 执行循环（固定）
 

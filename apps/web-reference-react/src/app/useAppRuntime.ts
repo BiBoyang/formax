@@ -422,11 +422,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   useRuntimeRefSync({
     activeThreadId: state.activeThreadId,
     logs: state.logs,
-    selectedInputId: state.selectedInputId,
     logsByThreadId,
-    activeThreadIdRef,
-    stateLogsRef,
-    selectedInputIdRef,
     logsByThreadIdRef,
     setLogsByThreadId,
   })
