@@ -49,13 +49,14 @@ export function useThreadSelection(args: {
   }, [threads])
 
   useEffect(() => {
+    if (selectedCwd && cwdOptionSet.has(selectedCwd)) return
+
     const activeThread = activeThreadId ? threadById.get(activeThreadId) ?? null : null
-    if (activeThread?.cwd && activeThread.cwd !== selectedCwd) {
+    if (activeThread?.cwd && activeThread.cwd !== selectedCwd && cwdOptionSet.has(activeThread.cwd)) {
       setSelectedCwd(activeThread.cwd)
       return
     }
 
-    if (selectedCwd && cwdOptionSet.has(selectedCwd)) return
     const fallback = cwdOptions[0] ?? null
     if (fallback !== selectedCwd) {
       setSelectedCwd(fallback)

@@ -401,6 +401,90 @@ describe('App thread history integration', () => {
     })
   })
 
+  it('keeps active session unchanged when selecting a session folder', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: (params as { cwd?: string } | undefined)?.cwd ?? '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-alpha' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+    await waitFor(() => {
+      expect(new URL(window.location.href).searchParams.get('thread')).toBe('thread-alpha')
+    })
+
+    fireEvent.click(screen.getByTitle('/repo-beta'))
+
+    await waitFor(() => {
+      expect(new URL(window.location.href).searchParams.get('thread')).toBe('thread-alpha')
+    })
+    expect(screen.getByText('alpha reply')).toBeInTheDocument()
+    expect(screen.queryByText('beta reply')).not.toBeInTheDocument()
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'thread/messages' &&
+          (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-beta',
+      ),
+    ).toBe(false)
+  })
+
   it('refreshes right diff with selected thread cwd', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}

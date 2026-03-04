@@ -140,10 +140,6 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
       return
     }
-    if (targetThread.id !== ctx.state.activeThreadId) {
-      selectThread(targetThread.id)
-      return
-    }
     void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
   }
 

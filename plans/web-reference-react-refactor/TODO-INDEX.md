@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] Slice M：`AppShell` props 分区 + handler 聚合传递（`AppShell.tsx` + `App.test.tsx`）
+- [ ] Slice N：`useAppRuntime` 回调集群按域稳定化（`useAppRuntime.ts` + `App.test.tsx`）
 
 ## 再生规则（当“当前待办”为空时）
 

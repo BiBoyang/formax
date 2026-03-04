@@ -61,6 +61,24 @@ describe('useThreadSelection', () => {
     })
   })
 
+  it('keeps explicit selected cwd when it is still available', async () => {
+    const setSelectedCwd = vi.fn()
+
+    const { result } = renderHook(() =>
+      useThreadSelection({
+        threads,
+        activeThreadId: 'thread-older',
+        selectedCwd: '/repo-b',
+        setSelectedCwd,
+      }),
+    )
+
+    expect(result.current.sortedThreads.map((thread) => thread.id)).toEqual(['thread-newer', 'thread-older'])
+    await waitFor(() => {
+      expect(setSelectedCwd).not.toHaveBeenCalled()
+    })
+  })
+
   it('keeps cwd options reference stable when cwd list/order is unchanged', async () => {
     const setSelectedCwd = vi.fn()
 

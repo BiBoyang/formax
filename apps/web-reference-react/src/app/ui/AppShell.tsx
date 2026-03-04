@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
@@ -34,7 +34,7 @@ export type AppShellProps = {
   onHideThreadGroup: (cwd: string) => void
   isThreadActionBusy: boolean
   isSidebarOpen: boolean
-  setIsSidebarOpen: (next: boolean) => void
+  setIsSidebarOpen: Dispatch<SetStateAction<boolean>>
   sidebarWidth: number
   rightRailWidth: number
   setSidebarWidth: Dispatch<SetStateAction<number>>
@@ -92,42 +92,186 @@ export function AppShell(props: AppShellProps) {
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
   const showDevLoadAllButton = props.devLoadAllEnabled === true
+  const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
+  const centerDefaultSize = 100 - sidebarPanelSize
+  const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning
 
-  const onLeftResize = (sidebarSizePercent: number) => {
+  const commitSidebarWidth = useCallback((nextSidebarWidth: number) => {
+    props.setSidebarWidth((previous) => (Math.abs(nextSidebarWidth - previous) >= 1 ? nextSidebarWidth : previous))
+  }, [props.setSidebarWidth])
+
+  const commitRightRailWidth = useCallback((nextRightRailWidth: number) => {
+    props.setRightRailWidth((previous) =>
+      Math.abs(nextRightRailWidth - previous) >= 1 ? nextRightRailWidth : previous,
+    )
+  }, [props.setRightRailWidth])
+
+  const onLeftResize = useCallback((sidebarSizePercent: number) => {
     if (!props.isSidebarOpen) return
     const clampedSidebar = clampSidebarWidth(sidebarSizePercent)
     pendingSidebarPercentRef.current = clampedSidebar
     if (!isLeftDraggingRef.current && Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
-      props.setSidebarWidth(clampedSidebar)
+      commitSidebarWidth(clampedSidebar)
     }
-  }
+  }, [commitSidebarWidth, props.isSidebarOpen, props.sidebarWidth])
 
-  const onRightResize = (rightSizePercent: number) => {
+  const onRightResize = useCallback((rightSizePercent: number) => {
     const clampedRight = clampRightRailWidth(rightSizePercent)
     pendingRightRailPercentRef.current = clampedRight
     if (!isRightDraggingRef.current && Math.abs(clampedRight - props.rightRailWidth) >= 1) {
-      props.setRightRailWidth(clampedRight)
+      commitRightRailWidth(clampedRight)
     }
-  }
+  }, [commitRightRailWidth, props.rightRailWidth])
 
-  const onLeftDragStateChange = (isDragging: boolean) => {
+  const onLeftDragStateChange = useCallback((isDragging: boolean) => {
     isLeftDraggingRef.current = isDragging
     if (isDragging) return
     if (!props.isSidebarOpen) return
     const clampedSidebar = pendingSidebarPercentRef.current
     if (Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
-      props.setSidebarWidth(clampedSidebar)
+      commitSidebarWidth(clampedSidebar)
     }
-  }
+  }, [commitSidebarWidth, props.isSidebarOpen, props.sidebarWidth])
 
-  const onRightDragStateChange = (isDragging: boolean) => {
+  const onRightDragStateChange = useCallback((isDragging: boolean) => {
     isRightDraggingRef.current = isDragging
     if (isDragging) return
     const clampedRight = pendingRightRailPercentRef.current
     if (Math.abs(clampedRight - props.rightRailWidth) >= 1) {
-      props.setRightRailWidth(clampedRight)
+      commitRightRailWidth(clampedRight)
     }
-  }
+  }, [commitRightRailWidth, props.rightRailWidth])
+
+  const onToggleSidebar = useCallback(() => {
+    props.setIsSidebarOpen((previous) => !previous)
+  }, [props.setIsSidebarOpen])
+
+  const onDevLoadAllEarlier = useCallback(() => {
+    props.onDevLoadAllEarlier?.()
+  }, [props.onDevLoadAllEarlier])
+
+  const leftRailProps = useMemo(
+    () => ({
+      threads: props.sortedThreads,
+      selectedCwd: props.selectedCwd,
+      onSelectCwd: props.onSelectCwd,
+      activeThreadId: props.activeThreadId,
+      onSelectThread: props.onSelectThread,
+      onRenameThread: props.onRenameThread,
+      onArchiveThread: props.onArchiveThread,
+      onStartThread: props.onStartThread,
+      onStartThreadInCwd: props.onStartThreadInCwd,
+      hiddenGroupCwds: props.hiddenGroupCwds,
+      onHideThreadGroup: props.onHideThreadGroup,
+      isBusy: props.isThreadActionBusy,
+    }),
+    [
+      props.activeThreadId,
+      props.hiddenGroupCwds,
+      props.isThreadActionBusy,
+      props.onArchiveThread,
+      props.onHideThreadGroup,
+      props.onRenameThread,
+      props.onSelectCwd,
+      props.onSelectThread,
+      props.onStartThread,
+      props.onStartThreadInCwd,
+      props.selectedCwd,
+      props.sortedThreads,
+    ],
+  )
+
+  const transcriptPaneProps = useMemo(
+    () => ({
+      activeThread: props.activeThread,
+      activeThreadId: props.activeThreadId,
+      activeTurnId: props.activeTurnId,
+      composerLocked: props.composerLocked,
+      virtualizationEnabled: props.transcriptVirtualizationEnabled,
+      logs: props.logs,
+      inputText: props.inputText,
+      mode: props.mode,
+      onModeChange: props.onModeChange,
+      connectionStatus: props.connectionStatus,
+      onInputTextChange: props.onInputTextChange,
+      onSend: props.onSend,
+      onInterrupt: props.onInterrupt,
+      historyMore: props.historyMore,
+      historyLoading: props.historyLoading,
+      onLoadEarlier: props.onLoadEarlier,
+      devLoadAllActive: props.devLoadAllRunning === true,
+      isSending: props.isSending,
+      isInterrupting: props.isInterrupting,
+      lastRpcError: props.lastRpcError,
+    }),
+    [
+      props.activeThread,
+      props.activeThreadId,
+      props.activeTurnId,
+      props.composerLocked,
+      props.connectionStatus,
+      props.devLoadAllRunning,
+      props.historyLoading,
+      props.historyMore,
+      props.inputText,
+      props.isInterrupting,
+      props.isSending,
+      props.lastRpcError,
+      props.logs,
+      props.mode,
+      props.onInputTextChange,
+      props.onInterrupt,
+      props.onLoadEarlier,
+      props.onModeChange,
+      props.onSend,
+      props.transcriptVirtualizationEnabled,
+    ],
+  )
+
+  const inputApprovalDockProps = useMemo(
+    () => ({
+      input: props.selectedInput,
+      isAskOpen: props.isSelectedAskOpen,
+      askPageIndex: props.selectedAskPageIndex,
+      askDraftValues: props.selectedAskDraft,
+      submitStatus: props.submitStatus,
+      isSubmitting: props.isSubmittingInput,
+      onAskOpen: props.onAskOpen,
+      onAskDismiss: props.onAskDismiss,
+      onAskPageChange: props.onAskPageChange,
+      onAskDraftChange: props.onAskDraftChange,
+      onSubmitInput: props.onSubmitInput,
+    }),
+    [
+      props.isSelectedAskOpen,
+      props.isSubmittingInput,
+      props.onAskDismiss,
+      props.onAskDraftChange,
+      props.onAskOpen,
+      props.onAskPageChange,
+      props.onSubmitInput,
+      props.selectedAskDraft,
+      props.selectedAskPageIndex,
+      props.selectedInput,
+      props.submitStatus,
+    ],
+  )
+
+  const worktreeDiffPaneProps = useMemo(
+    () => ({
+      diffSnapshot: props.diffSnapshot,
+      onRefreshDiff: props.onRefreshDiff,
+      onRequestPatch: props.onRequestDiffPatch,
+      isRefreshingDiff: props.isRefreshingDiff,
+      showHeader: true as const,
+    }),
+    [
+      props.diffSnapshot,
+      props.isRefreshingDiff,
+      props.onRefreshDiff,
+      props.onRequestDiffPatch,
+    ],
+  )
 
   return (
     <div data-testid="app-shell" className="h-screen w-screen min-w-0 bg-sidebar overflow-hidden ui-text-base relative">
@@ -136,8 +280,8 @@ export function AppShell(props: AppShellProps) {
         className="h-full w-full"
       >
         <ResizablePanel
-          defaultSize={props.isSidebarOpen ? sidebarPercent : 0}
-          size={props.isSidebarOpen ? sidebarPercent : 0}
+          defaultSize={sidebarPanelSize}
+          size={sidebarPanelSize}
           minSize={props.isSidebarOpen ? sidebarMinPercent : 0}
           maxSize={props.isSidebarOpen ? sidebarMaxPercent : 0}
           onResize={onLeftResize}
@@ -150,20 +294,7 @@ export function AppShell(props: AppShellProps) {
               props.isSidebarOpen ? 'opacity-100' : 'opacity-0',
             )}
           >
-            <MemoLeftRail
-              threads={props.sortedThreads}
-              selectedCwd={props.selectedCwd}
-              onSelectCwd={props.onSelectCwd}
-              activeThreadId={props.activeThreadId}
-              onSelectThread={props.onSelectThread}
-              onRenameThread={props.onRenameThread}
-              onArchiveThread={props.onArchiveThread}
-              onStartThread={props.onStartThread}
-              onStartThreadInCwd={props.onStartThreadInCwd}
-              hiddenGroupCwds={props.hiddenGroupCwds}
-              onHideThreadGroup={props.onHideThreadGroup}
-              isBusy={props.isThreadActionBusy}
-            />
+            <MemoLeftRail {...leftRailProps} />
           </div>
         </ResizablePanel>
 
@@ -175,7 +306,7 @@ export function AppShell(props: AppShellProps) {
           onDragging={onLeftDragStateChange}
         />
 
-        <ResizablePanel defaultSize={100 - (props.isSidebarOpen ? sidebarPercent : 0)} minSize={35}>
+        <ResizablePanel defaultSize={centerDefaultSize} minSize={35}>
           <div
             className={cn(
               'h-full min-w-0 flex flex-col',
@@ -191,7 +322,7 @@ export function AppShell(props: AppShellProps) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => props.setIsSidebarOpen(!props.isSidebarOpen)}
+                    onClick={onToggleSidebar}
                     aria-label="Toggle sidebar"
                   >
                     <PanelLeft className="h-4 w-4" />
@@ -208,8 +339,8 @@ export function AppShell(props: AppShellProps) {
                       size="sm"
                       data-testid="header-dev-load-all-earlier"
                       className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground"
-                      onClick={() => props.onDevLoadAllEarlier?.()}
-                      disabled={!props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning}
+                      onClick={onDevLoadAllEarlier}
+                      disabled={devLoadAllDisabled}
                     >
                       {props.devLoadAllRunning ? 'Loading all earlier...' : 'Load all earlier (Dev)'}
                     </Button>
@@ -237,41 +368,8 @@ export function AppShell(props: AppShellProps) {
                       </Alert>
                     </div>
                   ) : null}
-                  <MemoTranscriptPane
-                    activeThread={props.activeThread}
-                    activeThreadId={props.activeThreadId}
-                    activeTurnId={props.activeTurnId}
-                    composerLocked={props.composerLocked}
-                    virtualizationEnabled={props.transcriptVirtualizationEnabled}
-                    logs={props.logs}
-                    inputText={props.inputText}
-                    mode={props.mode}
-                    onModeChange={props.onModeChange}
-                    connectionStatus={props.connectionStatus}
-                    onInputTextChange={props.onInputTextChange}
-                    onSend={props.onSend}
-                    onInterrupt={props.onInterrupt}
-                    historyMore={props.historyMore}
-                    historyLoading={props.historyLoading}
-                    onLoadEarlier={props.onLoadEarlier}
-                    devLoadAllActive={props.devLoadAllRunning === true}
-                    isSending={props.isSending}
-                    isInterrupting={props.isInterrupting}
-                    lastRpcError={props.lastRpcError}
-                  />
-                  <MemoInputApprovalDock
-                    input={props.selectedInput}
-                    isAskOpen={props.isSelectedAskOpen}
-                    askPageIndex={props.selectedAskPageIndex}
-                    askDraftValues={props.selectedAskDraft}
-                    submitStatus={props.submitStatus}
-                    isSubmitting={props.isSubmittingInput}
-                    onAskOpen={props.onAskOpen}
-                    onAskDismiss={props.onAskDismiss}
-                    onAskPageChange={props.onAskPageChange}
-                    onAskDraftChange={props.onAskDraftChange}
-                    onSubmitInput={props.onSubmitInput}
-                  />
+                  <MemoTranscriptPane {...transcriptPaneProps} />
+                  <MemoInputApprovalDock {...inputApprovalDockProps} />
                 </div>
               </ResizablePanel>
 
@@ -290,13 +388,7 @@ export function AppShell(props: AppShellProps) {
                   data-testid="right-rail"
                   className="h-full min-w-0 bg-background border-l border-border/70 overflow-hidden overflow-x-hidden"
                 >
-                  <MemoWorktreeDiffPane
-                    diffSnapshot={props.diffSnapshot}
-                    onRefreshDiff={props.onRefreshDiff}
-                    onRequestPatch={props.onRequestDiffPatch}
-                    isRefreshingDiff={props.isRefreshingDiff}
-                    showHeader
-                  />
+                  <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>
