@@ -74,7 +74,9 @@ const OPENAI_MODEL_METADATA_BY_PREFIX: Readonly<Record<string, OpenAIModelMetada
   },
 }
 
-const OPENAI_MODEL_METADATA_PREFIXES = Object.keys(OPENAI_MODEL_METADATA_BY_PREFIX)
+const OPENAI_MODEL_METADATA_PREFIXES = Object.keys(OPENAI_MODEL_METADATA_BY_PREFIX).sort(
+  (left, right) => right.length - left.length,
+)
 const OPENAI_DEFAULT_MODEL_IDS = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'] as const
 
 function getOpenAIModelMetadata(model: string): OpenAIModelMetadata | undefined {

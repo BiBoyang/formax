@@ -426,6 +426,13 @@ describe('inferModelMetadata', () => {
       supports_vision: true,
       supports_function_calling: true,
     })
+    expect(inferModelMetadata({ provider: 'openai', model: 'gpt-4-turbo-legacy' })).toEqual({
+      max_tokens: 4096,
+      contextWindowTokens: 128000,
+      supports_reasoning_effort: false,
+      supports_vision: true,
+      supports_function_calling: true,
+    })
   })
 
   it('returns undefined for unsupported providers or unknown models', () => {
