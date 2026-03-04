@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type SetStateAction } from 'react'
 import { appReducer, initialAppState } from '../store'
 import type { RpcNotification, TranscriptItem } from '../types'
 import type { RpcClientQueueMetrics } from '../rpcClient'
@@ -106,8 +106,41 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
   const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
-  const setModeStable = useCallback((next: ReplMode) => {
-    setMode((previous) => (previous === next ? previous : next))
+  const setInputTextStable = useCallback((next: SetStateAction<string>) => {
+    setInputText((previous) => {
+      const resolved = typeof next === 'function' ? next(previous) : next
+      return resolved === previous ? previous : resolved
+    })
+  }, [])
+  const setIsThreadActionBusyStable = useCallback((next: boolean) => {
+    setIsThreadActionBusy((previous) => (previous === next ? previous : next))
+  }, [])
+  const setIsSendingTurnStable = useCallback((next: boolean) => {
+    setIsSendingTurn((previous) => (previous === next ? previous : next))
+  }, [])
+  const setIsInterruptingTurnStable = useCallback((next: boolean) => {
+    setIsInterruptingTurn((previous) => (previous === next ? previous : next))
+  }, [])
+  const setIsSubmittingInputStable = useCallback((next: boolean) => {
+    setIsSubmittingInput((previous) => (previous === next ? previous : next))
+  }, [])
+  const setIsRefreshingDiffStable = useCallback((next: boolean) => {
+    setIsRefreshingDiff((previous) => (previous === next ? previous : next))
+  }, [])
+  const setDevLoadAllRequestedStable = useCallback((next: boolean) => {
+    setDevLoadAllRequested((previous) => (previous === next ? previous : next))
+  }, [])
+  const setDevLoadAllBootstrapAttemptsStable = useCallback((next: number) => {
+    setDevLoadAllBootstrapAttempts((previous) => (previous === next ? previous : next))
+  }, [])
+  const setDevLoadAllSawHistoryLoadingStable = useCallback((next: boolean) => {
+    setDevLoadAllSawHistoryLoading((previous) => (previous === next ? previous : next))
+  }, [])
+  const setModeStable = useCallback((next: SetStateAction<ReplMode>) => {
+    setMode((previous) => {
+      const resolved = typeof next === 'function' ? next(previous) : next
+      return resolved === previous ? previous : resolved
+    })
   }, [])
   const setSelectedCwdStable = useCallback((next: string | null) => {
     setSelectedCwd((previous) => (previous === next ? previous : next))
@@ -320,7 +353,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         logsByThreadIdRef,
         stateLogsRef,
         seenStaleInputIdRef,
-        setIsRefreshingDiff,
+        setIsRefreshingDiff: setIsRefreshingDiffStable,
         setDiffSnapshot,
         setHistoryLoadingByThreadId,
         setHistoryCursorByThreadId,
@@ -334,7 +367,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
           return threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
         },
       }),
-    [log, request, setHiddenGroupCwdsStable],
+    [log, request, setHiddenGroupCwdsStable, setIsRefreshingDiffStable],
   )
 
   const hideThreadGroup = useCallback(
@@ -377,7 +410,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
             createInitialThreadRuntimeState,
             shouldProcessSequencedNotification,
             dispatch,
-            setMode,
+            setMode: setModeStable,
             cacheThreadMode,
             isReplMode,
             refreshThreads,
@@ -399,6 +432,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       log,
       refreshThreads,
       refreshWorkspaceDiff,
+      setModeStable,
       shouldProcessSequencedNotification,
     ],
   )
@@ -417,7 +451,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         stateLogsRef,
         transcriptSourceByThreadRef,
         dispatch,
-        setMode,
+        setMode: setModeStable,
         cacheThreadMode,
         setThreadTranscriptSource,
         clearThreadHistoryCursor,
@@ -435,6 +469,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       handleNotification,
       log,
       parseThreadReplayResponse,
+      setModeStable,
       setThreadTranscriptSource,
       syncPendingInputsFromReplayState,
     ],
@@ -513,7 +548,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         runtimeStateByThreadRef,
         replayCursorByThreadRef,
         activeThreadIdRef,
-        setIsThreadActionBusy,
+        setIsThreadActionBusy: setIsThreadActionBusyStable,
         replayThreadEvents,
         resumeThreadInputs,
         refreshThreads,
@@ -536,6 +571,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       resumeThreadInputs,
       pruneThreadScopedRuntimeRefs,
       loadEarlierHistoryAction,
+      setIsThreadActionBusyStable,
       setModeStable,
       setSelectedCwdStable,
       threadActionsState,
@@ -548,21 +584,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   useEffect(() => {
     if (!noticeMessage) return
-    const timer = window.setTimeout(() => setNoticeMessage(null), 2600)
+    const timer = window.setTimeout(() => setNoticeMessageStable(null), 2600)
     return () => window.clearTimeout(timer)
-  }, [noticeMessage])
+  }, [noticeMessage, setNoticeMessageStable])
 
   const resetDevLoadAllState = useCallback(() => {
-    setDevLoadAllRequested((previous) => (previous ? false : previous))
-    setDevLoadAllBootstrapAttempts((previous) => (previous === 0 ? previous : 0))
-    setDevLoadAllSawHistoryLoading((previous) => (previous ? false : previous))
-  }, [])
+    setDevLoadAllRequestedStable(false)
+    setDevLoadAllBootstrapAttemptsStable(0)
+    setDevLoadAllSawHistoryLoadingStable(false)
+  }, [setDevLoadAllBootstrapAttemptsStable, setDevLoadAllRequestedStable, setDevLoadAllSawHistoryLoadingStable])
 
   const startDevLoadAllState = useCallback(() => {
-    setDevLoadAllRequested((previous) => (previous ? previous : true))
-    setDevLoadAllBootstrapAttempts((previous) => (previous === 0 ? previous : 0))
-    setDevLoadAllSawHistoryLoading((previous) => (previous ? false : previous))
-  }, [])
+    setDevLoadAllRequestedStable(true)
+    setDevLoadAllBootstrapAttemptsStable(0)
+    setDevLoadAllSawHistoryLoadingStable(false)
+  }, [setDevLoadAllBootstrapAttemptsStable, setDevLoadAllRequestedStable, setDevLoadAllSawHistoryLoadingStable])
 
   useEffect(() => {
     resetDevLoadAllState()
@@ -572,7 +608,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     () =>
       createComposerActions({
         inputText,
-        setInputText,
+        setInputText: setInputTextStable,
         isSendingTurn,
         isInterruptingTurn,
         isSubmittingInput,
@@ -588,9 +624,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         dispatch,
         log,
         commandByTurnRef,
-        setIsSendingTurn,
-        setIsInterruptingTurn,
-        setIsSubmittingInput,
+        setIsSendingTurn: setIsSendingTurnStable,
+        setIsInterruptingTurn: setIsInterruptingTurnStable,
+        setIsSubmittingInput: setIsSubmittingInputStable,
         setSubmitStatusByInputId,
         toRpcError,
         nowMs: runtimePorts.nowMs,
@@ -605,6 +641,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       mode,
       request,
       runtimePorts.nowMs,
+      setInputTextStable,
+      setIsInterruptingTurnStable,
+      setIsSendingTurnStable,
+      setIsSubmittingInputStable,
       startThread,
       state.activeThreadId,
       state.activeTurnId,
@@ -634,7 +674,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
     if (activeHistoryLoading) {
       if (!devLoadAllSawHistoryLoading) {
-        setDevLoadAllSawHistoryLoading(true)
+        setDevLoadAllSawHistoryLoadingStable(true)
       }
       return
     }
@@ -645,13 +685,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     }
 
     if (devLoadAllBootstrapAttempts === 0) {
-      setDevLoadAllBootstrapAttempts(1)
+      setDevLoadAllBootstrapAttemptsStable(1)
       runDevLoadAllStep()
       return
     }
 
     if (devLoadAllBootstrapAttempts === 1 && devLoadAllSawHistoryLoading) {
-      setDevLoadAllBootstrapAttempts(2)
+      setDevLoadAllBootstrapAttemptsStable(2)
       runDevLoadAllStep()
       return
     }
@@ -666,6 +706,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyMore,
     runDevLoadAllStep,
     state.activeThreadId,
+    setDevLoadAllBootstrapAttemptsStable,
+    setDevLoadAllSawHistoryLoadingStable,
     resetDevLoadAllState,
   ])
 
@@ -806,7 +848,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     inputText,
     mode,
     onModeChange: composerUiHandlers.onModeChange,
-    onInputTextChange: setInputText,
+    onInputTextChange: setInputTextStable,
     onSend: composerUiHandlers.onSend,
     onInterrupt: composerUiHandlers.onInterrupt,
     historyMore,
