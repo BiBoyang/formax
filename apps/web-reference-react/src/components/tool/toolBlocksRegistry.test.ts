@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptItem } from '../../types'
 import { buildToolUiBlocks } from './toolBlocksRegistry'
-import { formatToolInputAsParamsText } from '../../../../../src/features/tools/presentation/paramsText'
+import { formatToolInputAsParamsText } from '../../parity/tools/paramsText'
 
 function makeToolItem(
   overrides: Partial<Extract<TranscriptItem, { kind: 'tool_call' }>> = {},

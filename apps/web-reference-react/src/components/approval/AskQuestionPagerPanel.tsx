@@ -7,7 +7,7 @@ import {
   buildAskAnswersFromDraft,
   fieldIdForAskQuestion,
   type PresentationAskQuestion,
-} from '../../../../../src/features/tools/presentation/askQuestions'
+} from '../../parity/tools/askQuestions'
 
 type AskQuestionPagerPanelProps = {
   inputId: string

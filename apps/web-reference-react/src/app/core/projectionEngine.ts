@@ -5,7 +5,7 @@ import {
   type TranscriptProjectionState,
 } from '../../semantics'
 import { selectTurnSegments } from '../../semantics'
-import { selectToolViewModelFromSegment } from '../../../../../src/features/tools/presentation/toolViewModel'
+import { selectToolViewModelFromSegment } from '../../parity/tools/toolViewModel'
 import type { TranscriptItem } from '../../types'
 
 type ProjectionEngineState = {

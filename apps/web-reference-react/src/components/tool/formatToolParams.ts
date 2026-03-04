@@ -3,7 +3,7 @@ import {
   parseToolParamsText,
   stringifyToolParams as stringifySharedToolParams,
   type ToolParamDisplay,
-} from '../../../../../src/features/tools/presentation/paramsText'
+} from '../../parity/tools/paramsText'
 import { formatPathForToolDisplay } from './pathDisplay'
 
 const MAX_VALUE_LENGTH = 80

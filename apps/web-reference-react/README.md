@@ -108,5 +108,6 @@ It prints summary + samples to the browser console.
 - turn/start + turn/interrupt
 - streaming transcript notifications
 - pending input (`approval` / `ask_user_question`) and `turn/input/submit`
+- browser-safe parity adapters for tool presentation logic (`src/parity/tools/*`)
 
 This client is for protocol verification, not production UI.

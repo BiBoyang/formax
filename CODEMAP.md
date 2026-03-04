@@ -107,6 +107,7 @@ This file is a “where to change what” index for quickly navigating the codeb
   - Tool event normalizer: `apps/web-reference-react/src/toolEventNormalizer.ts`
   - Event cursor (eventId dedupe + replaySeq-first ordering): `apps/web-reference-react/src/turnEventCursor.ts`
   - Reducer integration points: `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/App.tsx`
+  - Browser-safe tool parity adapters: `apps/web-reference-react/src/parity/tools/*`
 
 ## Web Reference React Client
 - App package root (isolated deps/scripts): `apps/web-reference-react/package.json`
@@ -119,7 +120,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - UI shell/layout: `apps/web-reference-react/src/app/ui/AppShell.tsx`
 - Transcript + tool rendering: `apps/web-reference-react/src/components/TranscriptPane.tsx`, `apps/web-reference-react/src/components/tool/*`
 - Pending-input/approval UI: `apps/web-reference-react/src/components/InputApprovalDock.tsx`, `apps/web-reference-react/src/components/approval/*`
-- Web parity adapters + reducers: `apps/web-reference-react/src/toolEventNormalizer.ts`, `apps/web-reference-react/src/turnEventCursor.ts`, `apps/web-reference-react/src/store.ts`
+- Web parity adapters + reducers: `apps/web-reference-react/src/toolEventNormalizer.ts`, `apps/web-reference-react/src/turnEventCursor.ts`, `apps/web-reference-react/src/store.ts`, `apps/web-reference-react/src/parity/*`
 - E2E protocol/UI specs + rpc mock: `apps/web-reference-react/e2e/*.spec.js`, `apps/web-reference-react/e2e/helpers/mockRpc.js`
 
 ## Permissions / Approvals (Claude Code-style)

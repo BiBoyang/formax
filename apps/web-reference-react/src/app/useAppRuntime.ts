@@ -650,18 +650,68 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     eventCursorRef,
   })
 
+  const onRenameThread = useCallback(
+    (threadId: string, label: string) => {
+      void renameThread(threadId, label)
+    },
+    [renameThread],
+  )
+  const onArchiveThread = useCallback(
+    (threadId: string) => {
+      void archiveThread(threadId)
+    },
+    [archiveThread],
+  )
+  const onStartThread = useCallback(() => {
+    void startThread().catch(() => undefined)
+  }, [startThread])
+  const onStartThreadInCwd = useCallback(
+    (cwd: string) => {
+      void startThreadInCwd(cwd).catch(() => undefined)
+    },
+    [startThreadInCwd],
+  )
+  const onHideThreadGroup = useCallback(
+    (cwd: string) => {
+      void hideThreadGroup(cwd).catch(() => undefined)
+    },
+    [hideThreadGroup],
+  )
+  const onRuntimeModeChange = useCallback(
+    (nextMode: ReplMode) => {
+      setMode(nextMode)
+      cacheThreadMode(activeThreadIdRef.current, nextMode)
+    },
+    [cacheThreadMode],
+  )
+  const onInterrupt = useCallback(() => {
+    void interruptTurn().catch(() => undefined)
+  }, [interruptTurn])
+  const onLoadEarlier = useCallback(() => {
+    void loadEarlierHistory().catch(() => undefined)
+  }, [loadEarlierHistory])
+  const onSubmitInput = useCallback(
+    (inputId: string, answers: Record<string, string>) => {
+      void submitInputById(inputId, answers).catch(() => undefined)
+    },
+    [submitInputById],
+  )
+  const onRefreshDiff = useCallback(() => {
+    void refreshWorkspaceDiff().catch(() => undefined)
+  }, [refreshWorkspaceDiff])
+
   return {
     sortedThreads,
     selectedCwd,
     onSelectCwd: selectCwd,
     activeThreadId: state.activeThreadId,
     onSelectThread: selectThread,
-    onRenameThread: (threadId, label) => void renameThread(threadId, label),
-    onArchiveThread: (threadId) => void archiveThread(threadId),
-    onStartThread: () => void startThread().catch(() => undefined),
-    onStartThreadInCwd: (cwd) => void startThreadInCwd(cwd).catch(() => undefined),
+    onRenameThread,
+    onArchiveThread,
+    onStartThread,
+    onStartThreadInCwd,
     hiddenGroupCwds,
-    onHideThreadGroup: (cwd) => void hideThreadGroup(cwd).catch(() => undefined),
+    onHideThreadGroup,
     isThreadActionBusy,
     isSidebarOpen,
     setIsSidebarOpen,
@@ -678,16 +728,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     logs: activeLogs,
     inputText,
     mode,
-    onModeChange: (nextMode) => {
-      setMode(nextMode)
-      cacheThreadMode(activeThreadIdRef.current, nextMode)
-    },
+    onModeChange: onRuntimeModeChange,
     onInputTextChange: setInputText,
     onSend,
-    onInterrupt: () => void interruptTurn().catch(() => undefined),
+    onInterrupt,
     historyMore,
     historyLoading: activeHistoryLoading,
-    onLoadEarlier: () => void loadEarlierHistory().catch(() => undefined),
+    onLoadEarlier,
     devLoadAllEnabled: devRuntime,
     devLoadAllRunning: devLoadAllRequested,
     onDevLoadAllEarlier,
@@ -704,9 +751,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     onAskDismiss,
     onAskPageChange,
     onAskDraftChange,
-    onSubmitInput: (inputId, answers) => void submitInputById(inputId, answers).catch(() => undefined),
+    onSubmitInput,
     diffSnapshot,
-    onRefreshDiff: () => void refreshWorkspaceDiff().catch(() => undefined),
+    onRefreshDiff,
     onRequestDiffPatch: (filePath) => requestDiffFilePatch(filePath),
     isRefreshingDiff,
     noticeMessage,

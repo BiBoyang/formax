@@ -1,22 +1,22 @@
 import type { ToolCallItem, ToolDisplayDensity, ToolStatus, ToolUiBlock, ToolUiTodoItemStatus } from './toolUiBlocksTypes'
 import { formatToolParams, stringifyToolParams } from './formatToolParams'
 import { sanitizeToolTextPaths } from './pathDisplay'
-import { parseAskAnswerLines } from '../../../../../src/features/tools/presentation/askAnswers'
+import { parseAskAnswerLines } from '../../parity/tools/askAnswers'
 import {
   parseJsonArrayLength,
   parseToolParamsText,
-} from '../../../../../src/features/tools/presentation/paramsText'
+} from '../../parity/tools/paramsText'
 import {
   formatQuestionCountLabel,
   summarizeAskUserQuestionStatus,
   summarizePlanModeStatus,
   summarizeTodoWriteStatus,
-} from '../../../../../src/features/tools/presentation/labels'
+} from '../../parity/tools/labels'
 import {
   getToolPresentationSemantic,
   type ToolPresentationSemantic,
-} from '../../../../../src/features/tools/presentation/toolSemantics'
-import { resolveInteractivePromptModel } from '../../../../../src/features/tools/presentation/interactivePrompts'
+} from '../../parity/tools/toolSemantics'
+import { resolveInteractivePromptModel } from '../../parity/tools/interactivePrompts'
 
 type ToolRenderContext = {
   cwd?: string

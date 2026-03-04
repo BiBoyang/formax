@@ -2,7 +2,7 @@ import type { PendingInput } from '../types'
 import { AskQuestionPagerPanel } from './approval/AskQuestionPagerPanel'
 import { ApprovalSubmitPanel } from './approval/ApprovalSubmitPanel'
 import { Button } from './ui/button'
-import { normalizeAskQuestions } from '../../../../src/features/tools/presentation/askQuestions'
+import { normalizeAskQuestions } from '../parity/tools/askQuestions'
 
 type SubmitUiStatus = {
   status: string

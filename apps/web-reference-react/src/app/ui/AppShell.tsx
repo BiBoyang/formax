@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { memo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
@@ -14,6 +14,11 @@ import type { ThreadViewModel } from '../core/threadViewModel'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
+
+const MemoLeftRail = memo(LeftRail)
+const MemoTranscriptPane = memo(TranscriptPane)
+const MemoInputApprovalDock = memo(InputApprovalDock)
+const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
 
 export type AppShellProps = {
   sortedThreads: ThreadViewModel[]
@@ -145,7 +150,7 @@ export function AppShell(props: AppShellProps) {
               props.isSidebarOpen ? 'opacity-100' : 'opacity-0',
             )}
           >
-            <LeftRail
+            <MemoLeftRail
               threads={props.sortedThreads}
               selectedCwd={props.selectedCwd}
               onSelectCwd={props.onSelectCwd}
@@ -232,7 +237,7 @@ export function AppShell(props: AppShellProps) {
                       </Alert>
                     </div>
                   ) : null}
-                  <TranscriptPane
+                  <MemoTranscriptPane
                     activeThread={props.activeThread}
                     activeThreadId={props.activeThreadId}
                     activeTurnId={props.activeTurnId}
@@ -254,7 +259,7 @@ export function AppShell(props: AppShellProps) {
                     isInterrupting={props.isInterrupting}
                     lastRpcError={props.lastRpcError}
                   />
-                  <InputApprovalDock
+                  <MemoInputApprovalDock
                     input={props.selectedInput}
                     isAskOpen={props.isSelectedAskOpen}
                     askPageIndex={props.selectedAskPageIndex}
@@ -285,7 +290,7 @@ export function AppShell(props: AppShellProps) {
                   data-testid="right-rail"
                   className="h-full min-w-0 bg-background border-l border-border/70 overflow-hidden overflow-x-hidden"
                 >
-                  <WorktreeDiffPane
+                  <MemoWorktreeDiffPane
                     diffSnapshot={props.diffSnapshot}
                     onRefreshDiff={props.onRefreshDiff}
                     onRequestPatch={props.onRequestDiffPatch}
