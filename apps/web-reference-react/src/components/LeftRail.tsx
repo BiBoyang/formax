@@ -73,10 +73,10 @@ function writeOpenByCwdToStorage(openByCwd: Record<string, boolean>): void {
   }
 }
 
-function relativeTime(updatedAt: string): string {
+function relativeTime(updatedAt: string, nowMs: number): string {
   const ts = Date.parse(updatedAt)
   if (!Number.isFinite(ts)) return '--'
-  const minutes = Math.max(1, Math.floor((Date.now() - ts) / 60_000))
+  const minutes = Math.max(1, Math.floor((nowMs - ts) / 60_000))
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h`
@@ -84,7 +84,19 @@ function relativeTime(updatedAt: string): string {
   return `${days}d`
 }
 
-function groupThreadsByCwd(threads: ThreadViewModel[]): Array<{ cwd: string; threads: ThreadViewModel[] }> {
+type LeftRailThreadGroup = {
+  cwd: string
+  folderName: string
+  threads: ThreadViewModel[]
+  sortLabel: string
+  sortPath: string
+}
+
+function normalizeCwdPath(cwd: string): string {
+  return cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function groupThreadsByCwd(threads: ThreadViewModel[]): LeftRailThreadGroup[] {
   const groupMap = new Map<string, ThreadViewModel[]>()
   for (const thread of threads) {
     const cwd = thread.cwd
@@ -94,26 +106,29 @@ function groupThreadsByCwd(threads: ThreadViewModel[]): Array<{ cwd: string; thr
     }
     groupMap.get(cwd)?.push(thread)
   }
-  const sortedCwds = Array.from(groupMap.keys()).sort((a, b) => compareCwdGroupOrder(a, b))
-  return sortedCwds.map((cwd) => ({ cwd, threads: groupMap.get(cwd) ?? [] }))
+  const groups: LeftRailThreadGroup[] = Array.from(groupMap.entries()).map(([cwd, grouped]) => {
+    const folderName = cwdLabel(cwd)
+    return {
+      cwd,
+      folderName,
+      threads: grouped,
+      sortLabel: folderName.toLowerCase(),
+      sortPath: normalizeCwdPath(cwd).toLowerCase(),
+    }
+  })
+  groups.sort((a, b) => {
+    if (a.sortLabel !== b.sortLabel) return a.sortLabel < b.sortLabel ? -1 : 1
+    if (a.sortPath === b.sortPath) return 0
+    return a.sortPath < b.sortPath ? -1 : 1
+  })
+  return groups
 }
 
 function cwdLabel(cwd: string): string {
-  const normalized = cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+  const normalized = normalizeCwdPath(cwd)
   if (!normalized) return cwd
   const parts = normalized.split('/').filter(Boolean)
   return parts.length > 0 ? parts[parts.length - 1] : normalized
-}
-
-function compareCwdGroupOrder(aCwd: string, bCwd: string): number {
-  const aLabel = cwdLabel(aCwd).toLowerCase()
-  const bLabel = cwdLabel(bCwd).toLowerCase()
-  if (aLabel !== bLabel) return aLabel < bLabel ? -1 : 1
-
-  const aPath = aCwd.replace(/\\/g, '/').toLowerCase()
-  const bPath = bCwd.replace(/\\/g, '/').toLowerCase()
-  if (aPath === bPath) return 0
-  return aPath < bPath ? -1 : 1
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -145,6 +160,7 @@ export function LeftRail(props: LeftRailProps) {
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
+  const nowMs = Date.now()
   const visibleGroupedThreads = useMemo(
     () => groupedThreads.filter((group) => !hiddenGroupCwdSet.has(group.cwd)),
     [groupedThreads, hiddenGroupCwdSet],
@@ -258,7 +274,7 @@ export function LeftRail(props: LeftRailProps) {
               {visibleGroupedThreads.map((group) => {
                 const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
-                const folderName = cwdLabel(group.cwd)
+                const folderName = group.folderName
                 const canRemoveGroup = !isSelectedGroup || visibleGroupedThreads.length > 1
                 return (
                   <Collapsible
@@ -366,7 +382,7 @@ export function LeftRail(props: LeftRailProps) {
                               >
                                 <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
                                 <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
-                                  {relativeTime(thread.updatedAt)}
+                                  {relativeTime(thread.updatedAt, nowMs)}
                                 </span>
                               </Button>
                               </div>
