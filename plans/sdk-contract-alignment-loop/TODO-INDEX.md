@@ -8,7 +8,7 @@
 
 ## 当前待办
 
-- [ ] `MOD-06`：复用核心 metadata 推导构建 OpenAI 默认模型列表，收敛 `getDefaultModels` 与 metadata 映射重复定义。
+- [ ] `MOD-07`：补充 metadata 前缀匹配优先级回归（确保 `gpt-4o*` 不被 `gpt-4*` 误匹配），防止能力字段回退。
 
 ## 再生规则（当“当前待办”为空时）
 

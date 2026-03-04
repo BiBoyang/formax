@@ -75,6 +75,7 @@ const OPENAI_MODEL_METADATA_BY_PREFIX: Readonly<Record<string, OpenAIModelMetada
 }
 
 const OPENAI_MODEL_METADATA_PREFIXES = Object.keys(OPENAI_MODEL_METADATA_BY_PREFIX)
+const OPENAI_DEFAULT_MODEL_IDS = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'] as const
 
 function getOpenAIModelMetadata(model: string): OpenAIModelMetadata | undefined {
   const modelId = String(model || '').trim().toLowerCase()
@@ -112,6 +113,19 @@ export function inferModelReasoningEffortSupport(args: {
   model: string
 }): boolean | undefined {
   return inferModelMetadata(args)?.supports_reasoning_effort
+}
+
+function buildOpenAIDefaultModel(model: string): ModelInfo {
+  const metadata = inferModelMetadata({ provider: 'openai', model })
+  return {
+    model,
+    provider: 'openai',
+    max_tokens: metadata?.max_tokens ?? 8192,
+    contextWindowTokens: metadata?.contextWindowTokens,
+    supports_reasoning_effort: metadata?.supports_reasoning_effort ?? false,
+    supports_vision: metadata?.supports_vision ?? (model.includes('gpt-4o') || model.includes('gpt-4-turbo')),
+    supports_function_calling: metadata?.supports_function_calling ?? true,
+  }
 }
 
 /**
@@ -298,44 +312,7 @@ export async function fetchOpenAIModels(
 
     if (models.length === 0) {
       // Fallback to common models if API doesn't return any
-      return [
-        {
-          model: 'gpt-4o',
-          provider: 'openai',
-          max_tokens: 16384,
-          contextWindowTokens: 128000,
-          supports_reasoning_effort: false,
-          supports_vision: true,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-4-turbo',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 128000,
-          supports_reasoning_effort: false,
-          supports_vision: true,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-4',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 8192,
-          supports_reasoning_effort: false,
-          supports_vision: false,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-3.5-turbo',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 16385,
-          supports_reasoning_effort: false,
-          supports_vision: false,
-          supports_function_calling: true,
-        },
-      ]
+      return OPENAI_DEFAULT_MODEL_IDS.map((model) => buildOpenAIDefaultModel(model))
     }
 
     return models
@@ -504,44 +481,7 @@ export function getDefaultModels(provider: string): ModelInfo[] {
         },
       ]
     case 'openai':
-      return [
-        {
-          model: 'gpt-4o',
-          provider: 'openai',
-          max_tokens: 16384,
-          contextWindowTokens: 128000,
-          supports_reasoning_effort: false,
-          supports_vision: true,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-4-turbo',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 128000,
-          supports_reasoning_effort: false,
-          supports_vision: true,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-4',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 8192,
-          supports_reasoning_effort: false,
-          supports_vision: false,
-          supports_function_calling: true,
-        },
-        {
-          model: 'gpt-3.5-turbo',
-          provider: 'openai',
-          max_tokens: 4096,
-          contextWindowTokens: 16385,
-          supports_reasoning_effort: false,
-          supports_vision: false,
-          supports_function_calling: true,
-        },
-      ]
+      return OPENAI_DEFAULT_MODEL_IDS.map((model) => buildOpenAIDefaultModel(model))
     default:
       return []
   }

@@ -374,6 +374,25 @@ describe('getDefaultModels', () => {
     expect(models.some((m) => m.model === 'gpt-4o')).toBe(true)
   })
 
+  it('keeps openai defaults aligned with inferred metadata', () => {
+    const models = getDefaultModels('openai')
+    const byId = new Map(models.map((model) => [model.model, model] as const))
+    expect(byId.get('gpt-4o')).toMatchObject({
+      max_tokens: 16384,
+      contextWindowTokens: 128000,
+      supports_vision: true,
+      supports_function_calling: true,
+      supports_reasoning_effort: false,
+    })
+    expect(byId.get('gpt-4')).toMatchObject({
+      max_tokens: 4096,
+      contextWindowTokens: 8192,
+      supports_vision: false,
+      supports_function_calling: true,
+      supports_reasoning_effort: false,
+    })
+  })
+
   it('returns an empty array for unknown provider', () => {
     expect(getDefaultModels('unknown')).toEqual([])
   })
